@@ -125,8 +125,7 @@ https://www.mongodb.com/docs/manual/tutorial/convert-standalone-to-replica-set/
 >
 > If on Windows mongosh is not recognized, make sure the MongoDB Shell is in PATH or use the full path to mongosh.exe.
 > 
-> 
-> Now, in the Mongo shell (mongosh), initialize the replica set:
+> ### Now, in the Mongo shell (mongosh), initialize the replica set:
 >
 > Run:
 >
