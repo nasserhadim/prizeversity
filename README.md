@@ -150,6 +150,31 @@ https://www.mongodb.com/docs/manual/tutorial/convert-standalone-to-replica-set/
 > and some logs in the mongod window indicating that the replica set is starting.
 > 
 > [TROUBLESHOOTING] If you get something like this instead `MongoServerError[NoReplicationEnabled]: This node was not started with replication enabled.` Double check a mongodb service isnt running. Normally with the installation, a service may have been automatically started on port 27017, which will conflict! So the service MUST be stopped before initializing the replica set.
+> 
+> [TROUBLESHOOTING] Usually with a single node, election is almost instant. But occasionally you might see a brief “SECONDARY” prompt before it transitions to PRIMARY. When the shell shows `[direct: secondary]`, it just means the shell believes it’s directly connected to a node that is currently acting as a SECONDARY.
+> Try waiting a few seconds, then `rs.status()` again.
+> 
+> ### [TROUBLESHOOTING] Possible Reasons It’s Still Secondary
+> - If MongoDB sees itself as 127.0.0.1:27017 but the config says localhost:27017, it can prevent it from recognizing itself.
+> 
+> - Or vice versa: if you used "localhost" to start mongod but the config uses "127.0.0.1".
+> 
+> - On Windows, sometimes "DESKTOP-XYZ:27017" (your machine’s hostname) can appear.
+> 
+> Sometimes the simplest fix is to re-initialize with a clean config specifying only one member, explicitly matching how you started mongod. In the shell, do:
+> 
+> ```
+> rs.initiate({
+>  _id: "rs0",
+>  members: [
+>    { _id: 0, host: "127.0.0.1:27017" }
+>  ]
+>})
+> ```
+> 
+> [Important]: Make sure the host value here matches how you actually started MongoDB. If you started it with `mongod --replSet rs0 --bind_ip 127.0.0.1 --port 27017`, then host: "127.0.0.1:27017" is correct.
+> 
+> If you used localhost, you can keep it as "localhost:27017". The key is to be consistent.
 
 2. Clone the Repo:
 
