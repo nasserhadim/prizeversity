@@ -71,6 +71,10 @@ prizeversity/
 https://www.mongodb.com/docs/manual/tutorial/convert-standalone-to-replica-set/ 
 
 > [WINDOWS INSTALLATION](https://www.mongodb.com/try/download/community)
+> 
+> Check installation by running `mongod --version`
+> 
+> If it's not recognized, check the environment variables path includes it. For example, if the MongoDB directory is located at C:\Program Files\MongoDB\Server\3.2\bin, add that path to the system's PATH (environment variables).
 >
 > [mongosh/mongodb shell INSTALLATION](https://www.mongodb.com/try/download/shell)
 
