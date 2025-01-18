@@ -110,6 +110,20 @@ https://www.mongodb.com/docs/manual/tutorial/convert-standalone-to-replica-set/
 > Tip: On Windows, just adapt the `--dbpath` path (e.g. `C:\data\db`). Also note that the command may have to be run as Administrator or specify the path in quotes if it has spaces.
 > 
 > Upon running this command, it should start mongod and log messages to the console. Keep this window open.
+>
+> ### Open Another Terminal & Connect via mongosh
+> 
+> Leave the first terminal running (where mongod is started).
+>
+> Open a new terminal window (or Command Prompt/PowerShell).
+> 
+> Run:
+> 
+> `mongosh`
+> 
+> This opens the MongoDB shell, connecting to `mongodb://localhost:27017` by default.
+>
+> If on Windows mongosh is not recognized, make sure the MongoDB Shell is in PATH or use the full path to mongosh.exe.
 
 2. Clone the Repo:
 
