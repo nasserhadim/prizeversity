@@ -241,12 +241,222 @@ npm run dev
 
 ```
 npm install -g pm2
-pm2 start index.js --name gamification-server
+pm2 start index.js --name prizeversity-server
 pm2 save
 pm2 startup
 ```
 
 > Then configure reverse proxy (NGINX/Apache) to forward traffic from port 80/443 to your Node server.
+>
+> ### On Windows:
+>
+> To install nginx/Windows, download the latest mainline version distribution zip (e.g. [nginx/Windows-1.27.3](https://nginx.org/download/nginx-1.27.3.zip)). Then unpack the distribution, go to the nginx-1.27.3 directory, and run nginx. Here is an example for the drive `C:` root directory:
+>
+> ```
+> cd c:\
+> unzip nginx-1.27.3.zip
+> cd nginx-1.27.3
+> start nginx
+> ```
+> 
+> Create a `cert` directory: 
+> 
+> ```
+> C:\nginx-1.27.3\conf\cert\
+> ```
+>
+> #### Generate an SSL/TLS Certificate
+> 
+> [Pre-Req] If you don't have OpenSSL in your system install it. [An easy way to do it](https://stackoverflow.com/a/51757939/8397835) without running into a risk of installing unknown software from 3rd party websites and risking entries of viruses, is by using the `openssl.exe` that comes inside Git for Windows installation, typically located here: 
+> 
+> ```
+> C:\Program Files\Git\usr\bin\
+> ```
+> 
+> Note: Add the bin path to SYSTEM environment variable to make it easily accessible from CMD/terminal.
+>
+> 
+> Run the command below to generate a self-signed certificate and key:
+> 
+> ```
+> openssl req -x509 -nodes -newkey rsa:2048 -keyout C:\nginx-1.27.3\conf\cert\localhost.key -out C:\nginx-1.27.3\conf\cert\localhost.crt -days 365
+> ```
+>
+> After running the command, you will be prompted to provide some information:
+> 
+> ```
+> Country Name (2 letter code): US
+> State or Province Name: MI
+> Locality Name: City Name
+> Organization Name: Organization
+> Organizational Unit Name: localhost
+> Common Name: localhost
+> Email Address: Email Address
+> ```
+>
+> This command will generate the localhost.key and localhost.crt files in the specified directory.
+> 
+> Move the `cert` folder to the root of the `C:/` drive, or any other location, but make sure it’s not placed inside the nginx folder.
+> 
+> #### Configure Nginx
+> 
+> Open the `C:\nginx-1.27.3\conf\nginx.conf` file and add the following code (inside the `http` block, before the end of the closing `}`. There's no need to edit any other lines, including the existing `server` ones, just simply add the code below within the `http` block as mentioned):
+> 
+> ```
+> server {
+>    listen 8000 ssl;
+>    listen [::]:8000 ssl;
+> 
+>    root /var/www/html;
+>    index index.html index.htm index.nginx-debian.html;
+>
+>    server_name localhost;
+>    
+>    ssl_certificate      C:\cert\localhost.crt;
+>    ssl_certificate_key  C:\cert\localhost.key;
+>
+>    ssl_session_cache    shared:SSL:1m;
+>    ssl_session_timeout  5m;
+>
+>    ssl_ciphers  HIGH:!aNULL:!MD5;
+>    ssl_prefer_server_ciphers  on;
+>        
+>    location / {
+>        proxy_set_header        Host $host:$server_port;
+>        proxy_set_header        X-Real-IP $remote_addr;
+>        proxy_set_header        X-Forwarded-For $proxy_add_x_forwarded_for;
+>        proxy_set_header        X-Forwarded-Proto $scheme; 
+>        proxy_set_header        Upgrade $http_upgrade;
+>        proxy_set_header        Connection "upgrade";
+>        proxy_pass              http://localhost:3000/;
+>    }
+> }
+> ```
+> 
+> #### Verify Nginx Configuration
+> 
+> Open a command prompt and navigate to the `C:\nginx-1.27.3` directory. To test the Nginx configuration, run the following command:
+>
+> ```
+> nginx -t
+> ```
+>
+> You should see the following output:
+> 
+> ```
+> nginx: the configuration file C:\nginx-1.27.3/conf/nginx.conf syntax is ok
+> nginx: configuration file C:\nginx-1.27.3/conf/nginx.conf test is successful
+> ```
+>
+> [TROUBLESHOOTING] If you get an error output like this, it means the port (i.e. `80`) may be occupied, e.g. by IIS for example.
+> ```
+> nginx: [emerg] bind() to 0.0.0.0:80 failed (10013: An attempt was made to access a socket in a way forbidden by its access permissions)
+> nginx: configuration file C:\nginx-1.27.3/conf/nginx.conf test failed
+> ```
+> 
+> [Run this command as administrator to free up port](https://stackoverflow.com/a/61668011/8397835) `80`:
+>
+> ```
+> netsh http add iplisten ipaddress=::
+> ```
+> 
+> Then try starting nginx again:
+> 
+> ```
+> nginx -t
+> ```
+> 
+> ### On Linux (Ubuntu/Debian):
+>
+> #### Install NGINX
+> 
+> ```
+> sudo apt-get update
+> sudo apt-get install nginx
+> ```
+> 
+> #### Allow HTTP/HTTPS in the firewall (if not enabled):
+> 
+> ```
+> sudo ufw allow 80
+> sudo ufw allow 443
+> ```
+>
+> #### Create/Edit an NGINX server block file. Typically on Ubuntu, would be something like this:
+> 
+> ```
+> sudo nano /etc/nginx/sites-available/myapp.conf
+> ```
+>
+> Then add something like:
+> 
+> server {
+    listen 80;
+    server_name yourdomain.com www.yourdomain.com;
+
+    # Redirect all HTTP to HTTPS
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name yourdomain.com www.yourdomain.com;
+
+    # SSL certificate files from Let's Encrypt or another CA
+    ssl_certificate     /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
+
+    location / {
+        proxy_pass         http://localhost:5000;   # Node server
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade $http_upgrade;
+        proxy_set_header   Connection 'upgrade';
+        proxy_set_header   Host $host;
+        proxy_set_header   X-Forwarded-For $remote_addr;
+    }
+}
+> ```
+> 
+> - `server_name`: replace with your actual domain name(s).
+> - `ssl_certificate` and `ssl_certificate_key`: if you have SSL from Let’s Encrypt (via certbot), the certs typically live in `/etc/letsencrypt/live/yourdomain.com/`.
+> - `proxy_pass http://localhost:5000`: your Node app runs on port `5000`. This can be any internal port.
+
+> #### Enable the site & reload NGINX:
+> 
+> On Ubuntu:
+> ```
+> sudo ln -s /etc/nginx/sites-available/myapp.conf /etc/nginx/sites-enabled/
+> sudo nginx -t  # check for syntax errors
+> sudo systemctl reload nginx
+> ```
+> 
+> NGINX should now listen on ports `80` and `443`.
+> 
+> Requests to `yourdomain.com` go to NGINX, which in turn proxies them to `http://localhost:5000/`.
+> 
+> #### Obtaining an SSL Certificate
+> 
+> A common choice is Let’s Encrypt (free, automated SSL). You can use `certbot` to generate and manage the certificate:
+> 
+> ##### Install certbot:
+> 
+> ```
+> sudo apt-get install certbot python3-certbot-nginx
+> ```
+> 
+> Run:
+> 
+> ```
+> sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
+> ```
+>
+> - Follow prompts to agree, provide an email, etc.
+> 
+> - certbot automatically edits your NGINX config to include SSL lines.
+> 
+> ###### Automatic Renewal:
+> 
+> `certbot` typically sets up a cron job or systemd timer to renew the certificate. You can verify with `sudo certbot renew --dry-run`.
 
 ## Client (React + Bootstrap)
 
