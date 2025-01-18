@@ -187,6 +187,24 @@ https://www.mongodb.com/docs/manual/tutorial/convert-standalone-to-replica-set/
 > [Important]: Make sure the host value here matches how you actually started MongoDB. If you started it with `mongod --replSet rs0 --bind_ip 127.0.0.1 --port 27017`, then host: "127.0.0.1:27017" is correct.
 > 
 > If you used localhost, you can keep it as "localhost:27017". The key is to be consistent.
+> 
+> ### Use the Replica Set Connection String
+> 
+> Now that there's a single-node replica set named `rs0`, include the replica set name in the connection string. For example:
+>
+> ```
+> mongodb://localhost:27017/myDatabase?replicaSet=rs0
+> ```
+> `myDatabase` can be any DB name desired.
+>
+> `?replicaSet=rs0` is crucial if the plan is to use transactions.
+> 
+> You can also specify this in your application’s `.env` file, for example:
+>
+> ```
+> MONGODB_URI=mongodb://localhost:27017/gamification?replicaSet=rs0
+> ```
+>
 
 2. Clone the Repo:
 
