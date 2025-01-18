@@ -151,6 +151,18 @@ https://www.mongodb.com/docs/manual/tutorial/convert-standalone-to-replica-set/
 > 
 > [TROUBLESHOOTING] If you get something like this instead `MongoServerError[NoReplicationEnabled]: This node was not started with replication enabled.` Double check a mongodb service isnt running. Normally with the installation, a service may have been automatically started on port 27017, which will conflict! So the service MUST be stopped before initializing the replica set.
 > 
+> ### Confirm Replica Set is Running
+> 
+> After `rs.initiate()`, your prompt in mongosh might change from `>` to something like `rs0 [primary] >`. This indicates you have a single-node replica set named `rs0`.
+> 
+> You can check the status with:
+>
+> ```
+> rs.status()
+> ```
+>
+> Look for `"myState" : 1` (meaning PRIMARY). If `"myState" : 1`, the node is a primary in the single-node replica set.
+> 
 > [TROUBLESHOOTING] Usually with a single node, election is almost instant. But occasionally you might see a brief “SECONDARY” prompt before it transitions to PRIMARY. When the shell shows `[direct: secondary]`, it just means the shell believes it’s directly connected to a node that is currently acting as a SECONDARY.
 > Try waiting a few seconds, then `rs.status()` again.
 > 
