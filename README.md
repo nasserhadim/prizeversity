@@ -70,8 +70,9 @@ prizeversity/
 1. Install MongoDB and ensure it’s running in a Replica Set if you want to use transactions (required for concurrency). For development, you can start a single-node replica set locally.
 https://www.mongodb.com/docs/manual/tutorial/convert-standalone-to-replica-set/ 
 
-> (WINDOWS INSTALLATION) https://www.mongodb.com/try/download/community
-> To install mogosh (mongodb shell): https://www.mongodb.com/try/download/shell
+> [WINDOWS INSTALLATION](https://www.mongodb.com/try/download/community)
+>
+> [mongosh/mongodb shell INSTALLATION](https://www.mongodb.com/try/download/shell)
 
 2. Clone the Repo:
 
@@ -88,7 +89,7 @@ cp .env.example .env
 nano .env
 ```
 
-### Fill in MONGODB_URI, SESSION_SECRET, OAuth credentials, etc.
+> Fill in MONGODB_URI, SESSION_SECRET, OAuth credentials, etc.
 
 4. Install Dependencies:
 
@@ -102,7 +103,7 @@ npm install
 npm run dev
 ```
 
-### This starts the server on port defined in .env (default 5000) with nodemon auto-reload.
+> This starts the server on port defined in .env (default 5000) with nodemon auto-reload.
 
 6. Production (example using PM2):
 
@@ -113,7 +114,7 @@ pm2 save
 pm2 startup
 ```
 
-### Then configure reverse proxy (NGINX/Apache) to forward traffic from port 80/443 to your Node server.
+> Then configure reverse proxy (NGINX/Apache) to forward traffic from port 80/443 to your Node server.
 
 ## Client (React + Bootstrap)
 
