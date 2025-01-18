@@ -77,6 +77,22 @@ https://www.mongodb.com/docs/manual/tutorial/convert-standalone-to-replica-set/
 > If it's not recognized, check the environment variables path includes it. For example, if the MongoDB directory is located at C:\Program Files\MongoDB\Server\3.2\bin, add that path to the system's PATH (environment variables).
 >
 > [mongosh/mongodb shell INSTALLATION](https://www.mongodb.com/try/download/shell)
+>
+> ## Create a Data Directory
+> MongoDB needs a data folder where it stores its database files. By default, MongoDB uses /data/db on Linux/macOS.
+> For example, on Linux/macOS:
+>
+> ```
+> mkdir -p /data/db
+> ```
+>
+> On Windows (in Command Prompt/PowerShell):
+>
+> ```
+> mkdir C:\data\db
+> ```
+>
+> NOTE: If a data directory already exists for MongoDB, skip this step or use that directory.
 
 2. Clone the Repo:
 
