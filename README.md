@@ -97,7 +97,7 @@ https://www.mongodb.com/docs/manual/tutorial/convert-standalone-to-replica-set/
 >
 > ### Start mongod with a Replica Set Name
 > 
-> We need to launch mongod (the MongoDB server process) with a replica set configuration. The simplest approach is specifying the --replSet option and pointing to the data directory:
+> We need to launch mongod (the MongoDB server process) with a replica set configuration. The simplest approach is specifying the `--replSet` option and pointing to the data directory:
 >
 > ```
 > mongod --dbpath "/data/db" --replSet "rs0"
