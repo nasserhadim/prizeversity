@@ -1,5 +1,6 @@
 # prizeversity
 # Folder Structure
+```
 prizeversity/
    ├── server/
    │    ├── config/
@@ -61,6 +62,7 @@ prizeversity/
         │    └── ...
         ├── .env.example
         └── package.json
+```
 
 # Setup Instructions:
 ## Server:
@@ -68,39 +70,48 @@ prizeversity/
 1. Install MongoDB and ensure it’s running in a Replica Set if you want to use transactions (required for concurrency). For development, you can start a single-node replica set locally.
 https://www.mongodb.com/docs/manual/tutorial/convert-standalone-to-replica-set/ 
 
-(WINDOWS INSTALLATION) https://www.mongodb.com/try/download/community
-
-To install mogosh (mongodb shell): https://www.mongodb.com/try/download/shell
+> (WINDOWS INSTALLATION) https://www.mongodb.com/try/download/community
+> To install mogosh (mongodb shell): https://www.mongodb.com/try/download/shell
 
 2. Clone the Repo:
 
+```
 git clone https://github.com/nasserhadim/prizeversity.git
 
 cd prizeversity/server
+```
 
 3. Create an .env file from .env.example:
 
+```
 cp .env.example .env
 nano .env
+```
 
 ### Fill in MONGODB_URI, SESSION_SECRET, OAuth credentials, etc.
 
 4. Install Dependencies:
 
+```
 npm install
+```
 
 5. Run Dev Server (for testing):
 
+```
 npm run dev
+```
 
 ### This starts the server on port defined in .env (default 5000) with nodemon auto-reload.
 
 6. Production (example using PM2):
 
+```
 npm install -g pm2
 pm2 start index.js --name gamification-server
 pm2 save
 pm2 startup
+```
 
 ### Then configure reverse proxy (NGINX/Apache) to forward traffic from port 80/443 to your Node server.
 
@@ -108,13 +119,15 @@ pm2 startup
 
 1. Installation
 
+```
 cd ../client
 cp .env.example .env
 npm install
 npm start
+```
 
-### The dev server runs on http://localhost:3000.
-### Adjust .env if you need to set a custom API URL.
+- The dev server runs on http://localhost:3000.
+- Adjust .env if you need to set a custom API URL.
 
 ## When deploying to production:
 
