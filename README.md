@@ -78,7 +78,7 @@ https://www.mongodb.com/docs/manual/tutorial/convert-standalone-to-replica-set/
 >
 > [mongosh/mongodb shell INSTALLATION](https://www.mongodb.com/try/download/shell)
 >
-> ## Create a Data Directory
+> ### Create a Data Directory
 > MongoDB needs a data folder where it stores its database files. By default, MongoDB uses /data/db on Linux/macOS.
 > 
 > For example, on Linux/macOS:
@@ -94,6 +94,22 @@ https://www.mongodb.com/docs/manual/tutorial/convert-standalone-to-replica-set/
 > ```
 >
 > NOTE: If a data directory already exists for MongoDB, skip this step or use that directory.
+>
+> ### Start mongod with a Replica Set Name
+> 
+> We need to launch mongod (the MongoDB server process) with a replica set configuration. The simplest approach is specifying the --replSet option and pointing to the data directory:
+>
+> ```
+> mongod --dbpath "/data/db" --replSet "rs0"
+> ```
+> 
+> `--dbpath`: Path to MongoDB data directory.
+> 
+> `--replSet "rs0"`: Tells MongoDB we want to start this server as a member of a replica set named "rs0".
+> 
+> Tip: On Windows, just adapt the `--dbpath` path (e.g. `C:\data\db`). Also note that the command may have to be run as Administrator or specify the path in quotes if it has spaces.
+> 
+> Upon running this command, it should start mongod and log messages to the console. Keep this window open.
 
 2. Clone the Repo:
 
