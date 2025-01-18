@@ -199,10 +199,10 @@ https://www.mongodb.com/docs/manual/tutorial/convert-standalone-to-replica-set/
 >
 > `?replicaSet=rs0` is crucial if the plan is to use transactions.
 > 
-> You can also specify this in your application’s `.env` file, for example:
+> This may also be specified in the application’s `.env` file, for example:
 >
 > ```
-> MONGODB_URI=mongodb://localhost:27017/gamification?replicaSet=rs0
+> MONGODB_URI=mongodb://localhost:27017/prizeversity?replicaSet=rs0
 > ```
 >
 
