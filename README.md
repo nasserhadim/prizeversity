@@ -124,6 +124,28 @@ https://www.mongodb.com/docs/manual/tutorial/convert-standalone-to-replica-set/
 > This opens the MongoDB shell, connecting to `mongodb://localhost:27017` by default.
 >
 > If on Windows mongosh is not recognized, make sure the MongoDB Shell is in PATH or use the full path to mongosh.exe.
+> 
+> 
+> Now, in the Mongo shell (mongosh), initialize the replica set:
+>
+> Run:
+>
+> ```
+> rs.initiate()
+> ```
+> 
+> This is the simplest method. If successful, you’ll see something like:
+>
+> ```
+> {
+> "ok" : 1,
+> ...
+> }
+> ```
+> 
+> and some logs in the mongod window indicating that the replica set is starting.
+> 
+> [TROUBLESHOOTING] If you get something like this instead `MongoServerError[NoReplicationEnabled]: This node was not started with replication enabled.` Double check a mongodb service isnt running. Normally with the installation, a service may have been automatically started on port 27017, which will conflict! So the service MUST be stopped before initializing the replica set.
 
 2. Clone the Repo:
 
