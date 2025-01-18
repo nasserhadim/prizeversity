@@ -1,0 +1,29 @@
+{
+    "name": "prizeversity-server",
+    "version": "2.0.0",
+    "main": "index.js",
+    "type": "module",
+    "scripts": {
+      "dev": "nodemon index.js",
+      "start": "node index.js"
+    },
+    "dependencies": {
+      "bcrypt": "^5.1.0",
+      "body-parser": "^1.20.2",
+      "cors": "^2.8.5",
+      "dotenv": "^16.3.1",
+      "express": "^4.18.2",
+      "express-session": "^1.17.3",
+      "express-validator": "^7.0.1",
+      "mongoose": "^7.0.3",
+      "morgan": "^1.10.0",
+      "passport": "^0.6.0",
+      "passport-azure-ad": "^4.3.2",
+      "passport-google-oauth20": "^2.0.0",
+      "uuid": "^9.0.0"
+    },
+    "devDependencies": {
+      "nodemon": "^2.0.22"
+    }
+  }
+  
