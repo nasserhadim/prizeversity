@@ -2,6 +2,7 @@
 
 # Pre-Requisites:
 - If you don't have the latest version of Node.js installed, install it from here: https://nodejs.org/en
+- Setup the Google/Microsoft OAuth Client IDs along with the Redirect URI(s). See .env.example for more info
 
 # Folder Structure
 ```
@@ -574,6 +575,7 @@ pm2 startup
 cd ../client
 cp .env.example .env
 npm install
+npm install react-scripts
 npm start
 ```
 
