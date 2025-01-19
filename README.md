@@ -43,6 +43,7 @@ prizeversity/
    │    └── index.js
    └── client/
         ├── public/
+        │    └── index.html
         ├── src/
         │    ├── App.js
         │    ├── index.js
