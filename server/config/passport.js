@@ -43,8 +43,23 @@ async (accessToken, refreshToken, profile, done) => {
   }
 }));
 
+async function findOrCreateUser(profile) {
+  // Example:
+  let user = await User.findOne({ provider: 'microsoft', providerId: profile.oid });
+  if (!user) {
+    user = await User.create({
+      name: profile.displayName || 'MS User',
+      email: profile._json.preferred_username,
+      provider: 'microsoft',
+      providerId: profile.oid
+    });
+  }
+  return user;
+}
+
 // Microsoft OAuth
-passport.use(new MicrosoftStrategy({
+passport.use('azure_ad_openidconnect', new MicrosoftStrategy({
+
   identityMetadata: 'https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration',
   clientID: process.env.MICROSOFT_CLIENT_ID,
   clientSecret: process.env.MICROSOFT_CLIENT_SECRET,

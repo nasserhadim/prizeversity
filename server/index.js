@@ -42,7 +42,7 @@ app.use('/api/wallets', walletRoutes);
 
 // Test route
 app.get('/', (req, res) => {
-  res.send('Gamification Classroom API up and running!');
+  res.send('Prizeversity API up and running!');
 });
 
 // Global Error Handler
