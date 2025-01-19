@@ -390,6 +390,7 @@ pm2 startup
 >
 > Then add something like:
 > 
+> ```
 > server {
 >    listen 80;
 >    server_name yourdomain.com www.yourdomain.com;
