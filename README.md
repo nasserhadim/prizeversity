@@ -380,6 +380,12 @@ pm2 startup
 > https://localhost:8000
 > ```
 > 
+> [TROUBLESHOOTING] 502 Bad Gateway
+> 
+> - Check if the backend application (the one on `localhost:3000`) is actually running and listening on port `3000`. You can do this by opening a browser and navigating to `http://localhost:3000` to see if the application loads. If it's not loading, start or troubleshoot the backend application.
+> 
+> - Check Nginx's error log, typically in the location specified in the `nginx.conf` file (if unspecified, it's usually in `/var/log/nginx/error.log` on Linux systems, or `C:\nginx-1.27.3\logs\error.log` on Windows). Look for entries related to the `502` error. This might give more specific information about what's going wrong with the upstream server (i.e. `localhost:3000`).
+> 
 > [OPTIONAL] Redirect HTTP to HTTPS
 > 
 > To ensure that any HTTP requests to port `8000` (like `http://localhost:8000`) get redirected to the secure version (i.e., `https://localhost:8000`), add a redirection in the Nginx configuration. Here's how you can modify `nginx.conf` to add an HTTP-to-HTTPS redirect:
