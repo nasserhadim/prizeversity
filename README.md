@@ -374,7 +374,7 @@ pm2 startup
 >
 > #### Navigating as HTTPS
 > 
-> Nginx configuration is set up to listen for HTTPS on port 8000 (listen 8000 ssl;), meaning it requires a secure (SSL/TLS) connection for any requests coming to that port. So, in the browser, enter:
+> Nginx configuration is set up to listen for `HTTPS` on port `8000` (`listen 8000 ssl;`), meaning it requires a secure (SSL/TLS) connection for any requests coming to that port. So, in the browser, enter:
 > 
 > ```
 > https://localhost:8000
