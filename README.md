@@ -335,7 +335,7 @@ pm2 startup
 > 
 > #### Verify Nginx Configuration
 > 
-> Open a command prompt and navigate to the `C:\nginx-1.27.3` directory. To test the Nginx configuration, run the following command:
+> Open a command prompt and navigate to the `C:\nginx-1.27.3` directory. To test the Nginx configuration, run the following command (to check for syntax errors):
 >
 > ```
 > nginx -t
@@ -360,11 +360,17 @@ pm2 startup
 > netsh http add iplisten ipaddress=::
 > ```
 > 
-> Then try starting nginx again:
+> Then retry the following command again (to check for syntax errors):
 > 
 > ```
 > nginx -t
 > ```
+> 
+> #### Launch nginx.exe
+> 
+> - Upon verifying the syntax, launch (double-click) `nginx.exe` from the directory `C:\nginx-1.27.3`. You can verify the launch by checking the 32-bit process running in the Task Manager's Background processes.
+> 
+> - Navigate to `localhost` in the browser and you should see an nginx placeholder page loaded.
 > 
 > ### On Linux (Ubuntu/Debian):
 >
