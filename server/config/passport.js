@@ -59,21 +59,21 @@ async function findOrCreateUser(profile) {
 
 // Microsoft OAuth
 passport.use('azure_ad_openidconnect', new MicrosoftStrategy({
-
   identityMetadata: 'https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration',
   clientID: process.env.MICROSOFT_CLIENT_ID,
   clientSecret: process.env.MICROSOFT_CLIENT_SECRET,
-
-  // Use "redirectUrl" instead of "callbackURL"
   redirectUrl: `${process.env.BASE_URL}/api/auth/microsoft/callback`,
-
-  // Because you're on localhost (HTTP), this allows it
   allowHttpForRedirectUrl: true,
 
-  // Must specify one of: 'code', 'id_token', 'code id_token', 'id_token code'
   responseType: 'code',
   responseMode: 'form_post',
-  scope: ['openid', 'profile', 'email']
+  scope: ['openid','profile','email'],
+
+  // This is critical for multi-tenant usage with /common:
+  validateIssuer: false,
+
+  // optional debugging
+  loggingLevel: 'info',
 
 }, async (iss, sub, profile, accessToken, refreshToken, done) => {
   try {

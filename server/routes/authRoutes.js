@@ -12,7 +12,17 @@ router.get('/google/callback',
   }
 );
 
-router.get('/microsoft', passport.authenticate('azure_ad_openidconnect'));
+router.get('/microsoft',
+  passport.authenticate('azure_ad_openidconnect', {
+    scope: ['openid','profile','email'],
+    failWithError: true
+  }),
+  (err, req, res, next) => {
+    // If there's an immediate error, it should come here
+    console.error('Passport immediate error:', err);
+    return res.status(401).json({ message: err.message });
+  }
+);
 router.post('/microsoft/callback',
   passport.authenticate('azure_ad_openidconnect', { failureRedirect: 'http://localhost:3000/login?error=microsoft' }),
   (req, res) => {
