@@ -480,3 +480,8 @@ npm start
 - Keep your Node/Express server behind the proxy, usually on an internal port (e.g., 5000).
 - Ensure you’ve allowed incoming traffic on ports 22, 80, and 443 in your VPS firewall.
 - Use PM2 or a similar process manager to keep your Node server running.
+
+## When done correctly, you’ll have:
+
+- https://yourdomain.com → (NGINX on port 443) → Node app on localhost:5000
+- A secure, production-ready environment with an encrypted session cookie (thanks to your Session Secret) and encrypted traffic (SSL from NGINX).
