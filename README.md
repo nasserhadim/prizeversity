@@ -1,4 +1,8 @@
 # prizeversity
+
+# Pre-Requisites:
+- If you don't have the latest version of Node.js installed, install it from here: https://nodejs.org/en
+
 # Folder Structure
 ```
 prizeversity/
