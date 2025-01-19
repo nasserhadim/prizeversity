@@ -59,7 +59,8 @@ async function findOrCreateUser(profile) {
 
 // Microsoft OAuth
 passport.use('azure_ad_openidconnect', new MicrosoftStrategy({
-  identityMetadata: 'https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration',
+  // identityMetadata: 'https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration', // 'common' endpoint  for Multi-Tenant login, e.g. Organizational/Work/School/Personal Accounts; Requires Publisher verification; see .env for more info.
+  identityMetadata: 'https://login.microsoftonline.com/consumers/v2.0/.well-known/openid-configuration', // 'consumers' endpoint for personal accounts (like @outlook, @hotmail)
   clientID: process.env.MICROSOFT_CLIENT_ID,
   clientSecret: process.env.MICROSOFT_CLIENT_SECRET,
   redirectUrl: `${process.env.BASE_URL}/api/auth/microsoft/callback`,
