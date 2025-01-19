@@ -1,18 +1,20 @@
+// client/src/pages/LoginPage.jsx
 import React from 'react';
 
 function LoginPage() {
-  const handleGoogleLogin = () => {
-    window.location.href = 'http://localhost:5000/api/auth/google';
-  };
-  const handleMicrosoftLogin = () => {
-    window.location.href = 'http://localhost:5000/api/auth/microsoft';
-  };
-
   return (
-    <div className="container mt-5">
-      <h1 className="mb-4">Login</h1>
-      <button className="btn btn-danger me-3" onClick={handleGoogleLogin}>Sign in with Google</button>
-      <button className="btn btn-primary" onClick={handleMicrosoftLogin}>Sign in with Microsoft</button>
+    <div style={{ marginTop: '50px' }}>
+      <h2>Login Page</h2>
+      <a href="http://localhost:5000/api/auth/google">
+        <button style={{ background: 'red', color: '#fff', marginRight: '10px' }}>
+          Sign in w/ Google
+        </button>
+      </a>
+      <a href="http://localhost:5000/api/auth/microsoft">
+        <button style={{ background: 'blue', color: '#fff' }}>
+          Sign in w/ Microsoft
+        </button>
+      </a>
     </div>
   );
 }

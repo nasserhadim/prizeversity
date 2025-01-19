@@ -1,19 +1,25 @@
 // client/src/components/Navbar.jsx
 import React from 'react';
-import LogoutButton from './LogoutButton';
+import { Link } from 'react-router-dom';
 
 function Navbar({ isAuth, onLogoutSuccess }) {
+  // We'll define an inline logout function for simplicity:
+  const handleLogout = async () => {
+    try {
+      await fetch('http://localhost:5000/api/auth/logout', { credentials: 'include' });
+      onLogoutSuccess(); // sets isAuth=false in parent
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
+  };
+
   return (
-    <nav>
-      <a href="/">Home</a>
+    <nav style={{ display: 'flex', gap: '10px' }}>
+      <Link to="/">Home</Link>
       {isAuth ? (
-        // Use our LogoutButton component
-        <LogoutButton onLogoutSuccess={onLogoutSuccess} />
+        <button onClick={handleLogout}>Logout</button>
       ) : (
-        <>
-          <a href="http://localhost:5000/api/auth/google">Sign in w/ Google</a>
-          <a href="http://localhost:5000/api/auth/microsoft">Sign in w/ Microsoft</a>
-        </>
+        <Link to="/login">Login</Link>
       )}
     </nav>
   );
