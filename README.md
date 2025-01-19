@@ -214,7 +214,13 @@ git clone https://github.com/nasserhadim/prizeversity.git
 cd prizeversity/server
 ```
 
-3. Create an .env file from .env.example:
+3.1 Create a `.gitignore` file to exclude `.env` secrets from being committed/exposed
+
+> - GitHub will not allow pushing to the repository sensitive info like CLIENT ID/SECRETS. Anyways, the `.env` file shouldn't be included publicly in the repo, so to continue using it locally without pushing it to the repo, despite updates to it, a `.gitignore` file works as a great workaround for this scenario here. 
+>
+> - Simply create a `.gitignore` file (anywhere in project is fine, preferrably at the root). Then add `.env` to the file, commit and push it to the repo. Now when creating/updating a `.env` file, it will be ignored by `git`!
+
+3.2 Create an `.env` file from `.env.example`:
 
 ```
 cp .env.example .env
