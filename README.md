@@ -483,5 +483,5 @@ npm start
 
 ## When done correctly, you’ll have:
 
-- https://yourdomain.com → (NGINX on port 443) → Node app on localhost:5000
+- https://yourdomain.com → (NGINX on port 443) → Node app on `localhost:5000`
 - A secure, production-ready environment with an encrypted session cookie (thanks to your Session Secret) and encrypted traffic (SSL from NGINX).
