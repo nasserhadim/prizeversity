@@ -4,6 +4,20 @@
 - If you don't have the latest version of Node.js installed, install it from here: https://nodejs.org/en
 - Setup the Google/Microsoft OAuth Client IDs along with the Redirect URI(s). See `.env.example` for more info
 
+# FYI: Local Development vs. Production
+
+- Local:
+> `BASE_URL=http://localhost:5000` (or `http://127.0.0.1:5000`)
+>
+> In `server/passport.js`, set `allowHttpForRedirectUrl: true` for the Microsoft Auth.
+
+- Production:
+> `BASE_URL=https://prizeversity.com` (or whatever the real domain is)
+>
+> In `server/passport.js`, omit or set `allowHttpForRedirectUrl: false`
+>
+> Register the redirect URI(s) by adding the domains now instead of (or in addition to if possible) the localhost; See `.env.example` for more info
+
 # Folder Structure
 ```
 prizeversity/
@@ -581,7 +595,7 @@ npm start
 ```
 
 - The dev server runs on http://localhost:3000.
-- Adjust .env if you need to set a custom API URL.
+- Adjust `.env` if you need to set a custom API URL.
 
 ## When deploying to production:
 
