@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg 
+    width="400" 
+    height="100" 
+    viewBox="0 0 400 100" 
+    fill="none" 
+    xmlns="http://www.w3.org/2000/svg">
+
+  <!-- Background (optional, for preview) 
+       Remove or comment out in production -->
+  <rect width="400" height="100" fill="#FFFFFF" />
+
+  <!-- Graduation Cap + Prize Icon -->
+  <g transform="translate(20,20)">
+    <!-- Mortar board (cap) base -->
+    <polygon points="0,10 40,0 80,10 40,20" fill="#F1C40F"/>
+    <!-- Tassel -->
+    <line x1="80" y1="10" x2="90" y2="25" stroke="#F1C40F" stroke-width="3" stroke-linecap="round"/>
+    
+    <!-- Simple trophy silhouette (under the cap) -->
+    <!-- Cup -->
+    <rect x="30" y="20" width="20" height="12" fill="#F39C12"/>
+    <!-- Trophy arms -->
+    <path d="M28 20 v-5 h-4 a4 4 0 0 0 0 8 h4 v-3
+             M52 20 v-5 h4 a4 4 0 0 1 0 8 h-4 v-3" 
+          fill="none" stroke="#F39C12" stroke-width="2"/>
+    <!-- Base -->
+    <rect x="28" y="32" width="24" height="4" fill="#F39C12"/>
+  </g>
+
+  <!-- Text "Prizeversity" -->
+  <text 
+    x="120" 
+    y="50" 
+    font-size="32" 
+    font-family="Arial, sans-serif" 
+    fill="#34495E"
+    font-weight="700">
+    Prizeversity
+  </text>
+  
+</svg>
