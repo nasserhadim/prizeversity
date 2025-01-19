@@ -54,6 +54,11 @@ function App() {
     fetchMe();
   }, []);
 
+  const handleLogoutSuccess = () => {
+    // This will cause re-render, hiding the logout button
+    setIsAuth(false);
+  };
+
   // If we're still fetching user data, show a loader/spinner
   if (loading) {
     return (
@@ -65,7 +70,10 @@ function App() {
 
   return (
     <>
-      <Navbar />
+      <Navbar 
+        isAuth={isAuth}
+        onLogoutSuccess={handleLogoutSuccess}
+      />
       <div className="pt-4">
         <Routes>
           {/* Public routes */}

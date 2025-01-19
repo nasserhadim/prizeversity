@@ -35,8 +35,17 @@ router.post('/select-role', selectRole);
 
 // Logout
 router.get('/logout', (req, res) => {
-  req.logout(() => {});
-  res.send({ success: true, message: 'Logged out' });
+  req.logout((err) => {
+    if (err) { return res.status(500).json({ message: 'Logout error', error: err }); }
+    // If using a session store, optionally destroy the session:
+    req.session.destroy((err) => {
+      if (err) { 
+        console.log('Session destruction error', err);
+      }
+      res.clearCookie('connect.sid'); // Or whatever your cookie name is
+      return res.json({ success: true, message: 'Logged out' });
+    });
+  });
 });
 
 export default router;
