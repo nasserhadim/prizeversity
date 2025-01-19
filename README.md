@@ -370,7 +370,92 @@ pm2 startup
 > 
 > - Upon verifying the syntax, launch (double-click) `nginx.exe` from the directory `C:\nginx-1.27.3`. You can verify the launch by checking the 32-bit process running in the Task Manager's Background processes.
 > 
-> - Navigate to `localhost` in the browser and you should see an nginx placeholder page loaded.
+> - Navigate to `localhost` (or `127.0.0.1`) in the browser and you should see an nginx placeholder page loaded.
+>
+> #### Navigating as HTTPS
+> 
+> Nginx configuration is set up to listen for HTTPS on port 8000 (listen 8000 ssl;), meaning it requires a secure (SSL/TLS) connection for any requests coming to that port. So, in the browser, enter:
+> 
+> ```
+> https://localhost:8000
+> ```
+> 
+> [OPTIONAL] Redirect HTTP to HTTPS
+> 
+> To ensure that any HTTP requests to port `8000` (like `http://localhost:8000`) get redirected to the secure version (i.e., `https://localhost:8000`), add a redirection in the Nginx configuration. Here's how you can modify `nginx.conf` to add an HTTP-to-HTTPS redirect:
+> 
+> ```
+> server {
+>    listen 8000;
+>    server_name localhost;
+>
+>    # Redirect HTTP requests to HTTPS
+>    return 301 https://$host:8000$request_uri;
+> }
+>
+> server {
+>    listen 8000 ssl;
+>    listen [::]:8000 ssl;
+>
+>    root /var/www/html;
+>    index index.html index.htm index.nginx-debian.html;
+>
+>    server_name localhost;
+>
+>    ssl_certificate      C:\cert\localhost.crt;
+>    ssl_certificate_key  C:\cert\localhost.key;
+>
+>    ssl_session_cache    shared:SSL:1m;
+>    ssl_session_timeout  5m;
+>
+>    ssl_ciphers  HIGH:!aNULL:!MD5;
+>    ssl_prefer_server_ciphers  on;
+>
+>    location / {
+>        proxy_set_header        Host $host:$server_port;
+>        proxy_set_header        X-Real-IP $remote_addr;
+>        proxy_set_header        X-Forwarded-For $proxy_add_x_forwarded_for;
+>        proxy_set_header        X-Forwarded-Proto $scheme; 
+>        proxy_set_header        Upgrade $http_upgrade;
+>        proxy_set_header        Connection "upgrade";
+>        proxy_pass              http://localhost:3000/;
+>    }
+> }
+> ```
+> 
+> In this configuration, any request to `http://localhost:8000` will be redirected to `https://localhost:8000` with a `301 Moved Permanently` status, which is the proper way to handle this.
+> 
+> #### [OPTIONAL] Prevent browser security warning by adding the self-signed certificate to the trusted store on Windows
+> 
+> ##### Locate certificate
+> 
+> You should have the self-signed certificate file (e.g., `localhost.crt`) ready. This is the file generated using `OpenSSL`.
+> 
+> ##### Open Microsoft Management Console (MMC):
+> 
+> Run > `mmc`
+> 
+> ##### Add the Certificates Snap-in:
+> 
+> - In the MMC window, go to `File > Add/Remove Snap-in`.
+> - In the `Add or Remove Snap-ins` window, select `Certificates` from the list of available snap-ins and click `Add`.
+> - Choose `Computer account` and then `Local computer`, and click `Finish`.
+> - Click `OK` to close the Add/Remove Snap-ins window.
+> 
+> ##### Import the Certificate:
+> 
+> - Now, in the MMC window, expand the `Certificates (Local Computer)` node in the left-hand pane.
+> - Navigate to `Trusted Root Certification Authorities > Certificates`.
+> - Right-click on the `Certificates` folder and select `All Tasks > Import`.
+> - Click `Next`, then browse to the location of the self-signed certificate file (`localhost.crt`).
+> - Select the certificate and click `Next`.
+> - Choose `Place all certificates in the following store`, and make sure `Trusted Root Certification Authorities` is selected.
+> - Click `Next` and then `Finish`. You should see a confirmation saying the import was successful.
+> 
+> ##### Restart the Browser:
+> 
+> - After adding the certificate, restart the browser to make sure it recognizes the newly trusted certificate.
+> - Now, when navigating to `https://localhost:8000`, you should no longer see the warning, and the connection should be marked as secure.
 > 
 > ### On Linux (Ubuntu/Debian):
 >
