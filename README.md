@@ -391,30 +391,30 @@ pm2 startup
 > Then add something like:
 > 
 > server {
-    listen 80;
-    server_name yourdomain.com www.yourdomain.com;
-
-    # Redirect all HTTP to HTTPS
-    return 301 https://$host$request_uri;
-}
-
-server {
-    listen 443 ssl;
-    server_name yourdomain.com www.yourdomain.com;
-
-    # SSL certificate files from Let's Encrypt or another CA
-    ssl_certificate     /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
-
-    location / {
-        proxy_pass         http://localhost:5000;   # Node server
-        proxy_http_version 1.1;
-        proxy_set_header   Upgrade $http_upgrade;
-        proxy_set_header   Connection 'upgrade';
-        proxy_set_header   Host $host;
-        proxy_set_header   X-Forwarded-For $remote_addr;
-    }
-}
+>    listen 80;
+>    server_name yourdomain.com www.yourdomain.com;
+>
+>    # Redirect all HTTP to HTTPS
+>    return 301 https://$host$request_uri;
+> }
+>
+> server {
+>    listen 443 ssl;
+>    server_name yourdomain.com www.yourdomain.com;
+>
+>    # SSL certificate files from Let's Encrypt or another CA
+>    ssl_certificate     /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
+>    ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
+>
+>    location / {
+>        proxy_pass         http://localhost:5000;   # Node server
+>        proxy_http_version 1.1;
+>        proxy_set_header   Upgrade $http_upgrade;
+>        proxy_set_header   Connection 'upgrade';
+>        proxy_set_header   Host $host;
+>        proxy_set_header   X-Forwarded-For $remote_addr;
+>    }
+> }
 > ```
 > 
 > - `server_name`: replace with your actual domain name(s).
