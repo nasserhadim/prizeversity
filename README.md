@@ -10,7 +10,7 @@
 
 4. Create Google OAuth Client ID/Secret for `.env` file
 
-> Navigate to: https://console.cloud.google.com/apis/credentials
+> To create one, navigate to: https://console.cloud.google.com/apis/credentials
 >
 > Make sure to add/register the redirect_uri, e.g. `http://localhost:5000/api/auth/google/callback`. You can do so from the `Project > OAuth 2.0 Client IDs > Authorized redirect URIs > Add URI`
 >
@@ -18,7 +18,7 @@
 
 5. Create Microsoft OAuth Client ID/Secret for `.env` file
 
-> Retrieved via App Registrations on Azure Portal: https://portal.azure.com/?quickstart=True#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade
+> To create one, navigate to `App Registrations` on Azure Portal: https://portal.azure.com/?quickstart=True#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade
 > 
 > Make sure to add/register the redirect_uri, e.g. `http://localhost:5000/api/auth/microsoft/callback`. You can do so from the `App Registration > Authentication > Add a (web) platform > Add Web Redirect URI` if you didn't do it initially upon creation of the App registration.
 > 
