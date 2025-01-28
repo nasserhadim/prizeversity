@@ -55,7 +55,7 @@ npm install express mongoose passport passport-google-oauth20 passport-microsoft
 >
 > Create `backend/models/User.js`
 >
-> Add the rest of files as needed!
+> Add the rest of folders/files as needed!
 
 ### Frontend Setup with `Vite`.
 
@@ -77,7 +77,7 @@ npm install axios react-router-dom socket.io-client
 >
 > Create `frontend/src/pages/Home.jsx`
 >
-> Add the rest of files as needed!
+> Add the rest of the folders/files as needed!
 
 # How to Run it:
 
