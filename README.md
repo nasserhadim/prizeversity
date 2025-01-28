@@ -101,4 +101,4 @@ cd frontend
 npm run dev
 ```
 
-> Open browser, navigate to: `http://localhost:5173/`
+> Open the browser and navigate to `http://localhost:5173` (Vite’s default port).
