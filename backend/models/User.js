@@ -1,5 +1,12 @@
 const mongoose = require('mongoose');
 
+const TransactionSchema = new mongoose.Schema({
+  amount: { type: Number, required: true },
+  description: { type: String, required: true },
+  assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  createdAt: { type: Date, default: Date.now }
+});
+
 const UserSchema = new mongoose.Schema({
   googleId: { type: String },
   microsoftId: { type: String },
@@ -8,7 +15,7 @@ const UserSchema = new mongoose.Schema({
   balance: { type: Number, default: 0 },
   classrooms: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Classroom' }],
   groups: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Group' }],
-  transactions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Transaction' }]
+  transactions: [TransactionSchema]
 });
 
 module.exports = mongoose.model('User', UserSchema);

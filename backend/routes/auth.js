@@ -26,4 +26,12 @@ router.get('/logout', (req, res) => {
   });
 });
 
+// Get Current User
+router.get('/current-user', (req, res) => {
+    if (req.user) {
+      return res.status(200).json(req.user);
+    }
+    res.status(401).json({ error: 'Not authenticated' });
+  });
+
 module.exports = router;
