@@ -1,34 +1,14 @@
-const passport = require('passport');
-const GoogleStrategy = require('passport-google-oauth20').Strategy;
-const MicrosoftStrategy = require('passport-microsoft').Strategy;
-const User = require('../models/User');
+const mongoose = require('mongoose');
 
-module.exports = (passport) => {
-  passport.use(new GoogleStrategy({
-    clientID: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: '/api/auth/google/callback'
-  }, async (accessToken, refreshToken, profile, done) => {
-    const newUser = {
-      googleId: profile.id,
-      email: profile.emails[0].value,
-      role: 'student' // Default role
-    };
-    try {
-      let user = await User.findOne({ googleId: profile.id });
-      if (user) {
-        done(null, user);
-      } else {
-        user = await User.create(newUser);
-        done(null, user);
-      }
-    } catch (err) {
-      done(err, null);
-    }
-  }));
+const UserSchema = new mongoose.Schema({
+  googleId: { type: String },
+  microsoftId: { type: String },
+  email: { type: String, required: true },
+  role: { type: String, enum: ['admin', 'teacher', 'student'], default: 'student' },
+  balance: { type: Number, default: 0 },
+  classrooms: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Classroom' }],
+  groups: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Group' }],
+  transactions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Transaction' }]
+});
 
-  passport.serializeUser((user, done) => done(null, user.id));
-  passport.deserializeUser((id, done) => {
-    User.findById(id, (err, user) => done(err, user));
-  });
-};
+module.exports = mongoose.model('User', UserSchema);
