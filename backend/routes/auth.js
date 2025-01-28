@@ -1,5 +1,6 @@
 const express = require('express');
 const passport = require('passport');
+const User = require('../models/User'); // Add this line
 const router = express.Router();
 
 // Google OAuth Login
@@ -32,6 +33,30 @@ router.get('/current-user', (req, res) => {
     return res.status(200).json(req.user);
   }
   res.status(401).json({ error: 'Not authenticated' });
+});
+
+// Update User Role
+router.post('/update-role', async (req, res) => {
+  const { role } = req.body;
+  console.log('Request Body:', req.body); // Log the request body
+  console.log('Authenticated User:', req.user); // Log the authenticated user
+
+  if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    console.log('Current User Role:', user.role); // Log the current role
+    user.role = role;
+    await user.save();
+
+    console.log('Updated User Role:', user.role); // Log the updated role
+    res.status(200).json({ message: 'Role updated successfully', user }); // Return the updated user
+  } catch (err) {
+    console.error('Error updating role:', err); // Log the error
+    res.status(500).json({ error: 'Failed to update role' });
+  }
 });
 
 module.exports = router;
