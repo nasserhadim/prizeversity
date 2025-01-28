@@ -42,6 +42,8 @@ npm init -y
 npm install express mongoose passport passport-google-oauth20 passport-microsoft cors dotenv
 ```
 
+> Now create the following files:
+>
 > Create `backend/.env`
 >
 > Create `backend/server.js`
@@ -62,7 +64,8 @@ cd frontend
 npm install
 npm install axios react-router-dom socket.io-client
 ```
-
+> Now create the following files:
+>
 > Create `frontend/vite.config.js`
 >
 > Create `frontend/src/main.jsx`
@@ -70,6 +73,8 @@ npm install axios react-router-dom socket.io-client
 > Create `frontend/src/App.jsx`
 >
 > Create `frontend/src/pages/Home.jsx`
+>
+> Add the rest of files as needed!
 
 # How to Run it:
 
