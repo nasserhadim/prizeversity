@@ -31,7 +31,10 @@ prizeversity2/
 ├── backend/
 ├── frontend/
 └── README.md
+└── .gitignore
 ```
+
+> Note: In the `.gitignore` file, add `.env` so that updates to this file, like adding secrets, are ignored upon commits, otherwise, github will prevent the commits from syncing!
 
 ## Initialize Backend and Frontend:
 
