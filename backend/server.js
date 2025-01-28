@@ -28,7 +28,7 @@ app.use(
 );
 
 // Passport Initialization
-require('./config/passport')(passport); // Ensure this line is present
+require('./config/passport')(passport);
 app.use(passport.initialize());
 app.use(passport.session());
 
@@ -43,6 +43,11 @@ app.use('/api/classroom', classroomRoutes);
 app.use('/api/bazaar', bazaarRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/group', groupRoutes);
+
+// Root Route
+app.get('/', (req, res) => {
+  res.redirect('http://localhost:5173'); // Redirect to the frontend
+});
 
 // Start Server
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
