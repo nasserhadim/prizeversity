@@ -8,9 +8,9 @@
 
 3. Install a code editor like [VS Code](https://code.visualstudio.com/).
 
-4. Create Google OAuth Client ID/Secret for `.env` file
+4. Create Google OAuth Client ID/Secret (to be included in the `.env` file later).
 
-> You can create one by navigating to: https://console.cloud.google.com/apis/credentials
+> You can create one by navigating to: https://console.cloud.google.com/apis/credentials and then creating a "project".
 >
 > Make sure to add/register the redirect_uri, e.g. `http://localhost:5000/api/auth/google/callback`. You can do so from the `Project > OAuth 2.0 Client IDs > Authorized redirect URIs > Add URI`
 >
@@ -18,7 +18,7 @@
 
 5. Create Microsoft OAuth Client ID/Secret for `.env` file
 
-> You can create one by navigating to `App Registrations` on Azure Portal: https://portal.azure.com/?quickstart=True#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade
+> You can create one by navigating to `App Registrations` on [Azure Portal](https://portal.azure.com/?quickstart=True#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade) and then creating an App Registration. For platform selection, select "web".
 > 
 > Make sure to add/register the redirect_uri, e.g. `http://localhost:5000/api/auth/microsoft/callback`. You can do so from the `App Registration > Authentication > Add a (web) platform > Add Web Redirect URI` if you didn't do it initially upon creation of the App registration.
 > 
@@ -34,7 +34,11 @@ prizeversity2/
 └── .gitignore
 ```
 
-> Note: In the `.gitignore` file, add `.env` so that updates to this file, like adding secrets, are ignored upon commits, otherwise, github will prevent the commits from syncing!
+> `gitignore` Note: 
+>
+> - In the `.gitignore` file, add `.env` so that updates to this file, like adding secrets, are ignored upon commits, otherwise, github will prevent the commits from syncing!
+>
+> - If for some reason the `.env` file doesn't get ignored when you're committing changes throughout the project, try clearing the cache of the file from git by running: `git rm --cached .env` 
 
 ## Initialize Backend and Frontend:
 
