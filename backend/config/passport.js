@@ -16,7 +16,7 @@ module.exports = (passport) => {
         const newUser = {
           googleId: profile.id,
           email: profile.emails[0].value,
-          // Remove the default role assignment
+          // Do not set a default role
         };
         try {
           let user = await User.findOne({ googleId: profile.id });
@@ -46,7 +46,7 @@ module.exports = (passport) => {
         const newUser = {
           microsoftId: profile.id,
           email: profile.emails[0].value,
-          // Remove the default role assignment
+          // Do not set a default role
         };
         try {
           let user = await User.findOne({ microsoftId: profile.id });
