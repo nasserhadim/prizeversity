@@ -16,7 +16,7 @@ module.exports = (passport) => {
         const newUser = {
           googleId: profile.id,
           email: profile.emails[0].value,
-          role: 'student', // Default role
+          // Remove the default role assignment
         };
         try {
           let user = await User.findOne({ googleId: profile.id });
@@ -33,29 +33,35 @@ module.exports = (passport) => {
     )
   );
 
-  passport.use(new MicrosoftStrategy({
-    clientID: process.env.MICROSOFT_CLIENT_ID,
-    clientSecret: process.env.MICROSOFT_CLIENT_SECRET,
-    callbackURL: '/api/auth/microsoft/callback',
-    scope: ['user.read']
-  }, async (accessToken, refreshToken, profile, done) => {
-    const newUser = {
-      microsoftId: profile.id,
-      email: profile.emails[0].value,
-      role: 'student' // Default role
-    };
-    try {
-      let user = await User.findOne({ microsoftId: profile.id });
-      if (user) {
-        done(null, user);
-      } else {
-        user = await User.create(newUser);
-        done(null, user);
+  // Microsoft OAuth Strategy
+  passport.use(
+    new MicrosoftStrategy(
+      {
+        clientID: process.env.MICROSOFT_CLIENT_ID,
+        clientSecret: process.env.MICROSOFT_CLIENT_SECRET,
+        callbackURL: '/api/auth/microsoft/callback',
+        scope: ['user.read'],
+      },
+      async (accessToken, refreshToken, profile, done) => {
+        const newUser = {
+          microsoftId: profile.id,
+          email: profile.emails[0].value,
+          // Remove the default role assignment
+        };
+        try {
+          let user = await User.findOne({ microsoftId: profile.id });
+          if (user) {
+            done(null, user);
+          } else {
+            user = await User.create(newUser);
+            done(null, user);
+          }
+        } catch (err) {
+          done(err, null);
+        }
       }
-    } catch (err) {
-      done(err, null);
-    }
-  }));
+    )
+  );
 
   // Serialize User
   passport.serializeUser((user, done) => done(null, user.id));

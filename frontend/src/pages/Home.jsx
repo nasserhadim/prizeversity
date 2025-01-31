@@ -7,13 +7,32 @@ const Home = () => {
   const [role, setRole] = useState(user?.role || '');
   const [classroomName, setClassroomName] = useState('');
   const [classroomCode, setClassroomCode] = useState('');
+  const [classrooms, setClassrooms] = useState([]);
+  const [joinClassroomCode, setJoinClassroomCode] = useState('');
 
-  // Fetch the user's role on component mount
+  // Fetch the user's role and classrooms on component mount
   useEffect(() => {
-    if (user?.role) {
-      setRole(user.role);
+    if (user) {
+      console.log('Fetched User:', user); // Log the fetched user
+      if (user.role) {
+        console.log('User Role:', user.role); // Log the user role
+        setRole(user.role);
+        fetchClassrooms(); // Fetch classrooms when the user role is set
+      } else {
+        console.log('No role assigned to user'); // Log if no role is assigned
+      }
     }
   }, [user]);
+
+  // Fetch classrooms from the backend
+  const fetchClassrooms = async () => {
+    try {
+      const response = await axios.get('/api/classroom');
+      setClassrooms(response.data);
+    } catch (err) {
+      console.error('Failed to fetch classrooms', err);
+    }
+  };
 
   const handleRoleSelection = async (selectedRole) => {
     try {
@@ -33,9 +52,25 @@ const Home = () => {
       });
       console.log('Classroom created:', response.data);
       alert('Classroom created successfully!');
+      setClassroomName('');
+      setClassroomCode('');
+      fetchClassrooms(); // Refresh the classroom list
     } catch (err) {
       console.error('Failed to create classroom', err);
       alert('Failed to create classroom');
+    }
+  };
+
+  const handleJoinClassroom = async () => {
+    try {
+      const response = await axios.post('/api/classroom/join', { code: joinClassroomCode });
+      console.log('Joined Classroom:', response.data); // Log the joined classroom
+      alert('Joined classroom successfully!');
+      setJoinClassroomCode('');
+      fetchClassrooms(); // Refresh the classroom list
+    } catch (err) {
+      console.error('Failed to join classroom', err);
+      alert('Failed to join classroom');
     }
   };
 
@@ -70,7 +105,33 @@ const Home = () => {
               <button onClick={handleCreateClassroom}>Create Classroom</button>
             </div>
           )}
-          {role === 'student' && <button>Join Classroom</button>}
+          {role === 'student' && (
+            <div>
+              <h2>Join Classroom</h2>
+              <input
+                type="text"
+                placeholder="Classroom Code"
+                value={joinClassroomCode}
+                onChange={(e) => setJoinClassroomCode(e.target.value)}
+              />
+              <button onClick={handleJoinClassroom}>Join Classroom</button>
+            </div>
+          )}
+          <h2>Classrooms</h2>
+          <ul>
+            {classrooms.map((classroom) => (
+              <li key={classroom._id}>
+                <h3>{classroom.name}</h3>
+                <p>Code: {classroom.code}</p>
+                {role === 'teacher' && (
+                  <div>
+                    <button>Create Bazaar</button>
+                    <button>Create Group</button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
           <button onClick={logout}>Logout</button>
         </div>
       ) : (
