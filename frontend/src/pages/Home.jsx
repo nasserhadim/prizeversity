@@ -9,6 +9,12 @@ const Home = () => {
   const [classroomCode, setClassroomCode] = useState('');
   const [classrooms, setClassrooms] = useState([]);
   const [joinClassroomCode, setJoinClassroomCode] = useState('');
+  const [bazaarName, setBazaarName] = useState('');
+  const [bazaarDescription, setBazaarDescription] = useState('');
+  const [bazaarImage, setBazaarImage] = useState('');
+  const [groupName, setGroupName] = useState('');
+  const [groupImage, setGroupImage] = useState('');
+  const [groupMaxMembers, setGroupMaxMembers] = useState(0);
 
   // Fetch the user's role and classrooms on component mount
   useEffect(() => {
@@ -27,7 +33,8 @@ const Home = () => {
   // Fetch classrooms from the backend
   const fetchClassrooms = async () => {
     try {
-      const response = await axios.get('/api/classroom');
+      const endpoint = role === 'teacher' ? '/api/classroom' : '/api/classroom/student';
+      const response = await axios.get(endpoint);
       setClassrooms(response.data);
     } catch (err) {
       console.error('Failed to fetch classrooms', err);
@@ -71,6 +78,55 @@ const Home = () => {
     } catch (err) {
       console.error('Failed to join classroom', err);
       alert('Failed to join classroom');
+    }
+  };
+
+  const handleDeleteClassroom = async (classroomId) => {
+    try {
+      await axios.delete(`/api/classroom/${classroomId}`);
+      alert('Classroom deleted successfully!');
+      fetchClassrooms(); // Refresh the classroom list
+    } catch (err) {
+      console.error('Failed to delete classroom', err);
+      alert('Failed to delete classroom');
+    }
+  };
+
+  const handleCreateBazaar = async (classroomId) => {
+    try {
+      const response = await axios.post('/api/bazaar/create', {
+        name: bazaarName,
+        description: bazaarDescription,
+        image: bazaarImage,
+        classroomId,
+      });
+      console.log('Bazaar created:', response.data);
+      alert('Bazaar created successfully!');
+      setBazaarName('');
+      setBazaarDescription('');
+      setBazaarImage('');
+    } catch (err) {
+      console.error('Failed to create bazaar', err);
+      alert('Failed to create bazaar');
+    }
+  };
+
+  const handleCreateGroup = async (classroomId) => {
+    try {
+      const response = await axios.post('/api/group/create', {
+        name: groupName,
+        image: groupImage,
+        maxMembers: groupMaxMembers,
+        classroomId,
+      });
+      console.log('Group created:', response.data);
+      alert('Group created successfully!');
+      setGroupName('');
+      setGroupImage('');
+      setGroupMaxMembers(0);
+    } catch (err) {
+      console.error('Failed to create group', err);
+      alert('Failed to create group');
     }
   };
 
@@ -125,8 +181,51 @@ const Home = () => {
                 <p>Code: {classroom.code}</p>
                 {role === 'teacher' && (
                   <div>
-                    <button>Create Bazaar</button>
-                    <button>Create Group</button>
+                    <button onClick={() => handleDeleteClassroom(classroom._id)}>Delete Classroom</button>
+                    <div>
+                      <h4>Create Bazaar</h4>
+                      <input
+                        type="text"
+                        placeholder="Bazaar Name"
+                        value={bazaarName}
+                        onChange={(e) => setBazaarName(e.target.value)}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Description"
+                        value={bazaarDescription}
+                        onChange={(e) => setBazaarDescription(e.target.value)}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Image URL"
+                        value={bazaarImage}
+                        onChange={(e) => setBazaarImage(e.target.value)}
+                      />
+                      <button onClick={() => handleCreateBazaar(classroom._id)}>Create Bazaar</button>
+                    </div>
+                    <div>
+                      <h4>Create Group</h4>
+                      <input
+                        type="text"
+                        placeholder="Group Name"
+                        value={groupName}
+                        onChange={(e) => setGroupName(e.target.value)}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Image URL"
+                        value={groupImage}
+                        onChange={(e) => setGroupImage(e.target.value)}
+                      />
+                      <input
+                        type="number"
+                        placeholder="Max Members"
+                        value={groupMaxMembers}
+                        onChange={(e) => setGroupMaxMembers(e.target.value)}
+                      />
+                      <button onClick={() => handleCreateGroup(classroom._id)}>Create Group</button>
+                    </div>
                   </div>
                 )}
               </li>
