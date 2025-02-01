@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -23,27 +23,32 @@ const Classroom = () => {
   const [groupSetImage, setGroupSetImage] = useState('');
   const [editingGroupSet, setEditingGroupSet] = useState(null);
   const [groupName, setGroupName] = useState('');
-  const [editingGroupSetId, setEditingGroupSetId] = useState(null);
+  const [groupImage, setGroupImage] = useState('');
+  const [groupMaxMembers, setGroupMaxMembers] = useState('');
+  const [editingGroup, setEditingGroup] = useState(null);
+  const [groupCount, setGroupCount] = useState(1);
+  const [selectedMembers, setSelectedMembers] = useState([]);
+  const [editingClassroom, setEditingClassroom] = useState(false);
 
   useEffect(() => {
-    const fetchClassroom = async () => {
-      try {
-        const response = await axios.get(`/api/classroom/${id}`);
-        setClassroom(response.data);
-      } catch (err) {
-        console.error('Failed to fetch classroom', err);
-      }
-    };
-
-    const fetchClassroomDetails = async () => {
-      await fetchClassroom();
-      await fetchBazaars();
-      await fetchGroupSets();
-      await fetchStudents();
-    };
-
     fetchClassroomDetails();
   }, [id]);
+
+  const fetchClassroom = async () => {
+    try {
+      const response = await axios.get(`/api/classroom/${id}`);
+      setClassroom(response.data);
+    } catch (err) {
+      console.error('Failed to fetch classroom', err);
+    }
+  };
+
+  const fetchClassroomDetails = async () => {
+    await fetchClassroom();
+    await fetchBazaars();
+    await fetchGroupSets();
+    await fetchStudents();
+  };
 
   const fetchBazaars = async () => {
     try {
@@ -78,14 +83,23 @@ const Classroom = () => {
         name: updateClassroomName,
         image: updateClassroomImage,
       });
-      console.log('Classroom updated:', response.data);
-      alert('Classroom updated successfully!');
+      if (response.data.message === 'No changes were made') {
+        alert('No changes were made');
+      } else {
+        console.log('Classroom updated:', response.data);
+        alert('Classroom updated successfully!');
+      }
+      setEditingClassroom(false);
       setUpdateClassroomName('');
       setUpdateClassroomImage('');
       fetchClassroom();
     } catch (err) {
-      console.error('Failed to update classroom', err);
-      alert('Failed to update classroom');
+      if (err.response && err.response.data && err.response.data.message) {
+        alert(err.response.data.message);
+      } else {
+        console.error('Failed to update classroom', err);
+        alert('Failed to update classroom');
+      }
     }
   };
 
@@ -137,7 +151,7 @@ const Classroom = () => {
     setGroupSetName(groupSet.name);
     setGroupSetSelfSignup(groupSet.selfSignup);
     setGroupSetJoinApproval(groupSet.joinApproval);
-    setGroupSetMaxMembers(groupSet.maxMembers);
+    setGroupSetMaxMembers(groupSet.maxMembers || '');
     setGroupSetImage(groupSet.image);
   };
 
@@ -150,8 +164,12 @@ const Classroom = () => {
         maxMembers: groupSetMaxMembers,
         image: groupSetImage,
       });
-      console.log('GroupSet updated:', response.data);
-      alert('GroupSet updated successfully!');
+      if (response.data.message === 'No changes were made') {
+        alert('No changes were made');
+      } else {
+        console.log('GroupSet updated:', response.data);
+        alert('GroupSet updated successfully!');
+      }
       setEditingGroupSet(null);
       setGroupSetName('');
       setGroupSetSelfSignup(false);
@@ -160,8 +178,12 @@ const Classroom = () => {
       setGroupSetImage('');
       fetchGroupSets();
     } catch (err) {
-      console.error('Failed to update group set', err);
-      alert('Failed to update group set');
+      if (err.response && err.response.data && err.response.data.message) {
+        alert(err.response.data.message);
+      } else {
+        console.error('Failed to update group set', err);
+        alert('Failed to update group set');
+      }
     }
   };
 
@@ -180,14 +202,62 @@ const Classroom = () => {
     try {
       const response = await axios.post(`/api/group/groupset/${groupSetId}/group/create`, {
         name: groupName,
+        count: groupCount,
       });
-      console.log('Group created:', response.data);
-      alert('Group created successfully!');
+      console.log('Groups created:', response.data);
+      alert('Groups created successfully!');
       setGroupName('');
+      setGroupCount(1);
       fetchGroupSets();
     } catch (err) {
-      console.error('Failed to create group', err);
-      alert('Failed to create group');
+      console.error('Failed to create groups', err);
+      alert('Failed to create groups');
+    }
+  };
+
+  const handleEditGroup = (group) => {
+    setEditingGroup(group);
+    setGroupName(group.name);
+    setGroupImage(group.image);
+    setGroupMaxMembers(group.maxMembers || '');
+  };
+
+  const handleUpdateGroup = async (groupSetId, groupId) => {
+    try {
+      const response = await axios.put(`/api/group/groupset/${groupSetId}/group/${groupId}`, {
+        name: groupName,
+        image: groupImage,
+        maxMembers: groupMaxMembers,
+      });
+      if (response.data.message === 'No changes were made') {
+        alert('No changes were made');
+      } else {
+        console.log('Group updated:', response.data);
+        alert('Group updated successfully!');
+      }
+      setEditingGroup(null);
+      setGroupName('');
+      setGroupImage('');
+      setGroupMaxMembers('');
+      fetchGroupSets();
+    } catch (err) {
+      if (err.response && err.response.data && err.response.data.message) {
+        alert(err.response.data.message);
+      } else {
+        console.error('Failed to update group', err);
+        alert('Failed to update group');
+      }
+    }
+  };
+
+  const handleDeleteGroup = async (groupSetId, groupId) => {
+    try {
+      await axios.delete(`/api/group/groupset/${groupSetId}/group/${groupId}`);
+      alert('Group deleted successfully!');
+      fetchGroupSets();
+    } catch (err) {
+      console.error('Failed to delete group', err);
+      alert('Failed to delete group');
     }
   };
 
@@ -198,8 +268,28 @@ const Classroom = () => {
       alert('Joined group successfully!');
       fetchGroupSets();
     } catch (err) {
-      console.error('Failed to join group', err);
-      alert('Failed to join group');
+      if (err.response && err.response.data && err.response.data.error) {
+        alert(`Failed to join group: ${err.response.data.error}`);
+      } else {
+        console.error('Failed to join group', err);
+        alert('Failed to join group');
+      }
+    }
+  };
+
+  const handleLeaveGroup = async (groupSetId, groupId) => {
+    try {
+      const response = await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/leave`);
+      if (response.data.message === 'Left group successfully') {
+        console.log('Left group:', response.data);
+        alert('Left group successfully!');
+        fetchGroupSets();
+      } else {
+        alert('You are not in this group.');
+      }
+    } catch (err) {
+      console.error('Failed to leave group', err);
+      alert('Failed to leave group');
     }
   };
 
@@ -236,6 +326,56 @@ const Classroom = () => {
     }
   };
 
+  const handleSelectMember = (memberId) => {
+    setSelectedMembers((prevSelected) =>
+      prevSelected.includes(memberId)
+        ? prevSelected.filter((id) => id !== memberId)
+        : [...prevSelected, memberId]
+    );
+  };
+
+  const handleSelectAllMembers = (group) => {
+    const allMemberIds = group.members.map((member) => member._id);
+    if (selectedMembers.length === allMemberIds.length) {
+      setSelectedMembers([]);
+    } else {
+      setSelectedMembers(allMemberIds);
+    }
+  };
+
+  const handleSuspendMembers = async (groupSetId, groupId) => {
+    if (selectedMembers.length === 0) {
+      alert('No members selected for suspension.');
+      return;
+    }
+  
+    try {
+      await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/suspend`, {
+        memberIds: selectedMembers,
+      });
+      alert('Members suspended successfully!');
+      setSelectedMembers([]);
+      fetchGroupSets();
+    } catch (err) {
+      console.error('Failed to suspend members', err);
+      alert('Failed to suspend members');
+    }
+  };
+
+  const handleCancelUpdate = () => {
+    setEditingClassroom(false);
+    setEditingGroupSet(null);
+    setEditingGroup(null);
+    setGroupSetName('');
+    setGroupSetSelfSignup(false);
+    setGroupSetJoinApproval(false);
+    setGroupSetMaxMembers('');
+    setGroupSetImage('');
+    setGroupName('');
+    setGroupImage('');
+    setGroupMaxMembers('');
+  };
+
   if (!classroom) return <div>Loading...</div>;
 
   return (
@@ -244,22 +384,27 @@ const Classroom = () => {
       <p>Class Code: {classroom.code}</p>
       {user.role === 'teacher' && (
         <div>
-          <div>
-            <h4>Update Classroom</h4>
-            <input
-              type="text"
-              placeholder="New Classroom Name"
-              value={updateClassroomName}
-              onChange={(e) => setUpdateClassroomName(e.target.value)}
-            />
-            <input
-              type="text"
-              placeholder="New Image URL"
-              value={updateClassroomImage}
-              onChange={(e) => setUpdateClassroomImage(e.target.value)}
-            />
-            <button onClick={handleUpdateClassroom}>Update Classroom</button>
-          </div>
+          {editingClassroom ? (
+            <div>
+              <h4>Update Classroom</h4>
+              <input
+                type="text"
+                placeholder="New Classroom Name"
+                value={updateClassroomName}
+                onChange={(e) => setUpdateClassroomName(e.target.value)}
+              />
+              <input
+                type="text"
+                placeholder="New Image URL"
+                value={updateClassroomImage}
+                onChange={(e) => setUpdateClassroomImage(e.target.value)}
+              />
+              <button onClick={handleUpdateClassroom}>Update Classroom</button>
+              <button onClick={handleCancelUpdate}>Cancel</button>
+            </div>
+          ) : (
+            <button onClick={() => setEditingClassroom(true)}>Edit Classroom</button>
+          )}
           <button onClick={handleLeaveClassroom}>Leave Classroom</button>
           <button onClick={handleDeleteClassroom}>Delete Classroom</button>
           <div>
@@ -326,7 +471,13 @@ const Classroom = () => {
                       value={groupName}
                       onChange={(e) => setGroupName(e.target.value)}
                     />
-                    <button onClick={() => handleCreateGroup(groupSet._id)}>Create Group</button>
+                    <input
+                      type="number"
+                      placeholder="Number of Groups"
+                      value={groupCount}
+                      onChange={(e) => setGroupCount(e.target.value)}
+                    />
+                    <button onClick={() => handleCreateGroup(groupSet._id)}>Create Groups</button>
                   </div>
                   <div>
                     <h4>Groups</h4>
@@ -334,8 +485,70 @@ const Classroom = () => {
                       {groupSet.groups.map((group) => (
                         <li key={group._id}>
                           <h5>{group.name}</h5>
-                          <p>Members: {group.members.length}</p>
+                          <p>Members: {group.members.length}/{group.maxMembers || groupSet.maxMembers}</p>
                           <button onClick={() => handleJoinGroup(groupSet._id, group._id)}>Join Group</button>
+                          <button onClick={() => handleLeaveGroup(groupSet._id, group._id)}>Leave Group</button>
+                          <button onClick={() => handleEditGroup(group)}>Edit</button>
+                          <button onClick={() => handleDeleteGroup(groupSet._id, group._id)}>Delete</button>
+                          {editingGroup && editingGroup._id === group._id && (
+                            <div>
+                              <h4>Update Group</h4>
+                              <input
+                                type="text"
+                                placeholder="Group Name"
+                                value={groupName}
+                                onChange={(e) => setGroupName(e.target.value)}
+                              />
+                              <input
+                                type="text"
+                                placeholder="Image URL"
+                                value={groupImage}
+                                onChange={(e) => setGroupImage(e.target.value)}
+                              />
+                              <input
+                                type="number"
+                                placeholder="Max Members"
+                                value={groupMaxMembers}
+                                onChange={(e) => setGroupMaxMembers(e.target.value)}
+                              />
+                              <button onClick={() => handleUpdateGroup(groupSet._id, group._id)}>Update Group</button>
+                              <button onClick={handleCancelUpdate}>Cancel</button>
+                              </div>
+                          )}
+                          <div>
+                            <h5>Members</h5>
+                            <table>
+                              <thead>
+                                <tr>
+                                  <th>
+                                    <input
+                                      type="checkbox"
+                                      onChange={() => handleSelectAllMembers(group)}
+                                      checked={selectedMembers.length === group.members.length}
+                                    />
+                                  </th>
+                                  <th>Name/Email</th>
+                                  <th>Join Date</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {group.members.map((member) => (
+                                  <tr key={`${group._id}-${member._id}`}>
+                                    <td>
+                                      <input
+                                        type="checkbox"
+                                        checked={selectedMembers.includes(member._id)}
+                                        onChange={() => handleSelectMember(member._id)}
+                                      />
+                                    </td>
+                                    <td>{member.email}</td>
+                                    <td>{new Date(member.joinDate).toLocaleString()}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                            <button onClick={() => handleSuspendMembers(groupSet._id, group._id)}>Suspend Selected Members</button>
+                          </div>
                         </li>
                       ))}
                     </ul>
@@ -383,6 +596,7 @@ const Classroom = () => {
             <button onClick={editingGroupSet ? handleUpdateGroupSet : handleCreateGroupSet}>
               {editingGroupSet ? 'Update GroupSet' : 'Create GroupSet'}
             </button>
+            {editingGroupSet && <button onClick={handleCancelUpdate}>Cancel</button>}
           </div>
         </div>
       )}
@@ -414,8 +628,28 @@ const Classroom = () => {
                       {groupSet.groups.map((group) => (
                         <li key={group._id}>
                           <h5>{group.name}</h5>
-                          <p>Members: {group.members.length}</p>
+                          <p>Members: {group.members.length}/{group.maxMembers || groupSet.maxMembers}</p>
                           <button onClick={() => handleJoinGroup(groupSet._id, group._id)}>Join Group</button>
+                          <button onClick={() => handleLeaveGroup(groupSet._id, group._id)}>Leave Group</button>
+                          <div>
+                            <h5>Members</h5>
+                            <table>
+                              <thead>
+                                <tr>
+                                  <th>Name/Email</th>
+                                  <th>Join Date</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {group.members.map((member) => (
+                                  <tr key={`${group._id}-${member._id}`}>
+                                    <td>{member.email}</td>
+                                    <td>{new Date(member.joinDate).toLocaleString()}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
                         </li>
                       ))}
                     </ul>

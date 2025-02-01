@@ -93,8 +93,15 @@ router.put('/:id', ensureAuthenticated, async (req, res) => {
       return res.status(403).json({ error: 'Not authorized to update this classroom' });
     }
 
-    classroom.name = name || classroom.name;
-    classroom.image = image || classroom.image;
+    const changes = {};
+    if (classroom.name !== name) changes.name = name;
+    if (classroom.image !== image) changes.image = image;
+
+    if (Object.keys(changes).length === 0) {
+      return res.status(400).json({ message: 'No changes were made' });
+    }
+
+    Object.assign(classroom, changes);
     await classroom.save();
     res.status(200).json(classroom);
   } catch (err) {
