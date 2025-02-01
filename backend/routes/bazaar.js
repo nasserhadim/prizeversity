@@ -48,4 +48,69 @@ router.post('/:bazaarId/items/:itemId/buy', ensureAuthenticated, async (req, res
   }
 });
 
+// Fetch Bazaars for Classroom
+router.get('/classroom/:classroomId', ensureAuthenticated, async (req, res) => {
+  try {
+    const bazaars = await Bazaar.find({ classroom: req.params.classroomId });
+    res.status(200).json(bazaars);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch bazaars' });
+  }
+});
+
+// Update Bazaar
+router.put('/:id', ensureAuthenticated, async (req, res) => {
+  const { name, description, image } = req.body;
+  try {
+    const bazaar = await Bazaar.findById(req.params.id);
+    if (!bazaar) return res.status(404).json({ error: 'Bazaar not found' });
+
+    bazaar.name = name || bazaar.name;
+    bazaar.description = description || bazaar.description;
+    bazaar.image = image || bazaar.image;
+    await bazaar.save();
+    res.status(200).json(bazaar);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update bazaar' });
+  }
+});
+
+// Delete Bazaar
+router.delete('/:id', ensureAuthenticated, async (req, res) => {
+  try {
+    await Bazaar.deleteOne({ _id: req.params.id });
+    res.status(200).json({ message: 'Bazaar deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete bazaar' });
+  }
+});
+
+// Update Item
+router.put('/:bazaarId/items/:itemId', ensureAuthenticated, async (req, res) => {
+  const { name, description, price, image } = req.body;
+  try {
+    const item = await Item.findById(req.params.itemId);
+    if (!item) return res.status(404).json({ error: 'Item not found' });
+
+    item.name = name || item.name;
+    item.description = description || item.description;
+    item.price = price || item.price;
+    item.image = image || item.image;
+    await item.save();
+    res.status(200).json(item);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update item' });
+  }
+});
+
+// Delete Item
+router.delete('/:bazaarId/items/:itemId', ensureAuthenticated, async (req, res) => {
+  try {
+    await Item.deleteOne({ _id: req.params.itemId });
+    res.status(200).json({ message: 'Item deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete item' });
+  }
+});
+
 module.exports = router;
