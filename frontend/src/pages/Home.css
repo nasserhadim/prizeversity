@@ -1,0 +1,29 @@
+.classroom-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.classroom-card {
+  background-color: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 16px;
+  width: 200px;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.classroom-card:hover {
+  transform: scale(1.05);
+}
+
+.classroom-card h3 {
+  margin: 0;
+  font-size: 1.2em;
+}
+
+.classroom-card p {
+  margin: 8px 0 0;
+  color: #666;
+}

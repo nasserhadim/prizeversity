@@ -54,6 +54,17 @@ router.get('/student', ensureAuthenticated, async (req, res) => {
   }
 });
 
+// Fetch Specific Classroom
+router.get('/:id', ensureAuthenticated, async (req, res) => {
+  try {
+    const classroom = await Classroom.findById(req.params.id);
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+    res.status(200).json(classroom);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch classroom' });
+  }
+});
+
 // Delete Classroom
 router.delete('/:id', ensureAuthenticated, async (req, res) => {
   try {
