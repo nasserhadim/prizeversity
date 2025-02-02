@@ -1,0 +1,116 @@
+.member-controls {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.member-search,
+.member-filter,
+.member-sort {
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.member-search {
+  flex: 1;
+  min-width: 200px;
+}
+
+.member-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 15px;
+}
+
+.member-table th,
+.member-table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #ddd;
+}
+
+.member-table th {
+  background-color: #f5f5f5;
+  font-weight: 600;
+}
+
+.pending-member {
+  background-color: #fff8e8;
+}
+
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.85em;
+}
+
+.status-badge.pending {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.status-badge.approved {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.status-badge.rejected {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.bulk-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.bulk-actions button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: opacity 0.2s;
+}
+
+.bulk-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.approve-button {
+  background-color: #28a745;
+  color: white;
+}
+
+.reject-button {
+  background-color: #dc3545;
+  color: white;
+}
+
+.suspend-button {
+  background-color: #ffc107;
+  color: #000;
+}
+
+@media (max-width: 768px) {
+  .member-controls {
+    flex-direction: column;
+  }
+  
+  .member-search,
+  .member-filter,
+  .member-sort {
+    width: 100%;
+  }
+  
+  .bulk-actions {
+    flex-direction: column;
+  }
+  
+  .bulk-actions button {
+    width: 100%;
+  }
+}

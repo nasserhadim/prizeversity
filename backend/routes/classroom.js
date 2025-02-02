@@ -2,6 +2,7 @@ const express = require('express');
 const Classroom = require('../models/Classroom');
 const Group = require('../models/Group');
 const GroupSet = require('../models/GroupSet');
+const Notification = require('../models/Notification'); // Add this line
 const { ensureAuthenticated } = require('../config/auth');
 const router = express.Router();
 
@@ -91,6 +92,17 @@ router.delete('/:id', ensureAuthenticated, async (req, res) => {
 
     if (classroom.teacher.toString() !== req.user._id.toString()) {
       return res.status(403).json({ error: 'Not authorized to delete this classroom' });
+    }
+
+    for (const studentId of classroom.students) {
+      const notification = await new Notification({
+        user: studentId,
+        type: 'classroom_deletion',
+        message: `Classroom "${classroom.name}" has been deleted`,
+        actionBy: req.user._id
+      }).save();
+
+      req.app.get('io').to(`user-${studentId}`).emit('notification', notification);
     }
 
     await Classroom.deleteOne({ _id: req.params.id });
@@ -207,6 +219,17 @@ router.delete('/:id/students/:studentId', ensureAuthenticated, async (req, res) 
       (studentId) => studentId.toString() !== req.params.studentId
     );
     await classroom.save();
+
+    const notification = await new Notification({
+      user: req.params.studentId,
+      type: 'classroom_removal',
+      message: `You have been removed from classroom "${classroom.name}"`,
+      classroom: classroom._id,
+      actionBy: req.user._id
+    }).save();
+
+    req.app.get('io').to(`user-${req.params.studentId}`).emit('notification', notification);
+
     res.status(200).json({ message: 'Student removed successfully' });
   } catch (err) {
     console.error('Error removing student:', err);

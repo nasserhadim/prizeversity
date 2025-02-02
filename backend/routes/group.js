@@ -1,8 +1,10 @@
 const express = require('express');
 const GroupSet = require('../models/GroupSet');
 const Group = require('../models/Group');
+const Notification = require('../models/Notification'); // Add this line
 const { ensureAuthenticated } = require('../config/auth');
 const router = express.Router();
+const io = require('socket.io')(); // Add this line
 
 // Create GroupSet
 router.post('/groupset/create', ensureAuthenticated, async (req, res) => {
@@ -213,6 +215,22 @@ router.put('/groupset/:groupSetId/group/:groupId', ensureAuthenticated, async (r
 // Delete Group
 router.delete('/groupset/:groupSetId/group/:groupId', ensureAuthenticated, async (req, res) => {
   try {
+    const group = await Group.findById(req.params.groupId);
+    if (!group) return res.status(404).json({ error: 'Group not found' });
+
+    for (const member of group.members) {
+      const notification = await new Notification({
+        user: member._id._id,
+        type: 'group_removal',
+        message: `Group "${group.name}" has been deleted`,
+        classroom: groupSet.classroom,
+        groupSet: groupSet._id,
+        actionBy: req.user._id
+      }).save();
+    
+      req.app.get('io').to(`user-${member._id._id}`).emit('notification', notification);
+    }
+
     await Group.deleteOne({ _id: req.params.groupId });
     const groupSet = await GroupSet.findById(req.params.groupSetId);
     groupSet.groups = groupSet.groups.filter(groupId => groupId.toString() !== req.params.groupId);
@@ -236,10 +254,26 @@ router.post('/groupset/:groupSetId/group/:groupId/suspend', ensureAuthenticated,
     if (!group) return res.status(404).json({ error: 'Group not found' });
 
     const initialMemberCount = group.members.length;
-    group.members = group.members.filter(member => !memberIds.includes(member._id.toString()));
+    group.members = group.members.filter(member => 
+      !memberIds.includes(member._id.toString()) || member.status === 'pending'
+    );
     
     if (group.members.length === initialMemberCount) {
       return res.status(400).json({ message: 'No members were suspended' });
+    }
+
+    for (const memberId of memberIds) {
+      const notification = await new Notification({
+        user: memberId,
+        type: 'group_removal',
+        message: `You have been suspended from group "${group.name}"`,
+        classroom: groupSet.classroom,
+        groupSet: groupSet._id,
+        group: group._id,
+        actionBy: req.user._id
+      }).save();
+    
+      req.app.get('io').to(`user-${memberId}`).emit('notification', notification);
     }
 
     await group.save();
@@ -271,11 +305,14 @@ router.post('/groupset/:groupSetId/group/:groupId/leave', ensureAuthenticated, a
 router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated, async (req, res) => {
   const { memberIds } = req.body;
   
-  if (!memberIds || memberIds.length === 0) {
-    return res.status(400).json({ message: 'No selection with pending status made to perform this action.' });
-  }
+  const sendNotification = (userId, notification) => {
+    io.to(`user-${userId}`).emit('notification', notification);
+  };
 
   try {
+    const groupSet = await GroupSet.findById(req.params.groupSetId);
+    if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
+
     const group = await Group.findById(req.params.groupId);
     if (!group) return res.status(404).json({ error: 'Group not found' });
 
@@ -283,7 +320,7 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
     group.members = group.members.map(member => {
       if (memberIds.includes(member._id.toString()) && member.status === 'pending') {
         approvalCount++;
-        return { ...member, status: 'approved' };
+        return { ...member.toObject(), status: 'approved' };
       }
       return member;
     });
@@ -296,19 +333,21 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
 
     // Create notifications for approved members
     for (const memberId of memberIds) {
-      await new Notification({
+      const notification = await new Notification({
         user: memberId,
         type: 'group_approval',
         message: `Your request to join group "${group.name}" has been approved.`,
-        classroom: req.params.classroomId,
-        groupSet: req.params.groupSetId,
+        classroom: groupSet.classroom, // Use the classroom ID from groupSet
+        groupSet: groupSet._id,
         group: group._id,
         actionBy: req.user._id
       }).save();
+      sendNotification(memberId, notification);
     }
 
     res.status(200).json({ message: 'Members approved successfully' });
   } catch (err) {
+    console.error('Approval error:', err);
     res.status(500).json({ error: 'Failed to approve members' });
   }
 });
@@ -317,6 +356,10 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
 router.post('/groupset/:groupSetId/group/:groupId/reject', ensureAuthenticated, async (req, res) => {
   const { memberIds } = req.body;
   
+  const sendNotification = (userId, notification) => {
+    io.to(`user-${userId}`).emit('notification', notification);
+  };
+
   if (!memberIds || memberIds.length === 0) {
     return res.status(400).json({ message: 'No selection with pending status made to perform this action.' });
   }
@@ -342,7 +385,7 @@ router.post('/groupset/:groupSetId/group/:groupId/reject', ensureAuthenticated, 
 
     // Create notifications for rejected members
     for (const memberId of memberIds) {
-      await new Notification({
+      const notification = await new Notification({
         user: memberId,
         type: 'group_rejection',
         message: `Your request to join group "${group.name}" has been rejected.`,
@@ -351,6 +394,7 @@ router.post('/groupset/:groupSetId/group/:groupId/reject', ensureAuthenticated, 
         group: group._id,
         actionBy: req.user._id
       }).save();
+      sendNotification(memberId, notification);
     }
 
     res.status(200).json({ message: 'Members rejected successfully' });

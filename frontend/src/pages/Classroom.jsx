@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import '../styles/MemberManagement.css';
 
 const Classroom = () => {
   const { id } = useParams();
@@ -29,6 +30,9 @@ const Classroom = () => {
   const [groupCount, setGroupCount] = useState(1);
   const [selectedMembers, setSelectedMembers] = useState([]);
   const [editingClassroom, setEditingClassroom] = useState(false);
+  const [memberFilter, setMemberFilter] = useState('all'); // 'all', 'pending', 'approved'
+  const [memberSort, setMemberSort] = useState('email'); // 'email', 'status', 'date'
+  const [memberSearch, setMemberSearch] = useState('');
 
   useEffect(() => {
     fetchClassroomDetails();
@@ -293,13 +297,28 @@ const Classroom = () => {
 
   const handleJoinGroup = async (groupSetId, groupId) => {
     try {
+      // Check if user is already in any group in this groupset
+      const currentGroupSet = groupSets.find(gs => gs._id === groupSetId);
+      if (currentGroupSet) {
+        const isInAnyGroup = currentGroupSet.groups.some(group => 
+          group.members.some(member => 
+            member._id._id === user._id && 
+            (member.status === 'approved' || member.status === 'pending')
+          )
+        );
+        
+        if (isInAnyGroup) {
+          alert('You are already a member or have a pending request in this GroupSet');
+          return;
+        }
+      }
+  
       const response = await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/join`);
-      console.log('Joined group:', response.data);
-      alert('Joined group successfully!');
+      alert(response.data.message);
       fetchGroupSets();
     } catch (err) {
       if (err.response && err.response.data && err.response.data.error) {
-        alert(`Failed to join group: ${err.response.data.error}`);
+        alert(err.response.data.error);
       } else {
         console.error('Failed to join group', err);
         alert('Failed to join group');
@@ -361,13 +380,14 @@ const Classroom = () => {
   };
 
   const handleSelectMember = (groupId, memberId) => {
-    setSelectedMembers((prevSelected) => {
-      const groupSelectedMembers = prevSelected[groupId] || [];
-      const newGroupSelectedMembers = groupSelectedMembers.includes(memberId)
-        ? groupSelectedMembers.filter((id) => id !== memberId)
-        : [...groupSelectedMembers, memberId];
-      return { ...prevSelected, [groupId]: newGroupSelectedMembers };
-    });
+    setSelectedMembers(prevSelected => ({
+      ...prevSelected,
+      [groupId]: prevSelected[groupId]
+        ? prevSelected[groupId].includes(memberId)
+          ? prevSelected[groupId].filter(id => id !== memberId)
+          : [...prevSelected[groupId], memberId]
+        : [memberId]
+    }));
   };
 
   const handleSelectAllMembers = (groupId, group) => {
@@ -537,6 +557,29 @@ const handleRejectMembers = async (groupSetId, groupId) => {
   }
 };
 
+const getFilteredAndSortedMembers = (members) => {
+  return members
+    .filter(member => {
+      if (memberFilter === 'all') return true;
+      return member.status === memberFilter;
+    })
+    .filter(member => 
+      member._id.email.toLowerCase().includes(memberSearch.toLowerCase())
+    )
+    .sort((a, b) => {
+      switch (memberSort) {
+        case 'email':
+          return a._id.email.localeCompare(b._id.email);
+        case 'status':
+          return (a.status || 'approved').localeCompare(b.status || 'approved');
+        case 'date':
+          return new Date(b.joinDate) - new Date(a.joinDate);
+        default:
+          return 0;
+      }
+    });
+};
+
   if (!classroom) return <div>Loading...</div>;
 
   return (
@@ -678,7 +721,34 @@ const handleRejectMembers = async (groupSetId, groupId) => {
                           )}
                           <div>
                             <h5>Members</h5>
-                            <table>
+                            <div className="member-controls">
+                              <input
+                                type="text"
+                                placeholder="Search members..."
+                                value={memberSearch}
+                                onChange={(e) => setMemberSearch(e.target.value)}
+                                className="member-search"
+                              />
+                              <select
+                                value={memberFilter}
+                                onChange={(e) => setMemberFilter(e.target.value)}
+                                className="member-filter"
+                              >
+                                <option value="all">All Members</option>
+                                <option value="pending">Pending</option>
+                                <option value="approved">Approved</option>
+                              </select>
+                              <select
+                                value={memberSort}
+                                onChange={(e) => setMemberSort(e.target.value)}
+                                className="member-sort"
+                              >
+                                <option value="email">Sort by Email</option>
+                                <option value="status">Sort by Status</option>
+                                <option value="date">Sort by Join Date</option>
+                              </select>
+                            </div>
+                            <table className="member-table">
                               <thead>
                                 <tr>
                                   <th>
@@ -694,8 +764,11 @@ const handleRejectMembers = async (groupSetId, groupId) => {
                                 </tr>
                               </thead>
                               <tbody>
-                                {group.members.map((member) => (
-                                  <tr key={`${group._id}-${member._id._id}`}>
+                                {getFilteredAndSortedMembers(group.members).map((member, index) => (
+                                  <tr 
+                                    key={`${group._id}-${member._id._id}-${member.joinDate}-${index}`}
+                                    className={member.status === 'pending' ? 'pending-member' : ''}
+                                  >
                                     <td>
                                       <input
                                         type="checkbox"
@@ -704,16 +777,38 @@ const handleRejectMembers = async (groupSetId, groupId) => {
                                       />
                                     </td>
                                     <td>{member._id.email}</td>
-                                    <td>{member.status || 'approved'}</td>
+                                    <td>
+                                      <span className={`status-badge ${member.status || 'approved'}`}>
+                                        {member.status || 'approved'}
+                                      </span>
+                                    </td>
                                     <td>{member.status === 'approved' ? new Date(member.joinDate).toLocaleString() : 'Pending'}</td>
                                   </tr>
                                 ))}
                               </tbody>
                             </table>
-                            <div>
-                              <button onClick={() => handleApproveMembers(groupSet._id, group._id)}>Approve</button>
-                              <button onClick={() => handleRejectMembers(groupSet._id, group._id)}>Reject</button>
-                              <button onClick={() => handleSuspendMembers(groupSet._id, group._id)}>Suspend</button>
+                            <div className="bulk-actions">
+                              <button 
+                                onClick={() => handleApproveMembers(groupSet._id, group._id)}
+                                disabled={!selectedMembers[group._id]?.length}
+                                className="approve-button"
+                              >
+                                Approve Selected
+                              </button>
+                              <button 
+                                onClick={() => handleRejectMembers(groupSet._id, group._id)}
+                                disabled={!selectedMembers[group._id]?.length}
+                                className="reject-button"
+                              >
+                                Reject Selected
+                              </button>
+                              <button 
+                                onClick={() => handleSuspendMembers(groupSet._id, group._id)}
+                                disabled={!selectedMembers[group._id]?.length}
+                                className="suspend-button"
+                              >
+                                Suspend Selected
+                              </button>
                             </div>
                           </div>
                         </li>
@@ -800,7 +895,34 @@ const handleRejectMembers = async (groupSetId, groupId) => {
                           <button onClick={() => handleLeaveGroup(groupSet._id, group._id)}>Leave Group</button>
                           <div>
                             <h5>Members</h5>
-                            <table>
+                            <div className="member-controls">
+                              <input
+                                type="text"
+                                placeholder="Search members..."
+                                value={memberSearch}
+                                onChange={(e) => setMemberSearch(e.target.value)}
+                                className="member-search"
+                              />
+                              <select
+                                value={memberFilter}
+                                onChange={(e) => setMemberFilter(e.target.value)}
+                                className="member-filter"
+                              >
+                                <option value="all">All Members</option>
+                                <option value="pending">Pending</option>
+                                <option value="approved">Approved</option>
+                              </select>
+                              <select
+                                value={memberSort}
+                                onChange={(e) => setMemberSort(e.target.value)}
+                                className="member-sort"
+                              >
+                                <option value="email">Sort by Email</option>
+                                <option value="status">Sort by Status</option>
+                                <option value="date">Sort by Join Date</option>
+                              </select>
+                            </div>
+                            <table className="member-table">
                               <thead>
                                 <tr>
                                   <th>Name/Email</th>
@@ -809,10 +931,17 @@ const handleRejectMembers = async (groupSetId, groupId) => {
                                 </tr>
                               </thead>
                               <tbody>
-                                {group.members.map((member) => (
-                                  <tr key={`${group._id}-${member._id._id}`}>
+                                {getFilteredAndSortedMembers(group.members).map((member, index) => (
+                                  <tr 
+                                    key={`${group._id}-${member._id._id}-${member.joinDate}-${index}`}
+                                    className={member.status === 'pending' ? 'pending-member' : ''}
+                                  >
                                     <td>{member._id.email}</td>
-                                    <td>{member.status || 'approved'}</td>
+                                    <td>
+                                      <span className={`status-badge ${member.status || 'approved'}`}>
+                                        {member.status || 'approved'}
+                                      </span>
+                                    </td>
                                     <td>{member.status === 'approved' ? new Date(member.joinDate).toLocaleString() : 'Pending'}</td>
                                   </tr>
                                 ))}

@@ -46,7 +46,10 @@ prizeversity2/
 
 ```
 npm init -y
+
 npm install express mongoose passport passport-google-oauth20 passport-microsoft cors dotenv
+
+npm install socket.io
 ```
 
 > Now create the following files:
@@ -67,9 +70,14 @@ npm install express mongoose passport passport-google-oauth20 passport-microsoft
 
 ```
 npm create vite@latest frontend -- --template react # If prompted for framework, select React, and variant: JavaScript
+
 cd frontend
+
 npm install
+
 npm install axios react-router-dom socket.io-client
+
+npm install react-transition-group
 ```
 > Now create the following files:
 >
