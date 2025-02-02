@@ -94,15 +94,18 @@ router.delete('/:id', ensureAuthenticated, async (req, res) => {
       return res.status(403).json({ error: 'Not authorized to delete this classroom' });
     }
 
-    for (const studentId of classroom.students) {
+    // Create notification for teacher and all students
+    const notificationRecipients = [classroom.teacher, ...classroom.students];
+    
+    for (const recipientId of notificationRecipients) {
       const notification = await new Notification({
-        user: studentId,
+        user: recipientId,
         type: 'classroom_deletion',
         message: `Classroom "${classroom.name}" has been deleted`,
         actionBy: req.user._id
       }).save();
 
-      req.app.get('io').to(`user-${studentId}`).emit('notification', notification);
+      req.app.get('io').to(`user-${recipientId}`).emit('notification', notification);
     }
 
     await Classroom.deleteOne({ _id: req.params.id });
