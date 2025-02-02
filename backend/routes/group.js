@@ -7,6 +7,10 @@ const router = express.Router();
 // Create GroupSet
 router.post('/groupset/create', ensureAuthenticated, async (req, res) => {
   const { name, classroomId, selfSignup, joinApproval, maxMembers, image } = req.body;
+  if (maxMembers < 0) {
+    return res.status(400).json({ error: 'Max members cannot be a negative number' });
+  }
+
   try {
     const groupSet = new GroupSet({ name, classroom: classroomId, selfSignup, joinApproval, maxMembers, image });
     await groupSet.save();
@@ -75,6 +79,10 @@ router.get('/groupset/classroom/:classroomId', ensureAuthenticated, async (req, 
 // Create Group within GroupSet
 router.post('/groupset/:groupSetId/group/create', ensureAuthenticated, async (req, res) => {
   const { name, count } = req.body;
+  if (!name.trim()) {
+    return res.status(400).json({ error: 'Group name is required' });
+  }
+
   try {
     const groupSet = await GroupSet.findById(req.params.groupSetId);
     if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });

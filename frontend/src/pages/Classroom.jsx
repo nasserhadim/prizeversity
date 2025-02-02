@@ -123,6 +123,11 @@ const Classroom = () => {
   };
 
   const handleCreateGroupSet = async () => {
+    if (groupSetMaxMembers < 0) {
+      alert('Max members cannot be a negative number.');
+      return;
+    }
+
     try {
       const response = await axios.post('/api/group/groupset/create', {
         name: groupSetName,
@@ -201,6 +206,11 @@ const Classroom = () => {
   const handleCreateGroup = async (groupSetId) => {
     if (groupCount <= 0) {
       alert('Group count must be a positive number.');
+      return;
+    }
+
+    if (!groupName.trim()) {
+      alert('Group name is required.');
       return;
     }
 
@@ -517,7 +527,7 @@ const Classroom = () => {
                                 type="number"
                                 placeholder="Max Members"
                                 value={groupMaxMembers}
-                                onChange={(e) => setGroupMaxMembers(e.target.value)}
+                                onChange={(e) => setGroupMaxMembers(Math.max(0, e.target.value))}
                               />
                               <button onClick={() => handleUpdateGroup(groupSet._id, group._id)}>Update Group</button>
                               <button onClick={handleCancelUpdate}>Cancel</button>
@@ -593,7 +603,7 @@ const Classroom = () => {
               type="number"
               placeholder="Max Members"
               value={groupSetMaxMembers}
-              onChange={(e) => setGroupSetMaxMembers(e.target.value)}
+              onChange={(e) => setGroupSetMaxMembers(Math.max(0, e.target.value))}
             />
             <input
               type="text"
