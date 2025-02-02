@@ -67,6 +67,11 @@ const NotificationBell = () => {
   const filteredNotifications = notifications
     .filter(notification => {
       if (filterBy === 'all') return true;
+      if (filterBy.includes(',')) {
+        // Handle multiple types
+        const types = filterBy.split(',');
+        return types.includes(notification.type);
+      }
       return notification.type === filterBy;
     })
     .filter(notification =>
@@ -135,6 +140,8 @@ const NotificationBell = () => {
                 <option value="group_approval">Approvals</option>
                 <option value="group_rejection">Rejections</option>
                 <option value="classroom_removal">Removals</option>
+                <option value="group_suspension">Suspensions</option>
+                <option value="group_deletion,classroom_deletion,groupset_deletion">Deletions</option>
               </select>
               <button 
                 onClick={handleDismissAll}

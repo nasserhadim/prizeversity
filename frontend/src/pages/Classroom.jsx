@@ -30,9 +30,9 @@ const Classroom = () => {
   const [groupCount, setGroupCount] = useState(1);
   const [selectedMembers, setSelectedMembers] = useState([]);
   const [editingClassroom, setEditingClassroom] = useState(false);
-  const [memberFilter, setMemberFilter] = useState('all'); // 'all', 'pending', 'approved'
-  const [memberSort, setMemberSort] = useState('email'); // 'email', 'status', 'date'
-  const [memberSearch, setMemberSearch] = useState('');
+  const [memberFilters, setMemberFilters] = useState({});
+  const [memberSorts, setMemberSorts] = useState({});
+  const [memberSearches, setMemberSearches] = useState({});
 
   useEffect(() => {
     fetchClassroomDetails();
@@ -557,17 +557,21 @@ const handleRejectMembers = async (groupSetId, groupId) => {
   }
 };
 
-const getFilteredAndSortedMembers = (members) => {
-  return members
+const getFilteredAndSortedMembers = (group) => {
+  const filter = memberFilters[group._id] || 'all';
+  const sort = memberSorts[group._id] || 'email';
+  const search = memberSearches[group._id] || '';
+
+  return group.members
     .filter(member => {
-      if (memberFilter === 'all') return true;
-      return member.status === memberFilter;
+      if (filter === 'all') return true;
+      return member.status === filter;
     })
     .filter(member => 
-      member._id.email.toLowerCase().includes(memberSearch.toLowerCase())
+      member._id.email.toLowerCase().includes(search.toLowerCase())
     )
     .sort((a, b) => {
-      switch (memberSort) {
+      switch (sort) {
         case 'email':
           return a._id.email.localeCompare(b._id.email);
         case 'status':
@@ -578,6 +582,27 @@ const getFilteredAndSortedMembers = (members) => {
           return 0;
       }
     });
+};
+
+const handleFilterChange = (groupId, value) => {
+  setMemberFilters(prev => ({
+    ...prev,
+    [groupId]: value
+  }));
+};
+
+const handleSortChange = (groupId, value) => {
+  setMemberSorts(prev => ({
+    ...prev,
+    [groupId]: value
+  }));
+};
+
+const handleSearchChange = (groupId, value) => {
+  setMemberSearches(prev => ({
+    ...prev,
+    [groupId]: value
+  }));
 };
 
   if (!classroom) return <div>Loading...</div>;
@@ -725,13 +750,13 @@ const getFilteredAndSortedMembers = (members) => {
                               <input
                                 type="text"
                                 placeholder="Search members..."
-                                value={memberSearch}
-                                onChange={(e) => setMemberSearch(e.target.value)}
+                                value={memberSearches[group._id] || ''}
+                                onChange={(e) => handleSearchChange(group._id, e.target.value)}
                                 className="member-search"
                               />
                               <select
-                                value={memberFilter}
-                                onChange={(e) => setMemberFilter(e.target.value)}
+                                value={memberFilters[group._id] || 'all'}
+                                onChange={(e) => handleFilterChange(group._id, e.target.value)}
                                 className="member-filter"
                               >
                                 <option value="all">All Members</option>
@@ -739,8 +764,8 @@ const getFilteredAndSortedMembers = (members) => {
                                 <option value="approved">Approved</option>
                               </select>
                               <select
-                                value={memberSort}
-                                onChange={(e) => setMemberSort(e.target.value)}
+                                value={memberSorts[group._id] || 'email'}
+                                onChange={(e) => handleSortChange(group._id, e.target.value)}
                                 className="member-sort"
                               >
                                 <option value="email">Sort by Email</option>
@@ -764,7 +789,7 @@ const getFilteredAndSortedMembers = (members) => {
                                 </tr>
                               </thead>
                               <tbody>
-                                {getFilteredAndSortedMembers(group.members).map((member, index) => (
+                                {getFilteredAndSortedMembers(group).map((member, index) => (
                                   <tr 
                                     key={`${group._id}-${member._id._id}-${member.joinDate}-${index}`}
                                     className={member.status === 'pending' ? 'pending-member' : ''}
@@ -899,13 +924,13 @@ const getFilteredAndSortedMembers = (members) => {
                               <input
                                 type="text"
                                 placeholder="Search members..."
-                                value={memberSearch}
-                                onChange={(e) => setMemberSearch(e.target.value)}
+                                value={memberSearches[group._id] || ''}
+                                onChange={(e) => handleSearchChange(group._id, e.target.value)}
                                 className="member-search"
                               />
                               <select
-                                value={memberFilter}
-                                onChange={(e) => setMemberFilter(e.target.value)}
+                                value={memberFilters[group._id] || 'all'}
+                                onChange={(e) => handleFilterChange(group._id, e.target.value)}
                                 className="member-filter"
                               >
                                 <option value="all">All Members</option>
@@ -913,8 +938,8 @@ const getFilteredAndSortedMembers = (members) => {
                                 <option value="approved">Approved</option>
                               </select>
                               <select
-                                value={memberSort}
-                                onChange={(e) => setMemberSort(e.target.value)}
+                                value={memberSorts[group._id] || 'email'}
+                                onChange={(e) => handleSortChange(group._id, e.target.value)}
                                 className="member-sort"
                               >
                                 <option value="email">Sort by Email</option>
@@ -931,7 +956,7 @@ const getFilteredAndSortedMembers = (members) => {
                                 </tr>
                               </thead>
                               <tbody>
-                                {getFilteredAndSortedMembers(group.members).map((member, index) => (
+                                {getFilteredAndSortedMembers(group).map((member, index) => (
                                   <tr 
                                     key={`${group._id}-${member._id._id}-${member.joinDate}-${index}`}
                                     className={member.status === 'pending' ? 'pending-member' : ''}

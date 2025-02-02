@@ -5,7 +5,16 @@ const NotificationSchema = new mongoose.Schema({
   message: { type: String, required: true },
   type: { 
     type: String, 
-    enum: ['group_approval', 'group_rejection', 'classroom_removal', 'group_removal', 'classroom_deletion'],
+    enum: [
+      'group_approval', 
+      'group_rejection', 
+      'classroom_removal', 
+      'group_removal', 
+      'classroom_deletion',
+      'group_deletion',
+      'group_suspension',
+      'groupset_deletion'  // Add this new type
+    ],
     required: true 
   },
   classroom: { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom' },
