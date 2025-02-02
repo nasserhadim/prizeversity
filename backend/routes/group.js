@@ -218,6 +218,9 @@ router.delete('/groupset/:groupSetId/group/:groupId', ensureAuthenticated, async
     const group = await Group.findById(req.params.groupId);
     if (!group) return res.status(404).json({ error: 'Group not found' });
 
+    const groupSet = await GroupSet.findById(req.params.groupSetId);
+    if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
+
     for (const member of group.members) {
       const notification = await new Notification({
         user: member._id._id,
@@ -232,7 +235,6 @@ router.delete('/groupset/:groupSetId/group/:groupId', ensureAuthenticated, async
     }
 
     await Group.deleteOne({ _id: req.params.groupId });
-    const groupSet = await GroupSet.findById(req.params.groupSetId);
     groupSet.groups = groupSet.groups.filter(groupId => groupId.toString() !== req.params.groupId);
     await groupSet.save();
     res.status(200).json({ message: 'Group deleted successfully' });
@@ -261,6 +263,9 @@ router.post('/groupset/:groupSetId/group/:groupId/suspend', ensureAuthenticated,
     if (group.members.length === initialMemberCount) {
       return res.status(400).json({ message: 'No members were suspended' });
     }
+
+    const groupSet = await GroupSet.findById(req.params.groupSetId);
+    if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
 
     for (const memberId of memberIds) {
       const notification = await new Notification({
