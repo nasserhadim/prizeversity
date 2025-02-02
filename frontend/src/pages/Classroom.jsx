@@ -295,16 +295,16 @@ const Classroom = () => {
   const handleLeaveGroup = async (groupSetId, groupId) => {
     try {
       const response = await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/leave`);
-      if (response.data.message === 'Left group successfully') {
-        console.log('Left group:', response.data);
-        alert('Left group successfully!');
-        fetchGroupSets();
-      } else {
-        alert('You are not in this group.');
-      }
+      console.log('Leave group response:', response.data);
+      alert(response.data.message); // Will show either success message or "You're not a member" message
+      fetchGroupSets();
     } catch (err) {
-      console.error('Failed to leave group', err);
-      alert('Failed to leave group');
+      if (err.response && err.response.data && err.response.data.message) {
+        alert(err.response.data.message);
+      } else {
+        console.error('Failed to leave group', err);
+        alert('Failed to leave group');
+      }
     }
   };
 
@@ -366,17 +366,21 @@ const Classroom = () => {
       alert('No members selected for suspension.');
       return;
     }
-
+  
     try {
-      await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/suspend`, {
-        memberIds: groupSelectedMembers,
+      const response = await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/suspend`, {
+        memberIds: groupSelectedMembers
       });
-      alert('Members suspended successfully!');
+      alert(response.data.message);
       setSelectedMembers((prevSelected) => ({ ...prevSelected, [groupId]: [] }));
       fetchGroupSets();
     } catch (err) {
-      console.error('Failed to suspend members', err);
-      alert('Failed to suspend members');
+      if (err.response && err.response.data && err.response.data.message) {
+        alert(err.response.data.message);
+      } else {
+        console.error('Failed to suspend members', err);
+        alert('Failed to suspend members');
+      }
     }
   };
 
@@ -551,12 +555,12 @@ const Classroom = () => {
                               </thead>
                               <tbody>
                                 {group.members.map((member) => (
-                                  <tr key={`${group._id}-${member._id}`}>
+                                  <tr key={`${group._id}-${member._id._id}`}>  {/* Use member._id._id since member._id is the populated user object */}
                                     <td>
                                       <input
                                         type="checkbox"
-                                        checked={selectedMembers[group._id]?.includes(member._id) || false}
-                                        onChange={() => handleSelectMember(group._id, member._id)}
+                                        checked={selectedMembers[group._id]?.includes(member._id._id) || false}
+                                        onChange={() => handleSelectMember(group._id, member._id._id)}
                                       />
                                     </td>
                                     <td>{member._id.email}</td>
@@ -660,7 +664,7 @@ const Classroom = () => {
                               </thead>
                               <tbody>
                                 {group.members.map((member) => (
-                                  <tr key={`${group._id}-${member._id}`}>
+                                  <tr key={`${group._id}-${member._id._id}`}>  {/* Use member._id._id since member._id is the populated user object */}
                                     <td>{member._id.email}</td>
                                     <td>{new Date(member.joinDate).toLocaleString()}</td>
                                   </tr>

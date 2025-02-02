@@ -164,6 +164,33 @@ router.delete('/groupset/:groupSetId/group/:groupId', ensureAuthenticated, async
   }
 });
 
+// Suspend Members from Group
+router.post('/groupset/:groupSetId/group/:groupId/suspend', ensureAuthenticated, async (req, res) => {
+  const { memberIds } = req.body;
+  
+  if (!memberIds || memberIds.length === 0) {
+    return res.status(400).json({ message: 'No members selected for suspension' });
+  }
+
+  try {
+    const group = await Group.findById(req.params.groupId);
+    if (!group) return res.status(404).json({ error: 'Group not found' });
+
+    const initialMemberCount = group.members.length;
+    group.members = group.members.filter(member => !memberIds.includes(member._id.toString()));
+    
+    if (group.members.length === initialMemberCount) {
+      return res.status(400).json({ message: 'No members were suspended' });
+    }
+
+    await group.save();
+    res.status(200).json({ message: 'Members suspended successfully' });
+  } catch (err) {
+    console.error('Suspension error:', err);
+    res.status(500).json({ error: 'Failed to suspend members' });
+  }
+});
+
 // Leave Group within GroupSet
 router.post('/groupset/:groupSetId/group/:groupId/leave', ensureAuthenticated, async (req, res) => {
   try {
@@ -171,28 +198,13 @@ router.post('/groupset/:groupSetId/group/:groupId/leave', ensureAuthenticated, a
     if (!group) return res.status(404).json({ error: 'Group not found' });
 
     const isMember = group.members.some(member => member._id.equals(req.user._id));
-    if (!isMember) return res.status(400).json({ message: 'You are not in this group.' });
+    if (!isMember) return res.status(400).json({ message: "You're not a member of this group to leave it!" });
 
     group.members = group.members.filter(member => !member._id.equals(req.user._id));
     await group.save();
     res.status(200).json({ message: 'Left group successfully' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to leave group' });
-  }
-});
-
-// Suspend Members from Group
-router.post('/groupset/:groupSetId/group/:groupId/suspend', ensureAuthenticated, async (req, res) => {
-  const { memberIds } = req.body;
-  try {
-    const group = await Group.findById(req.params.groupId);
-    if (!group) return res.status(404).json({ error: 'Group not found' });
-
-    group.members = group.members.filter(member => !memberIds.includes(member._id.toString()));
-    await group.save();
-    res.status(200).json({ message: 'Members suspended successfully' });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to suspend members' });
   }
 });
 
