@@ -352,10 +352,12 @@ const Classroom = () => {
   };
 
   const handleSelectAllMembers = (groupId, group) => {
-    setSelectedMembers((prevSelected) => {
-      const allMemberIds = group.members.map((member) => member._id);
-      const newGroupSelectedMembers =
-        prevSelected[groupId]?.length === allMemberIds.length ? [] : allMemberIds;
+    setSelectedMembers(prevSelected => {
+      const allMemberIds = group.members.map(member => member._id._id);
+      const currentGroupSelected = prevSelected[groupId] || [];
+      const newGroupSelectedMembers = currentGroupSelected.length === allMemberIds.length 
+        ? []  // If all are selected, unselect all
+        : allMemberIds;  // Otherwise, select all
       return { ...prevSelected, [groupId]: newGroupSelectedMembers };
     });
   };
@@ -545,8 +547,8 @@ const Classroom = () => {
                                   <th>
                                     <input
                                       type="checkbox"
+                                      checked={(selectedMembers[group._id]?.length || 0) === group.members.length}
                                       onChange={() => handleSelectAllMembers(group._id, group)}
-                                      checked={selectedMembers[group._id]?.length === group.members.length}
                                     />
                                   </th>
                                   <th>Name/Email</th>
@@ -555,7 +557,7 @@ const Classroom = () => {
                               </thead>
                               <tbody>
                                 {group.members.map((member) => (
-                                  <tr key={`${group._id}-${member._id._id}`}>  {/* Use member._id._id since member._id is the populated user object */}
+                                  <tr key={`${group._id}-${member._id._id}`}>
                                     <td>
                                       <input
                                         type="checkbox"
@@ -664,7 +666,7 @@ const Classroom = () => {
                               </thead>
                               <tbody>
                                 {group.members.map((member) => (
-                                  <tr key={`${group._id}-${member._id._id}`}>  {/* Use member._id._id since member._id is the populated user object */}
+                                  <tr key={`${group._id}-${member._id._id}`}>
                                     <td>{member._id.email}</td>
                                     <td>{new Date(member.joinDate).toLocaleString()}</td>
                                   </tr>
