@@ -199,6 +199,11 @@ const Classroom = () => {
   };
 
   const handleCreateGroup = async (groupSetId) => {
+    if (groupCount <= 0) {
+      alert('Group count must be a positive number.');
+      return;
+    }
+
     try {
       const response = await axios.post(`/api/group/groupset/${groupSetId}/group/create`, {
         name: groupName,
@@ -326,35 +331,38 @@ const Classroom = () => {
     }
   };
 
-  const handleSelectMember = (memberId) => {
-    setSelectedMembers((prevSelected) =>
-      prevSelected.includes(memberId)
-        ? prevSelected.filter((id) => id !== memberId)
-        : [...prevSelected, memberId]
-    );
+  const handleSelectMember = (groupId, memberId) => {
+    setSelectedMembers((prevSelected) => {
+      const groupSelectedMembers = prevSelected[groupId] || [];
+      const newGroupSelectedMembers = groupSelectedMembers.includes(memberId)
+        ? groupSelectedMembers.filter((id) => id !== memberId)
+        : [...groupSelectedMembers, memberId];
+      return { ...prevSelected, [groupId]: newGroupSelectedMembers };
+    });
   };
 
-  const handleSelectAllMembers = (group) => {
-    const allMemberIds = group.members.map((member) => member._id);
-    if (selectedMembers.length === allMemberIds.length) {
-      setSelectedMembers([]);
-    } else {
-      setSelectedMembers(allMemberIds);
-    }
+  const handleSelectAllMembers = (groupId, group) => {
+    setSelectedMembers((prevSelected) => {
+      const allMemberIds = group.members.map((member) => member._id);
+      const newGroupSelectedMembers =
+        prevSelected[groupId]?.length === allMemberIds.length ? [] : allMemberIds;
+      return { ...prevSelected, [groupId]: newGroupSelectedMembers };
+    });
   };
 
   const handleSuspendMembers = async (groupSetId, groupId) => {
-    if (selectedMembers.length === 0) {
+    const groupSelectedMembers = selectedMembers[groupId] || [];
+    if (groupSelectedMembers.length === 0) {
       alert('No members selected for suspension.');
       return;
     }
-  
+
     try {
       await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/suspend`, {
-        memberIds: selectedMembers,
+        memberIds: groupSelectedMembers,
       });
       alert('Members suspended successfully!');
-      setSelectedMembers([]);
+      setSelectedMembers((prevSelected) => ({ ...prevSelected, [groupId]: [] }));
       fetchGroupSets();
     } catch (err) {
       console.error('Failed to suspend members', err);
@@ -475,7 +483,7 @@ const Classroom = () => {
                       type="number"
                       placeholder="Number of Groups"
                       value={groupCount}
-                      onChange={(e) => setGroupCount(e.target.value)}
+                      onChange={(e) => setGroupCount(Math.max(1, e.target.value))}
                     />
                     <button onClick={() => handleCreateGroup(groupSet._id)}>Create Groups</button>
                   </div>
@@ -485,7 +493,7 @@ const Classroom = () => {
                       {groupSet.groups.map((group) => (
                         <li key={group._id}>
                           <h5>{group.name}</h5>
-                          <p>Members: {group.members.length}/{group.maxMembers || groupSet.maxMembers}</p>
+                          <p>Members: {group.members.length}/{group.maxMembers || 'No limit'}</p>
                           <button onClick={() => handleJoinGroup(groupSet._id, group._id)}>Join Group</button>
                           <button onClick={() => handleLeaveGroup(groupSet._id, group._id)}>Leave Group</button>
                           <button onClick={() => handleEditGroup(group)}>Edit</button>
@@ -513,7 +521,7 @@ const Classroom = () => {
                               />
                               <button onClick={() => handleUpdateGroup(groupSet._id, group._id)}>Update Group</button>
                               <button onClick={handleCancelUpdate}>Cancel</button>
-                              </div>
+                            </div>
                           )}
                           <div>
                             <h5>Members</h5>
@@ -523,8 +531,8 @@ const Classroom = () => {
                                   <th>
                                     <input
                                       type="checkbox"
-                                      onChange={() => handleSelectAllMembers(group)}
-                                      checked={selectedMembers.length === group.members.length}
+                                      onChange={() => handleSelectAllMembers(group._id, group)}
+                                      checked={selectedMembers[group._id]?.length === group.members.length}
                                     />
                                   </th>
                                   <th>Name/Email</th>
@@ -537,11 +545,11 @@ const Classroom = () => {
                                     <td>
                                       <input
                                         type="checkbox"
-                                        checked={selectedMembers.includes(member._id)}
-                                        onChange={() => handleSelectMember(member._id)}
+                                        checked={selectedMembers[group._id]?.includes(member._id) || false}
+                                        onChange={() => handleSelectMember(group._id, member._id)}
                                       />
                                     </td>
-                                    <td>{member.email}</td>
+                                    <td>{member._id.email}</td>
                                     <td>{new Date(member.joinDate).toLocaleString()}</td>
                                   </tr>
                                 ))}
@@ -628,7 +636,7 @@ const Classroom = () => {
                       {groupSet.groups.map((group) => (
                         <li key={group._id}>
                           <h5>{group.name}</h5>
-                          <p>Members: {group.members.length}/{group.maxMembers || groupSet.maxMembers}</p>
+                          <p>Members: {group.members.length}/{group.maxMembers || 'No limit'}</p>
                           <button onClick={() => handleJoinGroup(groupSet._id, group._id)}>Join Group</button>
                           <button onClick={() => handleLeaveGroup(groupSet._id, group._id)}>Leave Group</button>
                           <div>
@@ -643,7 +651,7 @@ const Classroom = () => {
                               <tbody>
                                 {group.members.map((member) => (
                                   <tr key={`${group._id}-${member._id}`}>
-                                    <td>{member.email}</td>
+                                    <td>{member._id.email}</td>
                                     <td>{new Date(member.joinDate).toLocaleString()}</td>
                                   </tr>
                                 ))}

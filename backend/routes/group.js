@@ -62,8 +62,8 @@ router.get('/groupset/classroom/:classroomId', ensureAuthenticated, async (req, 
       .populate({
         path: 'groups',
         populate: {
-          path: 'members',
-          select: 'email joinDate'
+          path: 'members._id',
+          select: 'email'
         }
       });
     res.status(200).json(groupSets);
@@ -101,16 +101,16 @@ router.post('/groupset/:groupSetId/group/:groupId/join', ensureAuthenticated, as
     if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
 
     // Check if the user is already a member of any group within the GroupSet
-    const isMemberOfAnyGroup = groupSet.groups.some(group => group.members.includes(req.user._id));
+    const isMemberOfAnyGroup = groupSet.groups.some(group => group.members.some(member => member._id.equals(req.user._id)));
     if (isMemberOfAnyGroup) {
       return res.status(400).json({ error: 'You are already a member of a group in this GroupSet' });
     }
 
-    const group = await Group.findById(req.params.groupId);
+    const group = await Group.findById(req.params.groupId).populate('members._id', 'email');
     if (!group) return res.status(404).json({ error: 'Group not found' });
 
     const maxMembers = group.maxMembers || groupSet.maxMembers;
-    if (group.members.length >= maxMembers) {
+    if (maxMembers && group.members.length >= maxMembers) {
       return res.status(400).json({ error: 'Group is full' });
     }
 
@@ -162,10 +162,10 @@ router.post('/groupset/:groupSetId/group/:groupId/leave', ensureAuthenticated, a
     const group = await Group.findById(req.params.groupId);
     if (!group) return res.status(404).json({ error: 'Group not found' });
 
-    const isMember = group.members.includes(req.user._id);
+    const isMember = group.members.some(member => member._id.equals(req.user._id));
     if (!isMember) return res.status(400).json({ message: 'You are not in this group.' });
 
-    group.members = group.members.filter(memberId => memberId.toString() !== req.user._id.toString());
+    group.members = group.members.filter(member => !member._id.equals(req.user._id));
     await group.save();
     res.status(200).json({ message: 'Left group successfully' });
   } catch (err) {
@@ -180,7 +180,7 @@ router.post('/groupset/:groupSetId/group/:groupId/suspend', ensureAuthenticated,
     const group = await Group.findById(req.params.groupId);
     if (!group) return res.status(404).json({ error: 'Group not found' });
 
-    group.members = group.members.filter(memberId => !memberIds.includes(memberId.toString()));
+    group.members = group.members.filter(member => !memberIds.includes(member._id.toString()));
     await group.save();
     res.status(200).json({ message: 'Members suspended successfully' });
   } catch (err) {
