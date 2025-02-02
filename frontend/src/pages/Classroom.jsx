@@ -312,7 +312,11 @@ const Classroom = () => {
     try {
       await axios.delete(`/api/classroom/${id}/students/${studentId}`);
       alert('Student removed successfully!');
-      fetchStudents();
+      // Fetch both students and group sets to update the UI
+      await Promise.all([
+        fetchStudents(),
+        fetchGroupSets()
+      ]);
     } catch (err) {
       console.error('Failed to remove student', err);
       alert('Failed to remove student');

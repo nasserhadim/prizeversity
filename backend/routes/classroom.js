@@ -1,5 +1,7 @@
 const express = require('express');
 const Classroom = require('../models/Classroom');
+const Group = require('../models/Group');
+const GroupSet = require('../models/GroupSet');
 const { ensureAuthenticated } = require('../config/auth');
 const router = express.Router();
 
@@ -105,15 +107,36 @@ router.put('/:id', ensureAuthenticated, async (req, res) => {
     await classroom.save();
     res.status(200).json(classroom);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to update classroom' });
+    res.status(500).json({ message: 'No changes were made' });
   }
 });
 
 // Leave Classroom
 router.post('/:id/leave', ensureAuthenticated, async (req, res) => {
   try {
-    const classroom = await Classroom.findById(req.params.id);
+    const classroom = await Classroom.findById(req.params.id)
+      .populate({
+        path: 'groups',
+        populate: {
+          path: 'groups'
+        }
+      });
     if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+
+    // Remove student from all groups in all groupsets of the classroom
+    if (classroom.groups) {
+      for (const groupSet of await GroupSet.find({ classroom: classroom._id })) {
+        for (const groupId of groupSet.groups) {
+          const group = await Group.findById(groupId);
+          if (group) {
+            group.members = group.members.filter(
+              member => member._id.toString() !== req.user._id.toString()
+            );
+            await group.save();
+          }
+        }
+      }
+    }
 
     if (classroom.teacher.toString() === req.user._id.toString()) {
       // Teacher leaving the classroom (delete it)
@@ -127,6 +150,7 @@ router.post('/:id/leave', ensureAuthenticated, async (req, res) => {
     }
     res.status(200).json({ message: 'Left classroom successfully' });
   } catch (err) {
+    console.error('Error leaving classroom:', err);
     res.status(500).json({ error: 'Failed to leave classroom' });
   }
 });
@@ -149,12 +173,27 @@ router.delete('/:id/students/:studentId', ensureAuthenticated, async (req, res) 
     const classroom = await Classroom.findById(req.params.id);
     if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
 
+    // Remove student from all groups in all groupsets of the classroom
+    const groupSets = await GroupSet.find({ classroom: classroom._id });
+    for (const groupSet of groupSets) {
+      for (const groupId of groupSet.groups) {
+        const group = await Group.findById(groupId);
+        if (group) {
+          group.members = group.members.filter(
+            member => member._id.toString() !== req.params.studentId
+          );
+          await group.save();
+        }
+      }
+    }
+
     classroom.students = classroom.students.filter(
       (studentId) => studentId.toString() !== req.params.studentId
     );
     await classroom.save();
     res.status(200).json({ message: 'Student removed successfully' });
   } catch (err) {
+    console.error('Error removing student:', err);
     res.status(500).json({ error: 'Failed to remove student' });
   }
 });
