@@ -8,7 +8,18 @@ const router = express.Router();
 // Create Classroom
 router.post('/create', ensureAuthenticated, async (req, res) => {
   const { name, code } = req.body;
+  
+  if (!name || !code) {
+    return res.status(400).json({ error: 'Classroom name and code are required' });
+  }
+
   try {
+    // Check if classroom code already exists
+    const existingClassroom = await Classroom.findOne({ code });
+    if (existingClassroom) {
+      return res.status(400).json({ error: 'A classroom with this code already exists' });
+    }
+
     const classroom = new Classroom({ name, code, teacher: req.user._id });
     await classroom.save();
     res.status(201).json(classroom);
@@ -20,12 +31,17 @@ router.post('/create', ensureAuthenticated, async (req, res) => {
 // Join Classroom
 router.post('/join', ensureAuthenticated, async (req, res) => {
   const { code } = req.body;
+  
+  if (!code) {
+    return res.status(400).json({ error: 'Please enter a classroom code' });
+  }
+
   try {
     const classroom = await Classroom.findOne({ code });
-    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+    if (!classroom) return res.status(404).json({ error: 'Invalid classroom code' });
 
     if (classroom.students.includes(req.user._id)) {
-      return res.status(400).json({ error: 'Already joined this classroom' });
+      return res.status(400).json({ error: 'You have already joined this classroom' });
     }
 
     classroom.students.push(req.user._id);

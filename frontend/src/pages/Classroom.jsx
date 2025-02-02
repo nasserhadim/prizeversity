@@ -123,11 +123,16 @@ const Classroom = () => {
   };
 
   const handleCreateGroupSet = async () => {
-    if (groupSetMaxMembers < 0) {
-      alert('Max members cannot be a negative number.');
+    if (!groupSetName.trim()) {
+      alert('GroupSet name is required');
       return;
     }
-
+  
+    if (groupSetMaxMembers < 0) {
+      alert('Max members cannot be a negative number');
+      return;
+    }
+  
     try {
       const response = await axios.post('/api/group/groupset/create', {
         name: groupSetName,
@@ -146,10 +151,15 @@ const Classroom = () => {
       setGroupSetImage('');
       fetchGroupSets();
     } catch (err) {
-      console.error('Failed to create group set', err);
-      alert('Failed to create group set');
+      if (err.response && err.response.data && err.response.data.error) {
+        alert(err.response.data.error);
+      } else {
+        console.error('Failed to create group set', err);
+        alert('Failed to create group set');
+      }
     }
   };
+  
 
   const handleEditGroupSet = (groupSet) => {
     setEditingGroupSet(groupSet);
@@ -204,16 +214,16 @@ const Classroom = () => {
   };
 
   const handleCreateGroup = async (groupSetId) => {
-    if (groupCount <= 0) {
-      alert('Group count must be a positive number.');
-      return;
-    }
-
     if (!groupName.trim()) {
-      alert('Group name is required.');
+      alert('Group name is required');
       return;
     }
-
+  
+    if (groupCount <= 0) {
+      alert('Number of groups must be greater than 0');
+      return;
+    }
+  
     try {
       const response = await axios.post(`/api/group/groupset/${groupSetId}/group/create`, {
         name: groupName,
@@ -225,10 +235,15 @@ const Classroom = () => {
       setGroupCount(1);
       fetchGroupSets();
     } catch (err) {
-      console.error('Failed to create groups', err);
-      alert('Failed to create groups');
+      if (err.response && err.response.data && err.response.data.error) {
+        alert(err.response.data.error);
+      } else {
+        console.error('Failed to create groups', err);
+        alert('Failed to create groups');
+      }
     }
   };
+  
 
   const handleEditGroup = (group) => {
     setEditingGroup(group);
@@ -404,6 +419,75 @@ const Classroom = () => {
     setGroupMaxMembers('');
   };
 
+  // Add these confirmation handlers
+  const handleLeaveClassroomConfirm = async () => {
+    if (window.confirm(`You are about to leave the classroom "${classroom.name}". If you're a member of any group(s) in this classroom, you will be automatically removed. Are you sure you want to proceed?`)) {
+      try {
+        await axios.post(`/api/classroom/${id}/leave`);
+        alert('Left classroom successfully!');
+        navigate('/');
+      } catch (err) {
+        console.error('Failed to leave classroom', err);
+        alert('Failed to leave classroom');
+      }
+    }
+  };
+
+  const handleDeleteClassroomConfirm = async () => {
+    if (window.confirm(`You're about to delete classroom "${classroom.name}". All data will be purged! Are you sure you want to proceed?`)) {
+      try {
+        await axios.delete(`/api/classroom/${id}`);
+        alert('Classroom deleted successfully!');
+        navigate('/');
+      } catch (err) {
+        console.error('Failed to delete classroom', err);
+        alert('Failed to delete classroom');
+      }
+    }
+  };
+
+  const handleRemoveStudentConfirm = async (studentId) => {
+    if (window.confirm('Are you sure you want to proceed with the removal? Any group associations will be disconnected as well.')) {
+      try {
+        await axios.delete(`/api/classroom/${id}/students/${studentId}`);
+        alert('Student removed successfully!');
+        await Promise.all([
+          fetchStudents(),
+          fetchGroupSets()
+        ]);
+      } catch (err) {
+        console.error('Failed to remove student', err);
+        alert('Failed to remove student');
+      }
+    }
+  };
+
+  const handleDeleteGroupSetConfirm = async (groupSet) => {
+    if (window.confirm(`You're about to delete this GroupSet "${groupSet.name}". All student enrollment in any groups within this GroupSet will be purged alongside the groups themselves. Are you sure you want to proceed?`)) {
+      try {
+        await axios.delete(`/api/group/groupset/${groupSet._id}`);
+        alert('GroupSet deleted successfully!');
+        fetchGroupSets();
+      } catch (err) {
+        console.error('Failed to delete group set', err);
+        alert('Failed to delete group set');
+      }
+    }
+  };
+
+  const handleDeleteGroupConfirm = async (groupSetId, group) => {
+    if (window.confirm(`You're about to delete this group "${group.name}". Any students enrolled in the group will be removed. Are you sure you want to proceed?`)) {
+      try {
+        await axios.delete(`/api/group/groupset/${groupSetId}/group/${group._id}`);
+        alert('Group deleted successfully!');
+        fetchGroupSets();
+      } catch (err) {
+        console.error('Failed to delete group', err);
+        alert('Failed to delete group');
+      }
+    }
+  };
+
   if (!classroom) return <div>Loading...</div>;
 
   return (
@@ -433,8 +517,8 @@ const Classroom = () => {
           ) : (
             <button onClick={() => setEditingClassroom(true)}>Edit Classroom</button>
           )}
-          <button onClick={handleLeaveClassroom}>Leave Classroom</button>
-          <button onClick={handleDeleteClassroom}>Delete Classroom</button>
+          <button onClick={handleLeaveClassroomConfirm}>Leave Classroom</button>
+          <button onClick={handleDeleteClassroomConfirm}>Delete Classroom</button>
           <div>
             <h4>Create Bazaar</h4>
             <input
@@ -474,7 +558,7 @@ const Classroom = () => {
               {students.map((student) => (
                 <li key={student._id}>
                   {student.email}
-                  <button onClick={() => handleRemoveStudent(student._id)}>Remove Student</button>
+                  <button onClick={() => handleRemoveStudentConfirm(student._id)}>Remove Student</button>
                 </li>
               ))}
             </ul>
@@ -490,7 +574,7 @@ const Classroom = () => {
                   <p>Max Members: {groupSet.maxMembers || 'No limit'}</p>
                   <p>Image: <img src={groupSet.image} alt={groupSet.name} width="50" /></p>
                   <button onClick={() => handleEditGroupSet(groupSet)}>Edit</button>
-                  <button onClick={() => handleDeleteGroupSet(groupSet._id)}>Delete</button>
+                  <button onClick={() => handleDeleteGroupSetConfirm(groupSet)}>Delete</button>
                   <div>
                     <h4>Create Group</h4>
                     <input
@@ -517,7 +601,7 @@ const Classroom = () => {
                           <button onClick={() => handleJoinGroup(groupSet._id, group._id)}>Join Group</button>
                           <button onClick={() => handleLeaveGroup(groupSet._id, group._id)}>Leave Group</button>
                           <button onClick={() => handleEditGroup(group)}>Edit</button>
-                          <button onClick={() => handleDeleteGroup(groupSet._id, group._id)}>Delete</button>
+                          <button onClick={() => handleDeleteGroupConfirm(groupSet._id, group)}>Delete</button>
                           {editingGroup && editingGroup._id === group._id && (
                             <div>
                               <h4>Update Group</h4>
@@ -575,7 +659,7 @@ const Classroom = () => {
                                 ))}
                               </tbody>
                             </table>
-                            <button onClick={() => handleSuspendMembers(groupSet._id, group._id)}>Suspend Selected Members</button>
+                            <button onClick={() => handleSuspendMembers(groupSet._id, group._id)}>Suspend</button>
                           </div>
                         </li>
                       ))}
@@ -630,7 +714,7 @@ const Classroom = () => {
       )}
       {user.role === 'student' && (
         <div>
-          <button onClick={handleLeaveClassroom}>Leave Classroom</button>
+          <button onClick={handleLeaveClassroomConfirm}>Leave Classroom</button>
           <h3>Bazaars</h3>
           <ul>
             {bazaars.map((bazaar) => (

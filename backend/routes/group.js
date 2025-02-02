@@ -7,12 +7,34 @@ const router = express.Router();
 // Create GroupSet
 router.post('/groupset/create', ensureAuthenticated, async (req, res) => {
   const { name, classroomId, selfSignup, joinApproval, maxMembers, image } = req.body;
-  if (maxMembers < 0) {
-    return res.status(400).json({ error: 'Max members cannot be a negative number' });
+  
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'GroupSet name is required' });
   }
 
   try {
-    const groupSet = new GroupSet({ name, classroom: classroomId, selfSignup, joinApproval, maxMembers, image });
+    // Check if groupset with same name exists in the classroom
+    const existingGroupSet = await GroupSet.findOne({ 
+      classroom: classroomId,
+      name: name.trim()
+    });
+    
+    if (existingGroupSet) {
+      return res.status(400).json({ error: 'A GroupSet with this name already exists in this classroom' });
+    }
+
+    if (maxMembers && maxMembers < 0) {
+      return res.status(400).json({ error: 'Max members cannot be a negative number' });
+    }
+
+    const groupSet = new GroupSet({ 
+      name: name.trim(), 
+      classroom: classroomId, 
+      selfSignup, 
+      joinApproval, 
+      maxMembers, 
+      image 
+    });
     await groupSet.save();
     res.status(201).json(groupSet);
   } catch (err) {
@@ -108,10 +130,15 @@ router.post('/groupset/:groupSetId/group/:groupId/join', ensureAuthenticated, as
     const groupSet = await GroupSet.findById(req.params.groupSetId).populate('groups');
     if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
 
-    // Check if the user is already a member of any group within the GroupSet
-    const isMemberOfAnyGroup = groupSet.groups.some(group => group.members.some(member => member._id.equals(req.user._id)));
-    if (isMemberOfAnyGroup) {
-      return res.status(400).json({ error: 'You are already a member of a group in this GroupSet' });
+    // Find if user is already a member of any group and get that group's name
+    const existingGroup = groupSet.groups.find(group => 
+      group.members.some(member => member._id.equals(req.user._id))
+    );
+    
+    if (existingGroup) {
+      return res.status(400).json({ 
+        error: `You are already a member of group "${existingGroup.name}" in this GroupSet!`
+      });
     }
 
     const group = await Group.findById(req.params.groupId).populate('members._id', 'email');

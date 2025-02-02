@@ -50,6 +50,11 @@ const Home = () => {
 
   const handleCreateClassroom = async () => {
     try {
+      if (!classroomName.trim() || !classroomCode.trim()) {
+        alert('Classroom name and code are required');
+        return;
+      }
+
       const response = await axios.post('/api/classroom/create', {
         name: classroomName,
         code: classroomCode,
@@ -60,21 +65,34 @@ const Home = () => {
       setClassroomCode('');
       fetchClassrooms(); // Refresh the classroom list
     } catch (err) {
-      console.error('Failed to create classroom', err);
-      alert('Failed to create classroom');
+      if (err.response && err.response.data && err.response.data.error) {
+        alert(err.response.data.error); // Will show "A classroom with this code already exists" or other specific errors
+      } else {
+        console.error('Failed to create classroom', err);
+        alert('Failed to create classroom');
+      }
     }
   };
 
   const handleJoinClassroom = async () => {
     try {
+      if (!joinClassroomCode.trim()) {
+        alert('Please enter a classroom code');
+        return;
+      }
+
       const response = await axios.post('/api/classroom/join', { code: joinClassroomCode });
-      console.log('Joined Classroom:', response.data); // Log the joined classroom
+      console.log('Joined Classroom:', response.data);
       alert('Joined classroom successfully!');
       setJoinClassroomCode('');
       fetchClassrooms(); // Refresh the classroom list
     } catch (err) {
-      console.error('Failed to join classroom', err);
-      alert('Failed to join classroom');
+      if (err.response && err.response.data && err.response.data.error) {
+        alert(err.response.data.error); // Will show "Invalid classroom code" or "Already joined" messages
+      } else {
+        console.error('Failed to join classroom', err);
+        alert('Failed to join classroom');
+      }
     }
   };
 
