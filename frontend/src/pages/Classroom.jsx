@@ -488,6 +488,55 @@ const Classroom = () => {
     }
   };
 
+  // Add these handler functions
+const handleApproveMembers = async (groupSetId, groupId) => {
+  const groupSelectedMembers = selectedMembers[groupId] || [];
+  if (groupSelectedMembers.length === 0) {
+    alert('No selection with pending status made to perform this action.');
+    return;
+  }
+
+  try {
+    const response = await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/approve`, {
+      memberIds: groupSelectedMembers
+    });
+    alert(response.data.message);
+    setSelectedMembers((prevSelected) => ({ ...prevSelected, [groupId]: [] }));
+    fetchGroupSets();
+  } catch (err) {
+    if (err.response && err.response.data && err.response.data.message) {
+      alert(err.response.data.message);
+    } else {
+      console.error('Failed to approve members', err);
+      alert('Failed to approve members');
+    }
+  }
+};
+
+const handleRejectMembers = async (groupSetId, groupId) => {
+  const groupSelectedMembers = selectedMembers[groupId] || [];
+  if (groupSelectedMembers.length === 0) {
+    alert('No selection with pending status made to perform this action.');
+    return;
+  }
+
+  try {
+    const response = await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/reject`, {
+      memberIds: groupSelectedMembers
+    });
+    alert(response.data.message);
+    setSelectedMembers((prevSelected) => ({ ...prevSelected, [groupId]: [] }));
+    fetchGroupSets();
+  } catch (err) {
+    if (err.response && err.response.data && err.response.data.message) {
+      alert(err.response.data.message);
+    } else {
+      console.error('Failed to reject members', err);
+      alert('Failed to reject members');
+    }
+  }
+};
+
   if (!classroom) return <div>Loading...</div>;
 
   return (
@@ -640,6 +689,7 @@ const Classroom = () => {
                                     />
                                   </th>
                                   <th>Name/Email</th>
+                                  <th>Status</th>
                                   <th>Join Date</th>
                                 </tr>
                               </thead>
@@ -654,12 +704,17 @@ const Classroom = () => {
                                       />
                                     </td>
                                     <td>{member._id.email}</td>
-                                    <td>{new Date(member.joinDate).toLocaleString()}</td>
+                                    <td>{member.status || 'approved'}</td>
+                                    <td>{member.status === 'approved' ? new Date(member.joinDate).toLocaleString() : 'Pending'}</td>
                                   </tr>
                                 ))}
                               </tbody>
                             </table>
-                            <button onClick={() => handleSuspendMembers(groupSet._id, group._id)}>Suspend</button>
+                            <div>
+                              <button onClick={() => handleApproveMembers(groupSet._id, group._id)}>Approve</button>
+                              <button onClick={() => handleRejectMembers(groupSet._id, group._id)}>Reject</button>
+                              <button onClick={() => handleSuspendMembers(groupSet._id, group._id)}>Suspend</button>
+                            </div>
                           </div>
                         </li>
                       ))}
@@ -749,6 +804,7 @@ const Classroom = () => {
                               <thead>
                                 <tr>
                                   <th>Name/Email</th>
+                                  <th>Status</th>
                                   <th>Join Date</th>
                                 </tr>
                               </thead>
@@ -756,7 +812,8 @@ const Classroom = () => {
                                 {group.members.map((member) => (
                                   <tr key={`${group._id}-${member._id._id}`}>
                                     <td>{member._id.email}</td>
-                                    <td>{new Date(member.joinDate).toLocaleString()}</td>
+                                    <td>{member.status || 'approved'}</td>
+                                    <td>{member.status === 'approved' ? new Date(member.joinDate).toLocaleString() : 'Pending'}</td>
                                   </tr>
                                 ))}
                               </tbody>

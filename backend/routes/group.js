@@ -130,28 +130,60 @@ router.post('/groupset/:groupSetId/group/:groupId/join', ensureAuthenticated, as
     const groupSet = await GroupSet.findById(req.params.groupSetId).populate('groups');
     if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
 
-    // Find if user is already a member of any group and get that group's name
-    const existingGroup = groupSet.groups.find(group => 
-      group.members.some(member => member._id.equals(req.user._id))
+    // Check if user has any pending requests in this GroupSet
+    const hasPendingRequest = groupSet.groups.some(group => 
+      group.members.some(member => 
+        member._id.equals(req.user._id) && member.status === 'pending'
+      )
     );
-    
-    if (existingGroup) {
+
+    if (hasPendingRequest) {
+      const pendingGroup = groupSet.groups.find(group => 
+        group.members.some(member => 
+          member._id.equals(req.user._id) && member.status === 'pending'
+        )
+      );
       return res.status(400).json({ 
-        error: `You are already a member of group "${existingGroup.name}" in this GroupSet!`
+        error: `Your request to join group "${pendingGroup.name}" is pending approval. You may not join another group until approval is provisioned for that group.` 
       });
     }
 
-    const group = await Group.findById(req.params.groupId).populate('members._id', 'email');
+    const group = await Group.findById(req.params.groupId);
     if (!group) return res.status(404).json({ error: 'Group not found' });
 
-    const maxMembers = group.maxMembers || groupSet.maxMembers;
-    if (maxMembers && group.members.length >= maxMembers) {
-      return res.status(400).json({ error: 'Group is full' });
+    // Check if user was previously rejected from this group
+    const wasRejected = group.members.some(member => 
+      member._id.equals(req.user._id) && member.status === 'rejected'
+    );
+    if (wasRejected) {
+      return res.status(400).json({ 
+        error: `Your request to join this group "${group.name}" has been denied. If you still wish to join this group, reach out to the classroom admin/teacher.` 
+      });
     }
 
-    group.members.push({ _id: req.user._id, joinDate: new Date() });
+    // Check if user already has a pending request for this group
+    const hasPendingRequestForGroup = group.members.some(member => 
+      member._id.equals(req.user._id) && member.status === 'pending'
+    );
+    if (hasPendingRequestForGroup) {
+      return res.status(400).json({ 
+        error: `You've already submitted a request to join this group "${group.name}". Please check the status with the classroom admin/teacher.` 
+      });
+    }
+
+    const status = groupSet.joinApproval ? 'pending' : 'approved';
+    group.members.push({ 
+      _id: req.user._id, 
+      joinDate: new Date(),
+      status 
+    });
     await group.save();
-    res.status(200).json(group);
+
+    res.status(200).json({ 
+      message: groupSet.joinApproval ? 
+        'Join request submitted. Awaiting teacher approval.' : 
+        'Joined group successfully!'
+    });
   } catch (err) {
     res.status(500).json({ error: 'Failed to join group' });
   }
@@ -232,6 +264,98 @@ router.post('/groupset/:groupSetId/group/:groupId/leave', ensureAuthenticated, a
     res.status(200).json({ message: 'Left group successfully' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to leave group' });
+  }
+});
+
+// Approve Members to Group
+router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated, async (req, res) => {
+  const { memberIds } = req.body;
+  
+  if (!memberIds || memberIds.length === 0) {
+    return res.status(400).json({ message: 'No selection with pending status made to perform this action.' });
+  }
+
+  try {
+    const group = await Group.findById(req.params.groupId);
+    if (!group) return res.status(404).json({ error: 'Group not found' });
+
+    let approvalCount = 0;
+    group.members = group.members.map(member => {
+      if (memberIds.includes(member._id.toString()) && member.status === 'pending') {
+        approvalCount++;
+        return { ...member, status: 'approved' };
+      }
+      return member;
+    });
+
+    if (approvalCount === 0) {
+      return res.status(400).json({ message: 'No pending members selected for approval.' });
+    }
+
+    await group.save();
+
+    // Create notifications for approved members
+    for (const memberId of memberIds) {
+      await new Notification({
+        user: memberId,
+        type: 'group_approval',
+        message: `Your request to join group "${group.name}" has been approved.`,
+        classroom: req.params.classroomId,
+        groupSet: req.params.groupSetId,
+        group: group._id,
+        actionBy: req.user._id
+      }).save();
+    }
+
+    res.status(200).json({ message: 'Members approved successfully' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to approve members' });
+  }
+});
+
+// Reject Members from Group
+router.post('/groupset/:groupSetId/group/:groupId/reject', ensureAuthenticated, async (req, res) => {
+  const { memberIds } = req.body;
+  
+  if (!memberIds || memberIds.length === 0) {
+    return res.status(400).json({ message: 'No selection with pending status made to perform this action.' });
+  }
+
+  try {
+    const group = await Group.findById(req.params.groupId);
+    if (!group) return res.status(404).json({ error: 'Group not found' });
+
+    let rejectionCount = 0;
+    group.members = group.members.filter(member => {
+      if (memberIds.includes(member._id.toString()) && member.status === 'pending') {
+        rejectionCount++;
+        return false;  // Remove member
+      }
+      return true;  // Keep member
+    });
+
+    if (rejectionCount === 0) {
+      return res.status(400).json({ message: 'No pending members selected for rejection.' });
+    }
+
+    await group.save();
+
+    // Create notifications for rejected members
+    for (const memberId of memberIds) {
+      await new Notification({
+        user: memberId,
+        type: 'group_rejection',
+        message: `Your request to join group "${group.name}" has been rejected.`,
+        classroom: req.params.classroomId,
+        groupSet: req.params.groupSetId,
+        group: group._id,
+        actionBy: req.user._id
+      }).save();
+    }
+
+    res.status(200).json({ message: 'Members rejected successfully' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to reject members' });
   }
 });
 

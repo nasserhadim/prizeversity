@@ -5,16 +5,23 @@ import Classroom from './pages/Classroom';
 import Bazaar from './pages/Bazaar';
 import Wallet from './pages/Wallet';
 import Groups from './pages/Groups';
+import NotificationBell from './components/NotificationBell';
+import { useAuth } from './context/AuthContext';
 
 function App() {
+  const { user } = useAuth();
+
   return (
-    <Routes>
-      <Route path="/" element={<Home />} />
-      <Route path="/classroom/:id" element={<Classroom />} />
-      <Route path="/bazaar" element={<Bazaar />} />
-      <Route path="/wallet" element={<Wallet />} />
-      <Route path="/groups" element={<Groups />} />
-    </Routes>
+    <div>
+      {user && <NotificationBell />}
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/classroom/:id" element={<Classroom />} />
+        <Route path="/bazaar" element={<Bazaar />} />
+        <Route path="/wallet" element={<Wallet />} />
+        <Route path="/groups" element={<Groups />} />
+      </Routes>
+    </div>
   );
 }
 
