@@ -20,10 +20,40 @@ router.get('/microsoft/callback', passport.authenticate('microsoft', { failureRe
 });
 
 // Logout
+// Though this clears the app session, it doesn’t revoke the user's session with Google or Microsoft. 
+// This means that even though they’re logged out locally, the SSO provider still recognizes them as signed in, so re-login happens almost immediately. 
+// To fully sign out at the provider, users typically need to log out directly from Google or Microsoft, there's no other way around it!
 router.get('/logout', (req, res) => {
   req.logout((err) => {
-    if (err) return res.status(500).json({ error: 'Failed to logout' });
-    res.redirect('http://localhost:5173'); // Redirect to the frontend
+    if (err) {
+      return res.status(500).json({ error: 'Failed to logout' });
+    }
+    req.session.destroy((err) => {
+      if (err) {
+        return res.status(500).json({ error: 'Failed to destroy session' });
+      }
+      res.clearCookie('connect.sid');
+
+      // After clearing the local session, redirect to the homepage.
+      // Inform the user that while they are logged out from our app,
+      // they may remain signed in with their SSO provider.
+      const redirectUrl = 'http://localhost:5173';
+      res.send(`
+        <html>
+          <head>
+            <meta http-equiv="refresh" content="5; URL=${redirectUrl}" />
+          </head>
+          <body>
+            <p>
+              You are now logged out from the application.
+              Note: If you used Google or Microsoft SSO, you may still be signed into their services.
+              To completely sign out, please sign out from your SSO provider.
+              Redirecting to the homepage in 5 seconds...
+            </p>
+          </body>
+        </html>
+      `);
+    });
   });
 });
 

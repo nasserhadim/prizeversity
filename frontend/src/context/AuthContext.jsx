@@ -11,11 +11,14 @@ export const AuthProvider = ({ children }) => {
     const fetchUser = async () => {
       try {
         const response = await axios.get('/api/auth/current-user');
-        console.log('Fetched User:', response.data); // Log the fetched user
         setUser(response.data);
       } catch (err) {
-        console.error('Failed to fetch user:', err); // Log the error
-        setUser(null);
+        if (err.response && err.response.status === 401) {
+          // Expected: no user logged in, clear user silently.
+          setUser(null);
+        } else {
+          console.error('Failed to fetch user:', err);
+        }
       }
     };
     fetchUser();
@@ -33,9 +36,8 @@ export const AuthProvider = ({ children }) => {
   // Logout function
   const logout = async () => {
     try {
-      await axios.get('/api/auth/logout');
-      setUser(null);
-      window.location.href = '/';
+      // Instead of making an axios call, redirect directly:
+      window.location.href = '/api/auth/logout';
     } catch (err) {
       console.error('Failed to logout', err);
     }
