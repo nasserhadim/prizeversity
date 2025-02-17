@@ -152,6 +152,7 @@ const NotificationBell = () => {
                 <option value="classroom_removal">Removals</option>
                 <option value="group_suspension">Suspensions</option>
                 <option value="group_deletion,classroom_deletion,groupset_deletion">Deletions</option>
+                <option value="classroom_update,groupset_update,group_update">Updates</option>
               </select>
               <button 
                 onClick={handleDismissAll}

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import '../styles/MemberManagement.css';
+import socket from '../utils/socket';
 
 const Classroom = () => {
   const { id } = useParams();
@@ -58,6 +59,44 @@ const Classroom = () => {
 
     fetchData();
   }, [id, user, navigate]);
+
+  useEffect(() => {
+    socket.on('classroom_update', (updatedClassroom) => {
+      if (updatedClassroom._id === id) {
+        setClassroom(updatedClassroom);
+      }
+    });
+
+    socket.on('groupset_update', (updatedGroupSet) => {
+      setGroupSets(prevGroupSets => 
+        prevGroupSets.map(gs => 
+          gs._id === updatedGroupSet._id ? updatedGroupSet : gs
+        )
+      );
+    });
+
+    socket.on('group_update', ({ groupSet: groupSetId, group: updatedGroup }) => {
+      setGroupSets(prevGroupSets => 
+        prevGroupSets.map(gs => {
+          if (gs._id === groupSetId) {
+            return {
+              ...gs,
+              groups: gs.groups.map(g => 
+                g._id === updatedGroup._id ? updatedGroup : g
+              )
+            };
+          }
+          return gs;
+        })
+      );
+    });
+
+    return () => {
+      socket.off('classroom_update');
+      socket.off('groupset_update');
+      socket.off('group_update');
+    };
+  }, [id]);
 
   const fetchClassroomDetails = async () => {
     setLoading(true);
@@ -142,27 +181,19 @@ const Classroom = () => {
 
   const handleUpdateClassroom = async () => {
     try {
-      const response = await axios.put(`/api/classroom/${id}`, {
-        name: updateClassroomName,
-        image: updateClassroomImage,
+      await axios.put(`/api/classroom/${id}`, {
+        name: updateClassroomName || classroom.name, // Use existing name if no new name provided
+        image: updateClassroomImage || classroom.image // Use existing image if no new image provided
       });
-      if (response.data.message === 'No changes were made') {
-        alert('No changes were made');
-      } else {
-        console.log('Classroom updated:', response.data);
-        alert('Classroom updated successfully!');
-      }
+      alert('Classroom updated successfully!');
       setEditingClassroom(false);
       setUpdateClassroomName('');
       setUpdateClassroomImage('');
       fetchClassroom();
     } catch (err) {
-      if (err.response && err.response.data && err.response.data.message) {
-        alert(err.response.data.message);
-      } else {
-        console.error('Failed to update classroom', err);
-        alert('Failed to update classroom');
-      }
+      // Check for specific error messages from the backend
+      const errorMessage = err.response?.data?.error || 'Failed to update classroom';
+      alert(errorMessage);
     }
   };
 
@@ -627,12 +658,14 @@ const getFilteredAndSortedMembers = (group) => {
       return member.status === filter;
     })
     .filter(member => 
-      member._id.email.toLowerCase().includes(search.toLowerCase())
+      // Add null checks
+      member?._id?.email?.toLowerCase().includes(search.toLowerCase()) ?? false
     )
     .sort((a, b) => {
       switch (sort) {
         case 'email':
-          return a._id.email.localeCompare(b._id.email);
+          // Add null checks
+          return (a?._id?.email ?? '').localeCompare(b?._id?.email ?? '');
         case 'status':
           return (a.status || 'approved').localeCompare(b.status || 'approved');
         case 'date':

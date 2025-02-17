@@ -49,25 +49,52 @@ router.post('/groupset/create', ensureAuthenticated, async (req, res) => {
 router.put('/groupset/:id', ensureAuthenticated, async (req, res) => {
   const { name, selfSignup, joinApproval, maxMembers, image } = req.body;
   try {
-    const groupSet = await GroupSet.findById(req.params.id);
+    const groupSet = await GroupSet.findById(req.params.id)
+      .populate('groups')
+      .populate('classroom');
     if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
 
-    if (
-      groupSet.name === name &&
-      groupSet.selfSignup === selfSignup &&
-      groupSet.joinApproval === joinApproval &&
-      groupSet.maxMembers === maxMembers &&
-      groupSet.image === image
-    ) {
+    const oldName = groupSet.name;
+    const changes = {};
+    if (groupSet.name !== name) changes.name = name;
+    if (groupSet.selfSignup !== selfSignup) changes.selfSignup = selfSignup;
+    if (groupSet.joinApproval !== joinApproval) changes.joinApproval = joinApproval;
+    if (groupSet.maxMembers !== maxMembers) changes.maxMembers = maxMembers;
+    if (groupSet.image !== image) changes.image = image;
+
+    if (Object.keys(changes).length === 0) {
       return res.status(400).json({ message: 'No changes were made' });
     }
 
-    groupSet.name = name || groupSet.name;
-    groupSet.selfSignup = selfSignup !== undefined ? selfSignup : groupSet.selfSignup;
-    groupSet.joinApproval = joinApproval !== undefined ? joinApproval : groupSet.joinApproval;
-    groupSet.maxMembers = maxMembers !== undefined ? maxMembers : groupSet.maxMembers;
-    groupSet.image = image || groupSet.image;
+    Object.assign(groupSet, changes);
     await groupSet.save();
+
+    // Get all unique members across all groups
+    const memberIds = new Set();
+    groupSet.groups.forEach(group => {
+      group.members.forEach(member => {
+        memberIds.add(member._id._id.toString());
+      });
+    });
+
+    // Notify all members
+    for (const memberId of memberIds) {
+      const notification = await Notification.create({
+        user: memberId,
+        type: 'groupset_update',
+        message: `GroupSet "${oldName}" has been updated to "${groupSet.name}"`,
+        classroom: groupSet.classroom._id,
+        groupSet: groupSet._id,
+        actionBy: req.user._id
+      });
+
+      const populatedNotification = await populateNotification(notification._id);
+      req.app.get('io').to(`user-${memberId}`).emit('notification', populatedNotification);
+      
+      // Also emit groupset update event
+      req.app.get('io').to(`user-${memberId}`).emit('groupset_update', groupSet);
+    }
+
     res.status(200).json(groupSet);
   } catch (err) {
     res.status(500).json({ error: 'Failed to update group set' });
@@ -239,14 +266,41 @@ router.put('/groupset/:groupSetId/group/:groupId', ensureAuthenticated, async (r
     const group = await Group.findById(req.params.groupId);
     if (!group) return res.status(404).json({ error: 'Group not found' });
 
-    if (group.name === name && group.image === image && group.maxMembers === maxMembers) {
+    const groupSet = await GroupSet.findById(req.params.groupSetId);
+    if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
+
+    const oldName = group.name;
+    const changes = {};
+    if (group.name !== name) changes.name = name;
+    if (group.image !== image) changes.image = image;
+    if (group.maxMembers !== maxMembers) changes.maxMembers = maxMembers;
+
+    if (Object.keys(changes).length === 0) {
       return res.status(400).json({ message: 'No changes were made' });
     }
 
-    group.name = name || group.name;
-    group.image = image || group.image;
-    group.maxMembers = maxMembers !== undefined ? maxMembers : group.maxMembers;
+    Object.assign(group, changes);
     await group.save();
+
+    // Notify all group members
+    for (const member of group.members) {
+      const notification = await Notification.create({
+        user: member._id._id,
+        type: 'group_update',
+        message: `Group "${oldName}" has been updated to "${group.name}"`,
+        classroom: groupSet.classroom,
+        groupSet: groupSet._id,
+        group: group._id,
+        actionBy: req.user._id
+      });
+
+      const populatedNotification = await populateNotification(notification._id);
+      req.app.get('io').to(`user-${member._id._id}`).emit('notification', populatedNotification);
+      
+      // Also emit group update event
+      req.app.get('io').to(`user-${member._id._id}`).emit('group_update', { groupSet: groupSet._id, group });
+    }
+
     res.status(200).json(group);
   } catch (err) {
     res.status(500).json({ error: 'Failed to update group' });

@@ -138,19 +138,54 @@ router.put('/:id', ensureAuthenticated, async (req, res) => {
       return res.status(403).json({ error: 'Not authorized to update this classroom' });
     }
 
-    const changes = {};
-    if (classroom.name !== name) changes.name = name;
-    if (classroom.image !== image) changes.image = image;
+    // Store old values for notification message
+    const oldName = classroom.name;
+    const oldImage = classroom.image;
 
-    if (Object.keys(changes).length === 0) {
-      return res.status(400).json({ message: 'No changes were made' });
+    // Check if there are any actual changes
+    const hasNameChange = name && name !== classroom.name;
+    const hasImageChange = image && image !== classroom.image;
+
+    if (!hasNameChange && !hasImageChange) {
+      return res.status(400).json({ error: 'No changes were made' });
     }
 
-    Object.assign(classroom, changes);
+    // Update only if there are changes
+    if (hasNameChange) classroom.name = name;
+    if (hasImageChange) classroom.image = image;
+    
     await classroom.save();
+
+    // Create notifications for teacher and all students
+    const notificationRecipients = [classroom.teacher, ...classroom.students];
+    
+    // Build detailed update message
+    let updateMessage = 'Classroom updates: ';
+    const changes = [];
+    if (hasNameChange) changes.push(`renamed from "${oldName}" to "${name}"`);
+    if (hasImageChange) changes.push('image was updated');
+    updateMessage += changes.join(' and ');
+
+    for (const recipientId of notificationRecipients) {
+      const notification = await Notification.create({
+        user: recipientId,
+        type: 'classroom_update',
+        message: updateMessage,
+        classroom: classroom._id,
+        actionBy: req.user._id
+      });
+
+      const populatedNotification = await populateNotification(notification._id);
+      req.app.get('io').to(`user-${recipientId}`).emit('notification', populatedNotification);
+      
+      // Also emit classroom update event
+      req.app.get('io').to(`user-${recipientId}`).emit('classroom_update', classroom);
+    }
+
     res.status(200).json(classroom);
   } catch (err) {
-    res.status(500).json({ message: 'No changes were made' });
+    console.error('Update classroom error:', err);
+    res.status(500).json({ error: 'Failed to update classroom' });
   }
 });
 

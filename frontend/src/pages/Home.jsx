@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import './Home.css'; // Add this line to import the CSS file
+import socket from '../utils/socket';
 
 const Home = () => {
   const { user, logout, setUser } = useAuth();
@@ -109,6 +110,40 @@ const Home = () => {
   const handleCardClick = (classroomId) => {
     navigate(`/classroom/${classroomId}`);
   };
+
+  // Add socket listener for classroom updates
+  useEffect(() => {
+    // Existing socket listener for classroom updates
+    socket.on('classroom_update', (updatedClassroom) => {
+      setClassrooms(prevClassrooms => 
+        prevClassrooms.map(classroom => 
+          classroom._id === updatedClassroom._id ? updatedClassroom : classroom
+        )
+      );
+    });
+
+    // Add new socket listener for notifications
+    socket.on('notification', (notification) => {
+      // Handle classroom removal
+      if (notification.type === 'classroom_removal' && notification.classroom) {
+        setClassrooms(prevClassrooms => 
+          prevClassrooms.filter(classroom => classroom._id !== notification.classroom._id)
+        );
+      }
+
+      // Handle classroom deletion
+      if (notification.type === 'classroom_deletion' && notification.classroom) {
+        setClassrooms(prevClassrooms => 
+          prevClassrooms.filter(classroom => classroom._id !== notification.classroom._id)
+        );
+      }
+    });
+
+    return () => {
+      socket.off('classroom_update');
+      socket.off('notification');
+    };
+  }, []);
 
   return (
     <div>
