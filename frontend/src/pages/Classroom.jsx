@@ -62,11 +62,29 @@ const Classroom = () => {
   const fetchClassroomDetails = async () => {
     setLoading(true);
     try {
-      await fetchClassroom();
+      const response = await axios.get(`/api/classroom/${id}`);
+      // Check if user still has access to this classroom
+      const classroom = response.data;
+      const hasAccess = user.role === 'teacher' ? 
+        classroom.teacher === user._id :
+        classroom.students.includes(user._id);
+
+      if (!hasAccess) {
+        alert('You no longer have access to this classroom');
+        navigate('/');
+        return;
+      }
+      
+      setClassroom(response.data);
       await fetchBazaars();
       await fetchGroupSets();
       await fetchStudents();
     } catch (err) {
+      if (err.response?.status === 403) {
+        alert('You no longer have access to this classroom');
+        navigate('/');
+        return;
+      }
       // Let the error bubble up to the parent try-catch
       throw err;
     } finally {

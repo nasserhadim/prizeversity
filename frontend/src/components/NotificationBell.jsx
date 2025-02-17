@@ -20,6 +20,16 @@ const NotificationBell = () => {
     const unsubscribe = subscribeToNotifications((notification) => {
       console.log('Received new notification:', notification);
       setNotifications(prev => [notification, ...prev]);
+
+      // Handle classroom removal notification
+      if (notification.type === 'classroom_removal') {
+        alert(`You have been removed from classroom "${notification.classroom.name}"`);
+        // If currently in that classroom, redirect to home
+        const currentPath = window.location.pathname;
+        if (currentPath.includes(`/classroom/${notification.classroom._id}`)) {
+          window.location.href = '/';
+        }
+      }
     });
 
     // Close dropdown when clicking outside

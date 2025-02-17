@@ -79,6 +79,16 @@ router.get('/:id', ensureAuthenticated, async (req, res) => {
   try {
     const classroom = await Classroom.findById(req.params.id);
     if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+
+    // Check if user has access
+    const hasAccess = req.user.role === 'teacher' ? 
+      classroom.teacher.toString() === req.user._id.toString() :
+      classroom.students.includes(req.user._id);
+
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'You no longer have access to this classroom' });
+    }
+
     res.status(200).json(classroom);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch classroom' });
