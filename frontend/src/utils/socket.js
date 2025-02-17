@@ -1,4 +1,6 @@
 import io from 'socket.io-client';
+import axios from 'axios'; // Add this import
+
 const socket = io('http://localhost:5000');
 
 const joinUserRoomWhenAvailable = () => {
@@ -19,10 +21,19 @@ export const joinClassroom = (classroomId) => {
   socket.emit('join-classroom', classroomId);
 };
 
-export const joinUserRoom = (userId) => {
+export const joinUserRoom = async (userId) => {
   localStorage.setItem('userId', userId);
-  socket.emit('join', `user-${userId}`);
-  console.log(`Joined room: user-${userId}`);
+  
+  // Fetch user details to get email
+  try {
+    const response = await axios.get(`/api/auth/user/${userId}`);
+    const userEmail = response.data.email;
+    socket.emit('join', `user-${userId}`);
+    console.log(`Joined room: user-${userId} (${userEmail})`);
+  } catch (err) {
+    socket.emit('join', `user-${userId}`);
+    console.log(`Joined room: user-${userId}`);
+  }
 };
 
 export const subscribeToNotifications = (cb) => {

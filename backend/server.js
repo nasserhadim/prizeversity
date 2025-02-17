@@ -63,9 +63,20 @@ app.get('/', (req, res) => {
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log('New client connected');
-  socket.on('join', (room) => {
+  socket.on('join', async (room) => {
     socket.join(room);
-    console.log(`Socket joined room: ${room}`);
+    
+    // Extract user ID from room name (removes 'user-' prefix)
+    const userId = room.replace('user-', '');
+    
+    try {
+      // Find user by ID to get email
+      const User = require('./models/User');
+      const user = await User.findById(userId);
+      console.log(`Socket joined room: ${room} (${user ? user.email : 'unknown user'})`);
+    } catch (err) {
+      console.log(`Socket joined room: ${room} (error fetching user details)`);
+    }
   });
   
   socket.on('disconnect', () => console.log('Client disconnected'));
