@@ -62,15 +62,13 @@ app.get('/', (req, res) => {
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
-
-  socket.on('join-classroom', (classroomId) => {
-    socket.join(`classroom-${classroomId}`);
+  console.log('New client connected');
+  socket.on('join', (room) => {
+    socket.join(room);
+    console.log(`Socket joined room: ${room}`);
   });
-
-  socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
-  });
+  
+  socket.on('disconnect', () => console.log('Client disconnected'));
 });
 
 // Make io accessible to routes

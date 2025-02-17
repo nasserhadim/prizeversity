@@ -4,6 +4,7 @@ const Group = require('../models/Group');
 const GroupSet = require('../models/GroupSet');
 const Notification = require('../models/Notification'); // Add this line
 const { ensureAuthenticated } = require('../config/auth');
+const { populateNotification } = require('../utils/notifications');
 const router = express.Router();
 
 // Create Classroom
@@ -98,14 +99,15 @@ router.delete('/:id', ensureAuthenticated, async (req, res) => {
     const notificationRecipients = [classroom.teacher, ...classroom.students];
     
     for (const recipientId of notificationRecipients) {
-      const notification = await new Notification({
+      const notification = await Notification.create({
         user: recipientId,
         type: 'classroom_deletion',
         message: `Classroom "${classroom.name}" has been deleted`,
         actionBy: req.user._id
-      }).save();
+      });
 
-      req.app.get('io').to(`user-${recipientId}`).emit('notification', notification);
+      const populatedNotification = await populateNotification(notification._id);
+      req.app.get('io').to(`user-${recipientId}`).emit('notification', populatedNotification);
     }
 
     await Classroom.deleteOne({ _id: req.params.id });
@@ -223,15 +225,16 @@ router.delete('/:id/students/:studentId', ensureAuthenticated, async (req, res) 
     );
     await classroom.save();
 
-    const notification = await new Notification({
+    const notification = await Notification.create({
       user: req.params.studentId,
       type: 'classroom_removal',
       message: `You have been removed from classroom "${classroom.name}"`,
       classroom: classroom._id,
       actionBy: req.user._id
-    }).save();
+    });
 
-    req.app.get('io').to(`user-${req.params.studentId}`).emit('notification', notification);
+    const populatedNotification = await populateNotification(notification._id);
+    req.app.get('io').to(`user-${req.params.studentId}`).emit('notification', populatedNotification);
 
     res.status(200).json({ message: 'Student removed successfully' });
   } catch (err) {

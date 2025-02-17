@@ -1,12 +1,18 @@
-import { io } from 'socket.io-client';
-
+import io from 'socket.io-client';
 const socket = io('http://localhost:5000');
 
-socket.on('connect', () => {
-  console.log('Connected to socket server');
-  if (localStorage.getItem('userId')) {
-    socket.emit('join-user', localStorage.getItem('userId'));
+const joinUserRoomWhenAvailable = () => {
+  const currentUserId = window.currentUserId || localStorage.getItem('userId');
+  if (currentUserId) {
+    socket.emit('join', `user-${currentUserId}`);
+    console.log(`Joined room: user-${currentUserId}`);
+  } else {
+    console.warn('No user id available for socket room join.');
   }
+};
+
+socket.on('connect', () => {
+  joinUserRoomWhenAvailable();
 });
 
 export const joinClassroom = (classroomId) => {
@@ -14,13 +20,17 @@ export const joinClassroom = (classroomId) => {
 };
 
 export const joinUserRoom = (userId) => {
-  socket.emit('join-user', userId);
   localStorage.setItem('userId', userId);
+  socket.emit('join', `user-${userId}`);
+  console.log(`Joined room: user-${userId}`);
 };
 
-export const subscribeToNotifications = (callback) => {
-  socket.on('notification', callback);
-  return () => socket.off('notification', callback);
+export const subscribeToNotifications = (cb) => {
+  socket.on('notification', (notification) => {
+    console.log('Received new notification:', notification);
+    cb(notification);
+  });
+  return () => socket.off('notification');
 };
 
 export default socket;
