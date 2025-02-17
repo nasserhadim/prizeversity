@@ -27,6 +27,16 @@ const Home = () => {
     }
   }, [user]);
 
+  // Check for session expired parameter
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('session_expired')) {
+      alert('Your session has expired. Please sign in again.');
+      // Remove the parameter from URL
+      window.history.replaceState({}, '', '/');
+    }
+  }, []);
+
   // Fetch classrooms from the backend
   const fetchClassrooms = async () => {
     try {

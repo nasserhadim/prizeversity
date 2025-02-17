@@ -37,19 +37,27 @@ const Classroom = () => {
 
   useEffect(() => {
     // Don't try to fetch data if there's no user yet
-    if (!user) return;
-    
-    fetchClassroomDetails();
-  }, [id, user]); // Add user as dependency
-
-  const fetchClassroom = async () => {
-    try {
-      const response = await axios.get(`/api/classroom/${id}`);
-      setClassroom(response.data);
-    } catch (err) {
-      console.error('Failed to fetch classroom', err);
+    if (!user) {
+      setLoading(false);
+      return;
     }
-  };
+    
+    const fetchData = async () => {
+      try {
+        await fetchClassroomDetails();
+      } catch (err) {
+        // Check if error is due to unauthorized access
+        if (err.response?.status === 401) {
+          localStorage.removeItem('hadPreviousSession');
+          navigate('/?session_expired=true');
+          return;
+        }
+        console.error('Error fetching classroom details:', err);
+      }
+    };
+
+    fetchData();
+  }, [id, user, navigate]);
 
   const fetchClassroomDetails = async () => {
     setLoading(true);
@@ -59,9 +67,22 @@ const Classroom = () => {
       await fetchGroupSets();
       await fetchStudents();
     } catch (err) {
-      console.error('Error fetching classroom details:', err);
+      // Let the error bubble up to the parent try-catch
+      throw err;
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchClassroom = async () => {
+    try {
+      const response = await axios.get(`/api/classroom/${id}`);
+      setClassroom(response.data);
+    } catch (err) {
+      if (err.response?.status === 401) {
+        throw err; // Let parent handle the 401
+      }
+      console.error('Failed to fetch classroom', err);
     }
   };
 
@@ -70,6 +91,9 @@ const Classroom = () => {
       const response = await axios.get(`/api/bazaar/classroom/${id}`);
       setBazaars(response.data);
     } catch (err) {
+      if (err.response?.status === 401) {
+        throw err;
+      }
       console.error('Failed to fetch bazaars', err);
     }
   };
@@ -79,6 +103,9 @@ const Classroom = () => {
       const response = await axios.get(`/api/group/groupset/classroom/${id}`);
       setGroupSets(response.data);
     } catch (err) {
+      if (err.response?.status === 401) {
+        throw err;
+      }
       console.error('Failed to fetch group sets', err);
     }
   };
@@ -88,6 +115,9 @@ const Classroom = () => {
       const response = await axios.get(`/api/classroom/${id}/students`);
       setStudents(response.data);
     } catch (err) {
+      if (err.response?.status === 401) {
+        throw err;
+      }
       console.error('Failed to fetch students', err);
     }
   };
@@ -619,6 +649,14 @@ const handleSearchChange = (groupId, value) => {
   // Add loading check at the start of render
   if (loading || !user) {
     return <div>Loading...</div>;
+  }
+
+  if (!user) {
+    return <div>Please log in to view this classroom.</div>;
+  }
+
+  if (loading) {
+    return <div>Loading classroom details...</div>;
   }
 
   if (!classroom) return <div>Loading...</div>;
