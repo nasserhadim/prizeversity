@@ -160,48 +160,61 @@ router.post('/groupset/:groupSetId/group/:groupId/join', ensureAuthenticated, as
     const groupSet = await GroupSet.findById(req.params.groupSetId).populate('groups');
     if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
 
-    // Check if user has any pending requests in this GroupSet
-    const hasPendingRequest = groupSet.groups.some(group => 
-      group.members.some(member => 
+    const group = await Group.findById(req.params.groupId);
+    if (!group) return res.status(404).json({ error: 'Group not found' });
+
+    // Check member capacity before allowing join request
+    const currentApprovedCount = group.members.filter(m => m.status === 'approved').length;
+    const maxMembers = group.maxMembers || groupSet.maxMembers;
+    
+    if (maxMembers && currentApprovedCount >= maxMembers) {
+      return res.status(400).json({ 
+        error: `This group "${group.name}" has reached its maximum capacity of ${maxMembers} members.` 
+      });
+    }
+
+    // Check for existing pending requests in this GroupSet
+    const hasPendingRequest = groupSet.groups.some(g => 
+      g.members.some(member => 
         member._id.equals(req.user._id) && member.status === 'pending'
       )
     );
 
     if (hasPendingRequest) {
-      const pendingGroup = groupSet.groups.find(group => 
-        group.members.some(member => 
+      const pendingGroup = groupSet.groups.find(g => 
+        g.members.some(member => 
           member._id.equals(req.user._id) && member.status === 'pending'
         )
       );
       return res.status(400).json({ 
-        error: `Your request to join group "${pendingGroup.name}" is pending approval. You may not join another group until approval is provisioned for that group.` 
+        error: `Your request to join group "${pendingGroup.name}" is pending approval.` 
       });
     }
 
-    const group = await Group.findById(req.params.groupId);
-    if (!group) return res.status(404).json({ error: 'Group not found' });
-
-    // Check if user was previously rejected from this group
-    const wasRejected = group.members.some(member => 
-      member._id.equals(req.user._id) && member.status === 'rejected'
-    );
-    if (wasRejected) {
-      return res.status(400).json({ 
-        error: `Your request to join this group "${group.name}" has been denied. If you still wish to join this group, reach out to the classroom admin/teacher.` 
-      });
-    }
-
-    // Check if user already has a pending request for this group
+    // Check for existing pending request for this specific group
     const hasPendingRequestForGroup = group.members.some(member => 
       member._id.equals(req.user._id) && member.status === 'pending'
     );
     if (hasPendingRequestForGroup) {
       return res.status(400).json({ 
-        error: `You've already submitted a request to join this group "${group.name}". Please check the status with the classroom admin/teacher.` 
+        error: `You've already submitted a request to join this group "${group.name}".`
       });
     }
 
+    // Remove any previous rejected status before adding new request
+    group.members = group.members.filter(member => 
+      !(member._id.equals(req.user._id) && member.status === 'rejected')
+    );
+
     const status = groupSet.joinApproval ? 'pending' : 'approved';
+    
+    // For direct joins (no approval required), do an additional capacity check
+    if (!groupSet.joinApproval && currentApprovedCount >= maxMembers) {
+      return res.status(400).json({ 
+        error: `This group "${group.name}" has reached its maximum capacity of ${maxMembers} members.` 
+      });
+    }
+
     group.members.push({ 
       _id: req.user._id, 
       joinDate: new Date(),
@@ -336,7 +349,7 @@ router.post('/groupset/:groupSetId/group/:groupId/leave', ensureAuthenticated, a
   }
 });
 
-// Approve Members to Group
+// Approve Members to Group 
 router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated, async (req, res) => {
   const { memberIds } = req.body;
   
@@ -347,23 +360,55 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
     const group = await Group.findById(req.params.groupId);
     if (!group) return res.status(404).json({ error: 'Group not found' });
 
-    let approvalCount = 0;
+    // Calculate current approved members count
+    const currentApprovedCount = group.members.filter(m => m.status === 'approved').length;
+
+    // Check if we have a member limit
+    const maxMembers = group.maxMembers || groupSet.maxMembers;
+    const remainingSlots = maxMembers ? maxMembers - currentApprovedCount : Infinity;
+
+    if (remainingSlots <= 0) {
+      return res.status(400).json({ message: 'Group is already at maximum capacity' });
+    }
+
+    // Sort members by join date to approve oldest requests first
+    const pendingMembers = memberIds
+      .map(id => group.members.find(m => m._id.toString() === id && m.status === 'pending'))
+      .filter(Boolean)
+      .sort((a, b) => a.joinDate - b.joinDate);
+
+    if (pendingMembers.length === 0) {
+      return res.status(400).json({ message: 'No pending members selected for approval.' });
+    }
+
+    // Track which members were approved and rejected
+    const approved = [];
+    const rejected = [];
+
+    // Process members up to the remaining slot limit
+    for (const member of pendingMembers) {
+      if (approved.length < remainingSlots) {
+        approved.push(member._id.toString());
+      } else {
+        rejected.push(member._id.toString());
+      }
+    }
+
+    // Update member statuses
     group.members = group.members.map(member => {
-      if (memberIds.includes(member._id.toString()) && member.status === 'pending') {
-        approvalCount++;
+      if (approved.includes(member._id.toString())) {
         return { ...member.toObject(), status: 'approved' };
+      }
+      if (rejected.includes(member._id.toString())) {
+        return { ...member.toObject(), status: 'rejected' };
       }
       return member;
     });
 
-    if (approvalCount === 0) {
-      return res.status(400).json({ message: 'No pending members selected for approval.' });
-    }
-
     await group.save();
 
-    // Create notifications for approved members using req.app.get('io')
-    for (const memberId of memberIds) {
+    // Send notifications to approved members
+    for (const memberId of approved) {
       const notification = await Notification.create({
         user: memberId,
         type: 'group_approval',
@@ -378,7 +423,28 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
       req.app.get('io').to(`user-${memberId}`).emit('notification', populatedNotification);
     }
 
-    res.status(200).json({ message: 'Members approved successfully' });
+    // Send notifications to rejected members (due to capacity)
+    for (const memberId of rejected) {
+      const notification = await Notification.create({
+        user: memberId,
+        type: 'group_rejection',
+        message: `Your request to join group "${group.name}" was rejected due to group reaching maximum capacity.`,
+        classroom: groupSet.classroom,
+        groupSet: groupSet._id,
+        group: group._id,
+        actionBy: req.user._id
+      });
+      
+      const populatedNotification = await populateNotification(notification._id);
+      req.app.get('io').to(`user-${memberId}`).emit('notification', populatedNotification);
+    }
+
+    res.status(200).json({ 
+      message: `${approved.length} member(s) approved. ${rejected.length} member(s) rejected due to capacity limits.`,
+      approved,
+      rejected
+    });
+
   } catch (err) {
     console.error('Approval error:', err);
     res.status(500).json({ error: 'Failed to approve members' });

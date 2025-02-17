@@ -9,6 +9,7 @@ const Classroom = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [classroom, setClassroom] = useState(null);
+  const [loading, setLoading] = useState(true); // Add loading state
   const [students, setStudents] = useState([]);
   const [bazaars, setBazaars] = useState([]);
   const [groupSets, setGroupSets] = useState([]);
@@ -35,8 +36,11 @@ const Classroom = () => {
   const [memberSearches, setMemberSearches] = useState({});
 
   useEffect(() => {
+    // Don't try to fetch data if there's no user yet
+    if (!user) return;
+    
     fetchClassroomDetails();
-  }, [id]);
+  }, [id, user]); // Add user as dependency
 
   const fetchClassroom = async () => {
     try {
@@ -48,10 +52,17 @@ const Classroom = () => {
   };
 
   const fetchClassroomDetails = async () => {
-    await fetchClassroom();
-    await fetchBazaars();
-    await fetchGroupSets();
-    await fetchStudents();
+    setLoading(true);
+    try {
+      await fetchClassroom();
+      await fetchBazaars();
+      await fetchGroupSets();
+      await fetchStudents();
+    } catch (err) {
+      console.error('Error fetching classroom details:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const fetchBazaars = async () => {
@@ -604,6 +615,11 @@ const handleSearchChange = (groupId, value) => {
     [groupId]: value
   }));
 };
+
+  // Add loading check at the start of render
+  if (loading || !user) {
+    return <div>Loading...</div>;
+  }
 
   if (!classroom) return <div>Loading...</div>;
 

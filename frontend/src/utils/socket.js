@@ -1,21 +1,7 @@
 import io from 'socket.io-client';
-import axios from 'axios'; // Add this import
+import axios from 'axios';
 
 const socket = io('http://localhost:5000');
-
-const joinUserRoomWhenAvailable = () => {
-  const currentUserId = window.currentUserId || localStorage.getItem('userId');
-  if (currentUserId) {
-    socket.emit('join', `user-${currentUserId}`);
-    console.log(`Joined room: user-${currentUserId}`);
-  } else {
-    console.warn('No user id available for socket room join.');
-  }
-};
-
-socket.on('connect', () => {
-  joinUserRoomWhenAvailable();
-});
 
 export const joinClassroom = (classroomId) => {
   socket.emit('join-classroom', classroomId);
@@ -24,7 +10,6 @@ export const joinClassroom = (classroomId) => {
 export const joinUserRoom = async (userId) => {
   localStorage.setItem('userId', userId);
   
-  // Fetch user details to get email
   try {
     const response = await axios.get(`/api/auth/user/${userId}`);
     const userEmail = response.data.email;

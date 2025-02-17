@@ -5,8 +5,8 @@ export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // Check if user is logged in on app load
   useEffect(() => {
     const fetchUser = async () => {
       try {
@@ -14,37 +14,34 @@ export const AuthProvider = ({ children }) => {
         setUser(response.data);
       } catch (err) {
         if (err.response && err.response.status === 401) {
-          // Expected: no user logged in, clear user silently.
           setUser(null);
         } else {
           console.error('Failed to fetch user:', err);
         }
+      } finally {
+        setLoading(false);
       }
     };
     fetchUser();
   }, []);
 
-  // Login function
-  const login = async (provider) => {
-    try {
-      window.location.href = `/api/auth/${provider}`;
-    } catch (err) {
-      console.error('Failed to login', err);
-    }
-  };
-
-  // Logout function
   const logout = async () => {
     try {
-      // Instead of making an axios call, redirect directly:
-      window.location.href = '/api/auth/logout';
+      await axios.get('/api/auth/logout');
+      setUser(null);
+      // Redirect to home page after logout
+      window.location.href = '/';
     } catch (err) {
-      console.error('Failed to logout', err);
+      console.error('Failed to logout:', err);
     }
   };
 
+  if (loading) {
+    return <div>Loading auth state...</div>;
+  }
+
   return (
-    <AuthContext.Provider value={{ user, setUser, login, logout }}>
+    <AuthContext.Provider value={{ user, setUser, loading, logout }}>
       {children}
     </AuthContext.Provider>
   );
