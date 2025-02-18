@@ -113,7 +113,6 @@ const Home = () => {
 
   // Add socket listener for classroom updates
   useEffect(() => {
-    // Existing socket listener for classroom updates
     socket.on('classroom_update', (updatedClassroom) => {
       setClassrooms(prevClassrooms => 
         prevClassrooms.map(classroom => 
@@ -122,20 +121,12 @@ const Home = () => {
       );
     });
 
-    // Add new socket listener for notifications
     socket.on('notification', (notification) => {
-      // Handle classroom removal
-      if (notification.type === 'classroom_removal' && notification.classroom) {
-        setClassrooms(prevClassrooms => 
-          prevClassrooms.filter(classroom => classroom._id !== notification.classroom._id)
-        );
-      }
-
-      // Handle classroom deletion
-      if (notification.type === 'classroom_deletion' && notification.classroom) {
-        setClassrooms(prevClassrooms => 
-          prevClassrooms.filter(classroom => classroom._id !== notification.classroom._id)
-        );
+      // Fetch classrooms after receiving classroom-related notifications
+      if (notification.type === 'classroom_update' || 
+          notification.type === 'classroom_removal' || 
+          notification.type === 'classroom_deletion') {
+        fetchClassrooms();
       }
     });
 

@@ -63,23 +63,36 @@ app.get('/', (req, res) => {
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log('New client connected');
+  
   socket.on('join', async (room) => {
+    // Remove existing socket from all rooms before joining new one
+    const rooms = [...socket.rooms];
+    rooms.forEach(r => {
+      if (r !== socket.id) {
+        socket.leave(r);
+      }
+    });
+    
     socket.join(room);
     
     // Extract user ID from room name (removes 'user-' prefix)
-    const userId = room.replace('user-', '');
-    
-    try {
-      // Find user by ID to get email
-      const User = require('./models/User');
-      const user = await User.findById(userId);
-      console.log(`Socket joined room: ${room} (${user ? user.email : 'unknown user'})`);
-    } catch (err) {
-      console.log(`Socket joined room: ${room} (error fetching user details)`);
+    if (room.startsWith('user-')) {
+      const userId = room.replace('user-', '');
+      try {
+        const User = require('./models/User');
+        const user = await User.findById(userId);
+        console.log(`Socket joined room: ${room} (${user ? user.email : 'unknown user'})`);
+      } catch (err) {
+        console.log(`Error fetching user details for ${room}:`, err.message);
+      }
+    } else {
+      console.log(`Socket joined room: ${room}`);
     }
   });
   
-  socket.on('disconnect', () => console.log('Client disconnected'));
+  socket.on('disconnect', () => {
+    console.log('Client disconnected');
+  });
 });
 
 // Make io accessible to routes

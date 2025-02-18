@@ -39,6 +39,19 @@ router.post('/groupset/create', ensureAuthenticated, async (req, res) => {
       image 
     });
     await groupSet.save();
+
+    const populatedGroupSet = await GroupSet.findById(groupSet._id)
+      .populate({
+        path: 'groups',
+        populate: {
+          path: 'members._id',
+          select: 'email'
+        }
+      });
+
+    // Emit to classroom channel
+    req.app.get('io').to(`classroom-${classroomId}`).emit('groupset_create', populatedGroupSet);
+    
     res.status(201).json(groupSet);
   } catch (err) {
     res.status(500).json({ error: 'Failed to create group set' });
@@ -54,7 +67,7 @@ router.put('/groupset/:id', ensureAuthenticated, async (req, res) => {
       .populate('classroom');
     if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
 
-    const oldName = groupSet.name;
+    const oldName = groupSet.name; // Store old name before changes
     const changes = {};
     if (groupSet.name !== name) changes.name = name;
     if (groupSet.selfSignup !== selfSignup) changes.selfSignup = selfSignup;
@@ -77,23 +90,34 @@ router.put('/groupset/:id', ensureAuthenticated, async (req, res) => {
       });
     });
 
-    // Notify all members
-    for (const memberId of memberIds) {
-      const notification = await Notification.create({
-        user: memberId,
-        type: 'groupset_update',
-        message: `GroupSet "${oldName}" has been updated to "${groupSet.name}"`,
-        classroom: groupSet.classroom._id,
-        groupSet: groupSet._id,
-        actionBy: req.user._id
-      });
+    // Send notifications for name change
+    if (changes.name) {
+      for (const memberId of memberIds) {
+        const notification = await Notification.create({
+          user: memberId,
+          type: 'groupset_update',
+          message: `GroupSet "${oldName}" has been renamed to "${name}"`,
+          classroom: groupSet.classroom._id,
+          groupSet: groupSet._id,
+          actionBy: req.user._id
+        });
 
-      const populatedNotification = await populateNotification(notification._id);
-      req.app.get('io').to(`user-${memberId}`).emit('notification', populatedNotification);
-      
-      // Also emit groupset update event
-      req.app.get('io').to(`user-${memberId}`).emit('groupset_update', groupSet);
+        const populatedNotification = await populateNotification(notification._id);
+        req.app.get('io').to(`user-${memberId}`).emit('notification', populatedNotification);
+      }
     }
+
+    // Always emit the groupset update event to all classroom members
+    const populatedGroupSet = await GroupSet.findById(groupSet._id)
+      .populate({
+        path: 'groups',
+        populate: {
+          path: 'members._id',
+          select: 'email'
+        }
+      });
+    
+    req.app.get('io').to(`classroom-${groupSet.classroom._id}`).emit('groupset_update', populatedGroupSet);
 
     res.status(200).json(groupSet);
   } catch (err) {
@@ -132,6 +156,10 @@ router.delete('/groupset/:id', ensureAuthenticated, async (req, res) => {
     }
 
     await GroupSet.deleteOne({ _id: req.params.id });
+
+    // Emit deletion event to all classroom members
+    req.app.get('io').to(`classroom-${groupSet.classroom._id}`).emit('groupset_delete', groupSet._id);
+
     res.status(200).json({ message: 'GroupSet deleted successfully' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete group set' });
@@ -174,6 +202,18 @@ router.post('/groupset/:groupSetId/group/create', ensureAuthenticated, async (re
       groups.push(group);
     }
     await groupSet.save();
+
+    const populatedGroupSet = await GroupSet.findById(groupSet._id)
+      .populate({
+        path: 'groups',
+        populate: {
+          path: 'members._id',
+          select: 'email'
+        }
+      });
+
+    // Emit to classroom channel
+    req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('groupset_update', populatedGroupSet);
 
     res.status(201).json(groups);
   } catch (err) {
@@ -249,6 +289,15 @@ router.post('/groupset/:groupSetId/group/:groupId/join', ensureAuthenticated, as
     });
     await group.save();
 
+    // Emit group update immediately
+    const populatedGroup = await Group.findById(group._id)
+      .populate('members._id', 'email');
+
+    req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
+      groupSet: groupSet._id, 
+      group: populatedGroup
+    });
+
     res.status(200).json({ 
       message: groupSet.joinApproval ? 
         'Join request submitted. Awaiting teacher approval.' : 
@@ -269,7 +318,7 @@ router.put('/groupset/:groupSetId/group/:groupId', ensureAuthenticated, async (r
     const groupSet = await GroupSet.findById(req.params.groupSetId);
     if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
 
-    const oldName = group.name;
+    const oldName = group.name; // Store old name before changes
     const changes = {};
     if (group.name !== name) changes.name = name;
     if (group.image !== image) changes.image = image;
@@ -282,24 +331,32 @@ router.put('/groupset/:groupSetId/group/:groupId', ensureAuthenticated, async (r
     Object.assign(group, changes);
     await group.save();
 
-    // Notify all group members
-    for (const member of group.members) {
-      const notification = await Notification.create({
-        user: member._id._id,
-        type: 'group_update',
-        message: `Group "${oldName}" has been updated to "${group.name}"`,
-        classroom: groupSet.classroom,
-        groupSet: groupSet._id,
-        group: group._id,
-        actionBy: req.user._id
-      });
+    // Send notifications for name change
+    if (changes.name) {
+      for (const member of group.members) {
+        const notification = await Notification.create({
+          user: member._id._id,
+          type: 'group_update',
+          message: `Group "${oldName}" has been renamed to "${name}"`,
+          classroom: groupSet.classroom,
+          groupSet: groupSet._id,
+          group: group._id,
+          actionBy: req.user._id
+        });
 
-      const populatedNotification = await populateNotification(notification._id);
-      req.app.get('io').to(`user-${member._id._id}`).emit('notification', populatedNotification);
-      
-      // Also emit group update event
-      req.app.get('io').to(`user-${member._id._id}`).emit('group_update', { groupSet: groupSet._id, group });
+        const populatedNotification = await populateNotification(notification._id);
+        req.app.get('io').to(`user-${member._id._id}`).emit('notification', populatedNotification);
+      }
     }
+
+    // Always emit the group update event with populated data
+    const populatedGroup = await Group.findById(group._id)
+      .populate('members._id', 'email');
+
+    req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
+      groupSet: groupSet._id, 
+      group: populatedGroup
+    });
 
     res.status(200).json(group);
   } catch (err) {
@@ -333,6 +390,13 @@ router.delete('/groupset/:groupSetId/group/:groupId', ensureAuthenticated, async
     await Group.deleteOne({ _id: req.params.groupId });
     groupSet.groups = groupSet.groups.filter(groupId => groupId.toString() !== req.params.groupId);
     await groupSet.save();
+
+    // Emit group deletion event to all classroom members
+    req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_delete', {
+      groupSetId: groupSet._id,
+      groupId: req.params.groupId
+    });
+
     res.status(200).json({ message: 'Group deleted successfully' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete group' });
@@ -379,6 +443,16 @@ router.post('/groupset/:groupSetId/group/:groupId/suspend', ensureAuthenticated,
     }
 
     await group.save();
+
+    // After successful member status change (approve/reject/suspend)
+    const populatedGroup = await Group.findById(group._id)
+      .populate('members._id', 'email');
+
+    req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
+      groupSet: groupSet._id, 
+      group: populatedGroup
+    });
+
     res.status(200).json({ message: 'Members suspended successfully' });
   } catch (err) {
     console.error('Suspension error:', err);
@@ -493,6 +567,16 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
       req.app.get('io').to(`user-${memberId}`).emit('notification', populatedNotification);
     }
 
+    // After successful member status change
+    const populatedGroup = await Group.findById(group._id)
+      .populate('members._id', 'email');
+
+    // Emit update immediately
+    req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
+      groupSet: groupSet._id, 
+      group: populatedGroup
+    });
+
     res.status(200).json({ 
       message: `${approved.length} member(s) approved. ${rejected.length} member(s) rejected due to capacity limits.`,
       approved,
@@ -551,9 +635,45 @@ router.post('/groupset/:groupSetId/group/:groupId/reject', ensureAuthenticated, 
       req.app.get('io').to(`user-${memberId}`).emit('notification', populatedNotification);
     }
 
+    // After successful member status change (approve/reject/suspend)
+    const populatedGroup = await Group.findById(group._id)
+      .populate('members._id', 'email');
+
+    req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
+      groupSet: groupSet._id, 
+      group: populatedGroup
+    });
+
     res.status(200).json({ message: 'Members rejected successfully' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to reject members' });
+  }
+});
+
+// Join Classroom
+router.post('/join', ensureAuthenticated, async (req, res) => {
+  const { code } = req.body;
+  try {
+    const classroom = await Classroom.findOne({ code });
+    if (!classroom) return res.status(404).json({ error: 'Invalid classroom code' });
+
+    if (classroom.students.includes(req.user._id)) {
+      return res.status(400).json({ error: 'You have already joined this classroom' });
+    }
+
+    classroom.students.push(req.user._id);
+    await classroom.save();
+
+    // Populate and emit updated classroom immediately
+    const populatedClassroom = await Classroom.findById(classroom._id)
+      .populate('teacher', 'email')
+      .populate('students', 'email');
+
+    req.app.get('io').to(`classroom-${classroom._id}`).emit('classroom_update', populatedClassroom);
+
+    res.status(200).json({ message: 'Joined classroom successfully', classroom });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to join classroom' });
   }
 });
 

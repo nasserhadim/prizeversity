@@ -61,10 +61,11 @@ const Classroom = () => {
   }, [id, user, navigate]);
 
   useEffect(() => {
+    // Join classroom socket room
+    socket.emit('join', `classroom-${id}`);
+
     socket.on('classroom_update', (updatedClassroom) => {
-      if (updatedClassroom._id === id) {
-        setClassroom(updatedClassroom);
-      }
+      setClassroom(updatedClassroom);
     });
 
     socket.on('groupset_update', (updatedGroupSet) => {
@@ -95,6 +96,66 @@ const Classroom = () => {
       socket.off('classroom_update');
       socket.off('groupset_update');
       socket.off('group_update');
+    };
+  }, [id]);
+
+  useEffect(() => {
+    socket.on('classroom_removal', (data) => {
+      if (data.classroomId === id) {
+        alert(data.message);
+        navigate('/');
+      }
+    });
+
+    socket.on('groupset_create', (newGroupSet) => {
+      setGroupSets(prev => [...prev, newGroupSet]);
+    });
+
+    return () => {
+      socket.off('classroom_removal');
+      socket.off('groupset_create');
+    };
+  }, [id, navigate]);
+
+  useEffect(() => {
+    socket.on('classroom_update', (updatedClassroom) => {
+      setClassroom(updatedClassroom);
+    });
+
+    socket.on('groupset_delete', (groupSetId) => {
+      setGroupSets(prev => prev.filter(gs => gs._id !== groupSetId));
+    });
+
+    socket.on('group_delete', ({ groupSetId, groupId }) => {
+      setGroupSets(prev => prev.map(gs => {
+        if (gs._id === groupSetId) {
+          return {
+            ...gs,
+            groups: gs.groups.filter(g => g._id !== groupId)
+          };
+        }
+        return gs;
+      }));
+    });
+
+    return () => {
+      socket.off('classroom_update');
+      socket.off('groupset_delete');
+      socket.off('group_delete');
+    };
+  }, []);
+
+  useEffect(() => {
+    socket.on('notification', (notification) => {
+      // Handle classroom rename notifications while inside classroom
+      if (notification.type === 'classroom_update' && 
+          notification.classroom?._id === id) {
+        fetchClassroom();
+      }
+    });
+
+    return () => {
+      socket.off('notification');
     };
   }, [id]);
 
@@ -181,18 +242,22 @@ const Classroom = () => {
 
   const handleUpdateClassroom = async () => {
     try {
-      await axios.put(`/api/classroom/${id}`, {
-        name: updateClassroomName || classroom.name, // Use existing name if no new name provided
-        image: updateClassroomImage || classroom.image // Use existing image if no new image provided
+      const response = await axios.put(`/api/classroom/${id}`, {
+        name: updateClassroomName || classroom.name,
+        image: updateClassroomImage || classroom.image
       });
-      alert('Classroom updated successfully!');
-      setEditingClassroom(false);
-      setUpdateClassroomName('');
-      setUpdateClassroomImage('');
-      fetchClassroom();
+      
+      if (response.data.message === 'No changes were made') {
+        alert('No changes were made');
+      } else {
+        alert('Classroom updated successfully!');
+        setEditingClassroom(false);
+        setUpdateClassroomName('');
+        setUpdateClassroomImage('');
+        fetchClassroom();
+      }
     } catch (err) {
-      // Check for specific error messages from the backend
-      const errorMessage = err.response?.data?.error || 'Failed to update classroom';
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Failed to update classroom';
       alert(errorMessage);
     }
   };
@@ -273,26 +338,22 @@ const Classroom = () => {
         maxMembers: groupSetMaxMembers,
         image: groupSetImage,
       });
+
       if (response.data.message === 'No changes were made') {
         alert('No changes were made');
       } else {
-        console.log('GroupSet updated:', response.data);
         alert('GroupSet updated successfully!');
+        setEditingGroupSet(null);
+        setGroupSetName('');
+        setGroupSetSelfSignup(false);
+        setGroupSetJoinApproval(false);
+        setGroupSetMaxMembers('');
+        setGroupSetImage('');
+        fetchGroupSets();
       }
-      setEditingGroupSet(null);
-      setGroupSetName('');
-      setGroupSetSelfSignup(false);
-      setGroupSetJoinApproval(false);
-      setGroupSetMaxMembers('');
-      setGroupSetImage('');
-      fetchGroupSets();
     } catch (err) {
-      if (err.response && err.response.data && err.response.data.message) {
-        alert(err.response.data.message);
-      } else {
-        console.error('Failed to update group set', err);
-        alert('Failed to update group set');
-      }
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Failed to update groupset';
+      alert(errorMessage);
     }
   };
 
@@ -353,24 +414,20 @@ const Classroom = () => {
         image: groupImage,
         maxMembers: groupMaxMembers,
       });
+
       if (response.data.message === 'No changes were made') {
         alert('No changes were made');
       } else {
-        console.log('Group updated:', response.data);
         alert('Group updated successfully!');
+        setEditingGroup(null);
+        setGroupName('');
+        setGroupImage('');
+        setGroupMaxMembers('');
+        fetchGroupSets();
       }
-      setEditingGroup(null);
-      setGroupName('');
-      setGroupImage('');
-      setGroupMaxMembers('');
-      fetchGroupSets();
     } catch (err) {
-      if (err.response && err.response.data && err.response.data.message) {
-        alert(err.response.data.message);
-      } else {
-        console.error('Failed to update group', err);
-        alert('Failed to update group');
-      }
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Failed to update group';
+      alert(errorMessage);
     }
   };
 

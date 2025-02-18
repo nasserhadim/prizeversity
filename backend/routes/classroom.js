@@ -33,11 +33,6 @@ router.post('/create', ensureAuthenticated, async (req, res) => {
 // Join Classroom
 router.post('/join', ensureAuthenticated, async (req, res) => {
   const { code } = req.body;
-  
-  if (!code) {
-    return res.status(400).json({ error: 'Please enter a classroom code' });
-  }
-
   try {
     const classroom = await Classroom.findOne({ code });
     if (!classroom) return res.status(404).json({ error: 'Invalid classroom code' });
@@ -48,6 +43,12 @@ router.post('/join', ensureAuthenticated, async (req, res) => {
 
     classroom.students.push(req.user._id);
     await classroom.save();
+
+    // Populate and emit updated classroom
+    const populatedClassroom = await Classroom.findById(classroom._id)
+      .populate('students', 'email');
+    req.app.get('io').to(`classroom-${classroom._id}`).emit('classroom_update', populatedClassroom);
+
     res.status(200).json({ message: 'Joined classroom successfully', classroom });
   } catch (err) {
     res.status(500).json({ error: 'Failed to join classroom' });
@@ -131,60 +132,51 @@ router.delete('/:id', ensureAuthenticated, async (req, res) => {
 router.put('/:id', ensureAuthenticated, async (req, res) => {
   const { name, image } = req.body;
   try {
-    const classroom = await Classroom.findById(req.params.id);
+    const classroom = await Classroom.findById(req.params.id)
+      .populate('teacher')
+      .populate('students');
     if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
 
-    if (classroom.teacher.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ error: 'Not authorized to update this classroom' });
-    }
-
-    // Store old values for notification message
     const oldName = classroom.name;
-    const oldImage = classroom.image;
+    const changes = {};
+    if (name && name !== classroom.name) changes.name = name;
+    if (image && image !== classroom.image) changes.image = image;
 
-    // Check if there are any actual changes
-    const hasNameChange = name && name !== classroom.name;
-    const hasImageChange = image && image !== classroom.image;
-
-    if (!hasNameChange && !hasImageChange) {
-      return res.status(400).json({ error: 'No changes were made' });
+    if (Object.keys(changes).length === 0) {
+      return res.status(400).json({ message: 'No changes were made' });
     }
 
-    // Update only if there are changes
-    if (hasNameChange) classroom.name = name;
-    if (hasImageChange) classroom.image = image;
-    
+    Object.assign(classroom, changes);
     await classroom.save();
 
-    // Create notifications for teacher and all students
-    const notificationRecipients = [classroom.teacher, ...classroom.students];
+    // Include teacher and students in notifications
+    const notificationRecipients = [classroom.teacher._id.toString(), ...classroom.students.map(s => s._id.toString())];
     
-    // Build detailed update message
-    let updateMessage = 'Classroom updates: ';
-    const changes = [];
-    if (hasNameChange) changes.push(`renamed from "${oldName}" to "${name}"`);
-    if (hasImageChange) changes.push('image was updated');
-    updateMessage += changes.join(' and ');
+    if (changes.name) {
+      for (const recipientId of notificationRecipients) {
+        const notification = await Notification.create({
+          user: recipientId,
+          type: 'classroom_update',
+          message: `Classroom "${oldName}" has been renamed to "${name}"`,
+          classroom: classroom._id,
+          actionBy: req.user._id
+        });
 
-    for (const recipientId of notificationRecipients) {
-      const notification = await Notification.create({
-        user: recipientId,
-        type: 'classroom_update',
-        message: updateMessage,
-        classroom: classroom._id,
-        actionBy: req.user._id
-      });
-
-      const populatedNotification = await populateNotification(notification._id);
-      req.app.get('io').to(`user-${recipientId}`).emit('notification', populatedNotification);
-      
-      // Also emit classroom update event
-      req.app.get('io').to(`user-${recipientId}`).emit('classroom_update', classroom);
+        const populatedNotification = await populateNotification(notification._id);
+        req.app.get('io').to(`user-${recipientId}`).emit('notification', populatedNotification);
+      }
     }
+
+    // Emit classroom update to all members
+    const populatedClassroom = await Classroom.findById(classroom._id)
+      .populate('teacher', 'email')
+      .populate('students', 'email');
+    
+    req.app.get('io').to(`classroom-${classroom._id}`).emit('classroom_update', populatedClassroom);
 
     res.status(200).json(classroom);
   } catch (err) {
-    console.error('Update classroom error:', err);
+    console.error('Classroom update error:', err);
     res.status(500).json({ error: 'Failed to update classroom' });
   }
 });
@@ -251,25 +243,7 @@ router.delete('/:id/students/:studentId', ensureAuthenticated, async (req, res) 
     const classroom = await Classroom.findById(req.params.id);
     if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
 
-    // Remove student from all groups in all groupsets of the classroom
-    const groupSets = await GroupSet.find({ classroom: classroom._id });
-    for (const groupSet of groupSets) {
-      for (const groupId of groupSet.groups) {
-        const group = await Group.findById(groupId);
-        if (group) {
-          group.members = group.members.filter(
-            member => member._id.toString() !== req.params.studentId
-          );
-          await group.save();
-        }
-      }
-    }
-
-    classroom.students = classroom.students.filter(
-      (studentId) => studentId.toString() !== req.params.studentId
-    );
-    await classroom.save();
-
+    // Create and emit notification before removing student
     const notification = await Notification.create({
       user: req.params.studentId,
       type: 'classroom_removal',
@@ -279,11 +253,28 @@ router.delete('/:id/students/:studentId', ensureAuthenticated, async (req, res) 
     });
 
     const populatedNotification = await populateNotification(notification._id);
-    req.app.get('io').to(`user-${req.params.studentId}`).emit('notification', populatedNotification);
+
+    // Emit both notification and removal event simultaneously
+    const io = req.app.get('io');
+    io.to(`user-${req.params.studentId}`).emit('notification', populatedNotification);
+    io.to(`user-${req.params.studentId}`).emit('classroom_removal', {
+      classroomId: classroom._id,
+      message: `You have been removed from classroom "${classroom.name}"`
+    });
+
+    // Remove student from classroom
+    classroom.students = classroom.students.filter(
+      studentId => studentId.toString() !== req.params.studentId
+    );
+    await classroom.save();
+
+    // Emit updated classroom to all remaining members
+    const populatedClassroom = await Classroom.findById(classroom._id)
+      .populate('students', 'email');
+    io.to(`classroom-${classroom._id}`).emit('classroom_update', populatedClassroom);
 
     res.status(200).json({ message: 'Student removed successfully' });
   } catch (err) {
-    console.error('Error removing student:', err);
     res.status(500).json({ error: 'Failed to remove student' });
   }
 });
