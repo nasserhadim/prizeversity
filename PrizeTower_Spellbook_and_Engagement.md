@@ -1,4 +1,4 @@
-# 📘 PrizeTower Spellbook & Engagement System
+# 📘 PrizeVersity Spellbook & Engagement System
 
 ## 🧙‍♂️ Spells Catalog
 | Spell | Command / Concept | Effect Description | Cost | Flavor Text |
