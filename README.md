@@ -89,7 +89,7 @@ npm install react-transition-group
 >
 > Create `frontend/src/pages/Home.jsx`
 >
-> Add the rest of the folders/files as needed!!
+> Add the rest of the folders/files as needed!!!
 # How to Run it:
 
 > Start MongoDB:
