@@ -75,9 +75,6 @@ npm install socket.io
 > Add the rest of folders/files as needed!
 
 ### Frontend Setup with `Vite`.
-
-#### Create Vite Project
-
 ```
 npm create vite@latest frontend -- --template react # If prompted for framework, select React, and variant: JavaScript # DON'T RUN THIS UNLESS SETTING UP THE DIRECTORIES FROM SCRATCH!
 
