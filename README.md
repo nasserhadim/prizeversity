@@ -5,8 +5,10 @@
 1. Install [Node.js (for backend and frontend)](https://nodejs.org/).
 
 2. Install [MongoDB (for the database)](https://www.mongodb.com/).
-   For [Windows](https://www.mongodb.com/docs/manual/tutorial/install-mongodb-on-windows-unattended/#std-label-install-mdb-community-windows-msiexec).
-   For `MacOS`:
+   
+   - For [Windows](https://www.mongodb.com/docs/manual/tutorial/install-mongodb-on-windows-unattended/#std-label-install-mdb-community-windows-msiexec).
+   
+   - For `MacOS`:
    ```
    brew tap mongodb/brew
    brew install mongodb-community@7.0
@@ -52,7 +54,7 @@ prizeversity2/
 ### Navigate to the backend folder and run:
 
 ```
-npm init -y
+npm init -y # DON'T RUN THIS UNLESS SETTING UP THE DIRECTORIES FROM SCRATCH!
 
 npm install express mongoose passport passport-google-oauth20 passport-microsoft cors dotenv
 
@@ -76,7 +78,7 @@ npm install socket.io
 #### Create Vite Project
 
 ```
-npm create vite@latest frontend -- --template react # If prompted for framework, select React, and variant: JavaScript
+npm create vite@latest frontend -- --template react # If prompted for framework, select React, and variant: JavaScript # DON'T RUN THIS UNLESS SETTING UP THE DIRECTORIES FROM SCRATCH!
 
 cd frontend
 
@@ -120,3 +122,14 @@ npm run dev
 ```
 
 > Open the browser and navigate to `http://localhost:5173` (Vite’s default port).
+
+
+# When trying to Sync (Rebase basically) from original (main) to Fork:
+
+```
+git remote add upstream https://github.com/nasserhadim/prizeversity2.git # RUN THIS LINE ONLY THE IFRST TIME ON YOUR FORK
+
+git fetch upstream
+
+git merge upstream/main
+```
