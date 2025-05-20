@@ -5,10 +5,17 @@
 1. Install [Node.js (for backend and frontend)](https://nodejs.org/).
 
 2. Install [MongoDB (for the database)](https://www.mongodb.com/).
+   For [Windows](https://www.mongodb.com/docs/manual/tutorial/install-mongodb-on-windows-unattended/#std-label-install-mdb-community-windows-msiexec).
+   For `MacOS`:
+   ```
+   brew tap mongodb/brew
+   brew install mongodb-community@7.0
+   brew services start mongodb-community@7.0
+   ```
+   
+4. Install a code editor like [VS Code](https://code.visualstudio.com/).
 
-3. Install a code editor like [VS Code](https://code.visualstudio.com/).
-
-4. Create Google OAuth Client ID/Secret (to be included in the `.env` file later).
+5. Create Google OAuth Client ID/Secret (to be included in the `.env` file later).
 
 > You can create one by navigating to: https://console.cloud.google.com/apis/credentials and then creating a "project".
 >
