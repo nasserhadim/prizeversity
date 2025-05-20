@@ -38,6 +38,7 @@
 ```
 prizeversity2/
 ├── backend/
+   └── .env
 ├── frontend/
 └── README.md
 └── .gitignore
@@ -101,27 +102,34 @@ npm install react-transition-group
 > Add the rest of the folders/files as needed!
 # How to Run it:
 
-> Start MongoDB:
+1. Start MongoDB:
 
 ```
 mongod
 ```
 
-> Start the backend:
+> Note:
+>
+> On MacOS, you may have a service using port `5000`, which you can check with this command: `lsof -i:5000`
+>
+> [Normally, it might be Control Center that uses it](https://stackoverflow.com/a/72369347/8397835), which you can `turn off` as follows: `System Settings > General > AirDrop & Handoff > AirPlay Receiver.`
+> 
+
+2. Start the backend:
 
 ```
 cd backend
 node server.js
 ```
 
-> Start the frontend:
+3. Start the frontend:
 
 ```
 cd frontend
 npm run dev
 ```
 
-> Open the browser and navigate to `http://localhost:5173` (Vite’s default port).
+4. Open the browser and navigate to `http://localhost:5173` (Vite’s default port).
 
 
 # When trying to Sync (Rebase basically) from original (main) to Fork:
