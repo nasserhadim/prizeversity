@@ -18,6 +18,8 @@
    brew install mongodb-community@7.0
    brew services start mongodb-community@7.0
    ```
+
+   - [OPTIONAL] You can [download MongoDB Compass from here](https://www.mongodb.com/try/download/compass), which is the GUI client of MongoDB to interact with the database directly :)
    
 4. Install a code editor like [VS Code](https://code.visualstudio.com/).
 
