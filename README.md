@@ -62,7 +62,7 @@ npm install express mongoose passport passport-google-oauth20 passport-microsoft
 npm install socket.io
 ```
 
-> Now create the following files:
+> Now create the following files (UNNECESSARY IF CLONING/FORKING!):
 >
 > Create `backend/.env`
 >
@@ -89,7 +89,7 @@ npm install axios react-router-dom socket.io-client
 
 npm install react-transition-group
 ```
-> Now create the following files:
+> Now create the following files (UNNECESSARY IF CLONING/FORKING!):
 >
 > Create `frontend/vite.config.js`
 >
