@@ -129,7 +129,8 @@ node server.js
 
 ```
 cd frontend
-npm run dev
+npm run dev # (DEV ONLY) Vite dev server; Useful for local coding or temporary remote previews.
+npm run build # (PROD) Node/Express or Nginx serves dist/ # Just regular HTTP/HTTPS traffic; Users hit port 80/443; 5173 never sees a packet!
 ```
 
 4. Open the browser and navigate to `http://localhost:5173` (Vite’s default port).
