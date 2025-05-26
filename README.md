@@ -238,8 +238,10 @@ module.exports = {
   }]
 };
 ```
-   
+
+
 6. TLS, CDN & HTTP/2
+
 6.1 Cloudflare DNS
 - Add an A-record for app.example.com → VPS IP
 - Orange-cloud it (proxy on).
@@ -284,7 +286,9 @@ ln -s /etc/nginx/sites-available/prizeversity /etc/nginx/sites-enabled/
 nginx -t && systemctl reload nginx
 ```
 
+
 8. Automated backups
+
 8.1 Create an S3-compatible bucket
 - Any provider works (AWS, Backblaze B2, Wasabi).
 - Size ≈ compressed dump × 30 days.
@@ -322,6 +326,7 @@ ab -n 500 -c 50 https://app.example.com/api/ping   # latency < 100 ms
 - Keep an eye on CPU, RAM and backup logs, and we're in good shape.
 
 11. (Next phase) Replica set or scaling
+    
 Single box is fine at launch; create a secondary VPS and init a replica set when:
 - RAM ≥ 80 %, or
 - p95 API latency > 300 ms under real traffic.
