@@ -189,23 +189,42 @@ ufw enable
 
 3. Install runtime tooling (run once)
 ```
-# Node + build utils
+# 3·A  Node + build utils
 curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
 apt install -y nodejs build-essential
 
-# PM2 process manager
+# 3·A  PM2 process manager
 npm install -g pm2
 
-# MongoDB (single-box)
-curl -fsSL https://pgp.mongodb.com/server-6.0.asc | tee /etc/apt/trusted.gpg.d/mongodb.asc
-echo "deb [arch=amd64] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/6.0 multiverse" | tee /etc/apt/sources.list.d/mongodb-org-6.0.list
+# 3·A  MongoDB (single box)
+curl -fsSL https://pgp.mongodb.com/server-6.0.asc | \
+      tee /etc/apt/trusted.gpg.d/mongodb.asc
+echo "deb [arch=amd64] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/6.0 multiverse" \
+      | tee /etc/apt/sources.list.d/mongodb-org-6.0.list
 apt update && apt install -y mongodb-org
 systemctl enable --now mongod
 
-# OPTIONAL: set Mongo to listen only on loopback
+# 3·A·1  Limit Mongo to loopback only
 sed -i 's/^  bindIp:.*/  bindIp: 127.0.0.1/' /etc/mongod.conf
+
+
+#########################################################################
+# 3·B  OPTIONAL but recommended: flip that one mongod into replica-set mode
+#########################################################################
+
+# 3·B·1  Add a replSetName to the config
+printf "\nreplication:\n  replSetName: rs0\n" >> /etc/mongod.conf
+
+# 3·B·2  Restart Mongo so it reads the new stanza
 systemctl restart mongod
 
+# 3·B·3  Initialise the single-node replica set
+mongosh --eval 'rs.initiate()'      # will output “ok: 1” on success
+
+# 3·B·4  Quick sanity check (should show PRIMARY, 1 member)
+mongosh --eval 'rs.status().members.map(m => m.stateStr)'
+# → [ "PRIMARY" ]
+#########################################################################
 ```
 
 4. Deploy the application
