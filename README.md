@@ -139,7 +139,7 @@ npm run build # (PROD) Node/Express or Nginx serves dist/ # Just regular HTTP/HT
 # When trying to Sync (Rebase basically) from original (main) to Fork:
 
 ```
-git remote add upstream https://github.com/nasserhadim/prizeversity.git # RUN THIS LINE ONLY THE IFRST TIME ON YOUR FORK
+git remote add upstream https://github.com/nasserhadim/prizeversity.git # RUN THIS LINE ONLY THE FIRST TIME ON YOUR FORK
 
 git fetch upstream
 
