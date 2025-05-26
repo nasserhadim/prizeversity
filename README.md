@@ -145,3 +145,192 @@ git fetch upstream
 
 git merge upstream/main
 ```
+
+# Launch-to-Production Checklist
+Written for an Ubuntu-based Hostinger KVM 4, but the commands are nearly identical on Debian.
+
+1. Prepare the code
+```
+# on your laptop or dev machine
+cd frontend
+npm ci           # reproducible install
+npm run build    # creates ./dist (static assets)
+git add .
+git commit -m "Production build"
+git push origin main
+```
+
+2. Initial server hardening (run once)
+```
+# SSH in as root or sudo user
+apt update && apt upgrade -y
+
+# 2.1  Add a swap file (keeps the box alive on rare RAM spikes)
+fallocate -l 2G /swap.img
+chmod 600 /swap.img
+mkswap /swap.img
+swapon /swap.img
+echo '/swap.img none swap sw 0 0' >> /etc/fstab
+
+# 2.2  Raise file-descriptor limits
+echo '* soft nofile 65535' >> /etc/security/limits.conf
+echo '* hard nofile 65535' >> /etc/security/limits.conf
+echo 'fs.file-max = 100000' >> /etc/sysctl.conf
+sysctl -p                       # reload kernel params
+
+# 2.3  Basic firewall (Unless already setup from the UI; NO need to open port 27017 because the app and DB share the same box.)
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow 22/tcp comment "SSH"
+ufw allow 80/tcp comment "HTTP"
+ufw allow 443/tcp comment "HTTPS"
+ufw enable
+```
+
+3. Install runtime tooling (run once)
+```
+# Node + build utils
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+apt install -y nodejs build-essential
+
+# PM2 process manager
+npm install -g pm2
+
+# MongoDB (single-box)
+curl -fsSL https://pgp.mongodb.com/server-6.0.asc | tee /etc/apt/trusted.gpg.d/mongodb.asc
+echo "deb [arch=amd64] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/6.0 multiverse" | tee /etc/apt/sources.list.d/mongodb-org-6.0.list
+apt update && apt install -y mongodb-org
+systemctl enable --now mongod
+
+# OPTIONAL: set Mongo to listen only on loopback
+sed -i 's/^  bindIp:.*/  bindIp: 127.0.0.1/' /etc/mongod.conf
+systemctl restart mongod
+
+```
+
+4. Deploy the application
+```
+# as a non-root deploy user
+mkdir -p ~/app && cd ~/app
+git clone https://github.com/nasserhadim/prizeversity.git .
+npm ci            # backend dependencies
+npm run build -w frontend   # if using workspaces
+
+# Serve static files & API with Express
+# (skip if you already have an Nginx reverse proxy plan)
+pm2 start ecosystem.config.js --name prize-tower
+pm2 save            # write dump
+pm2 startup         # generates a systemd script; run the displayed command
+```
+
+> Example ecosystem.config.js:
+
+```
+module.exports = {
+  apps: [{
+    name: 'prizeversity',
+    script: './server/index.js',
+    instances: 'max',        // one cluster worker per vCPU (4)
+    exec_mode: 'cluster',
+    listen_timeout: 10000,   // health-probe timeout
+    max_memory_restart: '500M',
+    env: { NODE_ENV: 'production' }
+  }]
+};
+```
+   
+6. TLS, CDN & HTTP/2
+6.1 Cloudflare DNS
+- Add an A-record for app.example.com → VPS IP
+- Orange-cloud it (proxy on).
+- Cloudflare automatically gives edge SSL and Brotli compression.
+  
+6.2 Origin certificate
+```
+apt install -y certbot
+certbot certonly --standalone -d app.example.com --agree-tos -m you@example.com
+```
+
+6.3 Nginx reverse proxy (if wanting full HTTP/2 + gzip at origin):
+```
+apt install -y nginx
+cat >/etc/nginx/sites-available/prizeversity <<'EOF'
+server {
+    listen 80;
+    server_name app.example.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name app.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/app.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/app.example.com/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;    # your Express port
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+    location /static/ {
+        root /home/deploy/app/frontend/dist;
+        try_files $uri =404;
+    }
+}
+EOF
+
+ln -s /etc/nginx/sites-available/prizeversity /etc/nginx/sites-enabled/
+nginx -t && systemctl reload nginx
+```
+
+8. Automated backups
+8.1 Create an S3-compatible bucket
+- Any provider works (AWS, Backblaze B2, Wasabi).
+- Size ≈ compressed dump × 30 days.
+
+8.2 Install rclone & script
+```
+apt install -y rclone
+rclone config    # one-time wizard → create remote called “s3”
+mkdir -p ~/backup-scripts
+cat >~/backup-scripts/mongodb-nightly.sh <<'EOF'
+#!/usr/bin/env bash
+set -e
+STAMP=$(date +%F)
+mongodump --archive="/tmp/mongo-$STAMP.gz" --gzip
+rclone copy "/tmp/mongo-$STAMP.gz" s3:prize-tower-backups/$STAMP.gz
+rm /tmp/mongo-$STAMP.gz
+EOF
+chmod +x ~/backup-scripts/mongodb-nightly.sh
+```
+
+8.3 Add a cron:
+```
+crontab -e    # as root
+0 2 * * * /home/deploy/backup-scripts/mongodb-nightly.sh
+```
+
+10. Final sanity check
+```
+# From your laptop
+curl -I https://app.example.com        # 200 OK, TLS, CF headers
+ab -n 500 -c 50 https://app.example.com/api/ping   # latency < 100 ms
+```
+
+- If both pass, Great! 🥳.
+- Keep an eye on CPU, RAM and backup logs, and we're in good shape.
+
+11. (Next phase) Replica set or scaling
+Single box is fine at launch; create a secondary VPS and init a replica set when:
+- RAM ≥ 80 %, or
+- p95 API latency > 300 ms under real traffic.
+
+12. Monitoring & Alerts
+```
+apt install -y prometheus-node-exporter
+pm2 install pm2-server-monit
+# or just use Hostinger’s graphs + email alerts
+```
+
+> Set Cloudflare / UptimeRobot pings on `/healthz` endpoint that simply returns `200 OK`.
