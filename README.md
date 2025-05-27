@@ -165,7 +165,7 @@ git push origin main
 # SSH in as root or sudo user
 apt update && apt upgrade -y
 
-# 2.1  Add a swap file (keeps the box alive on rare RAM spikes)
+# 2.1  Add a swap file (Unnecessary but keeps the box alive on rare RAM spikes)
 fallocate -l 2G /swap.img
 chmod 600 /swap.img
 mkswap /swap.img
