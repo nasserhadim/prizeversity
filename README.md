@@ -273,6 +273,9 @@ certbot certonly --standalone -d app.example.com --agree-tos -m you@example.com
 ```
 
 6.3 Nginx reverse proxy (if wanting full HTTP/2 + gzip at origin):
+- HTTP/2 provides significant performance and efficiency benefits, primarily due to its ability to multiplex multiple requests over a single connection and its efficient use of binary framing. This leads to faster page load times, reduced latency, and improved user experience. This means that a client can start receiving responses for multiple requests at the same time, significantly reducing the time it takes for a page to load.
+
+- Gzip is a data compression utility and a file format used for compressing and decompressing files. It uses the Deflate algorithm, which is known for its efficiency in reducing file size. Gzip is commonly used for web servers and browsers, as it helps improve data transfer speeds by compressing files before sending them and decompressing them upon reception. 
 ```
 apt install -y nginx
 cat >/etc/nginx/sites-available/prizeversity <<'EOF'
