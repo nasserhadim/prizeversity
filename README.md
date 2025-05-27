@@ -322,7 +322,7 @@ cat >~/backup-scripts/mongodb-nightly.sh <<'EOF'
 set -e
 STAMP=$(date +%F)
 mongodump --archive="/tmp/mongo-$STAMP.gz" --gzip
-rclone copy "/tmp/mongo-$STAMP.gz" s3:prize-tower-backups/$STAMP.gz
+rclone copy "/tmp/mongo-$STAMP.gz" s3:prizeversity-backups/$STAMP.gz
 rm /tmp/mongo-$STAMP.gz
 EOF
 chmod +x ~/backup-scripts/mongodb-nightly.sh
