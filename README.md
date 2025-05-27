@@ -237,7 +237,7 @@ npm run build -w frontend   # if using workspaces
 
 # Serve static files & API with Express
 # (skip if you already have an Nginx reverse proxy plan)
-pm2 start ecosystem.config.js --name prize-tower
+pm2 start ecosystem.config.js --name prizeversity
 pm2 save            # write dump
 pm2 startup         # generates a systemd script; run the displayed command
 ```
