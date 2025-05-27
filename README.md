@@ -149,7 +149,7 @@ git merge upstream/main
 # Launch-to-Production Checklist
 Written for an Ubuntu-based Hostinger KVM 4, but the commands are nearly identical on Debian.
 
-1. Prepare the code
+## 1. Prepare the code
 ```
 # on your laptop or dev machine
 cd frontend
@@ -160,7 +160,7 @@ git commit -m "Production build"
 git push origin main
 ```
 
-2. Initial server hardening for Performance Enhancement & Security/Firewall (run once)
+## 2. Initial server hardening for Performance Enhancement & Security/Firewall (run once)
 ```
 # SSH in as root or sudo user
 apt update && apt upgrade -y
@@ -187,16 +187,16 @@ ufw allow 443/tcp comment "HTTPS"
 ufw enable
 ```
 
-3. Install runtime tooling (run once)
+## 3. Install runtime tooling (run once)
 ```
-# 3·A  Node + build utils
+# 3-A  Node + build utils
 curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
 apt install -y nodejs build-essential
 
-# 3·A  PM2 (Process Manager for Node.js)
+# 3-A  PM2 (Process Manager for Node.js)
 npm install -g pm2
 
-# 3·A  MongoDB (single box)
+# 3-A  MongoDB (single box)
 curl -fsSL https://pgp.mongodb.com/server-6.0.asc | \
       tee /etc/apt/trusted.gpg.d/mongodb.asc
 echo "deb [arch=amd64] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/6.0 multiverse" \
@@ -204,30 +204,30 @@ echo "deb [arch=amd64] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/6.0
 apt update && apt install -y mongodb-org
 systemctl enable --now mongod
 
-# 3·A·1  Limit Mongo to loopback only
+# 3-A-1  Limit Mongo to loopback only
 sed -i 's/^  bindIp:.*/  bindIp: 127.0.0.1/' /etc/mongod.conf
 
 
 #########################################################################
-# 3·B  OPTIONAL but recommended: flip that one mongod into replica-set mode
+# 3-B  OPTIONAL but recommended: flip that one mongod into replica-set mode
 #########################################################################
 
-# 3·B·1  Add a replSetName to the config
+# 3-B-1  Add a replSetName to the config
 printf "\nreplication:\n  replSetName: rs0\n" >> /etc/mongod.conf
 
-# 3·B·2  Restart Mongo so it reads the new stanza
+# 3-B-2  Restart Mongo so it reads the new stanza
 systemctl restart mongod
 
-# 3·B·3  Initialise the single-node replica set
+# 3-B-3  Initialise the single-node replica set
 mongosh --eval 'rs.initiate()'      # will output “ok: 1” on success
 
-# 3·B·4  Quick sanity check (should show PRIMARY, 1 member)
+# 3-B-4  Quick sanity check (should show PRIMARY, 1 member)
 mongosh --eval 'rs.status().members.map(m => m.stateStr)'
 # → [ "PRIMARY" ]
 #########################################################################
 ```
 
-4. Deploy the application
+## 4. Deploy the application
 ```
 # as a non-root deploy user
 mkdir -p ~/app && cd ~/app
@@ -259,20 +259,19 @@ module.exports = {
 ```
 
 
-6. TLS, CDN & HTTP/2
-
-6.1 Cloudflare DNS
+## 5. TLS, CDN & HTTP/2
+### 5.1 Cloudflare DNS
 - Add an A-record for app.example.com → VPS IP
 - Orange-cloud it (proxy on).
 - Cloudflare automatically gives edge SSL and Brotli compression.
   
-6.2 Origin certificate
+### 5.2 Origin certificate
 ```
 apt install -y certbot
 certbot certonly --standalone -d app.example.com --agree-tos -m you@example.com
 ```
 
-6.3 Nginx reverse proxy (if wanting full HTTP/2 + gzip at origin):
+### 5.3 Nginx reverse proxy (if wanting full HTTP/2 + gzip at origin):
 - HTTP/2 provides significant performance and efficiency benefits, primarily due to its ability to multiplex multiple requests over a single connection and its efficient use of binary framing. This leads to faster page load times, reduced latency, and improved user experience. This means that a client can start receiving responses for multiple requests at the same time, significantly reducing the time it takes for a page to load.
 
 - Gzip is a data compression utility and a file format used for compressing and decompressing files. It uses the Deflate algorithm, which is known for its efficiency in reducing file size. Gzip is commonly used for web servers and browsers, as it helps improve data transfer speeds by compressing files before sending them and decompressing them upon reception. 
@@ -308,14 +307,12 @@ ln -s /etc/nginx/sites-available/prizeversity /etc/nginx/sites-enabled/
 nginx -t && systemctl reload nginx
 ```
 
-
-8. Automated backups
-
-8.1 Create an S3-compatible bucket
+## 6. Automated backups
+### 6.1 Create an S3-compatible bucket
 - Any provider works (AWS, Backblaze B2, Wasabi).
 - Size ≈ compressed dump × 30 days.
 
-8.2 Install rclone & script
+### 6.2 Install rclone & script
 ```
 apt install -y rclone
 rclone config    # one-time wizard → create remote called “s3”
@@ -331,13 +328,13 @@ EOF
 chmod +x ~/backup-scripts/mongodb-nightly.sh
 ```
 
-8.3 Add a cron:
+### 6.3 Add a cron (scheduled) job:
 ```
 crontab -e    # as root
 0 2 * * * /home/deploy/backup-scripts/mongodb-nightly.sh
 ```
 
-10. Final sanity check
+## 7. Final sanity check
 ```
 # From your laptop
 curl -I https://app.example.com        # 200 OK, TLS, CF headers
@@ -347,13 +344,12 @@ ab -n 500 -c 50 https://app.example.com/api/ping   # latency < 100 ms
 - If both pass, Great! 🥳.
 - Keep an eye on CPU, RAM and backup logs, and we're in good shape.
 
-11. (Next phase) Replica set or scaling
-    
+## 8. (Next phase) Replica set or scaling
 Single box is fine at launch; create a secondary VPS and init a replica set when:
 - RAM ≥ 80 %, or
 - p95 API latency > 300 ms under real traffic.
 
-12. Monitoring & Alerts
+## 9. Monitoring & Alerts
 ```
 apt install -y prometheus-node-exporter
 pm2 install pm2-server-monit
@@ -362,13 +358,13 @@ pm2 install pm2-server-monit
 
 > Set Cloudflare / UptimeRobot pings on `/healthz` endpoint that simply returns `200 OK`.
 
-13. CI/CD Deployment (GitHub Actions workflow)
+## 10. CI/CD Deployment (GitHub Actions workflow)
 - Builds & tests the code on every push to `main`
 - Uploads the build to VPS server over SSH
 - Installs production-only dependencies on the server
 - Hot-reloads PM2 process named `prizeversity`
 
-13.1 Add a GitHub Environment called production (manual "Approve & Deploy" gate)
+### 10.1 Add a GitHub Environment called production (manual "Approve & Deploy" gate)
 
 > 1. Repository → Settings → Environments → New environment → `production`
 >
@@ -379,7 +375,7 @@ pm2 install pm2-server-monit
 - Effect: Every push to `main` will pause at "Waiting for approval in environment production".
 - Open > Actions → run → Review deployments → Approve and deploy to continue.
 
-13.2 Create `.github/workflows/deploy.yml` in the repo
+### 10.2 Create `.github/workflows/deploy.yml` in the repo
 ```
 name: CI & CD – Prizeversity Production
 
