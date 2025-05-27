@@ -160,7 +160,7 @@ git commit -m "Production build"
 git push origin main
 ```
 
-2. Initial server hardening (run once)
+2. Initial server hardening for Performance Enhancement & Security/Firewall (run once)
 ```
 # SSH in as root or sudo user
 apt update && apt upgrade -y
@@ -172,7 +172,7 @@ mkswap /swap.img
 swapon /swap.img
 echo '/swap.img none swap sw 0 0' >> /etc/fstab
 
-# 2.2  Raise file-descriptor limits (File descriptors are used for pretty much anything that reads or writes, io devices, pipes, sockets etc. Typically you modify this limit when using web servers. 128,000 open files will only consume around 128MB of system RAM. That shouldn't be much of a problem on a modern system with many GB of system ram.)
+# 2.2  Raise file-descriptor limits (File descriptors are used for pretty much anything that reads or writes, io devices, pipes, sockets etc. Typically you modify this ulimit when using web servers. 128,000 open files will only consume around 128MB of system RAM. That shouldn't be much of a problem on a modern system with many GB of system RAM. WebSockets consume memory per connection and file descriptors, but they aren't heavy on CPU. For 100-150 concurrent users, 150 WebSocket connections aren’t demanding, just around 10 MB memory.)
 echo '* soft nofile 65535' >> /etc/security/limits.conf
 echo '* hard nofile 65535' >> /etc/security/limits.conf
 echo 'fs.file-max = 100000' >> /etc/sysctl.conf
@@ -193,7 +193,7 @@ ufw enable
 curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
 apt install -y nodejs build-essential
 
-# 3·A  PM2 process manager
+# 3·A  PM2 (Process Manager for Node.js)
 npm install -g pm2
 
 # 3·A  MongoDB (single box)
@@ -361,3 +361,103 @@ pm2 install pm2-server-monit
 ```
 
 > Set Cloudflare / UptimeRobot pings on `/healthz` endpoint that simply returns `200 OK`.
+
+13. CI/CD Deployment (GitHub Actions workflow)
+- Builds & tests the code on every push to `main`
+- Uploads the build to VPS server over SSH
+- Installs production-only dependencies on the server
+- Hot-reloads PM2 process named `prizeversity`
+
+13.1 Add a GitHub Environment called production (manual "Approve & Deploy" gate)
+
+> 1. Repository → Settings → Environments → New environment → `production`
+>
+> 2. Under Deployment protection rules choose “Required reviewers” and add self (or team).
+>
+> 3. Save.
+
+- Effect: Every push to `main` will pause at "Waiting for approval in environment production".
+- Open > Actions → run → Review deployments → Approve and deploy to continue.
+
+13.2 Create `.github/workflows/deploy.yml` in the repo
+```
+name: CI & CD – Prizeversity Production
+
+# ───────────────────────────────────────────────
+# 1. Trigger: every commit pushed to main
+# ───────────────────────────────────────────────
+on:
+  push:
+    branches: [ main ]
+
+# ───────────────────────────────────
+# Prevent overlapping production runs
+# ───────────────────────────────────
+concurrency:
+  group: production          # any name; “production” is clear
+  cancel-in-progress: true   # cancel the older run if a new commit arrives
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-22.04
+    environment:                    # ← tell GitHub we’re targeting that env
+      name: production
+      url: https://prizeversity.com  # shows up in the PR / run summary
+
+    env:
+      APP_DIR: /home/deploy/prizeversity   # folder on the VPS
+      NODE_VERSION: 22                     # Node version used locally & on VPS
+
+    steps:
+    # ───────────────────────────────────────────────
+    # 2. Checkout & build on GitHub runner
+    # ───────────────────────────────────────────────
+    - name: Checkout repo
+      uses: actions/checkout@v4
+
+    - name: Use Node ${{ env.NODE_VERSION }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: npm
+
+    - name: Install & unit-test backend
+      run: |
+        npm ci
+        npm run test --if-present
+
+    - name: Build frontend for production
+      run: |
+        cd frontend
+        npm ci
+        npm run build
+        cd ..
+
+    # ───────────────────────────────────────────────
+    # 3. Upload only the changed files via rsync
+    # ───────────────────────────────────────────────
+    - name: Add SSH key
+      uses: webfactory/ssh-agent@v0.9.0
+      with:
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+    - name: Rsync code to VPS
+      run: |
+        rsync -az --delete \
+          -e "ssh -p ${{ secrets.SSH_PORT }}" \
+          --exclude='.git*' \
+          --exclude='node_modules' \
+          ./  ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ env.APP_DIR }}
+
+    # ───────────────────────────────────────────────
+    # 4. Remote: install prod deps & reload PM2
+    # ───────────────────────────────────────────────
+    - name: Install dependencies & reload PM2 on VPS
+      run: |
+        ssh -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} <<'EOF'
+          set -e
+          cd /home/deploy/prizeversity
+          npm ci --omit=dev
+          pm2 reload ecosystem.config.js --update-env
+        EOF
+```
