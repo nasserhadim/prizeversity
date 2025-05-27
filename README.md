@@ -172,7 +172,7 @@ mkswap /swap.img
 swapon /swap.img
 echo '/swap.img none swap sw 0 0' >> /etc/fstab
 
-# 2.2  Raise file-descriptor limits
+# 2.2  Raise file-descriptor limits (File descriptors are used for pretty much anything that reads or writes, io devices, pipes, sockets etc. Typically you modify this limit when using web servers.)
 echo '* soft nofile 65535' >> /etc/security/limits.conf
 echo '* hard nofile 65535' >> /etc/security/limits.conf
 echo 'fs.file-max = 100000' >> /etc/sysctl.conf
