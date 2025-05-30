@@ -39,7 +39,7 @@
 > 
 > For supported account types, select `Accounts in any organizational directory (Any Microsoft Entra ID tenant - Multitenant) and personal Microsoft accounts (e.g. Skype, Xbox)`. This is the associated type of the default `/common` auth API callback Microsoft uses.
 
-## Create Project Folders/Files:
+## Create Project Folders/Files (SKIP THIS SECTION IF CLONING/FORKING!):
 
 ```
 prizeversity/
