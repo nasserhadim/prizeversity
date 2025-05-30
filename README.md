@@ -54,7 +54,9 @@ prizeversity/
 >
 > - In the `.gitignore` file, add `.env` so that updates to this file, like adding secrets, are ignored upon commits, otherwise, github will prevent the commits from syncing!
 >
-> - If for some reason the `.env` file doesn't get ignored when you're committing changes throughout the project, try clearing the cache of the file from git by running: `git rm --cached .env` 
+> - If for some reason the `.env` file doesn't get ignored when you're committing changes throughout the project, try clearing the cache of the file from git by running: `git rm --cached .env`
+>
+> - See the `.gitignore` file for other artifacts to ignore such as `node_modules` 
 
 ## Initialize Backend and Frontend:
 
