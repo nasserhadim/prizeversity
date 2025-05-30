@@ -475,82 +475,58 @@ pm2 install pm2-server-monit
 ### 10.2 Create `.github/workflows/deploy.yml` in the repo
 ```
 name: CI & CD – Prizeversity Production
+on: { push: { branches: [ main ] } }
 
-# ───────────────────────────────────────────────
-# 1. Trigger: every commit pushed to main
-# ───────────────────────────────────────────────
-on:
-  push:
-    branches: [ main ]
-
-# ───────────────────────────────────
-# Prevent overlapping production runs
-# ───────────────────────────────────
-concurrency:
-  group: production          # any name; “production” is clear
-  cancel-in-progress: true   # cancel the older run if a new commit arrives
+concurrency: { group: production, cancel-in-progress: true }
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-22.04
-    environment:                    # ← tell GitHub we’re targeting that env
-      name: production
-      url: https://prizeversity.com  # shows up in the PR / run summary
+    environment: { name: production, url: https://prizeversity.com }
 
     env:
-      APP_DIR: /home/deploy/prizeversity   # folder on the VPS
-      NODE_VERSION: 22                     # Node version used locally & on VPS
+      APP_DIR: /home/deploy/prizeversity
+      NODE_VERSION: 22
 
     steps:
-    # ───────────────────────────────────────────────
-    # 2. Checkout & build on GitHub runner
-    # ───────────────────────────────────────────────
-    - name: Checkout repo
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
-    - name: Use Node ${{ env.NODE_VERSION }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ env.NODE_VERSION }}
-        cache: npm
+    - uses: actions/setup-node@v4           # cache is per-folder, so leave default
+      with: { node-version: ${{ env.NODE_VERSION }} }
 
-    - name: Install & unit-test backend
+    # ─── Backend ───────────────────────────────────────────
+    - name: Install & test backend
+      working-directory: backend            # to pick a folder—no manual cd backend needed!
       run: |
         npm ci
         npm run test --if-present
 
-    - name: Build frontend for production
+    # ─── Front-end ─────────────────────────────────────────
+    - name: Build frontend
+      working-directory: frontend           # to pick a folder—no manual cd frontend needed!
       run: |
-        cd frontend
         npm ci
         npm run build
-        cd ..
 
-    # ───────────────────────────────────────────────
-    # 3. Upload only the changed files via rsync
-    # ───────────────────────────────────────────────
-    - name: Add SSH key
-      uses: webfactory/ssh-agent@v0.9.0
-      with:
-        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+    # ─── Rsync to server ──────────────────────────────────
+    - uses: webfactory/ssh-agent@v0.9.0
+      with: { ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }} }
 
-    - name: Rsync code to VPS
+    - name: Upload code
       run: |
         rsync -az --delete \
           -e "ssh -p ${{ secrets.SSH_PORT }}" \
-          --exclude='.git*' \
-          --exclude='node_modules' \
+          --exclude='**/node_modules' \
           ./  ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ env.APP_DIR }}
 
-    # ───────────────────────────────────────────────
-    # 4. Remote: install prod deps & reload PM2
-    # ───────────────────────────────────────────────
-    - name: Install dependencies & reload PM2 on VPS
+    # ─── Remote: deps ▸ migrate ▸ reload ──────────────────
+    - name: Install prod deps, run migrations, reload PM2
       run: |
         ssh -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} <<'EOF'
           set -e
-          cd /home/deploy/prizeversity
+          cd /home/deploy/prizeversity/backend               # because there is no YAML working-directory helper once we’re inside the VPS remote shell, cd is needed
           npm ci --omit=dev
-          pm2 reload ecosystem.config.js --update-env
+          npm run migrate                                    # migrate-mongo up
+          pm2 reload /home/deploy/prizeversity/ecosystem.config.js --update-env
         EOF
 ```
