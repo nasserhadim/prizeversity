@@ -257,7 +257,7 @@ git commit -m "Production build"
 git push origin main
 ```
 
-## 2. Initial server hardening for Performance Enhancement & Security/Firewall (run once)
+## 2. (OPTIONAL but RECOMMENDED) Initial server hardening for Performance Enhancement & Security/Firewall (run once)
 ```
 # SSH in as root or sudo user
 apt update && apt upgrade -y
