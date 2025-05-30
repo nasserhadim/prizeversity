@@ -684,7 +684,7 @@ jobs:
         EOF
 ```
 
-# MISC: Dumping/Restoring DB
+# MISC
 
 ## Database Backup / Restore ( `mongodump` & `mongorestore` )
 
@@ -747,3 +747,140 @@ Add to crontab -e:
 ```
 0 2 * * * /home/deploy/backup-scripts/mongodb-nightly.sh
 ```
+
+# Schema Changes & Migrations
+
+## How Schema Changes and Migrations Work Together
+
+| Step | What you do | Why |
+|------|-------------|-----|
+| ① **Change the Mongoose model** | Edit `Classroom.js` (add/rename/remove field, new index option, etc.). | New code must compile and validate future documents. |
+| ② **Write a migration file** (`backend/migrations/yyyymmdd-<slug>.js`) | Programmatically **update existing data** or **create/drop indexes** so the live database matches the new schema. | Old documents won't magically gain the new field; you decide how to back-fill, rename, or remove. |
+| ③ **Commit & run** | `git add` the model + migration → Devs/CI call `npm run migrate` → production pipeline runs the same step before `pm2 reload`. | Every environment replays the exact same change set once—and only once. |
+
+---
+
+## Example 1: Add a **description** field
+
+### 1. Update the model
+
+```js
+// backend/models/Classroom.js
+const ClassroomSchema = new mongoose.Schema({
+  name:  { type: String, required: true },
+  code:  { type: String, required: true, unique: true },
+  teacher:  { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  students: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  bazaars:  [{ type: mongoose.Schema.Types.ObjectId, ref: 'Bazaar' }],
+  groups:   [{ type: mongoose.Schema.Types.ObjectId, ref: 'Group' }],
+  description: { type: String, default: '' },          // ← NEW
+  createdAt: { type: Date, default: Date.now }
+});
+```
+
+### 2. Create a migration
+
+```bash
+npx migrate-mongo create add-classroom-description
+```
+
+```js
+// backend/migrations/20250601-add-classroom-description.js
+module.exports = {
+  async up(db) {
+    await db.collection('classrooms').updateMany(
+      { description: { $exists: false } },
+      { $set: { description: '' } }           // back-fill with empty string
+    );
+  },
+  async down(db) {
+    await db.collection('classrooms').updateMany(
+      {},
+      { $unset: { description: '' } }
+    );
+  },
+};
+```
+
+Run locally once:
+
+```bash
+cd backend
+npm run migrate
+```
+
+`migrate-mongo status` now lists the file with an "Applied At" timestamp.
+
+---
+
+## Example 2: Rename **groups → guilds**
+
+### 1. Change the schema
+
+```diff
+- groups: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Group' }],
++ guilds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Guild' }],
+```
+
+### 2. Migration to rename the field
+
+```bash
+npx migrate-mongo create rename-groups-to-guilds
+```
+
+```js
+module.exports = {
+  async up(db) {
+    await db.collection('classrooms').updateMany(
+      { groups: { $exists: true } },
+      { $rename: { 'groups': 'guilds' } }
+    );
+  },
+  async down(db) {
+    await db.collection('classrooms').updateMany(
+      { guilds: { $exists: true } },
+      { $rename: { 'guilds': 'groups' } }
+    );
+  },
+};
+```
+
+---
+
+## Example 3: Add/Drop an **index**
+
+```bash
+npx migrate-mongo create add-classroom-code-index
+```
+
+```js
+module.exports = {
+  async up(db) {
+    await db.collection('classrooms').createIndex(
+      { code: 1 },
+      { unique: true, name: 'code_unique' }
+    );
+  },
+  async down(db) {
+    await db.collection('classrooms').dropIndex('code_unique');
+  },
+};
+```
+
+---
+
+## Key Principles
+
+| Principle | Explanation |
+|-----------|-------------|
+| **One concern per file** | Easier roll-backs and conflict resolution. |
+| **Idempotent `up()`** | Code should succeed even if partially applied (e.g., `$exists` guards). |
+| **Always provide `down()`** | Gives you an "undo" button in dev/staging. |
+| **Run migrations before server reload** | Your CI/CD YAML already does this (`npm run migrate` then `pm2 reload`). |
+| **Leave optional fields missing** | If a new field is non-required and your code handles `undefined`, you can skip the data back-fill. |
+
+---
+
+## Summary
+
+Migrations live only in `backend/migrations/`; the rest of your app stays unchanged. From now on, any time you touch `Classroom.js` (or any other schema) ask: *Do existing documents need a tweak or new index?*—if yes, add a migration file and you're future-proof.
