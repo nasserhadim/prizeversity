@@ -144,13 +144,12 @@ cd prizeversity
 
 # 2. Copy environment variables
 cp backend/.env.example backend/.env      # then edit secrets
-cp frontend/.env.example frontend/.env    # if you keep any Vite envs
 
 # 3. Install dependencies
 npm ci --workspace backend
 npm ci --workspace frontend               # or: (cd frontend && npm ci)
 
-### 4 · Create / start MongoDB **locally**  
+# 4. Create / start MongoDB **locally**  
 *(skip this section if you’re using MongoDB Atlas or another remote cluster)*
 
 | OS / distro | One-time setup (create data folder) | Start the server |
