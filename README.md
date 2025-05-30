@@ -876,7 +876,7 @@ module.exports = {
 | **One concern per file** | Easier roll-backs and conflict resolution. |
 | **Idempotent `up()`** | Code should succeed even if partially applied (e.g., `$exists` guards). |
 | **Always provide `down()`** | Gives you an "undo" button in dev/staging. |
-| **Run migrations before server reload** | Your CI/CD YAML already does this (`npm run migrate` then `pm2 reload`). |
+| **Run migrations before server reload** | The CI/CD YAML already does this (`npm run migrate` then `pm2 reload`). |
 | **Leave optional fields missing** | If a new field is non-required and your code handles `undefined`, you can skip the data back-fill. |
 
 ---
