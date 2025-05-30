@@ -148,8 +148,11 @@ cd prizeversity
 cp backend/.env.example backend/.env      # then edit secrets
 
 # 3. Install dependencies
-npm ci --workspace backend
-npm ci --workspace frontend               # or: (cd frontend && npm ci)
+cd backend
+npm ci
+
+cd ../frontend
+npm ci
 
 # 4. Create / start MongoDB locally  *(Community Edition)*
 > Skip this section if you connect to MongoDB Atlas or another remote cluster.
