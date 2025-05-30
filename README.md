@@ -310,7 +310,7 @@ mongo --eval 'db.runCommand({ ping: 1 })'   # returns { "ok" : 1 }
 ~~~
 
 
-# 5. Run database migrations (idempotent)
+# 5. Run database migrations (if you haven't done it yet)
 cd backend
 npm run migrate            # migrate-mongo up
 cd ..
