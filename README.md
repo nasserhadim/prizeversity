@@ -60,18 +60,81 @@ prizeversity/
 
 ## Initialize Backend and Frontend (IF CLONING/FORKING, ONLY RUN THE INSTALL STEPS!):
 
-### Navigate to the backend folder and run:
+### Scaffold `backend`:
 
 ```
+cd backend
+
 npm init -y # DON'T RUN THIS UNLESS SETTING UP THE DIRECTORIES FROM SCRATCH!
 
 npm install express mongoose passport passport-google-oauth20 passport-microsoft cors dotenv
 
 npm install socket.io
+
+# --- NEW: migrations ---
+npm i -D migrate-mongo
+npx migrate-mongo init                      # adds migrate-mongo-config.js + migrations/
+npx migrate-mongo status                    # Sanity Check. If you see an empty table i.e. (Filename │ Applied At │ Migration block), that just means you haven’t created any migration files yet, which is OK!
+
+npm pkg set scripts.migrate="migrate-mongo up"
+npm pkg set scripts["migrate:down"]="migrate-mongo down"
 ```
 
-> Now create the following files (UNNECESSARY IF CLONING/FORKING!):
->
+## (OPTIONAL but RECOMMENDED) Test DB Migration setup with a "Trial" migration file
+
+1. Generate an empty migration file inside `backend/migrations/`
+   ```
+   cd backend
+   npx migrate-mongo create add-users-test-migration
+   ```
+   This generates something like `backend/migrations/20250530XXXXXX-add-users-test-migration.js`.
+   
+2. Open that file and paste your up/down code:
+   ```
+   // backend/migrations/20250530XXXXXX-add-users-test-migration.js
+   module.exports = {
+     async up(db) {
+       // create a throw-away collection with one unique index
+       await db.collection('users_test_migration').createIndex({ email: 1 }, { unique: true });
+       // insert a sample doc so you can see it in Compass
+       await db.collection('users_test_migration').insertOne({
+         email: 'test@example.com',
+         createdAt: new Date()
+       });
+     },
+   
+     async down(db) {
+       // drop the entire test collection
+       await db.collection('users_test_migration').drop();
+     },
+   };
+   ```
+
+   > Note:
+   >
+   > No existing collections are touched; if the collection already exists the index command simply re-asserts the uniqueness rule.
+3. Run the migration against your normal database
+   ```
+   npm run migrate         # migrate-mongo up
+   ```
+
+   > Console output should list the file as Applied.
+   >
+   > Open `MongoDB Compass` → DB `prizeversity` → you’ll see `users_test_migration` with one document and one index.
+   
+4. (OPTIONAL) Roll it back
+   ```
+   npm run migrate:down    # drops the test collection
+   ```
+
+   > `migrate-mongo status` will now show the migration as "Down," proving that both directions work.
+   
+5. Commit and keep the file (or delete later)
+   - Keeping it lets future contributors see an example migration.
+   - Deleting it is fine too—just make sure it’s rolled down first.
+
+## (Resume `backend` scaffolding following DB migrations setup): Create the following files (UNNECESSARY IF CLONING/FORKING!):
+
 > Create `backend/.env`
 >
 > Create `backend/server.js`
@@ -82,8 +145,10 @@ npm install socket.io
 >
 > Add the rest of folders/files as needed!
 
-### Frontend Setup with `Vite`.
+### Scaffold `frontend` and setup with `Vite`.
 ```
+cd ..                                     # back to repo root
+
 npm create vite@latest frontend -- --template react # If prompted for framework, select React, and variant: JavaScript # DON'T RUN THIS UNLESS SETTING UP THE DIRECTORIES FROM SCRATCH!
 
 cd frontend
@@ -105,12 +170,73 @@ npm install react-transition-group
 > Create `frontend/src/pages/Home.jsx`
 >
 > Add the rest of the folders/files as needed!
+
 # How to Run it:
 
-1. Start MongoDB:
+1. Start MongoDB locally:
 
 ```
-mongod
+#### macOS – Homebrew (Apple Silicon)
+
+~~~bash
+# one-time setup
+sudo mkdir -p /opt/homebrew/var/mongodb
+sudo chown -R "$(whoami)" /opt/homebrew/var/mongodb
+
+# start the server
+mongod --dbpath /opt/homebrew/var/mongodb
+~~~
+
+#### macOS – Homebrew (Intel)
+
+~~~bash
+sudo mkdir -p /usr/local/var/mongodb
+sudo chown -R "$(whoami)" /usr/local/var/mongodb
+
+mongod --dbpath /usr/local/var/mongodb
+~~~
+
+---
+
+#### Windows 10 / 11
+
+~~~powershell
+# one-time setup
+mkdir C:\data\db
+
+# start the server
+"C:\Program Files\MongoDB\Server\6.0\bin\mongod.exe" --dbpath "C:\data\db"
+
+# (if mongod.exe is on your PATH you can shorten to:)
+# mongod --dbpath "C:\data\db"
+~~~
+
+---
+
+#### Ubuntu / Debian (APT install)
+
+~~~bash
+sudo systemctl start mongod      # start now
+sudo systemctl enable mongod     # start at every boot
+~~~
+*(The APT package already created `/var/lib/mongodb` and set permissions.)*
+
+---
+
+#### Any Linux (tarball install)
+
+~~~bash
+mkdir -p ~/mongodb-data
+mongod --dbpath ~/mongodb-data
+~~~
+
+---
+
+##### Verify the server is running (Linux)
+
+~~~bash
+mongo --eval 'db.runCommand({ ping: 1 })'   # returns { "ok" : 1 }
+~~~
 ```
 
 > Note:
@@ -120,14 +246,31 @@ mongod
 > [Normally, it might be Control Center that uses it](https://stackoverflow.com/a/72369347/8397835), which you can `turn off` as follows: `System Settings > General > AirDrop & Handoff > AirPlay Receiver.`
 > 
 
-2. Start the backend:
+2. Run database migrations (idempotent)
+
+- Database migration is a process of managing and applying changes to DB schema as a project develops while keeping the existing data.
+- It allows developers and database administrators to version and track changes to the database structure without breaking any part of the database
+- An idempotent operation can be run multiple times without altering the results.
+- This means that if a migration script is run multiple times, it will always produce the same outcome.
+- This property ensures predictability and stability during the migration process.
+- MongoDB's flexible schema allows for changes without modifying existing data. New fields can be added to documents without affecting others. Migrations help manage these changes over time.
+
+```
+cd backend
+npm run migrate            # migrate-mongo up
+cd ..
+```
+
+After starting MongoDB locally, 
+
+3. Start the backend:
 
 ```
 cd backend
 node server.js
 ```
 
-3. Start the frontend:
+4. Start the frontend:
 
 ```
 cd frontend
@@ -148,10 +291,13 @@ cd prizeversity
 cp backend/.env.example backend/.env      # then edit secrets
 
 # 3. Install dependencies
-npm ci --workspace backend
-npm ci --workspace frontend               # or: (cd frontend && npm ci)
+cd backend
+npm ci
 
-# 4. Create / start MongoDB locally  *(Community Edition)*
+cd ../frontend
+npm ci
+
+# 4. Create / start MongoDB locally if you haven't done it yet  *(Community Edition)*
 > Skip this section if you connect to MongoDB Atlas or another remote cluster.
 
 ---
@@ -212,25 +358,32 @@ mongod --dbpath ~/mongodb-data
 
 ---
 
-##### Verify the server is running
+##### Verify the server is running (Linux)
 
 ~~~bash
 mongo --eval 'db.runCommand({ ping: 1 })'   # returns { "ok" : 1 }
 ~~~
 
 
-# 5. Run database migrations (idempotent)
-npm run migrate --workspace backend       # migrate-mongo up
+# 5. Run database migrations (if you haven't done it yet)
+cd backend
+npm run migrate            # migrate-mongo up
+cd ..
 
-# 6. Development mode ──────────────────────────────────
-npm run dev     --workspace backend       # starts Express + WebSockets on :3000
-npm run dev     --workspace frontend      # Vite hot-reload on :5173
-# browse http://localhost:5173
+# 6. Development mode ───────────────────────────────
+cd backend                 # Express + WebSockets on :3000
+npm run dev
+# in a second terminal
+cd frontend                # Vite hot-reload on :5173
+npm run dev
+# open http://localhost:5173
 
-# 7. Production build (optional local test) ────────────
-npm run build   --workspace frontend      # outputs frontend/dist
-NODE_ENV=production npm start --workspace backend
-# browse http://localhost:3000  (served by Express or Nginx reverse proxy)
+# 7. Production build (optional local test) ─────────
+cd frontend
+npm run build              # outputs frontend/dist
+cd ../backend
+NODE_ENV=production npm start
+# browse http://localhost:3000  (served by Express or Nginx proxy)
 ```
 
 # When trying to Sync (Rebase basically) from original (main) to Fork:
@@ -257,7 +410,7 @@ git commit -m "Production build"
 git push origin main
 ```
 
-## 2. Initial server hardening for Performance Enhancement & Security/Firewall (run once)
+## 2. (OPTIONAL but RECOMMENDED) Initial server hardening for Performance Enhancement & Security/Firewall (run once)
 ```
 # SSH in as root or sudo user
 apt update && apt upgrade -y
@@ -475,82 +628,58 @@ pm2 install pm2-server-monit
 ### 10.2 Create `.github/workflows/deploy.yml` in the repo
 ```
 name: CI & CD – Prizeversity Production
+on: { push: { branches: [ main ] } }
 
-# ───────────────────────────────────────────────
-# 1. Trigger: every commit pushed to main
-# ───────────────────────────────────────────────
-on:
-  push:
-    branches: [ main ]
-
-# ───────────────────────────────────
-# Prevent overlapping production runs
-# ───────────────────────────────────
-concurrency:
-  group: production          # any name; “production” is clear
-  cancel-in-progress: true   # cancel the older run if a new commit arrives
+concurrency: { group: production, cancel-in-progress: true }
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-22.04
-    environment:                    # ← tell GitHub we’re targeting that env
-      name: production
-      url: https://prizeversity.com  # shows up in the PR / run summary
+    environment: { name: production, url: https://prizeversity.com }
 
     env:
-      APP_DIR: /home/deploy/prizeversity   # folder on the VPS
-      NODE_VERSION: 22                     # Node version used locally & on VPS
+      APP_DIR: /home/deploy/prizeversity
+      NODE_VERSION: 22
 
     steps:
-    # ───────────────────────────────────────────────
-    # 2. Checkout & build on GitHub runner
-    # ───────────────────────────────────────────────
-    - name: Checkout repo
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
-    - name: Use Node ${{ env.NODE_VERSION }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ env.NODE_VERSION }}
-        cache: npm
+    - uses: actions/setup-node@v4           # cache is per-folder, so leave default
+      with: { node-version: ${{ env.NODE_VERSION }} }
 
-    - name: Install & unit-test backend
+    # ─── Backend ───────────────────────────────────────────
+    - name: Install & test backend
+      working-directory: backend            # to pick a folder—no manual cd backend needed!
       run: |
         npm ci
         npm run test --if-present
 
-    - name: Build frontend for production
+    # ─── Front-end ─────────────────────────────────────────
+    - name: Build frontend
+      working-directory: frontend           # to pick a folder—no manual cd frontend needed!
       run: |
-        cd frontend
         npm ci
         npm run build
-        cd ..
 
-    # ───────────────────────────────────────────────
-    # 3. Upload only the changed files via rsync
-    # ───────────────────────────────────────────────
-    - name: Add SSH key
-      uses: webfactory/ssh-agent@v0.9.0
-      with:
-        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+    # ─── Rsync to server ──────────────────────────────────
+    - uses: webfactory/ssh-agent@v0.9.0
+      with: { ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }} }
 
-    - name: Rsync code to VPS
+    - name: Upload code
       run: |
         rsync -az --delete \
           -e "ssh -p ${{ secrets.SSH_PORT }}" \
-          --exclude='.git*' \
-          --exclude='node_modules' \
+          --exclude='**/node_modules' \
           ./  ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ env.APP_DIR }}
 
-    # ───────────────────────────────────────────────
-    # 4. Remote: install prod deps & reload PM2
-    # ───────────────────────────────────────────────
-    - name: Install dependencies & reload PM2 on VPS
+    # ─── Remote: deps ▸ migrate ▸ reload ──────────────────
+    - name: Install prod deps, run migrations, reload PM2
       run: |
         ssh -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} <<'EOF'
           set -e
-          cd /home/deploy/prizeversity
+          cd /home/deploy/prizeversity/backend               # because there is no YAML working-directory helper once we’re inside the VPS remote shell, cd is needed
           npm ci --omit=dev
-          pm2 reload ecosystem.config.js --update-env
+          npm run migrate                                    # migrate-mongo up
+          pm2 reload /home/deploy/prizeversity/ecosystem.config.js --update-env
         EOF
 ```
