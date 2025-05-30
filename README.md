@@ -197,7 +197,7 @@ mongo --eval 'db.runCommand({ ping: 1 })'   # returns { "ok" : 1 }
 - It allows developers and database administrators to version and track changes to the database structure without breaking any part of the database
 - An idempotent operation can be run multiple times without altering the results.
 - This means that if a migration script is run multiple times, it will always produce the same outcome.
-- This property ensures predictability and stability during the migration process.)
+- This property ensures predictability and stability during the migration process.
 - MongoDB's flexible schema allows for changes without modifying existing data. New fields can be added to documents without affecting others. Migrations help manage these changes over time.
 
 ```
