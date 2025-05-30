@@ -149,21 +149,73 @@ cp backend/.env.example backend/.env      # then edit secrets
 npm ci --workspace backend
 npm ci --workspace frontend               # or: (cd frontend && npm ci)
 
-# 4. Create / start MongoDB **locally**  
-*(skip this section if you’re using MongoDB Atlas or another remote cluster)*
+# 4. Create / start MongoDB locally  *(Community Edition)*
+> Skip this section if you connect to MongoDB Atlas or another remote cluster.
 
-| OS / distro | One-time setup (create data folder) | Start the server |
-|-------------|-------------------------------------|------------------|
-| **macOS – Apple Silicon**<br>(Homebrew install) | ```bash<br>sudo mkdir -p /opt/homebrew/var/mongodb<br>sudo chown -R "$(whoami)" /opt/homebrew/var/mongodb``` | ```bash<br>mongod --dbpath /opt/homebrew/var/mongodb``` |
-| **macOS – Intel**<br>(Homebrew install) | ```bash<br>sudo mkdir -p /usr/local/var/mongodb<br>sudo chown -R "$(whoami)" /usr/local/var/mongodb``` | ```bash<br>mongod --dbpath /usr/local/var/mongodb``` |
-| **Windows 10 / 11** | ```powershell<br>mkdir C:\data\db``` | ```powershell<br>"C:\Program Files\MongoDB\Server\6.0\bin\mongod.exe" --dbpath "C:\data\db"```<br>*If `mongod.exe` is in your `PATH`, shorten to:*<br>```powershell<br>mongod --dbpath "C:\data\db"``` |
-| **Ubuntu / Debian**<br>(APT install) | *(System package creates `/var/lib/mongodb` for you)* | ```bash<br>sudo systemctl start mongod      # start now<br>sudo systemctl enable mongod     # start on boot``` |
-| **Any Linux (tarball install)** | ```bash<br>mkdir -p ~/mongodb-data``` | ```bash<br>mongod --dbpath ~/mongodb-data``` |
+---
 
-> **Verify the server is alive**
+#### macOS – Homebrew (Apple Silicon)
 
-```bash
-mongo --eval "db.runCommand({ ping: 1 })"   # returns { ok: 1 }
+~~~bash
+# one-time setup
+sudo mkdir -p /opt/homebrew/var/mongodb
+sudo chown -R "$(whoami)" /opt/homebrew/var/mongodb
+
+# start the server
+mongod --dbpath /opt/homebrew/var/mongodb
+~~~
+
+#### macOS – Homebrew (Intel)
+
+~~~bash
+sudo mkdir -p /usr/local/var/mongodb
+sudo chown -R "$(whoami)" /usr/local/var/mongodb
+
+mongod --dbpath /usr/local/var/mongodb
+~~~
+
+---
+
+#### Windows 10 / 11
+
+~~~powershell
+# one-time setup
+mkdir C:\data\db
+
+# start the server
+"C:\Program Files\MongoDB\Server\6.0\bin\mongod.exe" --dbpath "C:\data\db"
+
+# (if mongod.exe is on your PATH you can shorten to:)
+# mongod --dbpath "C:\data\db"
+~~~
+
+---
+
+#### Ubuntu / Debian (APT install)
+
+~~~bash
+sudo systemctl start mongod      # start now
+sudo systemctl enable mongod     # start at every boot
+~~~
+*(The APT package already created `/var/lib/mongodb` and set permissions.)*
+
+---
+
+#### Any Linux (tarball install)
+
+~~~bash
+mkdir -p ~/mongodb-data
+mongod --dbpath ~/mongodb-data
+~~~
+
+---
+
+##### Verify the server is running
+
+~~~bash
+mongo --eval 'db.runCommand({ ping: 1 })'   # returns { "ok" : 1 }
+~~~
+
 
 # 5. Run database migrations (idempotent)
 npm run migrate --workspace backend       # migrate-mongo up
