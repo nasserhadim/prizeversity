@@ -60,14 +60,22 @@ prizeversity/
 
 ## Initialize Backend and Frontend (IF CLONING/FORKING, ONLY RUN THE INSTALL STEPS!):
 
-### Navigate to the backend folder and run:
+### Scaffold `backend`:
 
 ```
+cd backend
+
 npm init -y # DON'T RUN THIS UNLESS SETTING UP THE DIRECTORIES FROM SCRATCH!
 
 npm install express mongoose passport passport-google-oauth20 passport-microsoft cors dotenv
 
 npm install socket.io
+
+# --- NEW: migrations ---
+npm i -D migrate-mongo
+npx migrate-mongo init                      # adds migrate-mongo-config.js + migrations/
+npm pkg set scripts.migrate="migrate-mongo up"
+npm pkg set scripts["migrate:down"]="migrate-mongo down"
 ```
 
 > Now create the following files (UNNECESSARY IF CLONING/FORKING!):
@@ -82,8 +90,10 @@ npm install socket.io
 >
 > Add the rest of folders/files as needed!
 
-### Frontend Setup with `Vite`.
+### Scaffold `frontend` and setup with `Vite`.
 ```
+cd ..                                     # back to repo root
+
 npm create vite@latest frontend -- --template react # If prompted for framework, select React, and variant: JavaScript # DON'T RUN THIS UNLESS SETTING UP THE DIRECTORIES FROM SCRATCH!
 
 cd frontend
@@ -105,12 +115,73 @@ npm install react-transition-group
 > Create `frontend/src/pages/Home.jsx`
 >
 > Add the rest of the folders/files as needed!
+
 # How to Run it:
 
-1. Start MongoDB:
+1. Start MongoDB locally:
 
 ```
-mongod
+#### macOS – Homebrew (Apple Silicon)
+
+~~~bash
+# one-time setup
+sudo mkdir -p /opt/homebrew/var/mongodb
+sudo chown -R "$(whoami)" /opt/homebrew/var/mongodb
+
+# start the server
+mongod --dbpath /opt/homebrew/var/mongodb
+~~~
+
+#### macOS – Homebrew (Intel)
+
+~~~bash
+sudo mkdir -p /usr/local/var/mongodb
+sudo chown -R "$(whoami)" /usr/local/var/mongodb
+
+mongod --dbpath /usr/local/var/mongodb
+~~~
+
+---
+
+#### Windows 10 / 11
+
+~~~powershell
+# one-time setup
+mkdir C:\data\db
+
+# start the server
+"C:\Program Files\MongoDB\Server\6.0\bin\mongod.exe" --dbpath "C:\data\db"
+
+# (if mongod.exe is on your PATH you can shorten to:)
+# mongod --dbpath "C:\data\db"
+~~~
+
+---
+
+#### Ubuntu / Debian (APT install)
+
+~~~bash
+sudo systemctl start mongod      # start now
+sudo systemctl enable mongod     # start at every boot
+~~~
+*(The APT package already created `/var/lib/mongodb` and set permissions.)*
+
+---
+
+#### Any Linux (tarball install)
+
+~~~bash
+mkdir -p ~/mongodb-data
+mongod --dbpath ~/mongodb-data
+~~~
+
+---
+
+##### Verify the server is running (Linux)
+
+~~~bash
+mongo --eval 'db.runCommand({ ping: 1 })'   # returns { "ok" : 1 }
+~~~
 ```
 
 > Note:
@@ -120,14 +191,23 @@ mongod
 > [Normally, it might be Control Center that uses it](https://stackoverflow.com/a/72369347/8397835), which you can `turn off` as follows: `System Settings > General > AirDrop & Handoff > AirPlay Receiver.`
 > 
 
-2. Start the backend:
+2. Run database migrations (idempotent)
+```
+cd backend
+npm run migrate            # migrate-mongo up
+cd ..
+```
+
+After starting MongoDB locally, 
+
+3. Start the backend:
 
 ```
 cd backend
 node server.js
 ```
 
-3. Start the frontend:
+4. Start the frontend:
 
 ```
 cd frontend
@@ -154,7 +234,7 @@ npm ci
 cd ../frontend
 npm ci
 
-# 4. Create / start MongoDB locally  *(Community Edition)*
+# 4. Create / start MongoDB locally if you haven't done it yet  *(Community Edition)*
 > Skip this section if you connect to MongoDB Atlas or another remote cluster.
 
 ---
