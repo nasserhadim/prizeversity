@@ -58,7 +58,7 @@ prizeversity/
 >
 > - See the `.gitignore` file for other artifacts to ignore such as `node_modules` 
 
-## Initialize Backend and Frontend:
+## Initialize Backend and Frontend (ONLY RUN INSTALL STEPS IF CLONING/FORKING):
 
 ### Navigate to the backend folder and run:
 
