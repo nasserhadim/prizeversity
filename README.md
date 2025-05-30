@@ -257,7 +257,7 @@ mongo --eval 'db.runCommand({ ping: 1 })'   # returns { "ok" : 1 }
 
 ```
 cd backend
-npm run migrate            # migrate-mongo up
+npm run migrate            # migrate-mongo up; FYI, if the DB doesn't exit, this will create it
 cd ..
 ```
 
@@ -267,7 +267,7 @@ After starting MongoDB locally,
 
 ```
 cd backend
-node server.js
+node server.js            # FYI, if the DB doesn't exit, this will create it
 ```
 
 4. Start the frontend:
