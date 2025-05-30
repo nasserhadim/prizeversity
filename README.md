@@ -193,9 +193,12 @@ mongo --eval 'db.runCommand({ ping: 1 })'   # returns { "ok" : 1 }
 
 2. Run database migrations (idempotent)
 
+- Database migration is a process of managing and applying changes to DB schema as a project develops while keeping the existing data.
+- It allows developers and database administrators to version and track changes to the database structure without breaking any part of the database
 - An idempotent operation can be run multiple times without altering the results.
 - This means that if a migration script is run multiple times, it will always produce the same outcome.
 - This property ensures predictability and stability during the migration process.)
+- MongoDB's flexible schema allows for changes without modifying existing data. New fields can be added to documents without affecting others. Migrations help manage these changes over time.
 
 ```
 cd backend
