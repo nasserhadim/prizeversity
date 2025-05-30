@@ -135,6 +135,50 @@ npm run build # (PROD) Node/Express or Nginx serves dist/ # Just regular HTTP/HT
 
 4. Open the browser and navigate to `http://localhost:5173` (Vite’s default port).
 
+# Getting Started (clone / fork)
+
+```
+# 1. Clone the repo
+git clone https://github.com/your-org/prizeversity.git
+cd prizeversity
+
+# 2. Copy environment variables
+cp backend/.env.example backend/.env      # then edit secrets
+cp frontend/.env.example frontend/.env    # if you keep any Vite envs
+
+# 3. Install dependencies
+npm ci --workspace backend
+npm ci --workspace frontend               # or: (cd frontend && npm ci)
+
+### 4 · Create / start MongoDB **locally**  
+*(skip this section if you’re using MongoDB Atlas or another remote cluster)*
+
+| OS / distro | One-time setup (create data folder) | Start the server |
+|-------------|-------------------------------------|------------------|
+| **macOS – Apple Silicon**<br>(Homebrew install) | ```bash<br>sudo mkdir -p /opt/homebrew/var/mongodb<br>sudo chown -R "$(whoami)" /opt/homebrew/var/mongodb``` | ```bash<br>mongod --dbpath /opt/homebrew/var/mongodb``` |
+| **macOS – Intel**<br>(Homebrew install) | ```bash<br>sudo mkdir -p /usr/local/var/mongodb<br>sudo chown -R "$(whoami)" /usr/local/var/mongodb``` | ```bash<br>mongod --dbpath /usr/local/var/mongodb``` |
+| **Windows 10 / 11** | ```powershell<br>mkdir C:\data\db``` | ```powershell<br>"C:\Program Files\MongoDB\Server\6.0\bin\mongod.exe" --dbpath "C:\data\db"```<br>*If `mongod.exe` is in your `PATH`, shorten to:*<br>```powershell<br>mongod --dbpath "C:\data\db"``` |
+| **Ubuntu / Debian**<br>(APT install) | *(System package creates `/var/lib/mongodb` for you)* | ```bash<br>sudo systemctl start mongod      # start now<br>sudo systemctl enable mongod     # start on boot``` |
+| **Any Linux (tarball install)** | ```bash<br>mkdir -p ~/mongodb-data``` | ```bash<br>mongod --dbpath ~/mongodb-data``` |
+
+> **Verify the server is alive**
+
+```bash
+mongo --eval "db.runCommand({ ping: 1 })"   # returns { ok: 1 }
+
+# 5. Run database migrations (idempotent)
+npm run migrate --workspace backend       # migrate-mongo up
+
+# 6. Development mode ──────────────────────────────────
+npm run dev     --workspace backend       # starts Express + WebSockets on :3000
+npm run dev     --workspace frontend      # Vite hot-reload on :5173
+# browse http://localhost:5173
+
+# 7. Production build (optional local test) ────────────
+npm run build   --workspace frontend      # outputs frontend/dist
+NODE_ENV=production npm start --workspace backend
+# browse http://localhost:3000  (served by Express or Nginx reverse proxy)
+```
 
 # When trying to Sync (Rebase basically) from original (main) to Fork:
 
