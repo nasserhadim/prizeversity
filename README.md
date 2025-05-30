@@ -883,4 +883,5 @@ module.exports = {
 
 ## Summary
 
-Migrations live only in `backend/migrations/`; the rest of your app stays unchanged. From now on, any time you touch `Classroom.js` (or any other schema) ask: *Do existing documents need a tweak or new index?*—if yes, add a migration file and you're future-proof.
+- Migrations live only in `backend/migrations/`; the rest of your app stays unchanged. 
+- From now on, any time you touch `Classroom.js` (or any other schema) ask: *Do existing documents need a tweak or new index?*—if yes, add a migration file and you're future-proof.
