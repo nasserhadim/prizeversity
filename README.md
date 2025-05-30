@@ -698,9 +698,9 @@ jobs:
 
 | OS | Install command / download | Typical **bin** path |
 |----|----------------------------|----------------------|
-| **Windows** | *EITHER* [download the MongoDB Database Tools MSI](https://www.mongodb.com/try/download/database-tools) and run it, *OR* via Chocolatey:<br>```powershell<br>choco install mongodb-database-tools<br>``` | `C:\Program Files\MongoDB\Tools\<version>\bin` |
-| **macOS (Homebrew)** | ```bash<br>brew install mongodb-database-tools<br>``` | `/usr/local/bin` (Intel) or `/opt/homebrew/bin` (Apple Silicon) |
-| **Ubuntu / Debian** | ```bash<br>sudo apt install mongodb-database-tools<br>```<br>(requires the MongoDB repo already added) | `/usr/bin` |
+| **Windows** | *EITHER* [download the MongoDB Database Tools MSI](https://www.mongodb.com/try/download/database-tools) and run it, *OR* via Chocolatey:<br>```powershell<br>choco install mongodb-database-tools``` | `C:\Program Files\MongoDB\Tools\<version>\bin` |
+| **macOS (Homebrew)** | ```bash<br>brew install mongodb-database-tools``` | `/usr/local/bin` (Intel) or `/opt/homebrew/bin` (Apple Silicon) |
+| **Ubuntu / Debian** | ```bash<br>sudo apt install mongodb-database-tools```<br>(requires the MongoDB repo already added) | `/usr/bin` |
 | **Any Linux tarball** | Download the **`.tgz`** from <https://www.mongodb.com/try/download/database-tools>, unpack, move `bin/` anywhere on your `PATH`. | wherever you unpacked it |
 
 #### (Windows) add **bin** to `PATH`
