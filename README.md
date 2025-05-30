@@ -3,8 +3,9 @@
 ## Prerequisites:
 
 1. Install [Node.js (for backend and frontend)](https://nodejs.org/).
+   > **NPM Usage**: This guide uses `npm install` for adding new packages (scaffolding) and `npm ci` for reproducible installs from existing lockfiles (cloning/deployment).
 
-2. Install [MongoDB (for the database)](https://www.mongodb.com/).
+3. Install [MongoDB (for the database)](https://www.mongodb.com/).
    
    - For [Windows](https://www.mongodb.com/docs/manual/tutorial/install-mongodb-on-windows-unattended/#std-label-install-mdb-community-windows-msiexec).
 
