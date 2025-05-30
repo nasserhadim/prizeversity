@@ -191,7 +191,7 @@ mongo --eval 'db.runCommand({ ping: 1 })'   # returns { "ok" : 1 }
 > [Normally, it might be Control Center that uses it](https://stackoverflow.com/a/72369347/8397835), which you can `turn off` as follows: `System Settings > General > AirDrop & Handoff > AirPlay Receiver.`
 > 
 
-2. Run database migrations (idempotent)
+2. Run database migrations (idempotent: An idempotent operation can be run multiple times without altering the results. This means that if a migration script is run multiple times, it will always produce the same outcome.)
 ```
 cd backend
 npm run migrate            # migrate-mongo up
