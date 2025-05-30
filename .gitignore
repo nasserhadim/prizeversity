@@ -1,1 +1,14 @@
+# Node & monorepo
+node_modules/
 .env
+.env.*          # catch any env file variants
+dist/           # Vite production output
+frontend/.vite/
+coverage/
+npm-debug.log*
+pnpm-debug.log*
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
