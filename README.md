@@ -683,3 +683,67 @@ jobs:
           pm2 reload /home/deploy/prizeversity/ecosystem.config.js --update-env
         EOF
 ```
+
+# MISC: Dumping/Restoring DB
+
+## Database Backup / Restore ( `mongodump` & `mongorestore` )
+
+> These CLI utilities live in **MongoDB Database Tools**. Install them once, add
+> the **bin** folder to your `PATH`, and you can snapshot or restore the
+> `prizeversity` database any time.
+
+---
+
+### 1. Install the tools
+
+| OS | Install command / download | Typical **bin** path |
+|----|----------------------------|----------------------|
+| **Windows** | *EITHER* [download the MongoDB Database Tools MSI](https://www.mongodb.com/try/download/database-tools) and run it, *OR* via Chocolatey:<br>```powershell<br>choco install mongodb-database-tools<br>``` | `C:\Program Files\MongoDB\Tools\<version>\bin` |
+| **macOS (Homebrew)** | ```bash<br>brew install mongodb-database-tools<br>``` | `/usr/local/bin` (Intel) or `/opt/homebrew/bin` (Apple Silicon) |
+| **Ubuntu / Debian** | ```bash<br>sudo apt install mongodb-database-tools<br>```<br>(requires the MongoDB repo already added) | `/usr/bin` |
+| **Any Linux tarball** | Download the **`.tgz`** from <https://www.mongodb.com/try/download/database-tools>, unpack, move `bin/` anywhere on your `PATH`. | wherever you unpacked it |
+
+#### (Windows) add **bin** to `PATH`
+
+1. *Settings → System → About → Advanced system settings → Environment Variables*  
+2. Edit **Path** → **New** → `C:\Program Files\MongoDB\Tools\<version>\bin`  
+3. Open a new terminal and run:  
+   ```powershell
+   mongodump --version
+   mongorestore --version
+
+### 2. Verify installation
+```
+mongodump --help        # prints options list
+mongorestore --help
+```
+
+### 3. Common commands for Prizeversity
+```
+# (Method 1) Full backup of the current DB  (creates ./dump/<date>/ …)
+mongodump --db prizeversity --out ./dump/prizeversity-$(date +%F)
+
+# (Method 2) Point-in-time (requires single-node replica-set or replica set)
+mongodump --db prizeversity \
+          --archive=/tmp/prizeversity-$(date +%F).gz \
+          --gzip --oplog
+
+# Restore (drops existing collections then imports)
+mongorestore --drop --db prizeversity ./dump/prizeversity-2025-05-30
+```
+- These commands can be run locally before you experiment in `Compass`, or on the VPS inside the nightly backup script (see `Launch-to-Production Checklist` → `Automated backups`).
+- MongoDB creates missing collections automatically during `mongorestore`.
+
+### 4. Automated nightly dump on the VPS
+
+```
+# inside ~/backup-scripts/mongodb-nightly.sh
+STAMP=$(date +%F)
+mongodump --archive="/tmp/mongo-$STAMP.gz" --gzip
+rclone copy "/tmp/mongo-$STAMP.gz" s3:prizeversity-backups/$STAMP.gz
+rm /tmp/mongo-$STAMP.gz
+```
+Add to crontab -e:
+```
+0 2 * * * /home/deploy/backup-scripts/mongodb-nightly.sh
+```
