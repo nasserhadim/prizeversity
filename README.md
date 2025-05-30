@@ -215,7 +215,7 @@ mongod --dbpath ~/mongodb-data
 
 ---
 
-##### Verify the server is running
+##### Verify the server is running (Linux)
 
 ~~~bash
 mongo --eval 'db.runCommand({ ping: 1 })'   # returns { "ok" : 1 }
@@ -223,17 +223,24 @@ mongo --eval 'db.runCommand({ ping: 1 })'   # returns { "ok" : 1 }
 
 
 # 5. Run database migrations (idempotent)
-npm run migrate --workspace backend       # migrate-mongo up
+cd backend
+npm run migrate            # migrate-mongo up
+cd ..
 
-# 6. Development mode ──────────────────────────────────
-npm run dev     --workspace backend       # starts Express + WebSockets on :3000
-npm run dev     --workspace frontend      # Vite hot-reload on :5173
-# browse http://localhost:5173
+# 6. Development mode ───────────────────────────────
+cd backend                 # Express + WebSockets on :3000
+npm run dev
+# in a second terminal
+cd frontend                # Vite hot-reload on :5173
+npm run dev
+# open http://localhost:5173
 
-# 7. Production build (optional local test) ────────────
-npm run build   --workspace frontend      # outputs frontend/dist
-NODE_ENV=production npm start --workspace backend
-# browse http://localhost:3000  (served by Express or Nginx reverse proxy)
+# 7. Production build (optional local test) ─────────
+cd frontend
+npm run build              # outputs frontend/dist
+cd ../backend
+NODE_ENV=production npm start
+# browse http://localhost:3000  (served by Express or Nginx proxy)
 ```
 
 # When trying to Sync (Rebase basically) from original (main) to Fork:
