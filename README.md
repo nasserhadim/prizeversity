@@ -754,7 +754,7 @@ Add to crontab -e:
 
 | Step | What you do | Why |
 |------|-------------|-----|
-| ① **Change the Mongoose model** | Edit `Classroom.js` (add/rename/remove field, new index option, etc.). | New code must compile and validate future documents. |
+| ① **Change the Mongoose model** | **Example**: Edit `Classroom.js` (add/rename/remove field, new index option, etc.). | New code must compile and validate future documents. |
 | ② **Write a migration file** (`backend/migrations/yyyymmdd-<slug>.js`) | Programmatically **update existing data** or **create/drop indexes** so the live database matches the new schema. | Old documents won't magically gain the new field; you decide how to back-fill, rename, or remove. |
 | ③ **Commit & run** | `git add` the model + migration → Devs/CI call `npm run migrate` → production pipeline runs the same step before `pm2 reload`. | Every environment replays the exact same change set once—and only once. |
 
