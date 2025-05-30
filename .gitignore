@@ -1,14 +1,22 @@
-# Node & monorepo
-node_modules/
-.env
-.env.*          # catch any env file variants
-dist/           # Vite production output
+# dependencies & builds
+**/node_modules/
+dist/
+build/
 frontend/.vite/
-coverage/
+
+# environment & secrets
+*.env
+.env.*
+
+# logs & daemons
 npm-debug.log*
 pnpm-debug.log*
+pm2.log
 
-# OS / editor
+# OS / editor junk
 .DS_Store
 .idea/
 .vscode/
+
+# ignore Mongo dumps if you store them locally
+dump/
