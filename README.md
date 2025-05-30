@@ -372,7 +372,7 @@ npm run migrate            # migrate-mongo up
 cd ..
 
 # 6. Development mode ───────────────────────────────
-cd backend                 # Express + WebSockets on :3000
+cd backend                 # Express + WebSockets on :5000
 npm run dev
 # in a second terminal
 cd frontend                # Vite hot-reload on :5173
@@ -384,7 +384,7 @@ cd frontend
 npm run build              # outputs frontend/dist
 cd ../backend
 NODE_ENV=production npm start
-# browse http://localhost:3000  (served by Express or Nginx proxy)
+# browse http://localhost:5000  (served by Express or Nginx proxy)
 ```
 
 # When trying to Sync (Rebase basically) from original (main) to Fork:
@@ -543,7 +543,7 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/app.example.com/privkey.pem;
 
     location / {
-        proxy_pass http://127.0.0.1:3000;    # your Express port
+        proxy_pass http://127.0.0.1:5000;    # your Express port
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
     }
