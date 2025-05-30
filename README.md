@@ -74,12 +74,67 @@ npm install socket.io
 # --- NEW: migrations ---
 npm i -D migrate-mongo
 npx migrate-mongo init                      # adds migrate-mongo-config.js + migrations/
+npx migrate-mongo status                    # Sanity Check. If you see an empty table i.e. (Filename │ Applied At │ Migration block), that just means you haven’t created any migration files yet, which is OK!
+
 npm pkg set scripts.migrate="migrate-mongo up"
 npm pkg set scripts["migrate:down"]="migrate-mongo down"
 ```
 
-> Now create the following files (UNNECESSARY IF CLONING/FORKING!):
->
+## (OPTIONAL but RECOMMENDED) Test DB Migration setup with a "Trial" migration file
+
+1. Generate an empty migration file inside `backend/migrations/`
+   ```
+   cd backend
+   npx migrate-mongo create add-users-test-migration
+   ```
+   This generates something like `backend/migrations/20250530XXXXXX-add-users-test-migration.js`.
+   
+2. Open that file and paste your up/down code:
+   ```
+   // backend/migrations/20250530XXXXXX-add-users-test-migration.js
+   module.exports = {
+     async up(db) {
+       // create a throw-away collection with one unique index
+       await db.collection('users_test_migration').createIndex({ email: 1 }, { unique: true });
+       // insert a sample doc so you can see it in Compass
+       await db.collection('users_test_migration').insertOne({
+         email: 'test@example.com',
+         createdAt: new Date()
+       });
+     },
+   
+     async down(db) {
+       // drop the entire test collection
+       await db.collection('users_test_migration').drop();
+     },
+   };
+   ```
+
+   > Note:
+   >
+   > No existing collections are touched; if the collection already exists the index command simply re-asserts the uniqueness rule.
+3. Run the migration against your normal database
+   ```
+   npm run migrate         # migrate-mongo up
+   ```
+
+   > Console output should list the file as Applied.
+   >
+   > Open `MongoDB Compass` → DB `prizeversity` → you’ll see `users_test_migration` with one document and one index.
+   
+4. (OPTIONAL) Roll it back
+   ```
+   npm run migrate:down    # drops the test collection
+   ```
+
+   > `migrate-mongo status` will now show the migration as "Down," proving that both directions work.
+   
+5. Commit and keep the file (or delete later)
+   - Keeping it lets future contributors see an example migration.
+   - Deleting it is fine too—just make sure it’s rolled down first.
+
+## (Resume `backend` scaffolding following DB migrations setup): Create the following files (UNNECESSARY IF CLONING/FORKING!):
+
 > Create `backend/.env`
 >
 > Create `backend/server.js`
