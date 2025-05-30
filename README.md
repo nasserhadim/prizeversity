@@ -141,7 +141,7 @@ npm run build # (PROD) Node/Express or Nginx serves dist/ # Just regular HTTP/HT
 
 ```
 # 1. Clone the repo
-git clone https://github.com/your-org/prizeversity.git
+git clone https://github.com/some-org/prizeversity.git
 cd prizeversity
 
 # 2. Copy environment variables
