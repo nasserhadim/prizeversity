@@ -1,3 +1,4 @@
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
 # This file is a way to restrict collaborators from self-approving PR's. Instead, their branches are bound to a "ruleset" (created in the repo settings).
 # The rule means the PR can only be approved by the CODEOWNER, in this case, myself the owner of the repo (specified with the username mention below).
 # https://github.com/nasserhadim/prizeversity/settings/rules/5785435
