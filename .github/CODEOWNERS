@@ -1,1 +1,5 @@
+# This file is a way to restrict collaborators from self-approving creating PR merges. Instead, their branches are bound to a "ruleset" (created in the repo settings).
+# The rule means the PR can only be approved by the CODEOWNER, in this case, myself the owner of the repo (specified with the username mention below).
+# https://github.com/nasserhadim/prizeversity/settings/rules/5785435
+# * means the rule of the CODEOWNERS applies to all artifacts of the repo.
 * @nasserhadim
