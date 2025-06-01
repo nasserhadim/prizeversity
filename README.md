@@ -1250,3 +1250,107 @@ nginx: configuration file C:\nginx/conf/nginx.conf test is successful
 > - Check Nginx's error log, typically in the location specified in the `nginx.conf` file (if unspecified, it's usually in `/var/log/nginx/error.log` on Linux systems, or `C:\nginx\logs\error.log` on Windows). Look for entries related to the `502` error. This might give more specific information about what's going wrong with the upstream server (i.e. `localhost:3000`).
 > 
 
+## 3. Redirect HTTP to HTTPS
+
+### 3.1. If you use Approach 1 – Node’s built-in https wrapper
+
+Add one small Express middleware to the `HTTP` listener (port `5000`) so every plain-HTTP request is permanently redirected to the secure port `5443`:
+
+```
+// server.js  (continuing from the snippet already in the README)
+const express = require('express');
+const app     = require('./app');     // your existing routes
+
+/* ---------- redirect HTTP → HTTPS ---------- */
+app.use((req, res, next) => {
+  if (req.secure) return next();  // already https
+  return res.redirect(301, `https://${req.hostname}:5443${req.url}`);
+});
+/* ------------------------------------------- */
+
+http.createServer(app).listen(5000, () =>
+  console.log('HTTP  → http://localhost:5000  (redirects)'),
+);
+
+require('https')
+  .createServer(options, app)
+  .listen(5443, () => console.log('HTTPS → https://localhost:5443'));
+```
+
+**Behavior:**
+- `http://localhost:5000/api/hello` → `301` → `https://localhost:5443/api/hello`.
+- WebSockets still work because they connect directly on `wss://localhost:5443` in **dev**.
+
+### 3.2. If you use Approach 2 – Nginx-for-Windows reverse proxy
+
+Add a second `server {}` block that listens on port `80` (or any spare port) and issues a `301` redirect to `HTTPS`:
+
+```
+# inside C:\nginx\conf\nginx.conf  — still within the http { } context
+server {
+    listen 80;
+    server_name localhost;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name localhost;
+
+    ssl_certificate     C:/nginx/cert/localhost.crt;
+    ssl_certificate_key C:/nginx/cert/localhost.key;
+
+    location / {
+        proxy_pass         http://127.0.0.1:5000;
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade $http_upgrade;
+        proxy_set_header   Connection "upgrade";
+        proxy_set_header   Host $host;
+        proxy_set_header   X-Forwarded-For $remote_addr;
+    }
+}
+```
+
+Steps to apply:
+
+```
+cd C:\nginx
+.\nginx -t           # confirm syntax = ok
+.\nginx -s reload    # hot-reload configuration
+```
+
+**Now:**
+- http://localhost (port 80) → 301 → https://localhost/
+- https://localhost/ proxies to your Node API on port 5000.
+
+## 4. [OPTIONAL] Prevent browser security warning by adding the self-signed certificate to the trusted store on Windows
+
+### 4.1. Locate certificate
+
+You should have the self-signed certificate file (e.g., `localhost.crt`) ready. This is the file generated using `OpenSSL`.
+
+### 4.2. Open Microsoft Management Console (MMC):
+
+> Run > `mmc`
+
+### 4.3. Add the Certificates Snap-in:
+
+- In the MMC window, go to `File > Add/Remove Snap-in`.
+- In the `Add or Remove Snap-ins` window, select `Certificates` from the list of available snap-ins and click `Add`.
+- Choose `Computer account` and then `Local computer`, and click `Finish`.
+- Click `OK` to close the Add/Remove Snap-ins window.
+
+### 4.4. Import the Certificate:
+
+- Now, in the MMC window, expand the `Certificates (Local Computer)` node in the left-hand pane.
+- Navigate to `Trusted Root Certification Authorities > Certificates`.
+- Right-click on the `Certificates` folder and select `All Tasks > Import`.
+- Click `Next`, then browse to the location of the self-signed certificate file (`localhost.crt`).
+- Select the certificate and click `Next`.
+- Choose `Place all certificates in the following store`, and make sure `Trusted Root Certification Authorities` is selected.
+- Click `Next` and then `Finish`. You should see a confirmation saying the import was successful.
+
+### 4.5. Restart the Browser:
+
+- After adding the certificate, restart the browser to make sure it recognizes the newly trusted certificate.
+- Now, when navigating to `https://localhost:5000`, you should no longer see the warning, and the connection should be marked as secure.
