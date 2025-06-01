@@ -1235,7 +1235,7 @@ nginx: configuration file C:\nginx/conf/nginx.conf test is successful
 
 - Upon verifying the syntax, launch (double-click) `nginx.exe` from the directory `C:\nginx`.
 - You can verify the launch by checking the 32-bit process running in the Task Manager's Background processes.
-- Browse `https://localhost` (or `127.0.0.1`) and you should see an `nginx` placeholder page loaded!
+- Browse `https://localhost` – you should see your Node API response (or a `404/JSON` greeting). If Node isn’t running you’ll get the nginx default page.
 
 > **NOTE:**
 >
