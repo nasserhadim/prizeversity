@@ -524,7 +524,12 @@ git merge upstream/main
 ```
 
 # Launch-to-Production Checklist
-Written for an Ubuntu-based Hostinger KVM 4, but the commands are nearly identical on Debian.
+* Written for an **Ubuntu-based Hostinger KVM 4**, but the commands are nearly identical on **Debian**.
+* Although running the `back-end` on **Windows** is possible—the production checklist is written for an Ubuntu‐based VPS because 
+- most low-cost clouds ship Linux images only, and
+- `Nginx + Let's Encrypt` automation is smoother on Linux.
+
+**Recommendation**: **Windows** works, but if you have no OS constraint, **Linux + Nginx** on a VPS is simpler (package manager updates, `systemd`, `ufw`, etc.).
 
 ## 1. Prepare the code
 ```
@@ -689,6 +694,89 @@ nginx -t && systemctl reload nginx
 > `nginx: [emerg] bind() to 0.0.0.0:80 failed (98: Address already in use)` – another service (often Apache or a second Nginx instance) is holding port `80`.
 >
 > Stop it (`sudo systemctl stop apache2` or `sudo fuser -k 80/tcp`) and re-run `nginx -t`.
+
+## Appendix · Deploying on Windows Server 2019/2022
+
+### 1. Install prerequisites
+
+- **Node 22 x64** – <https://nodejs.org/>
+- **NSSM** (Non-Sucking Service Manager) – turns `PM2` or `Node` into a Windows service.  
+  `choco install nssm`  
+- **Nginx for Windows** – download the latest *mainline* ZIP and unzip to `C:\nginx`.  
+- **win-acme** – free Let's Encrypt client for Windows (ACME):  
+  `choco install win-acme`
+
+### 2. Run Node / PM2 as a service
+
+```
+powershell
+pm2 install pm2-windows-service          # one-time
+pm2 start backend\server.js --name prizeversity
+pm2 save
+```
+
+> `PM2-Windows-Service` installs itself under `Services → PM2` so the API starts on boot (i.e. port `5000`).
+
+### 3. Obtain a real SSL cert
+
+```
+wacs.exe --target manual --host mysite.com,www.mysite.com --store centralssl --centralsslstore C:\nginx\cert --installation none --accepttos --email you@example.com
+```
+- `win-acme` drops `mysite.com.pfx` into `C:\nginx\cert\`.
+- Auto-renews via a `Windows Task Scheduler` entry that `win-acme` creates.
+
+**Convert PFX → PEM for Nginx:**
+
+```
+openssl pkcs12 -in C:\nginx\cert\mysite.com.pfx -nodes -out C:\nginx\cert\mysite.com.pem
+openssl pkey -in C:\nginx\cert\mysite.com.pem -out C:\nginx\cert\mysite.com.key
+```
+
+### 4. Configure Nginx as reverse proxy
+
+Edit `C:\nginx\conf\nginx.conf` → inside the `http {}` block add:
+
+```
+server {
+    listen 80;
+    server_name mysite.com www.mysite.com;
+    return 301 https://$host$request_uri;     # force HTTPS
+}
+
+server {
+    listen 443 ssl;
+    server_name mysite.com www.mysite.com;
+
+    ssl_certificate     C:/nginx/cert/mysite.com.pem;
+    ssl_certificate_key C:/nginx/cert/mysite.com.key;
+
+    location / {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade           $http_upgrade;
+        proxy_set_header Connection        "upgrade";
+    }
+}
+```
+
+**Test & start:**
+
+```
+cd C:\nginx
+.\nginx -t        # syntax OK?
+.\nginx           # starts Nginx (or restart with .\nginx -s reload)
+```
+
+> **Firewall**: open ports `80` & `443` in Windows Defender Firewall (or your cloud dashboard).
+
+### 5. Troubleshooting
+
+- **Port already in use** → `IIS` or `World Wide Web Publishing` is occupying `80/443`. Disable the service: `Stop-Service W3SVC` then `sc config W3SVC start= disabled`.
+- **502 Bad Gateway** → confirm `Node/PM2` listens on `127.0.0.1:5000` and restart `Nginx` (`.\nginx -s reload`) after config edits.
+- **Certificate renewal** → win-acme logs to `%programdata%\win-acme\wacs.log`; run `wacs.exe --renew` to test.
 
 ## 6. Automated backups
 ### 6.1 Create an S3-compatible bucket
@@ -1018,3 +1106,7 @@ module.exports = {
 
 - Migrations live only in `backend/migrations/`; the rest of your app stays unchanged. 
 - From now on, any time you touch `Classroom.js` (or any other schema) ask: *Do existing documents need a tweak or new index?*—if yes, add a migration file and you're future-proof.
+
+# Appendix · Optional Nginx/Windows for a local HTTPS sandbox
+
+
