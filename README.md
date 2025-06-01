@@ -258,7 +258,7 @@ mongo --eval 'db.runCommand({ ping: 1 })'   # returns { "ok" : 1 }
 - **CLI requirement** – any MongoDB shell (`mongosh` ≥5 or legacy `mongo`) must be in your `PATH` to run replica-set commands.
 - FYI, on **Windows**, the [Database Tools MSI](https://www.mongodb.com/try/download/database-tools) or the [MongoDB Shell MSI](https://www.mongodb.com/try/download/shell) puts `mongosh.exe` in `C:\Program Files\MongoDB\Server\<ver>\bin`—add that folder to `Path` as needed.
 
-### Start `mongod` with a replica-set name
+### 1.2.1. Start `mongod` with a replica-set name
   
   - **NOTE:** `mongod` is a network service, so it "listens" on one or more **network interfaces**—the IP addresses your computer exposes to the world:
 
@@ -284,7 +284,7 @@ mongod --dbpath "/usr/local/var/mongodb" --replSet rs0 --bind_ip 127.0.0.1
 > 
 > Upon running this command, it should start mongod and log messages to the console. Keep this window open.
 
-### Open Another Terminal & Connect via mongosh
+### 1.2.2. Open Another Terminal & Connect via mongosh
 
 - Leave the first terminal running (where mongod is started).
 - Open a new terminal window (or Command Prompt/PowerShell).
@@ -294,7 +294,7 @@ mongod --dbpath "/usr/local/var/mongodb" --replSet rs0 --bind_ip 127.0.0.1
 mongosh                   # defaults to mongodb://127.0.0.1:27017
 ```
 
-### Now, in the Mongo shell (mongosh), initialize the replica set
+### 1.2.3. Now, in the Mongo shell (mongosh), initialize the replica set
 
 ```
 rs.initiate()             // expect { ok: 1 }
@@ -315,7 +315,7 @@ rs.initiate()             // expect { ok: 1 }
 >
 > `MongoServerError[NoReplicationEnabled]: This node was not started with replication enabled.` → make sure no background `mongod` service is already bound to port `27017`. Stop it, then restart with `--replSet`.
 
-### Confirm Replica Set is Running
+### 1.2.4. Confirm Replica Set is Running
 
 - After `rs.initiate()`, your prompt in mongosh might change from `>` to something like `rs0 [primary] >`. This indicates you have a single-node replica set named `rs0`.
 - You can check the status with:
@@ -361,7 +361,7 @@ rs.status()               // look for "myState" : 1 (meaning PRIMARY).
 > 
 > The key is to be consistent.
 
-### Update the connection string (for transactions & change streams)
+### 1.2.5. Update the connection string (for transactions & change streams)
 
 Now that there's a single-node replica set named `rs0`, include the replica set name in the connection string. For example, in `.env`:
 
