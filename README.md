@@ -634,6 +634,39 @@ module.exports = {
 };
 ```
 
+## 4.5.  Prepare SSH keys for CI/CD
+
+1. **Generate a key pair on your laptop (once)**
+   ```
+   ssh-keygen -t ed25519 -C "ci@prizeversity" -f ~/.ssh/prizeversity-ci
+   ```
+
+   This creates
+   - `~/.ssh/prizeversity-ci`   (private key)
+   - `~/.ssh/prizeversity-ci.pub` (public key)
+   
+2. Copy the public key to the VPS (as your deploy user)
+   ```
+   ssh-copy-id -i ~/.ssh/prizeversity-ci.pub deploy@<VPS_IP>
+   
+   # or, if ssh-copy-id is unavailable:
+   # cat ~/.ssh/prizeversity-ci.pub | ssh deploy@<VPS_IP> 'mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys'
+   ```
+   
+3. **Add secrets to the GitHub repo** → `Settings` › `Secrets & variables` › `Actions`
+
+| Secret name | Value |
+|-------------|-------|
+| SSH_PRIVATE_KEY | (paste the contents of prizeversity-ci) |
+| SSH_USER | deploy |
+| SSH_HOST | <VPS_IP> |
+| SSH_PORT | 22 (or your custom port) |
+
+4. **Verify**
+   You should now be able to:
+   ```
+   ssh -i ~/.ssh/prizeversity-ci deploy@<VPS_IP>    # manual test
+   ```
 
 ## 5. TLS, CDN & HTTP/2
 ### 5.1 Cloudflare DNS
