@@ -657,10 +657,10 @@ module.exports = {
 
 | Secret name | Value |
 |-------------|-------|
-| SSH_PRIVATE_KEY | (paste the contents of prizeversity-ci) |
-| SSH_USER | deploy |
-| SSH_HOST | <VPS_IP> |
-| SSH_PORT | 22 (or your custom port) |
+| `SSH_PRIVATE_KEY` | (paste the **contents** of `prizeversity-ci`) |
+| `SSH_USER` | `deploy` |
+| `SSH_HOST` | `<VPS_IP>` |
+| `SSH_PORT` | `22` (or your custom port) |
 
 4. **Verify**
    You should now be able to:
