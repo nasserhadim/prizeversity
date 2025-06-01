@@ -174,7 +174,7 @@ npm install react-transition-group
 
 # How to Run it:
 
-1.1 Start MongoDB locally (execute the commands based on your OS):
+## 1.1 Start MongoDB locally (execute the commands based on your OS):
 
 > NOTE:
 >
@@ -251,14 +251,14 @@ mongo --eval 'db.runCommand({ ping: 1 })'   # returns { "ok" : 1 }
 > [Normally, it might be Control Center that uses it](https://stackoverflow.com/a/72369347/8397835), which you can `turn off` as follows: `System Settings > General > AirDrop & Handoff > AirPlay Receiver.`
 > 
 
-1.2. (OPTIONAL but RECOMMENDED) Enable single-node replica set
+## 1.2. (OPTIONAL but RECOMMENDED) Enable single-node replica set
 - If you want to use transactions (required for **concurrency**).
 - For development, you can start a [single-node replica set](https://www.mongodb.com/docs/manual/tutorial/convert-standalone-to-replica-set/) locally.
 - **Required Pre-requisite**: [mongosh (MongoDB Shell) INSTALLATION](https://www.mongodb.com/try/download/shell)
 - **CLI requirement** – any MongoDB shell (`mongosh` ≥5 or legacy `mongo`) must be in your `PATH` to run replica-set commands.
 - FYI, on **Windows**, the [Database Tools MSI](https://www.mongodb.com/try/download/database-tools) or the [MongoDB Shell MSI](https://www.mongodb.com/try/download/shell) puts `mongosh.exe` in `C:\Program Files\MongoDB\Server\<ver>\bin`—add that folder to `Path` as needed.
 
-**Start `mongod` with a replica-set name**
+### Start `mongod` with a replica-set name
   
   - **NOTE:** `mongod` is a network service, so it "listens" on one or more **network interfaces**—the IP addresses your computer exposes to the world:
 
@@ -284,7 +284,7 @@ mongod --dbpath "/usr/local/var/mongodb" --replSet rs0 --bind_ip 127.0.0.1
 > 
 > Upon running this command, it should start mongod and log messages to the console. Keep this window open.
 
-**Open Another Terminal & Connect via mongosh**
+### Open Another Terminal & Connect via mongosh
 
 - Leave the first terminal running (where mongod is started).
 - Open a new terminal window (or Command Prompt/PowerShell).
@@ -294,7 +294,7 @@ mongod --dbpath "/usr/local/var/mongodb" --replSet rs0 --bind_ip 127.0.0.1
 mongosh                   # defaults to mongodb://127.0.0.1:27017
 ```
 
-**Now, in the Mongo shell (mongosh), initialize the replica set**
+### Now, in the Mongo shell (mongosh), initialize the replica set
 
 ```
 rs.initiate()             // expect { ok: 1 }
@@ -315,7 +315,7 @@ rs.initiate()             // expect { ok: 1 }
 >
 > `MongoServerError[NoReplicationEnabled]: This node was not started with replication enabled.` → make sure no background `mongod` service is already bound to port `27017`. Stop it, then restart with `--replSet`.
 
-**Confirm Replica Set is Running**
+### Confirm Replica Set is Running
 
 - After `rs.initiate()`, your prompt in mongosh might change from `>` to something like `rs0 [primary] >`. This indicates you have a single-node replica set named `rs0`.
 - You can check the status with:
@@ -324,9 +324,6 @@ rs.initiate()             // expect { ok: 1 }
 rs.status()               // look for "myState" : 1 (meaning PRIMARY).
 ```
 
-> But occasionally you might see a brief `SECONDARY` prompt before it transitions to `PRIMARY`. When the shell shows `[direct: secondary]`, it just means the shell believes it’s directly connected to a node that is currently acting as a `SECONDARY`.
-> Try waiting a few seconds, then `rs.status()` again.
-> 
 > **[TROUBLESHOOTING]** Possible reasons it’s still Secondary
 >
 > Usually with a single node, election is almost instant.
@@ -364,7 +361,7 @@ rs.status()               // look for "myState" : 1 (meaning PRIMARY).
 > 
 > The key is to be consistent.
 
-**Update the connection string (for transactions & change streams)**
+### Update the connection string (for transactions & change streams)
 
 Now that there's a single-node replica set named `rs0`, include the replica set name in the connection string. For example, in `.env`:
 
@@ -372,7 +369,7 @@ Now that there's a single-node replica set named `rs0`, include the replica set 
 MONGODB_URI=mongodb://127.0.0.1:27017/prizeversity?replicaSet=rs0
 ```
 
-2. Run database migrations (idempotent)
+## 2. Run database migrations (idempotent)
 
 - Database migration is a process of managing and applying changes to DB schema as a project develops while keeping the existing data.
 - It allows developers and database administrators to version and track changes to the database structure without breaking any part of the database
@@ -389,14 +386,14 @@ cd ..
 
 After starting MongoDB locally, 
 
-3. Start the backend:
+## 3. Start the backend:
 
 ```
 cd backend
 node server.js            # FYI, if the DB doesn't exit, this will create it
 ```
 
-4. Start the frontend:
+## 4. Start the frontend:
 
 ```
 cd frontend
@@ -404,7 +401,7 @@ npm run dev # (DEV ONLY) Vite dev server; Useful for local coding or temporary r
 npm run build # (PROD) Node/Express or Nginx serves dist/ # Just regular HTTP/HTTPS traffic; Users hit port 80/443; 5173 never sees a packet!
 ```
 
-4. Open the browser and navigate to `http://localhost:5173` (Vite’s default port).
+> Open the browser and navigate to `http://localhost:5173` (Vite’s default port).
 
 # Getting Started (clone / fork)
 
