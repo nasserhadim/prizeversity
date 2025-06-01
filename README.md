@@ -678,6 +678,12 @@ ln -s /etc/nginx/sites-available/prizeversity /etc/nginx/sites-enabled/
 nginx -t && systemctl reload nginx
 ```
 
+> **[TROUBLESHOOTING]**
+>
+> `nginx: [emerg] bind() to 0.0.0.0:80 failed (98: Address already in use)` – another service (often Apache or a second Nginx instance) is holding port `80`.
+>
+> Stop it (`sudo systemctl stop apache2` or `sudo fuser -k 80/tcp`) and re-run `nginx -t`.
+
 ## 6. Automated backups
 ### 6.1 Create an S3-compatible bucket
 - Any provider works (AWS, Backblaze B2, Wasabi).
