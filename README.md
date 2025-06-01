@@ -275,9 +275,7 @@ To launch `mongod` (the MongoDB server process) with a replica set configuration
 
 ```
 # mac / Linux example – adjust --dbpath to your OS path
-mongod --dbpath "/usr/local/var/mongodb" \
-       --replSet rs0 \
-       --bind_ip 127.0.0.1
+mongod --dbpath "/usr/local/var/mongodb" --replSet rs0 --bind_ip 127.0.0.1
 ```
 
 > **Tip:** On Windows, just adapt the `--dbpath` path (e.g. `C:\data\db`).
