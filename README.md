@@ -147,6 +147,11 @@ npm pkg set scripts["migrate:down"]="migrate-mongo down"
 > Add the rest of folders/files as needed!
 
 ### Scaffold `frontend` and setup with `Vite`.
+
+- `Vite` is a developer convenience server.
+- During local **dev**, you point your browser straight at `http://localhost:5173`; `Vite` hot-reloads `React` code and, if configured, transparently proxies API calls to `http://localhost:5000`.
+- In **production**, `Vite` is completely out of the picture—you build once (`npm run build`) and serve the static `dist/` files via `Nginx` while also proxying API requests to `Node`.
+
 ```
 cd ..                                     # back to repo root
 
