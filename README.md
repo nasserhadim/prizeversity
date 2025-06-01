@@ -174,7 +174,7 @@ npm install react-transition-group
 
 # How to Run it:
 
-1. Start MongoDB locally:
+1. Start MongoDB locally (execute the commands based on your OS):
 
 ```
 #### macOS – Homebrew (Apple Silicon)
