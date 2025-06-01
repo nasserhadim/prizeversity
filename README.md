@@ -271,7 +271,7 @@ mongo --eval 'db.runCommand({ ping: 1 })'   # returns { "ok" : 1 }
   - Adding `--bind_ip 127.0.0.1` to the `mongod` command confines the server to loopback, preventing external access during local development.
   - Modern MongoDB packages actually bind to `127.0.0.1` by default, but adding the flag makes your intent explicit and prevents surprises if someone edits `mongod.conf` later.
   
-To launch `mongod` (the MongoDB server process) with a replica set configuration, the simplest approach would be specifying the `--replSet` option and pointing to the data directory, e.g. on **Windows** `C:\data\db` or **Linux** `/data/db`:
+To launch `mongod` (the MongoDB server process) with a replica set configuration, the simplest approach would be specifying the `--replSet` option and pointing to the data directory, e.g. on **Windows** `C:\data\db` or **Mac/Linux** `/data/db`:
 
 ```
 # mac / Linux example – adjust --dbpath to your OS path
