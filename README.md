@@ -1101,6 +1101,152 @@ module.exports = {
 - Migrations live only in `backend/migrations/`; the rest of your app stays unchanged. 
 - From now on, any time you touch `Classroom.js` (or any other schema) ask: *Do existing documents need a tweak or new index?*—if yes, add a migration file and you're future-proof.
 
-# Appendix · Optional Nginx/Windows for a local HTTPS sandbox
+# Appendix · Optional Nginx/Windows for a local `HTTPS` sandbox
 
+Here’s the **fastest, minimal-surface way to serve your local Node app over HTTPS on Windows**—no Vite, no Docker. Choose **ONE** of the two approaches.
+
+## 1. Use Node’s built-in https module (simplest if you just want HTTPS quickly for local OAuth / SameSite cookies)
+
+- With this method, you would browse `https://localhost:5443` (click through the browser warning).
+- No proxy layer; WebSockets keep working.
+- Ideal when you only need `SSL` for local `OAuth` redirect-URIs or testing Secure cookies.
+
+### 1.1. Generate a throw-away self-signed cert once
+```
+mkdir cert && cd cert
+openssl req -x509 -nodes -newkey rsa:2048 -days 365 -keyout localhost.key -out localhost.crt -subj "/CN=localhost"
+```
+
+### 1.2. Tiny https wrapper (`server.js`)
+```
+// server.js
+const fs   = require("fs");
+const http = require("http");      // existing Express app
+const app  = require("./app");     // <-- your Express instance
+
+const options = {
+  key : fs.readFileSync("cert/localhost.key"),
+  cert: fs.readFileSync("cert/localhost.crt")
+};
+
+http.createServer(app).listen(5000);            // keep HTTP for curl tests
+require("https").createServer(options, app).listen(5443, () =>
+  console.log("HTTPS → https://localhost:5443")
+);
+```
+
+## 2. Use Nginx-for-Windows as a local reverse proxy (keeps server code unchanged and handy if you want to replicate prod proxy `headers`, `gzip`, etc.)
+
+- Useful if you want to mimic the production stack (`Nginx` → `Node`) or test multiple virtual hosts.
+
+### 2.1. Download mainline ZIP → `C:\nginx`
+
+#### Method 1: Manual
+- To install nginx/Windows, download the latest mainline version distribution zip (e.g. [nginx/Windows-1.27.3](https://nginx.org/download/nginx-1.27.3.zip)) then unpack (unzip) the distribution into `C:\nginx` destination path.
+
+#### Method 2: CLI
+```
+Invoke-WebRequest -Uri https://nginx.org/download/nginx-1.27.3.zip -OutFile nginx.zip
+Expand-Archive nginx.zip -DestinationPath C:\nginx
+```
+
+### 2.2. Generate self-signed cert
+
+- **[Pre-Requisite]** If you don't have `OpenSSL` on your system, install it. [An easy way to do it](https://stackoverflow.com/a/51757939/8397835) without running into a risk of installing unknown software from 3rd party websites and risking entries of viruses, is by using the `openssl.exe` that comes inside `Git` for Windows installation, typically located here: `C:\Program Files\Git\usr\bin\`
+- **Note:** Add the `bin` path to `SYSTEM` environment variable to make it easily accessible from CMD/terminal.
+- Run the commands below to first create a `cert` directory, then generate a self-signed certificate and key:
+
+```
+mkdir C:\nginx\cert
+openssl req -x509 -nodes -newkey rsa:2048 -keyout C:\nginx\cert\localhost.key -out C:\nginx\cert\localhost.crt -days 365 -subj "/CN=localhost"
+```
+
+- The command will generate the `localhost.key` and `localhost.crt` files in the specified directory.
+- After running the command, you will be prompted to provide some information:
+```
+Country Name (2 letter code): US
+State or Province Name: MI
+Locality Name: City Name
+Organization Name: Organization
+Organizational Unit Name: localhost
+Common Name: localhost
+Email Address: Email Address
+```
+
+### 2.3. Configure Nginx
+
+Navigate to `C:\nginx\conf\nginx.conf` (inside the `http {}` block, before the end of the closing `}`. There's no need to edit any other lines, including the existing `server` ones, just simply add the code below within the `http` block as mentioned):
+
+```
+server {
+    listen  443 ssl;
+    server_name localhost;
+
+    ssl_certificate     C:/nginx/cert/localhost.crt;
+    ssl_certificate_key C:/nginx/cert/localhost.key;
+
+    location / {
+        proxy_pass         http://127.0.0.1:5000;   # your Node port
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade $http_upgrade;
+        proxy_set_header   Connection "upgrade";
+        proxy_set_header   Host $host;
+        proxy_set_header   X-Forwarded-For $remote_addr;
+    }
+}
+```
+
+### 2.4. Test and start
+```
+cd C:\nginx
+.\nginx -t   # syntax OK?
+.\nginx      # start (background process)
+```
+
+You should see the following output:
+
+```
+nginx: the configuration file C:\nginx/conf/nginx.conf syntax is ok
+nginx: configuration file C:\nginx/conf/nginx.conf test is successful
+```
+
+> **[TROUBLESHOOTING]**
+>
+> If you get an error output like this, it means the port (i.e. `80`) may be occupied, e.g. by `IIS` for example.
+> 
+> ```
+> nginx: [emerg] bind() to 0.0.0.0:80 failed (10013: An attempt was made to access a socket in a way forbidden by its access permissions)
+> nginx: configuration file C:\nginx/conf/nginx.conf test failed
+> ```
+> 
+> [Run this command as administrator to free up port](https://stackoverflow.com/a/61668011/8397835) `80`:
+>
+> ```
+> netsh http add iplisten ipaddress=::
+> ```
+> 
+> Then retry the following command again (to check for syntax errors):
+> 
+> ```
+> nginx -t
+> ```
+
+### 2.5. Navigating as `HTTPS`
+
+- Upon verifying the syntax, launch (double-click) `nginx.exe` from the directory `C:\nginx`.
+- You can verify the launch by checking the 32-bit process running in the Task Manager's Background processes.
+- Browse `https://localhost` (or `127.0.0.1`) and you should see an `nginx` placeholder page loaded!
+
+> **NOTE:**
+>
+> `nginx` configuration is set up to listen for `HTTPS` on port `5000` (`listen 5000 ssl;`), meaning it requires a secure (SSL/TLS) connection for any requests coming to that port.
+
+- Browse `https://localhost:5000`
+
+> **[TROUBLESHOOTING]** 502 Bad Gateway
+> 
+> - Check if the backend application (the one on `localhost:5000`) is actually running and listening on port `5000`. You can do this by opening a browser and navigating to `http://localhost:5000` to see if the application loads. If it's not loading, start or troubleshoot the backend application.
+> 
+> - Check Nginx's error log, typically in the location specified in the `nginx.conf` file (if unspecified, it's usually in `/var/log/nginx/error.log` on Linux systems, or `C:\nginx\logs\error.log` on Windows). Look for entries related to the `502` error. This might give more specific information about what's going wrong with the upstream server (i.e. `localhost:3000`).
+> 
 
