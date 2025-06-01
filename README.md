@@ -66,7 +66,7 @@ prizeversity/
 ```
 cd backend
 
-npm init -y # DON'T RUN THIS UNLESS SETTING UP THE DIRECTORIES FROM SCRATCH!
+npm init -y # DON'T RUN THIS UNLESS SETTING UP FROM SCRATCH!
 
 npm install express mongoose passport passport-google-oauth20 passport-microsoft cors dotenv
 
@@ -150,7 +150,7 @@ npm pkg set scripts["migrate:down"]="migrate-mongo down"
 ```
 cd ..                                     # back to repo root
 
-npm create vite@latest frontend -- --template react # If prompted for framework, select React, and variant: JavaScript # DON'T RUN THIS UNLESS SETTING UP THE DIRECTORIES FROM SCRATCH!
+npm create vite@latest frontend -- --template react # If prompted for framework, select React, and variant: JavaScript # DON'T RUN THIS UNLESS SETTING UP FROM SCRATCH!
 
 cd frontend
 
