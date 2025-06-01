@@ -5,7 +5,7 @@
 1. Install [Node.js (for backend and frontend)](https://nodejs.org/).
    > **NPM Usage**: This guide uses `npm install` for adding new packages (scaffolding) and `npm ci` for reproducible installs from existing lockfiles (cloning/deployment).
 
-3. Install [MongoDB (for the database)](https://www.mongodb.com/).
+2. Install [MongoDB (for the database)](https://www.mongodb.com/).
    
    - For [Windows](https://www.mongodb.com/docs/manual/tutorial/install-mongodb-on-windows-unattended/#std-label-install-mdb-community-windows-msiexec).
 
@@ -22,9 +22,9 @@
 
    - [OPTIONAL] If it hasn't been installed, you can [download MongoDB Compass from here](https://www.mongodb.com/try/download/compass), which is the GUI client of MongoDB to interact with the database directly :)
    
-4. Install a code editor like [VS Code](https://code.visualstudio.com/).
+3. Install a code editor like [VS Code](https://code.visualstudio.com/).
 
-5. Create Google OAuth Client ID/Secret (to be included in the `.env` file later).
+4. Create Google OAuth Client ID/Secret (to be included in the `.env` file later).
 
 > You can create one by navigating to: https://console.cloud.google.com/apis/credentials and then creating a "project".
 >
@@ -174,7 +174,11 @@ npm install react-transition-group
 
 # How to Run it:
 
-1. Start MongoDB locally (execute the commands based on your OS):
+1.1 Start MongoDB locally (execute the commands based on your OS):
+
+> NOTE:
+>
+> MongoDB needs a data folder where it stores its database files. By default, MongoDB uses `/data/db` on Linux/macOS.
 
 ```
 #### macOS – Homebrew (Apple Silicon)
@@ -246,6 +250,129 @@ mongo --eval 'db.runCommand({ ping: 1 })'   # returns { "ok" : 1 }
 >
 > [Normally, it might be Control Center that uses it](https://stackoverflow.com/a/72369347/8397835), which you can `turn off` as follows: `System Settings > General > AirDrop & Handoff > AirPlay Receiver.`
 > 
+
+1.2. (OPTIONAL but RECOMMENDED) Enable single-node replica set
+- If you want to use transactions (required for **concurrency**).
+- For development, you can start a [single-node replica set](https://www.mongodb.com/docs/manual/tutorial/convert-standalone-to-replica-set/) locally.
+- **Required Pre-requisite**: [mongosh (MongoDB Shell) INSTALLATION](https://www.mongodb.com/try/download/shell)
+- **CLI requirement** – any MongoDB shell (`mongosh` ≥5 or legacy `mongo`) must be in your `PATH` to run replica-set commands.
+- FYI, on **Windows**, the [Database Tools MSI](https://www.mongodb.com/try/download/database-tools) or the [MongoDB Shell MSI](https://www.mongodb.com/try/download/shell) puts `mongosh.exe` in `C:\Program Files\MongoDB\Server\<ver>\bin`—add that folder to `Path` as needed.
+
+**Start `mongod` with a replica-set name**
+  
+  - **NOTE:** `mongod` is a network service, so it "listens" on one or more **network interfaces**—the IP addresses your computer exposes to the world:
+
+| Interface type | Typical address | Who can reach it if MongoDB listens here? |
+|----------------|-----------------|-------------------------------------------|
+| **Loopback** | `127.0.0.1` (alias `localhost`) | **Only** programs running on the **same** machine. |
+| **Ethernet / Wi-Fi** | e.g. `192.168.1.23` or `10.0.0.5` | Any device on your local LAN/VPN that can hit that IP. |
+| **Public NIC** (cloud VM) | your public IPv4/IPv6 | The entire Internet, unless blocked by a firewall. |
+
+  - Adding `--bind_ip 127.0.0.1` to the `mongod` command confines the server to loopback, preventing external access during local development.
+  - Modern MongoDB packages actually bind to `127.0.0.1` by default, but adding the flag makes your intent explicit and prevents surprises if someone edits `mongod.conf` later.
+  
+To launch `mongod` (the MongoDB server process) with a replica set configuration, the simplest approach would be specifying the `--replSet` option and pointing to the data directory, e.g. on **Windows** `C:\data\db` or **Linux** `/data/db`:
+
+```
+# mac / Linux example – adjust --dbpath to your OS path
+mongod --dbpath "/usr/local/var/mongodb" \
+       --replSet rs0 \
+       --bind_ip 127.0.0.1
+```
+
+> **Tip:** On Windows, just adapt the `--dbpath` path (e.g. `C:\data\db`).
+>
+> Also note that the command may have to be run as Administrator or specify the path in quotes if it has spaces.
+> 
+> Upon running this command, it should start mongod and log messages to the console. Keep this window open.
+
+**Open Another Terminal & Connect via mongosh**
+
+- Leave the first terminal running (where mongod is started).
+- Open a new terminal window (or Command Prompt/PowerShell).
+- Run:
+
+```
+mongosh                   # defaults to mongodb://127.0.0.1:27017
+```
+
+**Now, in the Mongo shell (mongosh), initialize the replica set**
+
+```
+rs.initiate()             // expect { ok: 1 }
+```
+
+> This is the simplest method. If successful, you’ll see something like:
+>
+> ```
+> {
+> "ok" : 1,
+> ...
+> }
+> ```
+> 
+> and some logs in the mongod window indicating that the replica set is starting.
+> 
+> **[TROUBLESHOOTING]**
+>
+> `MongoServerError[NoReplicationEnabled]: This node was not started with replication enabled.` → make sure no background `mongod` service is already bound to port `27017`. Stop it, then restart with `--replSet`.
+
+**Confirm Replica Set is Running**
+
+- After `rs.initiate()`, your prompt in mongosh might change from `>` to something like `rs0 [primary] >`. This indicates you have a single-node replica set named `rs0`.
+- You can check the status with:
+
+```
+rs.status()               // look for "myState" : 1 (meaning PRIMARY).
+```
+
+> But occasionally you might see a brief `SECONDARY` prompt before it transitions to `PRIMARY`. When the shell shows `[direct: secondary]`, it just means the shell believes it’s directly connected to a node that is currently acting as a `SECONDARY`.
+> Try waiting a few seconds, then `rs.status()` again.
+> 
+> **[TROUBLESHOOTING]** Possible reasons it’s still Secondary
+>
+> Usually with a single node, election is almost instant.
+>
+> But occasionally you might see a brief `SECONDARY` prompt before it transitions to `PRIMARY`. When the shell shows `[direct: secondary]`, it just means the shell believes it’s directly connected to a node that is currently acting as a `SECONDARY`.
+>
+> Try waiting a few seconds, then `rs.status()` again.
+>
+> **Shell still showing `SECONDARY`**?
+> 
+> - If MongoDB sees itself as `127.0.0.1:27017` but the config says `localhost:27017`, it can prevent it from recognizing itself.
+> 
+> - Or vice versa: if you used `localhost` to start mongod but the config uses `127.0.0.1`.
+> 
+> - On **Windows**, sometimes `DESKTOP-XYZ:27017` (your machine’s hostname) can appear.
+> 
+> Sometimes the simplest fix is to re-initialize with a clean config specifying only one member, explicitly matching how you started mongod. In the shell, do:
+> 
+> ```
+> rs.initiate({
+>  _id: "rs0",
+>  members: [
+>    { _id: 0, host: "127.0.0.1:27017" }
+>  ]
+>})
+> ```
+> 
+> **[Important]:**
+>
+> Make sure the host value here matches how you actually started MongoDB.
+>
+> - If you started it with `mongod --replSet rs0 --bind_ip 127.0.0.1 --port 27017`, then `host: 127.0.0.1:27017` is correct.
+> 
+> - If you used `localhost`, you can keep it as `localhost:27017`.
+> 
+> The key is to be consistent.
+
+**Update the connection string (for transactions & change streams)**
+
+Now that there's a single-node replica set named `rs0`, include the replica set name in the connection string. For example, in `.env`:
+
+```
+MONGODB_URI=mongodb://127.0.0.1:27017/prizeversity?replicaSet=rs0
+```
 
 2. Run database migrations (idempotent)
 
