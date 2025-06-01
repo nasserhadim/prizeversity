@@ -1260,7 +1260,6 @@ Add one small Express middleware to the `HTTP` listener (port `5000`) so every p
 
 ```
 // server.js  (continuing from the snippet already in the README)
-const express = require('express');
 const app     = require('./app');     // your existing routes
 
 /* ---------- redirect HTTP → HTTPS ---------- */
