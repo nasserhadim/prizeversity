@@ -1320,8 +1320,8 @@ cd C:\nginx
 ```
 
 **Now:**
-- http://localhost (port 80) → 301 → https://localhost/
-- https://localhost/ proxies to your Node API on port 5000.
+- `http://localhost` (port `80`) → `301` → `https://localhost/`
+- `https://localhost/` proxies to your Node API on port `5000`.
 
 ## 4. [OPTIONAL] Prevent browser security warning by adding the self-signed certificate to the trusted store on Windows
 
