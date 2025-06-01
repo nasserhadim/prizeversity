@@ -150,7 +150,8 @@ npm pkg set scripts["migrate:down"]="migrate-mongo down"
 
 - `Vite` is a developer convenience server.
 - During local **dev**, you point your browser straight at `http://localhost:5173`; `Vite` hot-reloads `React` code and, if configured, transparently proxies API calls to `http://localhost:5000`.
-- In **production**, `Vite` is completely out of the picture—you build once (`npm run build`) and serve the static `dist/` files via `Nginx` while also proxying API requests to `Node`.
+- Vite’s built-in dev server can forward `/api/*` calls to `http://localhost:5000` if you set the `proxy` option in `vite.config.js`.
+- In **production**, `Vite` is completely out of the picture—you build once (`npm run build`) and `Nginx` (or `Cloudflare + Nginx`) terminates `HTTPS`, serves static `dist/` files/assets, and forwards/proxies API/WebSocket traffic to the private `Node` port (i.e. `80` → `443` (public) → internal `5000`).
 
 ```
 cd ..                                     # back to repo root
