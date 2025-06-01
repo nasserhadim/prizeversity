@@ -1239,9 +1239,11 @@ nginx: configuration file C:\nginx/conf/nginx.conf test is successful
 
 > **NOTE:**
 >
-> `nginx` configuration is set up to listen for `HTTPS` on port `5000` (`listen 5000 ssl;`), meaning it requires a secure (SSL/TLS) connection for any requests coming to that port.
+> Nginx listens for HTTPS on port `443` (`listen 443 ssl;`).
+>
+> Your Node API keeps running on the internal port `5000`, which Nginx proxies to.
 
-- Browse `https://localhost:5000`
+- Browse `https://localhost`
 
 > **[TROUBLESHOOTING]** 502 Bad Gateway
 > 
