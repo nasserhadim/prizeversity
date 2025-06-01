@@ -409,51 +409,52 @@ npm run build # (PROD) Node/Express or Nginx serves dist/ # Just regular HTTP/HT
 
 # Getting Started (clone / fork)
 
+## 1. Clone the repo
 ```
-# 1. Clone the repo
 git clone https://github.com/some-org/prizeversity.git
 cd prizeversity
+```
 
-# 2. Copy environment variables
+## 2. Copy environment variables & Edit secrets
+```
 cp backend/.env.example backend/.env      # then edit secrets
+```
 
-# 3. Install dependencies
+## 3. Install dependencies
+```
 cd backend
 npm ci
 
 cd ../frontend
 npm ci
+```
 
-# 4. Create / start MongoDB locally if you haven't done it yet  *(Community Edition)*
+## 4. Create / start MongoDB locally if you haven't done it yet  *(Community Edition)*
 > Skip this section if you connect to MongoDB Atlas or another remote cluster.
 
----
+- **macOS – Homebrew (Apple Silicon)**
 
-#### macOS – Homebrew (Apple Silicon)
-
-~~~bash
+```
 # one-time setup
 sudo mkdir -p /opt/homebrew/var/mongodb
 sudo chown -R "$(whoami)" /opt/homebrew/var/mongodb
 
 # start the server
 mongod --dbpath /opt/homebrew/var/mongodb
-~~~
+```
 
-#### macOS – Homebrew (Intel)
+- **macOS – Homebrew (Intel)**
 
-~~~bash
+```
 sudo mkdir -p /usr/local/var/mongodb
 sudo chown -R "$(whoami)" /usr/local/var/mongodb
 
 mongod --dbpath /usr/local/var/mongodb
-~~~
+```
 
----
+- **Windows 10 / 11**
 
-#### Windows 10 / 11
-
-~~~powershell
+```
 # one-time setup
 mkdir C:\data\db
 
@@ -462,35 +463,28 @@ mkdir C:\data\db
 
 # (if mongod.exe is on your PATH you can shorten to:)
 # mongod --dbpath "C:\data\db"
-~~~
+```
 
----
+- **Ubuntu / Debian (APT install)**
 
-#### Ubuntu / Debian (APT install)
-
-~~~bash
+```
 sudo systemctl start mongod      # start now
 sudo systemctl enable mongod     # start at every boot
-~~~
-*(The APT package already created `/var/lib/mongodb` and set permissions.)*
+```
+> **NOTE:** The APT package already created `/var/lib/mongodb` and set permissions.
 
----
+- **Any Linux (tarball install)**
 
-#### Any Linux (tarball install)
-
-~~~bash
+```
 mkdir -p ~/mongodb-data
 mongod --dbpath ~/mongodb-data
-~~~
+```
 
----
+### Verify the server is running (Linux)
 
-##### Verify the server is running (Linux)
-
-~~~bash
+```
 mongo --eval 'db.runCommand({ ping: 1 })'   # returns { "ok" : 1 }
-~~~
-
+```
 
 # 5. Run database migrations (if you haven't done it yet)
 cd backend
@@ -524,8 +518,8 @@ git merge upstream/main
 ```
 
 # Launch-to-Production Checklist
-* Written for an **Ubuntu-based Hostinger KVM 4**, but the commands are nearly identical on **Debian**.
-* Although running the `back-end` on **Windows** is possible—the production checklist is written for an Ubuntu‐based VPS because 
+Written for an **Ubuntu-based Hostinger KVM 4**, but the commands are nearly identical on **Debian**.
+Although running the `back-end` on **Windows** is possible—the production checklist is written for an Ubuntu‐based VPS because 
 - most low-cost clouds ship Linux images only, and
 - `Nginx + Let's Encrypt` automation is smoother on Linux.
 
