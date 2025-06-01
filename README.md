@@ -251,7 +251,7 @@ mongo --eval 'db.runCommand({ ping: 1 })'   # returns { "ok" : 1 }
 > [Normally, it might be Control Center that uses it](https://stackoverflow.com/a/72369347/8397835), which you can `turn off` as follows: `System Settings > General > AirDrop & Handoff > AirPlay Receiver.`
 > 
 
-## 1.2. (OPTIONAL but RECOMMENDED) Enable [single-node replica set](https://www.mongodb.com/docs/manual/tutorial/convert-standalone-to-replica-set/) (**Availability**/**Concurrency**).
+## 1.2. (OPTIONAL but RECOMMENDED) Enable [single-node replica set](https://www.mongodb.com/docs/manual/tutorial/convert-standalone-to-replica-set/) (Single Point of Failure; Data **Availability**/**Redundancy**/**Concurrency**).
 - **Required Pre-requisite**: [mongosh (MongoDB Shell) INSTALLATION](https://www.mongodb.com/try/download/shell)
 - **CLI requirement** – any MongoDB shell (`mongosh` ≥5 or legacy `mongo`) must be in your `PATH` to run replica-set commands.
 - FYI, on **Windows**, the [Database Tools MSI](https://www.mongodb.com/try/download/database-tools) or the [MongoDB Shell MSI](https://www.mongodb.com/try/download/shell) puts `mongosh.exe` in `C:\Program Files\MongoDB\Server\<ver>\bin`—add that folder to `Path` as needed.
