@@ -186,32 +186,29 @@ npm install react-transition-group
 >
 > MongoDB needs a data folder where it stores its database files. By default, MongoDB uses `/data/db` on Linux/macOS.
 
-```
-#### macOS – Homebrew (Apple Silicon)
+- **macOS – Homebrew (Apple Silicon)**
 
-~~~bash
+```
 # one-time setup
 sudo mkdir -p /opt/homebrew/var/mongodb
 sudo chown -R "$(whoami)" /opt/homebrew/var/mongodb
 
 # start the server
 mongod --dbpath /opt/homebrew/var/mongodb
-~~~
+```
 
-#### macOS – Homebrew (Intel)
+- **macOS – Homebrew (Intel)**
 
-~~~bash
+```
 sudo mkdir -p /usr/local/var/mongodb
 sudo chown -R "$(whoami)" /usr/local/var/mongodb
 
 mongod --dbpath /usr/local/var/mongodb
-~~~
+```
 
----
+- **Windows 10 / 11**
 
-#### Windows 10 / 11
-
-~~~powershell
+```
 # one-time setup
 mkdir C:\data\db
 
@@ -220,34 +217,27 @@ mkdir C:\data\db
 
 # (if mongod.exe is on your PATH you can shorten to:)
 # mongod --dbpath "C:\data\db"
-~~~
+```
 
----
+- **Ubuntu / Debian (APT install)**
 
-#### Ubuntu / Debian (APT install)
-
-~~~bash
+```
 sudo systemctl start mongod      # start now
 sudo systemctl enable mongod     # start at every boot
-~~~
-*(The APT package already created `/var/lib/mongodb` and set permissions.)*
+```
+> **NOTE:** The APT package already created `/var/lib/mongodb` and set permissions.
 
----
+- **Any Linux (tarball install)**
 
-#### Any Linux (tarball install)
-
-~~~bash
+```
 mkdir -p ~/mongodb-data
 mongod --dbpath ~/mongodb-data
-~~~
+```
 
----
+### Verify the server is running (Linux)
 
-##### Verify the server is running (Linux)
-
-~~~bash
+```
 mongo --eval 'db.runCommand({ ping: 1 })'   # returns { "ok" : 1 }
-~~~
 ```
 
 > Note:
