@@ -486,7 +486,7 @@ cd ..
 ## 6. Development mode
 ```
 cd backend                 # Express + WebSockets on :5000
-npm run dev
+node server.js             # FYI, if the DB doesn't exit, this will create it
 ```
 
 ### In a second terminal:
