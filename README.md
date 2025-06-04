@@ -165,6 +165,8 @@ npm install
 npm install axios react-router-dom socket.io-client
 
 npm install react-transition-group
+
+npm install lucide-react
 ```
 > Now create the following files (UNNECESSARY IF CLONING/FORKING!):
 >
