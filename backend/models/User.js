@@ -15,7 +15,8 @@ const UserSchema = new mongoose.Schema({
   balance: { type: Number, default: 0 },
   classrooms: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Classroom' }],
   groups: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Group' }],
-  transactions: [TransactionSchema]
+  transactions: [TransactionSchema],
+  isBanned: { type: Boolean, default: false}
 });
 
 module.exports = mongoose.model('User', UserSchema);
