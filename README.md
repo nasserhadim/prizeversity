@@ -165,6 +165,16 @@ npm install
 npm install axios react-router-dom socket.io-client
 
 npm install react-transition-group
+
+npm install lucide-react
+
+npm install react-hot-toast
+
+npm install daisyui
+
+npm install -D tailwindcss@3
+
+npx tailwindcss init # DON'T RUN THIS UNLESS SETTING UP FROM SCRATCH!
 ```
 > Now create the following files (UNNECESSARY IF CLONING/FORKING!):
 >
