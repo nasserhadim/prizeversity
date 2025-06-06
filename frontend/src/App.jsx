@@ -8,6 +8,7 @@ import Groups from './pages/Groups';
 import People from './pages/People';
 import NotificationBell from './components/NotificationBell';
 import Navbar from './components/Navbar';
+import FeedbackPage from './pages/FeedbackPage';
 import { AuthContext } from './context/AuthContext';
 import { joinUserRoom } from './utils/socket';
 
@@ -40,6 +41,7 @@ const App = () => {
         <Route path="/classroom/:id/wallet" element={<Wallet />} />
         <Route path="/classroom/:id/groups" element={<Groups />} />
         <Route path="/classroom/:id/people" element={<People />} />
+        <Route path="/feedback" element={<FeedbackPage />} />
       </Routes>
     </div>
   );

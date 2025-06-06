@@ -11,6 +11,7 @@ const bazaarRoutes = require('./routes/bazaar');
 const walletRoutes = require('./routes/wallet');
 const groupRoutes = require('./routes/group');
 const notificationsRoutes = require('./routes/notifications');
+const feedbackRoutes = require('./routes/feedback');
 // Importing admin route
 const adminRoutes = require('./routes/admin'); 
 const usersRoutes =  require('./routes/users');
@@ -28,7 +29,7 @@ const io = new Server(httpServer, {
 
 // Middleware
 app.use(cors({
-  origin: 'http://localhost5173',
+  origin: 'http://localhost:5173',
   credentials: true,
 }));
 app.use(express.json());
@@ -62,6 +63,7 @@ app.use('/api/group', groupRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api', usersRoutes);
+app.use('/api/feedback', feedbackRoutes);
 
 // Root Route
 app.get('/', (req, res) => {
