@@ -1,5 +1,5 @@
 # How to Setup:
-# Hello World
+
 ## Prerequisites:
 
 1. Install [Node.js (for backend and frontend)](https://nodejs.org/).
