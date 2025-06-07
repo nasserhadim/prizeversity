@@ -11,6 +11,8 @@ const UserSchema = new mongoose.Schema({
   googleId: { type: String },
   microsoftId: { type: String },
   email: { type: String, required: true },
+  firstName: { type: String},
+  lastName: { type: String},
   role: { type: String, enum: ['admin', 'teacher', 'student']/*, default: 'student' */},
   balance: { type: Number, default: 0 },
   classrooms: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Classroom' }],

@@ -41,4 +41,23 @@ router.post('/:id/make-admin', ensureAuthenticated, async (req, res) => {
   }
 });
 
+// update the profile with a firstname and a last name
+router.post('/update-profile', ensureAuthenticated, async (req, res) => {
+  const { role, firstName, lastName } = req.body;
+  const userId = req.user._id; // Assuming you are using a middleware like `passport` to get `req.user`
+
+  try {
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { role, firstName, lastName },
+      { new: true }
+    );
+    res.json({ user: updatedUser });
+  } catch (error) {
+    console.error('Failed to update profile:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+
 module.exports = router;
