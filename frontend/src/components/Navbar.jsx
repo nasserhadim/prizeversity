@@ -8,12 +8,13 @@ const Navbar = () => {
   const classroomMatch = location.pathname.match(/^\/classroom\/([^\/]+)/);
   const classroomId = classroomMatch ? classroomMatch[1] : null;
   const insideClassroom = Boolean(classroomId);
-
+  
   return (
     <nav data-theme='forest' className='bg-base-100 text-base-content shadow-md px-6 py-4 bg-black bg-opacity-20 backdrop-blur-md'>
       <div className='container mx-auto flex items-center justify-between'>
         <div className='text-2xl font-bold'>
           <Link to='/'>Prizeversity</Link>
+          <></>
         </div>
         <ul className='flex space-x-6 text-lg mr-5'>
           {!insideClassroom && (
