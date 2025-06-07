@@ -263,7 +263,7 @@ const Classroom = () => {
       }
     } catch (err) {
       const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Failed to update classroom';
-      alert(errorMessage);
+      toast.error(errorMessage);
     }
   };
 
@@ -275,25 +275,25 @@ const Classroom = () => {
         image: bazaarImage,
         classroomId: id,
       });
-      alert('Bazaar created successfully!');
+      toast.success('Bazaar created successfully!');
       fetchBazaars();
       setBazaarName('');
       setBazaarDescription('');
       setBazaarImage('');
     } catch (err) {
       console.error('Failed to create bazaar', err);
-      alert('Failed to create bazaar');
+      toast.error('Failed to create bazaar');
     }
   };
 
   const handleCreateGroupSet = async () => {
     if (!groupSetName.trim()) {
-      alert('GroupSet name is required');
+      toast.error('GroupSet name is required');
       return;
     }
   
     if (groupSetMaxMembers < 0) {
-      alert('Max members cannot be a negative number');
+      toast.error('Max members cannot be a negative number');
       return;
     }
   
@@ -307,7 +307,7 @@ const Classroom = () => {
         image: groupSetImage,
       });
       console.log('GroupSet created:', response.data);
-      alert('GroupSet created successfully!');
+      toast.success('GroupSet created successfully!');
       setGroupSetName('');
       setGroupSetSelfSignup(false);
       setGroupSetJoinApproval(false);
@@ -316,10 +316,10 @@ const Classroom = () => {
       fetchGroupSets();
     } catch (err) {
       if (err.response && err.response.data && err.response.data.error) {
-        alert(err.response.data.error);
+        toast.error(err.response.data.error);
       } else {
         console.error('Failed to create group set', err);
-        alert('Failed to create group set');
+        toast.error('Failed to create group set');
       }
     }
   };
@@ -345,9 +345,9 @@ const Classroom = () => {
       });
 
       if (response.data.message === 'No changes were made') {
-        alert('No changes were made');
+        toast.error('No changes were made');
       } else {
-        alert('GroupSet updated successfully!');
+        toast.success('GroupSet updated successfully!');
         setEditingGroupSet(null);
         setGroupSetName('');
         setGroupSetSelfSignup(false);
@@ -358,29 +358,29 @@ const Classroom = () => {
       }
     } catch (err) {
       const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Failed to update groupset';
-      alert(errorMessage);
+      toast.error(errorMessage);
     }
   };
 
   const handleDeleteGroupSet = async (groupSetId) => {
     try {
       await axios.delete(`/api/group/groupset/${groupSetId}`);
-      alert('GroupSet deleted successfully!');
+      toast.success('GroupSet deleted successfully!');
       fetchGroupSets();
     } catch (err) {
       console.error('Failed to delete group set', err);
-      alert('Failed to delete group set');
+      toast.error('Failed to delete group set');
     }
   };
 
   const handleCreateGroup = async (groupSetId) => {
     if (!groupName.trim()) {
-      alert('Group name is required');
+      toast.error('Group name is required');
       return;
     }
   
     if (groupCount <= 0) {
-      alert('Number of groups must be greater than 0');
+      toast.error('Number of groups must be greater than 0');
       return;
     }
   
@@ -390,16 +390,16 @@ const Classroom = () => {
         count: groupCount,
       });
       console.log('Groups created:', response.data);
-      alert('Groups created successfully!');
+      toast.success('Groups created successfully!');
       setGroupName('');
       setGroupCount(1);
       fetchGroupSets();
     } catch (err) {
       if (err.response && err.response.data && err.response.data.error) {
-        alert(err.response.data.error);
+        toast.error(err.response.data.error);
       } else {
         console.error('Failed to create groups', err);
-        alert('Failed to create groups');
+        toast.error('Failed to create groups');
       }
     }
   };
@@ -421,9 +421,9 @@ const Classroom = () => {
       });
 
       if (response.data.message === 'No changes were made') {
-        alert('No changes were made');
+        toast.error('No changes were made');
       } else {
-        alert('Group updated successfully!');
+        toast.success('Group updated successfully!');
         setEditingGroup(null);
         setGroupName('');
         setGroupImage('');
@@ -432,18 +432,18 @@ const Classroom = () => {
       }
     } catch (err) {
       const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Failed to update group';
-      alert(errorMessage);
+      toast.error(errorMessage);
     }
   };
 
   const handleDeleteGroup = async (groupSetId, groupId) => {
     try {
       await axios.delete(`/api/group/groupset/${groupSetId}/group/${groupId}`);
-      alert('Group deleted successfully!');
+      toast.success('Group deleted successfully!');
       fetchGroupSets();
     } catch (err) {
       console.error('Failed to delete group', err);
-      alert('Failed to delete group');
+      toast.error('Failed to delete group');
     }
   };
 
@@ -460,7 +460,7 @@ const Classroom = () => {
         );
         
         if (isInAnyGroup) {
-          alert('You are already a member or have a pending request in this GroupSet');
+          toast.error('You are already a member or have a pending request in this GroupSet');
           return;
         }
       }
@@ -470,10 +470,10 @@ const Classroom = () => {
       fetchGroupSets();
     } catch (err) {
       if (err.response && err.response.data && err.response.data.error) {
-        alert(err.response.data.error);
+        toast.error(err.response.data.error);
       } else {
         console.error('Failed to join group', err);
-        alert('Failed to join group');
+        toast.error('Failed to join group');
       }
     }
   };
@@ -486,10 +486,10 @@ const Classroom = () => {
       fetchGroupSets();
     } catch (err) {
       if (err.response && err.response.data && err.response.data.message) {
-        alert(err.response.data.message);
+        toast.error(err.response.data.message);
       } else {
         console.error('Failed to leave group', err);
-        alert('Failed to leave group');
+        toast.error('Failed to leave group');
       }
     }
   };
@@ -497,7 +497,7 @@ const Classroom = () => {
   const handleRemoveStudent = async (studentId) => {
     try {
       await axios.delete(`/api/classroom/${id}/students/${studentId}`);
-      alert('Student removed successfully!');
+      toast.success('Student removed successfully!');
       // Fetch both students and group sets to update the UI
       await Promise.all([
         fetchStudents(),
@@ -505,7 +505,7 @@ const Classroom = () => {
       ]);
     } catch (err) {
       console.error('Failed to remove student', err);
-      alert('Failed to remove student');
+      toast.error('Failed to remove student');
     }
   };
 
@@ -525,11 +525,11 @@ const Classroom = () => {
   const handleDeleteClassroom = async () => {
     try {
       await axios.delete(`/api/classroom/${id}`);
-      alert('Classroom deleted successfully!');
+      toast.success('Classroom deleted successfully!');
       navigate('/');
     } catch (err) {
       console.error('Failed to delete classroom', err);
-      alert('Failed to delete classroom');
+      toast.error('Failed to delete classroom');
     }
   };
 
@@ -558,7 +558,7 @@ const Classroom = () => {
   const handleSuspendMembers = async (groupSetId, groupId) => {
     const groupSelectedMembers = selectedMembers[groupId] || [];
     if (groupSelectedMembers.length === 0) {
-      alert('No members selected for suspension.');
+      toast.error('No members selected for suspension.');
       return;
     }
   
@@ -571,10 +571,10 @@ const Classroom = () => {
       fetchGroupSets();
     } catch (err) {
       if (err.response && err.response.data && err.response.data.message) {
-        alert(err.response.data.message);
+        toast.error(err.response.data.message);
       } else {
         console.error('Failed to suspend members', err);
-        alert('Failed to suspend members');
+        toast.error('Failed to suspend members');
       }
     }
   };
@@ -628,14 +628,14 @@ const Classroom = () => {
     if (window.confirm('Are you sure you want to proceed with the removal? Any group associations will be disconnected as well.')) {
       try {
         await axios.delete(`/api/classroom/${id}/students/${studentId}`);
-        alert('Student removed successfully!');
+        toast.success('Student removed successfully!');
         await Promise.all([
           fetchStudents(),
           fetchGroupSets()
         ]);
       } catch (err) {
         console.error('Failed to remove student', err);
-        alert('Failed to remove student');
+        toast.error('Failed to remove student');
       }
     }
   };
@@ -644,11 +644,11 @@ const Classroom = () => {
     if (window.confirm(`You're about to delete this GroupSet "${groupSet.name}". All student enrollment in any groups within this GroupSet will be purged alongside the groups themselves. Are you sure you want to proceed?`)) {
       try {
         await axios.delete(`/api/group/groupset/${groupSet._id}`);
-        alert('GroupSet deleted successfully!');
+        toast.success('GroupSet deleted successfully!');
         fetchGroupSets();
       } catch (err) {
         console.error('Failed to delete group set', err);
-        alert('Failed to delete group set');
+        toast.error('Failed to delete group set');
       }
     }
   };
@@ -657,11 +657,11 @@ const Classroom = () => {
     if (window.confirm(`You're about to delete this group "${group.name}". Any students enrolled in the group will be removed. Are you sure you want to proceed?`)) {
       try {
         await axios.delete(`/api/group/groupset/${groupSetId}/group/${group._id}`);
-        alert('Group deleted successfully!');
+        toast.success('Group deleted successfully!');
         fetchGroupSets();
       } catch (err) {
         console.error('Failed to delete group', err);
-        alert('Failed to delete group');
+        toast.error('Failed to delete group');
       }
     }
   };
@@ -670,7 +670,7 @@ const Classroom = () => {
 const handleApproveMembers = async (groupSetId, groupId) => {
   const groupSelectedMembers = selectedMembers[groupId] || [];
   if (groupSelectedMembers.length === 0) {
-    alert('No selection with pending status made to perform this action.');
+    toast.error('No selection with pending status made to perform this action.');
     return;
   }
 
@@ -686,7 +686,7 @@ const handleApproveMembers = async (groupSetId, groupId) => {
       alert(err.response.data.message);
     } else {
       console.error('Failed to approve members', err);
-      alert('Failed to approve members');
+      toast.error('Failed to approve members');
     }
   }
 };
@@ -694,7 +694,7 @@ const handleApproveMembers = async (groupSetId, groupId) => {
 const handleRejectMembers = async (groupSetId, groupId) => {
   const groupSelectedMembers = selectedMembers[groupId] || [];
   if (groupSelectedMembers.length === 0) {
-    alert('No selection with pending status made to perform this action.');
+    toast.error('No selection with pending status made to perform this action.');
     return;
   }
 
@@ -710,7 +710,7 @@ const handleRejectMembers = async (groupSetId, groupId) => {
       alert(err.response.data.message);
     } else {
       console.error('Failed to reject members', err);
-      alert('Failed to reject members');
+      toast.error('Failed to reject members');
     }
   }
 };
