@@ -168,9 +168,10 @@ const Classroom = () => {
       const response = await axios.get(`/api/classroom/${id}`);
       // Check if user still has access to this classroom
       const classroom = response.data;
-      const hasAccess = user.role === 'teacher' ? 
-        classroom.teacher === user._id :
-        classroom.students.includes(user._id);
+       const hasAccess =
+        user.role === 'admin' ||
+        (user.role === 'teacher' && classroom.teacher === user._id) ||
+        (user.role === 'student' && classroom.students.includes(user._id));
 
       if (!hasAccess) {
         alert('You no longer have access to this classroom');
