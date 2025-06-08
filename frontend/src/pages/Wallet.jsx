@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 // AuthContext.jsx is needed for verifications regarding transactions and amonut very important
 import { useAuth } from '../context/AuthContext'; // Don't forget this!
+import BulkBalanceEditor from '../components/BulkBalanceEditor';
+import TransactionList   from '../components/TransactionList';
+
 
 const Wallet = () => {
   const { user } = useAuth();
@@ -17,11 +20,46 @@ const Wallet = () => {
   const [studentInfo, setStudentInfo] = useState(null);
   const [checkError, setCheckError] = useState('');
 
-  const [studentTransactions, setStudentTransactions] = useState([]);
+  const [activeTab, setActiveTab] = useState('edit');    
+  const [allTx, setAllTx] = useState([]);
+  const [studentFilter, setStudentFilter] = useState('');  
+  const [studentList, setStudentList] = useState([]);
 
-  useEffect(() => {
-      fetchWallet();
-    }, [user._id, user.role]);
+const fetchUsers = async () => {
+  try {
+    const res = await axios.get('/api/users/all', { withCredentials: true });
+    setStudentList(res.data);
+  } catch (err) {
+    if (err.response) {
+     
+     console.error(
+       `Failed to load users (status ${err.response.status}):`,
+       err.response.data
+     );
+   } else {
+   
+    console.error('Failed to load users:', err.message);
+   
+   }
+  }
+};
+
+    useEffect(() => {
+   if (!user) return;
+    fetchWallet();
+    if (['teacher', 'admin'].includes(user.role)) {
+      fetchUsers();
+      fetchAllTx();
+    }
+  }, [user]);
+
+  
+
+  const fetchAllTx = async (studentId = '') => {
+    const url = studentId ? `/api/wallet/transactions/all?studentId=${studentId}` : '/api/wallet/transactions/all';
+    const res = await axios.get(url, { withCredentials: true });
+    setAllTx(res.data);          
+  };
 
     const fetchWallet = async () => {
       try {
@@ -43,8 +81,26 @@ const Wallet = () => {
   return (
     <div className="p-4">
       
+       {/* ---- teacher/admin tabs ---- */}
+      {['teacher', 'admin'].includes(user.role) && (
+        <div className="tabs mb-6">
+          <a
+            className={`tab tab-bordered ${activeTab === 'edit' ? 'tab-active' : ''}`}
+            onClick={() => setActiveTab('edit')}
+          >
+            Bulk / Edit
+          </a>
+          <a
+            className={`tab tab-bordered ${activeTab === 'tx' ? 'tab-active' : ''}`}
+            onClick={() => setActiveTab('tx')}
+          >
+            Transactions
+          </a>
+        </div>
+      )}
 
-      {user.role === 'teacher' && (
+      {/* teacher/admin tab bar */}
+     {['teacher', 'admin'].includes(user.role) && activeTab === 'edit' && (
         <div className="mb-6 space-y-2">
           <h2 className="font-bold">Look Up Student Balance</h2>
           <input
@@ -109,9 +165,37 @@ const Wallet = () => {
               </button>
             </>
           )}
+        <BulkBalanceEditor />
+  
         </div>
       )}
+ {}
+      {['teacher', 'admin'].includes(user.role) && activeTab === 'tx' && (
+        <div className="space-y-4">
+          <h2 className="font-bold">All Transactions</h2>
 
+          {}
+          <select
+            className="select select-bordered w-full max-w-xs"
+            value={studentFilter}
+            onChange={(e) => {
+              const id = e.target.value;
+              setStudentFilter(id);
+              fetchAllTx(id);
+            }}
+          >
+            <option value="">All users</option>
+              {studentList.map((u) => (
+                <option key={u._id} value={u._id}>
+                  {u.email} – {u.role}
+                </option>
+              ))}
+            </select>
+
+          {}
+          <TransactionList transactions={allTx} />
+        </div>
+    )}
       {user.role === 'student' && (
         <div className="mb-6 space-y-2">
           <h2 className="font-bold">Send Bits</h2>
