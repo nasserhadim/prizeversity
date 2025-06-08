@@ -135,7 +135,7 @@ const ClassroomPage = () => {
           </div>
         )}
         {/* This will be only what the student will see for the classroom (making sure to only see join clasrrom instead of creating) */}
-        {role === 'student' && (
+        {(role === 'student' || role === 'admin') && (
           <div className="space-y-2">
             <input
               type="text"
