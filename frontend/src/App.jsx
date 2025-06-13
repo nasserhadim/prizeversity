@@ -11,6 +11,7 @@ import Navbar from './components/Navbar';
 import Profile from './pages/Profile';
 import { AuthContext } from './context/AuthContext';
 import { joinUserRoom } from './utils/socket';
+import Leaderboard from './pages/Leaderboard';
 
 import ClassroomPage from './pages/ClassroomPage';
 
@@ -40,7 +41,8 @@ const App = () => {
         <Route path="/classroom/:id/bazaar" element={<Bazaar />} />
         <Route path="/classroom/:id/wallet" element={<Wallet />} />
         <Route path="/classroom/:id/groups" element={<Groups />} />
-        <Route path="/classroom/:id/people" element={<People />} />
+        <Route path="/classroom/:id/people" element={<People />} />
+        <Route path="/classroom/:classId/leaderboard" element={<Leaderboard />} />
         <Route path="/profile/:id" element={<Profile/>} />
       </Routes>
     </div>

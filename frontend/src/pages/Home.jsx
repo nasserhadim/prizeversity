@@ -6,7 +6,7 @@ import socket from '../utils/socket';
 import Navbar from '../components/Navbar';
 
 import toast from 'react-hot-toast';
-import { School, UserPlus, GraduationCap, Bell, Pencil, BookOpen, MessagesSquare, LayoutDashboard, Clock, ShieldCheck} from 'lucide-react';
+import { School, UserPlus, GraduationCap, Bell, Pencil, BookOpen, MessagesSquare, LayoutDashboard, Clock, ShieldCheck } from 'lucide-react';
 
 const Home = () => {
   const { user, logout, setUser } = useAuth();
@@ -138,7 +138,7 @@ const Home = () => {
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
-      <h1 className="text-3xl font-bold text-center text-primary">
+      <h1 className="text-3xl font-bold text-center text-green-500">
         Welcome to Prizeversity
       </h1>
 
@@ -148,7 +148,7 @@ const Home = () => {
 
       <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
         <div className="p-6 border rounded-2xl shadow bg-white">
-          <School className="mx-auto h-8 w-8 text-primary mb-2" />
+          <School className="mx-auto h-8 w-8 text-green-500" />
           <h3 className="font-semibold text-lg mb-1">For Teachers</h3>
           <p className="text-sm text-gray-600">
             Create and manage classrooms, organize groups, and post announcements.
@@ -156,7 +156,7 @@ const Home = () => {
         </div>
 
         <div className="p-6 border rounded-2xl shadow bg-white">
-          <GraduationCap className="mx-auto h-8 w-8 text-primary mb-2" />
+          <GraduationCap className="mx-auto h-8 w-8 text-green-500" />
           <h3 className="font-semibold text-lg mb-1">For Students</h3>
           <p className="text-sm text-gray-600">
             Join classrooms, collaborate with peers, and track assignments.
@@ -164,7 +164,7 @@ const Home = () => {
         </div>
 
         <div className="p-6 border rounded-2xl shadow bg-white">
-          <Bell className="mx-auto h-8 w-8 text-primary mb-2" />
+          <Bell className="mx-auto h-8 w-8 text-green-500" />
           <h3 className="font-semibold text-lg mb-1">Real-Time Updates</h3>
           <p className="text-sm text-gray-600">
             Stay informed with instant classroom notifications and updates.
@@ -176,22 +176,22 @@ const Home = () => {
         <h2 className="text-xl font-bold text-center">How Prizeversity Works</h2>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-center">
           <div>
-            <UserPlus className="mx-auto h-8 w-8 text-primary" />
+            <UserPlus className="mx-auto h-8 w-8 text-green-500" />
             <p className="font-semibold mt-2">Sign Up</p>
             <p className="text-sm text-gray-600">Login using Google or Microsoft.</p>
           </div>
           <div>
-            <Pencil className="mx-auto h-8 w-8 text-primary" />
+            <Pencil className="mx-auto h-8 w-8 text-green-500" />
             <p className="font-semibold mt-2">Complete Profile</p>
             <p className="text-sm text-gray-600">Choose your role and enter your name.</p>
           </div>
           <div>
-            <BookOpen className="mx-auto h-8 w-8 text-primary" />
+            <BookOpen className="mx-auto h-8 w-8 text-green-500" />
             <p className="font-semibold mt-2">Create or Join Classrooms</p>
             <p className="text-sm text-gray-600">Teachers create. Students join.</p>
           </div>
           <div>
-            <MessagesSquare className="mx-auto h-8 w-8 text-primary" />
+            <MessagesSquare className="mx-auto h-8 w-8 text-green-500" />
             <p className="font-semibold mt-2">Collaborate</p>
             <p className="text-sm text-gray-600">Engage in groups, discussions, and tasks.</p>
           </div>
@@ -199,23 +199,23 @@ const Home = () => {
       </div>
 
       <h2 className="text-xl font-bold text-center mt-10">Why Use Prizeversity?</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
-          <div className="p-4 rounded-xl shadow bg-white">
-            <LayoutDashboard className="h-6 w-6 text-primary mb-2" />
-            <h4 className="font-semibold">Simple Dashboard</h4>
-            <p className="text-sm text-gray-600">Navigate classrooms and groups easily.</p>
-          </div>
-          <div className="p-4 rounded-xl shadow bg-white">
-            <Clock className="h-6 w-6 text-primary mb-2" />
-            <h4 className="font-semibold">Real-time Updates</h4>
-            <p className="text-sm text-gray-600">Get notified instantly on changes.</p>
-          </div>
-          <div className="p-4 rounded-xl shadow bg-white">
-            <ShieldCheck className="h-6 w-6 text-primary mb-2" />
-            <h4 className="font-semibold">Secure & Private</h4>
-            <p className="text-sm text-gray-600">Backed by authentication and data protection.</p>
-          </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
+        <div className="p-4 rounded-xl shadow bg-white">
+          <LayoutDashboard className="mx-auto h-8 w-8 text-green-500" />
+          <h4 className="font-semibold">Simple Dashboard</h4>
+          <p className="text-sm text-gray-600">Navigate classrooms and groups easily.</p>
         </div>
+        <div className="p-4 rounded-xl shadow bg-white">
+          <Clock className="mx-auto h-8 w-8 text-green-500" />
+          <h4 className="font-semibold">Real-time Updates</h4>
+          <p className="text-sm text-gray-600">Get notified instantly on changes.</p>
+        </div>
+        <div className="p-4 rounded-xl shadow bg-white">
+          <ShieldCheck className="mx-auto h-8 w-8 text-green-500" />
+          <h4 className="font-semibold">Secure & Private</h4>
+          <p className="text-sm text-gray-600">Backed by authentication and data protection.</p>
+        </div>
+      </div>
 
 
 
