@@ -8,6 +8,7 @@ import Groups from './pages/Groups';
 import People from './pages/People';
 import NotificationBell from './components/NotificationBell';
 import Navbar from './components/Navbar';
+import Profile from './pages/Profile';
 import { AuthContext } from './context/AuthContext';
 import { joinUserRoom } from './utils/socket';
 
@@ -31,7 +32,7 @@ const App = () => {
     <div>
       {user && <Navbar />}
       {user && <NotificationBell />}
-      <div className="pt-16"></div>
+
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/classrooms" element={<ClassroomPage />} />
@@ -39,10 +40,11 @@ const App = () => {
         <Route path="/classroom/:id/bazaar" element={<Bazaar />} />
         <Route path="/classroom/:id/wallet" element={<Wallet />} />
         <Route path="/classroom/:id/groups" element={<Groups />} />
-        <Route path="/classroom/:id/people" element={<People />} />
+        <Route path="/classroom/:id/people" element={<People />} />
+        <Route path="/profile/:id" element={<Profile/>} />
       </Routes>
     </div>
   );
 };
 
-export default App;
+export default App;
