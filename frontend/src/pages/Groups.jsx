@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import socket from '../utils/socket';
+import toast from 'react-hot-toast';
 
 const Groups = () => {
   const { id } = useParams();
@@ -76,8 +77,8 @@ const Groups = () => {
 
   // The groups will be crated within the groupset that is specfici choosen
   const handleCreateGroup = async (groupSetId) => {
-    if (!groupName.trim()) return alert('Group name required');
-    if (groupCount < 1 ) return alert('Group count must be at least 1');
+    if (!groupName.trim()) return toast.error('Group name required');
+    if (groupCount < 1 ) return toast.error('Group count must be at least 1');
     try {
       await axios.post(`/api/group/groupset/${groupSetId}/group/create`, {
         name: groupName,
@@ -217,17 +218,31 @@ const Groups = () => {
                 value={groupName}
                 onChange={(e) => setGroupName(e.target.value)}
               />
-              <input
-                type="number"
-                min="1"
-                placeholder="Group Count"
-                className="input input-bordered w-full"
-                value={groupCount}
-                onChange={(e) => {
-                const value = Math.max(1, parseInt(e.target.value) || 1);
-                setGroupCount(value);
-                }}
-              />
+<input
+  type="number"
+  min="1"
+  step="1"
+  placeholder="Group Count"
+  className="input input-bordered w-full"
+  value={groupCount}
+  onChange={(e) => {
+    const value = e.target.value;
+
+    // Allow empty input for user typing but block negatives
+    if (value === '' || parseInt(value) >= 1) {
+      setGroupCount(value);
+    }
+  }}
+  onBlur={(e) => {
+    const value = parseInt(e.target.value);
+    // On blur (focus out), fix invalid values
+    if (isNaN(value) || value < 1) {
+      setGroupCount(1);
+    }
+  }}
+/>
+
+
               <button className="btn btn-success" onClick={() => handleCreateGroup(gs._id)}>
                 Add Group
               </button>
