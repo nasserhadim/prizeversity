@@ -6,6 +6,7 @@ const Notification = require('../models/Notification'); // Add this line
 const { ensureAuthenticated } = require('../config/auth');
 const { populateNotification } = require('../utils/notifications');
 const router = express.Router();
+const { User } = require('../models/User');
 
 // Create Classroom
 router.post('/create', ensureAuthenticated, async (req, res) => {
@@ -276,6 +277,30 @@ router.delete('/:id/students/:studentId', ensureAuthenticated, async (req, res) 
     res.status(200).json({ message: 'Student removed successfully' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to remove student' });
+  }
+});
+
+router.get('/:classId/leaderboard', async (req, res) => {
+  try {
+    const classId = req.params.classId;
+    const userId  = req.user._id;   
+
+    // ensures the user is in this class
+    const me = await User.findById(userId);
+    if (!me.classrooms.includes(classId)) {
+      return res.status(403).json({ error: 'Not enrolled in this class' });
+    }
+
+    // fetch and sort classmates by bits
+    const leaderboard = await User.find({ classrooms: classId })
+      .select('email balance')
+      .sort({ balance: -1 })
+      .limit(50);
+
+    res.json(leaderboard);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
