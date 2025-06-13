@@ -186,21 +186,39 @@ router.get('/groupset/classroom/:classroomId', ensureAuthenticated, async (req, 
 // Create Group within GroupSet
 router.post('/groupset/:groupSetId/group/create', ensureAuthenticated, async (req, res) => {
   const { name, count } = req.body;
+
   if (!name.trim()) {
     return res.status(400).json({ error: 'Group name is required' });
   }
+  if (!count || count < 1) {
+    return res.status(400).json({ error: 'Group count must be at least 1' });
+  }
 
   try {
-    const groupSet = await GroupSet.findById(req.params.groupSetId);
+    const groupSet = await GroupSet.findById(req.params.groupSetId).populate('groups');
     if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
 
-    const groups = [];
+    // Collect all current group names in this group set
+    const existingNames = new Set(groupSet.groups.map(g => g.name.toLowerCase()));
+
+    const newGroups = [];
     for (let i = 0; i < count; i++) {
-      const group = new Group({ name: `${name} ${i + 1}`, maxMembers: groupSet.maxMembers });
-      await group.save();
-      groupSet.groups.push(group._id);
-      groups.push(group);
+      const newName = `${name} ${i + 1}`;
+      if (existingNames.has(newName.toLowerCase())) {
+        return res.status(400).json({ error: `Group name "${newName}" already exists in this group set.` });
+      }
+
+      const newGroup = new Group({
+        name: newName,
+        maxMembers: groupSet.maxMembers,
+      });
+
+      await newGroup.save();
+      groupSet.groups.push(newGroup._id);
+      newGroups.push(newGroup);
+      existingNames.add(newName.toLowerCase()); // prevent duplicate in-loop
     }
+
     await groupSet.save();
 
     const populatedGroupSet = await GroupSet.findById(groupSet._id)
@@ -212,11 +230,11 @@ router.post('/groupset/:groupSetId/group/create', ensureAuthenticated, async (re
         }
       });
 
-    // Emit to classroom channel
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('groupset_update', populatedGroupSet);
 
-    res.status(201).json(groups);
+    res.status(201).json(newGroups);
   } catch (err) {
+    console.error('Group creation error:', err);
     res.status(500).json({ error: 'Failed to create groups' });
   }
 });

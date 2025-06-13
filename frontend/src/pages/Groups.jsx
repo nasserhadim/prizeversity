@@ -77,6 +77,7 @@ const Groups = () => {
   // The groups will be crated within the groupset that is specfici choosen
   const handleCreateGroup = async (groupSetId) => {
     if (!groupName.trim()) return alert('Group name required');
+    if (groupCount < 1 ) return alert('Group count must be at least 1');
     try {
       await axios.post(`/api/group/groupset/${groupSetId}/group/create`, {
         name: groupName,
@@ -85,9 +86,11 @@ const Groups = () => {
       fetchGroupSets();
       setGroupName('');
       setGroupCount(1);
-    } catch (err) {
-      alert('Failed to create group');
-    }
+      } catch (err) {
+      const message = err?.response?.data?.error || 'Failed to create group';
+      alert(message);
+      }
+
   };
 
   // Students will have the option to join the specific group (later on will add a timeline for the Teacher where they can see students that are not in a group by the deadline (also created by the professor))
@@ -216,10 +219,14 @@ const Groups = () => {
               />
               <input
                 type="number"
+                min="1"
                 placeholder="Group Count"
                 className="input input-bordered w-full"
                 value={groupCount}
-                onChange={(e) => setGroupCount(e.target.value)}
+                onChange={(e) => {
+                const value = Math.max(1, parseInt(e.target.value) || 1);
+                setGroupCount(value);
+                }}
               />
               <button className="btn btn-success" onClick={() => handleCreateGroup(gs._id)}>
                 Add Group
