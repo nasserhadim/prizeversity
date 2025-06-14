@@ -1,13 +1,26 @@
 const express = require('express');
 const Bazaar = require('../models/Bazaar');
 const Item = require('../models/Item');
+const User = require('../models/User');  // <-- Import User model
 const { ensureAuthenticated } = require('../config/auth');
 const router = express.Router();
 
-// Create Bazaar
+// Create Bazaar - only teacher can create, only one per classroom
 router.post('/create', ensureAuthenticated, async (req, res) => {
   const { name, description, image, classroomId } = req.body;
+
+  // Role check: only teachers can create
+  if (req.user.role !== 'teacher') {
+    return res.status(403).json({ error: 'Only teachers can create a bazaar' });
+  }
+
   try {
+    // Check if bazaar already exists for this classroom
+    const existing = await Bazaar.findOne({ classroom: classroomId });
+    if (existing) {
+      return res.status(400).json({ error: 'Bazaar already exists for this classroom' });
+    }
+
     const bazaar = new Bazaar({ name, description, image, classroom: classroomId });
     await bazaar.save();
     res.status(201).json(bazaar);
