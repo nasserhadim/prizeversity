@@ -18,7 +18,7 @@ const Navbar = () => {
   return (
     <nav
       data-theme={theme}
-      className='fixed top-0 left-0 right-0 z-50 bg-base-100 text-base-content shadow-md px-6 py-4 bg-black bg-opacity-20 backdrop-blur-md'
+      className='fixed top-0 left-0 right-0 z-50 bg-base-100 text-base-content shadow-md px-6 py-4 bg-opacity-20 backdrop-blur-md'
     >
       <div className='container mx-auto flex items-center justify-between'>
         <div className='text-2xl font-bold'>

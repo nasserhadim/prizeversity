@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
@@ -13,6 +13,8 @@ const People = () => {
   const [groupSets, setGroupSets] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOption, setSortOption] = useState('default');
+
+  const navigate = useNavigate();
 
 
   useEffect(() => {
@@ -57,13 +59,14 @@ const People = () => {
       const nameB = (b.firstName || b.name || '').toLowerCase();
       return nameA.localeCompare(nameB);
     }
-    return 0; // default
+    return 0;
   });
 
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <h1 className="text-3xl font-bold mb-4">People</h1>
+
       <div className="flex space-x-4 mb-6">
         <button
           className={`btn ${tab === 'everyone' ? 'btn-primary' : 'btn-outline'}`}
@@ -79,6 +82,7 @@ const People = () => {
         </button>
       </div>
 
+      {/* Everyone Tab */}
       {tab === 'everyone' && (
         <div>
           {/* Search + Sort Controls */}
@@ -112,14 +116,12 @@ const People = () => {
                   className="border p-3 rounded shadow flex justify-between items-center"
                 >
                   <div>
-                    <Link
-                      to={`/profile/${student._id}`}
-                      className="text-blue-600 hover:underline font-medium"
-                    >
-                      {student.firstName || student.name || student.email}
-                    </Link>
-                    <span className="ml-2 text-gray-600">– Role: {student.role}</span>
-
+                    <div className="font-medium text-lg">
+                      {student.firstName || student.lastName
+                        ? `${student.firstName || ''} ${student.lastName || ''}`.trim()
+                        : student.name || student.email}
+                      <span className="ml-2 text-gray-600 text-sm">– Role: {student.role}</span>
+                    </div>
                     <div className="text-sm text-gray-500 mt-1">
                       Balance: B{student.balance?.toFixed(2) || '0.00'} <br />
                       Classes:{' '}
@@ -127,36 +129,42 @@ const People = () => {
                         ? student.classrooms.map((c) => c.name).join(', ')
                         : 'N/A'}
                     </div>
+                    <div className="flex gap-2 mt-2 flex-wrap">
+                      <button
+                        className="btn btn-sm btn-outline"
+                        onClick={() => navigate(`/profile/${student._id}`)}
+                      >
+                        View Profile
+                      </button>
+                      {user?.role === 'teacher' && student.role === 'student' && (
+                        <button
+                          className="btn btn-sm btn-secondary"
+                          onClick={async () => {
+                            try {
+                              await axios.post(
+                                `/api/users/${student._id}/make-admin`,
+                                {},
+                                { withCredentials: true }
+                              );
+                              alert('Student promoted to admin');
+                              fetchStudents(); // Refresh list
+                            } catch (err) {
+                              console.error('Failed to promote student', err);
+                              alert('Error promoting student');
+                            }
+                          }}
+                        >
+                          Make Admin
+                        </button>
+                      )}
+                    </div>
                   </div>
-
-                  {user?.role === 'teacher' && student.role === 'student' && (
-                    <button
-                      className="btn btn-sm btn-secondary"
-                      onClick={async () => {
-                        try {
-                          await axios.post(
-                            `/api/users/${student._id}/make-admin`,
-                            {},
-                            { withCredentials: true }
-                          );
-                          alert('Student promoted to admin');
-                          fetchStudents(); // Refresh
-                        } catch (err) {
-                          console.error('Failed to promote student', err);
-                          alert('Error promoting student');
-                        }
-                      }}
-                    >
-                      Make Admin
-                    </button>
-                  )}
                 </div>
               ))
             )}
           </div>
         </div>
       )}
-
 
       {/* Groups Tab */}
       {tab === 'groups' && (
@@ -174,15 +182,20 @@ const People = () => {
                       {group.members.length === 0 ? (
                         <p className="text-gray-500">No members</p>
                       ) : (
-                        <ul className="list-disc ml-5">
+                        <ul className="list-disc ml-5 space-y-1">
                           {group.members.map((m) => (
-                            <li key={m._id._id}>
-                              <Link
-                                to={`/profile/${m._id._id}`}
-                                className="text-blue-600 hover:underline"
+                            <li key={m._id._id} className="flex justify-between items-center">
+                              <span>
+                                {m._id.firstName || m._id.lastName
+                                  ? `${m._id.firstName || ''} ${m._id.lastName || ''}`.trim()
+                                  : m._id.name || m._id.email}
+                              </span>
+                              <button
+                                className="btn btn-sm btn-outline ml-4"
+                                onClick={() => navigate(`/profile/${m._id._id}`)}
                               >
-                                {m._id.firstName || m._id.name || m._id.email}
-                              </Link>
+                                View Profile
+                              </button>
                             </li>
                           ))}
                         </ul>

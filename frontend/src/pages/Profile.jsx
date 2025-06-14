@@ -1,9 +1,11 @@
 import { useEffect, useState, useContext } from 'react';
+import { useParams } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import axios from 'axios';
 
 const Profile = () => {
-    const { user } = useContext(AuthContext); // assumes user contains _id
+    const { user } = useContext(AuthContext);
+    const { id: profileId } = useParams();
     const [profile, setProfile] = useState(null);
     const [editMode, setEditMode] = useState(false);
     const [form, setForm] = useState({ firstName: '', lastName: '', avatar: '' });
@@ -12,18 +14,9 @@ const Profile = () => {
     const [submitting, setSubmitting] = useState(false);
 
     useEffect(() => {
-        if (!user) {
-            return (
-                <div className="min-h-screen flex items-center justify-center bg-base-200">
-                    <span className="loading loading-ring loading-lg"></span>
-                </div>
-            );
-        }
-
-
         const fetchProfile = async () => {
             try {
-                const res = await axios.get(`/api/profile/${user._id}`, {
+                const res = await axios.get(`/api/profile/student/${profileId}`, {
                     withCredentials: true,
                     headers: {
                         Authorization: `Bearer ${localStorage.getItem('token')}`,
@@ -44,8 +37,8 @@ const Profile = () => {
             }
         };
 
-        if (user?._id) fetchProfile();
-    }, [user]);
+        if (profileId) fetchProfile();
+    }, [profileId]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -62,7 +55,7 @@ const Profile = () => {
                 throw new Error('First name is required');
             }
 
-            const res = await axios.put(`/api/profile/${user._id}`, form, {
+            const res = await axios.put(`/api/profile/student/${profileId}`, form, {
                 withCredentials: true,
                 headers: {
                     Authorization: `Bearer ${localStorage.getItem('token')}`,
@@ -78,6 +71,8 @@ const Profile = () => {
             setSubmitting(false);
         }
     };
+
+    const canEdit = user?._id === profileId;
 
     if (loading) {
         return (
@@ -100,9 +95,11 @@ const Profile = () => {
 
     return (
         <div className="max-w-md mx-auto p-6 mt-10 bg-white rounded-xl shadow space-y-6">
-            <h2 className="text-2xl font-bold text-center">Your Profile</h2>
+            <h2 className="text-2xl font-bold text-center">
+                {canEdit ? 'Your Profile' : 'Student Profile'}
+            </h2>
 
-            {editMode ? (
+            {canEdit && editMode ? (
                 <form onSubmit={handleSubmit} className="space-y-4">
                     {error && <div className="alert alert-error text-sm">{error}</div>}
 
@@ -191,9 +188,11 @@ const Profile = () => {
                         )}
                     </div>
 
-                    <button onClick={() => setEditMode(true)} className="btn btn-primary w-full mt-4">
-                        Edit Profile
-                    </button>
+                    {canEdit && (
+                        <button onClick={() => setEditMode(true)} className="btn btn-primary w-full mt-4">
+                            Edit Profile
+                        </button>
+                    )}
                 </div>
             )}
         </div>

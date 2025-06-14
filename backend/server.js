@@ -63,7 +63,7 @@ app.use('/api/group', groupRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/profile', profileRoutes);
-app.use('/api', usersRoutes);
+app.use('/api/users', usersRoutes);
 
 // Root Route
 app.get('/', (req, res) => {
