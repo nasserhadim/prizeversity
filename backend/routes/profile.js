@@ -3,8 +3,8 @@ const router = express.Router();
 const User = require('../models/User.js');
 const { ensureAuthenticated } = require('../config/auth.js');
 
-// GET /api/users/:id
-router.get('/:id', ensureAuthenticated, async (req, res) => {
+// GET /api/profile/student/:id
+router.get('/student/:id', ensureAuthenticated, async (req, res) => {
   try {
     const user = await User.findById(req.params.id)
       .populate('classrooms')
