@@ -39,7 +39,7 @@ const Bazaar = () => {
     fetchBazaars();
   }, [classroomId]);
 
-  // After successful creation of bazaar, reload bazaars
+  // Reload Bazaar after successful creation.
   const onBazaarCreated = (newBazaar) => {
     setBazaars([newBazaar]);
   };
