@@ -1,4 +1,3 @@
-//This is for merging purposes
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
@@ -227,7 +226,30 @@ const Groups = () => {
             <div className="mt-4">
               <h4 className="text-md font-semibold">Create Group</h4>
               <input type="text" className="input input-bordered w-full mt-1" placeholder="Group Name" value={groupName} onChange={(e) => setGroupName(e.target.value)} />
-              <input type="number" className="input input-bordered w-full mt-2" placeholder="Number of Groups" value={groupCount} onChange={(e) => setGroupCount(Math.max(1, e.target.value))} />
+              <input
+  type="number"
+  min="1"
+  step="1"
+  placeholder="Group Count"
+  className="input input-bordered w-full"
+  value={groupCount}
+  onChange={(e) => {
+    const value = e.target.value;
+
+    // Allow empty input for user typing but block negatives
+    if (value === '' || parseInt(value) >= 1) {
+      setGroupCount(value);
+    }
+  }}
+  onBlur={(e) => {
+    const value = parseInt(e.target.value);
+    // On blur (focus out), fix invalid values
+    if (isNaN(value) || value < 1) {
+      setGroupCount(1);
+    }
+  }}
+/>
+
               <button className="btn btn-primary mt-2" onClick={() => handleCreateGroup(gs._id)}>Create</button>
             </div>
           )}
