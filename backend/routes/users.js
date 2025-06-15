@@ -109,7 +109,7 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
 });
 
 
- router.get('/users/students', ensureAuthenticated, async (req, res) => {
+ router.get('/students', ensureAuthenticated, async (req, res) => {
   const { classroomId } = req.query;
 
   if (!classroomId || !req.user.classrooms.includes(classroomId)) {
@@ -124,7 +124,7 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
  });
 
 
- router.get('/users/all', ensureAuthenticated, async (req, res) => {
+ router.get('/all', ensureAuthenticated, async (req, res) => {
    if (!['teacher', 'admin'].includes(req.user.role)) {
      return res.status(403).json({ error: 'Forbidden' });
    }
@@ -144,7 +144,7 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
  });
 
 // Get user balance
-router.get('/users/:id', ensureAuthenticated, async (req, res) => {
+router.get('/:id', ensureAuthenticated, async (req, res) => {
   try {
     const user = await User.findById(req.params.id).select('balance email');
     if (!user) return res.status(404).json({ error: 'User not found' });

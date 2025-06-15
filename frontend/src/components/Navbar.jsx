@@ -1,11 +1,12 @@
-
-import React, { useContext } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useContext } from 'react';
+import { AuthContext } from '../context/AuthContext';
 import { ThemeContext } from '../context/ThemeContext';
+
 
 const Navbar = () => {
   const location = useLocation();
-
+  const { user } = useContext(AuthContext);
   // Will match /classroom/:id path with all the nested paths ( /bazaar, /groups, /wallet)
   const classroomMatch = location.pathname.match(/^\/classroom\/([^\/]+)/);
   const classroomId = classroomMatch ? classroomMatch[1] : null;
@@ -17,7 +18,7 @@ const Navbar = () => {
   return (
     <nav
       data-theme={theme}
-      className='fixed top-0 left-0 right-0 z-50 bg-base-100 text-base-content shadow-md px-6 py-4 bg-black bg-opacity-20 backdrop-blur-md'
+      className='fixed top-0 left-0 right-0 z-50 bg-base-100 text-base-content shadow-md px-6 py-4 bg-opacity-20 backdrop-blur-md'
     >
       <div className='container mx-auto flex items-center justify-between'>
         <div className='text-2xl font-bold'>
@@ -41,6 +42,14 @@ const Navbar = () => {
                   className={`hover:text-gray-300 ${location.pathname === '/classrooms' ? 'text-green-500' : ''}`}
                 >
                   Classrooms
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to={`/profile/${user._id}`}
+                  className={`hover:text-gray-300 ${location.pathname === `/profile/${user._id}` ? 'text-green-500' : ''}`}
+                >
+                  Profile
                 </Link>
               </li>
             </>
@@ -101,6 +110,14 @@ const Navbar = () => {
                   className={`hover:text-gray-300 ${location.pathname === '/leaderboard' ? 'text-green-500' : ''}`}
                 >
                   Leaderboard
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to={`/profile/${user._id}`}
+                  className={`hover:text-gray-300 ${location.pathname === `/profile/${user._id}` ? 'text-green-500' : ''}`}
+                >
+                  Profile
                 </Link>
               </li>
             </>
