@@ -59,7 +59,7 @@ const Home = () => {
     }
 
     try {
-      const response = await axios.post('/api/update-profile', {
+      const response = await axios.post('/api/users/update-profile', {
         role,
         firstName,
         lastName,
