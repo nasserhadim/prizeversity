@@ -2,7 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import { Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import { saveAs } from 'file-saver';
+import * as XLSX from 'xlsx';
+
+
+
+
 
 const People = () => {
   const { id: classroomId } = useParams();
@@ -59,9 +65,59 @@ const People = () => {
       const nameB = (b.firstName || b.name || '').toLowerCase();
       return nameA.localeCompare(nameB);
     }
+    
     return 0;
   });
 
+const handleExcelUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      const data = new Uint8Array(evt.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+      try {
+  await axios.post(
+    '/api/users/bulk-upload',
+    { classroomId, users: jsonData },      // ← outer classroomId from useParams()
+    { withCredentials: true }
+  );
+  toast.success('Users uploaded successfully');
+  fetchStudents();                         // refresh the list
+} catch (err) {
+  toast.error(err.response?.data?.error || 'Failed to upload users');
+}
+
+    };
+
+    reader.readAsArrayBuffer(file);
+
+};
+
+const handleExportToExcel = () => {
+  const dataToExport = filteredStudents.map((student) => ({
+    Name: `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.name || student.email,
+    Email: student.email,
+    Balance: student.balance?.toFixed(2) || '0.00',
+    Role: student.role,
+    Classes: student.classrooms?.map((c) => c.name).join(', ') || 'N/A',
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'People');
+  console.log('Exporting rows:', dataToExport.length, dataToExport[0]);
+
+
+  const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([excelBuffer], { type: 'application/octet-stream' });
+  saveAs(blob, 'people.xlsx');
+};
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -87,13 +143,33 @@ const People = () => {
         <div>
           {/* Search + Sort Controls */}
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+  {/* Search input stays on the left */}
+          <input
+            type="text"
+            placeholder="Search by name or email..."
+            className="input input-bordered w-full md:w-1/2"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+
+          {/* Export + Sort go together on the right */}
+          <div className="flex gap-2 items-center">
+           {user?.role === 'teacher' && (
             <input
-              type="text"
-              placeholder="Search by name or email..."
-              className="input input-bordered w-full md:w-1/2"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              type="file"
+              accept=".xlsx, .xls"
+              className="file-input file-input-sm"
+              onChange={handleExcelUpload}
             />
+          )}
+
+          <button
+            className="btn btn-sm btn-accent"
+            onClick={handleExportToExcel}
+          >
+            Export to Excel
+          </button>
+
 
             <select
               className="select select-bordered"
@@ -105,6 +181,8 @@ const People = () => {
               <option value="nameAsc">Name (A → Z)</option>
             </select>
           </div>
+        </div>
+
 
           <div className="space-y-2">
             {filteredStudents.length === 0 ? (
@@ -136,28 +214,45 @@ const People = () => {
                       >
                         View Profile
                       </button>
-                      {user?.role === 'teacher' && student.role === 'student' && (
-                        <button
-                          className="btn btn-sm btn-secondary"
-                          onClick={async () => {
-                            try {
-                              await axios.post(
-                                `/api/users/${student._id}/make-admin`,
-                                {},
-                                { withCredentials: true }
-                              );
-                              alert('Student promoted to admin');
-                              fetchStudents(); // Refresh list
-                            } catch (err) {
-                              console.error('Failed to promote student', err);
-                              alert('Error promoting student');
-                            }
-                          }}
-                        >
-                          Make Admin
-                        </button>
-                      )}
-                    </div>
+                        {user?.role === 'teacher' && student.role === 'student' && (
+                    <button
+                      className="btn btn-sm btn-secondary"
+                      onClick={async () => {
+                        try {
+                          await axios.post(`/api/users/${student._id}/make-admin`);
+                          toast.success('Student promoted to admin');
+                          fetchStudents();
+                        } catch (err) {
+                          toast.error(err.response?.data?.error || 'Error promoting student');
+                        }
+                      }}
+                    >
+                      Make Admin
+                    </button>
+                  )}
+
+                  {user?.role === 'teacher' && student.role === 'admin' && (
+                  <button
+                    className="btn btn-sm btn-warning"
+                    onClick={async () => {
+                      try {
+                        await axios.post(
+                          `/api/users/${student._id}/demote-admin`,
+                          {},
+                          { withCredentials: true }
+                        );
+                        toast.success('Admin demoted to student');
+                        fetchStudents();                 // refresh list
+                      } catch (err) {
+                        toast.error(err.response?.data?.error || 'Error demoting admin');
+                      }
+                    }}
+                  >
+                    Demote to Student
+                  </button>
+                )}
+                </div>
+
                   </div>
                 </div>
               ))

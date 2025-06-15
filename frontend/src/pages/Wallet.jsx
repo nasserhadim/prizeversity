@@ -4,10 +4,11 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext'; // Don't forget this!
 import BulkBalanceEditor from '../components/BulkBalanceEditor';
 import TransactionList   from '../components/TransactionList';
-
+import { useParams } from 'react-router-dom';
 
 const Wallet = () => {
   const { user } = useAuth();
+  const { id: classroomId } = useParams();
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState([]);
 
@@ -25,10 +26,15 @@ const Wallet = () => {
   const [studentFilter, setStudentFilter] = useState('');  
   const [studentList, setStudentList] = useState([]);
 
+
 const fetchUsers = async () => {
   try {
-    const res = await axios.get('/api/users/all', { withCredentials: true });
+    const res = await axios.get(
+      `/api/users/all?classroomId=${classroomId}`,
+      { withCredentials: true }
+    );
     setStudentList(res.data);
+
   } catch (err) {
     if (err.response) {
      
