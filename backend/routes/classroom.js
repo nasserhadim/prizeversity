@@ -280,28 +280,28 @@ router.delete('/:id/students/:studentId', ensureAuthenticated, async (req, res) 
   }
 });
 
-router.get('/:classId/leaderboard', async (req, res) => {
-  try {
-    const classId = req.params.classId;
-    const userId  = req.user._id;   
+// router.get('/:classId/leaderboard', async (req, res) => {
+//   try {
+//     const classId = req.params.classId;
+//     const userId  = req.user._id;   
 
-    // ensures the user is in this class
-    const me = await User.findById(userId);
-    if (!me.classrooms.includes(classId)) {
-      return res.status(403).json({ error: 'Not enrolled in this class' });
-    }
+//     // ensures the user is in this class
+//     const me = await User.findById(userId);
+//     if (!me.classrooms.includes(classId)) {
+//       return res.status(403).json({ error: 'Not enrolled in this class' });
+//     }
 
-    // fetch and sort classmates by bits
-    const leaderboard = await User.find({ classrooms: classId })
-      .select('email balance')
-      .sort({ balance: -1 })
-      .limit(50);
+//     // fetch and sort classmates by bits
+//     const leaderboard = await User.find({ classrooms: classId })
+//       .select('email balance')
+//       .sort({ balance: -1 })
+//       .limit(50);
 
-    res.json(leaderboard);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
+//     res.json(leaderboard);
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ error: 'Server error' });
+//   }
+// });
 
 module.exports = router;
