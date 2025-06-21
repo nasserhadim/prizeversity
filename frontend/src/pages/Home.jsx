@@ -18,6 +18,10 @@ const Home = () => {
   const [classroomName, setClassroomName] = useState('');
   const [classroomCode, setClassroomCode] = useState('');
   const [joinClassroomCode, setJoinClassroomCode] = useState('');
+  useEffect(() => {
+    if (user?.firstName) setFirstName(user.firstName);
+    if (user?.lastName) setLastName(user.lastName);
+  }, [user]);
 
   const navigate = useNavigate();
 
@@ -138,6 +142,11 @@ const Home = () => {
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
+      {user && firstName && lastName && (
+        <div className="text-xl font-semibold mb-4 text-center">
+          Welcome, {firstName} {lastName}!
+        </div>
+      )}
       <h1 className="text-3xl font-bold text-center text-green-500">
         Welcome to Prizeversity
       </h1>
@@ -273,18 +282,13 @@ const Home = () => {
         </div>
       ) : (
         <>
-          <p className="text-lg text-center">
-            Welcome, <span className="font-semibold">{user.firstName} {user.lastName}</span>
-          </p>
+
 
           <div className="text-center mt-6">
             <p>Use the “Classrooms” menu to access your dashboard.</p>
           </div>
 
           <div className="text-right">
-            <button className="btn btn-outline btn-error" onClick={logout}>
-              Logout
-            </button>
           </div>
         </>
       )}

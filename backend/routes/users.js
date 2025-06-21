@@ -5,7 +5,17 @@ const User = require('../models/User');
 const Classroom = require('../models/Classroom');
 
 
+router.delete('/:id', async (req, res) => {
+  try {
+    await User.findByIdAndDelete(req.params.id);
+    res.json({ message: 'User deleted' });
+  } catch (err) {
+    console.error('Delete failed:', err);
+    res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
 
+module.exports = router;
 
 
 

@@ -2,18 +2,24 @@ import { Link, useLocation } from 'react-router-dom';
 import { useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { ThemeContext } from '../context/ThemeContext';
-
+import {
+  Home,
+  School,
+  Briefcase,
+  Users,
+  Wallet,
+  UserRound,
+  Trophy
+} from 'lucide-react';
 
 const Navbar = () => {
   const location = useLocation();
-  const { user } = useContext(AuthContext);
-  // Will match /classroom/:id path with all the nested paths ( /bazaar, /groups, /wallet)
+  const { user, logout } = useContext(AuthContext);
+  const { theme, toggleTheme } = useContext(ThemeContext);
+
   const classroomMatch = location.pathname.match(/^\/classroom\/([^\/]+)/);
   const classroomId = classroomMatch ? classroomMatch[1] : null;
   const insideClassroom = Boolean(classroomId);
-
-  // ← Add the theme hook here:
-  const { theme, toggleTheme } = useContext(ThemeContext);
 
   return (
     <nav
@@ -23,33 +29,27 @@ const Navbar = () => {
       <div className='container mx-auto flex items-center justify-between'>
         <div className='text-2xl font-bold'>
           <Link to='/'>Prizeversity</Link>
-
         </div>
+
         <ul className='flex space-x-6 text-lg mr-5'>
           {!insideClassroom && (
             <>
               <li>
                 <Link
-                  to='/'
-                  className={`hover:text-gray-300 ${location.pathname === '/' ? 'text-green-500' : ''}`}
+                  to="/"
+                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname === '/' ? 'text-green-500' : ''}`}
+                  title="Home"
                 >
-                  Home
+                  <Home size={18} /> <span className="hidden sm:inline">Home</span>
                 </Link>
               </li>
               <li>
                 <Link
-                  to='/classrooms'
-                  className={`hover:text-gray-300 ${location.pathname === '/classrooms' ? 'text-green-500' : ''}`}
+                  to="/classrooms"
+                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname === '/classrooms' ? 'text-green-500' : ''}`}
+                  title="Classrooms"
                 >
-                  Classrooms
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to={`/profile/${user._id}`}
-                  className={`hover:text-gray-300 ${location.pathname === `/profile/${user._id}` ? 'text-green-500' : ''}`}
-                >
-                  Profile
+                  <School size={18} /> <span className="hidden sm:inline">Classrooms</span>
                 </Link>
               </li>
             </>
@@ -58,79 +58,77 @@ const Navbar = () => {
             <>
               <li>
                 <Link
-                  to='/'
-                  className={`hover:text-gray-300 ${location.pathname === '/' ? 'text-green-500' : ''}`}
-                >
-                  Home
-                </Link>
-              </li>
-              <li>
-                <Link
                   to={`/classroom/${classroomId}`}
-                  className={`hover:text-gray-300 ${location.pathname === `/classroom/${classroomId}` ? 'text-green-500' : ''}`}
+                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname === `/classroom/${classroomId}` ? 'text-green-500' : ''}`}
+                  title="Classroom"
                 >
-                  Classroom
+                  <School size={18} /> <span className="hidden sm:inline">Classroom</span>
                 </Link>
               </li>
               <li>
                 <Link
                   to={`/classroom/${classroomId}/bazaar`}
-                  className={`hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/bazaar`) ? 'text-green-500' : ''}`}
+                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/bazaar`) ? 'text-green-500' : ''}`}
+                  title="Bazaar"
                 >
-                  Bazaar
+                  <Briefcase size={18} /> <span className="hidden sm:inline">Bazaar</span>
                 </Link>
               </li>
               <li>
                 <Link
                   to={`/classroom/${classroomId}/groups`}
-                  className={`hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/groups`) ? 'text-green-500' : ''}`}
+                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/groups`) ? 'text-green-500' : ''}`}
+                  title="Groups"
                 >
-                  Groups
+                  <Users size={18} /> <span className="hidden sm:inline">Groups</span>
                 </Link>
               </li>
               <li>
                 <Link
                   to={`/classroom/${classroomId}/wallet`}
-                  className={`hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/wallet`) ? 'text-green-500' : ''}`}
+                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/wallet`) ? 'text-green-500' : ''}`}
+                  title="Wallet"
                 >
-                  Wallet
+                  <Wallet size={18} /> <span className="hidden sm:inline">Wallet</span>
                 </Link>
               </li>
               <li>
                 <Link
                   to={`/classroom/${classroomId}/people`}
-                  className={`hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/people`) ? 'text-green-500' : ''}`}
+                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/people`) ? 'text-green-500' : ''}`}
+                  title="People"
                 >
-                  People
+                  <UserRound size={18} /> <span className="hidden sm:inline">People</span>
                 </Link>
               </li>
               <li>
                 <Link
                   to={`/classroom/${classroomId}/leaderboard`}
-                  className={`hover:text-gray-300 ${location.pathname === '/leaderboard' ? 'text-green-500' : ''}`}
+                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname === '/leaderboard' ? 'text-green-500' : ''}`}
+                  title="Leaderboard"
                 >
-                  Leaderboard
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to={`/profile/${user._id}`}
-                  className={`hover:text-gray-300 ${location.pathname === `/profile/${user._id}` ? 'text-green-500' : ''}`}
-                >
-                  Profile
+                  <Trophy size={18} /> <span className="hidden sm:inline">Leaderboard</span>
                 </Link>
               </li>
             </>
           )}
         </ul>
 
-        {/*Insert the theme toggle button here */}
-        <button
-          onClick={toggleTheme}
-          className='ml-4 btn btn-sm'
-        >
-          {theme === 'light' ? 'Dark Mode' : 'Light Mode'}
-        </button>
+        {user && (
+          <div className="dropdown dropdown-end">
+            <div tabIndex={0} role="button" className="btn btn-ghost btn-circle avatar">
+              <div className="w-10 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2">
+                <img alt="User avatar" src="/default-profile.png" />
+              </div>
+            </div>
+            <ul tabIndex={0} className="mt-3 z-[1] p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-52">
+              <li><Link to={`/profile/${user._id}`}>Profile</Link></li>
+              <li><Link to="/settings">Settings</Link></li>
+              <li><Link to="/support">Help & Support</Link></li>
+              <li><button onClick={logout}>Logout</button></li>
+            </ul>
+          </div>
+        )}
       </div>
     </nav>
   );
