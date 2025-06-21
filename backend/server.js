@@ -15,6 +15,7 @@ const notificationsRoutes = require('./routes/notifications');
 const adminRoutes = require('./routes/admin'); 
 const usersRoutes =  require('./routes/users');
 const profileRoutes = require('./routes/profile');
+const leaderboardRoutes = require('./routes/leaderboard');
 require('dotenv').config();
 
 const app = express();
@@ -64,6 +65,7 @@ app.use('/api/notifications', notificationsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/users', usersRoutes);
+app.use('/api/leaderboard', leaderboardRoutes);
 
 // Root Route
 app.get('/', (req, res) => {

@@ -11,7 +11,7 @@ const UserSchema = new mongoose.Schema({
   googleId: { type: String },
   microsoftId: { type: String },
   email: { type: String, required: true },
-  avatar: {type: String},
+  avatar: {type: String, default: 'placeholder.jpg'},
   firstName: { type: String},
   lastName: { type: String},
   role: { type: String, enum: ['admin', 'teacher', 'student']/*, default: 'student' */},

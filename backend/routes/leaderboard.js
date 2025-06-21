@@ -5,7 +5,7 @@ const User = require('../models/User');
 const Classroom = require('../models/Classroom');
 const router = express.Router();
 
-router.get('/:classroomId/leaderboard', ensureAuthenticated, async (req, res) => {
+router.get('/:classroomId/leaderboard', async (req, res) => {
   try {
     const classroomId = req.params.classroomId;
 
