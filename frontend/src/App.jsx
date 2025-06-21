@@ -12,6 +12,7 @@ import Profile from './pages/Profile';
 import { AuthContext } from './context/AuthContext';
 import { joinUserRoom } from './utils/socket';
 import Leaderboard from './pages/Leaderboard';
+import Settings from './pages/Settings';
 
 import ClassroomPage from './pages/ClassroomPage';
 
@@ -30,7 +31,7 @@ const App = () => {
     // Added the navigation bar and notification bell in App.jsx 
     // This way we removed redundancy to call it in each page.
     // This method will prevent for navigation and the bell to show in the login page (meaning without a user being logged in)
-    <div>
+    <div style={{ paddingTop: '5rem' }}>
       {user && <Navbar />}
       {user && <NotificationBell />}
 
@@ -42,11 +43,12 @@ const App = () => {
         <Route path="/classroom/:id/wallet" element={<Wallet />} />
         <Route path="/classroom/:id/groups" element={<Groups />} />
         <Route path="/classroom/:id/people" element={<People />} />
-        <Route path="/classroom/:classId/leaderboard" element={<Leaderboard />} />
-        <Route path="/profile/:id" element={<Profile/>} />
+        <Route path="/classroom/:id/leaderboard" element={<Leaderboard />} />
+        <Route path="/profile/:id" element={<Profile />} />
+        <Route path="/settings" element={<Settings />} />
       </Routes>
     </div>
   );
 };
 
-export default App;
+export default App;
