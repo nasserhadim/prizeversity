@@ -668,6 +668,36 @@ router.post('/groupset/:groupSetId/group/:groupId/reject', ensureAuthenticated, 
   }
 });
 
+exports.updateMemberStatus = async (req, res) => {
+  const { groupSetId, groupId } = req.params;
+  const { memberIds, status } = req.body;
+
+  if (!['approved', 'rejected', 'suspended'].includes(status)) {
+    return res.status(400).json({ message: 'Invalid status value' });
+  }
+
+  try {
+    const groupSet = await GroupSet.findById(groupSetId);
+    if (!groupSet) return res.status(404).json({ message: 'GroupSet not found' });
+
+    const group = groupSet.groups.id(groupId);
+    if (!group) return res.status(404).json({ message: 'Group not found' });
+
+    group.members.forEach(member => {
+      if (memberIds.includes(member._id.toString())) {
+        member.status = status;
+      }
+    });
+
+    await groupSet.save();
+    return res.status(200).json({ message: `Members updated to '${status}'` });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
+
 // Join Classroom
 router.post('/join', ensureAuthenticated, async (req, res) => {
   const { code } = req.body;
