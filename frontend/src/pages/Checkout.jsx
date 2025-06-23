@@ -10,8 +10,7 @@ const Checkout = () => {
     const { user } = useAuth();
     const [balance, setBalance] = useState(0);
 
-    useEffect(() => {
-        const fetchBalance = async () => {
+    const fetchBalance = async () => {
             try {
                 const response = await apiBazaar.get(`/user/${user._id}/balance`);
                 setBalance(response.data.balance);
@@ -20,6 +19,8 @@ const Checkout = () => {
             }
         };
 
+    useEffect(() => {
+        
         if (user?._id) {
             fetchBalance();
         }
@@ -33,8 +34,7 @@ const Checkout = () => {
             });
 
             if (response.status === 200) {
-                const newBalance = user.balance - getTotal();
-                user.balance = newBalance;
+                await fetchBalance();
                 clearCart();
                 alert('Purchase complete!');
                 navigate(-1);
