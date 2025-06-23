@@ -1,728 +1,531 @@
-const express = require('express');
-const GroupSet = require('../models/GroupSet');
-const Group = require('../models/Group');
-const Notification = require('../models/Notification'); // Add this line
-const { ensureAuthenticated } = require('../config/auth');
-const router = express.Router();
-const io = require('socket.io')(); // Add this line
-const { populateNotification } = require('../utils/notifications'); // Add this line
 
-// Create GroupSet
-router.post('/groupset/create', ensureAuthenticated, async (req, res) => {
-  const { name, classroomId, selfSignup, joinApproval, maxMembers, image } = req.body;
+import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
+import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
+import socket from '../utils/socket';
+import toast from 'react-hot-toast';
+
+const Groups = () => {
+  const { id } = useParams();
+  const { user } = useAuth();
+
+  const [groupSets, setGroupSets] = useState([]);
+  const [groupSetName, setGroupSetName] = useState('');
+  const [groupSetSelfSignup, setGroupSetSelfSignup] = useState(false);
+  const [groupSetJoinApproval, setGroupSetJoinApproval] = useState(false);
+  const [groupSetMaxMembers, setGroupSetMaxMembers] = useState('');
+  const [groupSetImage, setGroupSetImage] = useState('');
+  const [groupName, setGroupName] = useState('');
+  const [groupCount, setGroupCount] = useState(1);
+  const [memberSearches, setMemberSearches] = useState({});
+  const [memberFilters, setMemberFilters] = useState({});
+  const [memberSorts, setMemberSorts] = useState({});
+  const [selectedMembers, setSelectedMembers] = useState({});
+
+  useEffect(() => {
+    fetchGroupSets();
+    socket.emit('join', `classroom-${id}`);
+    return () => {
+      socket.off('group_update');
+      socket.off('groupset_update');
+    };
+  }, [id]);
+
+  const fetchGroupSets = async () => {
+    try {
+      const res = await axios.get(`/api/group/groupset/classroom/${id}`);
+      setGroupSets(res.data);
+    } catch (err) {
+      toast.error('Failed to fetch group sets');
+    }
+  };
+
+  const handleCreateGroup = async (groupSetId) => {
+    if (!groupName.trim()) return toast.error('Group name required');
+    if (groupCount < 1) return toast.error('Group count must be at least 1');
+    try {
+      await axios.post(`/api/group/groupset/${groupSetId}/group/create`, {
+        name: groupName,
+        count: groupCount,
+      });
+      fetchGroupSets();
+      setGroupName('');
+      setGroupCount(1);
+    } catch (err) {
+      toast.error('Failed to create group');
+    }
+  };
+
+  const [editingGroupSetId, setEditingGroupSetId] = useState(null);
   
-  if (!name || !name.trim()) {
-    return res.status(400).json({ error: 'GroupSet name is required' });
+  const handleEditGroupSet = (gs) => {
+  setEditingGroupSetId(gs._id);
+  setGroupSetName(gs.name);
+  setGroupSetSelfSignup(gs.selfSignup);
+  setGroupSetJoinApproval(gs.joinApproval);
+  setGroupSetMaxMembers(gs.maxMembers);
+  setGroupSetImage(gs.image);
+};
+
+// GROUP: Edit Group Name
+const handleEditGroup = async (groupSetId, groupId) => {
+  const newName = prompt('Enter new group name:');
+  if (!newName?.trim()) return toast.error('Group name cannot be empty');
+
+  try {
+    await axios.put(`/api/group/groupset/${groupSetId}/group/${groupId}`, {
+      name: newName.trim()
+    });
+    toast.success('Group updated');
+    fetchGroupSets();
+  } catch (err) {
+    toast.error('Failed to update group');
+  }
+};
+
+// GROUP: Delete Group
+const handleDeleteGroup = async (groupSetId, groupId) => {
+  if (!window.confirm('Are you sure you want to delete this group?')) return;
+
+  try {
+    await axios.delete(`/api/group/groupset/${groupSetId}/group/${groupId}`);
+    toast.success('Group deleted');
+    fetchGroupSets();
+  } catch (err) {
+    toast.error('Failed to delete group');
+  }
+};
+
+// GROUP: Join
+const handleJoinGroup = async (groupSetId, groupId) => {
+  const groupSet = groupSets.find(gs => gs._id === groupSetId);
+  const alreadyJoined = groupSet?.groups.some(group =>
+    group.members.some(m => m._id._id === user._id && m.status === 'approved')
+  );
+
+  if (user.role === 'student' && alreadyJoined) {
+    toast.error('Students can only join one group in this GroupSet');
+    return;
   }
 
   try {
-    // Check if groupset with same name exists in the classroom
-    const existingGroupSet = await GroupSet.findOne({ 
-      classroom: classroomId,
-      name: name.trim()
-    });
-    
-    if (existingGroupSet) {
-      return res.status(400).json({ error: 'A GroupSet with this name already exists in this classroom' });
-    }
-
-    if (maxMembers && maxMembers < 0) {
-      return res.status(400).json({ error: 'Max members cannot be a negative number' });
-    }
-
-    const groupSet = new GroupSet({ 
-      name: name.trim(), 
-      classroom: classroomId, 
-      selfSignup, 
-      joinApproval, 
-      maxMembers, 
-      image 
-    });
-    await groupSet.save();
-
-    const populatedGroupSet = await GroupSet.findById(groupSet._id)
-      .populate({
-        path: 'groups',
-        populate: {
-          path: 'members._id',
-          select: 'email'
-        }
-      });
-
-    // Emit to classroom channel
-    req.app.get('io').to(`classroom-${classroomId}`).emit('groupset_create', populatedGroupSet);
-    
-    res.status(201).json(groupSet);
+    await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/join`);
+    toast.success('Join request sent');
+    fetchGroupSets();
   } catch (err) {
-    res.status(500).json({ error: 'Failed to create group set' });
-  }
-});
-
-// Update GroupSet
-router.put('/groupset/:id', ensureAuthenticated, async (req, res) => {
-  const { name, selfSignup, joinApproval, maxMembers, image } = req.body;
-  try {
-    const groupSet = await GroupSet.findById(req.params.id)
-      .populate('groups')
-      .populate('classroom');
-    if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
-
-    const oldName = groupSet.name; // Store old name before changes
-    const changes = {};
-    if (groupSet.name !== name) changes.name = name;
-    if (groupSet.selfSignup !== selfSignup) changes.selfSignup = selfSignup;
-    if (groupSet.joinApproval !== joinApproval) changes.joinApproval = joinApproval;
-    if (groupSet.maxMembers !== maxMembers) changes.maxMembers = maxMembers;
-    if (groupSet.image !== image) changes.image = image;
-
-    if (Object.keys(changes).length === 0) {
-      return res.status(400).json({ message: 'No changes were made' });
-    }
-
-    Object.assign(groupSet, changes);
-    await groupSet.save();
-
-    // Get all unique members across all groups
-    const memberIds = new Set();
-    groupSet.groups.forEach(group => {
-      group.members.forEach(member => {
-        memberIds.add(member._id._id.toString());
-      });
-    });
-
-    // Send notifications for name change
-    if (changes.name) {
-      for (const memberId of memberIds) {
-        const notification = await Notification.create({
-          user: memberId,
-          type: 'groupset_update',
-          message: `GroupSet "${oldName}" has been renamed to "${name}"`,
-          classroom: groupSet.classroom._id,
-          groupSet: groupSet._id,
-          actionBy: req.user._id
-        });
-
-        const populatedNotification = await populateNotification(notification._id);
-        req.app.get('io').to(`user-${memberId}`).emit('notification', populatedNotification);
-      }
-    }
-
-    // Always emit the groupset update event to all classroom members
-    const populatedGroupSet = await GroupSet.findById(groupSet._id)
-      .populate({
-        path: 'groups',
-        populate: {
-          path: 'members._id',
-          select: 'email'
-        }
-      });
-    
-    req.app.get('io').to(`classroom-${groupSet.classroom._id}`).emit('groupset_update', populatedGroupSet);
-
-    res.status(200).json(groupSet);
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to update group set' });
-  }
-});
-
-// Delete GroupSet
-router.delete('/groupset/:id', ensureAuthenticated, async (req, res) => {
-  try {
-    const groupSet = await GroupSet.findById(req.params.id)
-      .populate('groups')
-      .populate('classroom');
-    if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
-
-    // Get all unique members across all groups
-    const memberIds = new Set();
-    groupSet.groups.forEach(group => {
-      group.members.forEach(member => {
-        memberIds.add(member._id._id.toString());
-      });
-    });
-
-    // Create notifications for all members
-    for (const memberId of memberIds) {
-      const notification = await Notification.create({
-        user: memberId,
-        type: 'groupset_deletion',
-        message: `GroupSet "${groupSet.name}" has been deleted`,
-        classroom: groupSet.classroom._id,
-        actionBy: req.user._id
-      });
-    
-      const populatedNotification = await populateNotification(notification._id);
-      req.app.get('io').to(`user-${memberId}`).emit('notification', populatedNotification);
-    }
-
-    await GroupSet.deleteOne({ _id: req.params.id });
-
-    // Emit deletion event to all classroom members
-    req.app.get('io').to(`classroom-${groupSet.classroom._id}`).emit('groupset_delete', groupSet._id);
-
-    res.status(200).json({ message: 'GroupSet deleted successfully' });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to delete group set' });
-  }
-});
-
-// Fetch GroupSets for Classroom
-router.get('/groupset/classroom/:classroomId', ensureAuthenticated, async (req, res) => {
-  try {
-    const groupSets = await GroupSet.find({ classroom: req.params.classroomId })
-      .populate({
-        path: 'groups',
-        populate: {
-          path: 'members._id',
-          select: 'email'
-        }
-      });
-    res.status(200).json(groupSets);
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch group sets' });
-  }
-});
-
-// Create Group within GroupSet
-router.post('/groupset/:groupSetId/group/create', ensureAuthenticated, async (req, res) => {
-  const { name, count } = req.body;
-
-  if (!name.trim()) {
-    return res.status(400).json({ error: 'Group name is required' });
-  }
-  if (!count || count < 1) {
-    return res.status(400).json({ error: 'Group count must be at least 1' });
-  }
-
-  try {
-    const groupSet = await GroupSet.findById(req.params.groupSetId).populate('groups');
-    if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
-
-    // Collect all current group names in this group set
-    const existingNames = new Set(groupSet.groups.map(g => g.name.toLowerCase()));
-
-    const newGroups = [];
-    for (let i = 0; i < count; i++) {
-      const newName = `${name} ${i + 1}`;
-      if (existingNames.has(newName.toLowerCase())) {
-        return res.status(400).json({ error: `Group name "${newName}" already exists in this group set.` });
-      }
-
-      const newGroup = new Group({
-        name: newName,
-        maxMembers: groupSet.maxMembers,
-      });
-
-      await newGroup.save();
-      groupSet.groups.push(newGroup._id);
-      newGroups.push(newGroup);
-      existingNames.add(newName.toLowerCase()); // prevent duplicate in-loop
-    }
-
-    await groupSet.save();
-
-    const populatedGroupSet = await GroupSet.findById(groupSet._id)
-      .populate({
-        path: 'groups',
-        populate: {
-          path: 'members._id',
-          select: 'email'
-        }
-      });
-
-    req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('groupset_update', populatedGroupSet);
-
-    res.status(201).json(newGroups);
-  } catch (err) {
-    console.error('Group creation error:', err);
-    res.status(500).json({ error: 'Failed to create groups' });
-  }
-});
-
-// Join Group within GroupSet
-router.post('/groupset/:groupSetId/group/:groupId/join', ensureAuthenticated, async (req, res) => {
-  try {
-    const groupSet = await GroupSet.findById(req.params.groupSetId).populate('groups');
-    if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
-
-    const group = await Group.findById(req.params.groupId);
-    if (!group) return res.status(404).json({ error: 'Group not found' });
-
-    // Check member capacity before allowing join request
-    const currentApprovedCount = group.members.filter(m => m.status === 'approved').length;
-    const maxMembers = group.maxMembers || groupSet.maxMembers;
-    
-    if (maxMembers && currentApprovedCount >= maxMembers) {
-      return res.status(400).json({ 
-        error: `This group "${group.name}" has reached its maximum capacity of ${maxMembers} members.` 
-      });
-    }
-
-    // Check for existing pending requests in this GroupSet
-    const hasPendingRequest = groupSet.groups.some(g => 
-      g.members.some(member => 
-        member._id.equals(req.user._id) && member.status === 'pending'
-      )
-    );
-
-    if (hasPendingRequest) {
-      const pendingGroup = groupSet.groups.find(g => 
-        g.members.some(member => 
-          member._id.equals(req.user._id) && member.status === 'pending'
-        )
-      );
-      return res.status(400).json({ 
-        error: `Your request to join group "${pendingGroup.name}" is pending approval.` 
-      });
-    }
-
-    // Check for existing pending request for this specific group
-    const hasPendingRequestForGroup = group.members.some(member => 
-      member._id.equals(req.user._id) && member.status === 'pending'
-    );
-    if (hasPendingRequestForGroup) {
-      return res.status(400).json({ 
-        error: `You've already submitted a request to join this group "${group.name}".`
-      });
-    }
-
-    // Remove any previous rejected status before adding new request
-    group.members = group.members.filter(member => 
-      !(member._id.equals(req.user._id) && member.status === 'rejected')
-    );
-
-    const status = groupSet.joinApproval ? 'pending' : 'approved';
-    
-    // For direct joins (no approval required), do an additional capacity check
-    if (!groupSet.joinApproval && currentApprovedCount >= maxMembers) {
-      return res.status(400).json({ 
-        error: `This group "${group.name}" has reached its maximum capacity of ${maxMembers} members.` 
-      });
-    }
-
-    group.members.push({ 
-      _id: req.user._id, 
-      joinDate: new Date(),
-      status 
-    });
-    await group.save();
-
-    // Emit group update immediately
-    const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email');
-
-    req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
-      groupSet: groupSet._id, 
-      group: populatedGroup
-    });
-
-    res.status(200).json({ 
-      message: groupSet.joinApproval ? 
-        'Join request submitted. Awaiting teacher approval.' : 
-        'Joined group successfully!'
-    });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to join group' });
-  }
-});
-
-// Update Group
-router.put('/groupset/:groupSetId/group/:groupId', ensureAuthenticated, async (req, res) => {
-  const { name, image, maxMembers } = req.body;
-  try {
-    const group = await Group.findById(req.params.groupId);
-    if (!group) return res.status(404).json({ error: 'Group not found' });
-
-    const groupSet = await GroupSet.findById(req.params.groupSetId);
-    if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
-
-    const oldName = group.name; // Store old name before changes
-    const changes = {};
-    if (group.name !== name) changes.name = name;
-    if (group.image !== image) changes.image = image;
-    if (group.maxMembers !== maxMembers) changes.maxMembers = maxMembers;
-
-    if (Object.keys(changes).length === 0) {
-      return res.status(400).json({ message: 'No changes were made' });
-    }
-
-    Object.assign(group, changes);
-    await group.save();
-
-    // Send notifications for name change
-    if (changes.name) {
-      for (const member of group.members) {
-        const notification = await Notification.create({
-          user: member._id._id,
-          type: 'group_update',
-          message: `Group "${oldName}" has been renamed to "${name}"`,
-          classroom: groupSet.classroom,
-          groupSet: groupSet._id,
-          group: group._id,
-          actionBy: req.user._id
-        });
-
-        const populatedNotification = await populateNotification(notification._id);
-        req.app.get('io').to(`user-${member._id._id}`).emit('notification', populatedNotification);
-      }
-    }
-
-    // Always emit the group update event with populated data
-    const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email');
-
-    req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
-      groupSet: groupSet._id, 
-      group: populatedGroup
-    });
-
-    res.status(200).json(group);
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to update group' });
-  }
-});
-
-// Delete Group
-router.delete('/groupset/:groupSetId/group/:groupId', ensureAuthenticated, async (req, res) => {
-  try {
-    const group = await Group.findById(req.params.groupId);
-    if (!group) return res.status(404).json({ error: 'Group not found' });
-
-    const groupSet = await GroupSet.findById(req.params.groupSetId);
-    if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
-
-    for (const member of group.members) {
-      const notification = await Notification.create({
-        user: member._id._id,
-        type: 'group_deletion',
-        message: `Group "${group.name}" has been deleted`,
-        classroom: groupSet.classroom,
-        groupSet: groupSet._id,
-        actionBy: req.user._id
-      });
-    
-      const populatedNotification = await populateNotification(notification._id);
-      req.app.get('io').to(`user-${member._id._id}`).emit('notification', populatedNotification);
-    }
-
-    await Group.deleteOne({ _id: req.params.groupId });
-    groupSet.groups = groupSet.groups.filter(groupId => groupId.toString() !== req.params.groupId);
-    await groupSet.save();
-
-    // Emit group deletion event to all classroom members
-    req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_delete', {
-      groupSetId: groupSet._id,
-      groupId: req.params.groupId
-    });
-
-    res.status(200).json({ message: 'Group deleted successfully' });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to delete group' });
-  }
-});
-
-// Suspend Members from Group
-router.post('/groupset/:groupSetId/group/:groupId/suspend', ensureAuthenticated, async (req, res) => {
-  const { memberIds } = req.body;
-  
-  if (!memberIds || memberIds.length === 0) {
-    return res.status(400).json({ message: 'No members selected for suspension' });
-  }
-
-  try {
-    const group = await Group.findById(req.params.groupId);
-    if (!group) return res.status(404).json({ error: 'Group not found' });
-
-    const initialMemberCount = group.members.length;
-    group.members = group.members.filter(member => 
-      !memberIds.includes(member._id.toString()) || member.status === 'pending'
-    );
-    
-    if (group.members.length === initialMemberCount) {
-      return res.status(400).json({ message: 'No members were suspended' });
-    }
-
-    const groupSet = await GroupSet.findById(req.params.groupSetId);
-    if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
-
-    for (const memberId of memberIds) {
-      const notification = await Notification.create({
-        user: memberId,
-        type: 'group_suspension',
-        message: `You have been suspended from group "${group.name}"`,
-        classroom: groupSet.classroom,
-        groupSet: groupSet._id,
-        group: group._id,
-        actionBy: req.user._id
-      });
-    
-      const populatedNotification = await populateNotification(notification._id);
-      req.app.get('io').to(`user-${memberId}`).emit('notification', populatedNotification);
-    }
-
-    await group.save();
-
-    // After successful member status change (approve/reject/suspend)
-    const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email');
-
-    req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
-      groupSet: groupSet._id, 
-      group: populatedGroup
-    });
-
-    res.status(200).json({ message: 'Members suspended successfully' });
-  } catch (err) {
-    console.error('Suspension error:', err);
-    res.status(500).json({ error: 'Failed to suspend members' });
-  }
-});
-
-// Leave Group within GroupSet
-router.post('/groupset/:groupSetId/group/:groupId/leave', ensureAuthenticated, async (req, res) => {
-  try {
-    const group = await Group.findById(req.params.groupId);
-    if (!group) return res.status(404).json({ error: 'Group not found' });
-
-    const isMember = group.members.some(member => member._id.equals(req.user._id));
-    if (!isMember) return res.status(400).json({ message: "You're not a member of this group to leave it!" });
-
-    group.members = group.members.filter(member => !member._id.equals(req.user._id));
-    await group.save();
-    res.status(200).json({ message: 'Left group successfully' });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to leave group' });
-  }
-});
-
-// Approve Members to Group 
-router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated, async (req, res) => {
-  const { memberIds } = req.body;
-  
-  try {
-    const groupSet = await GroupSet.findById(req.params.groupSetId);
-    if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
-
-    const group = await Group.findById(req.params.groupId);
-    if (!group) return res.status(404).json({ error: 'Group not found' });
-
-    // Calculate current approved members count
-    const currentApprovedCount = group.members.filter(m => m.status === 'approved').length;
-
-    // Check if we have a member limit
-    const maxMembers = group.maxMembers || groupSet.maxMembers;
-    const remainingSlots = maxMembers ? maxMembers - currentApprovedCount : Infinity;
-
-    if (remainingSlots <= 0) {
-      return res.status(400).json({ message: 'Group is already at maximum capacity' });
-    }
-
-    // Sort members by join date to approve oldest requests first
-    const pendingMembers = memberIds
-      .map(id => group.members.find(m => m._id.toString() === id && m.status === 'pending'))
-      .filter(Boolean)
-      .sort((a, b) => a.joinDate - b.joinDate);
-
-    if (pendingMembers.length === 0) {
-      return res.status(400).json({ message: 'No pending members selected for approval.' });
-    }
-
-    // Track which members were approved and rejected
-    const approved = [];
-    const rejected = [];
-
-    // Process members up to the remaining slot limit
-    for (const member of pendingMembers) {
-      if (approved.length < remainingSlots) {
-        approved.push(member._id.toString());
-      } else {
-        rejected.push(member._id.toString());
-      }
-    }
-
-    // Update member statuses
-    group.members = group.members.map(member => {
-      if (approved.includes(member._id.toString())) {
-        return { ...member.toObject(), status: 'approved' };
-      }
-      if (rejected.includes(member._id.toString())) {
-        return { ...member.toObject(), status: 'rejected' };
-      }
-      return member;
-    });
-
-    await group.save();
-
-    // Send notifications to approved members
-    for (const memberId of approved) {
-      const notification = await Notification.create({
-        user: memberId,
-        type: 'group_approval',
-        message: `Your request to join group "${group.name}" has been approved.`,
-        classroom: groupSet.classroom,
-        groupSet: groupSet._id,
-        group: group._id,
-        actionBy: req.user._id
-      });
-      
-      const populatedNotification = await populateNotification(notification._id);
-      req.app.get('io').to(`user-${memberId}`).emit('notification', populatedNotification);
-    }
-
-    // Send notifications to rejected members (due to capacity)
-    for (const memberId of rejected) {
-      const notification = await Notification.create({
-        user: memberId,
-        type: 'group_rejection',
-        message: `Your request to join group "${group.name}" was rejected due to group reaching maximum capacity.`,
-        classroom: groupSet.classroom,
-        groupSet: groupSet._id,
-        group: group._id,
-        actionBy: req.user._id
-      });
-      
-      const populatedNotification = await populateNotification(notification._id);
-      req.app.get('io').to(`user-${memberId}`).emit('notification', populatedNotification);
-    }
-
-    // After successful member status change
-    const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email');
-
-    // Emit update immediately
-    req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
-      groupSet: groupSet._id, 
-      group: populatedGroup
-    });
-
-    res.status(200).json({ 
-      message: `${approved.length} member(s) approved. ${rejected.length} member(s) rejected due to capacity limits.`,
-      approved,
-      rejected
-    });
-
-  } catch (err) {
-    console.error('Approval error:', err);
-    res.status(500).json({ error: 'Failed to approve members' });
-  }
-});
-
-// Reject Members from Group
-router.post('/groupset/:groupSetId/group/:groupId/reject', ensureAuthenticated, async (req, res) => {
-  const { memberIds } = req.body;
-
-  if (!memberIds || memberIds.length === 0) {
-    return res.status(400).json({ message: 'No selection with pending status made to perform this action.' });
-  }
-
-  try {
-    const group = await Group.findById(req.params.groupId);
-    if (!group) return res.status(404).json({ error: 'Group not found' });
-
-    const groupSet = await GroupSet.findById(req.params.groupSetId).populate('classroom');
-    if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
-
-    let rejectionCount = 0;
-    group.members = group.members.filter(member => {
-      if (memberIds.includes(member._id.toString()) && member.status === 'pending') {
-        rejectionCount++;
-        return false;  // Remove member
-      }
-      return true;  // Keep member
-    });
-
-    if (rejectionCount === 0) {
-      return res.status(400).json({ message: 'No pending members selected for rejection.' });
-    }
-
-    await group.save();
-
-    // Create notifications for rejected members
-    for (const memberId of memberIds) {
-      const notification = await Notification.create({
-        user: memberId,
-        type: 'group_rejection',
-        message: `Your request to join group "${group.name}" has been rejected.`,
-        classroom: groupSet.classroom._id,
-        groupSet: groupSet._id,
-        group: group._id,
-        actionBy: req.user._id
-      });
-      
-      const populatedNotification = await populateNotification(notification._id);
-      req.app.get('io').to(`user-${memberId}`).emit('notification', populatedNotification);
-    }
-
-    // After successful member status change (approve/reject/suspend)
-    const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email');
-
-    req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
-      groupSet: groupSet._id, 
-      group: populatedGroup
-    });
-
-    res.status(200).json({ message: 'Members rejected successfully' });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to reject members' });
-  }
-});
-
-exports.updateMemberStatus = async (req, res) => {
-  const { groupSetId, groupId } = req.params;
-  const { memberIds, status } = req.body;
-
-  if (!['approved', 'rejected', 'suspended'].includes(status)) {
-    return res.status(400).json({ message: 'Invalid status value' });
-  }
-
-  try {
-    const groupSet = await GroupSet.findById(groupSetId);
-    if (!groupSet) return res.status(404).json({ message: 'GroupSet not found' });
-
-    const group = groupSet.groups.id(groupId);
-    if (!group) return res.status(404).json({ message: 'Group not found' });
-
-    group.members.forEach(member => {
-      if (memberIds.includes(member._id.toString())) {
-        member.status = status;
-      }
-    });
-
-    await groupSet.save();
-    return res.status(200).json({ message: `Members updated to '${status}'` });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error' });
+    toast.error('Failed to join group');
   }
 };
 
 
-// Join Classroom
-router.post('/join', ensureAuthenticated, async (req, res) => {
-  const { code } = req.body;
+// GROUP: Leave
+const handleLeaveGroup = async (groupSetId, groupId) => {
   try {
-    const classroom = await Classroom.findOne({ code });
-    if (!classroom) return res.status(404).json({ error: 'Invalid classroom code' });
-
-    if (classroom.students.includes(req.user._id)) {
-      return res.status(400).json({ error: 'You have already joined this classroom' });
-    }
-
-    classroom.students.push(req.user._id);
-    await classroom.save();
-
-    // Populate and emit updated classroom immediately
-    const populatedClassroom = await Classroom.findById(classroom._id)
-      .populate('teacher', 'email')
-      .populate('students', 'email');
-
-    req.app.get('io').to(`classroom-${classroom._id}`).emit('classroom_update', populatedClassroom);
-
-    res.status(200).json({ message: 'Joined classroom successfully', classroom });
+    await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/leave`);
+    toast.success('Left group');
+    fetchGroupSets();
   } catch (err) {
-    res.status(500).json({ error: 'Failed to join classroom' });
+    toast.error('Failed to leave group');
   }
-});
+};
 
-module.exports = router;
+const handleApproveMembers = async (groupSetId, groupId) => {
+  try {
+    await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/approve`, {
+      memberIds: selectedMembers[groupId]
+    });
+    toast.success('Members approved');
+    fetchGroupSets();
+  } catch (err) {
+    toast.error('Failed to approve members');
+  }
+};
+
+const handleRejectMembers = async (groupSetId, groupId) => {
+  try {
+    await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/reject`, {
+      memberIds: selectedMembers[groupId]
+    });
+    toast.success('Members rejected');
+    fetchGroupSets();
+  } catch (err) {
+    toast.error('Failed to reject members');
+  }
+};
+
+const handleSuspendMembers = async (groupSetId, groupId) => {
+  try {
+    await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/suspend`, {
+      memberIds: selectedMembers[groupId]
+    });
+    toast.success('Members suspended');
+    fetchGroupSets();
+  } catch (err) {
+    toast.error('Failed to suspend members');
+  }
+};
+
+const handleUpdateGroupSet = async () => {
+  if (!groupSetName.trim()) return toast.error('GroupSet name is required');
+  if (groupSetMaxMembers < 0) return toast.error('Max members cannot be negative');
+
+  try {
+    await axios.put(`/api/group/groupset/${editingGroupSetId}`, {
+      name: groupSetName,
+      selfSignup: groupSetSelfSignup,
+      joinApproval: groupSetJoinApproval,
+      maxMembers: groupSetMaxMembers,
+      image: groupSetImage,
+    });
+
+    toast.success('GroupSet updated successfully');
+    resetGroupSetForm();
+    fetchGroupSets();
+  } catch (err) {
+    toast.error('Failed to update group set');
+  }
+};
+
+const handleDeleteGroupSetConfirm = async (gs) => {
+  if (!window.confirm(`Delete group set "${gs.name}"?`)) return;
+
+  try {
+    await axios.delete(`/api/group/groupset/${gs._id}`);
+    toast.success('GroupSet deleted');
+    fetchGroupSets();
+  } catch (err) {
+    toast.error('Failed to delete group set');
+  }
+};
+
+const resetGroupSetForm = () => {
+  setEditingGroupSetId(null);
+  setGroupSetName('');
+  setGroupSetSelfSignup(false);
+  setGroupSetJoinApproval(false);
+  setGroupSetMaxMembers('');
+  setGroupSetImage('');
+};
+
+  const getFilteredAndSortedMembers = (group) => {
+    const filter = memberFilters[group._id] || 'all';
+    const sort = memberSorts[group._id] || 'email';
+    const search = memberSearches[group._id] || '';
+    return group.members
+      .filter(m => filter === 'all' || m.status === filter)
+      .filter(m => m?._id?.email?.toLowerCase().includes(search.toLowerCase()))
+      .sort((a, b) => {
+        if (sort === 'email') return a._id.email.localeCompare(b._id.email);
+        if (sort === 'status') return (a.status || '').localeCompare(b.status || '');
+        if (sort === 'date') return new Date(b.joinDate) - new Date(a.joinDate);
+        return 0;
+      });
+  };
+
+  const handleSelectAllMembers = (groupId, group) => {
+    const allSelected = (selectedMembers[groupId] || []).length === group.members.length;
+    const newSelected = allSelected ? [] : group.members.map(m => m._id._id);
+    setSelectedMembers(prev => ({ ...prev, [groupId]: newSelected }));
+  };
+
+  const handleSelectMember = (groupId, memberId) => {
+    setSelectedMembers(prev => {
+      const selected = new Set(prev[groupId] || []);
+      selected.has(memberId) ? selected.delete(memberId) : selected.add(memberId);
+      return { ...prev, [groupId]: Array.from(selected) };
+    });
+  };
+
+  const handleCreateGroupSet = async () => {
+    if (!groupSetName.trim()) {
+      toast.error('GroupSet name is required');
+      return;
+    }
+    if (groupSetMaxMembers < 0) {
+      toast.error('Max members cannot be negative');
+      return;
+    }
+    try {
+      await axios.post('/api/group/groupset/create', {
+        name: groupSetName,
+        classroomId: id,
+        selfSignup: groupSetSelfSignup,
+        joinApproval: groupSetJoinApproval,
+        maxMembers: groupSetMaxMembers,
+        image: groupSetImage,
+      });
+      toast.success('GroupSet created successfully');
+      setGroupSetName('');
+      setGroupSetSelfSignup(false);
+      setGroupSetJoinApproval(false);
+      setGroupSetMaxMembers('');
+      setGroupSetImage('');
+      fetchGroupSets();
+    } catch (err) {
+      toast.error('Failed to create group set');
+    }
+  };
+
+  return (
+    <div className="p-6 space-y-6">
+      <h1 className="text-3xl font-bold">Group Sets</h1>
+
+      {/* GroupSet Creation Form */}
+
+<div className="card bg-base-200 p-4 space-y-2">
+  <input
+    className="input input-bordered w-full hover:ring hover:ring-primary"
+    type="text"
+    placeholder="GroupSet Name"
+    value={groupSetName}
+    onChange={(e) => setGroupSetName(e.target.value)}
+  />
+
+  {/* Allow Self-Signup Toggle with Red/Green indicator and hover effect */}
+  <label className="label cursor-pointer">
+    <span className="label-text">Allow Self-Signup</span>
+    <input
+      type="checkbox"
+      className={`toggle transition-colors duration-300 ${groupSetSelfSignup ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'}`}
+      checked={groupSetSelfSignup}
+      onChange={(e) => setGroupSetSelfSignup(e.target.checked)}
+    />
+  </label>
+
+  {/* Require Join Approval Toggle with Red/Green indicator and hover effect */}
+  <label className="label cursor-pointer">
+    <span className="label-text">Require Join Approval</span>
+    <input
+      type="checkbox"
+      className={`toggle transition-colors duration-300 ${groupSetJoinApproval ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'}`}
+      checked={groupSetJoinApproval}
+      onChange={(e) => setGroupSetJoinApproval(e.target.checked)}
+    />
+  </label>
+
+  <input
+    className="input input-bordered w-full hover:ring hover:ring-primary"
+    type="number"
+    placeholder="Max Members"
+    value={groupSetMaxMembers}
+    onChange={(e) => setGroupSetMaxMembers(Math.max(0, e.target.value))}
+  />
+
+  <input
+    className="input input-bordered w-full hover:ring hover:ring-primary"
+    type="text"
+    placeholder="Image URL"
+    value={groupSetImage}
+    onChange={(e) => setGroupSetImage(e.target.value)}
+  />
+
+  {editingGroupSetId ? (
+  <button
+    className="btn btn-warning hover:scale-105 transition-transform duration-200"
+    onClick={handleUpdateGroupSet}
+  >
+    Update GroupSet
+  </button>
+) : (
+  <button
+    className="btn btn-primary hover:scale-105 transition-transform duration-200"
+    onClick={handleCreateGroupSet}
+  >
+    Create GroupSet
+  </button>
+)}
+</div>
+
+
+{/* GroupSet Display */}
+{groupSets.map((gs) => (
+  <div key={gs._id} className="card bg-base-100 shadow-md p-4 space-y-4">
+    <div className="flex justify-between items-center">
+      <div>
+        <h2 className="text-xl font-semibold">{gs.name}</h2>
+        <p>Self Signup: {gs.selfSignup ? 'Yes' : 'No'}</p>
+        <p>Join Approval: {gs.joinApproval ? 'Yes' : 'No'}</p>
+        <p>Max Members: {gs.maxMembers || 'No limit'}</p>
+      </div>
+      <img src={gs.image} alt={gs.name} className="w-16 h-16 object-cover rounded" />
+    </div>
+    {/* Group Set action buttons (Edit & Delete) */}
+<div className="flex gap-2 mt-2">
+  <button
+    className="btn btn-sm btn-accent"
+    onClick={() => handleEditGroupSet(gs)}  //Assumes this function is defined
+  >
+    Edit
+  </button>
+  <button
+    className="btn btn-sm btn-error"
+    onClick={() => handleDeleteGroupSetConfirm(gs)}  // Assumes this function is defined
+  >
+    Delete
+  </button>
+</div>
+
+
+          {/* Create Group under GroupSet */}
+          {user.role === 'teacher' && (
+            <div className="mt-4">
+              <h4 className="text-md font-semibold">Create Group</h4>
+              <input type="text" className="input input-bordered w-full mt-1" placeholder="Group Name" value={groupName} onChange={(e) => setGroupName(e.target.value)} />
+              <input
+  type="number"
+  min="1"
+  step="1"
+  placeholder="Group Count"
+  className="input input-bordered w-full"
+  value={groupCount}
+  onChange={(e) => {
+    const value = e.target.value;
+
+    // Allow empty input for user typing but block negatives
+    if (value === '' || parseInt(value) >= 1) {
+      setGroupCount(value);
+    }
+  }}
+  onBlur={(e) => {
+    const value = parseInt(e.target.value);
+    // On blur (focus out), fix invalid values
+    if (isNaN(value) || value < 1) {
+      setGroupCount(1);
+    }
+  }}
+/>
+
+              <button className="btn btn-primary mt-2" onClick={() => handleCreateGroup(gs._id)}>Create</button>
+            </div>
+          )}
+
+          {/* Display Groups */}
+          {gs.groups.map(group => (
+            <div className="border rounded p-4 bg-base-100">
+  <div className="flex justify-between items-center">
+    <div>
+      <h5 className="font-semibold">{group.name}</h5>
+      <p>Members: {group.members.length}/{group.maxMembers || 'No limit'}</p>
+    </div>
+
+    {/* Group-level action buttons */}
+    <div className="flex gap-2">
+      <button className="btn btn-xs btn-success" onClick={() => handleJoinGroup(gs._id, group._id)}>Join</button>
+      <button className="btn btn-xs btn-warning" onClick={() => handleLeaveGroup(gs._id, group._id)}>Leave</button>
+      <button className="btn btn-xs btn-info" onClick={() => handleEditGroup(gs._id, group._id)}>Edit</button>
+      <button className="btn btn-xs btn-error" onClick={() => handleDeleteGroup(gs._id, group._id)}>Delete</button>
+
+    </div>
+  </div>
+
+  {/* Member management UI */}
+  <div className="mt-4">
+    <h5 className="text-sm font-semibold mb-2">Members</h5>
+
+    {/* Search and filters */}
+    <div className="flex gap-2 mb-2">
+      <input
+        type="text"
+        placeholder="Search..."
+        value={memberSearches[group._id] || ''}
+        onChange={(e) => setMemberSearches(prev => ({ ...prev, [group._id]: e.target.value }))}
+        className="input input-bordered input-sm w-full"
+      />
+      <select
+        value={memberFilters[group._id] || 'all'}
+        onChange={(e) => setMemberFilters(prev => ({ ...prev, [group._id]: e.target.value }))}
+        className="select select-bordered select-sm"
+      >
+        <option value="all">All</option>
+        <option value="pending">Pending</option>
+        <option value="approved">Approved</option>
+      </select>
+      <select
+        value={memberSorts[group._id] || 'email'}
+        onChange={(e) => setMemberSorts(prev => ({ ...prev, [group._id]: e.target.value }))}
+        className="select select-bordered select-sm"
+      >
+        <option value="email">Email</option>
+        <option value="status">Status</option>
+        <option value="date">Join Date</option>
+      </select>
+    </div>
+
+    {/* Table of members */}
+    <div className="overflow-x-auto">
+      <table className="table table-zebra table-sm">
+        <thead>
+          <tr>
+            <th>
+              {/* Select All */}
+              <input
+                type="checkbox"
+                checked={(selectedMembers[group._id]?.length || 0) === group.members.length}
+                onChange={() => handleSelectAllMembers(group._id, group)}
+              />
+            </th>
+            <th>Email</th>
+            <th>Status</th>
+            <th>Join Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {getFilteredAndSortedMembers(group).map((member, idx) => (
+            <tr key={`${group._id}-${member._id._id}-${idx}`}>
+              <td>
+                {/* Select Individual */}
+                <input
+                  type="checkbox"
+                  checked={selectedMembers[group._id]?.includes(member._id._id) || false}
+                  onChange={() => handleSelectMember(group._id, member._id._id)}
+                />
+              </td>
+              <td>{member._id.email}</td>
+              <td>
+                <span className={`badge ${member.status === 'pending' ? 'badge-warning' : 'badge-success'}`}>
+                  {member.status || 'approved'}
+                </span>
+              </td>
+              <td>{member.status === 'approved' ? new Date(member.joinDate).toLocaleString() : 'Pending'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+
+    {/* Batch action buttons */}
+    <div className="mt-2 flex gap-2">
+      <button
+        className="btn btn-xs btn-success"
+        disabled={!selectedMembers[group._id]?.length}
+        onClick={() => handleApproveMembers(groupSet._id, group._id)}
+      >
+        Approve
+      </button>
+      <button
+        className="btn btn-xs btn-error"
+        disabled={!selectedMembers[group._id]?.length}
+        onClick={() => handleRejectMembers(groupSet._id, group._id)}
+      >
+        Reject
+      </button>
+      <button
+        className="btn btn-xs btn-warning"
+        disabled={!selectedMembers[group._id]?.length}
+        onClick={() => handleSuspendMembers(groupSet._id, group._id)}
+      >
+        Suspend
+      </button>
+    </div>
+  </div>
+</div>
+
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+export default Groups;
