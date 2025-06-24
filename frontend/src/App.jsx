@@ -13,6 +13,10 @@ import { AuthContext } from './context/AuthContext';
 import { joinUserRoom } from './utils/socket';
 import Leaderboard from './pages/Leaderboard';
 import Settings from './pages/Settings';
+import { CartProvider } from './context/CartContext';
+import Checkout from './pages/Checkout';
+
+
 
 import ClassroomPage from './pages/ClassroomPage';
 
@@ -27,28 +31,35 @@ const App = () => {
     }
   }, [user]);
 
+
   return (
+
     // Added the navigation bar and notification bell in App.jsx 
     // This way we removed redundancy to call it in each page.
     // This method will prevent for navigation and the bell to show in the login page (meaning without a user being logged in)
-    <div style={{ paddingTop: '5rem' }}>
-      {user && <Navbar />}
-      {user && <NotificationBell />}
+    <CartProvider>
+      <div style={{ paddingTop: '5rem' }}>
+        {user && <Navbar />}
+        {user && <NotificationBell />}
 
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/classrooms" element={<ClassroomPage />} />
-        <Route path="/classroom/:id" element={<Classroom />} />
-        <Route path="/classroom/:classroomId/bazaar" element={<Bazaar />} />
-        <Route path="/classroom/:id/wallet" element={<Wallet />} />
-        <Route path="/classroom/:id/groups" element={<Groups />} />
-        <Route path="/classroom/:id/people" element={<People />} />
-        <Route path="/classroom/:classId/leaderboard" element={<Leaderboard />} />
-        <Route path="/profile/:id" element={<Profile />} />
-        <Route path="/settings" element={<Settings />} />
-      </Routes>
-    </div>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/classrooms" element={<ClassroomPage />} />
+          <Route path="/classroom/:id" element={<Classroom />} />
+          <Route path="/classroom/:classroomId/bazaar" element={<Bazaar />} />
+          <Route path="/classroom/:id/wallet" element={<Wallet />} />
+          <Route path="/classroom/:id/groups" element={<Groups />} />
+          <Route path="/classroom/:id/people" element={<People />} />
+          <Route path="/classroom/:classId/leaderboard" element={<Leaderboard />} />
+          <Route path="/profile/:id" element={<Profile />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/classroom/:classroomId/checkout" element={<Checkout />} />
+          <Route path="/checkout" element={<Checkout />} />
+        </Routes>
+      </div>
+    </CartProvider>
   );
 };
+
 
 export default App;

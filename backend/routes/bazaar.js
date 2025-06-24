@@ -113,4 +113,53 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
   }
 });
 
+router.post('/checkout', ensureAuthenticated, async (req, res) => {
+  console.log("Received checkout data:", req.body);
+  const { userId, items } = req.body;
+
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const total = items.reduce((sum, item) => sum + item.price, 0);
+
+    if (user.balance < total) {
+      return res.status(400).json({ error: 'Insufficient balance' });
+    }
+
+    user.balance -= total;
+    await user.save();
+
+    // Optionally record transaction
+    const description = `Checkout: ${items.length} item(s)`;
+    const amount = -total; // Deducting bits, so it's negative
+
+    user.transactions.push({
+      description,
+      amount,
+      type: 'purchase',
+      date: new Date(),
+      items: items.map(i => ({ name: i.name, price: i.price }))
+    });
+    await user.save();
+
+    res.status(200).json({ message: 'Purchase successful' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Checkout failed' });
+  }
+});
+
+router.get('/user/:userId/balance', async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    res.json({ balance: user.balance });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch balance' });
+  }
+});
+
 module.exports = router;
