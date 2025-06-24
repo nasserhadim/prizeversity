@@ -3,10 +3,12 @@ import toast from 'react-hot-toast';
 // import axios from 'axios'
 import apiBazaar from '../API/apiBazaar.js'
 import { ShoppingCart } from 'lucide-react';
+import { useCart } from '../context/CartContext';
 
 const ItemCard = ({ item, role, classroomId }) => {
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(false);
+  const { addToCart } = useCart();
 
   const handleBuy = async () => {
     if (quantity < 1) return toast.error('Quantity must be at least 1');
@@ -39,23 +41,12 @@ const ItemCard = ({ item, role, classroomId }) => {
         <p className="font-semibold text-primary">${item.price}</p>
 
         {role === 'student' && (
-          <div className="mt-4 flex items-center gap-2">
-            <input
-              type="number"
-              min="1"
-              value={quantity}
-              onChange={(e) => setQuantity(Number(e.target.value))}
-              className="input input-bordered w-20"
-            />
-            <button
-              className="btn btn-accent"
-              onClick={handleBuy}
-              disabled={loading}
-            >
-              <ShoppingCart size={16} className="mr-1" />
-              {loading ? 'Buying...' : 'Buy'}
-            </button>
-          </div>
+          <button
+            className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 mt-4 w-full"
+            onClick={() => addToCart(item)}
+          >
+            Add to Cart
+          </button>
         )}
       </div>
     </div>

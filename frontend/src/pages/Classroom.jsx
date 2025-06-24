@@ -4,7 +4,8 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import '../styles/MemberManagement.css';
 import socket from '../utils/socket';
-
+import { Link } from 'react-router-dom';
+import apiBazaar from '../API/apiBazaar';
 import toast from 'react-hot-toast';
 import { LoaderIcon } from 'lucide-react';
 
@@ -45,7 +46,7 @@ const Classroom = () => {
       setLoading(false);
       return;
     }
-    
+
     const fetchData = async () => {
       try {
         await fetchClassroomDetails();
@@ -72,20 +73,20 @@ const Classroom = () => {
     });
 
     socket.on('groupset_update', (updatedGroupSet) => {
-      setGroupSets(prevGroupSets => 
-        prevGroupSets.map(gs => 
+      setGroupSets(prevGroupSets =>
+        prevGroupSets.map(gs =>
           gs._id === updatedGroupSet._id ? updatedGroupSet : gs
         )
       );
     });
 
     socket.on('group_update', ({ groupSet: groupSetId, group: updatedGroup }) => {
-      setGroupSets(prevGroupSets => 
+      setGroupSets(prevGroupSets =>
         prevGroupSets.map(gs => {
           if (gs._id === groupSetId) {
             return {
               ...gs,
-              groups: gs.groups.map(g => 
+              groups: gs.groups.map(g =>
                 g._id === updatedGroup._id ? updatedGroup : g
               )
             };
@@ -151,8 +152,8 @@ const Classroom = () => {
   useEffect(() => {
     socket.on('notification', (notification) => {
       // Handle classroom rename notifications while inside classroom
-      if (notification.type === 'classroom_update' && 
-          notification.classroom?._id === id) {
+      if (notification.type === 'classroom_update' &&
+        notification.classroom?._id === id) {
         fetchClassroom();
       }
     });
@@ -168,7 +169,7 @@ const Classroom = () => {
       const response = await axios.get(`/api/classroom/${id}`);
       // Check if user still has access to this classroom
       const classroom = response.data;
-       const hasAccess =
+      const hasAccess =
         user.role === 'admin' ||
         (user.role === 'teacher' && classroom.teacher === user._id) ||
         (user.role === 'student' && classroom.students.includes(user._id));
@@ -178,7 +179,7 @@ const Classroom = () => {
         navigate('/');
         return;
       }
-      
+
       setClassroom(response.data);
       await fetchBazaars();
       await fetchGroupSets();
@@ -210,7 +211,7 @@ const Classroom = () => {
 
   const fetchBazaars = async () => {
     try {
-      const response = await axios.get(`/api/bazaar/classroom/${id}`);
+      const res = await apiBazaar.get(`/classroom/${classroomId}/bazaar`);
       setBazaars(response.data);
     } catch (err) {
       if (err.response?.status === 401) {
@@ -250,7 +251,7 @@ const Classroom = () => {
         name: updateClassroomName || classroom.name,
         image: updateClassroomImage || classroom.image
       });
-      
+
       if (response.data.message === 'No changes were made') {
         // alert('No changes were made');
         toast.error('No changes were made!');
@@ -292,12 +293,12 @@ const Classroom = () => {
       toast.error('GroupSet name is required');
       return;
     }
-  
+
     if (groupSetMaxMembers < 0) {
       toast.error('Max members cannot be a negative number');
       return;
     }
-  
+
     try {
       const response = await axios.post('/api/group/groupset/create', {
         name: groupSetName,
@@ -324,7 +325,7 @@ const Classroom = () => {
       }
     }
   };
-  
+
 
   const handleEditGroupSet = (groupSet) => {
     setEditingGroupSet(groupSet);
@@ -379,12 +380,12 @@ const Classroom = () => {
       toast.error('Group name is required');
       return;
     }
-  
+
     if (groupCount <= 0) {
       toast.error('Number of groups must be greater than 0');
       return;
     }
-  
+
     try {
       const response = await axios.post(`/api/group/groupset/${groupSetId}/group/create`, {
         name: groupName,
@@ -404,7 +405,7 @@ const Classroom = () => {
       }
     }
   };
-  
+
 
   const handleEditGroup = (group) => {
     setEditingGroup(group);
@@ -453,19 +454,19 @@ const Classroom = () => {
       // Check if user is already in any group in this groupset
       const currentGroupSet = groupSets.find(gs => gs._id === groupSetId);
       if (currentGroupSet) {
-        const isInAnyGroup = currentGroupSet.groups.some(group => 
-          group.members.some(member => 
-            member._id._id === user._id && 
+        const isInAnyGroup = currentGroupSet.groups.some(group =>
+          group.members.some(member =>
+            member._id._id === user._id &&
             (member.status === 'approved' || member.status === 'pending')
           )
         );
-        
+
         if (isInAnyGroup) {
           toast.error('You are already a member or have a pending request in this GroupSet');
           return;
         }
       }
-  
+
       const response = await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/join`);
       alert(response.data.message);
       fetchGroupSets();
@@ -549,7 +550,7 @@ const Classroom = () => {
     setSelectedMembers(prevSelected => {
       const allMemberIds = group.members.map(member => member._id._id);
       const currentGroupSelected = prevSelected[groupId] || [];
-      const newGroupSelectedMembers = currentGroupSelected.length === allMemberIds.length 
+      const newGroupSelectedMembers = currentGroupSelected.length === allMemberIds.length
         ? []  // If all are selected, unselect all
         : allMemberIds;  // Otherwise, select all
       return { ...prevSelected, [groupId]: newGroupSelectedMembers };
@@ -562,7 +563,7 @@ const Classroom = () => {
       toast.error('No members selected for suspension.');
       return;
     }
-  
+
     try {
       const response = await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/suspend`, {
         memberIds: groupSelectedMembers
@@ -668,110 +669,110 @@ const Classroom = () => {
   };
 
   // Add these handler functions
-const handleApproveMembers = async (groupSetId, groupId) => {
-  const groupSelectedMembers = selectedMembers[groupId] || [];
-  if (groupSelectedMembers.length === 0) {
-    toast.error('No selection with pending status made to perform this action.');
-    return;
-  }
-
-  try {
-    const response = await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/approve`, {
-      memberIds: groupSelectedMembers
-    });
-    alert(response.data.message);
-    setSelectedMembers((prevSelected) => ({ ...prevSelected, [groupId]: [] }));
-    fetchGroupSets();
-  } catch (err) {
-    if (err.response && err.response.data && err.response.data.message) {
-      alert(err.response.data.message);
-    } else {
-      console.error('Failed to approve members', err);
-      toast.error('Failed to approve members');
+  const handleApproveMembers = async (groupSetId, groupId) => {
+    const groupSelectedMembers = selectedMembers[groupId] || [];
+    if (groupSelectedMembers.length === 0) {
+      toast.error('No selection with pending status made to perform this action.');
+      return;
     }
-  }
-};
 
-const handleRejectMembers = async (groupSetId, groupId) => {
-  const groupSelectedMembers = selectedMembers[groupId] || [];
-  if (groupSelectedMembers.length === 0) {
-    toast.error('No selection with pending status made to perform this action.');
-    return;
-  }
-
-  try {
-    const response = await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/reject`, {
-      memberIds: groupSelectedMembers
-    });
-    alert(response.data.message);
-    setSelectedMembers((prevSelected) => ({ ...prevSelected, [groupId]: [] }));
-    fetchGroupSets();
-  } catch (err) {
-    if (err.response && err.response.data && err.response.data.message) {
-      alert(err.response.data.message);
-    } else {
-      console.error('Failed to reject members', err);
-      toast.error('Failed to reject members');
-    }
-  }
-};
-
-const getFilteredAndSortedMembers = (group) => {
-  const filter = memberFilters[group._id] || 'all';
-  const sort = memberSorts[group._id] || 'email';
-  const search = memberSearches[group._id] || '';
-
-  return group.members
-    .filter(member => {
-      if (filter === 'all') return true;
-      return member.status === filter;
-    })
-    .filter(member => 
-      // Add null checks
-      member?._id?.email?.toLowerCase().includes(search.toLowerCase()) ?? false
-    )
-    .sort((a, b) => {
-      switch (sort) {
-        case 'email':
-          // Add null checks
-          return (a?._id?.email ?? '').localeCompare(b?._id?.email ?? '');
-        case 'status':
-          return (a.status || 'approved').localeCompare(b.status || 'approved');
-        case 'date':
-          return new Date(b.joinDate) - new Date(a.joinDate);
-        default:
-          return 0;
+    try {
+      const response = await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/approve`, {
+        memberIds: groupSelectedMembers
+      });
+      alert(response.data.message);
+      setSelectedMembers((prevSelected) => ({ ...prevSelected, [groupId]: [] }));
+      fetchGroupSets();
+    } catch (err) {
+      if (err.response && err.response.data && err.response.data.message) {
+        alert(err.response.data.message);
+      } else {
+        console.error('Failed to approve members', err);
+        toast.error('Failed to approve members');
       }
-    });
-};
+    }
+  };
 
-const handleFilterChange = (groupId, value) => {
-  setMemberFilters(prev => ({
-    ...prev,
-    [groupId]: value
-  }));
-};
+  const handleRejectMembers = async (groupSetId, groupId) => {
+    const groupSelectedMembers = selectedMembers[groupId] || [];
+    if (groupSelectedMembers.length === 0) {
+      toast.error('No selection with pending status made to perform this action.');
+      return;
+    }
 
-const handleSortChange = (groupId, value) => {
-  setMemberSorts(prev => ({
-    ...prev,
-    [groupId]: value
-  }));
-};
+    try {
+      const response = await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/reject`, {
+        memberIds: groupSelectedMembers
+      });
+      alert(response.data.message);
+      setSelectedMembers((prevSelected) => ({ ...prevSelected, [groupId]: [] }));
+      fetchGroupSets();
+    } catch (err) {
+      if (err.response && err.response.data && err.response.data.message) {
+        alert(err.response.data.message);
+      } else {
+        console.error('Failed to reject members', err);
+        toast.error('Failed to reject members');
+      }
+    }
+  };
 
-const handleSearchChange = (groupId, value) => {
-  setMemberSearches(prev => ({
-    ...prev,
-    [groupId]: value
-  }));
-};
+  const getFilteredAndSortedMembers = (group) => {
+    const filter = memberFilters[group._id] || 'all';
+    const sort = memberSorts[group._id] || 'email';
+    const search = memberSearches[group._id] || '';
+
+    return group.members
+      .filter(member => {
+        if (filter === 'all') return true;
+        return member.status === filter;
+      })
+      .filter(member =>
+        // Add null checks
+        member?._id?.email?.toLowerCase().includes(search.toLowerCase()) ?? false
+      )
+      .sort((a, b) => {
+        switch (sort) {
+          case 'email':
+            // Add null checks
+            return (a?._id?.email ?? '').localeCompare(b?._id?.email ?? '');
+          case 'status':
+            return (a.status || 'approved').localeCompare(b.status || 'approved');
+          case 'date':
+            return new Date(b.joinDate) - new Date(a.joinDate);
+          default:
+            return 0;
+        }
+      });
+  };
+
+  const handleFilterChange = (groupId, value) => {
+    setMemberFilters(prev => ({
+      ...prev,
+      [groupId]: value
+    }));
+  };
+
+  const handleSortChange = (groupId, value) => {
+    setMemberSorts(prev => ({
+      ...prev,
+      [groupId]: value
+    }));
+  };
+
+  const handleSearchChange = (groupId, value) => {
+    setMemberSearches(prev => ({
+      ...prev,
+      [groupId]: value
+    }));
+  };
 
   // Add loading check at the start of render
   if (loading || !user) {
     return (
-    <div className='min-h-screen bg-base-200 flex items-center justify-center'>
-      <LoaderIcon className='animate-spin, size-10' />
-    </div>
+      <div className='min-h-screen bg-base-200 flex items-center justify-center'>
+        <LoaderIcon className='animate-spin, size-10' />
+      </div>
     );
   };
 
@@ -792,410 +793,413 @@ const handleSearchChange = (groupId, value) => {
   };
 
   return (
-  <div className="p-6 space-y-6">
-    <h1 className="text-3xl font-bold">{classroom.name}</h1>
-    <p className="text-sm text-gray-500">Class Code: {classroom.code}</p>
+    <div className="p-6 space-y-6">
+      <Link to="/classrooms" className="link text-accent">
+        ← Back to Classroom Dashboard
+      </Link>
+      <h1 className="text-3xl font-bold">{classroom.name}</h1>
+      <p className="text-sm text-gray-500">Class Code: {classroom.code}</p>
 
-    {(user.role === 'teacher' || user.role === 'admin') && (
-      <div className="space-y-4">
-        {editingClassroom ? (
-          <div className="card bg-base-100 shadow-md p-4">
-            <h4 className="text-lg font-semibold">Update Classroom</h4>
-            <input
-              className="input input-bordered w-full mt-2"
-              type="text"
-              placeholder="New Classroom Name"
-              value={updateClassroomName}
-              onChange={(e) => setUpdateClassroomName(e.target.value)}
-            />
-            <input
-              className="input input-bordered w-full mt-2"
-              type="text"
-              placeholder="New Image URL"
-              value={updateClassroomImage}
-              onChange={(e) => setUpdateClassroomImage(e.target.value)}
-            />
-            <div className="mt-4 flex gap-2">
-              <button className="btn btn-primary" onClick={handleUpdateClassroom}>Update</button>
-              <button className="btn btn-ghost" onClick={handleCancelUpdate}>Cancel</button>
+      {(user.role === 'teacher' || user.role === 'admin') && (
+        <div className="space-y-4">
+          {editingClassroom ? (
+            <div className="card bg-base-100 shadow-md p-4">
+              <h4 className="text-lg font-semibold">Update Classroom</h4>
+              <input
+                className="input input-bordered w-full mt-2"
+                type="text"
+                placeholder="New Classroom Name"
+                value={updateClassroomName}
+                onChange={(e) => setUpdateClassroomName(e.target.value)}
+              />
+              <input
+                className="input input-bordered w-full mt-2"
+                type="text"
+                placeholder="New Image URL"
+                value={updateClassroomImage}
+                onChange={(e) => setUpdateClassroomImage(e.target.value)}
+              />
+              <div className="mt-4 flex gap-2">
+                <button className="btn btn-primary" onClick={handleUpdateClassroom}>Update</button>
+                <button className="btn btn-ghost" onClick={handleCancelUpdate}>Cancel</button>
+              </div>
             </div>
-          </div>
-        ) : (
-          <button className="btn btn-outline btn-info" onClick={() => setEditingClassroom(true)}>Edit Classroom</button>
-        )}
-
-        <div className="flex gap-2">
-          <button className="btn btn-warning" onClick={handleLeaveClassroomConfirm}>Leave Classroom</button>
-          {user.role === 'teacher' && (
-            <button className="btn btn-error" onClick={handleDeleteClassroomConfirm}>Delete Classroom</button>
+          ) : (
+            <button className="btn btn-outline btn-info" onClick={() => setEditingClassroom(true)}>Edit Classroom</button>
           )}
-        </div>
 
-        <div className="card bg-base-200 p-4">
-          <h3 className="text-xl font-semibold">Students</h3>
-          <ul className="mt-2 space-y-2">
-            {students.map((student) => (
-              <li key={student._id} className="flex items-center justify-between">
-                <span>{student.email}</span>
-                <button className="btn btn-xs btn-error" onClick={() => handleRemoveStudentConfirm(student._id)}>Remove</button>
-              </li>
-            ))}
-          </ul>
-        </div>
+          <div className="flex gap-2">
+            <button className="btn btn-warning" onClick={handleLeaveClassroomConfirm}>Leave Classroom</button>
+            {user.role === 'teacher' && (
+              <button className="btn btn-error" onClick={handleDeleteClassroomConfirm}>Delete Classroom</button>
+            )}
+          </div>
 
-        {/* Group Sets */}
-        <div className="space-y-6">
-          <h3 className="text-xl font-bold">Group Sets</h3>
-          <ul className="space-y-6">
-            {groupSets.map((groupSet) => (
-              <li key={groupSet._id} className="card bg-base-100 shadow p-4 space-y-3">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h4 className="text-lg font-semibold">{groupSet.name}</h4>
-                    <p>Self Signup: {groupSet.selfSignup ? 'Yes' : 'No'}</p>
-                    <p>Join Approval: {groupSet.joinApproval ? 'Yes' : 'No'}</p>
-                    <p>Max Members: {groupSet.maxMembers || 'No limit'}</p>
+          <div className="card bg-base-200 p-4">
+            <h3 className="text-xl font-semibold">Students</h3>
+            <ul className="mt-2 space-y-2">
+              {students.map((student) => (
+                <li key={student._id} className="flex items-center justify-between">
+                  <span>{student.email}</span>
+                  <button className="btn btn-xs btn-error" onClick={() => handleRemoveStudentConfirm(student._id)}>Remove</button>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Group Sets */}
+          <div className="space-y-6">
+            <h3 className="text-xl font-bold">Group Sets</h3>
+            <ul className="space-y-6">
+              {groupSets.map((groupSet) => (
+                <li key={groupSet._id} className="card bg-base-100 shadow p-4 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h4 className="text-lg font-semibold">{groupSet.name}</h4>
+                      <p>Self Signup: {groupSet.selfSignup ? 'Yes' : 'No'}</p>
+                      <p>Join Approval: {groupSet.joinApproval ? 'Yes' : 'No'}</p>
+                      <p>Max Members: {groupSet.maxMembers || 'No limit'}</p>
+                    </div>
+                    <img src={groupSet.image} alt={groupSet.name} className="w-16 h-16 object-cover rounded" />
                   </div>
-                  <img src={groupSet.image} alt={groupSet.name} className="w-16 h-16 object-cover rounded" />
-                </div>
 
-                <div className="flex gap-2">
-                  <button className="btn btn-sm btn-accent" onClick={() => handleEditGroupSet(groupSet)}>Edit</button>
-                  <button className="btn btn-sm btn-error" onClick={() => handleDeleteGroupSetConfirm(groupSet)}>Delete</button>
-                </div>
+                  <div className="flex gap-2">
+                    <button className="btn btn-sm btn-accent" onClick={() => handleEditGroupSet(groupSet)}>Edit</button>
+                    <button className="btn btn-sm btn-error" onClick={() => handleDeleteGroupSetConfirm(groupSet)}>Delete</button>
+                  </div>
 
-                {/* Create Group */}
-                <div>
-                  <h4 className="font-semibold">Create Group</h4>
-                  <input
-                    className="input input-bordered w-full mt-1"
-                    type="text"
-                    placeholder="Group Name"
-                    value={groupName}
-                    onChange={(e) => setGroupName(e.target.value)}
-                  />
-                  <input
-                    className="input input-bordered w-full mt-2"
-                    type="number"
-                    placeholder="Number of Groups"
-                    value={groupCount}
-                    onChange={(e) => setGroupCount(Math.max(1, e.target.value))}
-                  />
-                  <button className="btn btn-primary mt-2" onClick={() => handleCreateGroup(groupSet._id)}>Create</button>
-                </div>
+                  {/* Create Group */}
+                  <div>
+                    <h4 className="font-semibold">Create Group</h4>
+                    <input
+                      className="input input-bordered w-full mt-1"
+                      type="text"
+                      placeholder="Group Name"
+                      value={groupName}
+                      onChange={(e) => setGroupName(e.target.value)}
+                    />
+                    <input
+                      className="input input-bordered w-full mt-2"
+                      type="number"
+                      placeholder="Number of Groups"
+                      value={groupCount}
+                      onChange={(e) => setGroupCount(Math.max(1, e.target.value))}
+                    />
+                    <button className="btn btn-primary mt-2" onClick={() => handleCreateGroup(groupSet._id)}>Create</button>
+                  </div>
 
-                {/* Groups Table */}
-                <div>
-                  <h4 className="font-semibold">Groups</h4>
-                  <div className="space-y-4">
-                    {groupSet.groups.map((group) => (
-                      <div key={group._id} className="border rounded p-4 bg-base-100">
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <h5 className="font-semibold">{group.name}</h5>
-                            <p>Members: {group.members.length}/{group.maxMembers || 'No limit'}</p>
-                          </div>
-                          <div className="flex gap-1">
-                            <button className="btn btn-xs btn-success" onClick={() => handleJoinGroup(groupSet._id, group._id)}>Join</button>
-                            <button className="btn btn-xs btn-outline" onClick={() => handleLeaveGroup(groupSet._id, group._id)}>Leave</button>
-                            <button className="btn btn-xs btn-info" onClick={() => handleEditGroup(group)}>Edit</button>
-                            <button className="btn btn-xs btn-error" onClick={() => handleDeleteGroupConfirm(groupSet._id, group)}>Delete</button>
-                          </div>
-                        </div>
-
-                        {/* Edit group (if selected) */}
-                        {editingGroup && editingGroup._id === group._id && (
-                          <div className="mt-3 space-y-2">
-                            <h4 className="text-sm font-bold">Update Group</h4>
-                            <input
-                              className="input input-bordered w-full"
-                              type="text"
-                              placeholder="Group Name"
-                              value={groupName}
-                              onChange={(e) => setGroupName(e.target.value)}
-                            />
-                            <input
-                              className="input input-bordered w-full"
-                              type="text"
-                              placeholder="Image URL"
-                              value={groupImage}
-                              onChange={(e) => setGroupImage(e.target.value)}
-                            />
-                            <input
-                              className="input input-bordered w-full"
-                              type="number"
-                              placeholder="Max Members"
-                              value={groupMaxMembers}
-                              onChange={(e) => setGroupMaxMembers(Math.max(0, e.target.value))}
-                            />
-                            <div className="flex gap-2 mt-2">
-                              <button className="btn btn-primary" onClick={() => handleUpdateGroup(groupSet._id, group._id)}>Update</button>
-                              <button className="btn btn-ghost" onClick={handleCancelUpdate}>Cancel</button>
+                  {/* Groups Table */}
+                  <div>
+                    <h4 className="font-semibold">Groups</h4>
+                    <div className="space-y-4">
+                      {groupSet.groups.map((group) => (
+                        <div key={group._id} className="border rounded p-4 bg-base-100">
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <h5 className="font-semibold">{group.name}</h5>
+                              <p>Members: {group.members.length}/{group.maxMembers || 'No limit'}</p>
+                            </div>
+                            <div className="flex gap-1">
+                              <button className="btn btn-xs btn-success" onClick={() => handleJoinGroup(groupSet._id, group._id)}>Join</button>
+                              <button className="btn btn-xs btn-outline" onClick={() => handleLeaveGroup(groupSet._id, group._id)}>Leave</button>
+                              <button className="btn btn-xs btn-info" onClick={() => handleEditGroup(group)}>Edit</button>
+                              <button className="btn btn-xs btn-error" onClick={() => handleDeleteGroupConfirm(groupSet._id, group)}>Delete</button>
                             </div>
                           </div>
-                        )}
 
-                        {/* Members Table */}
-                        <div className="mt-4">
-                          <h5 className="text-sm font-semibold mb-2">Members</h5>
-                          <div className="flex gap-2 mb-2">
-                            <input
-                              type="text"
-                              placeholder="Search..."
-                              value={memberSearches[group._id] || ''}
-                              onChange={(e) => handleSearchChange(group._id, e.target.value)}
-                              className="input input-bordered input-sm w-full"
-                            />
-                            <select
-                              value={memberFilters[group._id] || 'all'}
-                              onChange={(e) => handleFilterChange(group._id, e.target.value)}
-                              className="select select-bordered select-sm"
-                            >
-                              <option value="all">All</option>
-                              <option value="pending">Pending</option>
-                              <option value="approved">Approved</option>
-                            </select>
-                            <select
-                              value={memberSorts[group._id] || 'email'}
-                              onChange={(e) => handleSortChange(group._id, e.target.value)}
-                              className="select select-bordered select-sm"
-                            >
-                              <option value="email">Email</option>
-                              <option value="status">Status</option>
-                              <option value="date">Join Date</option>
-                            </select>
-                          </div>
-                          <div className="overflow-x-auto">
-                            <table className="table table-zebra table-sm">
-                              <thead>
-                                <tr>
-                                  <th>
-                                    <input
-                                      type="checkbox"
-                                      checked={(selectedMembers[group._id]?.length || 0) === group.members.length}
-                                      onChange={() => handleSelectAllMembers(group._id, group)}
-                                    />
-                                  </th>
-                                  <th>Email</th>
-                                  <th>Status</th>
-                                  <th>Join Date</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {getFilteredAndSortedMembers(group).map((member, idx) => (
-                                  <tr key={`${group._id}-${member._id._id}-${idx}`}>
-                                    <td>
+                          {/* Edit group (if selected) */}
+                          {editingGroup && editingGroup._id === group._id && (
+                            <div className="mt-3 space-y-2">
+                              <h4 className="text-sm font-bold">Update Group</h4>
+                              <input
+                                className="input input-bordered w-full"
+                                type="text"
+                                placeholder="Group Name"
+                                value={groupName}
+                                onChange={(e) => setGroupName(e.target.value)}
+                              />
+                              <input
+                                className="input input-bordered w-full"
+                                type="text"
+                                placeholder="Image URL"
+                                value={groupImage}
+                                onChange={(e) => setGroupImage(e.target.value)}
+                              />
+                              <input
+                                className="input input-bordered w-full"
+                                type="number"
+                                placeholder="Max Members"
+                                value={groupMaxMembers}
+                                onChange={(e) => setGroupMaxMembers(Math.max(0, e.target.value))}
+                              />
+                              <div className="flex gap-2 mt-2">
+                                <button className="btn btn-primary" onClick={() => handleUpdateGroup(groupSet._id, group._id)}>Update</button>
+                                <button className="btn btn-ghost" onClick={handleCancelUpdate}>Cancel</button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Members Table */}
+                          <div className="mt-4">
+                            <h5 className="text-sm font-semibold mb-2">Members</h5>
+                            <div className="flex gap-2 mb-2">
+                              <input
+                                type="text"
+                                placeholder="Search..."
+                                value={memberSearches[group._id] || ''}
+                                onChange={(e) => handleSearchChange(group._id, e.target.value)}
+                                className="input input-bordered input-sm w-full"
+                              />
+                              <select
+                                value={memberFilters[group._id] || 'all'}
+                                onChange={(e) => handleFilterChange(group._id, e.target.value)}
+                                className="select select-bordered select-sm"
+                              >
+                                <option value="all">All</option>
+                                <option value="pending">Pending</option>
+                                <option value="approved">Approved</option>
+                              </select>
+                              <select
+                                value={memberSorts[group._id] || 'email'}
+                                onChange={(e) => handleSortChange(group._id, e.target.value)}
+                                className="select select-bordered select-sm"
+                              >
+                                <option value="email">Email</option>
+                                <option value="status">Status</option>
+                                <option value="date">Join Date</option>
+                              </select>
+                            </div>
+                            <div className="overflow-x-auto">
+                              <table className="table table-zebra table-sm">
+                                <thead>
+                                  <tr>
+                                    <th>
                                       <input
                                         type="checkbox"
-                                        checked={selectedMembers[group._id]?.includes(member._id._id) || false}
-                                        onChange={() => handleSelectMember(group._id, member._id._id)}
+                                        checked={(selectedMembers[group._id]?.length || 0) === group.members.length}
+                                        onChange={() => handleSelectAllMembers(group._id, group)}
                                       />
-                                    </td>
-                                    <td>{member._id.email}</td>
-                                    <td>
-                                      <span className={`badge ${member.status === 'pending' ? 'badge-warning' : 'badge-success'}`}>
-                                        {member.status || 'approved'}
-                                      </span>
-                                    </td>
-                                    <td>{member.status === 'approved' ? new Date(member.joinDate).toLocaleString() : 'Pending'}</td>
+                                    </th>
+                                    <th>Email</th>
+                                    <th>Status</th>
+                                    <th>Join Date</th>
                                   </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                          <div className="mt-2 flex gap-2">
-                            <button className="btn btn-xs btn-success" disabled={!selectedMembers[group._id]?.length} onClick={() => handleApproveMembers(groupSet._id, group._id)}>Approve</button>
-                            <button className="btn btn-xs btn-error" disabled={!selectedMembers[group._id]?.length} onClick={() => handleRejectMembers(groupSet._id, group._id)}>Reject</button>
-                            <button className="btn btn-xs btn-warning" disabled={!selectedMembers[group._id]?.length} onClick={() => handleSuspendMembers(groupSet._id, group._id)}>Suspend</button>
+                                </thead>
+                                <tbody>
+                                  {getFilteredAndSortedMembers(group).map((member, idx) => (
+                                    <tr key={`${group._id}-${member._id._id}-${idx}`}>
+                                      <td>
+                                        <input
+                                          type="checkbox"
+                                          checked={selectedMembers[group._id]?.includes(member._id._id) || false}
+                                          onChange={() => handleSelectMember(group._id, member._id._id)}
+                                        />
+                                      </td>
+                                      <td>{member._id.email}</td>
+                                      <td>
+                                        <span className={`badge ${member.status === 'pending' ? 'badge-warning' : 'badge-success'}`}>
+                                          {member.status || 'approved'}
+                                        </span>
+                                      </td>
+                                      <td>{member.status === 'approved' ? new Date(member.joinDate).toLocaleString() : 'Pending'}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                            <div className="mt-2 flex gap-2">
+                              <button className="btn btn-xs btn-success" disabled={!selectedMembers[group._id]?.length} onClick={() => handleApproveMembers(groupSet._id, group._id)}>Approve</button>
+                              <button className="btn btn-xs btn-error" disabled={!selectedMembers[group._id]?.length} onClick={() => handleRejectMembers(groupSet._id, group._id)}>Reject</button>
+                              <button className="btn btn-xs btn-warning" disabled={!selectedMembers[group._id]?.length} onClick={() => handleSuspendMembers(groupSet._id, group._id)}>Suspend</button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              </li>
-            ))}
-          </ul>
+                </li>
+              ))}
+            </ul>
 
-          {/* Create/Update Group Set */}
-          <div className="card bg-base-200 p-4 space-y-2">
-            <h4 className="font-semibold">{editingGroupSet ? 'Update GroupSet' : 'Create GroupSet'}</h4>
-            <input
-              className="input input-bordered w-full"
-              type="text"
-              placeholder="GroupSet Name"
-              value={groupSetName}
-              onChange={(e) => setGroupSetName(e.target.value)}
-            />
-            <label className="label cursor-pointer">
-              <span className="label-text">Allow Self-Signup</span>
-              <input type="checkbox" className="toggle" checked={groupSetSelfSignup} onChange={(e) => setGroupSetSelfSignup(e.target.checked)} />
-            </label>
-            <label className="label cursor-pointer">
-              <span className="label-text">Require Join Approval</span>
-              <input type="checkbox" className="toggle" checked={groupSetJoinApproval} onChange={(e) => setGroupSetJoinApproval(e.target.checked)} />
-            </label>
-            <input
-              className="input input-bordered w-full"
-              type="number"
-              placeholder="Max Members"
-              value={groupSetMaxMembers}
-              onChange={(e) => setGroupSetMaxMembers(Math.max(0, e.target.value))}
-            />
-            <input
-              className="input input-bordered w-full"
-              type="text"
-              placeholder="Image URL"
-              value={groupSetImage}
-              onChange={(e) => setGroupSetImage(e.target.value)}
-            />
-            <div className="flex gap-2">
-              <button className="btn btn-primary" onClick={editingGroupSet ? handleUpdateGroupSet : handleCreateGroupSet}>
-                {editingGroupSet ? 'Update' : 'Create'}
-              </button>
-              {editingGroupSet && <button className="btn btn-ghost" onClick={handleCancelUpdate}>Cancel</button>}
+            {/* Create/Update Group Set */}
+            <div className="card bg-base-200 p-4 space-y-2">
+              <h4 className="font-semibold">{editingGroupSet ? 'Update GroupSet' : 'Create GroupSet'}</h4>
+              <input
+                className="input input-bordered w-full"
+                type="text"
+                placeholder="GroupSet Name"
+                value={groupSetName}
+                onChange={(e) => setGroupSetName(e.target.value)}
+              />
+              <label className="label cursor-pointer">
+                <span className="label-text">Allow Self-Signup</span>
+                <input type="checkbox" className="toggle" checked={groupSetSelfSignup} onChange={(e) => setGroupSetSelfSignup(e.target.checked)} />
+              </label>
+              <label className="label cursor-pointer">
+                <span className="label-text">Require Join Approval</span>
+                <input type="checkbox" className="toggle" checked={groupSetJoinApproval} onChange={(e) => setGroupSetJoinApproval(e.target.checked)} />
+              </label>
+              <input
+                className="input input-bordered w-full"
+                type="number"
+                placeholder="Max Members"
+                value={groupSetMaxMembers}
+                onChange={(e) => setGroupSetMaxMembers(Math.max(0, e.target.value))}
+              />
+              <input
+                className="input input-bordered w-full"
+                type="text"
+                placeholder="Image URL"
+                value={groupSetImage}
+                onChange={(e) => setGroupSetImage(e.target.value)}
+              />
+              <div className="flex gap-2">
+                <button className="btn btn-primary" onClick={editingGroupSet ? handleUpdateGroupSet : handleCreateGroupSet}>
+                  {editingGroupSet ? 'Update' : 'Create'}
+                </button>
+                {editingGroupSet && <button className="btn btn-ghost" onClick={handleCancelUpdate}>Cancel</button>}
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    )}
+      )}
 
-    {user.role === 'student' && (
-  <div className="space-y-6">
-    <button className="btn btn-warning" onClick={handleLeaveClassroomConfirm}>Leave Classroom</button>
-    
-    {/* Group Sets for Students */}
-    <div className="space-y-6">
-      <h3 className="text-xl font-bold">Group Sets</h3>
-      <ul className="space-y-6">
-        {groupSets.map((groupSet) => (
-          <li key={groupSet._id} className="card bg-base-100 shadow p-4 space-y-3">
-            <div className="flex justify-between items-center">
-              <div>
-                <h4 className="text-lg font-semibold">{groupSet.name}</h4>
-                <p>Self Signup: {groupSet.selfSignup ? 'Yes' : 'No'}</p>
-                <p>Join Approval: {groupSet.joinApproval ? 'Yes' : 'No'}</p>
-                <p>Max Members: {groupSet.maxMembers || 'No limit'}</p>
-              </div>
-              <img src={groupSet.image} alt={groupSet.name} className="w-16 h-16 object-cover rounded" />
-            </div>
+      {user.role === 'student' && (
+        <div className="space-y-6">
+          <button className="btn btn-warning" onClick={handleLeaveClassroomConfirm}>Leave Classroom</button>
 
-            {/* Groups List */}
-            <div>
-              <h4 className="font-semibold mb-2">Groups</h4>
-              <div className="space-y-4">
-                {groupSet.groups.map((group) => {
-                  // Check if current user is in this group
-                  const isMember = group.members.some(member => 
-                    member._id._id === user._id && member.status === 'approved'
-                  );
-                  const isPending = group.members.some(member => 
-                    member._id._id === user._id && member.status === 'pending'
-                  );
-
-                  return (
-                    <div key={group._id} className="border rounded p-4 bg-base-100">
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <h5 className="font-semibold">{group.name}</h5>
-                          <p>Members: {group.members.length}/{group.maxMembers || 'No limit'}</p>
-                        </div>
-                        <div className="flex gap-1">
-                          {!isMember && !isPending && (
-                            <button 
-                              className="btn btn-xs btn-success"
-                              onClick={() => handleJoinGroup(groupSet._id, group._id)}
-                            >
-                              Join
-                            </button>
-                          )}
-                          {isPending && (
-                            <span className="badge badge-warning">Pending Approval</span>
-                          )}
-                          {(isMember || isPending) && (
-                            <button 
-                              className="btn btn-xs btn-error"
-                              onClick={() => handleLeaveGroup(groupSet._id, group._id)}
-                            >
-                              Leave
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Members List */}
-                      <div className="mt-4">
-                        <h5 className="text-sm font-semibold mb-2">Members</h5>
-                        <div className="flex gap-2 mb-2">
-                          <input
-                            type="text"
-                            placeholder="Search members..."
-                            value={memberSearches[group._id] || ''}
-                            onChange={(e) => handleSearchChange(group._id, e.target.value)}
-                            className="input input-bordered input-sm w-full"
-                          />
-                          <select
-                            value={memberFilters[group._id] || 'all'}
-                            onChange={(e) => handleFilterChange(group._id, e.target.value)}
-                            className="select select-bordered select-sm"
-                          >
-                            <option value="all">All</option>
-                            <option value="approved">Approved</option>
-                          </select>
-                          <select
-                            value={memberSorts[group._id] || 'email'}
-                            onChange={(e) => handleSortChange(group._id, e.target.value)}
-                            className="select select-bordered select-sm"
-                          >
-                            <option value="email">Email</option>
-                            <option value="date">Join Date</option>
-                          </select>
-                        </div>
-                        <div className="overflow-x-auto">
-                          <table className="table table-zebra table-sm">
-                            <thead>
-                              <tr>
-                                <th>Email</th>
-                                <th>Status</th>
-                                <th>Join Date</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {getFilteredAndSortedMembers(group)
-                                .filter(member => member.status === 'approved') // Students only see approved members
-                                .map((member, idx) => (
-                                  <tr key={`${group._id}-${member._id._id}-${idx}`}>
-                                    <td>
-                                      {member._id.email}
-                                      {member._id._id === user._id && (
-                                        <span className="badge badge-info ml-2">You</span>
-                                      )}
-                                    </td>
-                                    <td>
-                                      <span className="badge badge-success">
-                                        {member.status || 'approved'}
-                                      </span>
-                                    </td>
-                                    <td>{new Date(member.joinDate).toLocaleString()}</td>
-                                  </tr>
-                                ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
+          {/* Group Sets for Students */}
+          <div className="space-y-6">
+            <h3 className="text-xl font-bold">Group Sets</h3>
+            <ul className="space-y-6">
+              {groupSets.map((groupSet) => (
+                <li key={groupSet._id} className="card bg-base-100 shadow p-4 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h4 className="text-lg font-semibold">{groupSet.name}</h4>
+                      <p>Self Signup: {groupSet.selfSignup ? 'Yes' : 'No'}</p>
+                      <p>Join Approval: {groupSet.joinApproval ? 'Yes' : 'No'}</p>
+                      <p>Max Members: {groupSet.maxMembers || 'No limit'}</p>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          </li>
-        ))}
-      </ul>
+                    <img src={groupSet.image} alt={groupSet.name} className="w-16 h-16 object-cover rounded" />
+                  </div>
+
+                  {/* Groups List */}
+                  <div>
+                    <h4 className="font-semibold mb-2">Groups</h4>
+                    <div className="space-y-4">
+                      {groupSet.groups.map((group) => {
+                        // Check if current user is in this group
+                        const isMember = group.members.some(member =>
+                          member._id._id === user._id && member.status === 'approved'
+                        );
+                        const isPending = group.members.some(member =>
+                          member._id._id === user._id && member.status === 'pending'
+                        );
+
+                        return (
+                          <div key={group._id} className="border rounded p-4 bg-base-100">
+                            <div className="flex justify-between items-center">
+                              <div>
+                                <h5 className="font-semibold">{group.name}</h5>
+                                <p>Members: {group.members.length}/{group.maxMembers || 'No limit'}</p>
+                              </div>
+                              <div className="flex gap-1">
+                                {!isMember && !isPending && (
+                                  <button
+                                    className="btn btn-xs btn-success"
+                                    onClick={() => handleJoinGroup(groupSet._id, group._id)}
+                                  >
+                                    Join
+                                  </button>
+                                )}
+                                {isPending && (
+                                  <span className="badge badge-warning">Pending Approval</span>
+                                )}
+                                {(isMember || isPending) && (
+                                  <button
+                                    className="btn btn-xs btn-error"
+                                    onClick={() => handleLeaveGroup(groupSet._id, group._id)}
+                                  >
+                                    Leave
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Members List */}
+                            <div className="mt-4">
+                              <h5 className="text-sm font-semibold mb-2">Members</h5>
+                              <div className="flex gap-2 mb-2">
+                                <input
+                                  type="text"
+                                  placeholder="Search members..."
+                                  value={memberSearches[group._id] || ''}
+                                  onChange={(e) => handleSearchChange(group._id, e.target.value)}
+                                  className="input input-bordered input-sm w-full"
+                                />
+                                <select
+                                  value={memberFilters[group._id] || 'all'}
+                                  onChange={(e) => handleFilterChange(group._id, e.target.value)}
+                                  className="select select-bordered select-sm"
+                                >
+                                  <option value="all">All</option>
+                                  <option value="approved">Approved</option>
+                                </select>
+                                <select
+                                  value={memberSorts[group._id] || 'email'}
+                                  onChange={(e) => handleSortChange(group._id, e.target.value)}
+                                  className="select select-bordered select-sm"
+                                >
+                                  <option value="email">Email</option>
+                                  <option value="date">Join Date</option>
+                                </select>
+                              </div>
+                              <div className="overflow-x-auto">
+                                <table className="table table-zebra table-sm">
+                                  <thead>
+                                    <tr>
+                                      <th>Email</th>
+                                      <th>Status</th>
+                                      <th>Join Date</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {getFilteredAndSortedMembers(group)
+                                      .filter(member => member.status === 'approved') // Students only see approved members
+                                      .map((member, idx) => (
+                                        <tr key={`${group._id}-${member._id._id}-${idx}`}>
+                                          <td>
+                                            {member._id.email}
+                                            {member._id._id === user._id && (
+                                              <span className="badge badge-info ml-2">You</span>
+                                            )}
+                                          </td>
+                                          <td>
+                                            <span className="badge badge-success">
+                                              {member.status || 'approved'}
+                                            </span>
+                                          </td>
+                                          <td>{new Date(member.joinDate).toLocaleString()}</td>
+                                        </tr>
+                                      ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
     </div>
-  </div>
-)}
-  </div>
-)
+  )
 
 };
 

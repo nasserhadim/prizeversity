@@ -4,10 +4,11 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 // import axios from 'axios'
-import apiBazaar from '../API/apiBazaar.js'
+//import apiBazaar from '../API/apiBazaar.js'
 import CreateBazaar from '../components/CreateBazaar';
 import CreateItem from '../components/CreateItem';
 import ItemCard from '../components/ItemCard';
+import apiBazaar from '../API/apiBazaar';
 
 const Bazaar = () => {
   const { classroomId } = useParams();
