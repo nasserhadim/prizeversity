@@ -5,6 +5,8 @@ const User = require('../models/User');
 const Classroom = require('../models/Classroom');
 const { ensureAuthenticated } = require('../config/auth');
 const router = express.Router();
+const Order = require('../models/Order');
+
 
 // Middleware: Only teachers allowed for certain actions
 function ensureTeacher(req, res, next) {
@@ -143,6 +145,13 @@ router.post('/checkout', ensureAuthenticated, async (req, res) => {
     });
     await user.save();
 
+    const order = new Order({
+      user: req.user._id,
+      items: items.map(i => i._id || i.id),  // array of item IDs
+      total
+    });
+    await order.save();
+
     res.status(200).json({ message: 'Purchase successful' });
   } catch (err) {
     console.error(err);
@@ -161,5 +170,24 @@ router.get('/user/:userId/balance', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch balance' });
   }
 });
+
+router.get(
+  '/orders/user/:userId',
+  ensureAuthenticated,
+  async (req, res) => {
+    try {
+      const { userId } = req.params;
+      // only allow the student themself or any teacher
+      if (req.user._id.toString() !== userId && req.user.role !== 'teacher') {
+        return res.status(403).json({ error: 'Not authorized' });
+      }
+      const orders = await Order.find({ user: userId }).populate('items');
+      res.json(orders);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Failed to fetch orders' });
+    }
+  }
+);
 
 module.exports = router;

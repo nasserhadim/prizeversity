@@ -15,6 +15,7 @@ import Leaderboard from './pages/Leaderboard';
 import Settings from './pages/Settings';
 import { CartProvider } from './context/CartContext';
 import Checkout from './pages/Checkout';
+import OrderHistory from './pages/OrderHistory';
 
 
 
@@ -55,6 +56,7 @@ const App = () => {
           <Route path="/settings" element={<Settings />} />
           <Route path="/classroom/:classroomId/checkout" element={<Checkout />} />
           <Route path="/checkout" element={<Checkout />} />
+          <Route path="/orders" element={<OrderHistory />} />
         </Routes>
       </div>
     </CartProvider>
