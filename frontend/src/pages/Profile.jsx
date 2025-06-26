@@ -12,6 +12,9 @@ const Profile = () => {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [orders, setOrders] = useState([]);
+    const [loadingOrders, setLoadingOrders] = useState(true);
+    const [ordersError, setOrdersError] = useState('');
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -39,6 +42,24 @@ const Profile = () => {
 
         if (profileId) fetchProfile();
     }, [profileId]);
+
+    useEffect(() => {
+        if (user.role === 'teacher' && profile?.role === 'student') {
+            axios
+                .get(`/api/bazaar/orders/user/${profileId}`, {
+                    withCredentials: true,
+                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                })
+                .then(res => {
+                    setOrders(res.data);
+                    setLoadingOrders(false);
+                })
+                .catch(err => {
+                    setOrdersError(err.response?.data?.error || 'Failed to load orders');
+                    setLoadingOrders(false);
+                });
+        }
+    }, [profile, user.role, profileId]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -184,6 +205,27 @@ const Profile = () => {
                             <InfoRow label="Role" value={profile.role.charAt(0).toUpperCase() + profile.role.slice(1)} />
                         )}
                     </div>
+
+                    {user.role === 'teacher' && profile.role === 'student' && (
+                        <div className="mt-6">
+                            <h2 className="text-xl mb-2">Purchase History</h2>
+                            {loadingOrders ? (
+                                <p>Loading…</p>
+                            ) : ordersError ? (
+                                <p className="text-red-500">{ordersError}</p>
+                            ) : orders.length === 0 ? (
+                                <p>No purchases by this student.</p>
+                            ) : (
+                                <ul className="list-disc list-inside">
+                                    {orders.map(o => (
+                                        <li key={o._id}>
+                                            {new Date(o.createdAt).toLocaleDateString()}: {o.items.map(i => i.name).join(', ')} ({o.total} bits)
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                    )}
 
                     {canEdit && (
                         <button onClick={() => setEditMode(true)} className="btn btn-primary w-full mt-4">
