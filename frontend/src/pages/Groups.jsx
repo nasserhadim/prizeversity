@@ -57,25 +57,156 @@ const Groups = () => {
     }
   };
 
-  const handleJoinGroup = async (groupSetId, groupId) => {
-    try {
-      await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/join`);
-      toast.success('Join request sent');
-      fetchGroupSets();
-    } catch (err) {
-      toast.error('Failed to join group');
-    }
-  };
+  const [editingGroupSetId, setEditingGroupSetId] = useState(null);
+  
+  const handleEditGroupSet = (gs) => {
+  setEditingGroupSetId(gs._id);
+  setGroupSetName(gs.name);
+  setGroupSetSelfSignup(gs.selfSignup);
+  setGroupSetJoinApproval(gs.joinApproval);
+  setGroupSetMaxMembers(gs.maxMembers);
+  setGroupSetImage(gs.image);
+};
 
-  const handleLeaveGroup = async (groupSetId, groupId) => {
-    try {
-      await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/leave`);
-      toast.success('Left group');
-      fetchGroupSets();
-    } catch (err) {
-      toast.error('Failed to leave group');
-    }
-  };
+// GROUP: Edit Group Name
+const handleEditGroup = async (groupSetId, groupId) => {
+  const newName = prompt('Enter new group name:');
+  if (!newName?.trim()) return toast.error('Group name cannot be empty');
+
+  try {
+    await axios.put(`/api/group/groupset/${groupSetId}/group/${groupId}`, {
+      name: newName.trim()
+    });
+    toast.success('Group updated');
+    fetchGroupSets();
+  } catch (err) {
+    toast.error('Failed to update group');
+  }
+};
+
+// GROUP: Delete Group
+const handleDeleteGroup = async (groupSetId, groupId) => {
+  if (!window.confirm('Are you sure you want to delete this group?')) return;
+
+  try {
+    await axios.delete(`/api/group/groupset/${groupSetId}/group/${groupId}`);
+    toast.success('Group deleted');
+    fetchGroupSets();
+  } catch (err) {
+    toast.error('Failed to delete group');
+  }
+};
+
+// GROUP: Join
+const handleJoinGroup = async (groupSetId, groupId) => {
+  const groupSet = groupSets.find(gs => gs._id === groupSetId);
+  const alreadyJoined = groupSet?.groups.some(group =>
+    group.members.some(m => m._id._id === user._id && m.status === 'approved')
+  );
+
+  if (user.role === 'student' && alreadyJoined) {
+    toast.error('Students can only join one group in this GroupSet');
+    return;
+  }
+
+  try {
+    await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/join`);
+    toast.success('Join request sent');
+    fetchGroupSets();
+  } catch (err) {
+    toast.error('Failed to join group');
+  }
+};
+
+
+// GROUP: Leave
+const handleLeaveGroup = async (groupSetId, groupId) => {
+  try {
+    await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/leave`);
+    toast.success('Left group');
+    fetchGroupSets();
+  } catch (err) {
+    toast.error('Failed to leave group');
+  }
+};
+
+const handleApproveMembers = async (groupSetId, groupId) => {
+  try {
+    await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/approve`, {
+      memberIds: selectedMembers[groupId]
+    });
+    toast.success('Members approved');
+    fetchGroupSets();
+  } catch (err) {
+    toast.error('Failed to approve members');
+  }
+};
+
+const handleRejectMembers = async (groupSetId, groupId) => {
+  try {
+    await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/reject`, {
+      memberIds: selectedMembers[groupId]
+    });
+    toast.success('Members rejected');
+    fetchGroupSets();
+  } catch (err) {
+    toast.error('Failed to reject members');
+  }
+};
+
+const handleSuspendMembers = async (groupSetId, groupId) => {
+  try {
+    await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/suspend`, {
+      memberIds: selectedMembers[groupId]
+    });
+    toast.success('Members suspended');
+    fetchGroupSets();
+  } catch (err) {
+    toast.error('Failed to suspend members');
+  }
+};
+
+const handleUpdateGroupSet = async () => {
+  if (!groupSetName.trim()) return toast.error('GroupSet name is required');
+  if (groupSetMaxMembers < 0) return toast.error('Max members cannot be negative');
+
+  try {
+    await axios.put(`/api/group/groupset/${editingGroupSetId}`, {
+      name: groupSetName,
+      selfSignup: groupSetSelfSignup,
+      joinApproval: groupSetJoinApproval,
+      maxMembers: groupSetMaxMembers,
+      image: groupSetImage,
+    });
+
+    toast.success('GroupSet updated successfully');
+    resetGroupSetForm();
+    fetchGroupSets();
+  } catch (err) {
+    toast.error('Failed to update group set');
+  }
+};
+
+const handleDeleteGroupSetConfirm = async (gs) => {
+  if (!window.confirm(`Delete group set "${gs.name}"?`)) return;
+
+  try {
+    await axios.delete(`/api/group/groupset/${gs._id}`);
+    toast.success('GroupSet deleted');
+    fetchGroupSets();
+  } catch (err) {
+    toast.error('Failed to delete group set');
+  }
+};
+
+const resetGroupSetForm = () => {
+  setEditingGroupSetId(null);
+  setGroupSetName('');
+  setGroupSetSelfSignup(false);
+  setGroupSetJoinApproval(false);
+  setGroupSetMaxMembers('');
+  setGroupSetImage('');
+};
 
   const getFilteredAndSortedMembers = (group) => {
     const filter = memberFilters[group._id] || 'all';
@@ -135,65 +266,80 @@ const Groups = () => {
       toast.error('Failed to create group set');
     }
   };
-
-  return (
+ return (
     <div className="p-6 space-y-6">
-      <h1 className="text-3xl font-bold">Group Sets</h1>
+      <h1 className="text-3xl font-bold">Groups</h1>
 
-      {/* GroupSet Creation Form */}
+      {/* Group Creation Form */}
+      {(user.role === 'teacher' || user.role === 'admin') && (
+        <div className="card bg-base-200 p-4 space-y-2">
+          <input
+            className="input input-bordered w-full hover:ring hover:ring-primary"
+            type="text"
+            placeholder="Group Name"
+            value={groupSetName}
+            onChange={(e) => setGroupSetName(e.target.value)}
+          />
 
-<div className="card bg-base-200 p-4 space-y-2">
-  <input
-    className="input input-bordered w-full hover:ring hover:ring-primary"
-    type="text"
-    placeholder="GroupSet Name"
-    value={groupSetName}
-    onChange={(e) => setGroupSetName(e.target.value)}
-  />
+          <label className="label cursor-pointer">
+            <span className="label-text">Allow Self-Signup</span>
+            <input
+              type="checkbox"
+              className={`toggle transition-colors duration-300 ${groupSetSelfSignup ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'}`}
+              checked={groupSetSelfSignup}
+              onChange={(e) => setGroupSetSelfSignup(e.target.checked)}
+            />
+          </label>
 
-  {/* Allow Self-Signup Toggle with Red/Green indicator and hover effect */}
-  <label className="label cursor-pointer">
-    <span className="label-text">Allow Self-Signup</span>
-    <input
-      type="checkbox"
-      className={`toggle transition-colors duration-300 ${groupSetSelfSignup ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'}`}
-      checked={groupSetSelfSignup}
-      onChange={(e) => setGroupSetSelfSignup(e.target.checked)}
-    />
-  </label>
+          <label className="label cursor-pointer">
+            <span className="label-text">Require Join Approval</span>
+            <input
+              type="checkbox"
+              className={`toggle transition-colors duration-300 ${groupSetJoinApproval ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'}`}
+              checked={groupSetJoinApproval}
+              onChange={(e) => setGroupSetJoinApproval(e.target.checked)}
+            />
+          </label>
 
-  {/* Require Join Approval Toggle with Red/Green indicator and hover effect */}
-  <label className="label cursor-pointer">
-    <span className="label-text">Require Join Approval</span>
-    <input
-      type="checkbox"
-      className={`toggle transition-colors duration-300 ${groupSetJoinApproval ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'}`}
-      checked={groupSetJoinApproval}
-      onChange={(e) => setGroupSetJoinApproval(e.target.checked)}
-    />
-  </label>
+          <input
+            className="input input-bordered w-full hover:ring hover:ring-primary"
+            type="number"
+            placeholder="Max Members"
+            value={groupSetMaxMembers}
+            onChange={(e) => setGroupSetMaxMembers(Math.max(0, e.target.value))}
+          />
 
-  <input
-    className="input input-bordered w-full hover:ring hover:ring-primary"
-    type="number"
-    placeholder="Max Members"
-    value={groupSetMaxMembers}
-    onChange={(e) => setGroupSetMaxMembers(Math.max(0, e.target.value))}
-  />
+          <input
+            className="input input-bordered w-full hover:ring hover:ring-primary"
+            type="text"
+            placeholder="Image URL"
+            value={groupSetImage}
+            onChange={(e) => setGroupSetImage(e.target.value)}
+          />
 
-  <input
-    className="input input-bordered w-full hover:ring hover:ring-primary"
-    type="text"
-    placeholder="Image URL"
-    value={groupSetImage}
-    onChange={(e) => setGroupSetImage(e.target.value)}
-  />
+          {editingGroupSetId ? (
+            <button
+              className="btn btn-warning hover:scale-105 transition-transform duration-200"
+              onClick={handleUpdateGroupSet}
+            >
+              Update Group
+            </button>
+          ) : (
+            <button
+              className="btn btn-primary hover:scale-105 transition-transform duration-200"
+              onClick={handleCreateGroupSet}
+            >
+              Create Group
+            </button>
+          )}
+        </div>
+      )}
 
-  <button className="btn btn-primary hover:scale-105 transition-transform duration-200" onClick={handleCreateGroupSet}>Create</button>
-</div>
+      {/* Group Display */}
+      {groupSets.length === 0 && user.role === 'student' && (
+        <p className="text-lg font-medium text-gray-600">No teams available</p>
+      )}
 
-
-      {/* GroupSet Display */}
       {groupSets.map((gs) => (
         <div key={gs._id} className="card bg-base-100 shadow-md p-4 space-y-4">
           <div className="flex justify-between items-center">
@@ -205,57 +351,44 @@ const Groups = () => {
             </div>
             <img src={gs.image} alt={gs.name} className="w-16 h-16 object-cover rounded" />
           </div>
-          {/* Group Set action buttons (Edit & Delete) */}
-<div className="flex gap-2 mt-2">
-  <button
-    className="btn btn-sm btn-accent"
-    onClick={() => handleEditGroupSet(gs)}  // 🔧 Assumes this function is defined
-  >
-    Edit
-  </button>
-  <button
-    className="btn btn-sm btn-error"
-    onClick={() => handleDeleteGroupSetConfirm(gs)}  // 🔧 Assumes this function is defined
-  >
-    Delete
-  </button>
-</div>
 
+          {(user.role === 'teacher' || user.role === 'admin') && (
+            <div className="flex gap-2 mt-2">
+              <button className="btn btn-sm btn-accent" onClick={() => handleEditGroupSet(gs)}>Edit</button>
+              <button className="btn btn-sm btn-error" onClick={() => handleDeleteGroupSetConfirm(gs)}>Delete</button>
+            </div>
+          )}
 
-          {/* Create Group under GroupSet */}
-          {user.role === 'teacher' && (
+          {/* Create Team */}
+          {(user.role === 'teacher' || user.role === 'admin') && (
             <div className="mt-4">
-              <h4 className="text-md font-semibold">Create Group</h4>
-              <input type="text" className="input input-bordered w-full mt-1" placeholder="Group Name" value={groupName} onChange={(e) => setGroupName(e.target.value)} />
+              <h4 className="text-md font-semibold">Create Team</h4>
+              <input type="text" className="input input-bordered w-full mt-1" placeholder="Team Name" value={groupName} onChange={(e) => setGroupName(e.target.value)} />
               <input
-  type="number"
-  min="1"
-  step="1"
-  placeholder="Group Count"
-  className="input input-bordered w-full"
-  value={groupCount}
-  onChange={(e) => {
-    const value = e.target.value;
-
-    // Allow empty input for user typing but block negatives
-    if (value === '' || parseInt(value) >= 1) {
-      setGroupCount(value);
-    }
-  }}
-  onBlur={(e) => {
-    const value = parseInt(e.target.value);
-    // On blur (focus out), fix invalid values
-    if (isNaN(value) || value < 1) {
-      setGroupCount(1);
-    }
-  }}
-/>
-
+                type="number"
+                min="1"
+                step="1"
+                placeholder="Team Count"
+                className="input input-bordered w-full"
+                value={groupCount}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === '' || parseInt(value) >= 1) {
+                    setGroupCount(value);
+                  }
+                }}
+                onBlur={(e) => {
+                  const value = parseInt(e.target.value);
+                  if (isNaN(value) || value < 1) {
+                    setGroupCount(1);
+                  }
+                }}
+              />
               <button className="btn btn-primary mt-2" onClick={() => handleCreateGroup(gs._id)}>Create</button>
             </div>
           )}
 
-          {/* Display Groups */}
+          {/* Display Teams */}
           {gs.groups.map(group => (
             <div className="border rounded p-4 bg-base-100">
   <div className="flex justify-between items-center">
@@ -266,10 +399,20 @@ const Groups = () => {
 
     {/* Group-level action buttons */}
     <div className="flex gap-2">
-      <button className="btn btn-xs btn-success" onClick={() => handleJoinGroup(groupSet._id, group._id)}>Join</button>
-      <button className="btn btn-xs btn-error" onClick={() => handleLeaveGroup(groupSet._id, group._id)}>Leave</button>
-      <button className="btn btn-xs btn-info">Edit</button>
-      <button className="btn btn-xs btn-error">Delete</button>
+      {(user.role == 'student') && (
+        <div>
+        <button className="btn btn-xs btn-success" onClick={() => handleJoinGroup(gs._id, group._id)}>Join</button>
+        <button className="btn btn-xs btn-warning" onClick={() => handleLeaveGroup(gs._id, group._id)}>Leave</button>
+        <button className="btn btn-xs btn-info" onClick={() => handleEditGroup(gs._id, group._id)}>Edit</button>
+        </div>
+      )}
+      {(user.role == 'teacher' || user.role == 'admin') && (
+        <div>
+          <button className="btn btn-xs btn-info" onClick={() => handleEditGroup(gs._id, group._id)}>Edit</button>
+          <button className="btn btn-xs btn-error" onClick={() => handleDeleteGroup(gs._id, group._id)}>Delete</button>
+        </div>
+
+      )}
     </div>
   </div>
 
@@ -349,29 +492,29 @@ const Groups = () => {
     </div>
 
     {/* Batch action buttons */}
-    <div className="mt-2 flex gap-2">
-      <button
-        className="btn btn-xs btn-success"
-        disabled={!selectedMembers[group._id]?.length}
-        onClick={() => handleApproveMembers(groupSet._id, group._id)}
-      >
-        Approve
-      </button>
-      <button
-        className="btn btn-xs btn-error"
-        disabled={!selectedMembers[group._id]?.length}
-        onClick={() => handleRejectMembers(groupSet._id, group._id)}
-      >
-        Reject
-      </button>
-      <button
-        className="btn btn-xs btn-warning"
-        disabled={!selectedMembers[group._id]?.length}
-        onClick={() => handleSuspendMembers(groupSet._id, group._id)}
-      >
-        Suspend
-      </button>
-    </div>
+    {(user.role == 'teacher' || user.role == 'admin') && (
+      <div className="mt-2 flex gap-2">
+        <button
+          className="btn btn-xs btn-success"
+          onClick={() => handleApproveMembers(gs._id, group._id)}
+        >
+          Approve
+        </button>
+        <button
+          className="btn btn-xs btn-error"
+          onClick={() => handleRejectMembers(gs._id, group._id)}
+        >
+          Reject
+        </button>
+        <button
+          className="btn btn-xs btn-warning"
+          onClick={() => handleSuspendMembers(gs._id, group._id)}
+        >
+          Suspend
+        </button>
+      </div>
+    )}
+    
   </div>
 </div>
 
