@@ -20,6 +20,11 @@ import {
 const Navbar = () => {
   const location = useLocation();
   const { user, logout } = useContext(AuthContext);
+  const showClassroomsTab = Boolean(
+    user?.firstName &&
+    user?.lastName &&
+    user?.role
+  );
   const { theme, toggleTheme } = useContext(ThemeContext);
 
   const classroomMatch = location.pathname.match(/^\/classroom\/([^\/]+)/);
@@ -64,15 +69,18 @@ const Navbar = () => {
                   <Home size={18} /> <span className="hidden sm:inline">Home</span>
                 </Link>
               </li>
-              <li>
-                <Link
-                  to="/classrooms"
-                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname === '/classrooms' ? 'text-green-500' : ''}`}
-                  title="Classrooms"
-                >
-                  <School size={18} /> <span className="hidden sm:inline">Classrooms</span>
-                </Link>
-              </li>
+              {showClassroomsTab && (
+                <li>
+                  <Link
+                    to="/classrooms"
+                    className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname === '/classrooms' ? 'text-green-500' : ''
+                      }`}
+                    title="Classrooms"
+                  >
+                    <School size={18} /> <span className="hidden sm:inline">Classrooms</span>
+                  </Link>
+                </li>
+              )}
             </>
           )}
           {insideClassroom && (
