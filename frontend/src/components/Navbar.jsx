@@ -6,6 +6,7 @@ import { useCart } from '../context/CartContext';
 import { ShoppingCart } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 
+
 import {
   Home,
   School,
@@ -19,6 +20,11 @@ import {
 const Navbar = () => {
   const location = useLocation();
   const { user, logout } = useContext(AuthContext);
+  const showClassroomsTab = Boolean(
+    user?.firstName &&
+    user?.lastName &&
+    user?.role
+  );
   const { theme, toggleTheme } = useContext(ThemeContext);
 
   const classroomMatch = location.pathname.match(/^\/classroom\/([^\/]+)/);
@@ -63,15 +69,18 @@ const Navbar = () => {
                   <Home size={18} /> <span className="hidden sm:inline">Home</span>
                 </Link>
               </li>
-              <li>
-                <Link
-                  to="/classrooms"
-                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname === '/classrooms' ? 'text-green-500' : ''}`}
-                  title="Classrooms"
-                >
-                  <School size={18} /> <span className="hidden sm:inline">Classrooms</span>
-                </Link>
-              </li>
+              {showClassroomsTab && (
+                <li>
+                  <Link
+                    to="/classrooms"
+                    className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname === '/classrooms' ? 'text-green-500' : ''
+                      }`}
+                    title="Classrooms"
+                  >
+                    <School size={18} /> <span className="hidden sm:inline">Classrooms</span>
+                  </Link>
+                </li>
+              )}
             </>
           )}
           {insideClassroom && (
@@ -136,69 +145,79 @@ const Navbar = () => {
 
         {user && (
           <div className="flex items-center gap-4 relative">
-            {/* Cart Icon Button */}
-            <button
-              className="relative"
-              onClick={() => setShowCart(!showCart)}
-              title="Cart"
-            >
-              <ShoppingCart size={24} className="text-green-500" />
-              {cartItems.length > 0 && (
-                <span className="absolute -top-1 -right-2 bg-red-500 text-white rounded-full text-xs w-5 h-5 flex items-center justify-center">
-                  {cartItems.length}
-                </span>
-              )}
-            </button>
+            {user?.role !== 'teacher' && insideClassroom && (
+              <>
+                {/* Cart Icon Button */}
+                <button
+                  className="relative"
+                  onClick={() => setShowCart(!showCart)}
+                  title="Cart"
+                >
+                  <ShoppingCart size={24} className="text-green-500" />
+                  {cartItems.length > 0 && (
+                    <span className="absolute -top-1 -right-2 bg-red-500 text-white rounded-full text-xs w-5 h-5 flex items-center justify-center">
+                      {cartItems.length}
+                    </span>
+                  )}
+                </button>
 
-            {/* Dropdown */}
-            {showCart && (
-              <div ref={cartRef} className="fixed top-20 right-4 bg-white border shadow-lg w-80 z-[9999] p-4 rounded text-black">
-                <h3 className="text-lg font-bold mb-2">Your Cart</h3>
-                {cartItems.length === 0 ? (
-                  <p className="text-sm text-gray-500">Cart is empty</p>
-                ) : (
-                  <>
-                    <ul className="space-y-2">
-                      {cartItems.map(item => (
-                        <li key={item._id} className="flex justify-between items-center">
-                          <div>
-                            <span className="block font-medium">{item.name}</span>
-                            <span className="text-sm text-gray-500">{item.price} bits</span>
-                          </div>
-                          <button
-                            onClick={() => removeFromCart(item._id)}
-                            className="text-red-500 text-sm ml-4"
-                            title="Remove item"
-                          >
-                            ✕
+                {/* Dropdown */}
+                {showCart && (
+                  <div ref={cartRef} className="fixed top-20 right-4 bg-white border shadow-lg w-80 z-[9999] p-4 rounded text-black">
+                    <h3 className="text-lg font-bold mb-2">Your Cart</h3>
+                    {cartItems.length === 0 ? (
+                      <p className="text-sm text-gray-500">Cart is empty</p>
+                    ) : (
+                      <>
+                        <ul className="space-y-2">
+                          {cartItems.map(item => (
+                            <li key={item._id} className="flex justify-between items-center">
+                              <div>
+                                <span className="block font-medium">{item.name}</span>
+                                <span className="text-sm text-gray-500">{item.price} bits</span>
+                              </div>
+                              <button
+                                onClick={() => removeFromCart(item._id)}
+                                className="text-red-500 text-sm ml-4"
+                                title="Remove item"
+                              >
+                                ✕
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                        <div className="mt-3 text-right font-semibold">
+                          Total: {cartItems.reduce((sum, item) => sum + item.price, 0)} bits
+                        </div>
+                        <Link to="/checkout">
+                          <button className="mt-3 w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">
+                            Go to Checkout
                           </button>
-                        </li>
-                      ))}
-                    </ul>
-                    <div className="mt-3 text-right font-semibold">
-                      Total: {cartItems.reduce((sum, item) => sum + item.price, 0)} bits
-                    </div>
-                    <Link to="/checkout">
-                      <button className="mt-3 w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">
-                        Go to Checkout
-                      </button>
-                    </Link>
-                  </>
+                        </Link>
+                      </>
+                    )}
+                  </div>
                 )}
-              </div>
+              </>
             )}
 
             {/* Profile Avatar */}
             <div className="dropdown dropdown-end">
               <div tabIndex={0} role="button" className="btn btn-ghost btn-circle avatar">
                 <div className="w-10 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2">
-                  <img alt="User avatar" src="/default-profile.png" />
+                  <img
+                    alt="User avatar"
+                    src={user?.avatar || '/default-profile.png'}
+                  />
                 </div>
               </div>
               <ul tabIndex={0} className="mt-3 z-[1] p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-52">
                 <li><Link to={`/profile/${user._id}`}>Profile</Link></li>
                 <li><Link to="/settings">Settings</Link></li>
                 <li><Link to="/support">Help & Support</Link></li>
+                <li>
+                  <Link to="/orders">Order History</Link>
+                </li>
                 <li><button onClick={logout}>Logout</button></li>
               </ul>
             </div>

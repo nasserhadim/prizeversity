@@ -4,7 +4,7 @@ import { AuthContext } from '../context/AuthContext';
 import axios from 'axios';
 
 const Profile = () => {
-    const { user } = useContext(AuthContext);
+    const { user, setUser } = useContext(AuthContext);
     const { id: profileId } = useParams();
     const [profile, setProfile] = useState(null);
     const [editMode, setEditMode] = useState(false);
@@ -12,6 +12,10 @@ const Profile = () => {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [orders, setOrders] = useState([]);
+    const [loadingOrders, setLoadingOrders] = useState(true);
+    const [ordersError, setOrdersError] = useState('');
+    const [stats, setStats] = useState({});
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -40,6 +44,42 @@ const Profile = () => {
         if (profileId) fetchProfile();
     }, [profileId]);
 
+    // Added new useEffect to fetch the stats into a table.
+    useEffect(() => {
+        if (user.role === 'teacher' && profile?.role === 'student') {
+            axios
+                .get(`/api/bazaar/orders/user/${profileId}`, {
+                    withCredentials: true,
+                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                })
+                .then(res => {
+                    setOrders(res.data);
+                    setLoadingOrders(false);
+                })
+                .catch(err => {
+                    setOrdersError(err.response?.data?.error || 'Failed to load orders');
+                    setLoadingOrders(false);
+                });
+        }
+    }, [profile, user.role, profileId]);
+
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                const res = await axios.get(`/api/profile/student/${profileId}/stats`, {
+                    withCredentials: true,
+                    headers: {
+                        Authorization: `Bearer ${localStorage.getItem('token')}`,
+                    },
+                });
+                setStats(res.data);
+            } catch (err) {
+                console.error('Stats fetch error:', err);
+            }
+        };
+        if (profileId) fetchStats();
+    }, [profileId]);
+
     const handleChange = (e) => {
         const { name, value } = e.target;
         setForm(prev => ({ ...prev, [name]: value }));
@@ -63,6 +103,7 @@ const Profile = () => {
             });
 
             setProfile(res.data);
+            setUser({ ...user, avatar: res.data.avatar });
             setEditMode(false);
         } catch (err) {
             console.error('Profile update error:', err);
@@ -185,6 +226,54 @@ const Profile = () => {
                         )}
                     </div>
 
+                    {/* Will add few images to add some gamification features icons may change in the future */}
+                    <div className="mt-6">
+                        <h3 className="text-xl font-bold mb-2">🎯 Stats</h3>
+                        <table className="table w-full">
+                            <tbody>
+                                <tr>
+                                    <td>🛡 Shield</td>
+                                    <td>{stats.shieldActive ? 'Active' : 'Inactive'}</td>
+                                </tr>
+                                <tr>
+                                    <td>💰 Multiplier</td>
+                                    <td>{stats.doubleEarnings ? '2x Earnings' : 'Normal'}</td>
+                                </tr>
+                                <tr>
+                                    <td>🏷️ Discount</td>
+                                    <td>{stats.discountShop ? '20% Off Shop' : 'None'}</td>
+                                </tr>
+                                <tr>
+                                    <td>📈 Interest</td>
+                                    <td>{stats.bitInterest ? '+10 Daily Bits' : 'Inactive'}</td>
+                                </tr>
+                                <tr>
+                                    <td>⚔️ Attack Bonus</td>
+                                    <td>{stats.attackPower || 0}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    {user.role === 'teacher' && profile.role === 'student' && (
+                        <div className="mt-6">
+                            <h2 className="text-xl mb-2">Purchase History</h2>
+                            {loadingOrders ? (
+                                <p>Loading…</p>
+                            ) : ordersError ? (
+                                <p className="text-red-500">{ordersError}</p>
+                            ) : orders.length === 0 ? (
+                                <p>No purchases by this student.</p>
+                            ) : (
+                                <ul className="list-disc list-inside">
+                                    {orders.map(o => (
+                                        <li key={o._id}>
+                                            {new Date(o.createdAt).toLocaleDateString()}: {o.items.map(i => i.name).join(', ')} ({o.total} bits)
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                    )}
                     {canEdit && (
                         <button onClick={() => setEditMode(true)} className="btn btn-primary w-full mt-4">
                             Edit Profile
@@ -202,5 +291,4 @@ const InfoRow = ({ label, value }) => (
         <span className="text-gray-900">{value}</span>
     </div>
 );
-
 export default Profile;

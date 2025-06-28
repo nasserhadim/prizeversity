@@ -203,7 +203,7 @@ router.post('/groupset/:groupSetId/group/create', ensureAuthenticated, async (re
 
     const newGroups = [];
     for (let i = 0; i < count; i++) {
-      const newName = `${name} ${i + 1}`;
+      const newName = `${name}`;
       if (existingNames.has(newName.toLowerCase())) {
         return res.status(400).json({ error: `Group name "${newName}" already exists in this group set.` });
       }

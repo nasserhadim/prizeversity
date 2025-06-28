@@ -797,6 +797,14 @@ const Classroom = () => {
       <Link to="/classrooms" className="link text-accent">
         ← Back to Classroom Dashboard
       </Link>
+
+      <nav className="flex space-x-4 mb-4">
+        <Link to={`/classroom/${id}/news`}>News</Link>
+        {user.role === 'teacher' && (
+          <Link to={`/classroom/${id}/teacher-news`}>Manage News</Link>
+        )}
+      </nav>
+
       <h1 className="text-3xl font-bold">{classroom.name}</h1>
       <p className="text-sm text-gray-500">Class Code: {classroom.code}</p>
 
