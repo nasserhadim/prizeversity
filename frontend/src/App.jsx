@@ -16,10 +16,9 @@ import Settings from './pages/Settings';
 import { CartProvider } from './context/CartContext';
 import Checkout from './pages/Checkout';
 import OrderHistory from './pages/OrderHistory';
-
-
-
 import ClassroomPage from './pages/ClassroomPage';
+import TeacherNewsfeed from './pages/TeacherNewsfeed';
+import StudentNewsfeed from './pages/StudentNewsfeed';
 
 const App = () => {
   const { user } = useContext(AuthContext);
@@ -48,6 +47,8 @@ const App = () => {
           <Route path="/classrooms" element={<ClassroomPage />} />
           <Route path="/classroom/:id" element={<Classroom />} />
           <Route path="/classroom/:classroomId/bazaar" element={<Bazaar />} />
+          <Route path="/classroom/:id/news" element={<StudentNewsfeed />} />
+          <Route path="/classroom/:id/teacher-news" element={<TeacherNewsfeed />} />
           <Route path="/classroom/:id/wallet" element={<Wallet />} />
           <Route path="/classroom/:id/groups" element={<Groups />} />
           <Route path="/classroom/:id/people" element={<People />} />
