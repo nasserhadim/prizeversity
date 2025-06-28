@@ -41,24 +41,49 @@ const Groups = () => {
     }
   };
 
-  const handleCreateGroup = async (groupSetId) => {
-    if (!groupName.trim()) return toast.error('Group name required');
-    if (groupCount < 1) return toast.error('Group count must be at least 1');
-    try {
+const handleCreateGroup = async (groupSetId) => {
+  if (!groupName.trim()) return toast.error('Group name required');
+  if (groupCount < 1) return toast.error('Group count must be at least 1');
+
+  const groupSet = groupSets.find(gs => gs._id === groupSetId);
+  if (!groupSet) return toast.error('GroupSet not found');
+
+  const existingNames = groupSet.groups.map(g => g.name.trim());
+
+  // Extract base name (e.g., "abb" from "abb 1")
+  const baseMatch = groupName.trim().match(/^(.*?)(?:\s\d+)?$/);
+  const baseName = baseMatch ? baseMatch[1].trim() : groupName.trim();
+
+  // Get highest used number
+  const usedNumbers = existingNames
+    .map(name => {
+      const match = name.match(new RegExp(`^${baseName} (\\d+)$`));
+      return match ? parseInt(match[1], 10) : null;
+    })
+    .filter(n => n !== null);
+
+  let start = usedNumbers.length > 0 ? Math.max(...usedNumbers) + 1 : 1;
+
+  try {
+    for (let i = 0; i < groupCount; i++) {
+      const newName = `${baseName} ${start + i}`;
       await axios.post(`/api/group/groupset/${groupSetId}/group/create`, {
-        name: groupName,
-        count: groupCount,
+        name: newName,        // required for naming
+        count: 1              // safely include this if backend expects it
       });
-      fetchGroupSets();
-      setGroupName('');
-      setGroupCount(1);
-    } catch (err) {
-      toast.error('Failed to create group');
     }
-  };
+
+    toast.success(`${groupCount} team(s) created`);
+    fetchGroupSets();
+    setGroupName('');
+    setGroupCount(1);
+  } catch (err) {
+    console.error(err?.response?.data || err);
+    toast.error('Failed to create team(s)');
+  }
+};
 
   const [editingGroupSetId, setEditingGroupSetId] = useState(null);
-  
   const handleEditGroupSet = (gs) => {
   setEditingGroupSetId(gs._id);
   setGroupSetName(gs.name);
