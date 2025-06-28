@@ -12,10 +12,11 @@ const walletRoutes = require('./routes/wallet');
 const groupRoutes = require('./routes/group');
 const notificationsRoutes = require('./routes/notifications');
 // Importing admin route
-const adminRoutes = require('./routes/admin'); 
-const usersRoutes =  require('./routes/users');
+const adminRoutes = require('./routes/admin');
+const usersRoutes = require('./routes/users');
 const profileRoutes = require('./routes/profile');
 const leaderboardRoutes = require('./routes/leaderboard');
+const newsfeedRoutes = require('./routes/newsfeed');
 require('dotenv').config();
 
 const app = express();
@@ -58,6 +59,7 @@ mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopol
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/classroom', classroomRoutes);
+app.use('/api/classroom/:id/newsfeed', newsfeedRoutes);
 app.use('/api/bazaar', bazaarRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/group', groupRoutes);
@@ -75,7 +77,7 @@ app.get('/', (req, res) => {
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log('New client connected');
-  
+
   socket.on('join', async (room) => {
     // Remove existing socket from all rooms before joining new one
     const rooms = [...socket.rooms];
@@ -84,9 +86,9 @@ io.on('connection', (socket) => {
         socket.leave(r);
       }
     });
-    
+
     socket.join(room);
-    
+
     // Extract user ID from room name (removes 'user-' prefix)
     if (room.startsWith('user-')) {
       const userId = room.replace('user-', '');
@@ -101,7 +103,7 @@ io.on('connection', (socket) => {
       console.log(`Socket joined room: ${room}`);
     }
   });
-  
+
   socket.on('disconnect', () => {
     console.log('Client disconnected');
   });
