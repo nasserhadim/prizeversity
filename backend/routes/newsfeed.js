@@ -37,4 +37,19 @@ router.delete('/:itemId', ensureTeacher, async (req, res) => {
     res.json({ message: 'News item deleted successfully' });
 });
 
+router.put('/:itemId', ensureTeacher, async (req, res) => {
+    const { id, itemId } = req.params;
+    const { content } = req.body;
+    // find the news item by its id and classroom, update its content, return the new document
+    const updated = await NewsItem.findOneAndUpdate(
+        { _id: itemId, classroomId: id },
+        { content },
+        { new: true }
+    );
+    if (!updated) {
+        return res.status(404).json({ error: 'News item not found' });
+    }
+    res.json(updated);
+});
+
 module.exports = router;
