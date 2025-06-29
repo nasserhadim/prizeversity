@@ -9,6 +9,9 @@ import toast from 'react-hot-toast';
 export default function TeacherNewsfeed() {
     const { id: classId } = useParams();
     const [items, setItems] = useState([]);
+    const sortedItems = [...items].sort(
+        (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+    );
     const [draft, setDraft] = useState('');
 
     useEffect(() => {
@@ -33,26 +36,32 @@ export default function TeacherNewsfeed() {
     };
 
     return (
-        <div>
-            <h2 className="text-center text-green-500 text-4xl font-bold mb-4">
-                Class News
+        <div className="max-w-3xl mx-auto p-6">
+            <h2 className="text-center text-green-500 text-5xl font-bold mb-6">
+                Manage News
             </h2>
             <textarea
+                className="w-full h-32 p-3 border border-gray-300 rounded mb-4"
                 value={draft}
                 onChange={e => setDraft(e.target.value)}
                 placeholder="Write an update…"
             />
-            <button onClick={handlePost} disabled={!draft.trim()}>
+            <button
+                className="btn btn-primary px-6 py-2 mb-6"
+                onClick={handlePost}
+                disabled={!draft.trim()}
+            >
                 Post
             </button>
 
-            <ul>
-                {items.map(i => (
-                    <li key={i._id} className="space-y-1 p-4 border rounded-md">
-                        <small className="block text-gray-500">
+            <ul className="space-y-6">
+                {sortedItems.map(i => (
+                    <li key={i._id} className="p-4 border border-gray-200 rounded shadow-sm mx-auto">
+
+                        <p className="text-xl mb-2">{i.content}</p>
+                        <small className="block text-gray-500 mb-4">
                             {new Date(i.createdAt).toLocaleString()}
                         </small>
-                        <p className="text-lg">{i.content}</p>
                         <button
                             className="btn btn-sm btn-error mt-2"
                             onClick={() => handleDelete(i._id)}

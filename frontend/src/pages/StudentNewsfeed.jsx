@@ -13,15 +13,17 @@ export default function StudentNewsfeed() {
     }, [classId]);
 
     return (
-        <div>
+        <div className="max-w-3xl mx-auto p-6">
             <h2 className="text-center text-green-500 text-4xl font-bold mb-4">
                 Class News
             </h2>
-            <ul>
+            <ul className="space-y-6">
                 {items.map(i => (
-                    <li key={i._id}>
-                        <small>{new Date(i.createdAt).toLocaleString()}</small>
-                        <p>{i.content}</p>
+                    <li key={i._id} className="p-4 border border-gray-200 rounded shadow-sm">
+                        <small className="block text-gray-500 mb-2">
+                            {new Date(i.createdAt).toLocaleString()}
+                        </small>
+                        <p className="text-xl">{i.content}</p>
                     </li>
                 ))}
             </ul>
