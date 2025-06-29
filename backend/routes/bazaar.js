@@ -5,6 +5,7 @@ const User = require('../models/User');
 const Classroom = require('../models/Classroom');
 const { ensureAuthenticated } = require('../config/auth');
 const router = express.Router();
+const Order = require('../models/Order');
 
 // Middleware: Only teachers allowed for certain actions
 function ensureTeacher(req, res, next) {
@@ -165,9 +166,8 @@ router.post('/checkout', ensureAuthenticated, async (req, res) => {
 
     await user.save();
 
-<<<<<<< Updated upstream
-    res.status(200).json({ message: 'Purchase successful' });
-=======
+
+
     // Clone items and assign ownership
     const ownedItems = [];
 
@@ -202,7 +202,7 @@ router.post('/checkout', ensureAuthenticated, async (req, res) => {
       items: ownedItems, 
       balance: user.balance 
     });
->>>>>>> Stashed changes
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Checkout failed' });

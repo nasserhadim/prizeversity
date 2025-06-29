@@ -44,6 +44,7 @@ const Profile = () => {
         if (profileId) fetchProfile();
     }, [profileId]);
 
+    // Added new useEffect to fetch the stats into a table.
     useEffect(() => {
         if (user.role === 'teacher' && profile?.role === 'student') {
             axios
@@ -225,36 +226,34 @@ const Profile = () => {
                         )}
                     </div>
 
-                    {/* Stats Section */}
-                    // In Profile.jsx, update the stats section
+                    {/* Will add few images to add some gamification features icons may change in the future */}
                     <div className="mt-6">
-                    <h3 className="text-xl font-bold mb-2">🎯 Stats</h3>
-                    <table className="table w-full">
-                        <tbody>
-                        <tr>
-                            <td>🛡 Shield</td>
-                            <td>{stats.shieldActive ? 'Active' : 'Inactive'}</td>
-                        </tr>
-                        <tr>
-                            <td>💰 Multiplier</td>
-                            <td>{stats.doubleEarnings ? '2x Earnings' : 'Normal'}</td>
-                        </tr>
-                        <tr>
-                            <td>🏷️ Discount</td>
-                            <td>{stats.discountShop ? '20% Off Shop' : 'None'}</td>
-                        </tr>
-                        <tr>
-                            <td>📈 Interest</td>
-                            <td>{stats.bitInterest ? '+10 Daily Bits' : 'Inactive'}</td>
-                        </tr>
-                        <tr>
-                            <td>⚔️ Attack Bonus</td>
-                            <td>{stats.attackPower || 0}</td>
-                        </tr>
-                        </tbody>
-                    </table>
+                        <h3 className="text-xl font-bold mb-2">🎯 Stats</h3>
+                        <table className="table w-full">
+                            <tbody>
+                                <tr>
+                                    <td>🛡 Shield</td>
+                                    <td>{stats.shieldActive ? 'Active' : 'Inactive'}</td>
+                                </tr>
+                                <tr>
+                                    <td>💰 Multiplier</td>
+                                    <td>{stats.doubleEarnings ? '2x Earnings' : 'Normal'}</td>
+                                </tr>
+                                <tr>
+                                    <td>🏷️ Discount</td>
+                                    <td>{stats.discountShop ? '20% Off Shop' : 'None'}</td>
+                                </tr>
+                                <tr>
+                                    <td>📈 Interest</td>
+                                    <td>{stats.bitInterest ? '+10 Daily Bits' : 'Inactive'}</td>
+                                </tr>
+                                <tr>
+                                    <td>⚔️ Attack Bonus</td>
+                                    <td>{stats.attackPower || 0}</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
-
                     {user.role === 'teacher' && profile.role === 'student' && (
                         <div className="mt-6">
                             <h2 className="text-xl mb-2">Purchase History</h2>
@@ -275,7 +274,6 @@ const Profile = () => {
                             )}
                         </div>
                     )}
-
                     {canEdit && (
                         <button onClick={() => setEditMode(true)} className="btn btn-primary w-full mt-4">
                             Edit Profile
@@ -293,5 +291,4 @@ const InfoRow = ({ label, value }) => (
         <span className="text-gray-900">{value}</span>
     </div>
 );
-
 export default Profile;
