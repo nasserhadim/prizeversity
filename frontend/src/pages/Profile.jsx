@@ -15,6 +15,7 @@ const Profile = () => {
     const [orders, setOrders] = useState([]);
     const [loadingOrders, setLoadingOrders] = useState(true);
     const [ordersError, setOrdersError] = useState('');
+    const [stats, setStats] = useState({});
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -60,6 +61,23 @@ const Profile = () => {
                 });
         }
     }, [profile, user.role, profileId]);
+
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                const res = await axios.get(`/api/profile/student/${profileId}/stats`, {
+                    withCredentials: true,
+                    headers: {
+                        Authorization: `Bearer ${localStorage.getItem('token')}`,
+                    },
+                });
+                setStats(res.data);
+            } catch (err) {
+                console.error('Stats fetch error:', err);
+            }
+        };
+        if (profileId) fetchStats();
+    }, [profileId]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -205,6 +223,36 @@ const Profile = () => {
                         {profile?.role && (
                             <InfoRow label="Role" value={profile.role.charAt(0).toUpperCase() + profile.role.slice(1)} />
                         )}
+                    </div>
+
+                    {/* Stats Section */}
+                    // In Profile.jsx, update the stats section
+                    <div className="mt-6">
+                    <h3 className="text-xl font-bold mb-2">🎯 Stats</h3>
+                    <table className="table w-full">
+                        <tbody>
+                        <tr>
+                            <td>🛡 Shield</td>
+                            <td>{stats.shieldActive ? 'Active' : 'Inactive'}</td>
+                        </tr>
+                        <tr>
+                            <td>💰 Multiplier</td>
+                            <td>{stats.doubleEarnings ? '2x Earnings' : 'Normal'}</td>
+                        </tr>
+                        <tr>
+                            <td>🏷️ Discount</td>
+                            <td>{stats.discountShop ? '20% Off Shop' : 'None'}</td>
+                        </tr>
+                        <tr>
+                            <td>📈 Interest</td>
+                            <td>{stats.bitInterest ? '+10 Daily Bits' : 'Inactive'}</td>
+                        </tr>
+                        <tr>
+                            <td>⚔️ Attack Bonus</td>
+                            <td>{stats.attackPower || 0}</td>
+                        </tr>
+                        </tbody>
+                    </table>
                     </div>
 
                     {user.role === 'teacher' && profile.role === 'student' && (

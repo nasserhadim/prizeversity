@@ -49,6 +49,39 @@ router.put('/student/:id', ensureAuthenticated, async (req, res) => {
   }
 });
 
+// adding the statistics for each item you have
+// GET /api/profile/student/:id/stats
+router.get('/student/:id/stats', ensureAuthenticated, async(req, res) => {
+  try {
+
+    // Read the user to check if the shield is active 
+    const userId = req.params.id;
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    // it will load all items owned by that user nad check if any item effects match known passive items
+    const items = await require('../models/Item').find({ owner: userId });
+    
+    const hasEffect = (effectName) =>
+      items.some((item) => item.effect === effectName);
+
+    const attackCount = items.filter((item) =>
+      ['halveBits', 'stealBits'].includes(item.effect)
+    ).length;
+
+    return res.json({
+      shieldActive: user.shieldActive || false,
+      doubleEarnings: hasEffect('doubleEarnings'),
+      discountShop: hasEffect('discountShop'),
+      bitInterest: hasEffect('bitInterest'),
+      attackPower: attackCount,
+    });
+  } catch (error) {
+    console.error('Stats route error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+})
 
 
 module.exports = router;

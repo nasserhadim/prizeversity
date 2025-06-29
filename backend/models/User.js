@@ -19,7 +19,11 @@ const UserSchema = new mongoose.Schema({
   classrooms: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Classroom' }],
   groups: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Group' }],
   transactions: [TransactionSchema],
-  isBanned: { type: Boolean, default: false}
+  isBanned: { type: Boolean, default: false},
+  shieldActive: {type: Boolean, default: false},
+  doubleEarnings: { type: Boolean, default: false },
+  discountShop: { type: Boolean, default: false },
+  attackPower: { type: Number, default: 0 }
 });
 
 module.exports = mongoose.model('User', UserSchema);

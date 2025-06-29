@@ -9,11 +9,13 @@ import CreateBazaar from '../components/CreateBazaar';
 import CreateItem from '../components/CreateItem';
 import ItemCard from '../components/ItemCard';
 import apiBazaar from '../API/apiBazaar';
+import InventorySection from '../components/InventorySection';
 
 const Bazaar = () => {
   const { classroomId } = useParams();
   const { user } = useAuth();
   const [bazaar, setBazaar] = useState(null);
+  const [showInventory, setShowInventory] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const fetchBazaar = async () => {
@@ -79,6 +81,15 @@ const Bazaar = () => {
           <p className="text-gray-500 italic">Nothing is yet for sale.</p>
         )}
       </div>
+
+      <button
+        onClick={() => setShowInventory(!showInventory)}
+        className="btn btn-outline btn-sm my-4"
+      >
+        {showInventory ? 'Hide Inventory' : 'Open Inventory'}
+      </button>
+
+      {showInventory && <InventorySection userId={user._id} classroomId={classroomId} />}
     </div>
   );
 };

@@ -5,8 +5,6 @@ const User = require('../models/User');
 const Classroom = require('../models/Classroom');
 const { ensureAuthenticated } = require('../config/auth');
 const router = express.Router();
-const Order = require('../models/Order');
-
 
 // Middleware: Only teachers allowed for certain actions
 function ensureTeacher(req, res, next) {
@@ -61,7 +59,7 @@ router.get('/classroom/:classroomId/bazaar', ensureAuthenticated, async (req, re
 // Add Item to Bazaar (teacher only)
 router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticated, ensureTeacher, async (req, res) => {
   const { bazaarId } = req.params;
-  const { name, description, price, image } = req.body;
+  const { name, description, price, image, category, effect } = req.body;
 
   try {
     const item = new Item({
@@ -69,6 +67,8 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticate
       description,
       price,
       image,
+      category,
+      effect,
       bazaar: bazaarId
     });
 
@@ -101,20 +101,44 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
     }
 
     user.balance -= totalCost;
+
     user.transactions.push({
       amount: -totalCost,
       description: `Purchased ${quantity} x ${item.name}`,
       assignedBy: req.user._id
     });
+
     await user.save();
 
-    res.status(200).json({ message: 'Purchase successful', balance: user.balance });
+    // Create owned copies of the item
+    const ownedItems = [];
+    for (let i = 0; i < quantity; i++) {
+      const ownedItem = await Item.create({
+        name: item.name,
+        description: item.description,
+        price: item.price,
+        image: item.image,
+        bazaar: item.bazaar,
+        category: item.category,
+        effect: item.effect,
+        owner: user._id
+      });
+      ownedItems.push(ownedItem);
+    }
+
+    res.status(200).json({ 
+      message: 'Purchase successful', 
+      balance: user.balance, 
+      items: ownedItems 
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to process purchase' });
   }
 });
 
+
+// Checkout multiple items
 router.post('/checkout', ensureAuthenticated, async (req, res) => {
   console.log("Received checkout data:", req.body);
   const { userId, items } = req.body;
@@ -130,34 +154,61 @@ router.post('/checkout', ensureAuthenticated, async (req, res) => {
     }
 
     user.balance -= total;
-    await user.save();
-
-    // Optionally record transaction
-    const description = `Checkout: ${items.length} item(s)`;
-    const amount = -total; // Deducting bits, so it's negative
 
     user.transactions.push({
-      description,
-      amount,
+      description: `Checkout: ${items.length} item(s)`,
+      amount: -total,
       type: 'purchase',
       date: new Date(),
       items: items.map(i => ({ name: i.name, price: i.price }))
     });
+
     await user.save();
 
+<<<<<<< Updated upstream
+    res.status(200).json({ message: 'Purchase successful' });
+=======
+    // Clone items and assign ownership
+    const ownedItems = [];
+
+    for (const itemData of items) {
+      const item = await Item.findById(itemData._id || itemData.id);
+      if (!item) continue;
+
+      const ownedItem = await Item.create({
+        name: item.name,
+        description: item.description,
+        price: item.price,
+        image: item.image,
+        bazaar: item.bazaar,
+        category: item.category,
+        effect: item.effect,
+        owner: user._id
+      });
+
+      ownedItems.push(ownedItem);
+    }
+
+    // Save order
     const order = new Order({
       user: req.user._id,
-      items: items.map(i => i._id || i.id),  // array of item IDs
+      items: ownedItems.map(i => i._id),
       total
     });
     await order.save();
 
-    res.status(200).json({ message: 'Purchase successful' });
+    res.status(200).json({ 
+      message: 'Purchase successful', 
+      items: ownedItems, 
+      balance: user.balance 
+    });
+>>>>>>> Stashed changes
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Checkout failed' });
   }
 });
+
 
 router.get('/user/:userId/balance', async (req, res) => {
   try {
@@ -189,5 +240,12 @@ router.get(
     }
   }
 );
+
+// Get the inventory page for the user to see what items they have
+router.get('/inventory/:userId', async (req, res) => {
+  const { userId } = req.params;
+  const items = await Item.find({ owner: userId});
+  res.json({ items });
+});
 
 module.exports = router;
