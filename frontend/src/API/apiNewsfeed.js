@@ -19,3 +19,7 @@ export function postNews(classId, content) {
 export function deleteNews(classId, itemId) {
     return api.delete(`/classroom/${classId}/newsfeed/${itemId}`);
 }
+
+export function editNews(classId, itemId, content) {
+    return api.put(`/classroom/${classId}/newsfeed/${itemId}`, { content });
+}

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { getNews, postNews, deleteNews } from '../API/apiNewsfeed';
+import { getNews, postNews, deleteNews, editNews } from '../API/apiNewsfeed';
 import toast from 'react-hot-toast';
 
 
@@ -32,6 +32,18 @@ export default function TeacherNewsfeed() {
         } catch (err) {
             console.error('Delete failed', err);
             toast.error('Failed to delete');
+        }
+    };
+
+    const handleEdit = async (itemId, newContent) => {
+        try {
+            await editNews(classId, itemId, newContent);
+            setItems(items.map(i =>
+                i._id === itemId ? { ...i, content: newContent } : i
+            ));
+            toast.success('News updated');
+        } catch (err) {
+            toast.error('Failed to update news');
         }
     };
 
@@ -68,9 +80,21 @@ export default function TeacherNewsfeed() {
                         >
                             Delete
                         </button>
+
+                        <button
+                            className="btn btn-sm btn-primary mt-2 ml-2"
+                            onClick={() => {
+                                const updated = prompt('Edit this news item:', i.content);
+                                if (updated !== null && updated.trim() !== '') {
+                                    handleEdit(i._id, updated.trim());
+                                }
+                            }}
+                        >
+                            Edit
+                        </button>
                     </li>
                 ))}
             </ul>
-        </div>
+        </div >
     );
 }
