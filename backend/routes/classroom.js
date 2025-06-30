@@ -11,7 +11,7 @@ const { User } = require('../models/User');
 // Create Classroom
 router.post('/create', ensureAuthenticated, async (req, res) => {
   const { name, code } = req.body;
-  
+
   if (!name || !code) {
     return res.status(400).json({ error: 'Classroom name and code are required' });
   }
@@ -23,7 +23,12 @@ router.post('/create', ensureAuthenticated, async (req, res) => {
       return res.status(400).json({ error: 'A classroom with this code already exists' });
     }
 
-    const classroom = new Classroom({ name, code, teacher: req.user._id });
+    const classroom = new Classroom({
+      name,
+      code,
+      teacher: req.user._id,
+      students: [req.user._id]
+    });
     await classroom.save();
     res.status(201).json(classroom);
   } catch (err) {
@@ -83,7 +88,7 @@ router.get('/:id', ensureAuthenticated, async (req, res) => {
     if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
 
     // Check if user has access
-    const hasAccess = req.user.role === 'teacher' ? 
+    const hasAccess = req.user.role === 'teacher' ?
       classroom.teacher.toString() === req.user._id.toString() :
       classroom.students.includes(req.user._id);
 
@@ -109,7 +114,7 @@ router.delete('/:id', ensureAuthenticated, async (req, res) => {
 
     // Create notification for teacher and all students
     const notificationRecipients = [classroom.teacher, ...classroom.students];
-    
+
     for (const recipientId of notificationRecipients) {
       const notification = await Notification.create({
         user: recipientId,
@@ -152,7 +157,7 @@ router.put('/:id', ensureAuthenticated, async (req, res) => {
 
     // Include teacher and students in notifications
     const notificationRecipients = [classroom.teacher._id.toString(), ...classroom.students.map(s => s._id.toString())];
-    
+
     if (changes.name) {
       for (const recipientId of notificationRecipients) {
         const notification = await Notification.create({
@@ -172,7 +177,7 @@ router.put('/:id', ensureAuthenticated, async (req, res) => {
     const populatedClassroom = await Classroom.findById(classroom._id)
       .populate('teacher', 'email')
       .populate('students', 'email');
-    
+
     req.app.get('io').to(`classroom-${classroom._id}`).emit('classroom_update', populatedClassroom);
 
     res.status(200).json(classroom);
