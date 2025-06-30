@@ -70,7 +70,9 @@ export default function TeacherNewsfeed() {
                 {sortedItems.map(i => (
                     <li key={i._id} className="p-4 border border-gray-200 rounded shadow-sm mx-auto">
 
-                        <p className="text-xl mb-2">{i.content}</p>
+                        <p className="text-sm text-gray-600 mb-1">
+                            Posted by {i.authorId.firstName} {i.authorId.lastName}
+                        </p>
                         <small className="block text-gray-500 mb-4">
                             {new Date(i.createdAt).toLocaleString()}
                         </small>
