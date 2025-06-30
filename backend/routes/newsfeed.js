@@ -5,9 +5,9 @@ const router = express.Router({ mergeParams: true });
 const NewsItem = require('../models/NewsItem');
 const { ensureTeacher } = require('../middleware/auth');
 
-// GET all news for one classroom
 router.get('/', async (req, res) => {
     const items = await NewsItem.find({ classroomId: req.params.id })
+        .populate('authorId', 'firstName lastName')
         .sort({ createdAt: -1 });
     res.json(items);
 });
@@ -21,6 +21,7 @@ router.post('/', ensureTeacher, async (req, res) => {
         content
     });
     await item.save();
+    await item.populate('authorId', 'firstName lastName');
     res.status(201).json(item);
 });
 
@@ -40,12 +41,12 @@ router.delete('/:itemId', ensureTeacher, async (req, res) => {
 router.put('/:itemId', ensureTeacher, async (req, res) => {
     const { id, itemId } = req.params;
     const { content } = req.body;
-    // find the news item by its id and classroom, update its content, return the new document
     const updated = await NewsItem.findOneAndUpdate(
         { _id: itemId, classroomId: id },
         { content },
         { new: true }
-    );
+    )
+        .populate('authorId', 'firstName lastName');
     if (!updated) {
         return res.status(404).json({ error: 'News item not found' });
     }
