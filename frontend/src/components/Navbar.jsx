@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { ThemeContext } from '../context/ThemeContext';
@@ -18,8 +19,31 @@ import {
 } from 'lucide-react';
 
 const Navbar = () => {
+  const { user, logout, setPersona, originalUser } = useContext(AuthContext);
   const location = useLocation();
-  const { user, logout } = useContext(AuthContext);
+  const navigate = useNavigate();
+
+  const handleSwitchToStudent = () => {
+    setPersona({ ...user, role: 'student' });
+    const match = location.pathname.match(/^\/classroom\/([^\/]+)/);
+    if (match) {
+      navigate(`/classroom/${match[1]}/news`);
+    } else {
+      navigate('/');
+    }
+  };
+
+  const handleSwitchToTeacher = () => {
+    // Go back to the original teacher user
+    setPersona(originalUser);
+
+    const match = location.pathname.match(/^\/classroom\/([^\/]+)/);
+    if (match) {
+      navigate(`/classroom/${match[1]}/news`);
+    } else {
+      navigate('/');
+    }
+  };
   const showClassroomsTab = Boolean(
     user?.firstName &&
     user?.lastName &&
@@ -33,6 +57,7 @@ const Navbar = () => {
   const { cartItems, removeFromCart } = useCart();
   const [showCart, setShowCart] = useState(false);
   const cartRef = useRef(null);
+
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -218,6 +243,23 @@ const Navbar = () => {
                 <li>
                   <Link to="/orders">Order History</Link>
                 </li>
+
+                {user.role === 'teacher' && (
+                  <li>
+                    <button onClick={handleSwitchToStudent}>
+                      Switch to Student Profile
+                    </button>
+                  </li>
+                )}
+
+                {originalUser?.role === 'teacher' && user.role === 'student' && (
+                  <li>
+                    <button onClick={handleSwitchToTeacher}>
+                      Switch to Teacher Profile
+                    </button>
+                  </li>
+                )}
+
                 <li><button onClick={logout}>Logout</button></li>
               </ul>
             </div>
