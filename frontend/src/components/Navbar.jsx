@@ -240,9 +240,12 @@ const Navbar = () => {
                 <li><Link to={`/profile/${user._id}`}>Profile</Link></li>
                 <li><Link to="/settings">Settings</Link></li>
                 <li><Link to="/support">Help & Support</Link></li>
-                <li>
-                  <Link to="/orders">Order History</Link>
-                </li>
+                
+                {user.role === 'student' && (
+                  <li>
+                    <Link to="/orders">Order History</Link>
+                  </li>
+                )}
 
                 {user.role === 'teacher' && (
                   <li>

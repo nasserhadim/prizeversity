@@ -1,7 +1,7 @@
 // prizeversity/frontend/src/pages/TeacherNewsfeed.jsx
 
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { getNews, postNews, deleteNews, editNews } from '../API/apiNewsfeed';
 import toast from 'react-hot-toast';
 
@@ -49,6 +49,11 @@ export default function TeacherNewsfeed() {
 
     return (
         <div className="max-w-3xl mx-auto p-6">
+            <p className="mb-4">
+                <Link to={`/classroom/${classId}`} className="link text-accent">
+                    ← Back to Classroom
+                </Link>
+            </p>
             <h2 className="text-center text-green-500 text-5xl font-bold mb-6">
                 Manage News
             </h2>

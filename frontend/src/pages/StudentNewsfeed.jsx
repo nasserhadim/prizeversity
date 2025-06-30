@@ -1,7 +1,7 @@
 // prizeversity/frontend/src/pages/StudentNewsfeed.jsx
 
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { getNews } from '../API/apiNewsfeed';
 
 export default function StudentNewsfeed() {
@@ -14,6 +14,11 @@ export default function StudentNewsfeed() {
 
     return (
         <div className="max-w-3xl mx-auto p-6">
+            <p className="mb-4">
+                <Link to={`/classroom/${classId}`} className="link text-accent">
+                    ← Back to Classroom
+                </Link>
+            </p>
             <h2 className="text-center text-green-500 text-4xl font-bold mb-4">
                 Class News
             </h2>
