@@ -45,7 +45,7 @@ router.post('/groupset/create', ensureAuthenticated, async (req, res) => {
         path: 'groups',
         populate: {
           path: 'members._id',
-          select: 'email'
+          select: 'email isFrozen'
         }
       });
 
@@ -113,7 +113,7 @@ router.put('/groupset/:id', ensureAuthenticated, async (req, res) => {
         path: 'groups',
         populate: {
           path: 'members._id',
-          select: 'email'
+          select: 'email isFrozen'
         }
       });
     
@@ -174,7 +174,7 @@ const groupSets = await GroupSet.find({ classroom: req.params.classroomId })
   .populate({
     path: 'groups',
     populate: [
-      { path: 'members._id', select: 'email' },
+      { path: 'members._id', select: 'email isFrozen' },
       
       { path: 'siphonRequests', model: 'SiphonRequest' }
     ]
@@ -229,7 +229,7 @@ router.post('/groupset/:groupSetId/group/create', ensureAuthenticated, async (re
         path: 'groups',
         populate: {
           path: 'members._id',
-          select: 'email'
+          select: 'email isFrozen'
         }
       });
 
@@ -312,7 +312,7 @@ router.post('/groupset/:groupSetId/group/:groupId/join', ensureAuthenticated, as
 
     // Emit group update immediately
     const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email');
+      .populate('members._id', 'email isFrozen');
 
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
       groupSet: groupSet._id, 

@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import socket from '../utils/socket';
 import toast from 'react-hot-toast';
 import SiphonModal from '../components/SiphonModal';
+import { Lock } from 'lucide-react';
 
 
 
@@ -27,6 +28,32 @@ const Groups = () => {
   const [selectedMembers, setSelectedMembers] = useState({});
   const [openSiphonModal, setOpenSiphonModal] = useState(null);
   const [processing, setProcessing] = useState(false);
+  const [adjustModal, setAdjustModal] = useState(null); 
+  const [adjustAmount, setAdjustAmount] = useState('');
+  const [adjustDesc, setAdjustDesc] = useState('');
+
+const openAdjustModal = (groupSetId, groupId) => {
+  setAdjustModal({ groupSetId, groupId });
+  setAdjustAmount('');
+  setAdjustDesc('');
+};
+
+const submitAdjust = async () => {
+  try {
+    const { groupSetId, groupId } = adjustModal;
+    const amt = Number(adjustAmount);
+    await axios.post(
+      `/api/groupset/${groupSetId}/group/${groupId}/adjust-balance`,
+      { amount: amt, description: adjustDesc }
+    );
+    toast.success(`All students ${amt >= 0 ? 'credited' : 'debited'} ${Math.abs(amt)} bits`);
+    fetchGroupSets();
+  } catch (err) {
+    toast.error(err.response?.data?.error || 'Adjust failed');
+  } finally {
+    setAdjustModal(null);
+  }
+};
 
 useEffect(() => {
   fetchGroupSets();
@@ -500,11 +527,21 @@ const resetGroupSetForm = () => {
 <button
   className="btn btn-xs btn-warning"
   onClick={() => setOpenSiphonModal(group)}
->
-  Siphon
-</button>
-    </div>
-  </div>
+        >
+          Siphon
+        </button>
+        {/*  */}
+        {(user.role === 'teacher' || user.role === 'admin') && (
+          <button
+            className="btn btn-xs btn-primary"
+            onClick={() => openAdjustModal(gs._id, group._id)}
+          >
+            Transfer
+          </button>
+        )}
+        </div>
+            </div>
+          
 
 
       {/* Active siphon requests */}
@@ -518,7 +555,11 @@ const resetGroupSetForm = () => {
               <p>
                 <strong>{r.amount} bits</strong> from {r.targetUser.email}
               </p>
-              <p className="italic text-xs mb-1">“{r.reason}”</p>
+              <div
+                className="italic text-xs mb-1"
+                dangerouslySetInnerHTML={{ __html: r.reasonHtml }}
+              />
+
 
               {/* show vote buttons until the current user has voted */}
               {r.status === 'pending' 
@@ -626,7 +667,12 @@ const resetGroupSetForm = () => {
                   onChange={() => handleSelectMember(group._id, member._id._id)}
                 />
               </td>
-              <td>{member._id.email}</td>
+              <td>
+              {member._id.email}
+              {member._id.isFrozen && (
+                <Lock className="inline w-4 h-4 ml-1 text-red-500" title="Balance frozen" />
+              )}
+            </td>
               <td>
                 <span className={`badge ${member.status === 'pending' ? 'badge-warning' : 'badge-success'}`}>
                   {member.status || 'approved'}
@@ -678,7 +724,43 @@ const resetGroupSetForm = () => {
     onClose={() => setOpenSiphonModal(null)}
   />
 )}
-
+   {/* Adjust-Balance Modal */}
+      {adjustModal && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white p-6 rounded shadow-lg w-80">
+            <h3 className="text-lg mb-4">Adjust balances for all students</h3>
+            <input
+              type="number"
+              placeholder="Amount (e.g. 50 or -20)"
+              className="input input-bordered w-full mb-2"
+              value={adjustAmount}
+              onChange={e => setAdjustAmount(e.target.value)}
+            />
+            <input
+              type="text"
+              placeholder="Description (optional)"
+              className="input input-bordered w-full mb-4"
+              value={adjustDesc}
+              onChange={e => setAdjustDesc(e.target.value)}
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                className="btn btn-sm"
+                onClick={() => setAdjustModal(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-sm btn-primary"
+                onClick={submitAdjust}
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    
     </div>
   );
 };

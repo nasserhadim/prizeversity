@@ -8,6 +8,11 @@ import * as XLSX from 'xlsx';
 
 
 
+const ROLE_LABELS = {
+  student: 'Student',
+  admin:   'TA',      
+  teacher: 'Teacher',
+};
 
 
 const People = () => {
@@ -104,7 +109,7 @@ const handleExportToExcel = () => {
     Name: `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.name || student.email,
     Email: student.email,
     Balance: student.balance?.toFixed(2) || '0.00',
-    Role: student.role,
+    Role: ROLE_LABELS[student.role] || student.role,
     Classes: student.classrooms?.map((c) => c.name).join(', ') || 'N/A',
   }));
 
@@ -198,7 +203,10 @@ const handleExportToExcel = () => {
                       {student.firstName || student.lastName
                         ? `${student.firstName || ''} ${student.lastName || ''}`.trim()
                         : student.name || student.email}
-                      <span className="ml-2 text-gray-600 text-sm">– Role: {student.role}</span>
+                      <span className="ml-2 text-gray-600 text-sm">
+                        – Role: {ROLE_LABELS[student.role] || student.role}
+                      </span>
+
                     </div>
                     <div className="text-sm text-gray-500 mt-1">
                       Balance: B{student.balance?.toFixed(2) || '0.00'} <br />
@@ -214,43 +222,34 @@ const handleExportToExcel = () => {
                       >
                         View Profile
                       </button>
-                        {user?.role === 'teacher' && student.role === 'student' && (
-                    <button
-                      className="btn btn-sm btn-secondary"
-                      onClick={async () => {
-                        try {
-                          await axios.post(`/api/users/${student._id}/make-admin`);
-                          toast.success('Student promoted to admin');
-                          fetchStudents();
-                        } catch (err) {
-                          toast.error(err.response?.data?.error || 'Error promoting student');
-                        }
-                      }}
-                    >
-                      Make Admin
-                    </button>
-                  )}
+                        
+                {/* only teachers */}
+                  {user?.role === 'teacher' && (
+                <select
+                className="select select-sm ml-2"
+                value={student.role}
+                onChange={async (e) => {
+                  const newRole = e.target.value;
+                  try {
+                    if (newRole === 'admin') {
+                      await axios.post(`/api/users/${student._id}/make-admin`);
+                      toast.success('Student promoted to TA');
+                    } else {
+                      await axios.post(`/api/users/${student._id}/demote-admin`);
+                      toast.success('TA demoted to Student');
+                    }
+                    fetchStudents();
+                  } catch (err) {
+                    toast.error(err.response?.data?.error || 'Error changing role');
+                  }
+                }}
+              >
+                <option value="student">{ROLE_LABELS.student}</option>
+                <option value="admin">{ROLE_LABELS.admin}</option>
+              </select>
 
-                  {user?.role === 'teacher' && student.role === 'admin' && (
-                  <button
-                    className="btn btn-sm btn-warning"
-                    onClick={async () => {
-                      try {
-                        await axios.post(
-                          `/api/users/${student._id}/demote-admin`,
-                          {},
-                          { withCredentials: true }
-                        );
-                        toast.success('Admin demoted to student');
-                        fetchStudents();                 // refresh list
-                      } catch (err) {
-                        toast.error(err.response?.data?.error || 'Error demoting admin');
-                      }
-                    }}
-                  >
-                    Demote to Student
-                  </button>
-                )}
+              )}
+
                 </div>
 
                   </div>
