@@ -10,6 +10,7 @@ const classroomRoutes = require('./routes/classroom');
 const bazaarRoutes = require('./routes/bazaar');
 const walletRoutes = require('./routes/wallet');
 const groupRoutes = require('./routes/group');
+const siphonRouter = require('./routes/siphon');
 const notificationsRoutes = require('./routes/notifications');
 // Importing admin route
 const adminRoutes = require('./routes/admin');
@@ -18,7 +19,7 @@ const profileRoutes = require('./routes/profile');
 const leaderboardRoutes = require('./routes/leaderboard');
 const newsfeedRoutes = require('./routes/newsfeed');
 const itemRoutes = require('./routes/items');
-
+const groupBalanceRoutes = require('./routes/groupBalance');
 require('dotenv').config();
 
 const app = express();
@@ -59,6 +60,8 @@ mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopol
   .catch(err => console.log(err));
 
 // Routes
+
+app.use('/api/siphon', siphonRouter);
 app.use('/api/auth', authRoutes);
 app.use('/api/classroom', classroomRoutes);
 app.use('/api/classroom/:id/newsfeed', newsfeedRoutes);
@@ -71,7 +74,7 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/items', itemRoutes);
-
+app.use('/api', groupBalanceRoutes);
 // Root Route
 app.get('/', (req, res) => {
   res.redirect('http://localhost:5173'); // Redirect to the frontend

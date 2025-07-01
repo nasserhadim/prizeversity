@@ -20,3 +20,5 @@ pm2.log
 
 # ignore Mongo dumps if you store them locally
 dump/
+
+/uploads

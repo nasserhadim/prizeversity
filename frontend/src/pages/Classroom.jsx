@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { getNews } from '../API/apiNewsfeed';
 import { useAuth } from '../context/AuthContext';
 import '../styles/MemberManagement.css';
 import { Link } from 'react-router-dom';
@@ -16,9 +17,7 @@ const Classroom = () => {
   const [classroom, setClassroom] = useState(null);
   const [loading, setLoading] = useState(true);
   const [students, setStudents] = useState([]);
-  const [updateClassroomName, setUpdateClassroomName] = useState('');
-  const [updateClassroomImage, setUpdateClassroomImage] = useState('');
-  const [editingClassroom, setEditingClassroom] = useState(false);
+  const [announcements, setAnnouncements] = useState([]);
 
   // Fetch classroom and student data on mount
   useEffect(() => {
@@ -42,6 +41,18 @@ const Classroom = () => {
 
     fetchData();
   }, [id, user, navigate]);
+
+  useEffect(() => {
+    const fetchAnnouncements = async () => {
+      try {
+        const res = await getNews(id);
+        setAnnouncements(res.data);
+      } catch (err) {
+        console.error('Failed to fetch announcements', err);
+      }
+    };
+    fetchAnnouncements();
+  }, [id]);
 
   // Fetch classroom info and ensure user has access
   const fetchClassroomDetails = async () => {
@@ -87,28 +98,6 @@ const Classroom = () => {
     }
   };
 
-  // Update classroom details (name/image)
-  const handleUpdateClassroom = async () => {
-    try {
-      const response = await axios.put(`/api/classroom/${id}`, {
-        name: updateClassroomName || classroom.name,
-        image: updateClassroomImage || classroom.image
-      });
-
-      if (response.data.message === 'No changes were made') {
-        toast.error('No changes were made!');
-      } else {
-        toast.success('Classroom updated successfully!');
-        setEditingClassroom(false);
-        setUpdateClassroomName('');
-        setUpdateClassroomImage('');
-        fetchClassroomDetails();
-      }
-    } catch (err) {
-      const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Failed to update classroom';
-      toast.error(errorMessage);
-    }
-  };
 
   // Confirm and remove student from classroom
   const handleRemoveStudentConfirm = async (studentId) => {
@@ -152,12 +141,6 @@ const Classroom = () => {
     }
   };
 
-  // Cancel editing state
-  const handleCancelUpdate = () => {
-    setEditingClassroom(false);
-    setUpdateClassroomName('');
-    setUpdateClassroomImage('');
-  };
 
   // Render loading spinner
   if (loading || !user) {
@@ -186,65 +169,36 @@ const Classroom = () => {
       </Link>
 
       <nav className="flex space-x-4 mb-4">
-        <Link to={`/classroom/${id}/news`}>News</Link>
         {user.role === 'teacher' && (
-          <Link to={`/classroom/${id}/teacher-news`}>Manage News</Link>
+          <>
+            <Link to={`/classroom/${id}/teacher-news`}>Manage Announcements</Link>
+            <Link to={`/classroom/${id}/settings`}>Class Settings</Link>
+          </>
         )}
       </nav>
 
-      <h1 className="text-3xl font-bold">{classroom.name}</h1>
-      <p className="text-sm text-gray-500">Class Code: {classroom.code}</p>
+
 
       {/* Teacher/Admin Controls */}
       {(user.role === 'teacher' || user.role === 'admin') && (
-        <div className="space-y-4">
-          {editingClassroom ? (
-            <div className="card bg-base-100 shadow-md p-4">
-              <h4 className="text-lg font-semibold">Update Classroom</h4>
-              <input
-                className="input input-bordered w-full mt-2"
-                type="text"
-                placeholder="New Classroom Name"
-                value={updateClassroomName}
-                onChange={(e) => setUpdateClassroomName(e.target.value)}
-              />
-              <input
-                className="input input-bordered w-full mt-2"
-                type="text"
-                placeholder="New Image URL"
-                value={updateClassroomImage}
-                onChange={(e) => setUpdateClassroomImage(e.target.value)}
-              />
-              <div className="mt-4 flex gap-2">
-                <button className="btn btn-primary" onClick={handleUpdateClassroom}>Update</button>
-                <button className="btn btn-ghost" onClick={handleCancelUpdate}>Cancel</button>
-              </div>
-            </div>
-          ) : (
-            <button className="btn btn-outline btn-info" onClick={() => setEditingClassroom(true)}>Edit Classroom</button>
-          )}
+        <div id="class-settings" className="space-y-4">
 
-          <div className="flex gap-2">
-            <button className="btn btn-warning" onClick={handleLeaveClassroomConfirm}>Leave Classroom</button>
-            {user.role === 'teacher' && (
-              <button className="btn btn-error" onClick={handleDeleteClassroomConfirm}>Delete Classroom</button>
-            )}
-          </div>
 
-          {/* Students List */}
-          <div className="card bg-base-200 p-4">
-            <h3 className="text-xl font-semibold">Students</h3>
-            <ul className="mt-2 space-y-2">
-              {students.map((student) => (
-                <li key={student._id} className="flex items-center justify-between">
-                  <span>{student.email}</span>
-                  <button className="btn btn-xs btn-error" onClick={() => handleRemoveStudentConfirm(student._id)}>Remove</button>
-                </li>
-              ))}
-            </ul>
-          </div>
         </div>
       )}
+
+      {/* Announcements List */}
+      <div className="space-y-6">
+        <h3 className="text-2xl font-semibold">Announcements</h3>
+        {announcements.map((item) => (
+          <div key={item._id} className="card bg-base-200 p-4">
+            <p className="text-gray-700">{item.content}</p>
+            <p className="text-sm text-gray-500">
+              {new Date(item.createdAt).toLocaleString()}
+            </p>
+          </div>
+        ))}
+      </div>
 
       {/* Student View */}
       {user.role === 'student' && (

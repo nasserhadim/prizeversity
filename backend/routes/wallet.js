@@ -3,6 +3,7 @@ const { ensureAuthenticated } = require('../config/auth');
 const User = require('../models/User');
 const router = express.Router();
 const mongoose = require('mongoose');
+const blockIfFrozen = require('../middleware/blockIfFrozen');
 
 router.get('/transactions/all', ensureAuthenticated, async (req, res) => {
   if (!['teacher', 'admin'].includes(req.user.role)) {
@@ -139,8 +140,18 @@ router.get('/transactions', ensureAuthenticated, async (req, res) => {
   }
 });
 
+
 // Wallet Transfer
-router.post('/transfer', ensureAuthenticated, async (req, res) => {
+router.post(
+  '/transfer',
+  ensureAuthenticated,
+  blockIfFrozen,       
+  async (req, res) => {
+
+  const senderLive = await User.findById(req.user._id).select('isFrozen');
+  if (senderLive.isFrozen) {
+    return res.status(403).json({ error: 'Your account is frozen during a siphon request' });
+  }
   const { recipientId, amount } = req.body;
 
   // Check it's a valid number and not negative or zero
@@ -172,6 +183,19 @@ router.post('/transfer', ensureAuthenticated, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Failed to transfer balance' });
   }
+});
+
+router.get('/:userId/balance', ensureAuthenticated, async (req, res) => {
+  try {
+    const User = require('../models/User');
+    
+    const user = await User.findById(req.params.userId).select('balance');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json({ balance: user.balance });
+  } catch (err) {
+    console.error('Balance lookup failed:', err);
+    res.status(500).json({ error: 'Failed to fetch balance' });
+  }
 });
 
 module.exports = router;

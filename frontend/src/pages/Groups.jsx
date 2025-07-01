@@ -5,6 +5,10 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import socket from '../utils/socket';
 import toast from 'react-hot-toast';
+import SiphonModal from '../components/SiphonModal';
+import { Lock } from 'lucide-react';
+
+
 
 const Groups = () => {
   const { id } = useParams();
@@ -22,15 +26,55 @@ const Groups = () => {
   const [memberFilters, setMemberFilters] = useState({});
   const [memberSorts, setMemberSorts] = useState({});
   const [selectedMembers, setSelectedMembers] = useState({});
+  const [openSiphonModal, setOpenSiphonModal] = useState(null);
+  const [processing, setProcessing] = useState(false);
+  const [adjustModal, setAdjustModal] = useState(null); 
+  const [adjustAmount, setAdjustAmount] = useState('');
+  const [adjustDesc, setAdjustDesc] = useState('');
 
-  useEffect(() => {
+const openAdjustModal = (groupSetId, groupId) => {
+  setAdjustModal({ groupSetId, groupId });
+  setAdjustAmount('');
+  setAdjustDesc('');
+};
+
+const submitAdjust = async () => {
+  try {
+    const { groupSetId, groupId } = adjustModal;
+    const amt = Number(adjustAmount);
+    await axios.post(
+      `/api/groupset/${groupSetId}/group/${groupId}/adjust-balance`,
+      { amount: amt, description: adjustDesc }
+    );
+    toast.success(`All students ${amt >= 0 ? 'credited' : 'debited'} ${Math.abs(amt)} bits`);
     fetchGroupSets();
-    socket.emit('join', `classroom-${id}`);
-    return () => {
-      socket.off('group_update');
-      socket.off('groupset_update');
-    };
-  }, [id]);
+  } catch (err) {
+    toast.error(err.response?.data?.error || 'Adjust failed');
+  } finally {
+    setAdjustModal(null);
+  }
+};
+
+useEffect(() => {
+  fetchGroupSets();
+  socket.emit('join', `classroom-${id}`);
+
+
+  socket.on('group_update', fetchGroupSets);
+  socket.on('groupset_update', fetchGroupSets);
+  socket.on('siphon_create', fetchGroupSets);
+  socket.on('siphon_vote',   fetchGroupSets);
+  socket.on('siphon_update', fetchGroupSets);
+
+  return () => {
+    socket.off('group_update', fetchGroupSets);
+    socket.off('groupset_update', fetchGroupSets);
+    socket.off('siphon_create', fetchGroupSets);
+    socket.off('siphon_vote', fetchGroupSets);
+    socket.off('siphon_update', fetchGroupSets);
+  };
+}, [id]);
+
 
   const fetchGroupSets = async () => {
     try {
@@ -39,7 +83,40 @@ const Groups = () => {
     } catch (err) {
       toast.error('Failed to fetch group sets');
     }
+    };
+  const voteOnSiphon = async (siphonId, vote) => {
+  console.log('👉 voteOnSiphon called with', siphonId, vote);
+  try {
+    const res = await axios.post(`/api/siphon/${siphonId}/vote`, { vote });
+    console.log('vote response', res.data);
+    fetchGroupSets();
+  } catch (err) {
+    console.error(' vote error', err);
+    toast.error(err.response?.data?.error || 'Vote failed');
+  }
+};
+
+
+  const teacherApprove = async (siphonId) => {
+    await axios.post(`/api/siphon/${siphonId}/teacher-approve`);
+    fetchGroupSets();
   };
+  
+const teacherReject = async (siphonId) => {
+   
+   if (processing) return;
+   setProcessing(true);
+   try {
+     
+     await axios.post(`/api/siphon/${siphonId}/teacher-reject`);
+  
+     fetchGroupSets();
+   } catch (err) {
+     toast.error(err.response?.data?.error || 'Failed to reject');
+   } finally {
+     setProcessing(false);
+   }
+ };
 
 const handleCreateGroup = async (groupSetId) => {
   if (!groupName.trim()) return toast.error('Group name required');
@@ -251,6 +328,7 @@ const resetGroupSetForm = () => {
   const handleSelectAllMembers = (groupId, group) => {
     const allSelected = (selectedMembers[groupId] || []).length === group.members.length;
     const newSelected = allSelected ? [] : group.members.map(m => m._id._id);
+
     setSelectedMembers(prev => ({ ...prev, [groupId]: newSelected }));
   };
 
@@ -365,7 +443,9 @@ const resetGroupSetForm = () => {
         <p className="text-lg font-medium text-gray-600">No teams available</p>
       )}
 
-      {groupSets.map((gs) => (
+
+      {/* GroupSet Display */}
+            {groupSets.map((gs) => (
         <div key={gs._id} className="card bg-base-100 shadow-md p-4 space-y-4">
           <div className="flex justify-between items-center">
             <div>
@@ -376,6 +456,21 @@ const resetGroupSetForm = () => {
             </div>
             <img src={gs.image} alt={gs.name} className="w-16 h-16 object-cover rounded" />
           </div>
+          {/* Group Set action buttons (Edit & Delete) */}
+<div className="flex gap-2 mt-2">
+  <button
+    className="btn btn-sm btn-accent"
+    onClick={() => handleEditGroupSet(gs)}  
+  >
+    Edit
+  </button>
+  <button
+    className="btn btn-sm btn-error"
+    onClick={() => handleDeleteGroupSetConfirm(gs)}  
+  >
+    Delete
+  </button>
+</div>
 
           {(user.role === 'teacher' || user.role === 'admin') && (
             <div className="flex gap-2 mt-2">
@@ -415,7 +510,7 @@ const resetGroupSetForm = () => {
 
           {/* Display Teams */}
           {gs.groups.map(group => (
-            <div className="border rounded p-4 bg-base-100">
+            <div key={group._id} className="border rounded p-4 bg-base-100">
   <div className="flex justify-between items-center">
     <div>
       <h5 className="font-semibold">{group.name}</h5>
@@ -424,22 +519,91 @@ const resetGroupSetForm = () => {
 
     {/* Group-level action buttons */}
     <div className="flex gap-2">
-      {(user.role == 'student') && (
-        <div>
-        <button className="btn btn-xs btn-success" onClick={() => handleJoinGroup(gs._id, group._id)}>Join</button>
-        <button className="btn btn-xs btn-warning" onClick={() => handleLeaveGroup(gs._id, group._id)}>Leave</button>
-        <button className="btn btn-xs btn-info" onClick={() => handleEditGroup(gs._id, group._id)}>Edit</button>
+      <button className="btn btn-xs btn-success" onClick={() => handleJoinGroup(gs._id, group._id)}>Join</button>
+      <button className="btn btn-xs btn-error" onClick={() => handleLeaveGroup(gs._id, group._id)}>Leave</button>
+      <button className="btn btn-xs btn-info">Edit</button>
+      <button className="btn btn-xs btn-error">Delete</button>
+      {/*  open siphon modal */}
+<button
+  className="btn btn-xs btn-warning"
+  onClick={() => setOpenSiphonModal(group)}
+        >
+          Siphon
+        </button>
+        {/*  */}
+        {(user.role === 'teacher' || user.role === 'admin') && (
+          <button
+            className="btn btn-xs btn-primary"
+            onClick={() => openAdjustModal(gs._id, group._id)}
+          >
+            Transfer
+          </button>
+        )}
         </div>
-      )}
-      {(user.role == 'teacher' || user.role == 'admin') && (
-        <div>
-          <button className="btn btn-xs btn-info" onClick={() => handleEditGroup(gs._id, group._id)}>Edit</button>
-          <button className="btn btn-xs btn-error" onClick={() => handleDeleteGroup(gs._id, group._id)}>Delete</button>
-        </div>
+            </div>
+          
 
-      )}
-    </div>
-  </div>
+
+      {/* Active siphon requests */}
+    {group.siphonRequests?.length > 0 && (
+      <div className="mt-4">
+        <h5 className="font-semibold text-sm">Active Siphon Requests</h5>
+        {group.siphonRequests
+          .filter(r => r.status !== 'teacher_approved')
+          .map(r => (
+            <div key={r._id} className="border p-2 mt-2 rounded bg-base-200">
+              <p>
+                <strong>{r.amount} bits</strong> from {r.targetUser.email}
+              </p>
+              <div
+                className="italic text-xs mb-1"
+                dangerouslySetInnerHTML={{ __html: r.reasonHtml }}
+              />
+
+
+              {/* show vote buttons until the current user has voted */}
+              {r.status === 'pending' 
+                && user.role !== 'teacher'
+                 && !r.votes.some(v => v.user.toString() === user._id) && (
+                  <div className="flex gap-1">
+                    <button
+                      className="btn btn-xs btn-success"
+                      onClick={() => voteOnSiphon(r._id, 'yes')}
+                    >
+                      Yes
+                    </button>
+                    <button
+                      className="btn btn-xs btn-error"
+                      onClick={() => voteOnSiphon(r._id, 'no')}
+                    >
+                      No
+                    </button>
+                  </div>
+              )}
+
+              {/* teacher sees final-approve when group has already approved */}
+              {r.status === 'group_approved' && user.role === 'teacher' && (
+          <div className="flex gap-1 mt-1">
+            <button
+              className="btn btn-xs btn-success"
+              onClick={() => teacherApprove(r._id)}
+            >
+              Yes
+            </button>
+            <button
+              className="btn btn-xs btn-error"
+              onClick={() => teacherReject(r._id)}
+            >
+              No
+            </button>
+          </div>
+        )}
+
+                    </div>
+                  ))}
+              </div>
+            )}
+
 
   {/* Member management UI */}
   <div className="mt-4">
@@ -503,7 +667,12 @@ const resetGroupSetForm = () => {
                   onChange={() => handleSelectMember(group._id, member._id._id)}
                 />
               </td>
-              <td>{member._id.email}</td>
+              <td>
+              {member._id.email}
+              {member._id.isFrozen && (
+                <Lock className="inline w-4 h-4 ml-1 text-red-500" title="Balance frozen" />
+              )}
+            </td>
               <td>
                 <span className={`badge ${member.status === 'pending' ? 'badge-warning' : 'badge-success'}`}>
                   {member.status || 'approved'}
@@ -516,36 +685,82 @@ const resetGroupSetForm = () => {
       </table>
     </div>
 
+
+
     {/* Batch action buttons */}
-    {(user.role == 'teacher' || user.role == 'admin') && (
-      <div className="mt-2 flex gap-2">
-        <button
-          className="btn btn-xs btn-success"
-          onClick={() => handleApproveMembers(gs._id, group._id)}
-        >
-          Approve
-        </button>
-        <button
-          className="btn btn-xs btn-error"
-          onClick={() => handleRejectMembers(gs._id, group._id)}
-        >
-          Reject
-        </button>
-        <button
-          className="btn btn-xs btn-warning"
-          onClick={() => handleSuspendMembers(gs._id, group._id)}
-        >
-          Suspend
-        </button>
-      </div>
-    )}
-    
+    <div className="mt-2 flex gap-2">
+      <button
+        className="btn btn-xs btn-success"
+        disabled={!selectedMembers[group._id]?.length}
+        onClick={() => handleApproveMembers(gs._id, group._id)}
+      >
+        Approve
+      </button>
+      <button
+        className="btn btn-xs btn-error"
+        disabled={!selectedMembers[group._id]?.length}
+        onClick={() => handleRejectMembers(gs._id, group._id)}
+      >
+        Reject
+      </button>
+      <button
+        className="btn btn-xs btn-warning"
+        disabled={!selectedMembers[group._id]?.length}
+        onClick={() => handleSuspendMembers(gs._id, group._id)}
+      >
+        Suspend
+      </button>
+    </div>
   </div>
 </div>
 
           ))}
         </div>
       ))}
+      {/*  modal instance */}
+{openSiphonModal && (
+  <SiphonModal
+    group={openSiphonModal}
+    onClose={() => setOpenSiphonModal(null)}
+  />
+)}
+   {/* Adjust-Balance Modal */}
+      {adjustModal && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white p-6 rounded shadow-lg w-80">
+            <h3 className="text-lg mb-4">Adjust balances for all students</h3>
+            <input
+              type="number"
+              placeholder="Amount (e.g. 50 or -20)"
+              className="input input-bordered w-full mb-2"
+              value={adjustAmount}
+              onChange={e => setAdjustAmount(e.target.value)}
+            />
+            <input
+              type="text"
+              placeholder="Description (optional)"
+              className="input input-bordered w-full mb-4"
+              value={adjustDesc}
+              onChange={e => setAdjustDesc(e.target.value)}
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                className="btn btn-sm"
+                onClick={() => setAdjustModal(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-sm btn-primary"
+                onClick={submitAdjust}
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    
     </div>
   );
 };

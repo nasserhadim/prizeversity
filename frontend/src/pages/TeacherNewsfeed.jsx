@@ -55,7 +55,7 @@ export default function TeacherNewsfeed() {
                 </Link>
             </p>
             <h2 className="text-center text-green-500 text-5xl font-bold mb-6">
-                Manage News
+                Manage Announcements
             </h2>
             <textarea
                 className="w-full h-32 p-3 border border-gray-300 rounded mb-4"
@@ -81,6 +81,9 @@ export default function TeacherNewsfeed() {
                         <small className="block text-gray-500 mb-4">
                             {new Date(i.createdAt).toLocaleString()}
                         </small>
+                        <p className="mb-2 text-gray-800">
+                            {i.content}
+                        </p>
                         <button
                             className="btn btn-sm btn-error mt-2"
                             onClick={() => handleDelete(i._id)}

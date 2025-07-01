@@ -6,7 +6,7 @@ const Notification = require('../models/Notification'); // Add this line
 const { ensureAuthenticated } = require('../config/auth');
 const { populateNotification } = require('../utils/notifications');
 const router = express.Router();
-const { User } = require('../models/User');
+const User = require('../models/User');  
 
 // Create Classroom
 router.post('/create', ensureAuthenticated, async (req, res) => {
@@ -308,5 +308,39 @@ router.delete('/:id/students/:studentId', ensureAuthenticated, async (req, res) 
 //     res.status(500).json({ error: 'Server error' });
 //   }
 // });
+
+router.patch('/:classId/users/:userId/role', ensureAuthenticated, async (req, res) => {
+  try {
+    const { classId, userId } = req.params;
+    const { role } = req.body;
+    const valid   = ['student', 'teacher', 'admin'];
+    if (!valid.includes(role))
+      return res.status(400).json({ error: 'Invalid role value' });
+
+    const classroom = await Classroom.findById(classId);
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+
+    // Only the teacher of this classroom can change roles
+    if (req.user._id.toString() !== classroom.teacher.toString())
+      return res.status(403).json({ error: 'Only the teacher can change roles' });
+
+    const updated = await User.findByIdAndUpdate(
+      userId,
+      { role },
+      { new: true, runValidators: true }
+    );
+    if (!updated) return res.status(404).json({ error: 'User not found' });
+
+    // (Optional) notify clients in real time
+    req.app.get('io')
+      .to(`classroom-${classId}`)
+      .emit('role_change', { userId, role });
+
+    return res.json({ success: true, role });
+  } catch (e) {
+    console.error('PATCH role error:', e);
+    return res.status(500).json({ error: 'Failed to update role' });
+  }
+});
 
 module.exports = router;

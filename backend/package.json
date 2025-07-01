@@ -14,9 +14,11 @@
   "description": "",
   "dependencies": {
     "cors": "^2.8.5",
+    "dompurify": "^3.2.6",
     "dotenv": "^16.5.0",
     "express": "^4.21.2",
     "express-session": "^1.18.1",
+    "jsdom": "^26.1.0",
     "mongoose": "^8.15.1",
     "multer": "^2.0.1",
     "passport": "^0.7.0",
