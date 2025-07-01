@@ -6,6 +6,7 @@ const Classroom = require('../models/Classroom');
 const { ensureAuthenticated } = require('../config/auth');
 const router = express.Router();
 const Order = require('../models/Order');
+const blockIfFrozen = require('../middleware/blockIfFrozen');
 
 // Middleware: Only teachers allowed for certain actions
 function ensureTeacher(req, res, next) {
@@ -86,7 +87,7 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticate
 });
 
 // Buy Item (any authenticated user)
-router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensureAuthenticated, async (req, res) => {
+router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensureAuthenticated, blockIfFrozen, async (req, res) => { 
   const { itemId } = req.params;
   const { quantity } = req.body;
 
@@ -140,7 +141,8 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
 
 
 // Checkout multiple items
-router.post('/checkout', ensureAuthenticated, async (req, res) => {
+
+  router.post('/checkout',  ensureAuthenticated, blockIfFrozen, async (req, res) => {
   console.log("Received checkout data:", req.body);
   const { userId, items } = req.body;
 

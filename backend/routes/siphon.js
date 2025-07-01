@@ -1,3 +1,8 @@
+const upload = require('../middleware/upload');
+const createDOMPurify = require('dompurify');
+const { JSDOM } = require('jsdom');
+const window = new JSDOM('').window;
+const DOMPurify = createDOMPurify(window);
 const express = require('express');                  
 const router  = express.Router();
 const mongoose = require('mongoose');
@@ -9,36 +14,55 @@ const Classroom = require('../models/Classroom');
 const Notification = require('../models/Notification');  
 const { ensureAuthenticated } = require('../config/auth');
 const { populateNotification } = require('../utils/notifications');
+const User = require('../models/User');
 
 
+router.post(
+  '/group/:groupId/create',
+  ensureAuthenticated,
+  upload.single('proof'),
+  async (req, res) => {
+    try {
+      const { targetUserId, reason, amount } = req.body;
+      const User = require('../models/User');                   
+    const target = await User.findById(targetUserId).select('balance');
+    if (!target || target.balance < Number(amount)) {
+    return res.status(400).json({ error: 'Amount exceeds target user balance' });
+  }
+      
+      const cleanReason = DOMPurify.sanitize(reason, {
+        ALLOWED_TAGS: ['b','i','u','span','font','p','br','ul','ol','li']
+      });
 
-router.post('/group/:groupId/create', ensureAuthenticated, async (req,res)=>{
-  const { targetUserId, reason, amount } = req.body;
-  const group = await Group.findById(req.params.groupId);
-  if (!group) return res.status(404).json({error:'Group not found'});
+      
+      const proof = req.file
+        ? {
+            originalName: req.file.originalname,
+            storedName:   req.file.filename,
+            mimeType:     req.file.mimetype,
+            size:         req.file.size,
+          }
+        : null;
 
-  const isMember = group.members.some(m=>m._id.equals(req.user._id) && m.status==='approved');
-  const isTarget = group.members.some(m=>m._id.equals(targetUserId) && m.status==='approved');
-  if (!isMember || !isTarget) return res.status(400).json({error:'Invalid membership'});
+      const reqDoc = await SiphonRequest.create({
+        group:      req.params.groupId,
+        requestedBy:req.user._id,
+        targetUser: targetUserId,
+        reasonHtml: cleanReason,
+        amount:     Number(amount),
+        proof,
+      });
 
+      await User.findByIdAndUpdate(targetUserId, { isFrozen: true });
+      req.app.get('io').to(`group-${reqDoc.group}`).emit('siphon_create', reqDoc);
+      res.status(201).json(reqDoc);
+    } catch (err) {
+      console.error(err);
+      res.status(400).json({ error:'Failed to submit siphon request' });
+    }
+  }
+);
 
-  const duplicate = await SiphonRequest.findOne({
-    group: group._id, status: { $in:['pending','group_approved'] },
-    targetUser: targetUserId
-  });
-  if (duplicate) return res.status(400).json({error:'A request is already open for this user.'});
-
-  const reqDoc = await SiphonRequest.create({
-    group: group._id,
-    requestedBy: req.user._id,
-    targetUser: targetUserId,
-    reason, amount
-  });
-
-  
-  req.app.get('io').to(`group-${group._id}`).emit('siphon_create', reqDoc);
-  res.status(201).json(reqDoc);
-});
 
 router.post('/:id/vote', ensureAuthenticated, async (req,res)=>{
   const { vote } = req.body;     
@@ -64,6 +88,7 @@ router.post('/:id/vote', ensureAuthenticated, async (req,res)=>{
 if (noVotes > approvedMembers/2) {
   siphon.status = 'rejected';
    await siphon.save();
+   await User.findByIdAndUpdate(siphon.targetUser, { isFrozen: false });
    req.app.get('io').to(`group-${group._id}`).emit('siphon_update', siphon);
    return res.json({ status: siphon.status });
  }
@@ -100,7 +125,7 @@ router.post('/:id/teacher-reject', ensureAuthenticated, async (req, res) => {
 
   siphon.status = 'rejected';
   await siphon.save();
-
+  await User.findByIdAndUpdate(siphon.targetUser, { isFrozen: false });
   req.app.get('io').to(`group-${siphon.group}`).emit('siphon_update', siphon);
   res.json({ message: 'Request rejected', siphon });
 });
@@ -130,7 +155,7 @@ router.post('/:id/teacher-approve', ensureAuthenticated, async (req, res) => {
 
     siphon.status = 'teacher_approved';
     await siphon.save();
-
+    await User.findByIdAndUpdate(siphon.targetUser, { isFrozen: false });
     req.app.get('io').to(`group-${siphon.group._id}`).emit('siphon_update', siphon);
     res.json({ message: 'Approved and executed', siphon });
   } catch (err) {

@@ -19,7 +19,7 @@ const profileRoutes = require('./routes/profile');
 const leaderboardRoutes = require('./routes/leaderboard');
 const newsfeedRoutes = require('./routes/newsfeed');
 const itemRoutes = require('./routes/items');
-
+const groupBalanceRoutes = require('./routes/groupBalance');
 require('dotenv').config();
 
 const app = express();
@@ -74,7 +74,7 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/items', itemRoutes);
-
+app.use('/api', groupBalanceRoutes);
 // Root Route
 app.get('/', (req, res) => {
   res.redirect('http://localhost:5173'); // Redirect to the frontend
