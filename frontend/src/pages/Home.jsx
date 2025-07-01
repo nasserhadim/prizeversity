@@ -222,15 +222,15 @@ const Home = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <nav className="fixed top-0 left-0 right-0 bg-white shadow z-50 w-full">
-        <div className="w-full flex justify-between items-center px-6 py-3">
-          {/* Top Left: Brand */}
-          <div className="text-xl font-bold text-black">
-            Prizeversity
-          </div>
+      {!user && (
+        <nav className="fixed top-0 left-0 right-0 bg-white shadow z-50 w-full">
+          <div className="w-full flex justify-between items-center px-6 py-3">
+            {/* Top Left: Brand */}
+            <div className="text-xl font-bold text-black">
+              Prizeversity
+            </div>
 
-          {/* Top Right: Sign In Buttons */}
-          {!user && (
+            {/* Top Right: Sign In Buttons */}
             <div className="flex gap-4">
               <button 
                 className="px-4 py-2 text-sm rounded-full bg-black text-white hover:bg-gray-800 transition"
@@ -245,9 +245,10 @@ const Home = () => {
                 Sign in with Microsoft
               </button>
             </div>
-          )}
-        </div>
-      </nav>
+          </div>
+        </nav>
+      )}
+
 
       {/* Hero Section */}
       <div className="bg-black text-white pt-20 pb-32">
