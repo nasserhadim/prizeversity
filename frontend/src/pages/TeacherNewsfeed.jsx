@@ -55,7 +55,7 @@ export default function TeacherNewsfeed() {
                 </Link>
             </p>
             <h2 className="text-center text-green-500 text-5xl font-bold mb-6">
-                Manage News
+                Manage Announcements
             </h2>
             <textarea
                 className="w-full h-32 p-3 border border-gray-300 rounded mb-4"
