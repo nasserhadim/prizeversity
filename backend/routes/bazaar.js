@@ -127,10 +127,10 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
       ownedItems.push(ownedItem);
     }
 
-    res.status(200).json({ 
-      message: 'Purchase successful', 
-      balance: user.balance, 
-      items: ownedItems 
+    res.status(200).json({
+      message: 'Purchase successful',
+      balance: user.balance,
+      items: ownedItems
     });
   } catch (err) {
     console.error(err);
@@ -149,6 +149,7 @@ router.post('/checkout', ensureAuthenticated, async (req, res) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const total = items.reduce((sum, item) => sum + item.price, 0);
+    console.log(`→ backend computed total=${total} from items:`, items.map(i => i.price));
 
     if (user.balance < total) {
       return res.status(400).json({ error: 'Insufficient balance' });
@@ -189,7 +190,7 @@ router.post('/checkout', ensureAuthenticated, async (req, res) => {
       ownedItems.push(ownedItem);
     }
 
-    // Save order
+    // Save wnrder
     const order = new Order({
       user: req.user._id,
       items: ownedItems.map(i => i._id),
@@ -197,10 +198,10 @@ router.post('/checkout', ensureAuthenticated, async (req, res) => {
     });
     await order.save();
 
-    res.status(200).json({ 
-      message: 'Purchase successful', 
-      items: ownedItems, 
-      balance: user.balance 
+    res.status(200).json({
+      message: 'Purchase successful',
+      items: ownedItems,
+      balance: user.balance
     });
 
   } catch (err) {
@@ -244,7 +245,7 @@ router.get(
 // Get the inventory page for the user to see what items they have
 router.get('/inventory/:userId', async (req, res) => {
   const { userId } = req.params;
-  const items = await Item.find({ owner: userId});
+  const items = await Item.find({ owner: userId });
   res.json({ items });
 });
 
