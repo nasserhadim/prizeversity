@@ -186,9 +186,9 @@ const Classroom = () => {
       </Link>
 
       <nav className="flex space-x-4 mb-4">
-        <Link to={`/classroom/${id}/news`}>News</Link>
+        <Link to={`/classroom/${id}/news`}>Announcements</Link>
         {user.role === 'teacher' && (
-          <Link to={`/classroom/${id}/teacher-news`}>Manage News</Link>
+          <Link to={`/classroom/${id}/teacher-news`}>Manage Announcements</Link>
         )}
       </nav>
 

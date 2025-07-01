@@ -20,7 +20,7 @@ export default function StudentNewsfeed() {
                 </Link>
             </p>
             <h2 className="text-center text-green-500 text-4xl font-bold mb-4">
-                Class News
+                Announcements
             </h2>
             <ul className="space-y-6">
                 {items.map(i => (
