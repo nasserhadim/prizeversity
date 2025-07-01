@@ -169,14 +169,17 @@ router.delete('/groupset/:id', ensureAuthenticated, async (req, res) => {
 // Fetch GroupSets for Classroom
 router.get('/groupset/classroom/:classroomId', ensureAuthenticated, async (req, res) => {
   try {
-    const groupSets = await GroupSet.find({ classroom: req.params.classroomId })
-      .populate({
-        path: 'groups',
-        populate: {
-          path: 'members._id',
-          select: 'email'
-        }
-      });
+  
+const groupSets = await GroupSet.find({ classroom: req.params.classroomId })
+  .populate({
+    path: 'groups',
+    populate: [
+      { path: 'members._id', select: 'email' },
+      
+      { path: 'siphonRequests', model: 'SiphonRequest' }
+    ]
+  });
+
     res.status(200).json(groupSets);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch group sets' });

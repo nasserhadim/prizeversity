@@ -26,6 +26,7 @@ const Groups = () => {
   const [memberSorts, setMemberSorts] = useState({});
   const [selectedMembers, setSelectedMembers] = useState({});
   const [openSiphonModal, setOpenSiphonModal] = useState(null);
+  const [processing, setProcessing] = useState(false);
 
 useEffect(() => {
   fetchGroupSets();
@@ -75,20 +76,20 @@ useEffect(() => {
   };
   
 const teacherReject = async (siphonId) => {
-  try {
+   
    if (processing) return;
-  setProcessing(true);
-  try {
-    await axios.post(`/api/siphon/${siphonId}/teacher-approve`);
-    fetchGroupSets();
-  } finally {
-    setProcessing(false);
-  }
-    fetchGroupSets();
-  } catch (err) {
-    toast.error(err.response?.data?.error || 'Failed to reject');
-  }
-};
+   setProcessing(true);
+   try {
+     
+     await axios.post(`/api/siphon/${siphonId}/teacher-reject`);
+  
+     fetchGroupSets();
+   } catch (err) {
+     toast.error(err.response?.data?.error || 'Failed to reject');
+   } finally {
+     setProcessing(false);
+   }
+ };
 
 const handleCreateGroup = async (groupSetId) => {
   if (!groupName.trim()) return toast.error('Group name required');
