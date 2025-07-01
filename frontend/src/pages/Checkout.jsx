@@ -11,16 +11,16 @@ const Checkout = () => {
     const [balance, setBalance] = useState(0);
 
     const fetchBalance = async () => {
-            try {
-                const response = await apiBazaar.get(`/user/${user._id}/balance`);
-                setBalance(response.data.balance);
-            } catch (err) {
-                console.error('Failed to fetch balance:', err);
-            }
-        };
+        try {
+            const response = await apiBazaar.get(`/user/${user._id}/balance`);
+            setBalance(response.data.balance);
+        } catch (err) {
+            console.error('Failed to fetch balance:', err);
+        }
+    };
 
     useEffect(() => {
-        
+
         if (user?._id) {
             fetchBalance();
         }
@@ -28,11 +28,12 @@ const Checkout = () => {
 
     const handleCheckout = async () => {
         try {
+            console.log("→ frontend sending checkout:", { userId: user._id, items: cartItems });
             const response = await apiBazaar.post('/checkout', {
                 userId: user._id,
                 items: cartItems
             });
-
+            console.log("← frontend received response:", response.status, response.data);
             if (response.status === 200) {
                 await fetchBalance();
                 clearCart();

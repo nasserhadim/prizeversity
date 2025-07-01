@@ -81,6 +81,9 @@ export default function TeacherNewsfeed() {
                         <small className="block text-gray-500 mb-4">
                             {new Date(i.createdAt).toLocaleString()}
                         </small>
+                        <p className="mb-2 text-gray-800">
+                            {i.content}
+                        </p>
                         <button
                             className="btn btn-sm btn-error mt-2"
                             onClick={() => handleDelete(i._id)}

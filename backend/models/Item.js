@@ -6,7 +6,7 @@ const ItemSchema = new mongoose.Schema({
   price: { type: Number, required: true },
   image: { type: String, default: 'placeholder.jpg' },
   bazaar: { type: mongoose.Schema.Types.ObjectId, ref: 'Bazaar', required: true },
-  category: { type: String, enum: ['Attack', 'Defend', 'Utility'], required: true },
+  category: { type: String, enum: ['Attack', 'Defend', 'Utility'], default: 'Utility' },
   effect: { type: String }, // 'halveBits', 'stealBits', 'shield'
   owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   active: { type: Boolean, default: false },
