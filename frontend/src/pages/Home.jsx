@@ -1,12 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import socket from '../utils/socket';
-import Navbar from '../components/Navbar';
-
 import toast from 'react-hot-toast';
-import { School, UserPlus, GraduationCap, Bell, Pencil, BookOpen, MessagesSquare, LayoutDashboard, Clock, ShieldCheck } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+
+import {
+  School,
+  UserPlus,
+  GraduationCap,
+  Bell,
+  Pencil,
+  BookOpen,
+  MessagesSquare,
+  LayoutDashboard,
+  Clock,
+  ShieldCheck,
+  ChevronRight,
+} from 'lucide-react';
 
 const Home = () => {
   const { user, logout, setUser } = useAuth();
@@ -14,16 +25,75 @@ const Home = () => {
   const [firstName, setFirstName] = useState(user?.firstName || '');
   const [lastName, setLastName] = useState(user?.lastName || '');
   const [profileComplete, setProfileComplete] = useState(!!(user?.firstName && user?.lastName));
-  const [classrooms, setClassrooms] = useState([]);
-  const [classroomName, setClassroomName] = useState('');
-  const [classroomCode, setClassroomCode] = useState('');
-  const [joinClassroomCode, setJoinClassroomCode] = useState('');
+
+  const [carouselGroup, setCarouselGroup] = useState('education');
+  const scrollRef = useRef(null);
+
+  const navigate = useNavigate();
+
+  const carouselContent = {
+    education: [
+      {
+        icon: School,
+        title: "Interactive Learning",
+        description: "Engage with course material like never before"
+      },
+      {
+        icon: GraduationCap,
+        title: "Academic Excellence",
+        description: "Tools designed to help you succeed"
+      },
+      {
+        icon: Bell,
+        title: "Stay Informed",
+        description: "Real-time notifications keep you updated"
+      }
+    ],
+    workflow: [
+      {
+        icon: UserPlus,
+        title: "Easy Onboarding",
+        description: "Join classrooms in seconds"
+      },
+      {
+        icon: Pencil,
+        title: "Seamless Editing",
+        description: "Create and edit content effortlessly"
+      },
+      {
+        icon: BookOpen,
+        title: "Organized Materials",
+        description: "All your resources in one place"
+      },
+      {
+        icon: MessagesSquare,
+        title: "Collaborative Discussions",
+        description: "Learn together with peers"
+      }
+    ],
+    features: [
+      {
+        icon: LayoutDashboard,
+        title: "Clean Interface",
+        description: "Intuitive design for all users"
+      },
+      {
+        icon: Clock,
+        title: "Time-Saving",
+        description: "Focus on learning, not navigation"
+      },
+      {
+        icon: ShieldCheck,
+        title: "Secure Platform",
+        description: "Your data is always protected"
+      }
+    ]
+  };
+
   useEffect(() => {
     if (user?.firstName) setFirstName(user.firstName);
     if (user?.lastName) setLastName(user.lastName);
   }, [user]);
-
-  const navigate = useNavigate();
 
   useEffect(() => {
     if (user) {
@@ -39,22 +109,6 @@ const Home = () => {
       window.history.replaceState({}, '', '/');
     }
   }, []);
-
-  const fetchClassrooms = async () => {
-    try {
-      const endpoint = role === 'teacher' ? '/api/classroom' : '/api/classroom/student';
-      const response = await axios.get(endpoint);
-      setClassrooms(response.data);
-    } catch (error) {
-      console.error('Failed to fetch classrooms', error);
-    }
-  };
-
-  useEffect(() => {
-    if (role && profileComplete) {
-      fetchClassrooms();
-    }
-  }, [role, profileComplete]);
 
   const handleRoleAndProfileSubmit = async () => {
     if (!role || !firstName.trim() || !lastName.trim()) {
@@ -74,47 +128,6 @@ const Home = () => {
       console.error('Failed to update profile', error);
       toast.error('Could not update your profile.');
     }
-  };
-
-  const handleCreateClassroom = async () => {
-    try {
-      if (!classroomName.trim() || !classroomCode.trim()) {
-        alert('Classroom name and code are required');
-        return;
-      }
-
-      const response = await axios.post('/api/classroom/create', {
-        name: classroomName,
-        code: classroomCode,
-      });
-
-      alert('Classroom created successfully!');
-      setClassroomName('');
-      setClassroomCode('');
-      fetchClassrooms();
-    } catch (error) {
-      alert(error.response?.data?.error || 'Failed to create classroom');
-    }
-  };
-
-  const handleJoinClassroom = async () => {
-    try {
-      if (!joinClassroomCode.trim()) {
-        alert('Please enter a classroom code');
-        return;
-      }
-
-      const response = await axios.post('/api/classroom/join', { code: joinClassroomCode });
-      alert('Joined classroom successfully!');
-      setJoinClassroomCode('');
-      fetchClassrooms();
-    } catch (error) {
-      alert(error.response?.data?.error || 'Failed to join classroom');
-    }
-  };
-
-  const handleCardClick = (classroomId) => {
-    navigate(`/classroom/${classroomId}`);
   };
 
   useEffect(() => {
@@ -140,158 +153,291 @@ const Home = () => {
     };
   }, []);
 
+  // Carousel animation
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    let scrollAmount = 0;
+    const scrollStep = 0.2;
+    const scrollMax = el.scrollWidth / 2;
+
+    let rafId;
+    let isPaused = false;
+
+    const scrollLoop = () => {
+      if (!isPaused) {
+        scrollAmount += scrollStep;
+        if (scrollAmount >= scrollMax) scrollAmount = 0;
+        el.scrollLeft = scrollAmount;
+      }
+      rafId = requestAnimationFrame(scrollLoop);
+    };
+
+    // Start animation
+    rafId = requestAnimationFrame(scrollLoop);
+
+    // Event listeners for pause on hover
+    const handleMouseEnter = () => {
+      isPaused = true;
+    };
+    const handleMouseLeave = () => {
+      isPaused = false;
+    };
+
+    el.addEventListener('mouseenter', handleMouseEnter);
+    el.addEventListener('mouseleave', handleMouseLeave);
+
+    // Cleanup
+    return () => {
+      cancelAnimationFrame(rafId);
+      el.removeEventListener('mouseenter', handleMouseEnter);
+      el.removeEventListener('mouseleave', handleMouseLeave);
+    };
+  }, [carouselGroup]);
+
+
+  const renderCarouselItems = () => {
+    const items = carouselContent[carouselGroup];
+    const allItems = [...items, ...items];
+    return allItems.map((item, idx) => (
+      <div
+        key={idx}
+        className="flex flex-col items-center justify-center w-[300px] h-[400px] bg-white rounded-2xl shadow-sm flex-shrink-0 mx-4 p-8 border border-gray-100 hover:shadow-md transition-all"
+      >
+        <item.icon className="text-green-500 mb-6" size={60} />
+        <h3 className="text-2xl font-semibold text-gray-900 mb-2">{item.title}</h3>
+        <p className="text-gray-600 text-center">{item.description}</p>
+        <button className="mt-6 text-green-500 flex items-center text-sm font-medium">
+          Learn more <ChevronRight size={16} className="ml-1" />
+        </button>
+      </div>
+    ));
+  };
+
+  //  Will navigate to the clasroom the user clicks
+  const handleCardClick = () => {
+    navigate(`/classrooms`);
+  };
+
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
-      {user && firstName && lastName && (
-        <div className="text-xl font-semibold mb-4 text-center">
-          Welcome, {firstName} {lastName}!
+    <div className="min-h-screen bg-gray-50">
+      <nav className="fixed top-0 left-0 right-0 bg-white shadow z-50 w-full">
+        <div className="w-full flex justify-between items-center px-6 py-3">
+          {/* Top Left: Brand */}
+          <div className="text-xl font-bold text-black">
+            Prizeversity
+          </div>
+
+          {/* Top Right: Sign In Buttons */}
+          {!user && (
+            <div className="flex gap-4">
+              <button 
+                className="px-4 py-2 text-sm rounded-full bg-black text-white hover:bg-gray-800 transition"
+                onClick={() => window.location.href = '/api/auth/google'}
+              >
+                Sign in with Google
+              </button>
+              <button 
+                className="px-4 py-2 text-sm rounded-full bg-black text-white hover:bg-gray-800 transition"
+                onClick={() => window.location.href = '/api/auth/microsoft'}
+              >
+                Sign in with Microsoft
+              </button>
+            </div>
+          )}
         </div>
-      )}
-      <h1 className="text-3xl font-bold text-center text-green-500">
-        Welcome to Prizeversity
-      </h1>
+      </nav>
 
-      <p className='text-center text-gray-600 max-w-2xl mx-auto mt-4'>
-        <strong>Prizeversity</strong> is a collaborative learning platform that brings teachers and students together. Teachers can create and manage classrooms, post materials, and track progress, while students can join classrooms, participate in group discussions, and receive feedback all in one seamless experience.
-      </p>
-
-      <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-        <div className="p-6 border rounded-2xl shadow bg-white">
-          <School className="mx-auto h-8 w-8 text-green-500" />
-          <h3 className="font-semibold text-lg mb-1">For Teachers</h3>
-          <p className="text-sm text-gray-600">
-            Create and manage classrooms, organize groups, and post announcements.
-          </p>
-        </div>
-
-        <div className="p-6 border rounded-2xl shadow bg-white">
-          <GraduationCap className="mx-auto h-8 w-8 text-green-500" />
-          <h3 className="font-semibold text-lg mb-1">For Students</h3>
-          <p className="text-sm text-gray-600">
-            Join classrooms, collaborate with peers, and track assignments.
-          </p>
-        </div>
-
-        <div className="p-6 border rounded-2xl shadow bg-white">
-          <Bell className="mx-auto h-8 w-8 text-green-500" />
-          <h3 className="font-semibold text-lg mb-1">Real-Time Updates</h3>
-          <p className="text-sm text-gray-600">
-            Stay informed with instant classroom notifications and updates.
+      {/* Hero Section */}
+      <div className="bg-black text-white pt-20 pb-32">
+        <div className="max-w-6xl mx-auto px-6 text-center">
+          <h1 className="text-5xl font-bold mb-6">Prizeversity</h1>
+          <p className="text-2xl text-gray-300 max-w-2xl mx-auto">
+            The future of collaborative learning. Simple. Powerful. Beautiful.
           </p>
         </div>
       </div>
 
-      <div className="mt-10 space-y-4">
-        <h2 className="text-xl font-bold text-center">How Prizeversity Works</h2>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-center">
-          <div>
-            <UserPlus className="mx-auto h-8 w-8 text-green-500" />
-            <p className="font-semibold mt-2">Sign Up</p>
-            <p className="text-sm text-gray-600">Login using Google or Microsoft.</p>
+      {/* Main Content */}
+      <div className="max-w-6xl mx-auto px-6 -mt-20">
+        {/* Welcome Message */}
+        {user && firstName && lastName && (
+          <div className="bg-white rounded-xl shadow-md p-6 mb-10 text-center">
+            <h2 className="text-2xl font-semibold">Welcome, {firstName} {lastName}!</h2>
+            <p className="text-gray-600 mt-2">
+              {role === 'teacher' 
+                ? 'Ready to create your next classroom?' 
+                : 'Ready to join your next learning adventure?'}
+            </p>
           </div>
-          <div>
-            <Pencil className="mx-auto h-8 w-8 text-green-500" />
-            <p className="font-semibold mt-2">Complete Profile</p>
-            <p className="text-sm text-gray-600">Choose your role and enter your name.</p>
+        )}
+
+        {/* Carousel Section */}
+        <section className="mb-20">
+          <div className="flex justify-center mb-8">
+            <div className="inline-flex rounded-full bg-gray-200 p-1">
+              {Object.keys(carouselContent).map((group) => (
+                <button
+                  key={group}
+                  onClick={() => setCarouselGroup(group)}
+                  className={`px-4 py-2 text-sm rounded-full transition ${carouselGroup === group ? 'bg-white shadow text-black' : 'text-gray-600 hover:text-black'}`}
+                >
+                  {group.charAt(0).toUpperCase() + group.slice(1)}
+                </button>
+              ))}
+            </div>
           </div>
-          <div>
-            <BookOpen className="mx-auto h-8 w-8 text-green-500" />
-            <p className="font-semibold mt-2">Create or Join Classrooms</p>
-            <p className="text-sm text-gray-600">Teachers create. Students join.</p>
-          </div>
-          <div>
-            <MessagesSquare className="mx-auto h-8 w-8 text-green-500" />
-            <p className="font-semibold mt-2">Collaborate</p>
-            <p className="text-sm text-gray-600">Engage in groups, discussions, and tasks.</p>
-          </div>
-        </div>
-      </div>
-
-      <h2 className="text-xl font-bold text-center mt-10">Why Use Prizeversity?</h2>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
-        <div className="p-4 rounded-xl shadow bg-white">
-          <LayoutDashboard className="mx-auto h-8 w-8 text-green-500" />
-          <h4 className="font-semibold">Simple Dashboard</h4>
-          <p className="text-sm text-gray-600">Navigate classrooms and groups easily.</p>
-        </div>
-        <div className="p-4 rounded-xl shadow bg-white">
-          <Clock className="mx-auto h-8 w-8 text-green-500" />
-          <h4 className="font-semibold">Real-time Updates</h4>
-          <p className="text-sm text-gray-600">Get notified instantly on changes.</p>
-        </div>
-        <div className="p-4 rounded-xl shadow bg-white">
-          <ShieldCheck className="mx-auto h-8 w-8 text-green-500" />
-          <h4 className="font-semibold">Secure & Private</h4>
-          <p className="text-sm text-gray-600">Backed by authentication and data protection.</p>
-        </div>
-      </div>
-
-
-
-      {!user ? (
-        <div className="text-center space-y-4">
-          <button className="btn btn-primary w-full max-w-xs" onClick={() => window.location.href = '/api/auth/google'}>
-            Login with Google
-          </button>
-          <button className="btn btn-secondary w-full max-w-xs" onClick={() => window.location.href = '/api/auth/microsoft'}>
-            Login with Microsoft
-          </button>
-        </div>
-      ) : !profileComplete || !role ? (
-        <div className="space-y-6 text-center">
-          <p className="text-lg">Please tell us more about you before continuing:</p>
-
-          <div className="flex justify-center gap-4">
-            <button
-              className={`btn ${role === 'teacher' ? 'btn-primary' : 'btn-outline'}`}
-              onClick={() => setRole('teacher')}
-            >
-              Teacher
-            </button>
-            <button
-              className={`btn ${role === 'student' ? 'btn-secondary' : 'btn-outline'}`}
-              onClick={() => setRole('student')}
-            >
-              Student
-            </button>
-          </div>
-
-          <div className="space-y-2">
-            <input
-              className="input input-bordered w-full max-w-xs"
-              type="text"
-              placeholder="First Name"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-            />
-            <input
-              className="input input-bordered w-full max-w-xs"
-              type="text"
-              placeholder="Last Name"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-            />
-          </div>
-
-          <button
-            className="btn btn-success mt-2"
-            onClick={handleRoleAndProfileSubmit}
+          
+          <div 
+            ref={scrollRef} 
+            className="relative flex overflow-x-hidden cursor-grab select-none py-4"
           >
-            Save & Continue
-          </button>
+            {renderCarouselItems()}
+          </div>
+        </section>
+
+        {/* Value Proposition */}
+        <section className="mb-20">
+          <h2 className="text-3xl font-bold text-center mb-12">Why Prizeversity Stands Out</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100">
+              <div className="bg-green-100 w-12 h-12 rounded-full flex items-center justify-center mb-4">
+                <School className="text-green-500" size={24} />
+              </div>
+              <h3 className="text-xl font-semibold mb-2">For Educators</h3>
+              <p className="text-gray-600">
+                Create and manage classrooms with intuitive tools designed to save you time.
+              </p>
+            </div>
+            <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100">
+              <div className="bg-green-100 w-12 h-12 rounded-full flex items-center justify-center mb-4">
+                <GraduationCap className="text-green-500" size={24} />
+              </div>
+              <h3 className="text-xl font-semibold mb-2">For Students</h3>
+              <p className="text-gray-600">
+                Collaborate with peers and access all your learning materials in one place.
+              </p>
+            </div>
+            <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100">
+              <div className="bg-green-100 w-12 h-12 rounded-full flex items-center justify-center mb-4">
+                <Bell className="text-green-500" size={24} />
+              </div>
+              <h3 className="text-xl font-semibold mb-2">Real-Time Updates</h3>
+              <p className="text-gray-600">
+                Instant notifications keep everyone in sync with classroom activities.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* Profile Completion (if needed) */}
+        {user && (!profileComplete || !role) && (
+          <section className="bg-white rounded-xl shadow-md p-8 mb-20 max-w-2xl mx-auto">
+            <h2 className="text-2xl font-semibold mb-6 text-center">Complete Your Profile</h2>
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-medium mb-3">I am a:</h3>
+                <div className="flex justify-center gap-4">
+                  <button 
+                    className={`px-6 py-3 rounded-full ${role === 'teacher' ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-800'} transition`}
+                    onClick={() => setRole('teacher')}
+                  >
+                    Teacher
+                  </button>
+                  <button 
+                    className={`px-6 py-3 rounded-full ${role === 'student' ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-800'} transition`}
+                    onClick={() => setRole('student')}
+                  >
+                    Student
+                  </button>
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                  <input 
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    type="text" 
+                    placeholder="First Name" 
+                    value={firstName} 
+                    onChange={(e) => setFirstName(e.target.value)} 
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                  <input 
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    type="text" 
+                    placeholder="Last Name" 
+                    value={lastName} 
+                    onChange={(e) => setLastName(e.target.value)} 
+                  />
+                </div>
+              </div>
+              
+              <button 
+                className="w-full py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition font-medium"
+                onClick={handleRoleAndProfileSubmit}
+              >
+                Continue
+              </button>
+            </div>
+          </section>
+        )}
+
+        {/* Call to Action */}
+        <section className="bg-gradient-to-r from-green-500 to-green-600 rounded-2xl p-12 text-center text-white mb-20">
+          <h2 className="text-3xl font-bold mb-4">Ready to transform your learning experience?</h2>
+          <p className="text-xl mb-8 max-w-2xl mx-auto">
+            Join thousands of educators and students already using Prizeversity.
+          </p>
+          {!user ? (
+            <div className="flex justify-center gap-4">
+              <button 
+                className="px-6 py-3 bg-white text-green-600 rounded-full font-medium hover:bg-gray-100 transition"
+                onClick={() => window.location.href = '/api/auth/google'}
+              >
+                Sign up with Google
+              </button>
+              <button 
+                className="px-6 py-3 bg-black text-white rounded-full font-medium hover:bg-gray-800 transition"
+                onClick={() => window.location.href = '/api/auth/microsoft'}
+              >
+                Sign up with Microsoft
+              </button>
+            </div>
+          ) : (
+            <button 
+              className="px-6 py-3 bg-white text-green-600 rounded-full font-medium hover:bg-gray-100 transition"
+              onClick={handleCardClick}
+            >
+              Engage with your classes
+            </button>
+          )}
+        </section>
+      </div>
+
+      {/* Footer */}
+      <footer className="bg-black text-white py-12">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="flex flex-col md:flex-row justify-between items-center">
+            <div className="mb-6 md:mb-0">
+              <h2 className="text-2xl font-bold">Prizeversity</h2>
+              <p className="text-gray-400 mt-2">Collaborative learning reimagined</p>
+            </div>
+            <div className="flex space-x-6">
+              <a href="#" className="text-gray-400 hover:text-white transition">Privacy</a>
+              <a href="#" className="text-gray-400 hover:text-white transition">Terms</a>
+              <a href="#" className="text-gray-400 hover:text-white transition">Help</a>
+            </div>
+          </div>
+          <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
+            <p>© {new Date().getFullYear()} Prizeversity. All rights reserved.</p>
+          </div>
         </div>
-      ) : (
-        <>
-
-
-          <div className="text-center mt-6">
-            <p>Use the “Classrooms” menu to access your dashboard.</p>
-          </div>
-
-          <div className="text-right">
-          </div>
-        </>
-      )}
+      </footer>
     </div>
   );
 };
