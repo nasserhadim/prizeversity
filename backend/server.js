@@ -10,6 +10,7 @@ const classroomRoutes = require('./routes/classroom');
 const bazaarRoutes = require('./routes/bazaar');
 const walletRoutes = require('./routes/wallet');
 const groupRoutes = require('./routes/group');
+const siphonRouter = require('./routes/siphon');
 const notificationsRoutes = require('./routes/notifications');
 // Importing admin route
 const adminRoutes = require('./routes/admin');
@@ -59,6 +60,8 @@ mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopol
   .catch(err => console.log(err));
 
 // Routes
+
+app.use('/api/siphon', siphonRouter);
 app.use('/api/auth', authRoutes);
 app.use('/api/classroom', classroomRoutes);
 app.use('/api/classroom/:id/newsfeed', newsfeedRoutes);
