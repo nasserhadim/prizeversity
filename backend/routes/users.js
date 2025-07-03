@@ -2,8 +2,18 @@ const express = require('express');
 const router = express.Router();
 const { ensureAuthenticated } = require('../config/auth');
 const User = require('../models/User');
+const Classroom = require('../models/Classroom');
+const mongoose = require('mongoose');
 
-
+router.delete('/:id', async (req, res) => {
+  try {
+    await User.findByIdAndDelete(req.params.id);
+    res.json({ message: 'User deleted' });
+  } catch (err) {
+    console.error('Delete failed:', err);
+    res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
 
 
 
@@ -74,6 +84,10 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
     const results = { updated: 0, skipped: [] };
 
     for (const { studentId, amount } of updates) {
+      if (!mongoose.Types.ObjectId.isValid(studentId)) {
+    results.skipped.push({ studentId, reason: 'Invalid student ID' });
+    continue;
+  }
       const numericAmount = Number(amount);
       if (isNaN(numericAmount)) {
         results.skipped.push({ studentId, reason: 'Amount not numeric' });
@@ -88,11 +102,12 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
 
       student.balance += numericAmount;
       student.transactions.push({
-        amount: numericAmount,
-        description,
-        assignedBy: req.user._id,
-        createdAt:   { type: Date, default: Date.now }
-      });
+      amount: numericAmount,
+      description,
+      assignedBy: req.user._id,
+      createdAt: new Date()
+    });
+
 
       await student.save();
       results.updated += 1;
@@ -109,7 +124,7 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
 });
 
 
- router.get('/users/students', ensureAuthenticated, async (req, res) => {
+ router.get('/students', ensureAuthenticated, async (req, res) => {
   const { classroomId } = req.query;
 
   if (!classroomId || !req.user.classrooms.includes(classroomId)) {
@@ -124,7 +139,7 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
  });
 
 
- router.get('/users/all', ensureAuthenticated, async (req, res) => {
+ router.get('/all', ensureAuthenticated, async (req, res) => {
    if (!['teacher', 'admin'].includes(req.user.role)) {
      return res.status(403).json({ error: 'Forbidden' });
    }
@@ -144,7 +159,7 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
  });
 
 // Get user balance
-router.get('/users/:id', ensureAuthenticated, async (req, res) => {
+router.get('/:id', ensureAuthenticated, async (req, res) => {
   try {
     const user = await User.findById(req.params.id).select('balance email');
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -174,6 +189,29 @@ router.post('/:id/make-admin', ensureAuthenticated, async (req, res) => {
   }
 });
 
+router.post('/:id/demote-admin', ensureAuthenticated, async (req, res) => {
+  try {
+    if (req.user.role !== 'teacher') {
+  return res.status(403).json({ error: 'Only teachers can demote admins' });
+}
+    const admin = await User.findById(req.params.id);
+    if (!admin) return res.status(404).json({ error: 'User not found' });
+
+    if (admin.role !== 'admin')
+      return res.status(400).json({ error: 'User is not an admin' });
+
+    admin.role = 'student';
+   await admin.save();
+
+   res.status(200).json({ message: 'Admin demoted to student' });
+  } catch (err) {
+    console.error('Failed to demote admin:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+
+
 // update the profile with a firstname and a last name
 router.post('/update-profile', ensureAuthenticated, async (req, res) => {
   const { role, firstName, lastName } = req.body;
@@ -192,5 +230,79 @@ router.post('/update-profile', ensureAuthenticated, async (req, res) => {
   }
 });
 
+router.post('/bulk-upload', ensureAuthenticated, async (req, res) => {
+  if (!['teacher', 'admin'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Only teachers can upload users' });
+  }
 
-module.exports = router;
+  const { classroomId, users } = req.body;
+  const owns = req.user.classrooms.map(String).includes(classroomId)
+            || await Classroom.exists({ _id: classroomId, teacher: req.user._id });
+  if (!owns) return res.status(403).json({ error: 'Not your classroom' });
+  if (!Array.isArray(users) || users.length === 0) {
+    return res.status(400).json({ error: 'No user data provided' });
+  }
+
+  try {
+    const results = { added: 0, skipped: [] };
+    const newUserIds = [];
+
+    for (const userData of users) {
+     
+      const normal    = Object.fromEntries(
+        Object.entries(userData).map(([k, v]) => [k.toLowerCase(), v])
+      );
+      const email     = normal.email?.trim();
+      const firstName = normal.firstname;
+      const lastName  = normal.lastname;
+      let   role      = (normal.role || 'student').toLowerCase();
+      if (!['student','admin'].includes(role)) role = 'student';
+
+    
+      if (!email || !/^[^@]+@[^@]+\.[^@]+$/.test(email)) {
+        results.skipped.push({ email, reason: 'Invalid or missing email' });
+        continue;
+      }
+
+    
+      if (await User.exists({ email })) {
+        results.skipped.push({ email, reason: 'Already exists' });
+        continue;
+      }
+
+    
+      const rawBal        = normal.balance;
+      const parsedBalance = parseFloat(rawBal);
+      const initialBalance = isNaN(parsedBalance) ? 0 : parsedBalance;
+
+      const newUser = new User({
+        email,
+        firstName,
+        lastName,
+        role,
+        classrooms: [classroomId],
+        balance: initialBalance
+      });
+      await newUser.save();
+
+      newUserIds.push(newUser._id);
+      results.added += 1;
+    }
+
+  
+    if (newUserIds.length > 0) {
+      await Classroom.updateOne(
+        { _id: classroomId },
+        { $addToSet: { students: { $each: newUserIds } } }
+      );
+    }
+
+    return res.json({ message: `${results.added} users added`, results });
+  } catch (err) {
+    console.error('Upload failed:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+
+module.exports = router;

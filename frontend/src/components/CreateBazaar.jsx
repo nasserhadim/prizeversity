@@ -1,76 +1,79 @@
-import React, { useState } from 'react';
-import axios from 'axios';
+import { useState } from 'react';
+import toast from 'react-hot-toast';
+// import axios from 'axios'
+import apiBazaar from '../API/apiBazaar.js'
 
-const CreateBazaar = ({ classroomId }) => {
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [image, setImage] = useState('');
+const CreateBazaar = ({ classroomId, onCreate }) => {
+  console.log('classroomId:', classroomId);
+  const [form, setForm] = useState({
+    name: '',
+    description: '',
+    image: ''
+  });
+  const [loading, setLoading] = useState(false);
+
+  const handleChange = (e) => {
+    setForm((prev) => ({
+      ...prev,
+      [e.target.name]: e.target.value
+    }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
     try {
-      const response = await axios.post('/api/bazaar/create', {
-        name,
-        description,
-        image,
-        classroomId,
-      });
-      alert('Bazaar created successfully!');
+      const res = await apiBazaar.post(
+        `classroom/${classroomId}/bazaar/create`,
+        {
+          name: form.name,
+          description: form.description,
+          image: form.image,
+        }
+      );
+      toast.success('Bazaar created!');
+      onCreate(res.data.bazaar);
     } catch (err) {
-      alert('Failed to create bazaar');
+      console.log("classroomId:", classroomId);
+      toast.error(err.response?.data?.error || 'Failed to create bazaar');
+    } finally {
+      setLoading(false);
     }
   };
 
+
   return (
-  <form onSubmit={handleSubmit} className="space-y-4 bg-base-100 p-4 rounded-box shadow-md">
-    <div className="form-control">
-      <label className="label">
-        <span className="label-text font-semibold">Bazaar Name</span>
-      </label>
+    <form onSubmit={handleSubmit} className="card bg-base-100 shadow-lg p-6 max-w-xl mx-auto space-y-4">
+      <h2 className="text-xl font-bold text-center">Create Bazaar</h2>
       <input
         type="text"
-        placeholder="Enter bazaar name"
-        className="input input-bordered"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
+        name="name"
+        placeholder="Bazaar Name"
+        className="input input-bordered w-full"
+        value={form.name}
+        onChange={handleChange}
         required
       />
-    </div>
-
-    <div className="form-control">
-      <label className="label">
-        <span className="label-text font-semibold">Description</span>
-      </label>
+      <textarea
+        name="description"
+        placeholder="Description"
+        className="textarea textarea-bordered w-full"
+        value={form.description}
+        onChange={handleChange}
+      />
       <input
         type="text"
-        placeholder="Enter a short description"
-        className="input input-bordered"
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
+        name="image"
+        placeholder="Image URL (optional)"
+        className="input input-bordered w-full"
+        value={form.image}
+        onChange={handleChange}
       />
-    </div>
-
-    <div className="form-control">
-      <label className="label">
-        <span className="label-text font-semibold">Image URL</span>
-      </label>
-      <input
-        type="text"
-        placeholder="Optional image URL"
-        className="input input-bordered"
-        value={image}
-        onChange={(e) => setImage(e.target.value)}
-      />
-    </div>
-
-    <div className="form-control mt-4">
-      <button type="submit" className="btn btn-primary">
-        Create Bazaar
+      <button className="btn btn-primary w-full" disabled={loading}>
+        {loading ? 'Creating...' : 'Create Bazaar'}
       </button>
-    </div>
-  </form>
-);
-
+    </form>
+  );
 };
 
 export default CreateBazaar;

@@ -6,11 +6,12 @@ const Notification = require('../models/Notification'); // Add this line
 const { ensureAuthenticated } = require('../config/auth');
 const { populateNotification } = require('../utils/notifications');
 const router = express.Router();
+const User = require('../models/User');  
 
 // Create Classroom
 router.post('/create', ensureAuthenticated, async (req, res) => {
   const { name, code } = req.body;
-  
+
   if (!name || !code) {
     return res.status(400).json({ error: 'Classroom name and code are required' });
   }
@@ -22,7 +23,12 @@ router.post('/create', ensureAuthenticated, async (req, res) => {
       return res.status(400).json({ error: 'A classroom with this code already exists' });
     }
 
-    const classroom = new Classroom({ name, code, teacher: req.user._id });
+    const classroom = new Classroom({
+      name,
+      code,
+      teacher: req.user._id,
+      students: [req.user._id]
+    });
     await classroom.save();
     res.status(201).json(classroom);
   } catch (err) {
@@ -82,7 +88,7 @@ router.get('/:id', ensureAuthenticated, async (req, res) => {
     if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
 
     // Check if user has access
-    const hasAccess = req.user.role === 'teacher' ? 
+    const hasAccess = req.user.role === 'teacher' ?
       classroom.teacher.toString() === req.user._id.toString() :
       classroom.students.includes(req.user._id);
 
@@ -108,7 +114,7 @@ router.delete('/:id', ensureAuthenticated, async (req, res) => {
 
     // Create notification for teacher and all students
     const notificationRecipients = [classroom.teacher, ...classroom.students];
-    
+
     for (const recipientId of notificationRecipients) {
       const notification = await Notification.create({
         user: recipientId,
@@ -151,7 +157,7 @@ router.put('/:id', ensureAuthenticated, async (req, res) => {
 
     // Include teacher and students in notifications
     const notificationRecipients = [classroom.teacher._id.toString(), ...classroom.students.map(s => s._id.toString())];
-    
+
     if (changes.name) {
       for (const recipientId of notificationRecipients) {
         const notification = await Notification.create({
@@ -171,7 +177,7 @@ router.put('/:id', ensureAuthenticated, async (req, res) => {
     const populatedClassroom = await Classroom.findById(classroom._id)
       .populate('teacher', 'email')
       .populate('students', 'email');
-    
+
     req.app.get('io').to(`classroom-${classroom._id}`).emit('classroom_update', populatedClassroom);
 
     res.status(200).json(classroom);
@@ -276,6 +282,64 @@ router.delete('/:id/students/:studentId', ensureAuthenticated, async (req, res) 
     res.status(200).json({ message: 'Student removed successfully' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to remove student' });
+  }
+});
+
+// router.get('/:classId/leaderboard', async (req, res) => {
+//   try {
+//     const classId = req.params.classId;
+//     const userId  = req.user._id;   
+
+//     // ensures the user is in this class
+//     const me = await User.findById(userId);
+//     if (!me.classrooms.includes(classId)) {
+//       return res.status(403).json({ error: 'Not enrolled in this class' });
+//     }
+
+//     // fetch and sort classmates by bits
+//     const leaderboard = await User.find({ classrooms: classId })
+//       .select('email balance')
+//       .sort({ balance: -1 })
+//       .limit(50);
+
+//     res.json(leaderboard);
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ error: 'Server error' });
+//   }
+// });
+
+router.patch('/:classId/users/:userId/role', ensureAuthenticated, async (req, res) => {
+  try {
+    const { classId, userId } = req.params;
+    const { role } = req.body;
+    const valid   = ['student', 'teacher', 'admin'];
+    if (!valid.includes(role))
+      return res.status(400).json({ error: 'Invalid role value' });
+
+    const classroom = await Classroom.findById(classId);
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+
+    // Only the teacher of this classroom can change roles
+    if (req.user._id.toString() !== classroom.teacher.toString())
+      return res.status(403).json({ error: 'Only the teacher can change roles' });
+
+    const updated = await User.findByIdAndUpdate(
+      userId,
+      { role },
+      { new: true, runValidators: true }
+    );
+    if (!updated) return res.status(404).json({ error: 'User not found' });
+
+    // (Optional) notify clients in real time
+    req.app.get('io')
+      .to(`classroom-${classId}`)
+      .emit('role_change', { userId, role });
+
+    return res.json({ success: true, role });
+  } catch (e) {
+    console.error('PATCH role error:', e);
+    return res.status(500).json({ error: 'Failed to update role' });
   }
 });
 

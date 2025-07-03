@@ -15,6 +15,7 @@ const ClassroomPage = () => {
   const [classroomName, setClassroomName] = useState('');
   const [classroomCode, setClassroomCode] = useState('');
   const [joinClassroomCode, setJoinClassroomCode] = useState('');
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   // The following functions were taken from Home.jsx to separate them in different pages.
@@ -36,6 +37,8 @@ const ClassroomPage = () => {
       setClassrooms(res.data);
     } catch (err) {
       console.error('Error fetching classrooms', err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -153,18 +156,30 @@ const ClassroomPage = () => {
         <div>
           <h2 className="text-xl font-semibold mt-6">Classrooms</h2>
           <div className="grid gap-4 md:grid-cols-2 mt-2">
-            {classrooms.map(c => (
-              <div
-                key={c._id}
-                className="card bg-base-200 shadow hover:shadow-lg cursor-pointer transition"
-                onClick={() => handleCardClick(c._id)}
-              >
-                <div className="card-body">
-                  <h3 className="card-title">{c.name}</h3>
-                  <p>Code: {c.code}</p>
+            {loading ? (
+              // Showing 4 skeletons for placeholders
+              Array.from({ length: 8}).map((_, index) => (
+                <div key={index} className='card bg-base-200 shadow'>
+                  <div className='card-body'>
+                    <div className='skeleton h-6 w-1/2 mb-2'></div>
+                    <div className='skeleton h-4 w-1/3'></div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              classrooms.map(c => (
+                <div
+                  key={c._id}
+                  className='card bg-base-200 shadow hover:shadow-lg cursor-pointer transition'
+                  onClick={() => handleCardClick(c._id)}
+                >
+                  <div className='card-body'>
+                    <h3 className='card-title'>{c.name}</h3>
+                    <p>Code: {c.code}</p>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
