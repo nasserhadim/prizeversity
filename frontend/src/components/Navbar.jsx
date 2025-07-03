@@ -246,7 +246,7 @@ const Navbar = () => {
             {/* Profile Avatar */}
             <div className="dropdown dropdown-end">
               <div tabIndex={0} role="button" className="btn btn-ghost btn-circle avatar">
-                <div className="w-10 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2">
+                <div className="w-10 rounded-full ring ring-success ring-offset-base-100 ring-offset-2">
                   <img
                     alt="User avatar"
                     src={user?.avatar || '/default-profile.png'}
