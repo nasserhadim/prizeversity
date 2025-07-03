@@ -7,6 +7,7 @@ import '../styles/MemberManagement.css';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { LoaderIcon } from 'lucide-react';
+import ClassroomBanner from '../components/ClassroomBanner';
 
 const Classroom = () => {
   const { id } = useParams();
@@ -162,6 +163,10 @@ const Classroom = () => {
 
   // Main render
   return (
+  <>
+    {/* Classroom banner inside the classroom page */}
+    <ClassroomBanner name={classroom.name} />
+
     <div className="p-6 space-y-6">
       {/* Navigation */}
       <Link to="/classrooms" className="link text-accent">
@@ -177,13 +182,10 @@ const Classroom = () => {
         )}
       </nav>
 
-
-
       {/* Teacher/Admin Controls */}
       {(user.role === 'teacher' || user.role === 'admin') && (
         <div id="class-settings" className="space-y-4">
-
-
+          {/* settings UI goes here */}
         </div>
       )}
 
@@ -203,11 +205,16 @@ const Classroom = () => {
       {/* Student View */}
       {user.role === 'student' && (
         <div className="space-y-6">
-          <button className="btn btn-warning" onClick={handleLeaveClassroomConfirm}>Leave Classroom</button>
+          <button
+            className="btn btn-warning"
+            onClick={handleLeaveClassroomConfirm}
+          >
+            Leave Classroom
+          </button>
         </div>
       )}
     </div>
-  );
-};
+  </>
+)};
 
-export default Classroom;
+      export default Classroom;

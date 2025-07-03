@@ -5,4 +5,8 @@ const apiClassroom = axios.create({
   withCredentials: true
 });
 
+export function getClassroom(classId) {
+  return apiClassroom.get(`/${classId}`);
+}
+
 export default apiClassroom;

@@ -3,17 +3,30 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getNews } from '../API/apiNewsfeed';
+import ClassroomBanner from '../components/ClassroomBanner';
+import { getClassroom } from '../API/apiClassroom';
 
 export default function StudentNewsfeed() {
     const { id: classId } = useParams();
     const [items, setItems] = useState([]);
+    const [classroomName, setClassroomName] = useState('');
 
     useEffect(() => {
-        getNews(classId).then(res => setItems(res.data));
+        async function fetchData() {
+            // fetch announcements
+            const newsRes = await getNews(classId);
+            setItems(newsRes.data);
+            // fetch classroom info
+            const classRes = await getClassroom(classId);
+            setClassroomName(classRes.data.name);
+        }
+        fetchData();
     }, [classId]);
 
     return (
         <div className="max-w-3xl mx-auto p-6">
+            {/* Classroom banner at the top of this box */}
+            <ClassroomBanner name={classroomName} />
             <p className="mb-4">
                 <Link to={`/classroom/${classId}`} className="link text-accent">
                     ← Back to Classroom
@@ -36,5 +49,5 @@ export default function StudentNewsfeed() {
                 ))}
             </ul>
         </div>
-    );
-}
+       
+)};
