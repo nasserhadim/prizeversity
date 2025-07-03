@@ -254,7 +254,11 @@ router.post('/:id/leave', ensureAuthenticated, async (req, res) => {
 // Fetch & Remove Students
 router.get('/:id/students', ensureAuthenticated, async (req, res) => {
   try {
-    const classroom = await Classroom.findById(req.params.id).populate('students');
+    const classroom = await Classroom.findById(req.params.id)
+      .populate(
+        'students',
+        'email role firstName lastName balance shortId'  // <= add shortId here
+      );
     if (!classroom) {
       return res.status(404).json({ error: 'Classroom not found' });
     }
