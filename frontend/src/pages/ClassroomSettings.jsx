@@ -16,7 +16,8 @@ export default function ClassroomSettings() {
     const [loading, setLoading] = useState(true);
     const [editingClassroom, setEditingClassroom] = useState(false);
     const [updateClassroomName, setUpdateClassroomName] = useState('');
-    const [updateClassroomImage, setUpdateClassroomImage] = useState('');
+    const [updateColor, setUpdateColor] = useState('#ffffff');
+    const [updateBackgroundFile, setUpdateBackgroundFile] = useState(null);
 
     // Fetch classroom details
     useEffect(() => {
@@ -42,6 +43,15 @@ export default function ClassroomSettings() {
         };
         fetchDetails();
     }, [id, user, navigate]);
+
+    // Initialize edit fields when entering edit mode
+    useEffect(() => {
+        if (editingClassroom && classroom) {
+            setUpdateClassroomName(classroom.name);
+            setUpdateColor(classroom.color || '#ffffff');
+            setUpdateBackgroundFile(null);
+        }
+    }, [editingClassroom, classroom]);
 
     // Leave classroom
     const handleLeave = async () => {
@@ -69,16 +79,25 @@ export default function ClassroomSettings() {
         }
     };
 
+    // Update classroom (name, color, background image)
     const handleUpdateClassroom = async () => {
         try {
-            const res = await axios.put(`/api/classroom/${id}`, {
-                name: updateClassroomName || classroom.name,
-                image: updateClassroomImage || classroom.image
+            const formData = new FormData();
+            formData.append('name', updateClassroomName || classroom.name);
+            formData.append('color', updateColor);
+            if (updateBackgroundFile) {
+                formData.append('backgroundImage', updateBackgroundFile);
+            }
+
+            const res = await axios.put(`/api/classroom/${id}`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
             });
+
             toast.success('Classroom updated!');
             setEditingClassroom(false);
             setUpdateClassroomName('');
-            setUpdateClassroomImage('');
+            setUpdateColor('#ffffff');
+            setUpdateBackgroundFile(null);
             setClassroom(res.data);
         } catch (err) {
             const msg = err.response?.data?.message || 'Update failed';
@@ -90,7 +109,8 @@ export default function ClassroomSettings() {
     const handleCancelUpdate = () => {
         setEditingClassroom(false);
         setUpdateClassroomName('');
-        setUpdateClassroomImage('');
+        setUpdateColor('#ffffff');
+        setUpdateBackgroundFile(null);
     };
 
     if (loading || !classroom) {
@@ -105,6 +125,7 @@ export default function ClassroomSettings() {
         <div className="p-6 space-y-4">
             <h1 className="text-3xl font-bold">{classroom.name}</h1>
             <p className="text-sm text-gray-500">Class Code: {classroom.code}</p>
+
             {editingClassroom ? (
                 <div className="card bg-base-100 shadow-md p-4">
                     <h4 className="text-lg font-semibold">Update Classroom</h4>
@@ -116,12 +137,27 @@ export default function ClassroomSettings() {
                         onChange={(e) => setUpdateClassroomName(e.target.value)}
                     />
                     <input
-                        className="input input-bordered w-full mt-2"
-                        type="text"
-                        placeholder="New Image URL"
-                        value={updateClassroomImage}
-                        onChange={(e) => setUpdateClassroomImage(e.target.value)}
+                        type="color"
+                        value={updateColor}
+                        onChange={(e) => setUpdateColor(e.target.value)}
+                        className="input w-full h-10 p-0 border mt-2"
                     />
+                    <div className="flex items-center space-x-4 mt-2">
+                        <input
+                            type="file"
+                            name="backgroundImage"
+                            accept="image/*"
+                            onChange={e => setUpdateBackgroundFile(e.target.files[0])}
+                            className="file-input file-input-bordered flex-1"
+                        />
+                        {updateBackgroundFile && (
+                            <img
+                                src={URL.createObjectURL(updateBackgroundFile)}
+                                alt="Preview"
+                                className="w-16 h-16 object-cover rounded border"
+                            />
+                        )}
+                    </div>
                     <div className="mt-4 flex gap-2">
                         <button className="btn btn-primary" onClick={handleUpdateClassroom}>
                             Update
@@ -139,6 +175,7 @@ export default function ClassroomSettings() {
                     Edit Classroom
                 </button>
             )}
+
             <div className="flex gap-2">
                 <button className="btn btn-warning" onClick={handleLeave}>
                     Leave Classroom
