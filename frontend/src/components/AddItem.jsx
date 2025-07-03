@@ -15,6 +15,10 @@ const AddItem = ({ bazaarId }) => {
         description,
         price,
         image,
+        bazaar: bazaarId,
+        category,
+        effect: category !== 'Passive' ? effect : undefined, // Passive doesn't use effect
+        passiveAttributes: category === 'Passive' ? passiveAttributes : undefined
       });
       alert('Item added successfully!');
     } catch (err) {
