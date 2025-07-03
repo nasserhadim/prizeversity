@@ -24,7 +24,11 @@ const UserSchema = new mongoose.Schema({
   shieldActive: {type: Boolean, default: false},
   doubleEarnings: { type: Boolean, default: false },
   discountShop: { type: Boolean, default: false },
-  attackPower: { type: Number, default: 0 }
+  attackPower: { type: Number, default: 0 },
+   // New passive stat attributes
+  luck: { type: Number, default: 0 },               // base 0, can be incremented
+  multiplier: { type: Number, default: 1 },         // base 1x
+  groupMultiplier: { type: Number, default: 1 },    // base 1x
 });
 
 module.exports = mongoose.model('User', UserSchema);

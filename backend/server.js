@@ -20,6 +20,7 @@ const leaderboardRoutes = require('./routes/leaderboard');
 const newsfeedRoutes = require('./routes/newsfeed');
 const itemRoutes = require('./routes/items');
 const groupBalanceRoutes = require('./routes/groupBalance');
+const statsRouter = require('./routes/stats.js');
 require('dotenv').config();
 
 const app = express();
@@ -74,6 +75,7 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/items', itemRoutes);
+app.use('/api/stats', statsRouter);
 app.use('/api', groupBalanceRoutes);
 // Root Route
 app.get('/', (req, res) => {

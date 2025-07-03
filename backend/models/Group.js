@@ -9,6 +9,7 @@ const GroupSchema = new mongoose.Schema({
   }],
   maxMembers: { type: Number, default: null },
   image: { type: String, default: 'placeholder.jpg' },
+  groupMultiplier: {type: Number, default: 1},
   createdAt: { type: Date, default: Date.now }
 });
 

@@ -43,35 +43,73 @@ const CreateBazaar = ({ classroomId, onCreate }) => {
 
 
   return (
-    <form onSubmit={handleSubmit} className="card bg-base-100 shadow-lg p-6 max-w-xl mx-auto space-y-4">
-      <h2 className="text-xl font-bold text-center">Create Bazaar</h2>
-      <input
-        type="text"
-        name="name"
-        placeholder="Bazaar Name"
-        className="input input-bordered w-full"
-        value={form.name}
-        onChange={handleChange}
-        required
-      />
-      <textarea
-        name="description"
-        placeholder="Description"
-        className="textarea textarea-bordered w-full"
-        value={form.description}
-        onChange={handleChange}
-      />
-      <input
-        type="text"
-        name="image"
-        placeholder="Image URL (optional)"
-        className="input input-bordered w-full"
-        value={form.image}
-        onChange={handleChange}
-      />
-      <button className="btn btn-primary w-full" disabled={loading}>
-        {loading ? 'Creating...' : 'Create Bazaar'}
-      </button>
+    <form
+      onSubmit={handleSubmit}
+      className="card bg-base-100 shadow-xl border border-base-200 rounded-2xl p-8 max-w-2xl mx-auto space-y-6"
+    >
+      <h2 className="text-2xl font-semibold text-center text-success">
+        Create Bazaar
+      </h2>
+
+      <div className="form-control">
+        <label className="label">
+          <span className="label-text font-medium">Bazaar Name</span>
+        </label>
+        <input
+          type="text"
+          name="name"
+          placeholder="Enter the bazaar name"
+          className="input input-bordered w-full focus:outline-none focus:ring-2 focus:ring-success"
+          value={form.name}
+          onChange={handleChange}
+          required
+        />
+      </div>
+
+      <div className="form-control">
+        <label className="label">
+          <span className="label-text font-medium">Description</span>
+        </label>
+        <textarea
+          name="description"
+          placeholder="Brief description of your bazaar"
+          className="textarea textarea-bordered w-full min-h-[100px] resize-none focus:outline-none focus:ring-2 focus:ring-success"
+          value={form.description}
+          onChange={handleChange}
+        />
+      </div>
+
+      <div className="form-control">
+        <label className="label">
+          <span className="label-text font-medium">Image URL</span>
+          <span className="label-text-alt">Optional</span>
+        </label>
+        <input
+          type="text"
+          name="image"
+          placeholder="https://example.com/image.jpg"
+          className="input input-bordered w-full"
+          value={form.image}
+          onChange={handleChange}
+        />
+      </div>
+
+      <div>
+        <button
+          type="submit"
+          className="btn btn-success w-full transition-all duration-200"
+          disabled={loading}
+        >
+          {loading ? (
+            <>
+              <span className="loading loading-spinner"></span>
+              Creating...
+            </>
+          ) : (
+            'Create Bazaar'
+          )}
+        </button>
+      </div>
     </form>
   );
 };
