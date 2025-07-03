@@ -221,6 +221,7 @@ const Profile = () => {
                     <div className="space-y-2">
                         <InfoRow label="Name" value={[profile?.firstName, profile?.lastName].filter(Boolean).join(' ') || 'Not set'} />
                         <InfoRow label="Email" value={profile?.email || 'N/A'} />
+                        <InfoRow label="User ID" value={profile?.shortId || '—'} />
                         {profile?.role && (
                             <InfoRow label="Role" value={profile.role.charAt(0).toUpperCase() + profile.role.slice(1)} />
                         )}

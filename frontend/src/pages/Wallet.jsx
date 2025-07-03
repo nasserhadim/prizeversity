@@ -61,8 +61,12 @@ const fetchUsers = async () => {
 
     const fetchWallet = async () => {
       try {
-        const response = await axios.get('/api/wallet/transactions', { withCredentials: true });
-        setTransactions(response.data);
+    const { data } = await axios.get('/api/wallet/transactions', { withCredentials: true });
+   
+     const sorted = data
+       .slice()
+       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+     setTransactions(sorted);
 
         if (user.role === 'student') {
           const userRes = await axios.get(`/api/users/${user._id}`, { withCredentials: true });
@@ -152,12 +156,30 @@ const fetchUsers = async () => {
         <div className="mb-6 space-y-2">
           <h2 className="font-bold">Send Bits</h2>
           <input
-            type="text"
-            placeholder="Recipient ID"
-            className="input input-bordered w-full"
-            value={recipientId}
-            onChange={(e) => setRecipientId(e.target.value)}
+          type="text"
+          placeholder="Enter ID"
+          className="input input-bordered w-full uppercase tracking-wider"
+          value={recipientId}
+          onChange={(e) => setRecipientId(e.target.value.toUpperCase())}
           />
+          {recipientId.length >= 2 && (
+          <ul className="menu bg-base-100 max-h-40 overflow-y-auto">
+            {studentList
+              .filter(s => s.shortId.startsWith(recipientId))
+              .slice(0, 5)
+              .map(s => (
+                <li key={s._id}>
+                  <button
+                    type="button"
+                    onClick={() => setRecipientId(s.shortId)}
+                  >
+                    {s.shortId} – {s.firstName} {s.lastName}
+                  </button>
+                </li>
+              ))}
+          </ul>
+        )}
+
           <input
             type="number"
             placeholder="Amount"
@@ -174,19 +196,28 @@ const fetchUsers = async () => {
                 alert("Transfer amount must be at least 1 bit");
                 return;
               }
-
+if (parsedAmount > balance) {
+                alert("You don't have enough bits for this transfer");
+                return;
+             }
               try {
-                await axios.post('/api/wallet/transfer', {
-                  recipientId,
-                  amount: parsedAmount,
-                }, { withCredentials: true });
+               await axios.post(
+   '/api/wallet/transfer',
+   { recipientId, amount: parsedAmount },
+   { withCredentials: true }
+ );
 
-                alert("Transfer successful");
-                setTransferAmount('');
-                setRecipientId('');
-                fetchWallet();
+ 
+ await fetchWallet();
+
+ 
+ alert("Transfer successful");
+ setTransferAmount('');
+ setRecipientId('');
               } catch (err) {
-                console.error("Transfer failed", err);
+                const serverError = err.response?.data?.error;
+                alert(serverError || err.message || "Transfer failed");
+                console.error("Transfer failed:", err);
               }
             }}
           >
