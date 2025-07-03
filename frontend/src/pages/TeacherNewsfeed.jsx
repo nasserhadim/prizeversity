@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getNews, postNews, deleteNews, editNews } from '../API/apiNewsfeed';
 import toast from 'react-hot-toast';
+import ClassroomBanner from '../components/ClassroomBanner';
+import { getClassroom } from '../API/apiClassroom';
 
 
 export default function TeacherNewsfeed() {
@@ -13,9 +15,18 @@ export default function TeacherNewsfeed() {
         (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
     );
     const [draft, setDraft] = useState('');
+    const [classroomName, setClassroomName] = useState('');
 
     useEffect(() => {
-        getNews(classId).then(res => setItems(res.data));
+        async function fetchData() {
+            // load announcements
+            const newsRes = await getNews(classId);
+            setItems(newsRes.data);
+            // load classroom info
+            const classRes = await getClassroom(classId);
+            setClassroomName(classRes.data.name);
+        }
+        fetchData();
     }, [classId]);
 
     const handlePost = async () => {
@@ -48,63 +59,64 @@ export default function TeacherNewsfeed() {
     };
 
     return (
-        <div className="max-w-3xl mx-auto p-6">
-            <p className="mb-4">
-                <Link to={`/classroom/${classId}`} className="link text-accent">
-                    ← Back to Classroom
-                </Link>
-            </p>
-            <h2 className="text-center text-green-500 text-5xl font-bold mb-6">
-                Manage Announcements
-            </h2>
-            <textarea
-                className="w-full h-32 p-3 border border-gray-300 rounded mb-4"
-                value={draft}
-                onChange={e => setDraft(e.target.value)}
-                placeholder="Write an update…"
-            />
-            <button
-                className="btn btn-primary px-6 py-2 mb-6"
-                onClick={handlePost}
-                disabled={!draft.trim()}
-            >
-                Post
-            </button>
+        <>
+            <ClassroomBanner name={classroomName} />
+            <div className="max-w-3xl mx-auto p-6">
+                <p className="mb-4">
+                    <Link to={`/classroom/${classId}`} className="link text-accent">
+                        ← Back to Classroom
+                    </Link>
+                </p>
+                <h2 className="text-center text-green-500 text-5xl font-bold mb-6">
+                    Manage Announcements
+                </h2>
+                <textarea
+                    className="w-full h-32 p-3 border border-gray-300 rounded mb-4"
+                    value={draft}
+                    onChange={e => setDraft(e.target.value)}
+                    placeholder="Write an update…"
+                />
+                <button
+                    className="btn btn-primary px-6 py-2 mb-6"
+                    onClick={handlePost}
+                    disabled={!draft.trim()}
+                >
+                    Post
+                </button>
 
-            <ul className="space-y-6">
-                {sortedItems.map(i => (
-                    <li key={i._id} className="p-4 border border-gray-200 rounded shadow-sm mx-auto">
-
-                        <p className="text-sm text-gray-600 mb-1">
-                            Posted by {i.authorId.firstName} {i.authorId.lastName}
-                        </p>
-                        <small className="block text-gray-500 mb-4">
-                            {new Date(i.createdAt).toLocaleString()}
-                        </small>
-                        <p className="mb-2 text-gray-800">
-                            {i.content}
-                        </p>
-                        <button
-                            className="btn btn-sm btn-error mt-2"
-                            onClick={() => handleDelete(i._id)}
-                        >
-                            Delete
-                        </button>
-
-                        <button
-                            className="btn btn-sm btn-primary mt-2 ml-2"
-                            onClick={() => {
-                                const updated = prompt('Edit this news item:', i.content);
-                                if (updated !== null && updated.trim() !== '') {
-                                    handleEdit(i._id, updated.trim());
-                                }
-                            }}
-                        >
-                            Edit
-                        </button>
-                    </li>
-                ))}
-            </ul>
-        </div >
-    );
-}
+                <ul className="space-y-6">
+                    {sortedItems.map(i => (
+                        <li key={i._id} className="p-4 border border-gray-200 rounded shadow-sm mx-auto">
+                            <p className="text-sm text-gray-600 mb-1">
+                                Posted by {i.authorId.firstName} {i.authorId.lastName}
+                            </p>
+                            <small className="block text-gray-500 mb-4">
+                                {new Date(i.createdAt).toLocaleString()}
+                            </small>
+                            <p className="mb-2 text-gray-800">
+                                {i.content}
+                            </p>
+                            <button
+                                className="btn btn-sm btn-error mt-2"
+                                onClick={() => handleDelete(i._id)}
+                            >
+                                Delete
+                            </button>
+                            <button
+                                className="btn btn-sm btn-primary mt-2 ml-2"
+                                onClick={() => {
+                                    const updated = prompt('Edit this news item:', i.content);
+                                    if (updated !== null && updated.trim() !== '') {
+                                        handleEdit(i._id, updated.trim());
+                                    }
+                                }}
+                            >
+                                Edit
+                            </button>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+        </>
+    )
+};

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import socket from '../utils/socket';
 import Navbar from '../components/Navbar';
@@ -17,6 +17,7 @@ const ClassroomPage = () => {
   const [joinClassroomCode, setJoinClassroomCode] = useState('');
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { id: classId } = useParams();
 
   // The following functions were taken from Home.jsx to separate them in different pages.
 
@@ -28,6 +29,7 @@ const ClassroomPage = () => {
   useEffect(() => {
     if (role) fetchClassrooms();
   }, [role]);
+
 
   //  This will fetch all the classrooms under that databse 
   const fetchClassrooms = async () => {
@@ -112,79 +114,77 @@ const ClassroomPage = () => {
   }, []);
 
   return (
-    <>
-      <div className="p-6 max-w-4xl mx-auto space-y-6">
-        <h1 className="text-2xl font-bold text-center">Classroom Dashboard</h1>
-        {/* This will be only what teacher will see */}
-        {role === 'teacher' && (
-          <div className="space-y-2">
-            <input
-              type="text"
-              placeholder="Classroom Name"
-              className="input input-bordered w-full"
-              value={classroomName}
-              onChange={(e) => setClassroomName(e.target.value)}
-            />
-            <input
-              type="text"
-              placeholder="Classroom Code"
-              className="input input-bordered w-full"
-              value={classroomCode}
-              onChange={(e) => setClassroomCode(e.target.value)}
-            />
-            <button className="btn btn-success w-full" onClick={handleCreateClassroom}>
-              Create Classroom
-            </button>
-          </div>
-        )}
-        {/* This will be only what the student will see for the classroom (making sure to only see join clasrrom instead of creating) */}
-        {(role === 'student' || role === 'admin') && (
-          <div className="space-y-2">
-            <input
-              type="text"
-              placeholder="Classroom Code"
-              className="input input-bordered w-full"
-              value={joinClassroomCode}
-              onChange={(e) => setJoinClassroomCode(e.target.value)}
-            />
-            <button className="btn btn-accent w-full" onClick={handleJoinClassroom}>
-              Join Classroom
-            </button>
-          </div>
-        )}
-        {/* Classrooms need some css refinement when hovering over. We will work on it on prototype 2 */}
-        <div>
-          <h2 className="text-xl font-semibold mt-6">Classrooms</h2>
-          <div className="grid gap-4 md:grid-cols-2 mt-2">
-            {loading ? (
-              // Showing 4 skeletons for placeholders
-              Array.from({ length: 8}).map((_, index) => (
-                <div key={index} className='card bg-base-200 shadow'>
-                  <div className='card-body'>
-                    <div className='skeleton h-6 w-1/2 mb-2'></div>
-                    <div className='skeleton h-4 w-1/3'></div>
-                  </div>
+    <div className="p-6 space-y-6">
+      <h1 className="text-2xl font-bold text-center">Classroom Dashboard</h1>
+      {/* This will be only what teacher will see */}
+      {role === 'teacher' && (
+        <div className="space-y-2">
+          <input
+            type="text"
+            placeholder="Classroom Name"
+            className="input input-bordered w-full"
+            value={classroomName}
+            onChange={(e) => setClassroomName(e.target.value)}
+          />
+          <input
+            type="text"
+            placeholder="Classroom Code"
+            className="input input-bordered w-full"
+            value={classroomCode}
+            onChange={(e) => setClassroomCode(e.target.value)}
+          />
+          <button className="btn btn-success w-full" onClick={handleCreateClassroom}>
+            Create Classroom
+          </button>
+        </div>
+      )}
+      {/* This will be only what the student will see for the classroom (making sure to only see join clasrrom instead of creating) */}
+      {(role === 'student' || role === 'admin') && (
+        <div className="space-y-2">
+          <input
+            type="text"
+            placeholder="Classroom Code"
+            className="input input-bordered w-full"
+            value={joinClassroomCode}
+            onChange={(e) => setJoinClassroomCode(e.target.value)}
+          />
+          <button className="btn btn-accent w-full" onClick={handleJoinClassroom}>
+            Join Classroom
+          </button>
+        </div>
+      )}
+      {/* Classrooms need some css refinement when hovering over. We will work on it on prototype 2 */}
+      <div>
+        <h2 className="text-xl font-semibold mt-6">Classrooms</h2>
+        <div className="grid gap-4 md:grid-cols-2 mt-2">
+          {loading ? (
+            // Showing 4 skeletons for placeholders
+            Array.from({ length: 8 }).map((_, index) => (
+              <div key={index} className='card bg-base-200 shadow'>
+                <div className='card-body'>
+                  <div className='skeleton h-6 w-1/2 mb-2'></div>
+                  <div className='skeleton h-4 w-1/3'></div>
                 </div>
-              ))
-            ) : (
-              classrooms.map(c => (
-                <div
-                  key={c._id}
-                  className='card bg-base-200 shadow hover:shadow-lg cursor-pointer transition'
-                  onClick={() => handleCardClick(c._id)}
-                >
-                  <div className='card-body'>
-                    <h3 className='card-title'>{c.name}</h3>
-                    <p>Code: {c.code}</p>
-                  </div>
+              </div>
+            ))
+          ) : (
+            classrooms.map(c => (
+              <div
+                key={c._id}
+                className='card bg-base-200 shadow hover:shadow-lg cursor-pointer transition'
+                onClick={() => handleCardClick(c._id)}
+              >
+                <div className='card-body'>
+                  <h3 className='card-title'>{c.name}</h3>
+                  <p>Code: {c.code}</p>
                 </div>
-              ))
-            )}
-          </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
-    </>
+    </div>
   );
 };
 
-export default ClassroomPage;
+export default ClassroomPage;
