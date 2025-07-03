@@ -208,7 +208,7 @@ const Profile = () => {
                             <img
                                 src={profile.avatar}
                                 alt="Profile"
-                                className="w-24 h-24 rounded-full object-cover border-4 border-primary"
+                                className="w-24 h-24 rounded-full object-cover border-4 border-success"
                                 onError={(e) => e.target.src = 'https://via.placeholder.com/150'}
                             />
                         ) : (
@@ -226,34 +226,6 @@ const Profile = () => {
                         )}
                     </div>
 
-                    {/* Will add few images to add some gamification features icons may change in the future */}
-                    <div className="mt-6">
-                        <h3 className="text-xl font-bold mb-2">🎯 Stats</h3>
-                        <table className="table w-full">
-                            <tbody>
-                                <tr>
-                                    <td>🛡 Shield</td>
-                                    <td>{stats.shieldActive ? 'Active' : 'Inactive'}</td>
-                                </tr>
-                                <tr>
-                                    <td>💰 Multiplier</td>
-                                    <td>{stats.doubleEarnings ? '2x Earnings' : 'Normal'}</td>
-                                </tr>
-                                <tr>
-                                    <td>🏷️ Discount</td>
-                                    <td>{stats.discountShop ? '20% Off Shop' : 'None'}</td>
-                                </tr>
-                                <tr>
-                                    <td>📈 Interest</td>
-                                    <td>{stats.bitInterest ? '+10 Daily Bits' : 'Inactive'}</td>
-                                </tr>
-                                <tr>
-                                    <td>⚔️ Attack Bonus</td>
-                                    <td>{stats.attackPower || 0}</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
                     {user.role === 'teacher' && profile.role === 'student' && (
                         <div className="mt-6">
                             <h2 className="text-xl mb-2">Purchase History</h2>
@@ -275,7 +247,7 @@ const Profile = () => {
                         </div>
                     )}
                     {canEdit && (
-                        <button onClick={() => setEditMode(true)} className="btn btn-primary w-full mt-4">
+                        <button onClick={() => setEditMode(true)} className="btn btn-success w-full mt-4">
                             Edit Profile
                         </button>
                     )}
