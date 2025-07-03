@@ -251,80 +251,65 @@ router.post('/groupset/:groupSetId/group/:groupId/join', ensureAuthenticated, as
     const group = await Group.findById(req.params.groupId);
     if (!group) return res.status(404).json({ error: 'Group not found' });
 
-    // Check member capacity before allowing join request
-    const currentApprovedCount = group.members.filter(m => m.status === 'approved').length;
+    // Prevent students from joining if self-signup is disabled
+    if (req.user.role === 'student' && !groupSet.selfSignup) {
+      return res.status(403).json({ error: 'Self-signup is not allowed for this GroupSet.' });
+    }
+
     const maxMembers = group.maxMembers || groupSet.maxMembers;
-    
+    const currentApprovedCount = group.members.filter(m => m.status === 'approved').length;
+
+    // Check if group is full
     if (maxMembers && currentApprovedCount >= maxMembers) {
-      return res.status(400).json({ 
-        error: `This group "${group.name}" has reached its maximum capacity of ${maxMembers} members.` 
+      return res.status(400).json({
+        error: `Group "${group.name}" has reached its maximum capacity of ${maxMembers}.`
       });
     }
 
-    // Check for existing pending requests in this GroupSet
-    const hasPendingRequest = groupSet.groups.some(g => 
-      g.members.some(member => 
-        member._id.equals(req.user._id) && member.status === 'pending'
-      )
+    // Check for existing approved membership in this GroupSet
+    const alreadyInGroup = groupSet.groups.some(g =>
+      g.members.some(m => m._id.equals(req.user._id) && m.status === 'approved')
     );
-
-    if (hasPendingRequest) {
-      const pendingGroup = groupSet.groups.find(g => 
-        g.members.some(member => 
-          member._id.equals(req.user._id) && member.status === 'pending'
-        )
-      );
-      return res.status(400).json({ 
-        error: `Your request to join group "${pendingGroup.name}" is pending approval.` 
-      });
+    if (alreadyInGroup) {
+      return res.status(400).json({ error: 'You are already in a group within this GroupSet.' });
     }
 
-    // Check for existing pending request for this specific group
-    const hasPendingRequestForGroup = group.members.some(member => 
-      member._id.equals(req.user._id) && member.status === 'pending'
+    // Check for existing pending request in this group
+    const hasPending = group.members.some(m =>
+      m._id.equals(req.user._id) && m.status === 'pending'
     );
-    if (hasPendingRequestForGroup) {
-      return res.status(400).json({ 
-        error: `You've already submitted a request to join this group "${group.name}".`
-      });
+    if (hasPending) {
+      return res.status(400).json({ error: `You already requested to join "${group.name}".` });
     }
 
-    // Remove any previous rejected status before adding new request
-    group.members = group.members.filter(member => 
-      !(member._id.equals(req.user._id) && member.status === 'rejected')
+    // Remove rejected requests
+    group.members = group.members.filter(m =>
+      !(m._id.equals(req.user._id) && m.status === 'rejected')
     );
 
     const status = groupSet.joinApproval ? 'pending' : 'approved';
-    
-    // For direct joins (no approval required), do an additional capacity check
-    if (!groupSet.joinApproval && currentApprovedCount >= maxMembers) {
-      return res.status(400).json({ 
-        error: `This group "${group.name}" has reached its maximum capacity of ${maxMembers} members.` 
-      });
-    }
 
-    group.members.push({ 
-      _id: req.user._id, 
-      joinDate: new Date(),
-      status 
+    group.members.push({
+      _id: req.user._id,
+      status,
+      joinDate: new Date()
     });
+
     await group.save();
 
-    // Emit group update immediately
     const populatedGroup = await Group.findById(group._id)
       .populate('members._id', 'email isFrozen');
 
-    req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
-      groupSet: groupSet._id, 
+    req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', {
+      groupSet: groupSet._id,
       group: populatedGroup
     });
 
-    res.status(200).json({ 
-      message: groupSet.joinApproval ? 
-        'Join request submitted. Awaiting teacher approval.' : 
-        'Joined group successfully!'
+    res.status(200).json({
+      message: status === 'approved' ? 'Joined group successfully!' : 'Join request sent for approval.'
     });
   } catch (err) {
+    console.error('Join error:', err);
     res.status(500).json({ error: 'Failed to join group' });
   }
 });
