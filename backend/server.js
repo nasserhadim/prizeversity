@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const mongoose = require('mongoose');
 const passport = require('passport');
 const session = require('express-session');
@@ -20,6 +21,7 @@ const leaderboardRoutes = require('./routes/leaderboard');
 const newsfeedRoutes = require('./routes/newsfeed');
 const itemRoutes = require('./routes/items');
 const groupBalanceRoutes = require('./routes/groupBalance');
+const statsRouter = require('./routes/stats.js');
 require('dotenv').config();
 
 const app = express();
@@ -38,6 +40,8 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
+
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Session Middleware
 app.use(
@@ -74,6 +78,7 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/items', itemRoutes);
+app.use('/api/stats', statsRouter);
 app.use('/api', groupBalanceRoutes);
 // Root Route
 app.get('/', (req, res) => {

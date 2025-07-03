@@ -20,6 +20,7 @@ import ClassroomPage from './pages/ClassroomPage';
 import TeacherNewsfeed from './pages/TeacherNewsfeed';
 import StudentNewsfeed from './pages/StudentNewsfeed';
 import ClassroomSettings from './pages/ClassroomSettings';
+import StudentStats from './pages/StudentStats';
 
 const App = () => {
   const { user } = useContext(AuthContext);
@@ -60,6 +61,8 @@ const App = () => {
           <Route path="/classroom/:classroomId/checkout" element={<Checkout />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/orders" element={<OrderHistory />} />
+          {/* <Route path="/profile/:id/stats" element={<StudentStats />} /> */}
+          <Route path="/classroom/:classroomId/student/:id/stats" element={<StudentStats />} />
         </Routes>
       </div>
     </CartProvider>

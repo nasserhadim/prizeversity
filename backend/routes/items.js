@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Item = require('../models/Item.js');
-const User = require('../models/User.js')
+const User = require('../models/User.js');
 
 // Use an item on a target student
 router.post('/:itemId/use', async (req, res) => {
@@ -16,8 +16,11 @@ router.post('/:itemId/use', async (req, res) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     let target = null;
+
+    // If attack item requires a target
     if (['halveBits', 'stealBits'].includes(item.effect)) {
       if (!targetUserId) return res.status(400).json({ error: 'Target required' });
+
       target = await User.findById(targetUserId);
       if (!target) return res.status(404).json({ error: 'Target user not found' });
 
@@ -26,14 +29,16 @@ router.post('/:itemId/use', async (req, res) => {
         target.shieldActive = false; // Consume shield
         await target.save();
         await Item.findByIdAndDelete(itemId); // delete attacking item
-        return res.status(200).json({ 
-        message: `${target.firstName} was protected by a shield!`, 
-        protected: true 
+        return res.status(200).json({
+          message: `${target.firstName} was protected by a shield!`,
+          protected: true
         });
       }
     }
 
-    // Apply Effects 
+    // --- EFFECTS SECTION ---
+
+    // Attack Effects
     if (item.effect === 'halveBits') {
       target.balance = Math.floor(target.balance / 2);
       await target.save();
@@ -47,60 +52,121 @@ router.post('/:itemId/use', async (req, res) => {
       await user.save();
     }
 
+    // Defend Effects
     if (item.effect === 'shield') {
-      // Activate shield on self
       user.shieldActive = true;
       await user.save();
 
-      // Mark this item as "active" but don't delete yet
       item.active = true;
       item.usesRemaining = 1;
       await item.save();
+
       return res.json({ message: 'Shield activated. You are now protected!' });
     }
 
-    // double earnings effect
+    // Utility Effects
     if (item.effect === 'doubleEarnings') {
-        user.doubleEarnings = true;
-        await user.save();
-
-        // Mark item as active but do not delete
-        item.active = true;
-        item.usesRemaining = 1;
-        await item.save();
-        return res.json({message: 'Earnings multiplier activated! You will earn double from all events!' });
-    }
-
-    // getting bazaar discount
-    if (item.effect === 'discountShop') {
-      user.discountShop = true;
+      user.doubleEarnings = true;
       await user.save();
-      
-      // Mark item as active but don't delete
+
       item.active = true;
       item.usesRemaining = 1;
       await item.save();
-      return res.json({ message: 'Shop discount activated! You get 20% off all items!' });
+
+      return res.json({ message: 'Earnings multiplier activated!' });
     }
 
-    // Remove item if it's not a persistent effect
-    if (!['shield', 'doubleEarnings', 'discountShop'].includes(item.effect)) {
+    if (item.effect === 'discountShop') {
+      user.discountShop = true;
+      await user.save();
+
+      item.active = true;
+      item.usesRemaining = 1;
+      await item.save();
+
+      return res.json({ message: 'Shop discount activated!' });
+    }
+
+    // Passive Effects (new)
+    if (item.category === 'Passive' && item.passiveAttributes) {
+      const { luck, multiplier, groupMultiplier } = item.passiveAttributes;
+
+      if (luck) {
+        user.luck = true;
+      }
+      if (multiplier) {
+        user.multiplier = true;
+      }
+      if (groupMultiplier) {
+        user.groupMultiplier = true;
+      }
+
+      await user.save();
+
+      item.active = true;
+      item.usesRemaining = 1;
+      await item.save();
+
+      return res.json({
+        message: 'Passive effect applied!',
+        passiveEffects: item.passiveAttributes,
+      });
+    }
+
+    // Apply passiveAttributes if present
+    if (item.passiveAttributes) {
+      const { luck, multiplier, groupMultiplier } = item.passiveAttributes;
+
+      // --- Case: Attack Item ---
+      if (item.category === 'Attack' && target) {
+        if (luck) target.luck = Math.max((target.luck || 0) - 1, 0);
+        if (multiplier) target.multiplier = Math.max((target.multiplier || 1) - 0.1, 1);
+        if (groupMultiplier && target.groups?.length) {
+          const Group = require('../models/Group.js');
+          const group = await Group.findById(target.groups[0]);
+          if (group) {
+            group.multiplier = Math.max((group.multiplier || 1) - 0.1, 1);
+            await group.save();
+          }
+        }
+        await target.save();
+      }
+
+      // --- Case: Passive Item ---
+      if (item.category === 'Passive') {
+        if (luck) user.luck = (user.luck || 0) + 1;
+        if (multiplier) user.multiplier = (user.multiplier || 1) + 0.1;
+        if (groupMultiplier && user.groups?.length) {
+          const Group = require('../models/Group.js');
+          const group = await Group.findById(user.groups[0]);
+          if (group) {
+            group.multiplier = (group.multiplier || 1) + 0.1;
+            await group.save();
+          }
+        }
+        await user.save();
+      }
+    }
+
+
+    // Delete non-persistent item
+    if (!['shield', 'doubleEarnings', 'discountShop'].includes(item.effect) &&
+        item.category !== 'Passive') {
       await Item.findByIdAndDelete(itemId);
     }
 
-    return res.json({ 
-        message: 'Item used successfully.',
-        newBalance: {
-            user: user.balance,
-            target: target?.balance
-        }
+    return res.json({
+      message: 'Item used successfully.',
+      newBalance: {
+        user: user.balance,
+        target: target?.balance
+      }
     });
 
   } catch (err) {
-    console.error(err);
+    console.error('Item use error:', err);
     return res.status(500).json({ error: 'Server error' });
   }
 });
-
 
 module.exports = router;

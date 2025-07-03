@@ -77,12 +77,14 @@ const Navbar = () => {
       data-theme={theme}
       className='fixed top-0 left-0 right-0 z-50 bg-base-100 text-base-content shadow-md px-6 py-4 bg-opacity-20 backdrop-blur-md'
     >
-      <div className='container mx-auto flex items-center justify-between'>
+      <div className='container mx-auto flex items-center justify-between flex-wrap'>
+        {/* Logo */}
         <div className='text-2xl font-bold'>
           <Link to='/'>Prizeversity</Link>
         </div>
 
-        <ul className='flex space-x-6 text-lg mr-5'>
+        {/* Main Nav Links */}
+        <ul className='flex flex-wrap space-x-4 text-lg mr-5 items-center'>
           {!insideClassroom && (
             <>
               <li>
@@ -91,88 +93,103 @@ const Navbar = () => {
                   className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname === '/' ? 'text-green-500' : ''}`}
                   title="Home"
                 >
-                  <Home size={18} /> <span className="hidden sm:inline">Home</span>
+                  <Home size={18} />
+                  <span className="hidden lg:inline">Home</span>
                 </Link>
               </li>
               {showClassroomsTab && (
                 <li>
                   <Link
                     to="/classrooms"
-                    className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname === '/classrooms' ? 'text-green-500' : ''
-                      }`}
+                    className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname === '/classrooms' ? 'text-green-500' : ''}`}
                     title="Classrooms"
                   >
-                    <School size={18} /> <span className="hidden sm:inline">Classrooms</span>
+                    <School size={18} />
+                    <span className="hidden lg:inline">Classrooms</span>
                   </Link>
                 </li>
               )}
             </>
           )}
+
           {insideClassroom && (
             <>
               <li>
-                <Link
-                  to={`/classroom/${classroomId}`}
-                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname === `/classroom/${classroomId}` ? 'text-green-500' : ''}`}
-                  title="Classroom"
-                >
-                  <School size={18} /> <span className="hidden sm:inline">Classroom</span>
-                </Link>
+                <div className="tooltip tooltip-bottom" data-tip="Classroom">
+                  <Link
+                    to={`/classroom/${classroomId}`}
+                    className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname === `/classroom/${classroomId}` ? 'text-green-500' : ''}`}
+                  >
+                    <School size={18} />
+                    <span className="hidden lg:inline">Classroom</span>
+                  </Link>
+                </div>
               </li>
               <li>
-                <Link
-                  to={`/classroom/${classroomId}/bazaar`}
-                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/bazaar`) ? 'text-green-500' : ''}`}
-                  title="Bazaar"
-                >
-                  <Briefcase size={18} /> <span className="hidden sm:inline">Bazaar</span>
-                </Link>
+                <div className="tooltip tooltip-bottom" data-tip="Bazaar">
+                  <Link
+                    to={`/classroom/${classroomId}/bazaar`}
+                    className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/bazaar`) ? 'text-green-500' : ''}`}
+                  >
+                    <Briefcase size={18} />
+                    <span className="hidden lg:inline">Bazaar</span>
+                  </Link>
+                </div>
               </li>
               <li>
-                <Link
-                  to={`/classroom/${classroomId}/groups`}
-                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/groups`) ? 'text-green-500' : ''}`}
-                  title="Groups"
-                >
-                  <Users size={18} /> <span className="hidden sm:inline">Groups</span>
-                </Link>
+                <div className="tooltip tooltip-bottom" data-tip="Groups">
+                  <Link
+                    to={`/classroom/${classroomId}/groups`}
+                    className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/groups`) ? 'text-green-500' : ''}`}
+                  >
+                    <Users size={18} />
+                    <span className="hidden lg:inline">Groups</span>
+                  </Link>
+                </div>
               </li>
               <li>
-                <Link
-                  to={`/classroom/${classroomId}/wallet`}
-                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/wallet`) ? 'text-green-500' : ''}`}
-                  title="Wallet"
-                >
-                  <Wallet size={18} /> <span className="hidden sm:inline">Wallet</span>
-                </Link>
+                <div className="tooltip tooltip-bottom" data-tip="Wallet">
+                  <Link
+                    to={`/classroom/${classroomId}/wallet`}
+                    className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/wallet`) ? 'text-green-500' : ''}`}
+                  >
+                    <Wallet size={18} />
+                    <span className="hidden lg:inline">Wallet</span>
+                  </Link>
+                </div>
               </li>
               <li>
-                <Link
-                  to={`/classroom/${classroomId}/people`}
-                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/people`) ? 'text-green-500' : ''}`}
-                  title="People"
-                >
-                  <UserRound size={18} /> <span className="hidden sm:inline">People</span>
-                </Link>
+                <div className="tooltip tooltip-bottom" data-tip="People">
+                  <Link
+                    to={`/classroom/${classroomId}/people`}
+                    className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/people`) ? 'text-green-500' : ''}`}
+                  >
+                    <UserRound size={18} />
+                    <span className="hidden lg:inline">People</span>
+                  </Link>
+                </div>
               </li>
               <li>
-                <Link
-                  to={`/classroom/${classroomId}/leaderboard`}
-                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname === '/leaderboard' ? 'text-green-500' : ''}`}
-                  title="Leaderboard"
-                >
-                  <Trophy size={18} /> <span className="hidden sm:inline">Leaderboard</span>
-                </Link>
+                <div className="tooltip tooltip-bottom" data-tip="Leaderboard">
+                  <Link
+                    to={`/classroom/${classroomId}/leaderboard`}
+                    className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname === '/leaderboard' ? 'text-green-500' : ''}`}
+                  >
+                    <Trophy size={18} />
+                    <span className="hidden lg:inline">Leaderboard</span>
+                  </Link>
+                </div>
               </li>
             </>
           )}
         </ul>
 
+        {/* Right side: Always visible on all screens */}
         {user && (
-          <div className="flex items-center gap-4 relative">
+          <div className="flex items-center gap-4 shrink-0">
             {user?.role !== 'teacher' && insideClassroom && (
               <>
-                {/* Cart Icon Button */}
+                {/* Cart Icon */}
                 <button
                   className="relative"
                   onClick={() => setShowCart(!showCart)}
@@ -186,7 +203,7 @@ const Navbar = () => {
                   )}
                 </button>
 
-                {/* Dropdown */}
+                {/* Cart Dropdown */}
                 {showCart && (
                   <div ref={cartRef} className="fixed top-20 right-4 bg-white border shadow-lg w-80 z-[9999] p-4 rounded text-black">
                     <h3 className="text-lg font-bold mb-2">Your Cart</h3>
@@ -240,7 +257,7 @@ const Navbar = () => {
                 <li><Link to={`/profile/${user._id}`}>Profile</Link></li>
                 <li><Link to="/settings">Settings</Link></li>
                 <li><Link to="/support">Help & Support</Link></li>
-                
+
                 {user.role === 'student' && (
                   <li>
                     <Link to="/orders">Order History</Link>
