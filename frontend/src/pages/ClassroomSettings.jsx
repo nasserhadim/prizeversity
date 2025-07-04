@@ -18,6 +18,7 @@ export default function ClassroomSettings() {
     const [updateClassroomName, setUpdateClassroomName] = useState('');
     const [updateColor, setUpdateColor] = useState('#ffffff');
     const [updateBackgroundFile, setUpdateBackgroundFile] = useState(null);
+    const [archived, setArchived] = useState(false);
 
     // Fetch classroom details
     useEffect(() => {
@@ -25,6 +26,7 @@ export default function ClassroomSettings() {
             try {
                 const res = await axios.get(`/api/classroom/${id}`);
                 const cls = res.data;
+                setArchived(cls.archived);
                 // Only teacher/admin can access
                 const hasAccess =
                     user.role === 'admin' ||
@@ -76,6 +78,23 @@ export default function ClassroomSettings() {
         } catch (err) {
             console.error(err);
             toast.error('Failed to delete classroom');
+        }
+    };
+
+    // Toggle archive status
+    const handleToggleArchive = async () => {
+        try {
+            // send JSON instead of FormData
+            const res = await axios.put(
+                `/api/classroom/${id}`,
+                { archived: !archived }
+            );
+            toast.success(`Classroom ${archived ? 'restored' : 'archived'}!`);
+            setArchived(!archived);
+            setClassroom(res.data);
+        } catch (err) {
+            console.error('Toggle-archive error:', err.response || err);
+            toast.error(err.response?.data?.error || 'Failed to update archive status');
         }
     };
 
@@ -183,7 +202,23 @@ export default function ClassroomSettings() {
                 <button className="btn btn-error" onClick={handleDelete}>
                     Delete Classroom
                 </button>
+
+                <button
+                    className={`btn ${archived ? 'btn-success' : 'btn-outline'} `}
+                    onClick={handleToggleArchive}
+                >
+                    {archived ? 'Unarchive Classroom' : 'Archive Classroom'}
+                </button>
+
             </div>
+
+            <button
+                className="btn btn-secondary mt-4"
+                onClick={() => navigate('/classrooms/archived')}
+            >
+                View Archived Classrooms
+            </button>
+
         </div>
     );
 }
