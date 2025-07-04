@@ -21,6 +21,7 @@ import TeacherNewsfeed from './pages/TeacherNewsfeed';
 import StudentNewsfeed from './pages/StudentNewsfeed';
 import ClassroomSettings from './pages/ClassroomSettings';
 import StudentStats from './pages/StudentStats';
+import ArchivedClassrooms from './pages/ArchivedClassrooms';
 
 const App = () => {
   const { user } = useContext(AuthContext);
@@ -47,6 +48,7 @@ const App = () => {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/classrooms" element={<ClassroomPage />} />
+          <Route path="/classrooms/archived" element={<ArchivedClassrooms />} />
           <Route path="/classroom/:id" element={<Classroom />} />
           <Route path="/classroom/:classroomId/bazaar" element={<Bazaar />} />
           <Route path="/classroom/:id/news" element={<StudentNewsfeed />} />

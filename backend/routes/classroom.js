@@ -95,7 +95,10 @@ router.post('/join', ensureAuthenticated, async (req, res) => {
 // Fetch Classrooms for Teacher
 router.get('/', ensureAuthenticated, async (req, res) => {
   try {
-    const classrooms = await Classroom.find({ teacher: req.user._id });
+    const classrooms = await Classroom.find({
+      teacher: req.user._id,
+      archived: false
+    });
     res.status(200).json(classrooms);
   } catch (err) {
     console.error('[Fetch Classrooms] error:', err);
@@ -103,10 +106,27 @@ router.get('/', ensureAuthenticated, async (req, res) => {
   }
 });
 
+// Fetch Archived Classrooms for Teacher
+router.get('/archived', ensureAuthenticated, async (req, res) => {
+  try {
+    const archives = await Classroom.find({
+      teacher: req.user._id,
+      archived: true
+    });
+    res.status(200).json(archives);
+  } catch (err) {
+    console.error('[Fetch Archived Classrooms] error:', err);
+    res.status(500).json({ error: 'Failed to fetch archived classrooms' });
+  }
+});
+
 // Fetch Classrooms for Student/Admin
 router.get('/student', ensureAuthenticated, async (req, res) => {
   try {
-    const classrooms = await Classroom.find({ students: req.user._id });
+    const classrooms = await Classroom.find({
+      students: req.user._id,
+      archived: false
+    });
     res.status(200).json(classrooms);
   } catch (err) {
     console.error('[Fetch Student Classrooms] error:', err);
@@ -172,9 +192,11 @@ router.delete('/:id', ensureAuthenticated, async (req, res) => {
 });
 
 
+
 // Update Classroom
 router.put('/:id', ensureAuthenticated, upload.single('backgroundImage'), async (req, res) => {
-  const { name, color } = req.body;
+  console.log(' UPDATE req.body:', req.body);
+  const { name, color, archived } = req.body;
   const backgroundImage = req.file ? `/uploads/${req.file.filename}` : undefined;
 
   try {
@@ -190,6 +212,9 @@ router.put('/:id', ensureAuthenticated, upload.single('backgroundImage'), async 
     if (name && name !== classroom.name) changes.name = name;
     if (color && color !== classroom.color) changes.color = color;
     if (backgroundImage) changes.backgroundImage = backgroundImage;
+    if (typeof archived !== 'undefined' && archived !== classroom.archived) {
+      changes.archived = archived;
+    }
 
     if (Object.keys(changes).length === 0) {
       return res.status(400).json({ error: 'No changes were made' });
