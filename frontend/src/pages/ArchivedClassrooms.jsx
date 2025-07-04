@@ -1,4 +1,4 @@
-// prizeversity/frontend/src/pages/ArchivedClassrooms.jsx
+// frontend/src/pages/ArchivedClassrooms.jsx
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -15,7 +15,11 @@ export default function ArchivedClassrooms() {
     useEffect(() => {
         const fetchArchives = async () => {
             try {
-                const res = await axios.get('/api/classroom/archived');
+                const res = await axios.get(
+                    '/api/classroom/archived',
+                    { withCredentials: true }
+                );
+                console.log('Fetched archives:', res.data);
                 setArchives(res.data);
             } catch (err) {
                 console.error('Error fetching archived classrooms:', err.response || err);
@@ -26,13 +30,14 @@ export default function ArchivedClassrooms() {
         };
         fetchArchives();
     }, []);
+
     // Restore (unarchive) a classroom
     const handleRestore = async (id) => {
         try {
-            // send JSON instead of FormData
             await axios.put(
-                `/api/classroom/${id}`,
-                { archived: false }
+                `/api/classroom/${id}/unarchive`,
+                {},
+                { withCredentials: true }
             );
             toast.success('Classroom restored!');
             setArchives(prev => prev.filter(cls => cls._id !== id));
