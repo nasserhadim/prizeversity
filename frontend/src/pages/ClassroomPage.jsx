@@ -121,6 +121,17 @@ export default function ClassroomPage() {
       <h1 className="text-2xl font-bold text-center">Classroom Dashboard</h1>
 
       {role === 'teacher' && (
+        <div className="text-center my-4">
+          <button
+            className="btn btn-outline btn-warning"
+            onClick={() => navigate('/classrooms/archived')}
+          >
+            Archived Classrooms
+          </button>
+        </div>
+      )}
+
+      {role === 'teacher' && (
         <div className="space-y-4 bg-white p-4 rounded shadow">
           <div>
             <label htmlFor="name" className="block text-sm font-medium mb-1">
@@ -160,12 +171,12 @@ export default function ClassroomPage() {
             <div className="flex items-center space-x-4">
               <input
                 type="file"
-                name="backgroundImage"                // ← add this
+                name="backgroundImage"
                 accept="image/*"
                 onChange={e => setBackgroundFile(e.target.files[0])}
                 className="file-input file-input-bordered flex-1"
               />
-              {backgroundFile && (               // ← quick preview
+              {backgroundFile && (
                 <img
                   src={URL.createObjectURL(backgroundFile)}
                   alt="Preview"
@@ -249,5 +260,5 @@ export default function ClassroomPage() {
         </div>
       </div>
     </div>
-  );
-}
+  )
+};

@@ -92,7 +92,7 @@ router.post('/join', ensureAuthenticated, async (req, res) => {
 });
 
 
-// Fetch Classrooms for Teacher
+// Fetch active Classrooms for Teacher
 router.get('/', ensureAuthenticated, async (req, res) => {
   try {
     const classrooms = await Classroom.find({
@@ -120,6 +120,26 @@ router.get('/archived', ensureAuthenticated, async (req, res) => {
   }
 });
 
+// Unarchive a Classroom
+router.put('/:id/unarchive', ensureAuthenticated, async (req, res) => {
+  try {
+    const classroom = await Classroom.findById(req.params.id);
+    if (!classroom) {
+      return res.status(404).json({ error: 'Classroom not found' });
+    }
+    if (classroom.teacher.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Not authorized to unarchive this classroom' });
+    }
+    classroom.archived = false;
+    await classroom.save();
+    res.status(200).json(classroom);
+  } catch (err) {
+    console.error('[Unarchive Classroom] error:', err);
+    res.status(500).json({ error: 'Failed to unarchive classroom' });
+  }
+});
+
+
 // Fetch Classrooms for Student/Admin
 router.get('/student', ensureAuthenticated, async (req, res) => {
   try {
@@ -133,7 +153,6 @@ router.get('/student', ensureAuthenticated, async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch classrooms' });
   }
 });
-
 
 // Fetch Specific Classroom
 router.get('/:id', ensureAuthenticated, async (req, res) => {
@@ -192,8 +211,7 @@ router.delete('/:id', ensureAuthenticated, async (req, res) => {
 });
 
 
-
-// Update Classroom
+// Update Classroom (name, color, backgroundImage, archived flag, etc.)
 router.put('/:id', ensureAuthenticated, upload.single('backgroundImage'), async (req, res) => {
   console.log(' UPDATE req.body:', req.body);
   const { name, color, archived } = req.body;
@@ -282,7 +300,7 @@ router.get('/:id/students', ensureAuthenticated, async (req, res) => {
     const classroom = await Classroom.findById(req.params.id)
       .populate(
         'students',
-        'email role firstName lastName balance shortId'  // <= add shortId here
+        'email role firstName lastName balance shortId'
       );
     if (!classroom) {
       return res.status(404).json({ error: 'Classroom not found' });
@@ -365,6 +383,5 @@ router.patch('/:classId/users/:userId/role', ensureAuthenticated, async (req, re
     res.status(500).json({ error: 'Failed to update role' });
   }
 });
-
 
 module.exports = router;
