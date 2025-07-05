@@ -13,6 +13,7 @@ const Classroom = () => {
   const { id } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const BACKEND_URL = 'http://localhost:5000';
 
   // State variables
   const [classroom, setClassroom] = useState(null);
@@ -163,58 +164,71 @@ const Classroom = () => {
 
   // Main render
   return (
-  <>
-    {/* Classroom banner inside the classroom page */}
-    <ClassroomBanner name={classroom.name} />
+    <>
+      {/* Classroom banner inside the classroom page */}
+      <ClassroomBanner
+        name={classroom.name}
+        bgColor={classroom.color}
+        backgroundImage={
+          classroom.backgroundImage
+            ? (
+              classroom.backgroundImage.startsWith('http')
+                ? classroom.backgroundImage
+                : `${BACKEND_URL}${classroom.backgroundImage}`
+            )
+            : undefined
+        }
+      />
 
-    <div className="p-6 space-y-6">
-      {/* Navigation */}
-      <Link to="/classrooms" className="link text-accent">
-        ← Back to Classroom Dashboard
-      </Link>
+      <div className="p-6 space-y-6">
+        {/* Navigation */}
+        <Link to="/classrooms" className="link text-accent">
+          ← Back to Classroom Dashboard
+        </Link>
 
-      <nav className="flex space-x-4 mb-4">
-        {user.role === 'teacher' && (
-          <>
-            <Link to={`/classroom/${id}/teacher-news`}>Manage Announcements</Link>
-            <Link to={`/classroom/${id}/settings`}>Class Settings</Link>
-          </>
-        )}
-      </nav>
+        <nav className="flex space-x-4 mb-4">
+          {user.role === 'teacher' && (
+            <>
+              <Link to={`/classroom/${id}/teacher-news`}>Manage Announcements</Link>
+              <Link to={`/classroom/${id}/settings`}>Class Settings</Link>
+            </>
+          )}
+        </nav>
 
-      {/* Teacher/Admin Controls */}
-      {(user.role === 'teacher' || user.role === 'admin') && (
-        <div id="class-settings" className="space-y-4">
-          {/* settings UI goes here */}
-        </div>
-      )}
-
-      {/* Announcements List */}
-      <div className="space-y-6">
-        <h3 className="text-2xl font-semibold">Announcements</h3>
-        {announcements.map((item) => (
-          <div key={item._id} className="card bg-base-200 p-4">
-            <p className="text-gray-700">{item.content}</p>
-            <p className="text-sm text-gray-500">
-              {new Date(item.createdAt).toLocaleString()}
-            </p>
+        {/* Teacher/Admin Controls */}
+        {(user.role === 'teacher' || user.role === 'admin') && (
+          <div id="class-settings" className="space-y-4">
+            {/* settings UI goes here */}
           </div>
-        ))}
-      </div>
+        )}
 
-      {/* Student View */}
-      {user.role === 'student' && (
+        {/* Announcements List */}
         <div className="space-y-6">
-          <button
-            className="btn btn-warning"
-            onClick={handleLeaveClassroomConfirm}
-          >
-            Leave Classroom
-          </button>
+          <h3 className="text-2xl font-semibold">Announcements</h3>
+          {announcements.map((item) => (
+            <div key={item._id} className="card bg-base-200 p-4">
+              <p className="text-gray-700">{item.content}</p>
+              <p className="text-sm text-gray-500">
+                {new Date(item.createdAt).toLocaleString()}
+              </p>
+            </div>
+          ))}
         </div>
-      )}
-    </div>
-  </>
-)};
 
-      export default Classroom;
+        {/* Student View */}
+        {user.role === 'student' && (
+          <div className="space-y-6">
+            <button
+              className="btn btn-warning"
+              onClick={handleLeaveClassroomConfirm}
+            >
+              Leave Classroom
+            </button>
+          </div>
+        )}
+      </div>
+    </>
+  )
+};
+
+export default Classroom;
