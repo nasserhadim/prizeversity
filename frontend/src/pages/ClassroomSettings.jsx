@@ -1,7 +1,7 @@
 // prizeversity/frontend/src/pages/ClassroomSettings.jsx
 
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -143,6 +143,9 @@ export default function ClassroomSettings() {
     return (
         <div className="h-screen bg-base-200 flex flex-col justify-between items-center p-4">
             <div className="w-full max-w-3xl space-y-4 flex flex-col items-center">
+                <Link to={`/classroom/${id}`} className="link text-accent self-start">
+                    ← Back to Classroom
+                </Link>
                 <h1 className="text-3xl font-bold text-center">{classroom.name}</h1>
                 <p className="text-sm text-gray-500 text-center">Class Code: {classroom.code}</p>
 
