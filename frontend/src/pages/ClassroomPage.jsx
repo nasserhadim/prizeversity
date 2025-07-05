@@ -123,7 +123,7 @@ export default function ClassroomPage() {
       {role === 'teacher' && (
         <div className="text-center my-4">
           <button
-            className="btn btn-outline btn-warning"
+            className="btn btn-neutral"
             onClick={() => navigate('/classrooms/archived')}
           >
             Archived Classrooms
