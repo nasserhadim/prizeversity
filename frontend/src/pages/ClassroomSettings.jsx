@@ -134,91 +134,96 @@ export default function ClassroomSettings() {
 
     if (loading || !classroom) {
         return (
-            <div className="min-h-screen bg-base-200 flex items-center justify-center">
+            <div className="min-h-screen bg-base-200 flex flex-col justify-between items-center p-4">
                 <LoaderIcon className="animate-spin size-10" />
             </div>
         );
     }
 
     return (
-        <div className="p-6 space-y-4">
-            <h1 className="text-3xl font-bold">{classroom.name}</h1>
-            <p className="text-sm text-gray-500">Class Code: {classroom.code}</p>
+        <div className="h-screen bg-base-200 flex flex-col justify-between items-center p-4">
+            <div className="w-full max-w-3xl space-y-4 flex flex-col items-center">
+                <h1 className="text-3xl font-bold text-center">{classroom.name}</h1>
+                <p className="text-sm text-gray-500 text-center">Class Code: {classroom.code}</p>
 
-            {editingClassroom ? (
-                <div className="card bg-base-100 shadow-md p-4">
-                    <h4 className="text-lg font-semibold">Update Classroom</h4>
-                    <input
-                        className="input input-bordered w-full mt-2"
-                        type="text"
-                        placeholder="New Classroom Name"
-                        value={updateClassroomName}
-                        onChange={(e) => setUpdateClassroomName(e.target.value)}
-                    />
-                    <input
-                        type="color"
-                        value={updateColor}
-                        onChange={(e) => setUpdateColor(e.target.value)}
-                        className="input w-full h-10 p-0 border mt-2"
-                    />
-                    <div className="flex items-center space-x-4 mt-2">
+                {editingClassroom ? (
+                    <div className="card bg-base-100 shadow-md p-4 w-full">
+                        <h4 className="text-lg font-semibold">Update Classroom</h4>
                         <input
-                            type="file"
-                            name="backgroundImage"
-                            accept="image/*"
-                            onChange={e => setUpdateBackgroundFile(e.target.files[0])}
-                            className="file-input file-input-bordered flex-1"
+                            className="input input-bordered w-full mt-2"
+                            type="text"
+                            placeholder="New Classroom Name"
+                            value={updateClassroomName}
+                            onChange={(e) => setUpdateClassroomName(e.target.value)}
                         />
-                        {updateBackgroundFile && (
-                            <img
-                                src={URL.createObjectURL(updateBackgroundFile)}
-                                alt="Preview"
-                                className="w-16 h-16 object-cover rounded border"
+                        <input
+                            type="color"
+                            value={updateColor}
+                            onChange={(e) => setUpdateColor(e.target.value)}
+                            className="input w-full h-10 p-0 border mt-2"
+                        />
+                        <div className="flex items-center space-x-4 mt-2">
+                            <input
+                                type="file"
+                                name="backgroundImage"
+                                accept="image/*"
+                                onChange={e => setUpdateBackgroundFile(e.target.files[0])}
+                                className="file-input file-input-bordered flex-1"
                             />
-                        )}
+                            {updateBackgroundFile && (
+                                <img
+                                    src={URL.createObjectURL(updateBackgroundFile)}
+                                    alt="Preview"
+                                    className="w-16 h-16 object-cover rounded border"
+                                />
+                            )}
+                        </div>
+                        <div className="mt-4 flex gap-2">
+                            <button className="btn btn-primary" onClick={handleUpdateClassroom}>
+                                Update
+                            </button>
+                            <button className="btn btn-ghost" onClick={handleCancelUpdate}>
+                                Cancel
+                            </button>
+                        </div>
                     </div>
-                    <div className="mt-4 flex gap-2">
-                        <button className="btn btn-primary" onClick={handleUpdateClassroom}>
-                            Update
-                        </button>
-                        <button className="btn btn-ghost" onClick={handleCancelUpdate}>
-                            Cancel
-                        </button>
-                    </div>
+                ) : (
+                    <button
+                        className="btn btn-outline btn-info"
+                        onClick={() => setEditingClassroom(true)}
+                    >
+                        Edit Classroom
+                    </button>
+                )}
+
+                <div className="flex gap-2 justify-center w-full">
+                    <button className="btn btn-warning" onClick={handleLeave}>
+                        Leave Classroom
+                    </button>
+                    <button className="btn btn-error" onClick={handleDelete}>
+                        Delete Classroom
+                    </button>
+
+                    <button
+                        className={`btn ${archived ? 'btn-success' : 'btn-outline'} `}
+                        onClick={handleToggleArchive}
+                    >
+                        {archived ? 'Unarchive Classroom' : 'Archive Classroom'}
+                    </button>
+
                 </div>
-            ) : (
-                <button
-                    className="btn btn-outline btn-info"
-                    onClick={() => setEditingClassroom(true)}
-                >
-                    Edit Classroom
-                </button>
-            )}
-
-            <div className="flex gap-2">
-                <button className="btn btn-warning" onClick={handleLeave}>
-                    Leave Classroom
-                </button>
-                <button className="btn btn-error" onClick={handleDelete}>
-                    Delete Classroom
-                </button>
 
                 <button
-                    className={`btn ${archived ? 'btn-success' : 'btn-outline'} `}
-                    onClick={handleToggleArchive}
+                    className="btn btn-neutral mt-4"
+                    onClick={() => navigate('/classrooms/archived')}
                 >
-                    {archived ? 'Unarchive Classroom' : 'Archive Classroom'}
+                    View Archived Classrooms
                 </button>
 
             </div>
-
-            <button
-                className="btn btn-secondary mt-4"
-                onClick={() => navigate('/classrooms/archived')}
-            >
-                View Archived Classrooms
-            </button>
-
+            <footer className="mt-auto w-full bg-base-100 py-4 text-center">
+                <p className="text-sm text-gray-500">Powered by Prizeversity © 2025</p>
+            </footer>
         </div>
     );
 }
