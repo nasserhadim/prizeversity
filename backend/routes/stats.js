@@ -38,10 +38,7 @@ router.get('/student/:id', ensureAuthenticated, async (req, res) => {
       discountShop: user.discountShop,
       bitInterest: hasEffect('bitInterest'),
       attackPower: attackCount,
-
-      // New passive stat totals
       ...passiveStats,
-
       classroomId: classroom?._id?.toString() || null,
     });
   } catch (err) {

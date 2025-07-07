@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
+import socket from '../utils/socket.js'
 
 const StudentStats = () => {
     const { classroomId, id: studentId } = useParams();
@@ -26,6 +27,20 @@ const StudentStats = () => {
         };
 
         fetchStats();
+
+        // Listen for discount expiration
+        const handleDiscountExpired = () => {
+            setStats(prev => ({
+                ...prev,
+                discountShop: false
+            }));
+        };
+
+        socket.on('discount_expired', handleDiscountExpired);
+
+        return () => {
+            socket.off('discount_expired', handleDiscountExpired);
+        }
     }, [studentId]);
 
     if (loading) {
@@ -60,7 +75,7 @@ const StudentStats = () => {
                     </tr>
                     <tr>
                         <td>🏷️ Discount</td>
-                        <td>{stats.discountShop ? '20% Off Shop' : 'None'}</td>
+                        <td>{stats?.discountShop ? '20% Off Shop' : 'None'}</td>
                     </tr>
                     <tr>
                         <td>🍀 Luck</td>
