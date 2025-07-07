@@ -108,7 +108,7 @@ const InventorySection = ({ userId, classroomId }) => {
                 }
                 value={targets[item._id] || ''}
               >
-                <option value="">🎯 Select a student to target</option>
+                <option value="">Select a student to target</option>
                 {students
                   .filter((s) => s._id !== userId)
                   .map((s) => (

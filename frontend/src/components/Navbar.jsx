@@ -13,10 +13,13 @@ import {
   School,
   Briefcase,
   Users,
+  User,
   Wallet,
   UserRound,
   Trophy
 } from 'lucide-react';
+
+// import defaultProfilePicture from '../assets/Default/Profile-Default-Picture.jpg';
 
 const Navbar = () => {
   const { user, logout, setPersona, originalUser } = useContext(AuthContext);
@@ -248,7 +251,7 @@ const Navbar = () => {
               <div tabIndex={0} role="button" className="btn btn-ghost btn-circle avatar">
                 <div className="w-10 rounded-full ring ring-success ring-offset-base-100 ring-offset-2">
                   <img
-                    alt="User avatar"
+                    alt="User Avatar"
                     src={user?.avatar || '/default-profile.png'}
                   />
                 </div>
