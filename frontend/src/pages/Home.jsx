@@ -209,12 +209,12 @@ const Home = () => {
     return allItems.map((item, idx) => (
       <div
         key={idx}
-        className="flex flex-col items-center justify-center w-[300px] h-[400px] bg-white rounded-2xl shadow-sm flex-shrink-0 mx-4 p-6 border border-gray-100 hover:shadow-md transition-all"
+        className="flex flex-col items-center justify-center w-[400px] h-[500px] bg-white rounded-2xl shadow-sm flex-shrink-0 mx-4 p-6 border border-gray-100 hover:shadow-md transition-all"
       >
         <img
           src={item.image}
           alt={item.title}
-          className="w-full h-40 object-cover rounded-lg mb-6"
+          className="w-full h-full object-cover rounded-lg mb-6"
         />
         <h3 className="text-2xl font-semibold text-gray-900 mb-2">{item.title}</h3>
         <p className="text-gray-600 text-center">{item.description}</p>
@@ -282,64 +282,6 @@ const Home = () => {
           </div>
         )}
 
-        {/* Carousel Section */}
-        <section className="mb-20">
-          <div className="flex justify-center mb-8">
-            <div className="inline-flex rounded-full bg-gray-200 p-1">
-              {Object.keys(carouselContent).map((group) => (
-                <button
-                  key={group}
-                  onClick={() => setCarouselGroup(group)}
-                  className={`px-4 py-2 text-sm rounded-full transition ${carouselGroup === group ? 'bg-white shadow text-black' : 'text-gray-600 hover:text-black'}`}
-                >
-                  {group.charAt(0).toUpperCase() + group.slice(1)}
-                </button>
-              ))}
-            </div>
-          </div>
-          
-          <div 
-            ref={scrollRef} 
-            className="relative flex overflow-x-hidden cursor-grab select-none py-4"
-          >
-            {renderCarouselItems()}
-          </div>
-        </section>
-
-        {/* Value Proposition */}
-        <section className="mb-20">
-          <h2 className="text-3xl font-bold text-center mb-12">Why Prizeversity Stands Out</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100">
-              <div className="bg-green-100 w-12 h-12 rounded-full flex items-center justify-center mb-4">
-                <School className="text-green-500" size={24} />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">For Educators</h3>
-              <p className="text-gray-600">
-                Create and manage classrooms with intuitive tools designed to save you time.
-              </p>
-            </div>
-            <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100">
-              <div className="bg-green-100 w-12 h-12 rounded-full flex items-center justify-center mb-4">
-                <GraduationCap className="text-green-500" size={24} />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">For Students</h3>
-              <p className="text-gray-600">
-                Collaborate with peers and engange in a gamification environment.
-              </p>
-            </div>
-            <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100">
-              <div className="bg-green-100 w-12 h-12 rounded-full flex items-center justify-center mb-4">
-                <Bell className="text-green-500" size={24} />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Real-Time Updates</h3>
-              <p className="text-gray-600">
-                Instant notifications keep everyone in sync with classroom activities.
-              </p>
-            </div>
-          </div>
-        </section>
-
         {/* Profile Completion (if needed) */}
         {user && (!profileComplete || !role) && (
           <section className="bg-white rounded-xl shadow-md p-8 mb-20 max-w-2xl mx-auto">
@@ -396,6 +338,64 @@ const Home = () => {
           </section>
         )}
 
+        {/* Carousel Section */}
+        <section className="mb-20">
+          <div className="flex justify-center mb-8">
+            <div className="inline-flex rounded-full bg-gray-200 p-1">
+              {Object.keys(carouselContent).map((group) => (
+                <button
+                  key={group}
+                  onClick={() => setCarouselGroup(group)}
+                  className={`px-4 py-2 text-sm rounded-full transition ${carouselGroup === group ? 'bg-white shadow text-black' : 'text-gray-600 hover:text-black'}`}
+                >
+                  {group.charAt(0).toUpperCase() + group.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          <div 
+            ref={scrollRef} 
+            className="relative flex overflow-x-hidden cursor-grab select-none py-4"
+          >
+            {renderCarouselItems()}
+          </div>
+        </section>
+
+        {/* Value Proposition */}
+        <section className="mb-20">
+          <h2 className="text-3xl font-bold text-center mb-12">Why Prizeversity Stands Out</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100">
+              <div className="bg-green-100 w-12 h-12 rounded-full flex items-center justify-center mb-4">
+                <School className="text-green-500" size={24} />
+              </div>
+              <h3 className="text-xl font-semibold mb-2">For Educators</h3>
+              <p className="text-gray-600">
+                Create and manage classrooms with intuitive tools designed to save you time.
+              </p>
+            </div>
+            <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100">
+              <div className="bg-green-100 w-12 h-12 rounded-full flex items-center justify-center mb-4">
+                <GraduationCap className="text-green-500" size={24} />
+              </div>
+              <h3 className="text-xl font-semibold mb-2">For Students</h3>
+              <p className="text-gray-600">
+                Collaborate with peers and engange in a gamification environment.
+              </p>
+            </div>
+            <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100">
+              <div className="bg-green-100 w-12 h-12 rounded-full flex items-center justify-center mb-4">
+                <Bell className="text-green-500" size={24} />
+              </div>
+              <h3 className="text-xl font-semibold mb-2">Real Time Updates</h3>
+              <p className="text-gray-600">
+                Be up to date with classroom activities and events.
+              </p>
+            </div>
+          </div>
+        </section>
+
         {/* Call to Action */}
         <section className="bg-gradient-to-r from-green-500 to-green-600 rounded-2xl p-12 text-center text-white mb-20">
           <h2 className="text-3xl font-bold mb-4">Ready to transform your learning experience?</h2>
@@ -408,13 +408,13 @@ const Home = () => {
                 className="px-6 py-3 bg-white text-green-600 rounded-full font-medium hover:bg-gray-100 transition"
                 onClick={() => window.location.href = '/api/auth/google'}
               >
-                Sign up with Google
+                Sign in with Google
               </button>
               <button 
                 className="px-6 py-3 bg-black text-white rounded-full font-medium hover:bg-gray-800 transition"
                 onClick={() => window.location.href = '/api/auth/microsoft'}
               >
-                Sign up with Microsoft
+                Sign in with Microsoft
               </button>
             </div>
           ) : (

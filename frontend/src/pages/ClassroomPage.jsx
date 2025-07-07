@@ -1,5 +1,3 @@
-// frontend/src/pages/ClassroomPage.jsx
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -85,7 +83,7 @@ export default function ClassroomPage() {
     }
     try {
       await axios.post('/api/classroom/join', { code: joinClassroomCode });
-      toast.success('Joined classroom!');
+      toast.success('Joined classroom!', {duration: 800});
       setJoinClassroomCode('');
       fetchClassrooms();
     } catch (err) {

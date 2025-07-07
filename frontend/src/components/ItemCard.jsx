@@ -54,7 +54,7 @@ const ItemCard = ({ item, role, classroomId }) => {
           {item.name}
         </h3>
         <p className="text-gray-600 text-sm line-clamp-2">{item.description}</p>
-        <p className="text-black font-bold text-base">${item.price}</p>
+        <p className="text-black font-bold text-base">{item.price} Bits</p>
 
         {role === 'student' && (
           <button
