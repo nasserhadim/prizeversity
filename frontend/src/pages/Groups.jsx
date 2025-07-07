@@ -492,7 +492,7 @@ const Groups = () => {
               </div>
               <div className="flex gap-2 flex-wrap">
                 {user.role === 'student' && (() => {
-                  const studentMembership = group.members.find(m => m._id._id === user._id);
+                  const studentMembership = group.members.find(m => m?._id?._id === user._id);
                   const isApproved = studentMembership?.status === 'approved';
                   const isPending = studentMembership?.status === 'pending';
 
