@@ -5,11 +5,13 @@ import toast from 'react-hot-toast';
 import apiBazaar from '../API/apiBazaar.js'
 import { ShoppingCart } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext.jsx';
 
 const ItemCard = ({ item, role, classroomId }) => {
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(false);
   const { addToCart } = useCart();
+  const { user } = useAuth();
 
   const handleBuy = async () => {
     if (quantity < 1) return toast.error('Quantity must be at least 1');
@@ -25,6 +27,22 @@ const ItemCard = ({ item, role, classroomId }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Calculating the discounted price if discount is active 
+  const calculatePrice = () => {
+    const basePrice = item.price;
+    if (role === 'student' && user?.discountShop) {
+      const discountedPrice = Math.floor(basePrice * 0.8); // 20% discount
+      return (
+        <>
+          <span className="line-through text-gray-400 mr-2">{basePrice} Bits</span>
+          <span className="text-green-600">{discountedPrice} Bits</span>
+          <span className="text-xs text-green-600 ml-1">(20% off)</span>
+        </>
+      );
+    }
+    return `${basePrice} Bits`;
   };
 
   return (
@@ -54,7 +72,9 @@ const ItemCard = ({ item, role, classroomId }) => {
           {item.name}
         </h3>
         <p className="text-gray-600 text-sm line-clamp-2">{item.description}</p>
-        <p className="text-black font-bold text-base">{item.price} Bits</p>
+        <p className="text-black font-bold text-base">
+          {calculatePrice()}
+        </p>
 
         {role === 'student' && (
           <button

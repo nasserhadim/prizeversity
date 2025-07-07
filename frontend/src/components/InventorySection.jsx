@@ -3,11 +3,13 @@ import toast from 'react-hot-toast';
 import apiBazaar from '../API/apiBazaar';
 import apiItem from '../API/apiItem';
 import apiClassroom from '../API/apiClassroom';
+import { ImageOff } from 'lucide-react';
 
 const effectDescriptions = {
   halveBits: "Halves another student's bits.",
   stealBits: "Steals 10% of another student's bits.",
   shield: "Activates a shield that protects from one attack.",
+  discountShop: "Acitvates 20% discount on all shop items for 1 hour",
   default: "No effect or passive item."
 };
 

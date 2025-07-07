@@ -76,15 +76,29 @@ router.post('/:itemId/use', async (req, res) => {
       return res.json({ message: 'Earnings multiplier activated!' });
     }
 
+    // Discount effect section
     if (item.effect === 'discountShop') {
       user.discountShop = true;
       await user.save();
 
-      item.active = true;
-      item.usesRemaining = 1;
-      await item.save();
+      // Set expiration after 1 hour (3600000 ms)
+      setTimeout(async () => {
+        try {
+          const updatedUser = await User.findById(user._id);
+          if (updatedUser.discountShop) {
+            updatedUser.discountShop = false;
+            await updatedUser.save();
+            
+            // Emit socket event to notify client of discount expiration
+            req.app.get('io').to(`user-${user._id}`).emit('discount_expired');
+          }
+        } catch (err) {
+          console.error('Error expiring discount:', err);
+        }
+      }, 10000); // 10 seconds for testing
 
-      return res.json({ message: 'Shop discount activated!' });
+      await Item.findByIdAndDelete(itemId); // Delete the item after use
+      return res.json({ message: 'Shop discount activated for 1 hour!' });
     }
 
     // Passive Effects (new)
@@ -152,6 +166,9 @@ router.post('/:itemId/use', async (req, res) => {
     // Delete non-persistent item
     if (!['shield', 'doubleEarnings', 'discountShop'].includes(item.effect) &&
         item.category !== 'Passive') {
+      await Item.findByIdAndDelete(itemId);
+    } else if (item.effect === 'discountShop') {
+      // For discountShop items, delete after use
       await Item.findByIdAndDelete(itemId);
     }
 
