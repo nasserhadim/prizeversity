@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
 import { useParams } from 'react-router-dom';
 
@@ -10,6 +10,18 @@ const BulkBalanceEditor = () => {
   const [step, setStep] = useState('select'); 
   const [amount, setAmount] = useState('');
 
+
+  const [search, setSearch] = useState('');
+
+  
+  const visibleStudents = useMemo(() => {
+    if (!search.trim()) return students;
+    const q = search.toLowerCase();
+    return students.filter(s =>
+      (s.name  || '').toLowerCase().includes(q) ||
+      (s.email || '').toLowerCase().includes(q)
+    );
+  }, [students, search]);
 
   useEffect(() => {
     const url = classroomId
@@ -66,8 +78,16 @@ const BulkBalanceEditor = () => {
 
       {step === 'select' && (
         <>
+         {/* search bar */}
+          <input
+            type="text"
+            placeholder="Search by name or email…"
+            className="input input-bordered w-full mb-3"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+         />
           <div className="h-72 overflow-y-auto border rounded p-2 mb-4">
-            {students.map(s => (
+            {visibleStudents.map(s => (
               <div key={s._id} className="flex items-center gap-2 py-1">
                 <input
                   type="checkbox"
@@ -79,7 +99,7 @@ const BulkBalanceEditor = () => {
                 <span className="w-16 text-right">{s.balance} B</span>
               </div>
             ))}
-            {students.length === 0 && <p className="text-gray-500">No students found.</p>}
+            {visibleStudents.length === 0 && <p className="text-gray-500">No matching students.</p>}
           </div>
 
           <button className="btn btn-primary w-full" onClick={next}>

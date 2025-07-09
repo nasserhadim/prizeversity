@@ -1,9 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
-// AuthContext.jsx is needed for verifications regarding transactions and amonut very important
-import { useAuth } from '../context/AuthContext'; // Don't forget this!
+import { useAuth } from '../context/AuthContext'; 
 import BulkBalanceEditor from '../components/BulkBalanceEditor';
-import TransactionList   from '../components/TransactionList';
+import TransactionList, { inferType, TYPES } from '../components/TransactionList';
 import { useParams } from 'react-router-dom';
 
 const Wallet = () => {
@@ -14,39 +13,26 @@ const Wallet = () => {
 
   const [recipientId, setRecipientId] = useState('');
   const [transferAmount, setTransferAmount] = useState('');
-
-  const [editStudentId, setEditStudentId] = useState('');
-  const [editAmount, setEditAmount] = useState('');
-
-  const [studentInfo, setStudentInfo] = useState(null);
-  const [checkError, setCheckError] = useState('');
+  const [search, setSearch] = useState('');
 
   const [activeTab, setActiveTab] = useState('edit');    
   const [allTx, setAllTx] = useState([]);
   const [studentFilter, setStudentFilter] = useState('');  
   const [studentList, setStudentList] = useState([]);
+  const [typeFilter, setTypeFilter]     = useState('all');
 
 
 const fetchUsers = async () => {
+  if (!classroomId) return;
   try {
     const res = await axios.get(
-      `/api/users/all?classroomId=${classroomId}`,
+      `/api/classroom/${classroomId}/students`,
       { withCredentials: true }
     );
     setStudentList(res.data);
-
   } catch (err) {
-    if (err.response) {
-     
-     console.error(
-       `Failed to load users (status ${err.response.status}):`,
-       err.response.data
-     );
-   } else {
-   
-    console.error('Failed to load users:', err.message);
-   
-   }
+    console.error('Failed to load students:', err);
+    setStudentList([]);
   }
 };
 
@@ -67,10 +53,20 @@ const fetchUsers = async () => {
     setAllTx(res.data);          
   };
 
+
+  const txTypeOptions = useMemo(() => {
+    const set = new Set(allTx.map(inferType).filter(Boolean));
+    return ['all', ...Array.from(set)];    
+  }, [allTx]);
+
     const fetchWallet = async () => {
       try {
-        const response = await axios.get('/api/wallet/transactions', { withCredentials: true });
-        setTransactions(response.data);
+    const { data } = await axios.get('/api/wallet/transactions', { withCredentials: true });
+   
+     const sorted = data
+       .slice()
+       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+     setTransactions(sorted);
 
         if (user.role === 'student') {
           const userRes = await axios.get(`/api/users/${user._id}`, { withCredentials: true });
@@ -105,92 +101,32 @@ const fetchUsers = async () => {
         </div>
       )}
 
-      {/* teacher/admin tab bar */}
-     {['teacher', 'admin'].includes(user.role) && activeTab === 'edit' && (
-        <div className="mb-6 space-y-2">
-          <h2 className="font-bold">Look Up Student Balance</h2>
-          <input
-            type="text"
-            placeholder="Student ID"
-            className="input input-bordered w-full"
-            value={editStudentId}
-            onChange={(e) => setEditStudentId(e.target.value)}
-          />
-          <button
-            className="btn btn-info w-full"
-            onClick={async () => {
-              try {
-                const res = await axios.get(`/api/users/${editStudentId}`, { withCredentials: true });
-                setStudentInfo(res.data);
-                setCheckError('');
-              } catch (err) {
-                setStudentInfo(null);
-                setCheckError('Student not found');
-                console.error('Failed to fetch student info:', err);
-              }
-            }}
-          >
-            Check Balance
-          </button>
+      {['teacher', 'admin'].includes(user.role) && activeTab === 'edit' && (
+  <div className="mb-6">
+    <BulkBalanceEditor />
+  </div>
+)}
 
-          {checkError && <p className="text-red-500">{checkError}</p>}
 
-          {studentInfo && (
-            <>
-              <p className="mt-2">Current Balance: <strong>{studentInfo.balance}B</strong></p>
-              <input
-                type="number"
-                placeholder="Amount to Add/Subtract"
-                className="input input-bordered w-full mt-2"
-                value={editAmount}
-                onChange={(e) => setEditAmount(e.target.value)}
-              />
-              <button
-                className="btn btn-warning w-full mt-2"
-                onClick={async () => {
-                  try {
-                    await axios.post('/api/wallet/assign', {
-                      studentId: editStudentId,
-                      amount: Number(editAmount),
-                      description: 'Manual adjustment by teacher',
-                    }, { withCredentials: true });
 
-                    alert('Balance updated successfully');
-
-                    // Re-fetch updated balance
-                    const res = await axios.get(`/api/users/${editStudentId}`, { withCredentials: true });
-                    setStudentInfo(res.data);
-                    setEditAmount('');
-                  } catch (err) {
-                    console.error('Failed to update balance:', err);
-                    alert('Failed to update balance');
-                  }
-                }}
-              >
-                Assign Balance
-              </button>
-            </>
-          )}
-        <BulkBalanceEditor />
-  
-        </div>
-      )}
  {}
       {['teacher', 'admin'].includes(user.role) && activeTab === 'tx' && (
         <div className="space-y-4">
           <h2 className="font-bold">All Transactions</h2>
 
-          {}
-          <select
-            className="select select-bordered w-full max-w-xs"
-            value={studentFilter}
-            onChange={(e) => {
-              const id = e.target.value;
-              setStudentFilter(id);
-              fetchAllTx(id);
-            }}
-          >
-            <option value="">All users</option>
+          {/* ▼ filter bar */}
+          <div className="flex flex-wrap gap-2">
+            {/* user selector */}
+            <select
+              className="select select-bordered max-w-xs"
+              value={studentFilter}
+              onChange={(e) => {
+                const id = e.target.value;
+                setStudentFilter(id);
+                fetchAllTx(id);
+              }}
+            >
+              <option value="">All users</option>
               {studentList.map((u) => (
                 <option key={u._id} value={u._id}>
                   {u.email} – {u.role}
@@ -198,20 +134,52 @@ const fetchUsers = async () => {
               ))}
             </select>
 
+            {/* sel*/}
+            <select
+              className="select select-bordered max-w-xs"
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+            >
+              {txTypeOptions.map((t) => (
+                <option key={t} value={t}>
+                  {t === 'all' ? 'All types' : TYPES[t] || t}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {}
-          <TransactionList transactions={allTx} />
+         <TransactionList transactions={allTx} filterType={typeFilter} />
         </div>
     )}
       {user.role === 'student' && (
         <div className="mb-6 space-y-2">
           <h2 className="font-bold">Send Bits</h2>
           <input
-            type="text"
-            placeholder="Recipient ID"
-            className="input input-bordered w-full"
-            value={recipientId}
-            onChange={(e) => setRecipientId(e.target.value)}
+          type="text"
+          placeholder="Enter ID"
+          className="input input-bordered w-full uppercase tracking-wider"
+          value={recipientId}
+          onChange={(e) => setRecipientId(e.target.value.toUpperCase())}
           />
+          {recipientId.length >= 2 && (
+          <ul className="menu bg-base-100 max-h-40 overflow-y-auto">
+            {studentList
+              .filter(s => s.shortId.startsWith(recipientId))
+              .slice(0, 5)
+              .map(s => (
+                <li key={s._id}>
+                  <button
+                    type="button"
+                    onClick={() => setRecipientId(s.shortId)}
+                  >
+                    {s.shortId} – {s.firstName} {s.lastName}
+                  </button>
+                </li>
+              ))}
+          </ul>
+        )}
+
           <input
             type="number"
             placeholder="Amount"
@@ -228,19 +196,28 @@ const fetchUsers = async () => {
                 alert("Transfer amount must be at least 1 bit");
                 return;
               }
-
+if (parsedAmount > balance) {
+                alert("You don't have enough bits for this transfer");
+                return;
+             }
               try {
-                await axios.post('/api/wallet/transfer', {
-                  recipientId,
-                  amount: parsedAmount,
-                }, { withCredentials: true });
+               await axios.post(
+   '/api/wallet/transfer',
+   { recipientId, amount: parsedAmount },
+   { withCredentials: true }
+ );
 
-                alert("Transfer successful");
-                setTransferAmount('');
-                setRecipientId('');
-                fetchWallet();
+ 
+ await fetchWallet();
+
+ 
+ alert("Transfer successful");
+ setTransferAmount('');
+ setRecipientId('');
               } catch (err) {
-                console.error("Transfer failed", err);
+                const serverError = err.response?.data?.error;
+                alert(serverError || err.message || "Transfer failed");
+                console.error("Transfer failed:", err);
               }
             }}
           >
