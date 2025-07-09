@@ -492,13 +492,17 @@ const Groups = () => {
               </div>
               <div className="flex gap-2 flex-wrap">
                 {user.role === 'student' && (() => {
-                  const studentMembership = group.members.find(m => m?._id?._id === user._id);
+                  const studentMembership = group.members.find(m => m._id._id === user._id);
                   const isApproved = studentMembership?.status === 'approved';
                   const isPending = studentMembership?.status === 'pending';
 
+                  const alreadyJoinedApproved = gs.groups.some(g =>
+                    g.members.some(m => m._id._id === user._id && m.status === 'approved' || m.status === 'pending' )
+                  );
+
                   return (
                     <>
-                      {!studentMembership && (
+                      {!studentMembership && !alreadyJoinedApproved && (
                         <button
                           className="btn btn-xs btn-success"
                           onClick={() => handleJoinGroup(gs._id, group._id)}
@@ -506,6 +510,7 @@ const Groups = () => {
                           Join
                         </button>
                       )}
+
 
                       {isPending && (
                         <button
