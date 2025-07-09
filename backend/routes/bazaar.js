@@ -141,16 +141,18 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensur
 
 
 // Checkout multiple items
-
   router.post('/checkout',  ensureAuthenticated, blockIfFrozen, async (req, res) => {
-  console.log("Received checkout data:", req.body);
-  const { userId, items } = req.body;
+    console.log("Received checkout data:", req.body);
+    const { userId, items } = req.body;
 
   try {
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const total = items.reduce((sum, item) => sum + item.price, 0);
+    // Applying discount if active
+    const discountMultiplier = user.discountShop ? 0.8 : 1;
+
+    const total = items.reduce((sum, item) => sum + (item.price * discountMultiplier), 0);
     console.log(`→ backend computed total=${total} from items:`, items.map(i => i.price));
 
     if (user.balance < total) {
@@ -207,7 +209,7 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensur
     });
 
   } catch (err) {
-    console.error(err);
+    console.error('Checkout failed:', err);
     res.status(500).json({ error: 'Checkout failed' });
   }
 });

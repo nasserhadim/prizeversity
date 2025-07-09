@@ -1,14 +1,17 @@
 import { useState } from 'react';
+import { Image as ImageIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 // import axios from 'axios'
 import apiBazaar from '../API/apiBazaar.js'
 import { ShoppingCart } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext.jsx';
 
 const ItemCard = ({ item, role, classroomId }) => {
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(false);
   const { addToCart } = useCart();
+  const { user } = useAuth();
 
   const handleBuy = async () => {
     if (quantity < 1) return toast.error('Quantity must be at least 1');
@@ -26,24 +29,57 @@ const ItemCard = ({ item, role, classroomId }) => {
     }
   };
 
+  // Calculating the discounted price if discount is active 
+  const calculatePrice = () => {
+    const basePrice = item.price;
+    if (role === 'student' && user?.discountShop) {
+      const discountedPrice = Math.floor(basePrice * 0.8); // 20% discount
+      return (
+        <>
+          <span className="line-through text-gray-400 mr-2">{basePrice} Bits</span>
+          <span className="text-green-600">{discountedPrice} Bits</span>
+          <span className="text-xs text-green-600 ml-1">(20% off)</span>
+        </>
+      );
+    }
+    return `${basePrice} Bits`;
+  };
+
   return (
-    <div className="card bg-base-100 shadow border border-gray-200">
-      <figure>
-        <img
-          src={item.image || '/placeholder.jpg'}
-          alt={item.name}
-          className="h-40 object-cover w-full"
-        />
+    <div className="card bg-base-100 shadow-md border border-base-200 hover:shadow-lg transition duration-200 rounded-2xl overflow-hidden">
+      {/* Image */}
+      <figure className="relative h-40 sm:h-48 md:h-52 bg-base-200 flex items-center justify-center">
+        {item.image ? (
+          <img
+            src={item.image}
+            alt={item.name}
+            className="object-cover w-full h-full"
+            loading="lazy"
+            srcSet={`${item.image}?w=400 1x, ${item.image}?w=800 2x`}
+            sizes="(max-width: 768px) 100vw, 50vw"
+          />
+        ) : (
+          <div className="flex flex-col items-center justify-center text-gray-400">
+            <ImageIcon className="w-12 h-12" />
+            <span className="text-sm mt-2">No image</span>
+          </div>
+        )}
       </figure>
-      <div className="card-body">
-        <h3 className="card-title">{item.name}</h3>
-        <p className="text-sm">{item.description}</p>
-        <p className="font-semibold text-primary">${item.price}</p>
+
+      {/* Content - unchanged from original */}
+      <div className="card-body space-y-2">
+        <h3 className="card-title text-lg md:text-xl font-semibold">
+          {item.name}
+        </h3>
+        <p className="text-gray-600 text-sm line-clamp-2">{item.description}</p>
+        <p className="text-black font-bold text-base">
+          {calculatePrice()}
+        </p>
 
         {role === 'student' && (
           <button
-            className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 mt-4 w-full"
             onClick={() => addToCart(item)}
+            className="btn btn-success btn-sm w-full mt-2"
           >
             Add to Cart
           </button>

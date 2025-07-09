@@ -6,20 +6,17 @@ import toast from 'react-hot-toast';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
 
-
-
 const ROLE_LABELS = {
   student: 'Student',
-  admin:   'TA',      
+  admin: 'TA',
   teacher: 'Teacher',
 };
-
 
 const People = () => {
   const { id: classroomId } = useParams();
   const { user } = useAuth();
 
-  const [tab, setTab] = useState('everyone'); // 'everyone' or 'groups'
+  const [tab, setTab] = useState('everyone');
   const [students, setStudents] = useState([]);
   const [groupSets, setGroupSets] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -27,13 +24,10 @@ const People = () => {
 
   const navigate = useNavigate();
 
-
   useEffect(() => {
     fetchStudents();
     fetchGroupSets();
   }, [classroomId]);
-
-  /* The following features will fetch the students and the groups for the specific classrooms */
 
   const fetchStudents = async () => {
     try {
@@ -54,27 +48,26 @@ const People = () => {
   };
 
   const filteredStudents = [...students]
-  .filter((student) => {
-    const name = (student.firstName || student.name || '').toLowerCase();
-    const email = (student.email || '').toLowerCase();
-    return (
-      name.includes(searchQuery.toLowerCase()) ||
-      email.includes(searchQuery.toLowerCase())
-    );
-  })
-  .sort((a, b) => {
-    if (sortOption === 'balanceDesc') {
-      return (b.balance || 0) - (a.balance || 0);
-    } else if (sortOption === 'nameAsc') {
-      const nameA = (a.firstName || a.name || '').toLowerCase();
-      const nameB = (b.firstName || b.name || '').toLowerCase();
-      return nameA.localeCompare(nameB);
-    }
-    
-    return 0;
-  });
+    .filter((student) => {
+      const name = (student.firstName || student.name || '').toLowerCase();
+      const email = (student.email || '').toLowerCase();
+      return (
+        name.includes(searchQuery.toLowerCase()) ||
+        email.includes(searchQuery.toLowerCase())
+      );
+    })
+    .sort((a, b) => {
+      if (sortOption === 'balanceDesc') {
+        return (b.balance || 0) - (a.balance || 0);
+      } else if (sortOption === 'nameAsc') {
+        const nameA = (a.firstName || a.name || '').toLowerCase();
+        const nameB = (b.firstName || b.name || '').toLowerCase();
+        return nameA.localeCompare(nameB);
+      }
+      return 0;
+    });
 
-const handleExcelUpload = async (e) => {
+  const handleExcelUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -87,42 +80,37 @@ const handleExcelUpload = async (e) => {
       const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
       try {
-  await axios.post(
-    '/api/users/bulk-upload',
-    { classroomId, users: jsonData },      // ← outer classroomId from useParams()
-    { withCredentials: true }
-  );
-  toast.success('Users uploaded successfully');
-  fetchStudents();                         // refresh the list
-} catch (err) {
-  toast.error(err.response?.data?.error || 'Failed to upload users');
-}
-
+        await axios.post(
+          '/api/users/bulk-upload',
+          { classroomId, users: jsonData },
+          { withCredentials: true }
+        );
+        toast.success('Users uploaded successfully');
+        fetchStudents();
+      } catch (err) {
+        toast.error(err.response?.data?.error || 'Failed to upload users');
+      }
     };
 
     reader.readAsArrayBuffer(file);
+  };
 
-};
+  const handleExportToExcel = () => {
+    const dataToExport = filteredStudents.map((student) => ({
+      Name: `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.name || student.email,
+      Email: student.email,
+      Balance: student.balance?.toFixed(2) || '0.00',
+      Role: ROLE_LABELS[student.role] || student.role,
+      Classes: student.classrooms?.map((c) => c.name).join(', ') || 'N/A',
+    }));
 
-const handleExportToExcel = () => {
-  const dataToExport = filteredStudents.map((student) => ({
-    Name: `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.name || student.email,
-    Email: student.email,
-    Balance: student.balance?.toFixed(2) || '0.00',
-    Role: ROLE_LABELS[student.role] || student.role,
-    Classes: student.classrooms?.map((c) => c.name).join(', ') || 'N/A',
-  }));
-
-  const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'People');
-  console.log('Exporting rows:', dataToExport.length, dataToExport[0]);
-
-
-  const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-  const blob = new Blob([excelBuffer], { type: 'application/octet-stream' });
-  saveAs(blob, 'people.xlsx');
-};
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'People');
+    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([excelBuffer], { type: 'application/octet-stream' });
+    saveAs(blob, 'people.xlsx');
+  };
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -130,64 +118,58 @@ const handleExportToExcel = () => {
 
       <div className="flex space-x-4 mb-6">
         <button
-          className={`btn ${tab === 'everyone' ? 'btn-primary' : 'btn-outline'}`}
+          className={`btn ${tab === 'everyone' ? 'btn-success' : 'btn-outline'}`}
           onClick={() => setTab('everyone')}
         >
           Everyone
         </button>
         <button
-          className={`btn ${tab === 'groups' ? 'btn-primary' : 'btn-outline'}`}
+          className={`btn ${tab === 'groups' ? 'btn-success' : 'btn-outline'}`}
           onClick={() => setTab('groups')}
         >
           Groups
         </button>
       </div>
 
-      {/* Everyone Tab */}
       {tab === 'everyone' && (
         <div>
-          {/* Search + Sort Controls */}
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
-  {/* Search input stays on the left */}
-          <input
-            type="text"
-            placeholder="Search by name or email..."
-            className="input input-bordered w-full md:w-1/2"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-
-          {/* Export + Sort go together on the right */}
-          <div className="flex gap-2 items-center">
-           {user?.role === 'teacher' && (
             <input
-              type="file"
-              accept=".xlsx, .xls"
-              className="file-input file-input-sm"
-              onChange={handleExcelUpload}
+              type="text"
+              placeholder="Search by name or email..."
+              className="input input-bordered w-full md:w-1/2"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
-          )}
 
-          <button
-            className="btn btn-sm btn-accent"
-            onClick={handleExportToExcel}
-          >
-            Export to Excel
-          </button>
+            <div className="flex gap-2 items-center">
+              {user?.role === 'teacher' && (
+                <input
+                  type="file"
+                  accept=".xlsx, .xls"
+                  className="file-input file-input-sm"
+                  onChange={handleExcelUpload}
+                />
+              )}
 
+              <button
+                className="btn btn-sm btn-accent"
+                onClick={handleExportToExcel}
+              >
+                Export to Excel
+              </button>
 
-            <select
-              className="select select-bordered"
-              value={sortOption}
-              onChange={(e) => setSortOption(e.target.value)}
-            >
-              <option value="default">Sort By</option>
-              <option value="balanceDesc">Balance (High → Low)</option>
-              <option value="nameAsc">Name (A → Z)</option>
-            </select>
+              <select
+                className="select select-bordered"
+                value={sortOption}
+                onChange={(e) => setSortOption(e.target.value)}
+              >
+                <option value="default">Sort By</option>
+                <option value="balanceDesc">Balance (High → Low)</option>
+                <option value="nameAsc">Name (A → Z)</option>
+              </select>
+            </div>
           </div>
-        </div>
-
 
           <div className="space-y-2">
             {filteredStudents.length === 0 ? (
@@ -206,8 +188,8 @@ const handleExportToExcel = () => {
                       <span className="ml-2 text-gray-600 text-sm">
                         – Role: {ROLE_LABELS[student.role] || student.role}
                       </span>
-
                     </div>
+
                     <div className="text-sm text-gray-500 mt-1">
                       Balance: B{student.balance?.toFixed(2) || '0.00'} <br />
                       Classes:{' '}
@@ -215,6 +197,7 @@ const handleExportToExcel = () => {
                         ? student.classrooms.map((c) => c.name).join(', ')
                         : 'N/A'}
                     </div>
+
                     <div className="flex gap-2 mt-2 flex-wrap">
                       <button
                         className="btn btn-sm btn-outline"
@@ -222,36 +205,41 @@ const handleExportToExcel = () => {
                       >
                         View Profile
                       </button>
-                        
-                {/* only teachers */}
-                  {user?.role === 'teacher' && (
-                <select
-                className="select select-sm ml-2"
-                value={student.role}
-                onChange={async (e) => {
-                  const newRole = e.target.value;
-                  try {
-                    if (newRole === 'admin') {
-                      await axios.post(`/api/users/${student._id}/make-admin`);
-                      toast.success('Student promoted to TA');
-                    } else {
-                      await axios.post(`/api/users/${student._id}/demote-admin`);
-                      toast.success('TA demoted to Student');
-                    }
-                    fetchStudents();
-                  } catch (err) {
-                    toast.error(err.response?.data?.error || 'Error changing role');
-                  }
-                }}
-              >
-                <option value="student">{ROLE_LABELS.student}</option>
-                <option value="admin">{ROLE_LABELS.admin}</option>
-              </select>
 
-              )}
+                      {user?.role === 'teacher' && (
+                        <button
+                          className="btn btn-sm btn-success"
+                          onClick={() => navigate(`/classroom/${classroomId}/student/${student._id}/stats`)}
+                        >
+                          View Stats
+                        </button>
+                      )}
 
-                </div>
-
+                      {user?.role === 'teacher' && (
+                        <select
+                          className="select select-sm ml-2"
+                          value={student.role}
+                          onChange={async (e) => {
+                            const newRole = e.target.value;
+                            try {
+                              if (newRole === 'admin') {
+                                await axios.post(`/api/users/${student._id}/make-admin`);
+                                toast.success('Student promoted to TA');
+                              } else {
+                                await axios.post(`/api/users/${student._id}/demote-admin`);
+                                toast.success('TA demoted to Student');
+                              }
+                              fetchStudents();
+                            } catch (err) {
+                              toast.error(err.response?.data?.error || 'Error changing role');
+                            }
+                          }}
+                        >
+                          <option value="student">{ROLE_LABELS.student}</option>
+                          <option value="admin">{ROLE_LABELS.admin}</option>
+                        </select>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))
@@ -260,7 +248,6 @@ const handleExportToExcel = () => {
         </div>
       )}
 
-      {/* Groups Tab */}
       {tab === 'groups' && (
         <div className="space-y-6">
           {groupSets.length === 0 ? (
@@ -306,4 +293,4 @@ const handleExportToExcel = () => {
   );
 };
 
-export default People;
+export default People;

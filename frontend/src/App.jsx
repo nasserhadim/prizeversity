@@ -21,6 +21,8 @@ import ClassroomPage from './pages/ClassroomPage';
 import TeacherNewsfeed from './pages/TeacherNewsfeed';
 import StudentNewsfeed from './pages/StudentNewsfeed';
 import ClassroomSettings from './pages/ClassroomSettings';
+import StudentStats from './pages/StudentStats';
+import ArchivedClassrooms from './pages/ArchivedClassrooms';
 
 const App = () => {
   const { user } = useContext(AuthContext);
@@ -47,6 +49,7 @@ const App = () => {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/classrooms" element={<ClassroomPage />} />
+          <Route path="/classrooms/archived" element={<ArchivedClassrooms />} />
           <Route path="/classroom/:id" element={<Classroom />} />
           <Route path="/classroom/:classroomId/bazaar" element={<Bazaar />} />
           <Route path="/classroom/:id/news" element={<StudentNewsfeed />} />
@@ -61,6 +64,8 @@ const App = () => {
           <Route path="/classroom/:classroomId/checkout" element={<Checkout />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/orders" element={<OrderHistory />} />
+          {/* <Route path="/profile/:id/stats" element={<StudentStats />} /> */}
+          <Route path="/classroom/:classroomId/student/:id/stats" element={<StudentStats />} />
           <Route path="/feedback" element={<FeedbackPage />} />
         </Routes>
       </div>

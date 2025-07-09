@@ -154,6 +154,21 @@ router.post(
   }
   const { recipientId, amount } = req.body;
 
+ 
+  const numericAmount = Number(amount);
+  if (!Number.isInteger(numericAmount) || numericAmount < 1) {
+    return res.status(400).json({ error: 'Amount must be a positive integer' });
+  }
+
+  
+  const sender = await User.findById(req.user._id);
+  if (!sender) {
+    return res.status(404).json({ error: 'Sender not found' });
+  }
+  if (sender.balance < numericAmount) {
+    return res.status(400).json({ error: 'Insufficient bits to complete transfer' });
+  }
+
   // Check it's a valid number and not negative or zero
   if (
     typeof amount !== 'number' ||
@@ -165,7 +180,13 @@ router.post(
 
   try {
     const sender = await User.findById(req.user._id);
-    const recipient = await User.findById(recipientId);
+    let recipient = mongoose.isValidObjectId(recipientId)
+    ? await User.findById(recipientId)
+    : null;
+
+  if (!recipient) {
+    recipient = await User.findOne({ shortId: recipientId.toUpperCase() });
+  }
 
     if (!recipient) return res.status(404).json({ error: 'Recipient not found' });
     if (sender.balance < amount) return res.status(400).json({ error: 'Insufficient balance' });
