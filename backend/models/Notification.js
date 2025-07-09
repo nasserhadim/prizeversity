@@ -17,7 +17,9 @@ const NotificationSchema = new mongoose.Schema({
       'groupset_deletion',  // Add this new type
       'classroom_update',
       'groupset_update',
-      'group_update'
+      'group_update',
+      'siphon_review',      
+     'siphon_rejected'
     ],
     required: true 
   },
