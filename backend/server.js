@@ -12,7 +12,6 @@ const walletRoutes = require('./routes/wallet');
 const groupRoutes = require('./routes/group');
 const siphonRouter = require('./routes/siphon');
 const notificationsRoutes = require('./routes/notifications');
-const feedbackRoutes = require('./routes/feedback');
 // Importing admin route
 const adminRoutes = require('./routes/admin');
 const usersRoutes = require('./routes/users');
@@ -71,8 +70,11 @@ app.use('/api/wallet', walletRoutes);
 app.use('/api/group', groupRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api', usersRoutes);
-
+app.use('/api/profile', profileRoutes);
+app.use('/api/users', usersRoutes);
+app.use('/api/leaderboard', leaderboardRoutes);
+app.use('/api/items', itemRoutes);
+app.use('/api', groupBalanceRoutes);
 // Root Route
 app.get('/', (req, res) => {
   res.redirect('http://localhost:5173'); // Redirect to the frontend

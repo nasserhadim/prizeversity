@@ -4,6 +4,8 @@ const { ensureAuthenticated } = require('../config/auth');
 const User = require('../models/User');
 const Classroom = require('../models/Classroom');
 const mongoose = require('mongoose');
+const Notification = require('../models/Notification');
+const { populateNotification } = require('../utils/notifications');
 
 router.delete('/:id', async (req, res) => {
   try {
@@ -182,6 +184,20 @@ router.post('/:id/make-admin', ensureAuthenticated, async (req, res) => {
     student.role = 'admin';
     await student.save();
 
+    
+    const notification = await Notification.create({
+      user: student._id,
+      actionBy: req.user._id,
+      type: 'ta_promotion',                                     //creating a notification for the student promoting to TA
+      message: `You have been promoted to TA.`,
+      read: false,
+      createdAt: new Date(),
+    });
+    console.log('Notification created:', notification);
+
+    const populatedNotification = await populateNotification(notification._id);
+      req.app.get('io').to(`user-${student._id}`).emit('notification', populatedNotification); // or req.io
+
     res.status(200).json({ message: 'Student promoted to admin' });
   } catch (err) {
     console.error('Failed to promote student:', err);
@@ -202,6 +218,19 @@ router.post('/:id/demote-admin', ensureAuthenticated, async (req, res) => {
 
     admin.role = 'student';
    await admin.save();
+
+  const notification = await Notification.create({
+  user: admin._id,
+  actionBy: req.user._id,
+  type: 'ta_demotion',
+  message: `You have been demoted from TA to a student.`,
+  classroom: classroomId, // Assuming you have classroom context
+  read: false,
+  createdAt: new Date(),
+});
+
+const populated = await populateNotification(notification._id);
+req.app.get('io').to(`user-${admin._id}`).emit('notification', populated);
 
    res.status(200).json({ message: 'Admin demoted to student' });
   } catch (err) {

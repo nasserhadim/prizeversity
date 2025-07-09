@@ -61,6 +61,7 @@ const App = () => {
           <Route path="/classroom/:classroomId/checkout" element={<Checkout />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/orders" element={<OrderHistory />} />
+          <Route path="/feedback" element={<FeedbackPage />} />
         </Routes>
       </div>
     </CartProvider>
