@@ -7,6 +7,10 @@ const ClassroomSchema = new mongoose.Schema({
   students: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   bazaars: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Bazaar' }],
   groups: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Group' }],
+  color: { type: String, default: '#ffffff' },
+  // filename/path for an optional background image
+  backgroundImage: { type: String, default: '' },
+  archived: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
 

@@ -6,6 +6,7 @@ export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [persona, setPersona] = useState(null);
   const [loading, setLoading] = useState(true);
   const [serverError, setServerError] = useState(false);
   const navigate = useNavigate();
@@ -15,6 +16,7 @@ export const AuthProvider = ({ children }) => {
       try {
         const response = await axios.get('/api/auth/current-user');
         setUser(response.data);
+        setPersona(response.data);
         localStorage.setItem('hadPreviousSession', 'true');
       } catch (err) {
         if (err.response?.status === 401) {
@@ -73,10 +75,20 @@ export const AuthProvider = ({ children }) => {
   }
 
   return (
-    <AuthContext.Provider value={{ user, setUser, loading, logout }}>
+    <AuthContext.Provider
+      value={{
+        user: persona,
+        originalUser: user,     
+        setUser,
+        persona,          
+        setPersona,       
+        loading,
+        logout
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
 };
 
-export const useAuth = () => useContext(AuthContext);
+  export const useAuth = () => useContext(AuthContext);

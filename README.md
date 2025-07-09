@@ -72,6 +72,8 @@ npm install express mongoose passport passport-google-oauth20 passport-microsoft
 
 npm install socket.io
 
+npm install multer
+
 # --- NEW: migrations ---
 npm i -D migrate-mongo
 npx migrate-mongo init                      # adds migrate-mongo-config.js + migrations/
@@ -169,6 +171,10 @@ npm install react-transition-group
 npm install lucide-react
 
 npm install react-hot-toast
+
+npm install xlsx
+
+npm install file-saver
 
 npm install daisyui
 
