@@ -10,6 +10,7 @@ import NotificationBell from './components/NotificationBell';
 import Navbar from './components/Navbar';
 import Profile from './pages/Profile';
 import FeedbackPage from './pages/FeedbackPage';
+import ClassroomFeedbackPage from './pages/ClassroomFeedbackPage';
 import { AuthContext } from './context/AuthContext';
 import { joinUserRoom } from './utils/socket';
 import Leaderboard from './pages/Leaderboard';
