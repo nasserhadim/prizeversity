@@ -12,6 +12,11 @@ const FeedbackSchema = new mongoose.Schema({
     required: false,
     trim: true
   },
+  classroom: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Classroom',
+    required: true
+  },
   createdAt: {
     type: Date,
     default: Date.now
