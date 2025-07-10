@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { ensureAuthenticated } = require('../config/auth');
 const User = require('../models/User');
-const Classroom = require('../models/Classroom');
+const classroom = require('../models/Classroom');
 const mongoose = require('mongoose');
 const Notification = require('../models/Notification');
 const { populateNotification } = require('../utils/notifications');
@@ -191,6 +191,7 @@ router.post('/:id/make-admin', ensureAuthenticated, async (req, res) => {
       type: 'ta_promotion',                                     //creating a notification for the student promoting to TA
       message: `You have been promoted to TA.`,
       read: false,
+      classroom: classroomId, // Assuming you have classroom context
       createdAt: new Date(),
     });
     console.log('Notification created:', notification);
