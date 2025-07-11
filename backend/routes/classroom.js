@@ -40,7 +40,11 @@ router.post(
     }
 
     try {
-      const existing = await Classroom.findOne({ code });
+      const existing = await Classroom.findOne({
+        code,
+        archived: false,
+        teacher: req.user._id
+      });
       if (existing) {
         return res.status(400).json({ error: 'A classroom with this code already exists' });
       }
