@@ -71,7 +71,7 @@ router.post(
 router.post('/join', ensureAuthenticated, async (req, res) => {
   const { code } = req.body;
   try {
-    const classroom = await Classroom.findOne({ code });
+    const classroom = await Classroom.findOne({ code, archived: false });
     if (!classroom) {
       return res.status(404).json({ error: 'Invalid classroom code' });
     }
