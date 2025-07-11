@@ -191,7 +191,7 @@ router.post('/:id/make-admin', ensureAuthenticated, async (req, res) => {
       type: 'ta_promotion',                                     //creating a notification for the student promoting to TA
       message: `You have been promoted to TA.`,
       read: false,
-      classroom: classroomId, // Assuming you have classroom context
+      // classroom: classroomId, // Assuming you have classroom context
       createdAt: new Date(),
     });
     console.log('Notification created:', notification);
@@ -225,7 +225,7 @@ router.post('/:id/demote-admin', ensureAuthenticated, async (req, res) => {
   actionBy: req.user._id,
   type: 'ta_demotion',
   message: `You have been demoted from TA to a student.`,
-  classroom: classroomId, // Assuming you have classroom context
+  // classroom: classroomId, // Assuming you have classroom context
   read: false,
   createdAt: new Date(),
 });
