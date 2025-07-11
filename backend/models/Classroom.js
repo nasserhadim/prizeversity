@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const ClassroomSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  code: { type: String, required: true, unique: true },
+  code: { type: String, required: true },
   teacher: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   students: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   bazaars: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Bazaar' }],
@@ -13,5 +13,10 @@ const ClassroomSchema = new mongoose.Schema({
   archived: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
+
+ClassroomSchema.index(
+  { code: 1, teacher: 1 },
+  { unique: true, partialFilterExpression: { archived: false } }
+);
 
 module.exports = mongoose.model('Classroom', ClassroomSchema);

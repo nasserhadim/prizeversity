@@ -213,7 +213,7 @@ const Profile = () => {
                             />
                         ) : (
                             <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center text-4xl font-bold text-gray-500">
-                                {profile?.firstName?.charAt(0) || profile?.email?.charAt(0) || 'U'}
+                                {`${(profile?.firstName?.[0] || profile?.email?.[0] || 'U')}${(profile?.lastName?.[0] || '')}`.toUpperCase()}
                             </div>
                         )}
                     </div>
