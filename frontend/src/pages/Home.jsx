@@ -4,6 +4,7 @@ import axios from 'axios';
 import socket from '../utils/socket';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import {
   School,
   UserPlus,
@@ -440,6 +441,7 @@ const Home = () => {
               <a href="#" className="text-gray-400 hover:text-white transition">Privacy</a>
               <a href="#" className="text-gray-400 hover:text-white transition">Terms</a>
               <a href="#" className="text-gray-400 hover:text-white transition">Help</a>
+              <Link to="/feedback" className="text-gray-400 hover:text-white transition">Feedback</Link>
             </div>
           </div>
           <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">

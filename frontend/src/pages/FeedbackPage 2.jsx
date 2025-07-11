@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
-import { useParams } from 'react-router-dom';
 import axios from 'axios';
 
-const ClassroomFeedbackPage = () => {
-  const { classroomId } = useParams();
+const FeedbackPage = () => {
   const [rating, setRating] = useState(null);
   const [comment, setComment] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -12,14 +10,13 @@ const ClassroomFeedbackPage = () => {
     e.preventDefault();
     try {
       await axios.post('http://localhost:5000/api/feedback', {
-        classroomId,
         rating,
         comment,
       });
       setRating(null);
       setComment('');
       setSubmitted(true);
-      setTimeout(() => setSubmitted(false), 3000);
+    setTimeout(() => setSubmitted(false), 3000); // Reset submitted state after 3 seconds
     } catch (err) {
       console.error('Error submitting feedback:', err);
     }
@@ -29,16 +26,13 @@ const ClassroomFeedbackPage = () => {
     <div className="min-h-screen bg-base-200 flex items-center justify-center p-4">
       <div className="card w-full max-w-md shadow-xl bg-base-100">
         <div className="card-body">
-          <h2 className="card-title text-primary">
-            Let us know how this classroom is doing!
-          </h2>
+          <h2 className="card-title text-primary">Let us know about your experience using Prizeversity!</h2>
 
           {submitted && (
             <div className="alert alert-success shadow-lg my-2">
               <span>Thank you for your feedback!</span>
             </div>
           )}
-
           <form onSubmit={handleSubmit} key={submitted} className="space-y-4">
             <div>
               <label className="label">
@@ -71,18 +65,16 @@ const ClassroomFeedbackPage = () => {
               />
             </div>
 
-            <button
-              type="submit"
-              className="btn btn-success w-full"
-              disabled={!rating || comment.trim() === ''}
-            >
+            <button type="submit" className="btn btn-success w-full">
               Submit
             </button>
           </form>
+
+          
         </div>
       </div>
     </div>
   );
 };
 
-export default ClassroomFeedbackPage;
+export default FeedbackPage;
