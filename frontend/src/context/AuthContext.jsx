@@ -10,6 +10,10 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [serverError, setServerError] = useState(false);
   const navigate = useNavigate();
+  const updateUser = (newUser) => {
+    setUser(newUser);
+    setPersona(newUser);
+  };
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -78,10 +82,11 @@ export const AuthProvider = ({ children }) => {
     <AuthContext.Provider
       value={{
         user: persona,
-        originalUser: user,     
+        originalUser: user,
         setUser,
-        persona,          
-        setPersona,       
+        persona,
+        setPersona,
+        updateUser,
         loading,
         logout
       }}
@@ -91,4 +96,4 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
-  export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => useContext(AuthContext);
