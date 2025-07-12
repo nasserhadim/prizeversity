@@ -1,6 +1,8 @@
 // prizeversity/frontend/src/pages/TeacherNewsfeed.jsx
 
 import React, { useState, useEffect } from 'react';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 import { useParams, Link } from 'react-router-dom';
 import { getNews, postNews, deleteNews, editNews } from '../API/apiNewsfeed';
 import toast from 'react-hot-toast';
@@ -15,6 +17,7 @@ export default function TeacherNewsfeed() {
         (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
     );
     const [draft, setDraft] = useState('');
+    const [attachments, setAttachments] = useState([]);
     const [classroomName, setClassroomName] = useState('');
 
     useEffect(() => {
@@ -30,9 +33,15 @@ export default function TeacherNewsfeed() {
     }, [classId]);
 
     const handlePost = async () => {
-        const res = await postNews(classId, draft);
+        const formData = new FormData();
+        formData.append('content', draft);
+        attachments.forEach(file => formData.append('attachments', file));
+
+        const res = await postNews(classId, formData);
         setItems([res.data, ...items]);
         setDraft('');
+        setAttachments([]);
+
     };
 
     const handleDelete = async (itemId) => {
@@ -70,11 +79,25 @@ export default function TeacherNewsfeed() {
                 <h2 className="text-center text-green-500 text-5xl font-bold mb-6">
                     Manage Announcements
                 </h2>
-                <textarea
-                    className="w-full h-32 p-3 border border-gray-300 rounded mb-4"
+                <ReactQuill
                     value={draft}
-                    onChange={e => setDraft(e.target.value)}
+                    onChange={setDraft}
+                    modules={{
+                        toolbar: [
+                            ['bold', 'italic', 'underline', 'strike'],
+                            [{ header: [1, 2, false] }],
+                            [{ list: 'ordered' }, { list: 'bullet' }],
+                            ['link', 'image']
+                        ]
+                    }}
                     placeholder="Write an update…"
+                    className="mb-4"
+                />
+                <input
+                    type="file"
+                    multiple
+                    onChange={e => setAttachments(Array.from(e.target.files))}
+                    className="mb-4"
                 />
                 <button
                     className="btn btn-primary px-6 py-2 mb-6"
@@ -93,9 +116,28 @@ export default function TeacherNewsfeed() {
                             <small className="block text-gray-500 mb-4">
                                 {new Date(i.createdAt).toLocaleString()}
                             </small>
-                            <p className="mb-2 text-gray-800">
-                                {i.content}
-                            </p>
+                            {/* Render formatted content */}
+                            <div
+                                className="mb-2 text-gray-800"
+                                dangerouslySetInnerHTML={{ __html: i.content }}
+                            />
+
+                            {/* List attachments, if present */}
+                            {i.attachments && i.attachments.length > 0 && (
+                                <ul className="mt-2 space-y-1">
+                                    {i.attachments.map(a => (
+                                        <li key={a.url}>
+                                            <a
+                                                href={a.url}
+                                                download
+                                                className="text-blue-500 underline"
+                                            >
+                                                {a.originalName}
+                                            </a>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
                             <button
                                 className="btn btn-sm btn-error mt-2"
                                 onClick={() => handleDelete(i._id)}
@@ -118,5 +160,5 @@ export default function TeacherNewsfeed() {
                 </ul>
             </div>
         </>
-    )
-};
+    );
+}
