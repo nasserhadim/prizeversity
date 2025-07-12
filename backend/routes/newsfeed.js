@@ -3,6 +3,17 @@
 const express = require('express');
 const router = express.Router({ mergeParams: true });
 const NewsItem = require('../models/NewsItem');
+// Multer + file storage setup
+const multer = require('multer');
+const path = require('path');
+const storage = multer.diskStorage({
+    destination: (req, file, cb) =>
+        cb(null, path.join(__dirname, '../uploads')),
+    filename: (req, file, cb) =>
+        cb(null, `${Date.now()}-${file.originalname}`)
+});
+const upload = multer({ storage });
+
 const { ensureTeacher } = require('../middleware/auth');
 
 router.get('/', async (req, res) => {
@@ -13,17 +24,30 @@ router.get('/', async (req, res) => {
 });
 
 // POST a new item (only teachers)
-router.post('/', ensureTeacher, async (req, res) => {
-    const { content } = req.body;
-    const item = new NewsItem({
-        classroomId: req.params.id,
-        authorId: req.user._id,
-        content
-    });
-    await item.save();
-    await item.populate('authorId', 'firstName lastName');
-    res.status(201).json(item);
-});
+router.post(
+    '/',
+    ensureTeacher,
+    upload.array('attachments'),
+    async (req, res) => {
+        const { content } = req.body;
+        const files = req.files || [];
+        const attachments = files.map(f => ({
+            filename: f.filename,
+            originalName: f.originalname,
+            url: `/uploads/${f.filename}`
+        }));
+
+        const item = new NewsItem({
+            classroomId: req.params.id,
+            authorId: req.user._id,
+            content,
+            attachments
+        });
+        await item.save();
+        await item.populate('authorId', 'firstName lastName');
+        res.status(201).json(item);
+    }
+);
 
 // DELETE a news item (only teachers)
 router.delete('/:itemId', ensureTeacher, async (req, res) => {
