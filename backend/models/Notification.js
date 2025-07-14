@@ -21,11 +21,10 @@ const NotificationSchema = new mongoose.Schema({
       'siphon_review',      
      'siphon_rejected',
       'siphon_approved',
-      'wallet_topup', // New type for wallet top-up
-      'wallet_withdrawal', // New type for wallet withdrawal
+      'wallet_transaction',
       'profile_update', // New type for user profile update
-     'ta_promotion', // New type for TA promotion
-      'ta_demotion', // New type for TA demotion
+     'ta_promotion', 
+      'ta_demotion', 
       'bazaar_purchase', // New type for bazaar item purchase
       'attack', // New type for attack notification
       'defend', // New type for defense notification
