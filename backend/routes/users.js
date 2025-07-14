@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { ensureAuthenticated } = require('../config/auth');
 const User = require('../models/User');
-const classroom = require('../models/Classroom');
+const Classroom = require('../models/Classroom');
 const mongoose = require('mongoose');
 const Notification = require('../models/Notification');
 const { populateNotification } = require('../utils/notifications');
@@ -89,7 +89,7 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
       if (!mongoose.Types.ObjectId.isValid(studentId)) {
     results.skipped.push({ studentId, reason: 'Invalid student ID' });
     continue;
-  }
+  } 
       const numericAmount = Number(amount);
       if (isNaN(numericAmount)) {
         results.skipped.push({ studentId, reason: 'Amount not numeric' });
@@ -178,6 +178,7 @@ router.get('/:id', ensureAuthenticated, async (req, res) => {
 
 router.post('/:id/make-admin', ensureAuthenticated, async (req, res) => {
   try {
+    const { classroomId } = req.body;
     const student = await User.findById(req.params.id);
     if (!student) return res.status(404).json({ error: 'Student not found' });
 
@@ -191,10 +192,9 @@ router.post('/:id/make-admin', ensureAuthenticated, async (req, res) => {
       type: 'ta_promotion',                                     //creating a notification for the student promoting to TA
       message: `You have been promoted to TA.`,
       read: false,
-      // classroom: classroomId, // Assuming you have classroom context
+      classroom: classroomId, 
       createdAt: new Date(),
     });
-    console.log('Notification created:', notification);
 
     const populatedNotification = await populateNotification(notification._id);
       req.app.get('io').to(`user-${student._id}`).emit('notification', populatedNotification); // or req.io
@@ -208,6 +208,7 @@ router.post('/:id/make-admin', ensureAuthenticated, async (req, res) => {
 
 router.post('/:id/demote-admin', ensureAuthenticated, async (req, res) => {
   try {
+    const { classroomId } = req.body;
     if (req.user.role !== 'teacher') {
   return res.status(403).json({ error: 'Only teachers can demote admins' });
 }
@@ -225,7 +226,7 @@ router.post('/:id/demote-admin', ensureAuthenticated, async (req, res) => {
   actionBy: req.user._id,
   type: 'ta_demotion',
   message: `You have been demoted from TA to a student.`,
-  // classroom: classroomId, // Assuming you have classroom context
+  classroom: classroomId,
   read: false,
   createdAt: new Date(),
 });

@@ -6,6 +6,8 @@ import toast from 'react-hot-toast';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
 
+
+
 const ROLE_LABELS = {
   student: 'Student',
   admin: 'TA',
@@ -223,10 +225,12 @@ const People = () => {
                             const newRole = e.target.value;
                             try {
                               if (newRole === 'admin') {
-                                await axios.post(`/api/users/${student._id}/make-admin`);
+                                await axios.post(`/api/users/${student._id}/make-admin`,{ classroomId });
+                                console.log('Student promoted to TA in classroom:', classroomId);
                                 toast.success('Student promoted to TA');
                               } else {
-                                await axios.post(`/api/users/${student._id}/demote-admin`);
+                                await axios.post(`/api/users/${student._id}/demote-admin`, { classroomId });
+                                console.log('TA demoted to Student in classroom:', classroomId);
                                 toast.success('TA demoted to Student');
                               }
                               fetchStudents();
