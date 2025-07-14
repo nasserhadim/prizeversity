@@ -48,6 +48,7 @@ router.get('/transactions/all', ensureAuthenticated, async (req, res) => {
 // Assign Balance to Student
 router.post('/assign', ensureAuthenticated, async (req, res) => {
   const { studentId, amount, description } = req.body;
+  const { classroomId } = req.body;
   try {
     const student = await User.findById(studentId);
     if (!student) return res.status(404).json({ error: 'Student not found' });
@@ -70,7 +71,18 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
     } catch (saveErr) {
       console.error('Failed to save student:', saveErr);
     }
-
+      const notification = await Notification.create({
+          user: student._id,
+          actionBy: req.user._id,
+          type: 'wallet_topup',                                     //creating a notification for assigning balance
+          message: `You have been assigned ${numericAmount} bits.`,
+          read: false,
+          classroom: classroomId, 
+          createdAt: new Date(),
+        });
+    
+        const populatedNotification = await populateNotification(notification._id);
+          req.app.get('io').to(`user-${student._id}`).emit('notification', populatedNotification); 
     res.status(200).json({ message: 'Balance assigned successfully' });
   } catch (err) {
     console.error('Failed to assign balance:', err.message);

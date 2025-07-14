@@ -23,7 +23,6 @@ const NotificationSchema = new mongoose.Schema({
       'siphon_approved',
       'wallet_topup', // New type for wallet top-up
       'wallet_withdrawal', // New type for wallet withdrawal
-      'wallet_transaction', // New type for wallet transaction
       'profile_update', // New type for user profile update
      'ta_promotion', // New type for TA promotion
       'ta_demotion', // New type for TA demotion
