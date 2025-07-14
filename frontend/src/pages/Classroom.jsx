@@ -207,7 +207,28 @@ const Classroom = () => {
           <h3 className="text-2xl font-semibold">Announcements</h3>
           {announcements.map((item) => (
             <div key={item._id} className="card bg-base-200 p-4">
-              <p className="text-gray-700">{item.content}</p>
+              {/* render formatted HTML */}
+              <div
+                className="text-gray-700 mb-2"
+                dangerouslySetInnerHTML={{ __html: item.content }}
+              />
+
+              {/* list attachments, if any */}
+              {item.attachments && item.attachments.length > 0 && (
+                <ul className="mt-1 space-y-1">
+                  {item.attachments.map(a => (
+                    <li key={a.url}>
+                      <a
+                        href={a.url}
+                        download
+                        className="text-blue-500 underline"
+                      >
+                        {a.originalName}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )}
               <p className="text-sm text-gray-500">
                 {new Date(item.createdAt).toLocaleString()}
               </p>

@@ -44,10 +44,32 @@ export default function StudentNewsfeed() {
                         <small className="block text-gray-500 mb-2">
                             {new Date(i.createdAt).toLocaleString()}
                         </small>
-                        <p className="text-xl">{i.content}</p>
+                        {/* Render formatted content */}
+                        <div
+                            className="mb-2 text-gray-800 text-xl"
+                            dangerouslySetInnerHTML={{ __html: i.content }}
+                        />
+
+                        {/* List attachments, if present */}
+                        {i.attachments && i.attachments.length > 0 && (
+                            <ul className="mt-2 space-y-1">
+                                {i.attachments.map(a => (
+                                    <li key={a.url}>
+                                        <a
+                                            href={a.url}
+                                            download
+                                            className="text-blue-500 underline"
+                                        >
+                                            {a.originalName}
+                                        </a>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
                     </li>
                 ))}
             </ul>
         </div>
-       
-)};
+
+    )
+};

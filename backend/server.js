@@ -61,7 +61,21 @@ app.use(passport.session());
 
 // Database Connection
 mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() => console.log('MongoDB Connected'))
+  .then(() => {
+    console.log('MongoDB Connected');
+
+    mongoose.connection.db.collection('classrooms').indexes().then(indexes => {
+      const hasGlobalCodeIndex = indexes.some(idx => idx.name === 'code_1');
+      if (hasGlobalCodeIndex) {
+        mongoose.connection.db.collection('classrooms').dropIndex('code_1')
+          .then(() => console.log('✅ Dropped old code_1 index'))
+          .catch(err => console.error('❌ Failed to drop code_1 index:', err.message));
+      }
+    }).catch(err => {
+      console.error('❌ Error checking indexes:', err.message);
+    });
+
+  })
   .catch(err => console.log(err));
 
 // Routes

@@ -11,6 +11,24 @@ const Settings = () => {
     const navigate = useNavigate();
 
     const handleDeleteAccount = async () => {
+
+        if (user.role === 'teacher') {
+            try {
+                // fetch all classrooms (backend should filter to this teacher)
+                const { data: classrooms } = await axios.get('/api/classroom', {
+                    withCredentials: true
+                });
+                const stillHas = classrooms.some(c => c.teacher === user._id);
+                if (stillHas) {
+                    toast.error('You cannot delete your account. Please delete your classroom(s) first.');
+                    return;
+                }
+            } catch (err) {
+                console.error('Error checking classrooms', err);
+                toast.error('Unable to verify classrooms. Try again later.');
+                return;
+            }
+        }
         const confirmed = window.confirm('Are you sure you want to permanently delete your account?');
         if (!confirmed) return;
 
