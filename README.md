@@ -643,6 +643,7 @@ mongosh --eval 'rs.status().members.map(m => m.stateStr)'
 echo "vm.max_map_count=131060" | sudo tee -a /etc/sysctl.conf   # Persistently increases max memory maps with a recommended threshold (131060) to avoid ENOMEM (out of memory) or Too many open files errors.
 sudo sysctl -p                                                  # Applies the change immediately
 cat /proc/sys/vm/max_map_count                                  # Confirms the change worked
+sudo systemctl restart mongod
 ```
 
 ## 3. Prepare the code (Assumes repo had been cloned; Check the `# Getting Started (clone / fork)` section above.)
