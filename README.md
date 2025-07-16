@@ -416,9 +416,27 @@ npm run build # (PROD) Node/Express or Nginx serves dist/ # Just regular HTTP/HT
 # Getting Started (clone / fork)
 
 ## 1. Clone the repo
+### Windows/MacOS:
 ```
 git clone https://github.com/some-org/prizeversity.git
 cd prizeversity
+```
+
+### Linux OS
+1. First, configure the private/public keys on server/github:
+```
+ssh-keygen -t ed25519 -C "ci@prizeversity" -f ~/.ssh/prizeversity-ci
+eval $(ssh-agent -s)
+~/.ssh/config # IF CONFIG DOESNT EXIST, create/edit it then esc and :wq to save/quit: touch ~/.ssh/config && vim ~/.ssh/config
+ssh-add ~/.ssh/prizeversity-ci
+cat ~/.ssh/prizeversity-ci.pub # Fetch the public key (which should start with ssh-ed25519 and end with ci@prizeversity) to create/paste it in a github ssh key: https://github.com/settings/keys
+ssh -T git@github.com # RUN THIS AFTER creating the ssh key in the github settings to confirm authentication works
+```
+2. Now, git clone should work with ssh
+```
+mkdir -p ~/app && cd ~/app # Create directory under the root/HOME to clone/store the website
+git clone git@github.com:nasserhadim/prizeversity.git
+cd app/prizeversity
 ```
 
 ## 2. Copy environment variables & Edit secrets
@@ -541,36 +559,25 @@ Although running the `back-end` on **Windows** is possible—the production chec
 
 **Recommendation**: **Windows** works, but if you have no OS constraint, **Linux + Nginx** on a VPS is simpler (package manager updates, `systemd`, `ufw`, etc.).
 
-## 1. Prepare the code
-```
-# on your laptop or dev machine
-cd frontend
-npm ci           # reproducible install
-npm run build    # creates ./dist (static assets)
-git add .
-git commit -m "Production build"
-git push origin main
-```
-
-## 2. (OPTIONAL but RECOMMENDED) Initial server hardening for Performance Enhancement & Security/Firewall (run once)
+## 1. (OPTIONAL but RECOMMENDED) Initial server hardening for Performance Enhancement & Security/Firewall (run once)
 ```
 # SSH in as root or sudo user
 apt update && apt upgrade -y
 
-# 2.1  Add a swap file (Unnecessary but keeps the box alive on rare RAM spikes)
+# 1.1  Add a swap file (Unnecessary but keeps the box alive on rare RAM spikes)
 fallocate -l 2G /swap.img
 chmod 600 /swap.img
 mkswap /swap.img
 swapon /swap.img
 echo '/swap.img none swap sw 0 0' >> /etc/fstab
 
-# 2.2  Raise file-descriptor limits (File descriptors are used for pretty much anything that reads or writes, io devices, pipes, sockets etc. Typically you modify this ulimit when using web servers. 128,000 open files will only consume around 128MB of system RAM. That shouldn't be much of a problem on a modern system with many GB of system RAM. WebSockets consume memory per connection and file descriptors, but they aren't heavy on CPU. For 100-150 concurrent users, 150 WebSocket connections aren’t demanding, just around 10 MB memory.)
+# 1.2  Raise file-descriptor limits (File descriptors are used for pretty much anything that reads or writes, io devices, pipes, sockets etc. Typically you modify this ulimit when using web servers. 128,000 open files will only consume around 128MB of system RAM. That shouldn't be much of a problem on a modern system with many GB of system RAM. WebSockets consume memory per connection and file descriptors, but they aren't heavy on CPU. For 100-150 concurrent users, 150 WebSocket connections aren’t demanding, just around 10 MB memory.)
 echo '* soft nofile 65535' >> /etc/security/limits.conf
 echo '* hard nofile 65535' >> /etc/security/limits.conf
-echo 'fs.file-max = 100000' >> /etc/sysctl.conf
+echo 'fs.file-max = 128000' >> /etc/sysctl.conf
 sysctl -p                       # reload kernel params
 
-# 2.3  Basic firewall (Unless already setup from the UI; NO need to open port 27017 because the app and DB share the same box.)
+# 1.3  Basic firewall (Unless already setup from the UI; NO need to open port 27017 because the app and DB share the same box.)
 ufw default deny incoming
 ufw default allow outgoing
 ufw allow 22/tcp comment "SSH"
@@ -579,76 +586,86 @@ ufw allow 443/tcp comment "HTTPS"
 ufw enable
 ```
 
-## 3. Install runtime tooling (run once)
+## 2. Install runtime tooling (run once)
 ```
-# 3-A  Node + build utils
+# 2-A-1 Ensure everything is updated first to avoid package conflicts later
+sudo apt update
+sudo apt update -y
+
+# 2-A-2  Node + build utils
 curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
 apt install -y nodejs build-essential
 
-# 3-A  PM2 (Process Manager for Node.js)
+# 2-A-3  PM2 (Process Manager for Node.js)
 npm install -g pm2
 
-# 3-A  MongoDB (single box)
-curl -fsSL https://pgp.mongodb.com/server-6.0.asc | \
-      tee /etc/apt/trusted.gpg.d/mongodb.asc
-echo "deb [arch=amd64] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/6.0 multiverse" \
-      | tee /etc/apt/sources.list.d/mongodb-org-6.0.list
-apt update && apt install -y mongodb-org
-systemctl enable --now mongod
+# 2-A-4-1  MongoDB (single box): https://www.mongodb.com/docs/manual/tutorial/install-mongodb-on-ubuntu/#installation-methods
 
-# 3-A-1  Limit Mongo to loopback only
+which curl && which gpg   # Check if curl and gpg are installed; if not, install them with: sudo apt-get install gnupg curl
+
+curl -fsSL https://www.mongodb.org/static/pgp/server-8.0.asc | sudo gpg -o /usr/share/keyrings/mongodb-server-8.0.gpg --dearmor # Import the MongoDB public GPG key
+
+cat /etc/lsb-release # Determine which release/version the host is running
+
+# Depending on the version, create the list file (e.g. in this case, Ubuntu 22.04 (Jammy))
+echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/8.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-8.0.list
+apt update && apt install -y mongodb-org
+
+sudo apt-get update                   # Reload the package database.
+sudo apt-get install -y mongodb-org   # Install MongoDB Community Server.
+
+# 2-A-4-2  Limit Mongo to loopback only
 sed -i 's/^  bindIp:.*/  bindIp: 127.0.0.1/' /etc/mongod.conf
 
+# 2-A-4-3 Run it!
+sudo systemctl start mongod      # Start MongoDB
+sudo systemctl status mongod     # Verify that MongoDB has started successfully.
+sudo systemctl enable mongod     # Optionally ensure that MongoDB will start following a system reboot
 
 #########################################################################
-# 3-B  OPTIONAL but recommended: flip that one mongod into replica-set mode
+# 2-B  OPTIONAL but recommended: flip that one mongod into replica-set mode
 #########################################################################
 
-# 3-B-1  Add a replSetName to the config
+# 2-B-1  Add a replSetName to the config
 printf "\nreplication:\n  replSetName: rs0\n" >> /etc/mongod.conf
 
-# 3-B-2  Restart Mongo so it reads the new stanza
+# 2-B-2  Restart Mongo so it reads the new stanza
 systemctl restart mongod
 
-# 3-B-3  Initialise the single-node replica set
+# 2-B-3  Initialise the single-node replica set
 mongosh --eval 'rs.initiate()'      # will output “ok: 1” on success
 
-# 3-B-4  Quick sanity check (should show PRIMARY, 1 member)
+# 2-B-4  Quick sanity check (should show PRIMARY, 1 member)
 mongosh --eval 'rs.status().members.map(m => m.stateStr)'
 # → [ "PRIMARY" ]
-#########################################################################
+
+# 2-B-5 (OPTIONAL but RECOMMENDED) To support MongoDB replication or future scalability
+echo "vm.max_map_count=131060" | sudo tee -a /etc/sysctl.conf   # Persistently increases max memory maps with a recommended threshold (131060) to avoid ENOMEM (out of memory) or Too many open files errors.
+sudo sysctl -p                                                  # Applies the change immediately
+cat /proc/sys/vm/max_map_count                                  # Confirms the change worked
+```
+
+## 3. Prepare the code (Assumes repo had been cloned; Check the `# Getting Started (clone / fork)` section above.)
+```
+# On the server:
+cd app/prizeversity # Navigate to app direcory in root/HOME, which assumes this is where prizeversity had been cloned
+cd backend
+touch .env # create the .env file
+vim .env   # copy the .env components then :wq to save/quit
+npm ci     # reproducible install
+
+cd ..
+
+cd frontend
+npm ci           # reproducible install
+npm run build    # creates ./dist (static assets)
+git add .
+git commit -m "Production build"
+git push origin main
 ```
 
 ## 4. Deploy the application
-```
-# as a non-root deploy user
-mkdir -p ~/app && cd ~/app
-git clone https://github.com/nasserhadim/prizeversity.git .
-npm ci            # backend dependencies
-npm run build -w frontend   # if using workspaces
-
-# Serve static files & API with Express
-# (skip if you already have an Nginx reverse proxy plan)
-pm2 start ecosystem.config.js --name prizeversity
-pm2 save            # write dump
-pm2 startup         # generates a systemd script; run the displayed command
-```
-
-> Example ecosystem.config.js:
-
-```
-module.exports = {
-  apps: [{
-    name: 'prizeversity',
-    script: './server/index.js',
-    instances: 'max',        // one cluster worker per vCPU (4)
-    exec_mode: 'cluster',
-    listen_timeout: 10000,   // health-probe timeout
-    max_memory_restart: '500M',
-    env: { NODE_ENV: 'production' }
-  }]
-};
-```
+[PLACEHOLDER SPACE]
 
 ## 4.5.  Prepare SSH keys for CI/CD
 
