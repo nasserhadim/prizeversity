@@ -689,20 +689,14 @@ git push origin main
 ## 4. Deploy the application
 The steps to deploy the `Node.js` **backend** and static **frontend** using `Nginx` as a **reverse proxy**, with `HTTPS` via `Certbot`, and process management with `PM2` are as follows:
 
-### 0. Preliminary: Check Web Server Type and Locate Config
+### 0. Preliminary: Check Web Server Type
 ```
-systemctl status nginx   # Check if Nginx is running; If you see "active (running)", you are using Nginx.
+systemctl status nginx   # Check if Nginx is running; If you see "active (running)", the server is using Nginx.
 
-systemctl status apache   # Check if Apache is running; If you see "active (running)", you are using Apache.
+systemctl status apache   # Check if Apache is running; If you see "active (running)", the server is using Apache.
 ```
 
-Assuming `Nginx` is running, find the active `Nginx` config file for the domain (similar steps would apply for `Apache`)
-```
-grep -r "server_name prizeversity.com" /etc/nginx/sites-available/
-grep -r "server_name prizeversity.com" /etc/nginx/conf.d/
-```
-- The output will show the file(s) containing the domain’s configuration.
-- Edit the file shown in the output (e.g., `/etc/nginx/conf.d/123.45.67.123.conf`).
+**Note:** For the remaining steps, the assumption will be `Nginx` is being used by the server, but similar steps would apply for `Apache` regardless.
 
 ### 1. Obtain and Install `SSL` Certificate with `Certbot`
 **Purpose**: Secure the domain with `HTTPS` using a free [Let's Encrypt](https://letsencrypt.org/) certificate.
@@ -716,7 +710,13 @@ sudo certbot --nginx -d prizeversity.com -d www.prizeversity.com # Certbot will 
 ### 2. Configure `Nginx` for `Reverse Proxy` and Static File Serving
 **Purpose**: Route API requests to the backend and serve the frontend efficiently.
 
-Sample `/etc/nginx/conf.d/123.45.67.123.conf`:
+Assuming `Nginx` is running, find the active `Nginx` config file for the domain
+```
+grep -r "server_name prizeversity.com" /etc/nginx/sites-available/
+grep -r "server_name prizeversity.com" /etc/nginx/conf.d/
+```
+- The output will show the file(s) containing the domain’s configuration.
+- Edit the file shown in the output (e.g., `sudo nano /etc/nginx/conf.d/123.45.67.123.conf` and `Ctrl + O` to save, followed by `Ctrl + X` to exit).
 
 ```
 # Redirect HTTP to HTTPS
