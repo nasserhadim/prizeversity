@@ -24,6 +24,7 @@ const NotificationSchema = new mongoose.Schema({
       'wallet_transaction',
      'ta_promotion', 
       'ta_demotion', 
+      'announcement', // New type for announcements
       'attack', // New type for attack notification
       'defend', // New type for defense notification
     ],
