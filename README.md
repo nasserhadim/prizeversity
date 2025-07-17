@@ -841,7 +841,8 @@ sudo cp -r dist/* /var/www/prizeversity-frontend/   # copies the built frontend 
 - Run an [Qualys SSL Scan](https://www.ssllabs.com/ssltest) on the domain.
    - Select the "**Clear Cache**" option if the domain was already scanned previously and you want to re-scan again.
 
-### 6.  Prepare SSH keys for CI/CD
+### 6.  CI/CD
+#### 6.1  Prepare SSH keys for CI/CD
 
 1. **Generate a key pair on your laptop (once)**
 
@@ -877,6 +878,82 @@ sudo cp -r dist/* /var/www/prizeversity-frontend/   # copies the built frontend 
    ```
    ssh -i ~/.ssh/prizeversity-ci deploy@<VPS_IP>    # manual test
    ```
+
+#### 6.2  CI/CD Deployment (GitHub Actions workflow)
+- Builds & tests the code on every push to `main`
+- Uploads the build to VPS server over SSH
+- Installs production-only dependencies on the server
+- Hot-reloads PM2 process named `prizeversity`
+
+##### 6.2.1 Add a GitHub Environment called production (manual "Approve & Deploy" gate)
+
+> 1. Repository → Settings → Environments → New environment → `production`
+>
+> 2. Under Deployment protection rules choose “Required reviewers” and add self (or team).
+>
+> 3. Save.
+
+- Effect: Every push to `main` will pause at "Waiting for approval in environment production".
+- Open > Actions → run → Review deployments → Approve and deploy to continue.
+
+##### 6.2.2 Create `.github/workflows/deploy.yml` in the repo
+```
+name: CI & CD – Prizeversity Production
+on: { push: { branches: [ main ] } }
+
+concurrency: { group: production, cancel-in-progress: true }
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-22.04
+    environment: { name: production, url: https://prizeversity.com }
+
+    env:
+      APP_DIR: /home/deploy/prizeversity
+      NODE_VERSION: 22
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-node@v4           # cache is per-folder, so leave default
+      with: { node-version: ${{ env.NODE_VERSION }} }
+
+    # ─── Backend ───────────────────────────────────────────
+    - name: Install & test backend
+      working-directory: backend            # to pick a folder—no manual cd backend needed!
+      run: |
+        npm ci
+        npm run test --if-present
+
+    # ─── Front-end ─────────────────────────────────────────
+    - name: Build frontend
+      working-directory: frontend           # to pick a folder—no manual cd frontend needed!
+      run: |
+        npm ci
+        npm run build
+
+    # ─── Rsync to server ──────────────────────────────────
+    - uses: webfactory/ssh-agent@v0.9.0
+      with: { ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }} }
+
+    - name: Upload code
+      run: |
+        rsync -az --delete \
+          -e "ssh -p ${{ secrets.SSH_PORT }}" \
+          --exclude='**/node_modules' \
+          ./  ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ env.APP_DIR }}
+
+    # ─── Remote: deps ▸ migrate ▸ reload ──────────────────
+    - name: Install prod deps, run migrations, reload PM2
+      run: |
+        ssh -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} <<'EOF'
+          set -e
+          cd /home/deploy/prizeversity/backend               # because there is no YAML working-directory helper once we’re inside the VPS remote shell, cd is needed
+          npm ci --omit=dev
+          npm run migrate                                    # migrate-mongo up
+          pm2 reload /home/deploy/prizeversity/ecosystem.config.js --update-env
+        EOF
+```
 
 ## Appendix · Deploying on Windows Server 2019/2022
 
@@ -1011,82 +1088,6 @@ pm2 install pm2-server-monit
 ```
 
 > Set Cloudflare / UptimeRobot pings on `/healthz` endpoint that simply returns `200 OK`.
-
-## 10. CI/CD Deployment (GitHub Actions workflow)
-- Builds & tests the code on every push to `main`
-- Uploads the build to VPS server over SSH
-- Installs production-only dependencies on the server
-- Hot-reloads PM2 process named `prizeversity`
-
-### 10.1 Add a GitHub Environment called production (manual "Approve & Deploy" gate)
-
-> 1. Repository → Settings → Environments → New environment → `production`
->
-> 2. Under Deployment protection rules choose “Required reviewers” and add self (or team).
->
-> 3. Save.
-
-- Effect: Every push to `main` will pause at "Waiting for approval in environment production".
-- Open > Actions → run → Review deployments → Approve and deploy to continue.
-
-### 10.2 Create `.github/workflows/deploy.yml` in the repo
-```
-name: CI & CD – Prizeversity Production
-on: { push: { branches: [ main ] } }
-
-concurrency: { group: production, cancel-in-progress: true }
-
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-22.04
-    environment: { name: production, url: https://prizeversity.com }
-
-    env:
-      APP_DIR: /home/deploy/prizeversity
-      NODE_VERSION: 22
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - uses: actions/setup-node@v4           # cache is per-folder, so leave default
-      with: { node-version: ${{ env.NODE_VERSION }} }
-
-    # ─── Backend ───────────────────────────────────────────
-    - name: Install & test backend
-      working-directory: backend            # to pick a folder—no manual cd backend needed!
-      run: |
-        npm ci
-        npm run test --if-present
-
-    # ─── Front-end ─────────────────────────────────────────
-    - name: Build frontend
-      working-directory: frontend           # to pick a folder—no manual cd frontend needed!
-      run: |
-        npm ci
-        npm run build
-
-    # ─── Rsync to server ──────────────────────────────────
-    - uses: webfactory/ssh-agent@v0.9.0
-      with: { ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }} }
-
-    - name: Upload code
-      run: |
-        rsync -az --delete \
-          -e "ssh -p ${{ secrets.SSH_PORT }}" \
-          --exclude='**/node_modules' \
-          ./  ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ env.APP_DIR }}
-
-    # ─── Remote: deps ▸ migrate ▸ reload ──────────────────
-    - name: Install prod deps, run migrations, reload PM2
-      run: |
-        ssh -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} <<'EOF'
-          set -e
-          cd /home/deploy/prizeversity/backend               # because there is no YAML working-directory helper once we’re inside the VPS remote shell, cd is needed
-          npm ci --omit=dev
-          npm run migrate                                    # migrate-mongo up
-          pm2 reload /home/deploy/prizeversity/ecosystem.config.js --update-env
-        EOF
-```
 
 # MISC
 
