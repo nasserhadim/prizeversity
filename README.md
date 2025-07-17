@@ -39,13 +39,13 @@ This repository hosts the full stack implementation of PrizeVersity, including t
 
      > Since this installation won't include `mongosh` (mongo shell), you will likely have to create an entry pointing at `mongod.exe` in `Path` under the `System Environment Variables`.
      > 
-     > `mongod.exe` will likely be located under some path like `C:\Program Files\MongoDB\Server\6.0\bin`. This `bin` location is the path you will need to add as the entry in `Path` under the `System Environment Variables`!
+     > `mongod.exe` will likely be located under some path like `C:\Program Files\MongoDB\Server\8.0\bin`. This `bin` location is the path you will need to add as the entry in `Path` under the `System Environment Variables`!
    
    - For `MacOS`:
    ```
    brew tap mongodb/brew
-   brew install mongodb-community@7.0
-   brew services start mongodb-community@7.0
+   brew install mongodb-community@8.0
+   brew services start mongodb-community@8.0
    ```
 
    - [OPTIONAL] If it hasn't been installed, you can [download MongoDB Compass from here](https://www.mongodb.com/try/download/compass), which is the GUI client of MongoDB to interact with the database directly :)
@@ -257,7 +257,7 @@ mongod --dbpath /usr/local/var/mongodb
 mkdir C:\data\db
 
 # start the server
-"C:\Program Files\MongoDB\Server\6.0\bin\mongod.exe" --dbpath "C:\data\db"
+"C:\Program Files\MongoDB\Server\8.0\bin\mongod.exe" --dbpath "C:\data\db"
 
 # (if mongod.exe is on your PATH you can shorten to:)
 # mongod --dbpath "C:\data\db"
@@ -511,7 +511,7 @@ mongod --dbpath /usr/local/var/mongodb
 mkdir C:\data\db
 
 # start the server
-"C:\Program Files\MongoDB\Server\6.0\bin\mongod.exe" --dbpath "C:\data\db"
+"C:\Program Files\MongoDB\Server\8.0\bin\mongod.exe" --dbpath "C:\data\db"
 
 # (if mongod.exe is on your PATH you can shorten to:)
 # mongod --dbpath "C:\data\db"
