@@ -592,20 +592,13 @@ Although running the `back-end` on **Windows** is possible—the production chec
 # SSH in as root or sudo user
 apt update && apt upgrade -y
 
-# 1.1  Add a swap file (Unnecessary but keeps the box alive on rare RAM spikes)
-fallocate -l 2G /swap.img
-chmod 600 /swap.img
-mkswap /swap.img
-swapon /swap.img
-echo '/swap.img none swap sw 0 0' >> /etc/fstab
-
-# 1.2  Raise file-descriptor limits (File descriptors are used for pretty much anything that reads or writes, io devices, pipes, sockets etc. Typically you modify this ulimit when using web servers. 128,000 open files will only consume around 128MB of system RAM. That shouldn't be much of a problem on a modern system with many GB of system RAM. WebSockets consume memory per connection and file descriptors, but they aren't heavy on CPU. For 100-150 concurrent users, 150 WebSocket connections aren’t demanding, just around 10 MB memory.)
+# 1.1  Raise file-descriptor limits (File descriptors are used for pretty much anything that reads or writes, io devices, pipes, sockets etc. Typically you modify this ulimit when using web servers. 128,000 open files will only consume around 128MB of system RAM. That shouldn't be much of a problem on a modern system with many GB of system RAM. WebSockets consume memory per connection and file descriptors, but they aren't heavy on CPU. For 100-150 concurrent users, 150 WebSocket connections aren’t demanding, just around 10 MB memory.)
 echo '* soft nofile 65535' >> /etc/security/limits.conf
 echo '* hard nofile 65535' >> /etc/security/limits.conf
 echo 'fs.file-max = 128000' >> /etc/sysctl.conf
 sysctl -p                       # reload kernel params
 
-# 1.3  Basic firewall (Unless already setup from the UI; NO need to open port 27017 because the app and DB share the same box.)
+# 1.2  Basic firewall (Unless already setup from the UI; NO need to open port 27017 because the app and DB share the same box.)
 ufw default deny incoming
 ufw default allow outgoing
 ufw allow 22/tcp comment "SSH"
@@ -674,7 +667,7 @@ cat /proc/sys/vm/max_map_count                                  # Confirms the c
 sudo systemctl restart mongod
 ```
 
-## 3. Prepare the code (Assumes repo had been cloned; Check the `# Getting Started (clone / fork)` section above.)
+## 3. Prepare the code (Assumes repo had been cloned; Check the `# Getting Started (clone / fork) > Clone the repo > Linux OS` section above.)
 ```
 # On the server:
 cd app/prizeversity # Navigate to app direcory in root/HOME, which assumes this is where prizeversity had been cloned
@@ -694,7 +687,129 @@ git push origin main
 ```
 
 ## 4. Deploy the application
-[PLACEHOLDER SPACE]
+The steps to deploy the `Node.js` **backend** and static **frontend** using `Nginx` as a **reverse proxy**, with `HTTPS` via `Certbot`, and process management with `PM2` are as follows:
+
+### 0. Preliminary: Check Web Server Type and Locate Config
+```
+systemctl status nginx   # Check if Nginx is running; If you see "active (running)", you are using Nginx.
+
+systemctl status apache   # Check if Apache is running; If you see "active (running)", you are using Apache.
+```
+
+Assuming `Nginx` is running, find the active `Nginx` config file for the domain (similar steps would apply for `Apache`)
+```
+grep -r "server_name prizeversity.com" /etc/nginx/sites-available/
+grep -r "server_name prizeversity.com" /etc/nginx/conf.d/
+```
+- The output will show the file(s) containing the domain’s configuration.
+- Edit the file shown in the output (e.g., `/etc/nginx/conf.d/123.45.67.123.conf`).
+
+### 1. Obtain and Install `SSL` Certificate with `Certbot`
+**Purpose**: Secure the domain with `HTTPS` using a free [Let's Encrypt](https://letsencrypt.org/) certificate.
+
+```
+sudo apt update
+sudo apt install certbot python3-certbot-nginx
+sudo certbot --nginx -d prizeversity.com -d www.prizeversity.com # Certbot will automatically update the Nginx config for SSL.
+```
+
+### 2. Configure `Nginx` for `Reverse Proxy` and Static File Serving
+**Purpose**: Route API requests to the backend and serve the frontend efficiently.
+
+Sample `/etc/nginx/conf.d/123.45.67.123.conf`:
+
+```
+# Redirect HTTP to HTTPS
+server {
+    listen 123.45.67.123:80;
+    server_name prizeversity.com www.prizeversity.com;
+    return 301 https://$host$request_uri;
+}
+
+# HTTPS server block
+server {
+    listen 123.45.67.123:443 ssl http2;
+    server_name prizeversity.com www.prizeversity.com;
+
+    ssl_certificate /etc/letsencrypt/live/prizeversity.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/prizeversity.com/privkey.pem;
+
+    # SSL and Gzip settings
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+    ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305';
+    ssl_ecdh_curve X25519:secp384r1:secp521r1:secp256k1:prime256v1;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_tickets off;
+    ssl_stapling on;
+    ssl_stapling_verify on;
+    resolver 1.1.1.1 8.8.8.8 valid=300s;
+    resolver_timeout 5s;
+
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+    gzip_min_length 256;
+    gzip_comp_level 5;
+    gzip_vary on;
+
+    access_log off;
+    error_log /dev/null;
+
+    # Proxy API requests to backend
+    location /api/ {
+        proxy_pass http://localhost:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # Serve static frontend files
+    location / {
+        root /var/www/prizeversity-frontend;
+        try_files $uri $uri/ /index.html;
+    }
+}
+```
+
+After editing, test and reload `Nginx`:
+
+```
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+### 3. Deploy and Run the `Node.js` Backend with `PM2`
+**Purpose**: Keep the backend running and restart it automatically on server reboot.
+
+```
+cd ~/app/prizeversity/backend
+pm2 start server.js --name prizeversity-backend
+pm2 save
+pm2 startup
+```
+
+- Follow any `pm2` startup instructions to enable auto-start on reboot.
+- Ensure the backend listens on port `5000` (or update the `Nginx` config if it's different).
+
+### 4. Build and Deploy the Frontend
+**Purpose**: Serve the production-ready static frontend files via `Nginx`.
+
+```
+cd ~/app/prizeversity/frontend
+npm install
+npm run build
+sudo mkdir -p /var/www/prizeversity-frontend
+sudo cp -r dist/* /var/www/prizeversity-frontend/   # copies the built frontend (dist/) to the Nginx web root.
+```
+
+### 5. Verify Everything is Working
+
+- Visit https://prizeversity.com to see the frontend.
+- API requests to `/api/` are proxied to the backend.
+- Use `pm2 status` to check backend is running.
+- Use `sudo certbot renew --dry-run` or `sudo systemctl list-timers | grep certbot` to confirm `SSL` **auto-renewal**.
 
 ## 4.5.  Prepare SSH keys for CI/CD
 
