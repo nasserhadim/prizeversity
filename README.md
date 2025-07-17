@@ -24,7 +24,7 @@ This repository hosts the full stack implementation of PrizeVersity, including t
    - **SSL (Encryption in transit)**
    - **Persistent MongoDB storage** with replica set compatibility
 
-# How to Setup:
+# How to Setup (Developers):
 
 ## Prerequisites:
 
