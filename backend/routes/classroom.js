@@ -40,7 +40,11 @@ router.post(
     }
 
     try {
-      const existing = await Classroom.findOne({ code });
+      const existing = await Classroom.findOne({
+        code,
+        archived: false,
+        teacher: req.user._id
+      });
       if (existing) {
         return res.status(400).json({ error: 'A classroom with this code already exists' });
       }
@@ -67,7 +71,7 @@ router.post(
 router.post('/join', ensureAuthenticated, async (req, res) => {
   const { code } = req.body;
   try {
-    const classroom = await Classroom.findOne({ code });
+    const classroom = await Classroom.findOne({ code, archived: false });
     if (!classroom) {
       return res.status(404).json({ error: 'Invalid classroom code' });
     }

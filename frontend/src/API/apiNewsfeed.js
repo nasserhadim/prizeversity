@@ -13,8 +13,12 @@ export function getNews(classId) {
 }
 
 // Post a new news item (teachers only)
-export function postNews(classId, content) {
-    return api.post(`/classroom/${classId}/newsfeed`, { content });
+export function postNews(classId, formData) {
+    return api.post(
+        `/classroom/${classId}/newsfeed`,
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
 }
 export function deleteNews(classId, itemId) {
     return api.delete(`/classroom/${classId}/newsfeed/${itemId}`);
