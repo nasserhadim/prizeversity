@@ -691,8 +691,9 @@ The steps to deploy the `Node.js` **backend** and static **frontend** using `Ngi
 
 ### 0. Preliminary: Add `A` record in the domain's DNS configuration and Check Web Server Type
 
-### 1. Add DNS Records
+#### 1. Add DNS Records
 + Add an `A` record pointing at the server's IP Address in the domain's DNS configuration page of the hosting provider, e.g. https://hpanel.hostinger.com/domain/prizeversity.com/dns
+   + Consider [Cloudflare](https://dash.cloudflare.com/) as it automatically gives edge `SSL` and Brotli compression.
 + It's recommended to also add a wildcard `*` **CName** record and a `www` **CName** record pointing at the domain, so that if the server's IP address changes, only the `A` record would have to be modified.
 
 **Example:**
@@ -708,7 +709,7 @@ The steps to deploy the `Node.js` **backend** and static **frontend** using `Ngi
 - `www` → Allows users to access the site using `www.prizeversity.com` as well as `prizeversity.com`.
 - `*` → Supports any subdomain (like `beta.prizeversity.com`, `classroom.prizeversity.com`, etc.) by redirecting them to the root domain without extra DNS config.
 
-### 2. Check Web Server Type
+#### 2. Check Web Server Type
 ```
 systemctl status nginx   # Check if Nginx is running; If you see "active (running)", the server is using Nginx.
 
@@ -728,6 +729,14 @@ sudo certbot --nginx -d prizeversity.com -d www.prizeversity.com # Certbot will 
 
 ### 2. Configure `Nginx` for `Reverse Proxy` and Static File Serving
 **Purpose**: Route API requests to the backend and serve the frontend efficiently.
+
+- `HTTP/2` provides significant performance and efficiency benefits, primarily due to its ability to multiplex multiple requests over a single connection and its efficient use of binary framing.
+   - This leads to faster page load times, reduced latency, and improved user experience.
+   - This means that a client can start receiving responses for multiple requests at the same time, significantly reducing the time it takes for a page to load.
+
+- `Gzip` is a data compression utility and a file format used for compressing and decompressing files.
+   - It uses the Deflate algorithm, which is known for its efficiency in reducing file size.
+   - Gzip is commonly used for web servers and browsers, as it helps improve data transfer speeds by compressing files before sending them and decompressing them upon reception. 
 
 - Assuming `Nginx` is running, find the active `Nginx` config file for the domain
 ```
@@ -829,8 +838,10 @@ sudo cp -r dist/* /var/www/prizeversity-frontend/   # copies the built frontend 
 - API requests to `/api/` are proxied to the backend.
 - Use `pm2 status` to check backend is running.
 - Use `sudo certbot renew --dry-run` or `sudo systemctl list-timers | grep certbot` to confirm `SSL` **auto-renewal**.
+- Run an [Qualys SSL Scan](https://www.ssllabs.com/ssltest/analyze.html?d=prizeversity.com&latest) on the domain.
+   - Select the "**Clear Cache**" option if the domain was already scanned previously and you want to re-scan again.
 
-## 4.5.  Prepare SSH keys for CI/CD
+### 6.  Prepare SSH keys for CI/CD
 
 1. **Generate a key pair on your laptop (once)**
 
@@ -842,7 +853,7 @@ sudo cp -r dist/* /var/www/prizeversity-frontend/   # copies the built frontend 
    - `~/.ssh/prizeversity-ci`   (private key)
    - `~/.ssh/prizeversity-ci.pub` (public key)
    
-3. **Copy the public key to the VPS (as your deploy user)**
+3. **Copy the public key to the server (as your deploy user)**
 
    ```
    ssh-copy-id -i ~/.ssh/prizeversity-ci.pub deploy@<VPS_IP>
@@ -851,7 +862,7 @@ sudo cp -r dist/* /var/www/prizeversity-frontend/   # copies the built frontend 
    # cat ~/.ssh/prizeversity-ci.pub | ssh deploy@<VPS_IP> 'mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys'
    ```
    
-5. **Add secrets to the GitHub repo** → `Settings` › `Secrets & variables` › `Actions`
+4. **Add secrets to the GitHub repo** → `Settings` › `Secrets & variables` › `Actions`
 
 | Secret name | Value |
 |-------------|-------|
@@ -860,66 +871,12 @@ sudo cp -r dist/* /var/www/prizeversity-frontend/   # copies the built frontend 
 | `SSH_HOST` | `<VPS_IP>` |
 | `SSH_PORT` | `22` (or your custom port) |
 
-4. **Verify**
+5. **Verify**
    
    You should now be able to:
    ```
    ssh -i ~/.ssh/prizeversity-ci deploy@<VPS_IP>    # manual test
    ```
-
-## 5. TLS, CDN & HTTP/2
-### 5.1 Cloudflare DNS
-- Add an A-record for app.example.com → VPS IP
-- Orange-cloud it (proxy on).
-- Cloudflare automatically gives edge SSL and Brotli compression.
-  
-### 5.2 Origin certificate
-```
-apt install -y certbot
-certbot certonly --standalone -d app.example.com --agree-tos -m you@example.com
-```
-
-### 5.3 Nginx reverse proxy (if wanting full HTTP/2 + gzip at origin):
-- HTTP/2 provides significant performance and efficiency benefits, primarily due to its ability to multiplex multiple requests over a single connection and its efficient use of binary framing. This leads to faster page load times, reduced latency, and improved user experience. This means that a client can start receiving responses for multiple requests at the same time, significantly reducing the time it takes for a page to load.
-
-- Gzip is a data compression utility and a file format used for compressing and decompressing files. It uses the Deflate algorithm, which is known for its efficiency in reducing file size. Gzip is commonly used for web servers and browsers, as it helps improve data transfer speeds by compressing files before sending them and decompressing them upon reception. 
-```
-apt install -y nginx
-cat >/etc/nginx/sites-available/prizeversity <<'EOF'
-server {
-    listen 80;
-    server_name app.example.com;
-    return 301 https://$host$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name app.example.com;
-
-    ssl_certificate     /etc/letsencrypt/live/app.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/app.example.com/privkey.pem;
-
-    location / {
-        proxy_pass http://127.0.0.1:5000;    # your Express port
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-    location /static/ {
-        root /home/deploy/app/frontend/dist;
-        try_files $uri =404;
-    }
-}
-EOF
-
-ln -s /etc/nginx/sites-available/prizeversity /etc/nginx/sites-enabled/
-nginx -t && systemctl reload nginx
-```
-
-> **[TROUBLESHOOTING]**
->
-> `nginx: [emerg] bind() to 0.0.0.0:80 failed (98: Address already in use)` – another service (often Apache or a second Nginx instance) is holding port `80`.
->
-> Stop it (`sudo systemctl stop apache2` or `sudo fuser -k 80/tcp`) and re-run `nginx -t`.
 
 ## Appendix · Deploying on Windows Server 2019/2022
 
