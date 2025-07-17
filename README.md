@@ -838,7 +838,7 @@ sudo cp -r dist/* /var/www/prizeversity-frontend/   # copies the built frontend 
 - API requests to `/api/` are proxied to the backend.
 - Use `pm2 status` to check backend is running.
 - Use `sudo certbot renew --dry-run` or `sudo systemctl list-timers | grep certbot` to confirm `SSL` **auto-renewal**.
-- Run an [Qualys SSL Scan](https://www.ssllabs.com/ssltest/analyze.html?d=prizeversity.com&latest) on the domain.
+- Run an [Qualys SSL Scan](https://www.ssllabs.com/ssltest) on the domain.
    - Select the "**Clear Cache**" option if the domain was already scanned previously and you want to re-scan again.
 
 ### 6.  Prepare SSH keys for CI/CD
