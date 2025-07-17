@@ -872,7 +872,7 @@ sudo cp -r dist/* /var/www/prizeversity-frontend/   # copies the built frontend 
 | `SSH_HOST` | `<VPS_IP>` |
 | `SSH_PORT` | `22` (or your custom port) |
 
-5. **Verify**
+4. **Verify**
    
    You should now be able to:
    ```
