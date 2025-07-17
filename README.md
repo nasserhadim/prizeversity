@@ -689,7 +689,26 @@ git push origin main
 ## 4. Deploy the application
 The steps to deploy the `Node.js` **backend** and static **frontend** using `Nginx` as a **reverse proxy**, with `HTTPS` via `Certbot`, and process management with `PM2` are as follows:
 
-### 0. Preliminary: Check Web Server Type
+### 0. Preliminary: Add `A` record in the domain's DNS configuration and Check Web Server Type
+
+### 1. Add DNS Records
++ Add an `A` record pointing at the server's IP Address in the domain's DNS configuration page of the hosting provider, e.g. https://hpanel.hostinger.com/domain/prizeversity.com/dns
++ It's recommended to also add a wildcard `*` **CName** record and a `www` **CName** record pointing at the domain, so that if the server's IP address changes, only the `A` record would have to be modified.
+
+**Example:**
+
+| Type  | Name | Points to        | TTL   | Priority |
+|-------|------|------------------|-------|----------|
+| A     | @    | 123.45.67.123    | 14400 | 0        |
+| CName | *    | prizeversity.com | 14400 | 0        |
+| CName | www  | prizeversity.com | 14400 | 0        |
+
+**Reasons for `CNAMEs`:**
+
+- `www` → Allows users to access the site using `www.prizeversity.com` as well as `prizeversity.com`.
+- `*` → Supports any subdomain (like `beta.prizeversity.com`, `classroom.prizeversity.com`, etc.) by redirecting them to the root domain without extra DNS config.
+
+### 2. Check Web Server Type
 ```
 systemctl status nginx   # Check if Nginx is running; If you see "active (running)", the server is using Nginx.
 
@@ -710,7 +729,7 @@ sudo certbot --nginx -d prizeversity.com -d www.prizeversity.com # Certbot will 
 ### 2. Configure `Nginx` for `Reverse Proxy` and Static File Serving
 **Purpose**: Route API requests to the backend and serve the frontend efficiently.
 
-Assuming `Nginx` is running, find the active `Nginx` config file for the domain
+- Assuming `Nginx` is running, find the active `Nginx` config file for the domain
 ```
 grep -r "server_name prizeversity.com" /etc/nginx/sites-available/
 grep -r "server_name prizeversity.com" /etc/nginx/conf.d/
@@ -773,7 +792,7 @@ server {
 }
 ```
 
-After editing, test and reload `Nginx`:
+- After editing, test and reload `Nginx`:
 
 ```
 sudo nginx -t
