@@ -5,6 +5,9 @@ import axios from 'axios';
 import socket from '../utils/socket';
 import toast from 'react-hot-toast';
 
+import { API_BASE } from './config/api';
+const socket = io(API_BASE); // no "/api" needed here
+
 export default function ClassroomPage() {
   const { user } = useAuth();
   const [role, setRole] = useState(user?.role || '');
@@ -16,7 +19,7 @@ export default function ClassroomPage() {
   const [joinClassroomCode, setJoinClassroomCode] = useState('');
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
-  const BACKEND_URL = 'http://localhost:5000';
+  const BACKEND_URL = '${API_BASE}';
 
   useEffect(() => {
     setRole(user?.role || '');
