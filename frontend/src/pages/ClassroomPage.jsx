@@ -11,7 +11,7 @@ export default function ClassroomPage() {
   const [classrooms, setClassrooms] = useState([]);
   const [classroomName, setClassroomName] = useState('');
   const [classroomCode, setClassroomCode] = useState('');
-  const [color, setColor] = useState('#ffffff');
+  const [color, setColor] = useState('#22c55e');
   const [backgroundFile, setBackgroundFile] = useState(null);
   const [joinClassroomCode, setJoinClassroomCode] = useState('');
   const [loading, setLoading] = useState(true);
@@ -67,7 +67,7 @@ export default function ClassroomPage() {
       toast.success('Classroom Created!');
       setClassroomName('');
       setClassroomCode('');
-      setColor('#ffffff');
+      setColor('#22c55e');
       setBackgroundFile(null);
       fetchClassrooms();
     } catch (err) {
@@ -83,7 +83,7 @@ export default function ClassroomPage() {
     }
     try {
       await axios.post('/api/classroom/join', { code: joinClassroomCode });
-      toast.success('Joined classroom!', {duration: 800});
+      toast.success('Joined classroom!', { duration: 800 });
       setJoinClassroomCode('');
       fetchClassrooms();
     } catch (err) {
