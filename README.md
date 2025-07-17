@@ -11,6 +11,7 @@
 - Reward system with dynamic **Bazaar**
 - Gamified **stat-based mechanics** (such as **Discount**, **multiplier**, **luck**, **Shield**, and **Attack Bonus**)
 - User stats, profiles, leaderboard, and transaction history dashboards.
+- and much more!
 
 ## 🛠️ For Developers
 This repository hosts the full stack implementation of PrizeVersity, including the frontend, backend, and infrastructure setup.
