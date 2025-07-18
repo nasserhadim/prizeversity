@@ -16,7 +16,7 @@ export default function ClassroomPage() {
   const [joinClassroomCode, setJoinClassroomCode] = useState('');
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
-  const BACKEND_URL = '${API_BASE}';
+  const BACKEND_URL = `${API_BASE}`;
 
   useEffect(() => {
     setRole(user?.role || '');

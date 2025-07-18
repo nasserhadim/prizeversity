@@ -17,7 +17,7 @@ const Classroom = () => {
   const { id } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const BACKEND_URL = '${API_BASE}';
+  const BACKEND_URL = `${API_BASE}`;
 
   // State variables
   const [classroom, setClassroom] = useState(null);
