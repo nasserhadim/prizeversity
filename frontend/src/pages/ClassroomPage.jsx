@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import socket from '../utils/socket';
 import toast from 'react-hot-toast';
+import { API_BASE } from '../config/api'; // Adjust path if needed
 
 export default function ClassroomPage() {
   const { user } = useAuth();
