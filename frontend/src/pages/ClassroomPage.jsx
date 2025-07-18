@@ -5,9 +5,6 @@ import axios from 'axios';
 import socket from '../utils/socket';
 import toast from 'react-hot-toast';
 
-import { API_BASE } from './config/api';
-const socket = io(API_BASE); // no "/api" needed here
-
 export default function ClassroomPage() {
   const { user } = useAuth();
   const [role, setRole] = useState(user?.role || '');
