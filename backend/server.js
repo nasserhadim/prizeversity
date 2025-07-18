@@ -94,6 +94,8 @@ app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/items', itemRoutes);
 app.use('/api/stats', statsRouter);
 app.use('/api', groupBalanceRoutes);
+app.use('/api/pending-assignments', require('./routes/pendingAssignments'));
+
 // Root Route
 app.get('/', (req, res) => {
   res.redirect('http://localhost:5173'); // Redirect to the frontend

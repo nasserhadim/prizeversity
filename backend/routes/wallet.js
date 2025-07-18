@@ -4,6 +4,33 @@ const User = require('../models/User');
 const router = express.Router();
 const mongoose = require('mongoose');
 const blockIfFrozen = require('../middleware/blockIfFrozen');
+const PendingAssignment = require('../models/PendingAssignment');
+
+
+async function canTAAssignBits({ taUser, classroomId }) {
+  const Classroom = require('../models/Classroom');
+  const classroom = await Classroom.findById(classroomId).select('taBitPolicy students');
+  if (!classroom) return { ok: false, status: 404, msg: 'Classroom not found' };
+
+
+  if (!classroom.students.map(String).includes(String(taUser._id))) {
+    return { ok: false, status: 403, msg: 'You are not part of this classroom' };
+  }
+
+  switch (classroom.taBitPolicy) {
+    case 'full':
+      return { ok: true };
+    case 'none':
+      return { ok: false, status: 403, msg: 'Policy forbids TAs from assigning bits' };
+    case 'approval':
+     
+      return { ok: false, requiresApproval: true };
+    default:
+      return { ok: false, status: 500, msg: 'Unknown policy' };
+  }
+}
+
+
 
 router.get('/transactions/all', ensureAuthenticated, async (req, res) => {
   if (!['teacher', 'admin'].includes(req.user.role)) {
@@ -19,7 +46,7 @@ router.get('/transactions/all', ensureAuthenticated, async (req, res) => {
   const criteria = studentId ? { _id: studentId } : {};
   const users = await User
      .find(criteria)
-      .select('_id email transactions')
+  .select('_id email firstName lastName transactions')
       .lean();         
    
 
@@ -31,6 +58,9 @@ router.get('/transactions/all', ensureAuthenticated, async (req, res) => {
           ...(t.toObject ? t.toObject() : t),  
           studentId: u._id,
           studentEmail: u.email,
+          studentName:  (u.firstName || u.lastName)
+                 ? `${u.firstName || ''} ${u.lastName || ''}`.trim()
+                : u.email,                   
         });
       });
     });
@@ -47,7 +77,32 @@ router.get('/transactions/all', ensureAuthenticated, async (req, res) => {
 
 // Assign Balance to Student
 router.post('/assign', ensureAuthenticated, async (req, res) => {
-  const { studentId, amount, description } = req.body;
+  const { classroomId, studentId, amount, description } = req.body;
+
+if (req.user.role === 'admin') {
+      const gate = await canTAAssignBits({ taUser: req.user, classroomId });
+      if (!gate.ok) {
+        if (gate.requiresApproval) {
+      for (const upd of updates) {
+        await PendingAssignment.create({
+          classroom:   classroomId,
+          student:     upd.studentId,
+          amount:      upd.amount,
+          description,
+          requestedBy: req.user._id,
+        });
+      }
+      return res
+        .status(202)
+        .json({ message: 'All requests queued for teacher approval' });
+        }
+        return res.status(gate.status).json({ error: gate.msg });
+      }
+    }
+   else if (req.user.role !== 'teacher') {
+
+    return res.status(403).json({ error: 'Forbidden' });
+  }
   try {
     const student = await User.findById(studentId);
     if (!student) return res.status(404).json({ error: 'Student not found' });
@@ -83,13 +138,41 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
     return res.status(403).json({ error: 'Only teachers or admins can bulk‑assign' });
   }
 
-  const { updates, description = 'Bulk adjustment by teacher' } = req.body;
+const { classroomId, updates, description = 'Bulk adjustment by teacher' } = req.body;
+
+  if (!classroomId) {
+    return res.status(400).json({ error: 'classroomId is required' });
+ }
 
   if (!Array.isArray(updates) || updates.length === 0) {
     return res.status(400).json({ error: 'No updates supplied' });
   }
 
   try {
+    // ───────────────────────────────────────────────────── TA policy gate
+    if (req.user.role === 'admin') {
+      const gate = await canTAAssignBits({ taUser: req.user, classroomId });
+
+      if (!gate.ok) {
+        
+        if (gate.requiresApproval) {
+          for (const upd of updates) {
+            await PendingAssignment.create({
+              classroom:   classroomId,
+              student:     upd.studentId,
+              amount:      Number(upd.amount),
+              description,
+              requestedBy: req.user._id,
+            });
+          }
+          return res
+            .status(202)
+            .json({ message: 'Requests queued for teacher approval' });
+        }
+       
+        return res.status(gate.status).json({ error: gate.msg });
+      }
+    }
     let updated = 0;
     const skipped = [];
 
@@ -140,6 +223,10 @@ router.get('/transactions', ensureAuthenticated, async (req, res) => {
   }
 });
 
+const label = (u) =>
+  (u.firstName || u.lastName)
+    ? `${u.firstName || ''} ${u.lastName || ''}`.trim()
+    : u.email;
 
 // Wallet Transfer
 router.post(
@@ -190,12 +277,34 @@ router.post(
 
     if (!recipient) return res.status(404).json({ error: 'Recipient not found' });
     if (sender.balance < amount) return res.status(400).json({ error: 'Insufficient balance' });
+/* student transfer toggle  */
+if (
+  sender.role.toLowerCase() === 'student' &&
+  recipient.role.toLowerCase() === 'student'
+) {
+  const Classroom = require('../models/Classroom');
+
+   const blocked = await Classroom.exists({
+    archived: false,
+    studentSendEnabled: false,
+    students: sender._id            
+  });
+  
+  if (blocked) {
+    return res.status(403).json({
+      error:
+        'Peer‑to‑peer transfers are disabled by your teacher in at least one of your shared classrooms.',
+    });
+  }
+}
+/* ═════════════════════════════════════════════════════ */
 
     sender.balance -= amount;
     recipient.balance += amount;
 
-    sender.transactions.push({ amount: -amount, description: `Transferred to ${recipient.email}` });
-    recipient.transactions.push({ amount, description: `Received from ${sender.email}`});
+    sender.transactions.push({ amount: -amount, description: `Transferred to ${label(recipient)}`
+});
+    recipient.transactions.push({ amount,  description: `Received from ${label(sender)}`});
 
     await sender.save();
     await recipient.save();

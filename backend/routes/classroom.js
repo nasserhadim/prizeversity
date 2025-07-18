@@ -1,4 +1,4 @@
-// prizeversity/backend/routes/classroom.js
+
 
 const express = require('express');
 const path = require('path');
@@ -123,6 +123,67 @@ router.get('/archived', ensureAuthenticated, async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch archived classrooms' });
   }
 });
+
+
+
+router.get('/:id/ta-bit-policy', ensureAuthenticated, async (req, res) => {
+  try {
+    const classroom = await Classroom.findById(req.params.id).select('teacher taBitPolicy');
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+    if (classroom.teacher.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Only the teacher can view this policy' });
+    }
+    res.json({ taBitPolicy: classroom.taBitPolicy });
+  } catch (err) {
+    console.error('[Get TA‑bit policy] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.patch('/:id/ta-bit-policy', ensureAuthenticated, async (req, res) => {
+  const { taBitPolicy } = req.body;
+  const valid = ['full', 'approval', 'none'];
+  if (!valid.includes(taBitPolicy)) {
+    return res.status(400).json({ error: 'Invalid policy value' });
+  }
+  try {
+    const classroom = await Classroom.findById(req.params.id);
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+    if (classroom.teacher.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Only the teacher can change this policy' });
+    }
+    classroom.taBitPolicy = taBitPolicy;
+    await classroom.save();
+    res.json({ taBitPolicy });
+  } catch (err) {
+    console.error('[Patch TA‑bit policy] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+
+
+router.get('/:id/student-send-enabled', ensureAuthenticated, async (req, res) => {
+  const c = await Classroom.findById(req.params.id).select('teacher studentSendEnabled');
+  if (!c) return res.status(404).json({ error: 'Not found' });
+  if (c.teacher.toString() !== req.user._id.toString()) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  res.json({ studentSendEnabled: !!c.studentSendEnabled });
+});
+
+router.patch('/:id/student-send-enabled', ensureAuthenticated, async (req, res) => {
+  const { studentSendEnabled } = req.body;
+  const c = await Classroom.findById(req.params.id);
+  if (!c) return res.status(404).json({ error: 'Not found' });
+  if (c.teacher.toString() !== req.user._id.toString()) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  c.studentSendEnabled = !!studentSendEnabled;
+  await c.save();
+ res.json({ studentSendEnabled: !!c.studentSendEnabled });
+});
+
 
 // Unarchive a Classroom
 router.put('/:id/unarchive', ensureAuthenticated, async (req, res) => {
