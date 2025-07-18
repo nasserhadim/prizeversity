@@ -12,6 +12,7 @@ const Wallet = () => {
   const [transactions, setTransactions] = useState([]);
 
   const [recipientId, setRecipientId] = useState('');
+  const [selectedRecipientId, setSelectedRecipientId] = useState(''); 
   const [transferAmount, setTransferAmount] = useState('');
   const [search, setSearch] = useState('');
 
@@ -21,6 +22,11 @@ const Wallet = () => {
   const [studentList, setStudentList] = useState([]);
   const [typeFilter, setTypeFilter]     = useState('all');
 
+const ROLE_LABELS = {
+  student: 'Student',
+  admin:   'TA',
+  teacher: 'Teacher',
+};
 
 const fetchUsers = async () => {
   if (!classroomId) return;
@@ -39,10 +45,11 @@ const fetchUsers = async () => {
     useEffect(() => {
    if (!user) return;
     fetchWallet();
-    if (['teacher', 'admin'].includes(user.role)) {
-      fetchUsers();
-      fetchAllTx();
-    }
+    fetchUsers();                   
+
+  if (['teacher', 'admin'].includes(user.role)) {
+    fetchAllTx();
+  }
   }, [user]);
 
   
@@ -127,11 +134,17 @@ const fetchUsers = async () => {
               }}
             >
               <option value="">All users</option>
-              {studentList.map((u) => (
+              {studentList.map((u) => {
+              
+              const displayName = (u.firstName || u.lastName)
+                ? `${u.firstName || ''} ${u.lastName || ''}`.trim()
+                : u.name || u.email;
+              return (
                 <option key={u._id} value={u._id}>
-                  {u.email} – {u.role}
+                  {displayName} – {ROLE_LABELS[u.role] || u.role}
                 </option>
-              ))}
+              );
+            })}
             </select>
 
             {/* sel*/}
@@ -154,7 +167,36 @@ const fetchUsers = async () => {
     )}
       {user.role === 'student' && (
         <div className="mb-6 space-y-2">
-          <h2 className="font-bold">Send Bits</h2>
+          <h2 className="font-bold mb-2">Send Bits</h2>
+
+{/* pick a classmate by name */}
+<select
+  className="select select-bordered w-full mb-3"
+  value={selectedRecipientId}
+  onChange={(e) => {
+    const uid = e.target.value;
+    setSelectedRecipientId(uid);
+
+   
+    const chosen = studentList.find(s => s._id === uid);
+    if (chosen) setRecipientId(chosen.shortId);  
+  }}
+>
+  <option value="">Choose a student by name…</option>
+  {studentList
+    .filter(s => s._id !== user._id)            
+    .map(s => {
+      const name = (s.firstName || s.lastName)
+        ? `${s.firstName || ''} ${s.lastName || ''}`.trim()
+        : s.email;
+      return (
+        <option key={s._id} value={s._id}>
+          {name} – {s.shortId}
+        </option>
+      );
+    })}
+</select>
+
           <input
           type="text"
           placeholder="Enter ID"
@@ -162,23 +204,7 @@ const fetchUsers = async () => {
           value={recipientId}
           onChange={(e) => setRecipientId(e.target.value.toUpperCase())}
           />
-          {recipientId.length >= 2 && (
-          <ul className="menu bg-base-100 max-h-40 overflow-y-auto">
-            {studentList
-              .filter(s => s.shortId.startsWith(recipientId))
-              .slice(0, 5)
-              .map(s => (
-                <li key={s._id}>
-                  <button
-                    type="button"
-                    onClick={() => setRecipientId(s.shortId)}
-                  >
-                    {s.shortId} – {s.firstName} {s.lastName}
-                  </button>
-                </li>
-              ))}
-          </ul>
-        )}
+          
 
           <input
             type="number"
@@ -203,7 +229,10 @@ if (parsedAmount > balance) {
               try {
                await axios.post(
    '/api/wallet/transfer',
-   { recipientId, amount: parsedAmount },
+   {
+   recipientId: selectedRecipientId || recipientId,  
+   amount: parsedAmount
+},
    { withCredentials: true }
  );
 
@@ -212,6 +241,7 @@ if (parsedAmount > balance) {
 
  
  alert("Transfer successful");
+ setSelectedRecipientId('');
  setTransferAmount('');
  setRecipientId('');
               } catch (err) {

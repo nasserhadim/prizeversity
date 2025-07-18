@@ -35,7 +35,7 @@ const TransactionList = ({ transactions, filterType = 'all' }) => {
 
   return (
     <div className="space-y-4">
-     =
+     
 
       {/* list body */}
       {visible.length === 0 && (
@@ -50,7 +50,11 @@ const TransactionList = ({ transactions, filterType = 'all' }) => {
           <div className="flex-1 min-w-0">
             <p className="font-medium truncate">{tx.description}</p>
             <p className="text-xs text-gray-500">
-              {tx.studentEmail && <>{tx.studentEmail} · </>}
+              {(tx.studentName || tx.studentEmail) && (
+              <>
+                {tx.studentName || tx.studentEmail} ·{' '}
+              </>
+            )}
               {new Date(tx.createdAt).toLocaleString()}
             </p>
           </div>

@@ -1,25 +1,33 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
 import { useParams } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import { useAuth } from '../context/AuthContext';
 
 const BulkBalanceEditor = () => {
   const { id: classroomId } = useParams();
-
+  const { user } = useAuth();
   const [students, setStudents] = useState([]);
   const [selectedIds, setSelected] = useState(new Set());
   const [step, setStep] = useState('select'); 
   const [amount, setAmount] = useState('');
-
-
+  const [taBitPolicy, setTaBitPolicy] = useState('full');
   const [search, setSearch] = useState('');
-
+  const userIsTeacher = (user?.role || '').toLowerCase() === 'teacher';
+  const userIsTA = (user?.role || '').toLowerCase() === 'admin';
+  const taMayAssign = userIsTeacher || (userIsTA && taBitPolicy === 'full');
   
+  const fullName = (u) =>
+  (u.firstName || u.lastName)
+    ? `${u.firstName || ''} ${u.lastName || ''}`.trim()
+    : u.email;
+
   const visibleStudents = useMemo(() => {
     if (!search.trim()) return students;
     const q = search.toLowerCase();
     return students.filter(s =>
-      (s.name  || '').toLowerCase().includes(q) ||
-      (s.email || '').toLowerCase().includes(q)
+      fullName(s).toLowerCase().includes(q) ||
+  (s.email || '').toLowerCase().includes(q)
     );
   }, [students, search]);
 
@@ -32,6 +40,16 @@ const BulkBalanceEditor = () => {
       .get(url, { withCredentials: true })
       .then(r => setStudents(r.data))
       .catch(() => setStudents([]));
+
+      
+    if (classroomId) {
+      axios
+        .get(`/api/classroom/${classroomId}/ta-bit-policy`, {
+          withCredentials: true,
+        })
+        .then((r) => setTaBitPolicy(r.data.taBitPolicy))
+        .catch(() => setTaBitPolicy('full')); 
+    }
   }, [classroomId]);
 
  
@@ -42,7 +60,7 @@ const BulkBalanceEditor = () => {
       return s;
     });
 
-  const next  = () => selectedIds.size ? setStep('amount') : alert('Select at least one student');
+  const next  = () => {if (!taMayAssign) return;if (selectedIds.size) setStep('amount');else alert('Select at least one student');};
   const back  = () => { setAmount(''); setStep('select'); };
 
   const apply = async () => {
@@ -55,25 +73,46 @@ const BulkBalanceEditor = () => {
     const updates = Array.from(selectedIds).map(id => ({ studentId: id, amount: num }));
 
     try {
-      await axios.post('/api/wallet/assign/bulk', { updates }, { withCredentials: true });
-      alert('Balances updated');
-      const url = classroomId
-        ? `/api/classroom/${classroomId}/students`
-        : `/api/users/students`;
-      const r = await axios.get(url, { withCredentials: true });
-      setStudents(r.data);
-      setSelected(new Set());
-      setAmount('');
-      setStep('select');
-    } catch (err) {
-      console.error(err);
-      alert('Bulk update failed');
+    // send the bulk-assign or queue request
+    const res = await axios.post(
+      '/api/wallet/assign/bulk',
+      { classroomId, updates },
+      { withCredentials: true }
+    );
+
+    // if TA policy = approval, server responds 202
+    if (res.status === 202) {
+      toast.success('Request submitted for teacher approval');
+    } else {
+      toast.success('Balances updated');
     }
-  };
+
+    // refresh the student list
+    const url = classroomId
+      ? `/api/classroom/${classroomId}/students`
+      : `/api/users/students`;
+    const r = await axios.get(url, { withCredentials: true });
+    setStudents(r.data);
+    setSelected(new Set());
+    setAmount('');
+    setStep('select');
+  } catch (err) {
+    console.error(err);
+    toast.error(err.response?.data?.error || 'Bulk update failed');
+  }
+};
 
  
   return (
     <div className="mt-10">
+
+      {!taMayAssign && (
+  <div className="alert alert-info mb-4">
+    You don’t have permission to assign bits in this classroom.
+  </div>
+)}
+
+
       <h2 className="font-bold text-lg mb-2">Bulk Adjust Student Balances</h2>
 
       {step === 'select' && (
@@ -95,14 +134,17 @@ const BulkBalanceEditor = () => {
                   checked={selectedIds.has(s._id)}
                   onChange={() => toggle(s._id)}
                 />
-                <span className="flex-1 truncate">{s.email}</span>
+                <span className="flex-1 truncate">{fullName(s)}</span>
                 <span className="w-16 text-right">{s.balance} B</span>
               </div>
             ))}
             {visibleStudents.length === 0 && <p className="text-gray-500">No matching students.</p>}
           </div>
 
-          <button className="btn btn-primary w-full" onClick={next}>
+          +<button
+  className={`btn w-full ${taMayAssign ? 'btn-primary' : 'btn-disabled'}`}
+  onClick={next}
+>
             Next
           </button>
         </>
@@ -124,7 +166,12 @@ const BulkBalanceEditor = () => {
           />
           <div className="flex gap-2">
             <button className="btn btn-outline flex-1" onClick={back}>Back</button>
-            <button className="btn btn-warning flex-1" onClick={apply}>Apply</button>
+            <button
+  className={`btn flex-1 ${taMayAssign ? 'btn-warning' : 'btn-disabled'}`}
+  onClick={apply}
+>
+  Apply
+</button>
           </div>
         </>
       )}
