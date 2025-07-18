@@ -6,6 +6,7 @@ import { ThemeContext } from '../context/ThemeContext';
 import { useCart } from '../context/CartContext';
 import { ShoppingCart } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
+import NotificationBell from './NotificationBell'; // Import the NotificationBell component
 
 
 import {
@@ -245,6 +246,9 @@ const Navbar = () => {
                 )}
               </>
             )}
+
+            {/* Notification Bell */}
+            <NotificationBell />
 
             {/* Profile Avatar */}
             <div className="dropdown dropdown-end">

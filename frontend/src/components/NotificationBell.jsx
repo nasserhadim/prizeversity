@@ -106,7 +106,7 @@ const NotificationBell = () => {
   const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
-    <div className="fixed top-3 right-3 z-[1000]" ref={dropdownRef}>
+    <div className="relative" ref={dropdownRef}>
       <div
         className="relative bg-white rounded-full shadow-md p-2 cursor-pointer text-2xl hover:scale-110 transition-transform duration-200"
         onClick={() => setShowNotifications(!showNotifications)}
