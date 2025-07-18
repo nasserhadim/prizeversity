@@ -19,6 +19,7 @@ export default function TeacherNewsfeed() {
     const [draft, setDraft] = useState('');
     const [attachments, setAttachments] = useState([]);
     const [classroomName, setClassroomName] = useState('');
+    const [visibleCount, setVisibleCount] = useState(10);
 
     useEffect(() => {
         async function fetchData() {
@@ -108,7 +109,7 @@ export default function TeacherNewsfeed() {
                 </button>
 
                 <ul className="space-y-6">
-                    {sortedItems.map(i => (
+                    {sortedItems.slice(0, visibleCount).map(i => (
                         <li key={i._id} className="p-4 border border-gray-200 rounded shadow-sm mx-auto">
                             <p className="text-sm text-gray-600 mb-1">
                                 Posted by {i.authorId.firstName} {i.authorId.lastName}
@@ -158,6 +159,24 @@ export default function TeacherNewsfeed() {
                         </li>
                     ))}
                 </ul>
+                <div className="flex justify-center space-x-4 mt-4">
+                    {sortedItems.length > visibleCount && (
+                        <button
+                            className="btn bg-green-500 hover:bg-green-600 text-white px-6 py-2"
+                            onClick={() => setVisibleCount(sortedItems.length)}
+                        >
+                            Show more announcements
+                        </button>
+                    )}
+                    {visibleCount > 10 && (
+                        <button
+                            className="btn bg-green-500 hover:bg-green-600 text-white px-6 py-2"
+                            onClick={() => setVisibleCount(10)}
+                        >
+                            Show less announcements
+                        </button>
+                    )}
+                </div>
             </div>
         </>
     );

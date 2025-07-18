@@ -20,6 +20,7 @@ const Classroom = () => {
   const [loading, setLoading] = useState(true);
   const [students, setStudents] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
+  const [visibleCount, setVisibleCount] = useState(10);
 
   // Fetch classroom and student data on mount
   useEffect(() => {
@@ -205,7 +206,7 @@ const Classroom = () => {
         {/* Announcements List */}
         <div className="space-y-6">
           <h3 className="text-2xl font-semibold">Announcements</h3>
-          {announcements.map((item) => (
+          {announcements.slice(0, visibleCount).map((item) => (
             <div key={item._id} className="card bg-base-200 p-4">
               {/* render formatted HTML */}
               <div
@@ -234,6 +235,24 @@ const Classroom = () => {
               </p>
             </div>
           ))}
+        </div>
+        <div className="flex justify-center space-x-4 mt-4">
+          {announcements.length > visibleCount && (
+            <button
+              className="btn bg-green-500 hover:bg-green-600 text-white px-4 py-2"
+              onClick={() => setVisibleCount(announcements.length)}
+            >
+              Show more announcements
+            </button>
+          )}
+          {visibleCount > 10 && (
+            <button
+              className="btn bg-green-500 hover:bg-green-600 text-white px-4 py-2"
+              onClick={() => setVisibleCount(10)}
+            >
+              Show less announcements
+            </button>
+          )}
         </div>
 
         {/* Student View */}
