@@ -1,7 +1,8 @@
 import io from 'socket.io-client';
 import axios from 'axios';
 
-const socket = io('http://localhost:5000');
+import { API_BASE } from '../config/api';
+const socket = io(API_BASE); // no "/api" needed here
 
 export const joinClassroom = (classroomId) => {
   socket.emit('join-classroom', classroomId);

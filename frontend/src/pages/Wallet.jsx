@@ -167,7 +167,7 @@ const fetchUsers = async () => {
     )}
       {user.role === 'student' && (
         <div className="mb-6 space-y-2">
-          <h2 className="font-bold mb-2">Send Bits</h2>
+          <h2 className="font-bold mb-2">Wallet Transfer</h2>
 
 {/* pick a classmate by name */}
 <select
@@ -182,7 +182,7 @@ const fetchUsers = async () => {
     if (chosen) setRecipientId(chosen.shortId);  
   }}
 >
-  <option value="">Choose a student by name…</option>
+  <option value="">Select Recipient by Name…</option>
   {studentList
     .filter(s => s._id !== user._id)            
     .map(s => {
@@ -198,13 +198,13 @@ const fetchUsers = async () => {
 </select>
 
           <input
-          type="text"
-          placeholder="Enter ID"
-          className="input input-bordered w-full uppercase tracking-wider"
-          value={recipientId}
-          onChange={(e) => setRecipientId(e.target.value.toUpperCase())}
+            type="text"
+            placeholder="Enter Recipient ID"
+            className="input input-bordered w-full tracking-wider [&:not(:placeholder-shown)]:uppercase"
+            value={recipientId}
+            onChange={(e) => setRecipientId(e.target.value)}
           />
-          
+
 
           <input
             type="number"
@@ -251,7 +251,7 @@ if (parsedAmount > balance) {
               }
             }}
           >
-            Send Bits
+            Transfer
           </button>
           <div>
             <h1 className="text-2xl font-bold">Wallet</h1>

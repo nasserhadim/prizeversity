@@ -8,12 +8,16 @@ import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { LoaderIcon } from 'lucide-react';
 import ClassroomBanner from '../components/ClassroomBanner';
+import io from 'socket.io-client';
+import { API_BASE } from '../config/api';
+
+const socket = io(API_BASE); // no "/api" needed here
 
 const Classroom = () => {
   const { id } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const BACKEND_URL = 'http://localhost:5000';
+  const BACKEND_URL = `${API_BASE}`;
 
   // State variables
   const [classroom, setClassroom] = useState(null);
