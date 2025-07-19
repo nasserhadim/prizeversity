@@ -56,7 +56,7 @@ This repository hosts the full stack implementation of PrizeVersity, including t
 
 > You can create one by navigating to: https://console.cloud.google.com/apis/credentials and then creating a "project".
 >
-> Make sure to add/register the redirect_uri, e.g. `http://localhost:5000/api/auth/google/callback`. You can do so from the `Project > OAuth 2.0 Client IDs > Authorized redirect URIs > Add URI`
+> Make sure to add/register the `redirect_uri`, e.g. `http://localhost:5000/api/auth/google/callback` (and eventually the `redirect_uri` of the domain as well, e.g. `https://prizeversity.com/api/auth/google/callback`, once the `A` record is configured in the provider DNS settings). You can do so from the `Project > OAuth 2.0 Client IDs > Authorized redirect URIs > Add URI`
 >
 > [Ref/Tutorial](https://youtu.be/TjMhPr59qn4?si=EKFlIMkQg4Eq6gDo)
 
@@ -64,7 +64,7 @@ This repository hosts the full stack implementation of PrizeVersity, including t
 
 > You can create one by navigating to `App Registrations` on [Azure Portal](https://portal.azure.com/?quickstart=True#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade) and then creating an App Registration. For platform selection, select "web".
 > 
-> Make sure to add/register the redirect_uri, e.g. `http://localhost:5000/api/auth/microsoft/callback`. You can do so from the `App Registration > Authentication > Add a (web) platform > Add Web Redirect URI` if you didn't do it initially upon creation of the App registration.
+> Make sure to add/register the `redirect_uri`, e.g. `http://localhost:5000/api/auth/microsoft/callback` (and eventually the `redirect_uri` of the domain as well, e.g. `https://prizeversity.com/api/auth/google/callback`, once the `A` record is configured in the provider DNS settings). You can do so from the `App Registration > Authentication > Add a (web) platform > Add Web Redirect URI` if you didn't do it initially upon creation of the App registration.
 > 
 > For supported account types, select `Accounts in any organizational directory (Any Microsoft Entra ID tenant - Multitenant) and personal Microsoft accounts (e.g. Skype, Xbox)`. This is the associated type of the default `/common` auth API callback Microsoft uses.
 
@@ -469,7 +469,21 @@ cd app/prizeversity
 
 ## 2. Copy environment variables & Edit secrets
 ```
-cp backend/.env.example backend/.env      # then edit secrets
+MONGO_URI=mongodb://localhost:27017/prizeversity
+
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+# All Microsoft account users (/common)
+# Accounts in any organizational directory (Any Microsoft Entra ID tenant - Multitenant) and personal Microsoft accounts (e.g. Skype, Xbox)
+MICROSOFT_CLIENT_ID=
+MICROSOFT_CLIENT_SECRET=
+
+JWT_SECRET=
+
+NODE_ENV=development # Set to 'production' in production environment
+
+DOMAIN=https://prizeversity.com
 ```
 
 ## 3. Install dependencies
@@ -673,7 +687,7 @@ sudo systemctl restart mongod
 cd app/prizeversity # Navigate to app direcory in root/HOME, which assumes this is where prizeversity had been cloned
 cd backend
 touch .env # create the .env file
-vim .env   # copy the .env components then :wq to save/quit
+vim .env   # copy the .env components (from the above section 2. Copy environment variables & Edit secrets. MAKE SURE TO CHANGE NODE_ENV=development to NODE_ENV=production!) then :wq to save/quit.
 npm ci     # reproducible install
 
 cd ..
