@@ -871,8 +871,8 @@ npm ci                           # Install exact frontend dependencies
 npm run build                    # Build static frontend files to /dist
 ```
 
-### 6.  CI/CD
-#### 6.1  Prepare SSH keys for CI/CD
+### 7.  CI/CD
+#### 7.1  Prepare SSH keys for CI/CD
 
 1. **Generate a key pair on your laptop (once)**
 
@@ -909,13 +909,13 @@ npm run build                    # Build static frontend files to /dist
    ssh -i ~/.ssh/prizeversity-ci deploy@<VPS_IP>    # manual test
    ```
 
-#### 6.2  CI/CD Deployment (GitHub Actions workflow)
+#### 7.2  CI/CD Deployment (GitHub Actions workflow)
 - Builds & tests the code on every push to `main`
 - Uploads the build to VPS server over SSH
 - Installs production-only dependencies on the server
 - Hot-reloads PM2 process named `prizeversity`
 
-##### 6.2.1 Add a GitHub Environment called production (manual "Approve & Deploy" gate)
+##### 7.2.1 Add a GitHub Environment called production (manual "Approve & Deploy" gate)
 
 > 1. Repository → Settings → Environments → New environment → `production`
 >
@@ -926,7 +926,7 @@ npm run build                    # Build static frontend files to /dist
 - Effect: Every push to `main` will pause at "Waiting for approval in environment production".
 - Open > Actions → run → Review deployments → Approve and deploy to continue.
 
-##### 6.2.2 Create `.github/workflows/deploy.yml` in the repo
+##### 7.2.2 Create `.github/workflows/deploy.yml` in the repo
 ```
 name: CI & CD – Prizeversity Production
 on: { push: { branches: [ main ] } }
