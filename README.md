@@ -855,8 +855,8 @@ sudo cp -r dist/* /var/www/prizeversity-frontend/   # copies the built frontend 
 - Run an [Qualys SSL Scan](https://www.ssllabs.com/ssltest) on the domain.
    - Select the "**Clear Cache**" option if the domain was already scanned previously and you want to re-scan again.
 
-### 6.  CI/CD
-If changes were made and want to deploy them to the server:
+### 6.  Updating the Server Deployment
+When changes are made to `main` and want to deploy them to the server:
 
 ```
 cd ~/app/prizeversity
