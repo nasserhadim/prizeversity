@@ -469,7 +469,21 @@ cd app/prizeversity
 
 ## 2. Copy environment variables & Edit secrets
 ```
-cp backend/.env.example backend/.env      # then edit secrets
+MONGO_URI=mongodb://localhost:27017/prizeversity
+
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+# All Microsoft account users (/common)
+# Accounts in any organizational directory (Any Microsoft Entra ID tenant - Multitenant) and personal Microsoft accounts (e.g. Skype, Xbox)
+MICROSOFT_CLIENT_ID=
+MICROSOFT_CLIENT_SECRET=
+
+JWT_SECRET=
+
+NODE_ENV=development # Set to 'production' in production environment
+
+DOMAIN=https://prizeversity.com
 ```
 
 ## 3. Install dependencies
@@ -673,7 +687,7 @@ sudo systemctl restart mongod
 cd app/prizeversity # Navigate to app direcory in root/HOME, which assumes this is where prizeversity had been cloned
 cd backend
 touch .env # create the .env file
-vim .env   # copy the .env components then :wq to save/quit
+vim .env   # copy the .env components (in above the section 2. Copy environment variables & Edit secrets. MAKE SURE TO CHANGE NODE_ENV=development to NODE_ENV=production!) then :wq to save/quit.
 npm ci     # reproducible install
 
 cd ..
