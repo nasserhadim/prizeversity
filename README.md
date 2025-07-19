@@ -687,7 +687,7 @@ sudo systemctl restart mongod
 cd app/prizeversity # Navigate to app direcory in root/HOME, which assumes this is where prizeversity had been cloned
 cd backend
 touch .env # create the .env file
-vim .env   # copy the .env components (in above the section 2. Copy environment variables & Edit secrets. MAKE SURE TO CHANGE NODE_ENV=development to NODE_ENV=production!) then :wq to save/quit.
+vim .env   # copy the .env components (from the above section 2. Copy environment variables & Edit secrets. MAKE SURE TO CHANGE NODE_ENV=development to NODE_ENV=production!) then :wq to save/quit.
 npm ci     # reproducible install
 
 cd ..
