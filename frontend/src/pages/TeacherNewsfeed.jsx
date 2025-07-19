@@ -20,6 +20,8 @@ export default function TeacherNewsfeed() {
     const [attachments, setAttachments] = useState([]);
     const [classroomName, setClassroomName] = useState('');
     const [visibleCount, setVisibleCount] = useState(10);
+    const [editingId, setEditingId] = useState(null);
+    const [editingContent, setEditingContent] = useState('');
 
     useEffect(() => {
         async function fetchData() {
@@ -145,17 +147,49 @@ export default function TeacherNewsfeed() {
                             >
                                 Delete
                             </button>
-                            <button
-                                className="btn btn-sm btn-primary mt-2 ml-2"
-                                onClick={() => {
-                                    const updated = prompt('Edit this news item:', i.content);
-                                    if (updated !== null && updated.trim() !== '') {
-                                        handleEdit(i._id, updated.trim());
-                                    }
-                                }}
-                            >
-                                Edit
-                            </button>
+                            {editingId === i._id ? (
+                                <>
+                                    <ReactQuill
+                                        value={editingContent}
+                                        onChange={setEditingContent}
+                                        modules={{
+                                            toolbar: [
+                                                ['bold', 'italic', 'underline', 'strike'],
+                                                [{ header: [1, 2, false] }],
+                                                [{ list: 'ordered' }, { list: 'bullet' }],
+                                                ['link', 'image']
+                                            ]
+                                        }}
+                                        className="mb-2"
+                                    />
+                                    <button
+                                        className="btn btn-sm btn-success mr-2"
+                                        onClick={() => {
+                                            handleEdit(i._id, editingContent.trim());
+                                            setEditingId(null);
+                                        }}
+                                        disabled={!editingContent.trim()}
+                                    >
+                                        Save
+                                    </button>
+                                    <button
+                                        className="btn btn-sm btn-secondary"
+                                        onClick={() => setEditingId(null)}
+                                    >
+                                        Cancel
+                                    </button>
+                                </>
+                            ) : (
+                                <button
+                                    className="btn btn-sm btn-primary mt-2 ml-2"
+                                    onClick={() => {
+                                        setEditingId(i._id);
+                                        setEditingContent(i.content);
+                                    }}
+                                >
+                                    Edit
+                                </button>
+                            )}
                         </li>
                     ))}
                 </ul>
