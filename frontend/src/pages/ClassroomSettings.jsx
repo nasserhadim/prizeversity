@@ -55,30 +55,70 @@ export default function ClassroomSettings() {
         }
     }, [editingClassroom, classroom]);
 
-    // Leave classroom
-    const handleLeave = async () => {
-        if (!window.confirm(`Leave "${classroom.name}"?`)) return;
-        try {
-            await axios.post(`/api/classroom/${id}/leave`);
-            toast.success('Left classroom!');
-            navigate('/classrooms');
-        } catch (err) {
-            console.error(err);
-            toast.error('Failed to leave classroom');
-        }
+    // Leave classroom with toast confirmation
+    const handleLeave = () => {
+        toast((t) => (
+            <div className="flex flex-col">
+                <span>Leave "{classroom.name}"?</span>
+                <div className="flex justify-end gap-2 mt-2">
+                    <button
+                        className="btn btn-warning btn-sm"
+                        onClick={async () => {
+                            toast.dismiss(t.id);
+                            try {
+                                await axios.post(`/api/classroom/${id}/leave`);
+                                toast.success('Left classroom!');
+                                navigate('/classrooms');
+                            } catch (err) {
+                                console.error(err);
+                                toast.error('Failed to leave classroom');
+                            }
+                        }}
+                    >
+                        Leave
+                    </button>
+                    <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => toast.dismiss(t.id)}
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        ));
     };
 
-    // Delete classroom
-    const handleDelete = async () => {
-        if (!window.confirm(`Delete "${classroom.name}"? All data will be lost!`)) return;
-        try {
-            await axios.delete(`/api/classroom/${id}`);
-            toast.success('Classroom deleted!');
-            navigate('/');
-        } catch (err) {
-            console.error(err);
-            toast.error('Failed to delete classroom');
-        }
+    // Delete classroom with toast confirmation
+    const handleDelete = () => {
+        toast((t) => (
+            <div className="flex flex-col">
+                <span>Delete "{classroom.name}"? All data will be lost!</span>
+                <div className="flex justify-end gap-2 mt-2">
+                    <button
+                        className="btn btn-error btn-sm"
+                        onClick={async () => {
+                            toast.dismiss(t.id);
+                            try {
+                                await axios.delete(`/api/classroom/${id}`);
+                                toast.success('Classroom deleted!');
+                                navigate('/');
+                            } catch (err) {
+                                console.error(err);
+                                toast.error('Failed to delete classroom');
+                            }
+                        }}
+                    >
+                        Delete
+                    </button>
+                    <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => toast.dismiss(t.id)}
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        ));
     };
 
     // Toggle archive status
