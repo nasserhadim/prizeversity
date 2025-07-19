@@ -1,31 +1,30 @@
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import apiBazaar from '../API/apiBazaar';
-import apiItem from '../API/apiItem';
 import apiClassroom from '../API/apiClassroom';
+import apiItem from '../API/apiItem.js';
 import { ImageOff } from 'lucide-react';
-
-const effectDescriptions = {
-  halveBits: "Halves another student's bits.",
-  stealBits: "Steals 10% of another student's bits.",
-  shield: "Activates a shield that protects from one attack.",
-  discountShop: "Acitvates 20% discount on all shop items for 1 hour",
-  default: "No effect or passive item."
-};
+import SwapModal from '../components/SwapModal';
+import NullifyModal from '../components/NullifyModal';
 
 const InventorySection = ({ userId, classroomId }) => {
   const [items, setItems] = useState([]);
   const [students, setStudents] = useState([]);
-  const [targets, setTargets] = useState({}); // itemId that will target the user === targetUserId
+  const [targets, setTargets] = useState({});
+  const [swapModalOpen, setSwapModalOpen] = useState(false);
+  const [currentItem, setCurrentItem] = useState(null);
+  const [selectedTarget, setSelectedTarget] = useState(null);
+  const [nullifyModalOpen, setNullifyModalOpen] = useState(false);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const invRes = await apiBazaar.get(`/inventory/${userId}`);
+        const [invRes, studentRes] = await Promise.all([
+          apiBazaar.get(`/inventory/${userId}`),
+          apiClassroom.get(`/${classroomId}/students`)
+        ]);
         setItems(invRes.data.items);
-
-        const studentRes = await apiClassroom.get(`/${classroomId}/students`);
-        setStudents(studentRes.data); // no `.students` if backend sends array
+        setStudents(studentRes.data);
       } catch (err) {
         console.error(err);
         toast.error('Failed to load inventory or student list');
@@ -34,40 +33,180 @@ const InventorySection = ({ userId, classroomId }) => {
     if (userId && classroomId) load();
   }, [userId, classroomId]);
 
-  const handleUse = async (itemId) => {
-    const targetUserId = targets[itemId] || null;
-
+  const handleSwapSelection = async (swapAttribute) => {
+    setSwapModalOpen(false);
     try {
-      const response = await apiItem.post(`/${itemId}/use`, { userId, targetUserId });
-      toast.success(response.data.message || 'Item used!');
-
-      // Remove used item
-      setItems((prev) => prev.filter((item) => item._id !== itemId));
+      const response = await apiItem.post(`/attack/use/${currentItem._id}`, {
+        targetUserId: selectedTarget,
+        swapAttribute
+      });
+      
+      toast.success(response.data.message || 'Swap successful!');
+      
+      // Refresh inventory
+      const invRes = await apiBazaar.get(`/inventory/${userId}`);
+      setItems(invRes.data.items);
     } catch (err) {
-      console.error(err);
-      toast.error(err.response?.data?.message || 'Failed to use item');
+      console.error('Swap failed:', err);
+      toast.error(err.response?.data?.error || 'Failed to perform swap');
+    }
+  };
+
+  const handleUse = async (item) => {
+    const targetUserId = targets[item._id] || null;
+    
+    try {
+      let endpoint = '';
+      let data = {};
+      
+      switch(item.category) {
+        case 'Attack':
+          if (!targetUserId) {
+            toast.error('Please select a target');
+            return;
+          }
+          
+          // For swapper items, show modal instead of immediate use
+          if (item.primaryEffect === 'swapper') {
+            setCurrentItem(item);
+            setSelectedTarget(targetUserId);
+            setSwapModalOpen(true);
+            return;
+          }
+
+          // For nullify items, show nullify modal
+          if (item.primaryEffect === 'nullify') {
+            setCurrentItem(item);
+            setSelectedTarget(targetUserId);
+            setNullifyModalOpen(true);
+            return;
+          }
+          
+          endpoint = `/attack/use/${item._id}`;
+          data = { targetUserId };
+          break;
+          
+        case 'Defend':
+          endpoint = `/defend/activate/${item._id}`;
+          break;
+          
+        case 'Utility':
+          endpoint = `/utility/use/${item._id}`;
+          break;
+          
+        case 'Passive':
+          endpoint = `/passive/equip/${item._id}`;
+          break;
+          
+        default:
+          toast.error('Invalid item category');
+          return;
+      }
+
+      const response = await apiItem.post(endpoint, data);
+      toast.success(response.data.message || 'Item used successfully!');
+      
+      // Refresh inventory
+      const invRes = await apiBazaar.get(`/inventory/${userId}`);
+      setItems(invRes.data.items);
+      
+    } catch (err) {
+      console.error('Item use error:', err);
+      toast.error(err.response?.data?.error || 'Failed to use item');
+    }
+  };
+
+  const getEffectDescription = (item) => {
+    if (item.category === 'Passive') {
+      const effects = (item.secondaryEffects || []).map(effect => {
+        switch(effect.effectType) {
+          case 'grantsLuck': return `+${effect.value} Luck`;
+          case 'grantsMultiplier': return `+${effect.value}x Multiplier`;
+          case 'grantsGroupMultiplier': return `+${effect.value}x Group Multiplier`;
+          default: return '';
+        }
+      }).filter(Boolean);
+      
+      return effects.length > 0 
+        ? `Passive: ${effects.join(', ')}` 
+        : 'No passive effects';
+    }
+
+    if (item.category === 'Attack') {
+      if (item.primaryEffect === 'swapper') {
+        return 'Swaps attributes with target (bits, multiplier, or luck)';
+      }
+      
+      const primary = item.primaryEffect === 'halveBits' 
+        ? 'Halves target bits' 
+        : `Steals ${item.primaryEffectValue || 10}% of target bits`;
+      
+      const secondary = (item.secondaryEffects || []).map(effect => {
+        switch(effect.effectType) {
+          case 'attackLuck': return `-${effect.value} Luck`;
+          case 'attackMultiplier': return `-${effect.value}x Multiplier`;
+          case 'attackGroupMultiplier': return `-${effect.value}x Group Multiplier`;
+          default: return '';
+        }
+      }).filter(Boolean);
+      
+      return [primary, ...secondary].join(' • ');
+    }
+
+    // Default effects for other categories
+    const effects = {
+      shield: 'Blocks one attack',
+      doubleEarnings: '2x earnings multiplier',
+      discountShop: '20% shop discount'
+    };
+    
+    return effects[item.primaryEffect] || 'No effect';
+  };
+
+  const getTargetName = (targetId) => {
+    const target = students.find(s => s._id === targetId);
+    return target ? `${target.firstName} ${target.lastName}` : 'Target';
+  };
+
+  const handleNullifySelection = async (nullifyAttribute) => {
+    setNullifyModalOpen(false);
+    try {
+      const response = await apiItem.post(`/attack/use/${currentItem._id}`, {
+        targetUserId: selectedTarget,
+        nullifyAttribute // Make sure this matches what the backend expects
+      });
+      
+      toast.success(response.data.message || 'Nullify successful!');
+      
+      // Refresh inventory
+      const invRes = await apiBazaar.get(`/inventory/${userId}`);
+      setItems(invRes.data.items);
+    } catch (err) {
+      console.error('Nullify failed:', err);
+      toast.error(err.response?.data?.error || 'Failed to perform nullify');
+      
+      // For debugging in development
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Error details:', err.response?.data);
+      }
     }
   };
 
   return (
     <div className="mt-6 space-y-6">
-      {/* Inventory Header */}
       <h2 className="text-2xl font-bold text-success flex items-center gap-2">
         🎒 My Inventory
       </h2>
 
-      {/* Empty State */}
       {items.length === 0 && (
         <p className="text-gray-500 italic">You don't own any items yet.</p>
       )}
 
-      {/* Inventory Items */}
       {items.map((item) => (
         <div
           key={item._id}
           className="card bg-base-100 shadow-md border border-base-200 rounded-xl p-4 flex flex-col md:flex-row md:items-center gap-4"
         >
-          {/* Image or Fallback */}
           <div className="w-24 h-24 bg-base-200 rounded-lg overflow-hidden flex items-center justify-center border">
             {item.image ? (
               <img
@@ -80,29 +219,19 @@ const InventorySection = ({ userId, classroomId }) => {
             )}
           </div>
 
-          {/* Item Info */}
           <div className="flex-1 space-y-1">
             <h4 className="text-lg font-semibold">{item.name}</h4>
             <p className="text-sm text-gray-600">{item.description}</p>
-            <p className="text-sm italic text-gray-500">
-              Effect: {effectDescriptions[item.effect] || effectDescriptions.default}
+            <p className="text-sm text-gray-500">
+              Effect: {getEffectDescription(item)}
             </p>
-
-            {/* Shield Info */}
-            {item.effect === 'shield' && item.active && (
-              <p className="text-green-600 font-semibold">🛡 Active Shield</p>
-            )}
-            {item.effect === 'shield' && (
-              <p className="text-sm text-gray-500">
-                Uses Remaining: {item.usesRemaining ?? 1}
-              </p>
+            {item.active && (
+              <p className="text-green-600 font-semibold">🛡 Active</p>
             )}
           </div>
 
-          {/* Action Area */}
           <div className="flex flex-col gap-2 md:w-1/3">
-            {/* Target Select (for attacks) */}
-            {['halveBits', 'stealBits'].includes(item.effect) && (
+            {item.category === 'Attack' && (
               <select
                 className="select select-bordered w-full"
                 onChange={(e) =>
@@ -121,17 +250,30 @@ const InventorySection = ({ userId, classroomId }) => {
               </select>
             )}
 
-            {/* Use Button */}
             <button
               className="btn btn-success btn-sm w-full"
-              onClick={() => handleUse(item._id)}
-              disabled={item.effect === 'shield' && item.active}
+              onClick={() => handleUse(item)}
+              disabled={item.active}
             >
-              {item.effect === 'shield' && item.active ? 'Already Active' : 'Use Item'}
+              {item.active ? 'Active' : 'Use Item'}
             </button>
           </div>
         </div>
       ))}
+
+      <SwapModal
+        isOpen={swapModalOpen}
+        onClose={() => setSwapModalOpen(false)}
+        onSelect={handleSwapSelection}
+        targetName={getTargetName(selectedTarget)}
+      />
+
+      <NullifyModal
+      isOpen={nullifyModalOpen}
+      onClose={() => setNullifyModalOpen(false)}
+      onSelect={handleNullifySelection}
+      targetName={getTargetName(selectedTarget)}
+    />
     </div>
   );
 };

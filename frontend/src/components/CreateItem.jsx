@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
+import { Hammer } from 'lucide-react';
 import toast from 'react-hot-toast';
-import apiBazaar from '../API/apiBazaar.js';
-import {Hammer} from 'lucide-react'
+import apiBazaar from '../API/apiBazaar';
 
 const CATEGORY_OPTIONS = {
   Attack: [
     { label: 'Bit Splitter (halve bits)', value: 'halveBits' },
-    { label: 'Bit Leech (steal 10%)', value: 'stealBits' }
+    { label: 'Bit Leech (steal %)', value: 'stealBits' },
+    { label: 'Attribute Swapper', value: 'swapper' },
+    { label: 'Nullifier (reset to default)', value: 'nullify'}
   ],
   Defend: [
     { label: 'Shield (block next attack)', value: 'shield' }
@@ -15,7 +17,7 @@ const CATEGORY_OPTIONS = {
     { label: 'Earnings Multiplier (2x)', value: 'doubleEarnings' },
     { label: 'Shop Discount (20%)', value: 'discountShop' }
   ],
-  Passive: [] // no predefined effects, controlled via checkboxes
+  Passive: [] // No primary effects for passive
 };
 
 const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
@@ -25,94 +27,151 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
     price: '',
     image: '',
     category: '',
-    effect: '',
-    passiveAttributes: {
-      luck: false,
-      multiplier: false,
-      groupMultiplier: false,
-    }
+    primaryEffect: '',
+    primaryEffectValue: 1,
+    secondaryEffects: [],
+    swapOptions: []
   });
-
-  const [passiveAttributes, setPassiveAttributes] = useState({
-    luck: false,
-    multiplier: false,
-    groupMultiplier: false,
-  });
-
   const [loading, setLoading] = useState(false);
+
+  const resetForm = () => {
+    setForm({
+      name: '',
+      description: '',
+      price: '',
+      image: '',
+      category: '',
+      primaryEffect: '',
+      primaryEffectValue: 1,
+      secondaryEffects: [],
+      swapOptions: []
+    });
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-
     setForm(prev => ({
       ...prev,
       [name]: value,
       ...(name === 'category' ? {
-        effect: '',
-        passiveAttributes: { luck: false, multiplier: false, groupMultiplier: false }
+        primaryEffect: '',
+        primaryEffectValue: 1,
+        secondaryEffects: [],
+        swapOptions: []
       } : {})
     }));
   };
 
-  const handlePassiveCheckbox = (e) => {
-    const { name, checked } = e.target;
-    setPassiveAttributes((prev) => ({
+  const addSecondaryEffect = () => {
+    if (form.secondaryEffects.length >= 3) return;
+    setForm(prev => ({
       ...prev,
-      [name]: checked
+      secondaryEffects: [...prev.secondaryEffects, { effectType: '', value: 1 }]
     }));
   };
 
+  const updateSecondaryEffect = (index, field, value) => {
+    setForm(prev => {
+      const newEffects = [...prev.secondaryEffects];
+      newEffects[index] = { ...newEffects[index], [field]: value };
+      return { ...prev, secondaryEffects: newEffects };
+    });
+  };
 
-  const handleCheckboxChange = (e) => {
-    const { name, checked } = e.target;
-    setForm(prev => ({
-      ...prev,
-      passiveAttributes: {
-        ...prev.passiveAttributes,
-        [name]: checked
-      }
-    }));
+  const removeSecondaryEffect = (index) => {
+    setForm(prev => {
+      const newEffects = [...prev.secondaryEffects];
+      newEffects.splice(index, 1);
+      return { ...prev, secondaryEffects: newEffects };
+    });
+  };
+
+  const toggleSwapOption = (option) => {
+    setForm(prev => {
+      const newOptions = prev.swapOptions.includes(option)
+        ? prev.swapOptions.filter(o => o !== option)
+        : [...prev.swapOptions, option];
+      return { ...prev, swapOptions: newOptions };
+    });
+  };
+
+  const availableSecondaryEffects = () => {
+    if (!form.category) return [];
+    
+    const allEffects = {
+      Attack: [
+        { label: 'Attack Luck (-1 luck)', value: 'attackLuck' },
+        { label: 'Attack Multiplier (-1x)', value: 'attackMultiplier' },
+        { label: 'Attack Group Multiplier (-1x)', value: 'attackGroupMultiplier' }
+      ],
+      Passive: [
+        { label: 'Grants Luck (+1 luck)', value: 'grantsLuck' },
+        { label: 'Grants Multiplier (+1x)', value: 'grantsMultiplier' },
+        { label: 'Grants Group Multiplier (+1x)', value: 'grantsGroupMultiplier' }
+      ]
+    };
+
+    const effectsForCategory = allEffects[form.category] || [];
+    return effectsForCategory.filter(
+      effect => !form.secondaryEffects.some(se => se.effectType === effect.value)
+    );
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-
-    const payload = {
-      ...form,
-      price: Number(form.price),
-      passiveAttributes:
-        form.category === 'Attack' || form.category === 'Passive'
-          ? passiveAttributes
-          : undefined
-    };
-
-    // If not Passive, remove passiveAttributes
-    if (form.category !== 'Passive') {
-      delete payload.passiveAttributes;
+    
+    if (!form.name || !form.price || !form.category) {
+      toast.error('Please fill all required fields');
+      return;
     }
 
+    if (form.category !== 'Passive' && !form.primaryEffect) {
+      toast.error('Please select a primary effect');
+      return;
+    }
+
+    if (form.primaryEffect === 'swapper' && form.swapOptions.length === 0) {
+      toast.error('Please select at least one attribute to swap');
+      return;
+    }
+
+    if (form.primaryEffect === 'stealBits' && (form.primaryEffectValue < 1 || form.primaryEffectValue > 100)) {
+      toast.error('Steal percentage must be between 1 and 100');
+      return;
+    }
+
+    setLoading(true);
+
     try {
+      const payload = {
+        name: form.name.trim(),
+        description: form.description.trim(),
+        price: Number(form.price),
+        image: form.image.trim(),
+        category: form.category,
+        primaryEffect: form.category !== 'Passive' ? form.primaryEffect : undefined,
+        primaryEffectValue: form.category !== 'Passive' ? Number(form.primaryEffectValue) : undefined,
+        secondaryEffects: form.secondaryEffects
+          .filter(effect => effect.effectType)
+          .map(effect => ({
+            effectType: effect.effectType,
+            value: Number(effect.value)
+          })),
+        swapOptions: form.primaryEffect === 'swapper' ? form.swapOptions : undefined,
+        bazaar: bazaarId
+      };
+
       const res = await apiBazaar.post(
         `classroom/${classroomId}/bazaar/${bazaarId}/items`,
         payload
       );
-      toast.success('Item created!');
-      onAdd && onAdd(res.data.item);
-      setForm({
-        name: '',
-        description: '',
-        price: '',
-        image: '',
-        category: '',
-        effect: '',
-        passiveAttributes: {
-          luck: false,
-          multiplier: false,
-          groupMultiplier: false,
-        }
-      });
+
+      toast.success('Item created successfully!');
+      onAdd?.(res.data.item);
+      resetForm();
+
     } catch (err) {
+      console.error('Item creation failed:', err);
       toast.error(err.response?.data?.error || 'Failed to create item');
     } finally {
       setLoading(false);
@@ -129,6 +188,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
         Add New Item
       </h3>
 
+      {/* Basic fields (name, description, price, image) */}
       <div className="form-control">
         <label className="label">
           <span className="label-text font-medium">Item Name</span>
@@ -168,6 +228,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
           value={form.price}
           onChange={handleChange}
           required
+          min="1"
         />
       </div>
 
@@ -184,6 +245,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
         />
       </div>
 
+      {/* Category Selection */}
       <div className="form-control">
         <label className="label">
           <span className="label-text font-medium">Category</span>
@@ -202,68 +264,141 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
         </select>
       </div>
 
+      {/* Primary Effect (for non-passive categories) */}
       {form.category && form.category !== 'Passive' && (
-        <div className="form-control">
-          <label className="label">
-            <span className="label-text font-medium">Effect</span>
-          </label>
-          <select
-            name="effect"
-            className="select select-bordered w-full"
-            value={form.effect}
-            onChange={handleChange}
-            required
-          >
-            <option value="" disabled>Select effect</option>
-            {CATEGORY_OPTIONS[form.category].map(effect => (
-              <option key={effect.value} value={effect.value}>
-                {effect.label}
-              </option>
-            ))}
-          </select>
+        <div className="space-y-4">
+          <div className="form-control">
+            <label className="label">
+              <span className="label-text font-medium">Primary Effect</span>
+            </label>
+            <select
+              name="primaryEffect"
+              className="select select-bordered w-full"
+              value={form.primaryEffect}
+              onChange={handleChange}
+              required
+            >
+              <option value="" disabled>Select effect</option>
+              {CATEGORY_OPTIONS[form.category].map(effect => (
+                <option key={effect.value} value={effect.value}>
+                  {effect.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Steal Bits Percentage Input */}
+          {form.primaryEffect === 'stealBits' && (
+            <div className="form-control">
+              <label className="label">
+                <span className="label-text font-medium">Steal Percentage</span>
+              </label>
+              <div className="join">
+                <input
+                  type="number"
+                  className="input input-bordered join-item w-full"
+                  value={form.primaryEffectValue}
+                  onChange={(e) => setForm(prev => ({
+                    ...prev,
+                    primaryEffectValue: Math.min(100, Math.max(1, e.target.value))
+                  }))}
+                  min="1"
+                  max="100"
+                />
+                <span className="join-item bg-base-200 px-4 flex items-center">%</span>
+              </div>
+            </div>
+          )}
+
+          {/* Swapper Options */}
+          {form.primaryEffect === 'swapper' && (
+            <div className="form-control">
+              <label className="label">
+                <span className="label-text font-medium">Swap Options</span>
+              </label>
+              <div className="space-y-2">
+                {['bits', 'multiplier', 'luck'].map(option => (
+                  <div key={option} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id={`swap-${option}`}
+                      className="checkbox checkbox-sm"
+                      checked={form.swapOptions.includes(option)}
+                      onChange={() => toggleSwapOption(option)}
+                    />
+                    <label htmlFor={`swap-${option}`} className="capitalize">
+                      {option}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
+      {/* Secondary Effects (for Attack and Passive) */}
       {(form.category === 'Attack' || form.category === 'Passive') && (
         <div className="form-control space-y-2">
           <label className="label">
-            <span className="label-text font-medium">Extra Attributes</span>
+            <span className="label-text font-medium">Secondary Effects</span>
+            <span className="label-text-alt">
+              {form.secondaryEffects.length}/3 selected
+            </span>
           </label>
 
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              name="luck"
-              checked={passiveAttributes.luck}
-              onChange={handlePassiveCheckbox}
-              className="checkbox"
-            />
-            {form.category === 'Attack' ? 'Attack Luck' : 'Grants Luck'}
-          </label>
+          {/* Display selected secondary effects */}
+          {form.secondaryEffects.map((effect, index) => (
+            <div key={index} className="flex items-center gap-2">
+              <select
+                className="select select-bordered flex-1"
+                value={effect.effectType}
+                onChange={(e) => updateSecondaryEffect(index, 'effectType', e.target.value)}
+                required
+              >
+                <option value="" disabled>Select effect</option>
+                {availableSecondaryEffects().concat(
+                  { label: effect.effectType, value: effect.effectType }
+                ).map(opt => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="number"
+                className="input input-bordered w-20"
+                value={effect.value}
+                onChange={(e) => updateSecondaryEffect(index, 'value', e.target.value)}
+                min="1"
+                max="10"
+              />
+              <button
+                type="button"
+                className="btn btn-circle btn-sm btn-error"
+                onClick={() => removeSecondaryEffect(index)}
+              >
+                ×
+              </button>
+            </div>
+          ))}
 
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              name="multiplier"
-              checked={passiveAttributes.multiplier}
-              onChange={handlePassiveCheckbox}
-              className="checkbox"
-            />
-            {form.category === 'Attack' ? 'Attack Multiplier' : 'Grants Multiplier'}
-          </label>
+          {/* Add Secondary Effect button */}
+          {form.secondaryEffects.length < 3 && availableSecondaryEffects().length > 0 && (
+            <button
+              type="button"
+              className="btn btn-sm btn-outline w-full"
+              onClick={addSecondaryEffect}
+            >
+              + Add Secondary Effect
+            </button>
+          )}
 
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              name="groupMultiplier"
-              checked={passiveAttributes.groupMultiplier}
-              onChange={handlePassiveCheckbox}
-              className="checkbox"
-            />
-            {form.category === 'Attack'
-              ? 'Attack Group Multiplier'
-              : 'Grants Group Multiplier'}
-          </label>
+          {form.secondaryEffects.length >= 3 && (
+            <div className="text-sm text-gray-500">
+              You've reached the maximum of 3 secondary effects
+            </div>
+          )}
         </div>
       )}
 

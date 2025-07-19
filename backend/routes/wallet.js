@@ -1,6 +1,8 @@
 const express = require('express');
 const { ensureAuthenticated } = require('../config/auth');
 const User = require('../models/User');
+const Group = require('../models/Group');
+const GroupSet = require('../models/GroupSet');
 const router = express.Router();
 const mongoose = require('mongoose');
 const blockIfFrozen = require('../middleware/blockIfFrozen');
@@ -31,6 +33,28 @@ async function canTAAssignBits({ taUser, classroomId }) {
 }
 
 
+
+const getGroupMultiplierForStudentInClassroom = async (studentId, classroomId) => {
+  const groupSets = await GroupSet.find({ classroom: classroomId }).select('groups');
+  const groupIds = groupSets.flatMap(gs => gs.groups);
+
+  if (groupIds.length === 0) return 1;
+
+  const groups = await Group.find({
+    _id: { $in: groupIds },
+    members: {
+      $elemMatch: {
+        _id: studentId,
+        status: 'approved'
+      }
+    }
+  }).select('groupMultiplier');
+
+  if (!groups || groups.length === 0) return 1;
+
+  // Sum of multipliers across distinct groupsets
+  return groups.reduce((sum, g) => sum + (g.groupMultiplier || 1), 0);
+};
 
 router.get('/transactions/all', ensureAuthenticated, async (req, res) => {
   if (!['teacher', 'admin'].includes(req.user.role)) {
@@ -112,43 +136,82 @@ if (req.user.role === 'admin') {
       return res.status(400).json({ error: 'Amount must be a number' });
     }
 
-    student.balance += numericAmount;
+    //  Manually look up groups this student is in
+    const groups = await Group.find({
+      'members._id': studentId,
+      'members.status': 'approved'
+    }).select('groupMultiplier');
+
+    //  Get the highest multiplier
+    let multiplier = 1;
+    if (groups.length > 0 && numericAmount >= 0) {
+      multiplier = Math.max(...groups.map(g => g.groupMultiplier || 1));
+    }
+
+    const adjustedAmount = numericAmount >= 0 
+      ? Math.round(numericAmount * multiplier)
+      : numericAmount;
+
+    student.balance += adjustedAmount;
     student.transactions.push({
-      amount: numericAmount,
-      description,
+      amount: adjustedAmount,
+      description: description || `Balance adjustment`,
       assignedBy: req.user._id,
     });
 
-    try {
-      await student.save();
-      console.log('Student saved successfully');
-    } catch (saveErr) {
-      console.error('Failed to save student:', saveErr);
-    }
+    await student.save();
 
+    console.log('Student saved successfully with multiplier:', multiplier);
     res.status(200).json({ message: 'Balance assigned successfully' });
   } catch (err) {
     console.error('Failed to assign balance:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 
+
+
 router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
-  if (!['teacher', 'admin'].includes(req.user.role)) {
-    return res.status(403).json({ error: 'Only teachers or admins can bulk‑assign' });
+  // Validate user role
+  if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
+    return res.status(403).json({ 
+      success: false,
+      error: 'Only teachers can bulk-assign' 
+    });
   }
 
+<<<<<<< Updated upstream
 const { classroomId, updates, description = 'Bulk adjustment by teacher' } = req.body;
 
   if (!classroomId) {
     return res.status(400).json({ error: 'classroomId is required' });
  }
+=======
+  const { updates, description, classroomId } = req.body;
+>>>>>>> Stashed changes
 
+  // Validate request body
   if (!Array.isArray(updates) || updates.length === 0) {
-    return res.status(400).json({ error: 'No updates supplied' });
+    return res.status(400).json({ 
+      success: false,
+      error: 'Updates array is required and must not be empty',
+      details: {
+        received: updates,
+        expected: 'Array of { studentId: string, amount: number }'
+      }
+    });
+  }
+
+  if (!classroomId) {
+    return res.status(400).json({ 
+      success: false,
+      error: 'classroomId is required',
+      details: 'Please provide the classroom context for group multiplier calculation'
+    });
   }
 
   try {
+<<<<<<< Updated upstream
     // ───────────────────────────────────────────────────── TA policy gate
     if (req.user.role === 'admin') {
       const gate = await canTAAssignBits({ taUser: req.user, classroomId });
@@ -194,20 +257,131 @@ const { classroomId, updates, description = 'Bulk adjustment by teacher' } = req
         amount: numericAmount,
         description,
         assignedBy: req.user._id,
+=======
+    // Get all groups in the classroom with their multipliers
+    const groupSets = await GroupSet.find({ classroom: classroomId })
+      .populate({
+        path: 'groups',
+        select: 'groupMultiplier members name'
+>>>>>>> Stashed changes
       });
 
-      await student.save();
-      updated += 1;
+    const allGroups = groupSets.flatMap(gs => gs.groups);
+    const results = { 
+      updated: 0, 
+      skipped: [],
+      details: []
+    };
+
+    // Process each update
+    for (const update of updates) {
+      const { studentId, amount } = update;
+      const studentResult = {
+        studentId,
+        success: false,
+        error: null,
+        details: null
+      };
+
+      // Validate studentId
+      if (!mongoose.Types.ObjectId.isValid(studentId)) {
+        studentResult.error = 'Invalid student ID format';
+        results.skipped.push(studentId);
+        results.details.push(studentResult);
+        continue;
+      }
+
+      // Validate amount
+      const numericAmount = Number(amount);
+      if (isNaN(numericAmount)) {
+        studentResult.error = 'Amount must be a number';
+        results.skipped.push(studentId);
+        results.details.push(studentResult);
+        continue;
+      }
+
+      // Find student
+      const student = await User.findById(studentId);
+      if (!student) {
+        studentResult.error = 'Student not found';
+        results.skipped.push(studentId);
+        results.details.push(studentResult);
+        continue;
+      }
+
+      // Find all approved groups for this student
+      const studentGroups = allGroups.filter(group => 
+        group.members.some(m => 
+          m._id.equals(studentId) && m.status === 'approved'
+        )
+      );
+
+      // Calculate total group multiplier (sum of all group multipliers)
+      let totalGroupMultiplier = 1;
+      if (studentGroups.length > 0 && numericAmount > 0) {
+        totalGroupMultiplier = studentGroups.reduce(
+          (sum, group) => sum + (group.groupMultiplier || 1), 
+          0
+        );
+      }
+
+      // Calculate adjusted amount
+      const adjustedAmount = numericAmount > 0
+        ? Math.round(numericAmount * totalGroupMultiplier * (student.passiveAttributes?.multiplier || 1))
+        : numericAmount;
+
+      // Prepare transaction data
+      const transaction = {
+        amount: adjustedAmount,
+        description: description || `Bulk assignment by ${req.user.email}`,
+        assignedBy: req.user._id,
+        classroom: classroomId,
+        multipliersApplied: numericAmount > 0 ? {
+          baseAmount: numericAmount,
+          group: totalGroupMultiplier,
+          personal: student.passiveAttributes?.multiplier || 1,
+          total: totalGroupMultiplier * (student.passiveAttributes?.multiplier || 1)
+        } : null
+      };
+
+      // Update student
+      await User.findByIdAndUpdate(studentId, {
+        $inc: { balance: adjustedAmount },
+        $push: { transactions: transaction }
+      });
+
+      studentResult.success = true;
+      studentResult.details = {
+        newBalance: student.balance + adjustedAmount,
+        adjustedAmount,
+        groupMultipliers: studentGroups.map(g => ({
+          groupId: g._id,
+          groupName: g.name,
+          multiplier: g.groupMultiplier
+        })),
+        totalGroupMultiplier
+      };
+
+      results.updated++;
+      results.details.push(studentResult);
     }
 
     res.json({
-      message: `Bulk assignment complete (${updated} updated, ${skipped.length} skipped)`,
-      updated,
-      skipped,
+      success: true,
+      message: `Processed ${updates.length} students`,
+      ...results
     });
+
   } catch (err) {
     console.error('Bulk assign failed:', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ 
+      success: false,
+      error: 'Server error during bulk assignment',
+      details: process.env.NODE_ENV === 'development' ? {
+        message: err.message,
+        stack: err.stack
+      } : null
+    });
   }
 });
 
@@ -232,50 +406,27 @@ const label = (u) =>
 router.post(
   '/transfer',
   ensureAuthenticated,
-  blockIfFrozen,       
+  blockIfFrozen,
   async (req, res) => {
+    const senderLive = await User.findById(req.user._id).select('isFrozen');
+    if (senderLive.isFrozen) {
+      return res.status(403).json({ error: 'Your account is frozen during a siphon request' });
+    }
+    const { recipientId, amount } = req.body;
 
-  const senderLive = await User.findById(req.user._id).select('isFrozen');
-  if (senderLive.isFrozen) {
-    return res.status(403).json({ error: 'Your account is frozen during a siphon request' });
-  }
-  const { recipientId, amount } = req.body;
+    const numericAmount = Number(amount);
+    if (!Number.isInteger(numericAmount) || numericAmount < 1) {
+      return res.status(400).json({ error: 'Amount must be a positive integer' });
+    }
 
- 
-  const numericAmount = Number(amount);
-  if (!Number.isInteger(numericAmount) || numericAmount < 1) {
-    return res.status(400).json({ error: 'Amount must be a positive integer' });
-  }
-
-  
-  const sender = await User.findById(req.user._id);
-  if (!sender) {
-    return res.status(404).json({ error: 'Sender not found' });
-  }
-  if (sender.balance < numericAmount) {
-    return res.status(400).json({ error: 'Insufficient bits to complete transfer' });
-  }
-
-  // Check it's a valid number and not negative or zero
-  if (
-    typeof amount !== 'number' ||
-    isNaN(amount) ||
-    amount < 1
-  ) {
-    return res.status(400).json({ error: 'Transfer amount must be at least 1 bit' });
-  }
-
-  try {
+    // Get sender and recipient with their multipliers
     const sender = await User.findById(req.user._id);
     let recipient = mongoose.isValidObjectId(recipientId)
-    ? await User.findById(recipientId)
-    : null;
-
-  if (!recipient) {
-    recipient = await User.findOne({ shortId: recipientId.toUpperCase() });
-  }
+      ? await User.findById(recipientId)
+      : await User.findOne({ shortId: recipientId.toUpperCase() });
 
     if (!recipient) return res.status(404).json({ error: 'Recipient not found' });
+<<<<<<< Updated upstream
     if (sender.balance < amount) return res.status(400).json({ error: 'Insufficient balance' });
 /* student transfer toggle  */
 if (
@@ -298,22 +449,39 @@ if (
   }
 }
 /* ═════════════════════════════════════════════════════ */
+=======
+    if (sender.balance < numericAmount) return res.status(400).json({ error: 'Insufficient balance' });
+>>>>>>> Stashed changes
 
-    sender.balance -= amount;
-    recipient.balance += amount;
+    // Apply recipient's multiplier to the received amount
+    const recipientMultiplier = recipient.passiveAttributes?.multiplier || 1;
+    const adjustedAmount = Math.round(numericAmount * recipientMultiplier);
 
+<<<<<<< Updated upstream
     sender.transactions.push({ amount: -amount, description: `Transferred to ${label(recipient)}`
 });
     recipient.transactions.push({ amount,  description: `Received from ${label(sender)}`});
+=======
+    sender.balance -= numericAmount;
+    recipient.balance += adjustedAmount;
+
+    sender.transactions.push({ 
+      amount: -numericAmount, 
+      description: `Transferred to ${recipient.email}` 
+    });
+    recipient.transactions.push({ 
+      amount: adjustedAmount, 
+      description: `Received from ${sender.email}`,
+      assignedBy: sender._id
+    });
+>>>>>>> Stashed changes
 
     await sender.save();
     await recipient.save();
 
     res.status(200).json({ message: 'Transfer successful' });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to transfer balance' });
-  }
-});
+  }
+);
 
 router.get('/:userId/balance', ensureAuthenticated, async (req, res) => {
   try {

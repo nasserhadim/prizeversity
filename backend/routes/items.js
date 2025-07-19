@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const Item = require('../models/Item.js');
 const User = require('../models/User.js');
+const Group = require('../models/Group.js');
+const GroupSet = require('../models/GroupSet.js');
 
 // Use an item on a target student
 router.post('/:itemId/use', async (req, res) => {
@@ -15,170 +17,175 @@ router.post('/:itemId/use', async (req, res) => {
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    let target = null;
-
-    // If attack item requires a target
-    if (['halveBits', 'stealBits'].includes(item.effect)) {
+    // --- ATTACK ITEMS HANDLING ---
+    if (item.category === 'Attack') {
       if (!targetUserId) return res.status(400).json({ error: 'Target required' });
 
-      target = await User.findById(targetUserId);
+      const target = await User.findById(targetUserId);
       if (!target) return res.status(404).json({ error: 'Target user not found' });
 
       // Shield protection
       if (target.shieldActive) {
-        target.shieldActive = false; // Consume shield
+        target.shieldActive = false;
         await target.save();
-        await Item.findByIdAndDelete(itemId); // delete attacking item
+        await Item.findByIdAndDelete(itemId);
+        
         return res.status(200).json({
           message: `${target.firstName} was protected by a shield!`,
           protected: true
         });
       }
-    }
 
-    // --- EFFECTS SECTION ---
+      const targetUpdates = {};
+      let stolenAmount = 0;
+      
+      // Handle primary effect
+      if (item.primaryEffect === 'halveBits') {
+        targetUpdates.balance = Math.floor(target.balance / 2);
+      } else if (item.primaryEffect === 'stealBits') {
+        stolenAmount = Math.floor(target.balance * 0.1 * (item.effectStrength || 1));
+        targetUpdates.balance = target.balance - stolenAmount;
+      }
 
-    // Attack Effects
-    if (item.effect === 'halveBits') {
-      target.balance = Math.floor(target.balance / 2);
-      await target.save();
-    }
-
-    if (item.effect === 'stealBits') {
-      const stolen = Math.floor(target.balance * 0.1);
-      target.balance -= stolen;
-      user.balance += stolen;
-      await target.save();
-      await user.save();
-    }
-
-    // Defend Effects
-    if (item.effect === 'shield') {
-      user.shieldActive = true;
-      await user.save();
-
-      item.active = true;
-      item.usesRemaining = 1;
-      await item.save();
-
-      return res.json({ message: 'Shield activated. You are now protected!' });
-    }
-
-    // Utility Effects
-    if (item.effect === 'doubleEarnings') {
-      user.doubleEarnings = true;
-      await user.save();
-
-      item.active = true;
-      item.usesRemaining = 1;
-      await item.save();
-
-      return res.json({ message: 'Earnings multiplier activated!' });
-    }
-
-    // Discount effect section
-    if (item.effect === 'discountShop') {
-      user.discountShop = true;
-      await user.save();
-
-      // Set expiration after 1 hour (3600000 ms)
-      setTimeout(async () => {
-        try {
-          const updatedUser = await User.findById(user._id);
-          if (updatedUser.discountShop) {
-            updatedUser.discountShop = false;
-            await updatedUser.save();
-            
-            // Emit socket event to notify client of discount expiration
-            req.app.get('io').to(`user-${user._id}`).emit('discount_expired');
+      // Handle secondary effects
+      if (item.secondaryEffects && item.secondaryEffects.length > 0) {
+        for (const effect of item.secondaryEffects) {
+          if (!effect.effectType) continue;
+          
+          const strength = effect.strength || 1;
+          
+          switch(effect.effectType) {
+            case 'attackLuck':
+              targetUpdates['passiveAttributes.luck'] = Math.max(
+                (target.passiveAttributes?.luck || 1) - strength, 
+                1
+              );
+              break;
+            case 'attackMultiplier':
+              targetUpdates['passiveAttributes.multiplier'] = Math.max(
+                (target.passiveAttributes?.multiplier || 1) - strength, 
+                1
+              );
+              break;
+            case 'attackGroupMultiplier':
+              // Handle group multiplier reduction
+              const groups = await Group.find({
+                'members._id': targetUserId,
+                'members.status': 'approved'
+              });
+              for (const group of groups) {
+                group.groupMultiplier = Math.max(
+                  (group.groupMultiplier || 1) - strength, 
+                  1
+                );
+                await group.save();
+              }
+              break;
           }
-        } catch (err) {
-          console.error('Error expiring discount:', err);
         }
-      }, 10000); // 10 seconds for testing
-
-      await Item.findByIdAndDelete(itemId); // Delete the item after use
-      return res.json({ message: 'Shop discount activated for 1 hour!' });
-    }
-
-    // Passive Effects (new)
-    if (item.category === 'Passive' && item.passiveAttributes) {
-      const { luck, multiplier, groupMultiplier } = item.passiveAttributes;
-
-      if (luck) {
-        user.luck = true;
-      }
-      if (multiplier) {
-        user.multiplier = true;
-      }
-      if (groupMultiplier) {
-        user.groupMultiplier = true;
       }
 
-      await user.save();
+      // Apply all updates to the target
+      if (Object.keys(targetUpdates).length > 0) {
+        await User.findByIdAndUpdate(targetUserId, { $set: targetUpdates });
+      }
 
-      item.active = true;
-      item.usesRemaining = 1;
-      await item.save();
+      // Update attacker's balance if bits were stolen
+      if (stolenAmount > 0) {
+        await User.findByIdAndUpdate(userId, {
+          $inc: { balance: stolenAmount }
+        });
+      }
+
+      // Delete the used item
+      await Item.findByIdAndDelete(itemId);
+
+      // Get updated user balances for response
+      const updatedUser = await User.findById(userId);
+      const updatedTarget = await User.findById(targetUserId);
 
       return res.json({
-        message: 'Passive effect applied!',
-        passiveEffects: item.passiveAttributes,
+        message: 'Attack successful!',
+        newBalance: {
+          user: updatedUser.balance,
+          target: updatedTarget.balance
+        }
       });
     }
 
-    // Apply passiveAttributes if present
-    if (item.passiveAttributes) {
-      const { luck, multiplier, groupMultiplier } = item.passiveAttributes;
-
-      // --- Case: Attack Item ---
-      if (item.category === 'Attack' && target) {
-        if (luck) target.luck = Math.max((target.luck || 0) - 1, 0);
-        if (multiplier) target.multiplier = Math.max((target.multiplier || 1) - 0.1, 1);
-        if (groupMultiplier && target.groups?.length) {
-          const Group = require('../models/Group.js');
-          const group = await Group.findById(target.groups[0]);
-          if (group) {
-            group.multiplier = Math.max((group.multiplier || 1) - 0.1, 1);
-            await group.save();
+    // --- PASSIVE ITEMS HANDLING ---
+    if (item.category === 'Passive') {
+      const updates = {};
+      
+      if (item.secondaryEffects) {
+        for (const effect of item.secondaryEffects) {
+          switch(effect) {
+            case 'grantsLuck':
+              updates['passiveAttributes.luck'] = (user.passiveAttributes?.luck || 1) + 1;
+              break;
+            case 'grantsMultiplier':
+              updates['passiveAttributes.multiplier'] = (user.passiveAttributes?.multiplier || 1) + 1;
+              break;
+            case 'grantsGroupMultiplier':
+              // Handle group multiplier increase
+              const groups = await Group.find({
+                'members._id': userId,
+                'members.status': 'approved'
+              });
+              for (const group of groups) {
+                group.groupMultiplier = (group.groupMultiplier || 1) + 1;
+                await group.save();
+              }
+              break;
           }
         }
-        await target.save();
       }
 
-      // --- Case: Passive Item ---
-      if (item.category === 'Passive') {
-        if (luck) user.luck = (user.luck || 0) + 1;
-        if (multiplier) user.multiplier = (user.multiplier || 1) + 0.1;
-        if (groupMultiplier && user.groups?.length) {
-          const Group = require('../models/Group.js');
-          const group = await Group.findById(user.groups[0]);
-          if (group) {
-            group.multiplier = (group.multiplier || 1) + 0.1;
-            await group.save();
-          }
-        }
+      if (Object.keys(updates).length > 0) {
+        await User.findByIdAndUpdate(userId, updates);
+      }
+
+      await Item.findByIdAndDelete(itemId);
+
+      return res.json({
+        message: 'Passive effects applied!',
+        itemConsumed: true
+      });
+    }
+
+    // --- UTILITY ITEMS HANDLING ---
+    if (item.category === 'Utility') {
+      if (item.primaryEffect === 'doubleEarnings') {
+        await User.findByIdAndUpdate(userId, {
+          $mul: { 'passiveAttributes.multiplier': 2 }
+        });
+        await Item.findByIdAndDelete(itemId);
+        return res.json({ message: 'Earnings multiplier activated!' });
+      }
+      
+      if (item.primaryEffect === 'discountShop') {
+        user.discountShop = true;
         await user.save();
+
+        setTimeout(async () => {
+          try {
+            const updatedUser = await User.findById(user._id);
+            if (updatedUser.discountShop) {
+              updatedUser.discountShop = false;
+              await updatedUser.save();
+              req.app.get('io').to(`user-${user._id}`).emit('discount_expired');
+            }
+          } catch (err) {
+            console.error('Error expiring discount:', err);
+          }
+        }, 3600000); // 1 hour
+
+        await Item.findByIdAndDelete(itemId);
+        return res.json({ message: 'Shop discount activated for 1 hour!' });
       }
     }
 
-
-    // Delete non-persistent item
-    if (!['shield', 'doubleEarnings', 'discountShop'].includes(item.effect) &&
-        item.category !== 'Passive') {
-      await Item.findByIdAndDelete(itemId);
-    } else if (item.effect === 'discountShop') {
-      // For discountShop items, delete after use
-      await Item.findByIdAndDelete(itemId);
-    }
-
-    return res.json({
-      message: 'Item used successfully.',
-      newBalance: {
-        user: user.balance,
-        target: target?.balance
-      }
-    });
+    return res.status(400).json({ error: 'This item type is not supported' });
 
   } catch (err) {
     console.error('Item use error:', err);

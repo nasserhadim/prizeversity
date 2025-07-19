@@ -26,4 +26,23 @@ GroupSchema.virtual('siphonRequests', {
 GroupSchema.set('toJSON', { virtuals: true });
 GroupSchema.set('toObject', { virtuals: true });
 
+// When applying group multipliers:
+GroupSchema.methods.applyMultiplier = function(amount) {
+  return amount * this.groupMultiplier;
+};
+
+// When a user joins a group:
+GroupSchema.methods.addMember = async function(userId) {
+  const user = await User.findById(userId);
+  this.members.push({ _id: userId });
+  await this.save();
+  
+  // Update user's group multipliers
+  user.passiveAttributes.groupMultiplier = Math.max(
+    user.passiveAttributes.groupMultiplier || 1,
+    this.groupMultiplier || 1
+  );
+  await user.save();
+};
+
 module.exports = mongoose.models.Group || mongoose.model('Group', GroupSchema);
