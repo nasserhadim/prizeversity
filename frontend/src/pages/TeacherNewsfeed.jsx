@@ -51,7 +51,7 @@ export default function TeacherNewsfeed() {
         try {
             await deleteNews(classId, itemId);
             setItems(items.filter(item => item._id !== itemId));
-            toast.success('News item deleted');
+            toast.success('Announcement deleted');
         } catch (err) {
             console.error('Delete failed', err);
             toast.error('Failed to delete');
@@ -64,9 +64,9 @@ export default function TeacherNewsfeed() {
             setItems(items.map(i =>
                 i._id === itemId ? { ...i, content: newContent } : i
             ));
-            toast.success('News updated');
+            toast.success('Announcement updated');
         } catch (err) {
-            toast.error('Failed to update news');
+            toast.error('Failed to update announcement');
         }
     };
 
