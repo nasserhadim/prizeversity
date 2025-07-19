@@ -856,6 +856,22 @@ sudo cp -r dist/* /var/www/prizeversity-frontend/   # copies the built frontend 
    - Select the "**Clear Cache**" option if the domain was already scanned previously and you want to re-scan again.
 
 ### 6.  CI/CD
+If changes were made and want to deploy them to the server:
+
+```
+cd ~/app/prizeversity
+git pull                         # Pull the latest changes from GitHub
+
+cd backend
+npm ci                           # Install exact dependencies
+pm2 reload server.js --name prizeversity-backend --update-env    # Use --update-env if you've changed .env variables; otherwise, it's optional.
+
+cd ../frontend
+npm ci                           # Install exact frontend dependencies
+npm run build                    # Build static frontend files to /dist
+```
+
+### 6.  CI/CD
 #### 6.1  Prepare SSH keys for CI/CD
 
 1. **Generate a key pair on your laptop (once)**
