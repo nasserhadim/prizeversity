@@ -61,28 +61,57 @@ router.get('/classroom/:classroomId/bazaar', ensureAuthenticated, async (req, re
 // Add Item to Bazaar (teacher only)
 router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticated, ensureTeacher, async (req, res) => {
   const { bazaarId } = req.params;
-  const { name, description, price, image, category, effect } = req.body;
+  const { name, description, price, image, category, primaryEffect, primaryEffectValue, secondaryEffects } = req.body;
+
+  // Basic validation
+  if (!name || !price || !category) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
 
   try {
+    // Verify bazaar exists
+    const bazaarExists = await Bazaar.exists({ _id: bazaarId });
+    if (!bazaarExists) {
+      return res.status(404).json({ error: 'Bazaar not found' });
+    }
+
+    // Create item
     const item = new Item({
-      name,
-      description,
-      price,
-      image,
+      name: name.trim(),
+      description: description?.trim(),
+      price: Number(price),
+      image: image?.trim(),
       category,
-      effect,
+      primaryEffect: category !== 'Passive' ? primaryEffect : undefined,
+      primaryEffectValue: category !== 'Passive' ? Number(primaryEffectValue) : undefined,
+      secondaryEffects: secondaryEffects?.map(se => ({
+        effectType: se.effectType,
+        value: Number(se.value)
+      })),
       bazaar: bazaarId
     });
 
     await item.save();
 
-    // Add item reference to bazaar's items array
-    await Bazaar.findByIdAndUpdate(bazaarId, { $push: { items: item._id } });
+    // Update bazaar
+    await Bazaar.findByIdAndUpdate(
+      bazaarId,
+      { $push: { items: item._id } },
+      { new: true }
+    );
 
-    res.status(201).json({ message: 'Item added', item });
+    res.status(201).json({ 
+      message: 'Item added successfully',
+      item: await Item.findById(item._id)
+    });
+
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to add item' });
+    console.error('Item creation failed:', err);
+    res.status(500).json({ 
+      error: 'Failed to create item',
+      message: err.message,
+      ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+    });
   }
 });
 
@@ -141,44 +170,39 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensur
 
 
 // Checkout multiple items
-  router.post('/checkout',  ensureAuthenticated, blockIfFrozen, async (req, res) => {
-    console.log("Received checkout data:", req.body);
-    const { userId, items } = req.body;
-
+  router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) => {
+  console.log("Received checkout request:", req.body);
+  
   try {
-    const user = await User.findById(req.user._id);
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    const { userId, items } = req.body;
+    
+    if (!userId || !items || !Array.isArray(items) || items.length === 0) {
+      console.error("Invalid checkout data:", { userId, items });
+      return res.status(400).json({ error: 'Invalid checkout data' });
+    }
 
-    // Applying discount if active
-    const discountMultiplier = user.discountShop ? 0.8 : 1;
+    const user = await User.findById(userId);
+    if (!user) {
+      console.error("User not found:", userId);
+      return res.status(404).json({ error: 'User not found' });
+    }
 
-    const total = items.reduce((sum, item) => sum + (item.price * discountMultiplier), 0);
-    console.log(`→ backend computed total=${total} from items:`, items.map(i => i.price));
+    const total = items.reduce((sum, item) => sum + item.price, 0);
+    console.log(`Calculated total: ${total}, User balance: ${user.balance}`);
 
     if (user.balance < total) {
+      console.error("Insufficient balance:", { balance: user.balance, total });
       return res.status(400).json({ error: 'Insufficient balance' });
     }
 
-    user.balance -= total;
-
-    user.transactions.push({
-      description: `Checkout: ${items.length} item(s)`,
-      amount: -total,
-      type: 'purchase',
-      date: new Date(),
-      items: items.map(i => ({ name: i.name, price: i.price }))
-    });
-
-    await user.save();
-
-
-
-    // Clone items and assign ownership
+    // Process each item
     const ownedItems = [];
-
     for (const itemData of items) {
       const item = await Item.findById(itemData._id || itemData.id);
-      if (!item) continue;
+      if (!item) {
+        console.error("Item not found:", itemData._id);
+        continue;
+      }
 
       const ownedItem = await Item.create({
         name: item.name,
@@ -187,21 +211,33 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensur
         image: item.image,
         bazaar: item.bazaar,
         category: item.category,
-        effect: item.effect,
-        owner: user._id
+        primaryEffect: item.primaryEffect,
+        primaryEffectValue: item.primaryEffectValue,
+        secondaryEffects: item.secondaryEffects,
+        owner: userId
       });
 
       ownedItems.push(ownedItem);
     }
 
-    // Save wnrder
+    // Deduct balance
+    user.balance -= total;
+    user.transactions.push({
+      amount: -total,
+      description: `Checkout: ${items.length} item(s)`,
+      type: 'purchase'
+    });
+    await user.save();
+
+    // Create order
     const order = new Order({
-      user: req.user._id,
+      user: userId,
       items: ownedItems.map(i => i._id),
       total
     });
     await order.save();
 
+    console.log("Checkout successful for user:", userId);
     res.status(200).json({
       message: 'Purchase successful',
       items: ownedItems,
@@ -209,8 +245,12 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensur
     });
 
   } catch (err) {
-    console.error('Checkout failed:', err);
-    res.status(500).json({ error: 'Checkout failed' });
+    console.error("Checkout failed:", err);
+    res.status(500).json({ 
+      error: 'Checkout failed',
+      message: err.message,
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
   }
 });
 
