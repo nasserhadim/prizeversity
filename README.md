@@ -467,7 +467,7 @@ git clone git@github.com:nasserhadim/prizeversity.git
 cd app/prizeversity
 ```
 
-## 2. Copy environment variables & Edit secrets
+## 2. Copy environment variables & Edit secrets (in `/backend/.env`)
 ```
 MONGO_URI=mongodb://localhost:27017/prizeversity
 
