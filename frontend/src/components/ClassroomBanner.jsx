@@ -6,8 +6,9 @@ export default function ClassroomBanner({ name, bgColor, backgroundImage }) {
         style.backgroundImage = `url(${backgroundImage})`;
         style.backgroundSize = 'cover';
         style.backgroundPosition = 'center';
-    } else if (bgColor) {
-        style.backgroundColor = bgColor;
+    } else {
+        // use provided color, or default to Tailwind’s green-500
+        style.backgroundColor = bgColor || '#22c55e';
     }
 
     return (

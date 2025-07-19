@@ -4,7 +4,7 @@ import { AuthContext } from '../context/AuthContext';
 import axios from 'axios';
 
 const Profile = () => {
-    const { user, setUser } = useContext(AuthContext);
+    const { user, updateUser } = useContext(AuthContext);
     const { id: profileId } = useParams();
     const [profile, setProfile] = useState(null);
     const [editMode, setEditMode] = useState(false);
@@ -103,7 +103,7 @@ const Profile = () => {
             });
 
             setProfile(res.data);
-            setUser({ ...user, avatar: res.data.avatar });
+            updateUser(res.data);
             setEditMode(false);
         } catch (err) {
             console.error('Profile update error:', err);
@@ -213,7 +213,7 @@ const Profile = () => {
                             />
                         ) : (
                             <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center text-4xl font-bold text-gray-500">
-                                {profile?.firstName?.charAt(0) || profile?.email?.charAt(0) || 'U'}
+                                {`${(profile?.firstName?.[0] || profile?.email?.[0] || 'U')}${(profile?.lastName?.[0] || '')}`.toUpperCase()}
                             </div>
                         )}
                     </div>

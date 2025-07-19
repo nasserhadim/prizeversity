@@ -8,18 +8,23 @@ import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { LoaderIcon } from 'lucide-react';
 import ClassroomBanner from '../components/ClassroomBanner';
+import io from 'socket.io-client';
+import { API_BASE } from '../config/api';
+
+const socket = io(API_BASE); // no "/api" needed here
 
 const Classroom = () => {
   const { id } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const BACKEND_URL = 'http://localhost:5000';
+  const BACKEND_URL = `${API_BASE}`;
 
   // State variables
   const [classroom, setClassroom] = useState(null);
   const [loading, setLoading] = useState(true);
   const [students, setStudents] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
+  const [visibleCount, setVisibleCount] = useState(10);
 
   // Fetch classroom and student data on mount
   useEffect(() => {
@@ -205,14 +210,53 @@ const Classroom = () => {
         {/* Announcements List */}
         <div className="space-y-6">
           <h3 className="text-2xl font-semibold">Announcements</h3>
-          {announcements.map((item) => (
+          {announcements.slice(0, visibleCount).map((item) => (
             <div key={item._id} className="card bg-base-200 p-4">
-              <p className="text-gray-700">{item.content}</p>
+              {/* render formatted HTML */}
+              <div
+                className="text-gray-700 mb-2"
+                dangerouslySetInnerHTML={{ __html: item.content }}
+              />
+
+              {/* list attachments, if any */}
+              {item.attachments && item.attachments.length > 0 && (
+                <ul className="mt-1 space-y-1">
+                  {item.attachments.map(a => (
+                    <li key={a.url}>
+                      <a
+                        href={a.url}
+                        download
+                        className="text-blue-500 underline"
+                      >
+                        {a.originalName}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )}
               <p className="text-sm text-gray-500">
                 {new Date(item.createdAt).toLocaleString()}
               </p>
             </div>
           ))}
+        </div>
+        <div className="flex justify-center space-x-4 mt-4">
+          {announcements.length > visibleCount && (
+            <button
+              className="btn bg-green-500 hover:bg-green-600 text-white px-4 py-2"
+              onClick={() => setVisibleCount(announcements.length)}
+            >
+              Show more announcements
+            </button>
+          )}
+          {visibleCount > 10 && (
+            <button
+              className="btn bg-green-500 hover:bg-green-600 text-white px-4 py-2"
+              onClick={() => setVisibleCount(10)}
+            >
+              Show less announcements
+            </button>
+          )}
         </div>
 
         {/* Student View */}

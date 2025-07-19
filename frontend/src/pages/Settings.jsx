@@ -11,18 +11,57 @@ const Settings = () => {
     const navigate = useNavigate();
 
     const handleDeleteAccount = async () => {
-        const confirmed = window.confirm('Are you sure you want to permanently delete your account?');
-        if (!confirmed) return;
 
-        try {
-            await axios.delete(`/api/users/${user._id}`);
-            toast.success('Account deleted successfully');
-            logout();
-            navigate('/');
-        } catch (err) {
-            console.error('Delete failed', err);
-            toast.error('Failed to delete account');
+        if (user.role === 'teacher') {
+            try {
+                // fetch all classrooms (backend should filter to this teacher)
+                const { data: classrooms } = await axios.get('/api/classroom', {
+                    withCredentials: true
+                });
+                const stillHas = classrooms.some(c => c.teacher === user._id);
+                if (stillHas) {
+                    toast.error('You cannot delete your account. Please delete your classroom(s) first.');
+                    return;
+                }
+            } catch (err) {
+                console.error('Error checking classrooms', err);
+                toast.error('Unable to verify classrooms. Try again later.');
+                return;
+            }
         }
+        // ask via toast instead of window.confirm
+        toast((t) => (
+            <div className="space-y-2">
+                <p>Are you sure you want to permanently delete your account?</p>
+                <div className="flex justify-end space-x-2">
+                    <button
+                        className="btn btn-error btn-sm"
+                        onClick={async () => {
+                            toast.dismiss(t.id);
+                            try {
+                                await axios.delete(`/api/users/${user._id}`);
+                                toast.success('Account deleted successfully');
+                                logout();
+                                navigate('/');
+                            } catch (err) {
+                                console.error('Delete failed', err);
+                                toast.error('Failed to delete account');
+                            }
+                        }}
+                    >
+                        Yes, delete
+                    </button>
+                    <button
+                        className="btn btn-outline btn-sm"
+                        onClick={() => toast.dismiss(t.id)}
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        ), { duration: Infinity });
+        return;
+
     };
 
     return (

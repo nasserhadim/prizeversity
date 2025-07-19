@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import socket from '../utils/socket';
 import toast from 'react-hot-toast';
+import { API_BASE } from '../config/api'; // Adjust path if needed
 
 export default function ClassroomPage() {
   const { user } = useAuth();
@@ -11,12 +12,12 @@ export default function ClassroomPage() {
   const [classrooms, setClassrooms] = useState([]);
   const [classroomName, setClassroomName] = useState('');
   const [classroomCode, setClassroomCode] = useState('');
-  const [color, setColor] = useState('#ffffff');
+  const [color, setColor] = useState('#22c55e');
   const [backgroundFile, setBackgroundFile] = useState(null);
   const [joinClassroomCode, setJoinClassroomCode] = useState('');
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
-  const BACKEND_URL = 'http://localhost:5000';
+  const BACKEND_URL = `${API_BASE}`;
 
   useEffect(() => {
     setRole(user?.role || '');
@@ -67,7 +68,7 @@ export default function ClassroomPage() {
       toast.success('Classroom Created!');
       setClassroomName('');
       setClassroomCode('');
-      setColor('#ffffff');
+      setColor('#22c55e');
       setBackgroundFile(null);
       fetchClassrooms();
     } catch (err) {
@@ -83,7 +84,7 @@ export default function ClassroomPage() {
     }
     try {
       await axios.post('/api/classroom/join', { code: joinClassroomCode });
-      toast.success('Joined classroom!', {duration: 800});
+      toast.success('Joined classroom!', { duration: 800 });
       setJoinClassroomCode('');
       fetchClassrooms();
     } catch (err) {

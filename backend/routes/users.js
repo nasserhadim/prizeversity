@@ -133,8 +133,7 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
   const students = await User.find({
     role: 'student',
     classrooms: classroomId
-  }).select('_id email balance');
-
+  }).select('_id email balance firstName lastName');
    res.status(200).json(students);
  });
 
