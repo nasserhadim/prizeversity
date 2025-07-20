@@ -98,6 +98,8 @@ npm init -y # DON'T RUN THIS UNLESS SETTING UP FROM SCRATCH!
 
 npm install express mongoose passport passport-google-oauth20 passport-microsoft cors dotenv
 
+npm install connect-mongo   # Used to store sessions in MongoDB instead of memory, which is suitable for production.
+
 npm install socket.io
 
 npm install multer
@@ -870,6 +872,12 @@ cd backend
 npm ci                           # Install exact dependencies
 pm2 reload server.js --name prizeversity-backend --update-env    # Use --update-env if you've changed .env variables; otherwise, it's optional.
 
+####### HELPFUL PM2 COMMANDS #######
+pm2 status 
+pm2 logs prizeversity-backend    # Check backend logs (if necessary)
+pm2 flush                        # Cleanup pm2 logs (if necessary)
+####################################
+
 cd ../frontend
 npm ci                           # Install exact frontend dependencies
 rm -rf dist                      # Remove old build (if any)
@@ -1007,7 +1015,6 @@ jobs:
 ### 2. Run Node / PM2 as a service
 
 ```
-powershell
 pm2 install pm2-windows-service          # one-time
 pm2 start backend\server.js --name prizeversity
 pm2 save
@@ -1151,7 +1158,7 @@ pm2 install pm2-server-monit
 1. *Settings → System → About → Advanced system settings → Environment Variables*  
 2. Edit **Path** → **New** → `C:\Program Files\MongoDB\Tools\<version>\bin`  
 3. Open a new terminal and run:  
-   ```powershell
+   ```
    mongodump --version
    mongorestore --version
 
