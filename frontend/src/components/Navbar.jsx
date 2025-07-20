@@ -20,7 +20,7 @@ import {
   Trophy
 } from 'lucide-react';
 
-// import defaultProfilePicture from '../assets/Default/Profile-Default-Picture.jpg';
+//import defaultProfilePicture from '../assets/Default/Profile-Default-Picture.jpg';
 
 const Navbar = () => {
   const { user, logout, setPersona, originalUser } = useContext(AuthContext);
@@ -254,7 +254,7 @@ const Navbar = () => {
             <div className="dropdown dropdown-end">
               <div tabIndex={0} role="button" className="btn btn-ghost btn-circle avatar">
                 <div className="w-10 h-10 rounded-full ring ring-success ring-offset-base-100 ring-offset-2 overflow-hidden">
-                  {user.avatar ? (
+                  {user.avatar && user.avatar.startsWith('http') ? (
                     <img
                       alt="User Avatar"
                       src={user.avatar}
