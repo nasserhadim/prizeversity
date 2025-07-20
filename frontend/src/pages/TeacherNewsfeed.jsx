@@ -109,10 +109,10 @@ export default function TeacherNewsfeed() {
                     type="file"
                     multiple
                     onChange={e => setAttachments(Array.from(e.target.files))}
-                    className="mb-4"
+                    className="file-input file-input-sm"
                 />
                 <button
-                    className="btn btn-primary px-6 py-2 mb-6"
+                    className="btn btn-success px-6 py-2 mb-6"
                     onClick={handlePost}
                     disabled={!draft.trim()}
                 >
@@ -169,7 +169,7 @@ export default function TeacherNewsfeed() {
                                                 ['link', 'image']
                                             ]
                                         }}
-                                        className="mb-2"
+                                        className="mb-2 mt-2"
                                     />
                                     <button
                                         className="btn btn-sm btn-success mr-2"
@@ -190,7 +190,7 @@ export default function TeacherNewsfeed() {
                                 </>
                             ) : (
                                 <button
-                                    className="btn btn-sm btn-primary mt-2 ml-2"
+                                    className="btn btn-sm btn-info mt-2 ml-2"
                                     onClick={() => {
                                         setEditingId(i._id);
                                         setEditingContent(i.content);

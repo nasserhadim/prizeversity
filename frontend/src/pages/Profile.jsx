@@ -204,7 +204,7 @@ const Profile = () => {
             ) : (
                 <div className="space-y-4">
                     <div className="flex justify-center">
-                        {profile?.avatar ? (
+                        {profile?.avatar && profile.avatar.startsWith('http') ? (
                             <img
                                 src={profile.avatar}
                                 alt="Profile"
