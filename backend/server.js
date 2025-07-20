@@ -45,6 +45,9 @@ app.use(cors({
   origin: redirectBase,
   credentials: true,
 }));
+
+console.log("✅ CORS origin set to:", redirectBase);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

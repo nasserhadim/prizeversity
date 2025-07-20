@@ -11,7 +11,7 @@ import ClassroomBanner from '../components/ClassroomBanner';
 import io from 'socket.io-client';
 import { API_BASE } from '../config/api';
 
-const socket = io(API_BASE); // no "/api" needed here
+const socket = io(); // no "/api" needed here
 
 const Classroom = () => {
   const { id } = useParams();
