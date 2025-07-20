@@ -695,6 +695,8 @@ cd ..
 cd frontend
 npm ci           # reproducible install
 npm run build    # creates ./dist (static assets)
+
+####### OPTIONAL #######
 git add .
 git commit -m "Production build"
 git push origin main
