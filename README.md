@@ -98,6 +98,8 @@ npm init -y # DON'T RUN THIS UNLESS SETTING UP FROM SCRATCH!
 
 npm install express mongoose passport passport-google-oauth20 passport-microsoft cors dotenv
 
+npm install connect-mongo   # Used to store sessions in MongoDB instead of memory, which is suitable for production.
+
 npm install socket.io
 
 npm install multer

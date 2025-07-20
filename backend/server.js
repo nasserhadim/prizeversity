@@ -5,6 +5,7 @@ const path = require('path');
 const mongoose = require('mongoose');
 const passport = require('passport');
 const session = require('express-session');
+const MongoStore = require('connect-mongo');
 const cors = require('cors');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
@@ -63,6 +64,7 @@ app.use(
     secret: process.env.JWT_SECRET, // Use a strong secret key
     resave: false,
     saveUninitialized: false,
+    store: MongoStore.create({ mongoUrl: process.env.MONGO_URI }),
     cookie: { secure: false }, // Set to true if using HTTPS
   })
 );
@@ -73,7 +75,7 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 // Database Connection
-mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+mongoose.connect(process.env.MONGO_URI, {})
   .then(() => {
     console.log('MongoDB Connected');
 
