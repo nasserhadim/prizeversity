@@ -1,3 +1,5 @@
+require('dotenv').config(); // Load environment variables from .env file; MUST BE FIRST LINE otherwise redirectBase won't be identified!!
+
 const express = require('express');
 const path = require('path');
 const mongoose = require('mongoose');
@@ -27,7 +29,6 @@ const defendItems = require('./routes/defendItem.js');
 const utilityItems = require('./routes/utilityItem.js');
 const passiveItems = require('./routes/passiveItem.js');
 const { redirectBase, isProd } = require('./config/domain');
-require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
