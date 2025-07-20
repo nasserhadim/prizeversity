@@ -204,7 +204,7 @@ export default function ClassroomPage() {
             onChange={e => setJoinClassroomCode(e.target.value)}
           />
           <button
-            className="btn btn-accent w-full"
+            className="btn btn-success w-full"
             onClick={handleJoinClassroom}
           >
             Join Classroom
