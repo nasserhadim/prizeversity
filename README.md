@@ -67,6 +67,12 @@ This repository hosts the full stack implementation of PrizeVersity, including t
 > Make sure to add/register the `redirect_uri`, e.g. `http://localhost:5000/api/auth/microsoft/callback` (and eventually the `redirect_uri` of the domain as well, e.g. `https://prizeversity.com/api/auth/google/callback`, once the `A` record is configured in the provider DNS settings). You can do so from the `App Registration > Authentication > Add a (web) platform > Add Web Redirect URI` if you didn't do it initially upon creation of the App registration.
 > 
 > For supported account types, select `Accounts in any organizational directory (Any Microsoft Entra ID tenant - Multitenant) and personal Microsoft accounts (e.g. Skype, Xbox)`. This is the associated type of the default `/common` auth API callback Microsoft uses.
+>
+> FYI:
+> 
+> - The "MICROSOFT_CLIENT_ID" is the App Registration's "Application (client) ID" from the Overview page, NOT the "Secret ID" from the "Certificates & secrets page"!
+>
+> - The "MICROSOFT_CLIENT_SECRET" is the "Value" from the "Certificates & secrets page".
 
 ## Create Project Folders/Files (SKIP THIS IF CLONING/FORKING!):
 
@@ -478,6 +484,8 @@ GOOGLE_CLIENT_SECRET=
 
 # All Microsoft account users (/common)
 # Accounts in any organizational directory (Any Microsoft Entra ID tenant - Multitenant) and personal Microsoft accounts (e.g. Skype, Xbox)
+# FYI the "MICROSOFT_CLIENT_ID" is the App Registration's "Application (client) ID" from the Overview page, NOT the "Secret ID" from the "Certificates & secrets page"!
+# The "MICROSOFT_CLIENT_SECRET" is the "Value" from the "Certificates & secrets page".
 MICROSOFT_CLIENT_ID=
 MICROSOFT_CLIENT_SECRET=
 
