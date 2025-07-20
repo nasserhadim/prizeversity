@@ -1,5 +1,8 @@
 const isProd = process.env.NODE_ENV === 'production';
 
+console.log('✅ [domain.js] NODE_ENV:', process.env.NODE_ENV);
+console.log('✅ [domain.js] DOMAIN:', process.env.DOMAIN);
+
 if (isProd && !process.env.DOMAIN) {
   throw new Error('DOMAIN env variable is missing in production!');
 }
