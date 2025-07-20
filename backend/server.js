@@ -23,6 +23,10 @@ const newsfeedRoutes = require('./routes/newsfeed');
 const itemRoutes = require('./routes/items');
 const groupBalanceRoutes = require('./routes/groupBalance');
 const statsRouter = require('./routes/stats.js');
+const attackItems = require('./routes/attackItem.js');
+const defendItems = require('./routes/defendItem.js');
+const utilityItems = require('./routes/utilityItem.js');
+const passiveItems = require('./routes/passiveItem.js');
 require('dotenv').config();
 
 const app = express();
@@ -92,10 +96,16 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
-app.use('/api/items', itemRoutes);
+// app.use('/api/items', itemRoutes);
 app.use('/api/stats', statsRouter);
 app.use('/api', groupBalanceRoutes);
 app.use('/api/feedback', feedbackRoutes); // Use the Feedback model for classroom feedback
+app.use('/api/pending-assignments', require('./routes/pendingAssignments'));
+
+app.use('/api/attack', attackItems);
+app.use('/api/defend', defendItems);
+app.use('/api/utility', utilityItems);
+app.use('/api/passive', passiveItems);
 // Root Route
 app.get('/', (req, res) => {
   res.redirect('http://localhost:5173'); // Redirect to the frontend

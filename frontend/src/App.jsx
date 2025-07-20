@@ -6,7 +6,6 @@ import Bazaar from './pages/Bazaar';
 import Wallet from './pages/Wallet';
 import Groups from './pages/Groups';
 import People from './pages/People';
-import NotificationBell from './components/NotificationBell';
 import Navbar from './components/Navbar';
 import Profile from './pages/Profile';
 import FeedbackPage from './pages/FeedbackPage';
@@ -45,8 +44,6 @@ const App = () => {
     <CartProvider>
       <div style={{ paddingTop: '5rem' }}>
         {user && <Navbar />}
-        {user && <NotificationBell />}
-
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/classrooms" element={<ClassroomPage />} />

@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
+import PendingApprovals from '../components/PendingApprovals';
 
 
 
@@ -17,8 +18,9 @@ const ROLE_LABELS = {
 const People = () => {
   const { id: classroomId } = useParams();
   const { user } = useAuth();
-
+  const [studentSendEnabled, setStudentSendEnabled] = useState(null);
   const [tab, setTab] = useState('everyone');
+  const [taBitPolicy, setTaBitPolicy] = useState('full');
   const [students, setStudents] = useState([]);
   const [groupSets, setGroupSets] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -26,10 +28,31 @@ const People = () => {
 
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchStudents();
-    fetchGroupSets();
-  }, [classroomId]);
+  const fetchTaBitPolicy = async () => {
+    try {
+      const res = await axios.get(
+        `/api/classroom/${classroomId}/ta-bit-policy`,
+        { withCredentials: true }
+      );
+      setTaBitPolicy(res.data.taBitPolicy);
+    } catch (err) {
+      console.error('Failed to fetch TA bit policy', err);
+    }
+  };
+
+useEffect(() => {
+  fetchStudents();
+  fetchGroupSets();
+  fetchTaBitPolicy();
+
+  axios
+    .get(`/api/classroom/${classroomId}/student-send-enabled`, {
+      withCredentials: true,
+    })
+   .then((r) => setStudentSendEnabled(!!r.data.studentSendEnabled))
+    .catch(() => setStudentSendEnabled(false)); // safe default
+}, [classroomId]);
+
 
   const fetchStudents = async () => {
     try {
@@ -131,8 +154,64 @@ const People = () => {
         >
           Groups
         </button>
+        {user?.role?.toLowerCase() === 'teacher' && (                    
+         <button
+           className={`btn ${tab === 'settings' ? 'btn-success' : 'btn-outline'}`}
+           onClick={() => setTab('settings')}
+         >
+           Settings
+         </button>
+       )}
       </div>
+{/* ─────────────── Settings TAB ─────────────── */}
+      {tab === 'settings' && (user?.role || '').toLowerCase() === 'teacher' && (
+        <div className="max-w-md space-y-6">
+          <h2 className="text-2xl font-semibold">Classroom Settings</h2>
 
+          <label className="form-control w-full">
+            <span className="label-text mb-2 font-medium">
+              TA bit assignment
+            </span>
+
+            <select
+              className="select select-bordered w-full"
+              value={taBitPolicy ?? 'full'}
+              onChange={async (e) => {
+                const newPolicy = e.target.value;
+                try {
+                  await axios.patch(
+                    `/api/classroom/${classroomId}/ta-bit-policy`,
+                    { taBitPolicy: newPolicy },
+                    { withCredentials: true }
+                  );
+                  toast.success('Updated TA bit policy');
+                  setTaBitPolicy(newPolicy);
+                } catch (err) {
+                  toast.error(
+                    err.response?.data?.error || 'Failed to update policy'
+                  );
+                }
+              }}
+            >
+              <option value="full">① Full power (TAs can assign bits)</option>
+              <option value="approval">② Needs teacher approval</option>
+              <option value="none">③ Cannot assign bits</option>
+            </select>
+          </label>
+
+           {/* render only after we know the value */}
+
+
+
+    
+
+          {/* Show teacher’s approval queue when policy=approval */}
+    {taBitPolicy === 'approval' && (
+      <PendingApprovals classroomId={classroomId} />
+    )}
+        </div>
+      )}
+      {/* ───────────────────────────────────────────── */}
       {tab === 'everyone' && (
         <div>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
@@ -145,7 +224,7 @@ const People = () => {
             />
 
             <div className="flex gap-2 items-center">
-              {user?.role === 'teacher' && (
+             {user?.role?.toLowerCase() === 'teacher' && (
                 <input
                   type="file"
                   accept=".xlsx, .xls"
@@ -193,11 +272,7 @@ const People = () => {
                     </div>
 
                     <div className="text-sm text-gray-500 mt-1">
-                      Balance: B{student.balance?.toFixed(2) || '0.00'} <br />
-                      Classes:{' '}
-                      {student.classrooms?.length > 0
-                        ? student.classrooms.map((c) => c.name).join(', ')
-                        : 'N/A'}
+                      Balance: B{student.balance?.toFixed(2) || '0.00'}
                     </div>
 
                     <div className="flex gap-2 mt-2 flex-wrap">
@@ -208,7 +283,7 @@ const People = () => {
                         View Profile
                       </button>
 
-                      {user?.role === 'teacher' && (
+                      {user?.role?.toLowerCase() === 'teacher' && (
                         <button
                           className="btn btn-sm btn-success"
                           onClick={() => navigate(`/classroom/${classroomId}/student/${student._id}/stats`)}
@@ -217,7 +292,7 @@ const People = () => {
                         </button>
                       )}
 
-                      {user?.role === 'teacher' && (
+                      {user?.role?.toLowerCase() === 'teacher' && (
                         <select
                           className="select select-sm ml-2"
                           value={student.role}

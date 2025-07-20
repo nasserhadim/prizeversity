@@ -12,6 +12,7 @@ const Wallet = () => {
   const [transactions, setTransactions] = useState([]);
 
   const [recipientId, setRecipientId] = useState('');
+  const [selectedRecipientId, setSelectedRecipientId] = useState(''); 
   const [transferAmount, setTransferAmount] = useState('');
   const [search, setSearch] = useState('');
 
@@ -21,6 +22,11 @@ const Wallet = () => {
   const [studentList, setStudentList] = useState([]);
   const [typeFilter, setTypeFilter]     = useState('all');
 
+const ROLE_LABELS = {
+  student: 'Student',
+  admin:   'TA',
+  teacher: 'Teacher',
+};
 
 const fetchUsers = async () => {
   if (!classroomId) return;
@@ -39,10 +45,11 @@ const fetchUsers = async () => {
     useEffect(() => {
    if (!user) return;
     fetchWallet();
-    if (['teacher', 'admin'].includes(user.role)) {
-      fetchUsers();
-      fetchAllTx();
-    }
+    fetchUsers();                   
+
+  if (['teacher', 'admin'].includes(user.role)) {
+    fetchAllTx();
+  }
   }, [user]);
 
   
@@ -76,7 +83,11 @@ const fetchUsers = async () => {
         console.error('Failed to fetch wallet', err);
       }
     };
-
+    const getEffectiveBalance = (user) => {
+      const baseBalance = user.balance || 0;
+      const multiplier = user.passiveAttributes?.multiplier || 1;
+      return Math.floor(baseBalance * multiplier);
+    };
 
 
 
@@ -127,11 +138,17 @@ const fetchUsers = async () => {
               }}
             >
               <option value="">All users</option>
-              {studentList.map((u) => (
+              {studentList.map((u) => {
+              
+              const displayName = (u.firstName || u.lastName)
+                ? `${u.firstName || ''} ${u.lastName || ''}`.trim()
+                : u.name || u.email;
+              return (
                 <option key={u._id} value={u._id}>
-                  {u.email} – {u.role}
+                  {displayName} – {ROLE_LABELS[u.role] || u.role}
                 </option>
-              ))}
+              );
+            })}
             </select>
 
             {/* sel*/}
@@ -154,31 +171,44 @@ const fetchUsers = async () => {
     )}
       {user.role === 'student' && (
         <div className="mb-6 space-y-2">
-          <h2 className="font-bold">Send Bits</h2>
+          <h2 className="font-bold mb-2">Wallet Transfer</h2>
+
+{/* pick a classmate by name */}
+<select
+  className="select select-bordered w-full mb-3"
+  value={selectedRecipientId}
+  onChange={(e) => {
+    const uid = e.target.value;
+    setSelectedRecipientId(uid);
+
+   
+    const chosen = studentList.find(s => s._id === uid);
+    if (chosen) setRecipientId(chosen.shortId);  
+  }}
+>
+  <option value="">Select Recipient by Name…</option>
+  {studentList
+    .filter(s => s._id !== user._id)            
+    .map(s => {
+      const name = (s.firstName || s.lastName)
+        ? `${s.firstName || ''} ${s.lastName || ''}`.trim()
+        : s.email;
+      return (
+        <option key={s._id} value={s._id}>
+          {name} – {s.shortId}
+        </option>
+      );
+    })}
+</select>
+
           <input
-          type="text"
-          placeholder="Enter ID"
-          className="input input-bordered w-full uppercase tracking-wider"
-          value={recipientId}
-          onChange={(e) => setRecipientId(e.target.value.toUpperCase())}
+            type="text"
+            placeholder="Enter Recipient ID"
+            className="input input-bordered w-full tracking-wider [&:not(:placeholder-shown)]:uppercase"
+            value={recipientId}
+            onChange={(e) => setRecipientId(e.target.value)}
           />
-          {recipientId.length >= 2 && (
-          <ul className="menu bg-base-100 max-h-40 overflow-y-auto">
-            {studentList
-              .filter(s => s.shortId.startsWith(recipientId))
-              .slice(0, 5)
-              .map(s => (
-                <li key={s._id}>
-                  <button
-                    type="button"
-                    onClick={() => setRecipientId(s.shortId)}
-                  >
-                    {s.shortId} – {s.firstName} {s.lastName}
-                  </button>
-                </li>
-              ))}
-          </ul>
-        )}
+
 
           <input
             type="number"
@@ -203,7 +233,10 @@ if (parsedAmount > balance) {
               try {
                await axios.post(
    '/api/wallet/transfer',
-   { recipientId, amount: parsedAmount },
+   {
+   recipientId: selectedRecipientId || recipientId,  
+   amount: parsedAmount
+},
    { withCredentials: true }
  );
 
@@ -212,6 +245,7 @@ if (parsedAmount > balance) {
 
  
  alert("Transfer successful");
+ setSelectedRecipientId('');
  setTransferAmount('');
  setRecipientId('');
               } catch (err) {
@@ -221,11 +255,19 @@ if (parsedAmount > balance) {
               }
             }}
           >
-            Send Bits
+            Transfer
           </button>
           <div>
             <h1 className="text-2xl font-bold">Wallet</h1>
-            <p className="mb-4">Balance: {balance}</p>
+            <div className="mb-4 space-y-1">
+              <p className="font-medium">Base Balance: {balance} bits</p>
+              <p className="font-medium text-success">
+                Effective Balance: {getEffectiveBalance(user)} bits 
+                <span className="text-sm text-gray-500 ml-2">
+                  (with {user.passiveAttributes?.multiplier || 1}x multiplier)
+                </span>
+              </p>
+            </div>
             <h2 className="text-lg font-semibold">Transaction History</h2>
             <ul className="list-disc ml-5">
               {transactions.map((tx) => (

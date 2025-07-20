@@ -11,6 +11,12 @@ const ClassroomSchema = new mongoose.Schema({
   // filename/path for an optional background image
   backgroundImage: { type: String, default: '' },
   archived: { type: Boolean, default: false },
+  taBitPolicy: {
+    type: String,
+    enum: ['full', 'approval', 'none'],
+    default: 'full',
+  },
+  studentSendEnabled: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now }
 });
 

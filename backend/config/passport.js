@@ -3,6 +3,8 @@ const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const MicrosoftStrategy = require('passport-microsoft').Strategy;
 const User = require('../models/User');
 
+const { callbackBase } = require('../config/domain'); // adjust path as needed
+
 module.exports = (passport) => {
   // Google OAuth Strategy
   passport.use(
@@ -10,7 +12,7 @@ module.exports = (passport) => {
       {
         clientID: process.env.GOOGLE_CLIENT_ID,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        callbackURL: '/api/auth/google/callback',
+        callbackURL: `${callbackBase}/api/auth/google/callback`,
       },
       async (accessToken, refreshToken, profile, done) => {
         const newUser = {
@@ -39,7 +41,7 @@ module.exports = (passport) => {
       {
         clientID: process.env.MICROSOFT_CLIENT_ID,
         clientSecret: process.env.MICROSOFT_CLIENT_SECRET,
-        callbackURL: '/api/auth/microsoft/callback',
+        callbackURL: `${callbackBase}/api/auth/microsoft/callback`,
         scope: ['user.read'],
       },
       async (accessToken, refreshToken, profile, done) => {

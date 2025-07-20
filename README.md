@@ -1,4 +1,32 @@
-# How to Setup:
+# 🎓 About PrizeVersity
+
+- [PrizeVersity](https://www.prizeversity.com/) is a [gamified](https://teaching.uchicago.edu/news/pedagogy-corner/what-gamification) educational platform ("ed-tech") that transforms classrooms into dynamic, engaging ecosystems. 
+- Instructors can create custom classrooms, award virtual currency—**"Bits"**—and build in-class reward systems through a virtual shop—**"Bazaar"**—where students redeem their earnings for real or creative perks (e.g., extra credit, club merch, lab/exam passes, etc.)
+- Whether through solo play or guild collaboration, students are rewarded for participation, learning, and consistent engagement.
+
+## Key features include:
+
+- Custom classroom creation and management (including **Announcements**, **GroupSets/sub-groups**, **role-based access control (RBAC)** between Students ⇌ TAs, and more!)
+- Virtual currency economy (**Bits**)
+- Reward system with dynamic **Bazaar**
+- Gamified **stat-based mechanics** (such as **Discount**, **multiplier**, **luck**, **Shield**, and **Attack Bonus**)
+- User stats, profiles, leaderboard, and transaction history dashboards.
+
+...and much more!
+
+## 🛠️ For Developers
+This repository hosts the full stack implementation of PrizeVersity, including the frontend, backend, and infrastructure setup.
+
+- **Frontend**: React.js
+- **Backend**: Node.js / Express
+- **Database**: MongoDB
+- **Infrastructure**: Configured for deployment on a server, featuring:
+   - **UFW (Firewall)**
+   - **PM2** (Process Manager for Node.js)
+   - **SSL (Encryption in transit)**
+   - **Persistent MongoDB storage** with replica set compatibility
+
+# How to Setup (Developers):
 
 ## Prerequisites:
 
@@ -11,13 +39,13 @@
 
      > Since this installation won't include `mongosh` (mongo shell), you will likely have to create an entry pointing at `mongod.exe` in `Path` under the `System Environment Variables`.
      > 
-     > `mongod.exe` will likely be located under some path like `C:\Program Files\MongoDB\Server\6.0\bin`. This `bin` location is the path you will need to add as the entry in `Path` under the `System Environment Variables`!
+     > `mongod.exe` will likely be located under some path like `C:\Program Files\MongoDB\Server\8.0\bin`. This `bin` location is the path you will need to add as the entry in `Path` under the `System Environment Variables`!
    
    - For `MacOS`:
    ```
    brew tap mongodb/brew
-   brew install mongodb-community@7.0
-   brew services start mongodb-community@7.0
+   brew install mongodb-community@8.0
+   brew services start mongodb-community@8.0
    ```
 
    - [OPTIONAL] If it hasn't been installed, you can [download MongoDB Compass from here](https://www.mongodb.com/try/download/compass), which is the GUI client of MongoDB to interact with the database directly :)
@@ -28,7 +56,7 @@
 
 > You can create one by navigating to: https://console.cloud.google.com/apis/credentials and then creating a "project".
 >
-> Make sure to add/register the redirect_uri, e.g. `http://localhost:5000/api/auth/google/callback`. You can do so from the `Project > OAuth 2.0 Client IDs > Authorized redirect URIs > Add URI`
+> Make sure to add/register the `redirect_uri`, e.g. `http://localhost:5000/api/auth/google/callback` (and eventually the `redirect_uri` of the domain as well, e.g. `https://prizeversity.com/api/auth/google/callback`, once the `A` record is configured in the provider DNS settings). You can do so from the `Project > OAuth 2.0 Client IDs > Authorized redirect URIs > Add URI`
 >
 > [Ref/Tutorial](https://youtu.be/TjMhPr59qn4?si=EKFlIMkQg4Eq6gDo)
 
@@ -36,7 +64,7 @@
 
 > You can create one by navigating to `App Registrations` on [Azure Portal](https://portal.azure.com/?quickstart=True#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade) and then creating an App Registration. For platform selection, select "web".
 > 
-> Make sure to add/register the redirect_uri, e.g. `http://localhost:5000/api/auth/microsoft/callback`. You can do so from the `App Registration > Authentication > Add a (web) platform > Add Web Redirect URI` if you didn't do it initially upon creation of the App registration.
+> Make sure to add/register the `redirect_uri`, e.g. `http://localhost:5000/api/auth/microsoft/callback` (and eventually the `redirect_uri` of the domain as well, e.g. `https://prizeversity.com/api/auth/google/callback`, once the `A` record is configured in the provider DNS settings). You can do so from the `App Registration > Authentication > Add a (web) platform > Add Web Redirect URI` if you didn't do it initially upon creation of the App registration.
 > 
 > For supported account types, select `Accounts in any organizational directory (Any Microsoft Entra ID tenant - Multitenant) and personal Microsoft accounts (e.g. Skype, Xbox)`. This is the associated type of the default `/common` auth API callback Microsoft uses.
 
@@ -59,7 +87,7 @@ prizeversity/
 >
 > - See the `.gitignore` file for other artifacts to ignore such as `node_modules` 
 
-## Initialize Backend and Frontend (IF CLONING/FORKING, ONLY RUN THE INSTALL STEPS!):
+## Initialize Backend and Frontend (IF CLONING/FORKING, ONLY RUN THE INSTALL STEPS, or `npm ci`):
 
 ### Scaffold `backend`:
 
@@ -229,7 +257,7 @@ mongod --dbpath /usr/local/var/mongodb
 mkdir C:\data\db
 
 # start the server
-"C:\Program Files\MongoDB\Server\6.0\bin\mongod.exe" --dbpath "C:\data\db"
+"C:\Program Files\MongoDB\Server\8.0\bin\mongod.exe" --dbpath "C:\data\db"
 
 # (if mongod.exe is on your PATH you can shorten to:)
 # mongod --dbpath "C:\data\db"
@@ -416,14 +444,46 @@ npm run build # (PROD) Node/Express or Nginx serves dist/ # Just regular HTTP/HT
 # Getting Started (clone / fork)
 
 ## 1. Clone the repo
+### Windows/MacOS:
 ```
 git clone https://github.com/some-org/prizeversity.git
 cd prizeversity
 ```
 
-## 2. Copy environment variables & Edit secrets
+### Linux OS
+1. First, configure the private/public keys on server/github:
 ```
-cp backend/.env.example backend/.env      # then edit secrets
+ssh-keygen -t ed25519 -C "ci@prizeversity" -f ~/.ssh/prizeversity-ci
+eval $(ssh-agent -s)
+~/.ssh/config # IF CONFIG DOESNT EXIST, create/edit it then esc and :wq to save/quit: touch ~/.ssh/config && vim ~/.ssh/config
+ssh-add ~/.ssh/prizeversity-ci
+cat ~/.ssh/prizeversity-ci.pub # Fetch the public key (which should start with ssh-ed25519 and end with ci@prizeversity) to create/paste it in a github ssh key: https://github.com/settings/keys
+ssh -T git@github.com # RUN THIS AFTER creating the ssh key in the github settings to confirm authentication works
+```
+2. Now, git clone should work with ssh
+```
+mkdir -p ~/app && cd ~/app # Create directory under the root/HOME to clone/store the website
+git clone git@github.com:nasserhadim/prizeversity.git
+cd app/prizeversity
+```
+
+## 2. Copy environment variables & Edit secrets (in `/backend/.env`)
+```
+MONGO_URI=mongodb://localhost:27017/prizeversity
+
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+# All Microsoft account users (/common)
+# Accounts in any organizational directory (Any Microsoft Entra ID tenant - Multitenant) and personal Microsoft accounts (e.g. Skype, Xbox)
+MICROSOFT_CLIENT_ID=
+MICROSOFT_CLIENT_SECRET=
+
+JWT_SECRET=
+
+NODE_ENV=development # Set to 'production' in production environment
+
+DOMAIN=https://prizeversity.com
 ```
 
 ## 3. Install dependencies
@@ -465,7 +525,7 @@ mongod --dbpath /usr/local/var/mongodb
 mkdir C:\data\db
 
 # start the server
-"C:\Program Files\MongoDB\Server\6.0\bin\mongod.exe" --dbpath "C:\data\db"
+"C:\Program Files\MongoDB\Server\8.0\bin\mongod.exe" --dbpath "C:\data\db"
 
 # (if mongod.exe is on your PATH you can shorten to:)
 # mongod --dbpath "C:\data\db"
@@ -541,36 +601,18 @@ Although running the `back-end` on **Windows** is possible—the production chec
 
 **Recommendation**: **Windows** works, but if you have no OS constraint, **Linux + Nginx** on a VPS is simpler (package manager updates, `systemd`, `ufw`, etc.).
 
-## 1. Prepare the code
-```
-# on your laptop or dev machine
-cd frontend
-npm ci           # reproducible install
-npm run build    # creates ./dist (static assets)
-git add .
-git commit -m "Production build"
-git push origin main
-```
-
-## 2. (OPTIONAL but RECOMMENDED) Initial server hardening for Performance Enhancement & Security/Firewall (run once)
+## 1. (OPTIONAL but RECOMMENDED) Initial server hardening for Performance Enhancement & Security/Firewall (run once)
 ```
 # SSH in as root or sudo user
 apt update && apt upgrade -y
 
-# 2.1  Add a swap file (Unnecessary but keeps the box alive on rare RAM spikes)
-fallocate -l 2G /swap.img
-chmod 600 /swap.img
-mkswap /swap.img
-swapon /swap.img
-echo '/swap.img none swap sw 0 0' >> /etc/fstab
-
-# 2.2  Raise file-descriptor limits (File descriptors are used for pretty much anything that reads or writes, io devices, pipes, sockets etc. Typically you modify this ulimit when using web servers. 128,000 open files will only consume around 128MB of system RAM. That shouldn't be much of a problem on a modern system with many GB of system RAM. WebSockets consume memory per connection and file descriptors, but they aren't heavy on CPU. For 100-150 concurrent users, 150 WebSocket connections aren’t demanding, just around 10 MB memory.)
+# 1.1  Raise file-descriptor limits (File descriptors are used for pretty much anything that reads or writes, io devices, pipes, sockets etc. Typically you modify this ulimit when using web servers. 128,000 open files will only consume around 128MB of system RAM. That shouldn't be much of a problem on a modern system with many GB of system RAM. WebSockets consume memory per connection and file descriptors, but they aren't heavy on CPU. For 100-150 concurrent users, 150 WebSocket connections aren’t demanding, just around 10 MB memory.)
 echo '* soft nofile 65535' >> /etc/security/limits.conf
 echo '* hard nofile 65535' >> /etc/security/limits.conf
-echo 'fs.file-max = 100000' >> /etc/sysctl.conf
+echo 'fs.file-max = 128000' >> /etc/sysctl.conf
 sysctl -p                       # reload kernel params
 
-# 2.3  Basic firewall (Unless already setup from the UI; NO need to open port 27017 because the app and DB share the same box.)
+# 1.2  Basic firewall (Unless already setup from the UI; NO need to open port 27017 because the app and DB share the same box.)
 ufw default deny incoming
 ufw default allow outgoing
 ufw allow 22/tcp comment "SSH"
@@ -579,78 +621,258 @@ ufw allow 443/tcp comment "HTTPS"
 ufw enable
 ```
 
-## 3. Install runtime tooling (run once)
+## 2. Install runtime tooling (run once)
 ```
-# 3-A  Node + build utils
+# 2-A-1 Ensure everything is updated first to avoid package conflicts later
+sudo apt update
+sudo apt update -y
+
+# 2-A-2  Node + build utils
 curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
 apt install -y nodejs build-essential
 
-# 3-A  PM2 (Process Manager for Node.js)
+# 2-A-3  PM2 (Process Manager for Node.js)
 npm install -g pm2
 
-# 3-A  MongoDB (single box)
-curl -fsSL https://pgp.mongodb.com/server-6.0.asc | \
-      tee /etc/apt/trusted.gpg.d/mongodb.asc
-echo "deb [arch=amd64] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/6.0 multiverse" \
-      | tee /etc/apt/sources.list.d/mongodb-org-6.0.list
-apt update && apt install -y mongodb-org
-systemctl enable --now mongod
+# 2-A-4-1  MongoDB (single box): https://www.mongodb.com/docs/manual/tutorial/install-mongodb-on-ubuntu/#installation-methods
 
-# 3-A-1  Limit Mongo to loopback only
+which curl && which gpg   # Check if curl and gpg are installed; if not, install them with: sudo apt-get install gnupg curl
+
+curl -fsSL https://www.mongodb.org/static/pgp/server-8.0.asc | sudo gpg -o /usr/share/keyrings/mongodb-server-8.0.gpg --dearmor # Import the MongoDB public GPG key
+
+cat /etc/lsb-release # Determine which release/version the host is running
+
+# Depending on the version, create the list file (e.g. in this case, Ubuntu 22.04 (Jammy))
+echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/8.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-8.0.list
+apt update && apt install -y mongodb-org
+
+sudo apt-get update                   # Reload the package database.
+sudo apt-get install -y mongodb-org   # Install MongoDB Community Server.
+
+# 2-A-4-2  Limit Mongo to loopback only
 sed -i 's/^  bindIp:.*/  bindIp: 127.0.0.1/' /etc/mongod.conf
 
+# 2-A-4-3 Run it!
+sudo systemctl start mongod      # Start MongoDB
+sudo systemctl status mongod     # Verify that MongoDB has started successfully.
+sudo systemctl enable mongod     # Optionally ensure that MongoDB will start following a system reboot
 
 #########################################################################
-# 3-B  OPTIONAL but recommended: flip that one mongod into replica-set mode
+# 2-B  OPTIONAL but recommended: flip that one mongod into replica-set mode
 #########################################################################
 
-# 3-B-1  Add a replSetName to the config
+# 2-B-1  Add a replSetName to the config
 printf "\nreplication:\n  replSetName: rs0\n" >> /etc/mongod.conf
 
-# 3-B-2  Restart Mongo so it reads the new stanza
+# 2-B-2  Restart Mongo so it reads the new stanza
 systemctl restart mongod
 
-# 3-B-3  Initialise the single-node replica set
+# 2-B-3  Initialise the single-node replica set
 mongosh --eval 'rs.initiate()'      # will output “ok: 1” on success
 
-# 3-B-4  Quick sanity check (should show PRIMARY, 1 member)
+# 2-B-4  Quick sanity check (should show PRIMARY, 1 member)
 mongosh --eval 'rs.status().members.map(m => m.stateStr)'
 # → [ "PRIMARY" ]
-#########################################################################
+
+# 2-B-5 (OPTIONAL but RECOMMENDED) To support MongoDB replication or future scalability
+echo "vm.max_map_count=131060" | sudo tee -a /etc/sysctl.conf   # Persistently increases max memory maps with a recommended threshold (131060) to avoid ENOMEM (out of memory) or Too many open files errors.
+sudo sysctl -p                                                  # Applies the change immediately
+cat /proc/sys/vm/max_map_count                                  # Confirms the change worked
+sudo systemctl restart mongod
+```
+
+## 3. Prepare the code (Assumes repo had been cloned; Check the `# Getting Started (clone / fork) > Clone the repo > Linux OS` section above.)
+```
+# On the server:
+cd app/prizeversity # Navigate to app direcory in root/HOME, which assumes this is where prizeversity had been cloned
+cd backend
+touch .env # create the .env file
+vim .env   # copy the .env components (from the above section 2. Copy environment variables & Edit secrets. MAKE SURE TO CHANGE NODE_ENV=development to NODE_ENV=production!) then :wq to save/quit.
+npm ci     # reproducible install
+
+cd ..
+
+cd frontend
+npm ci           # reproducible install
+npm run build    # creates ./dist (static assets)
+git add .
+git commit -m "Production build"
+git push origin main
 ```
 
 ## 4. Deploy the application
-```
-# as a non-root deploy user
-mkdir -p ~/app && cd ~/app
-git clone https://github.com/nasserhadim/prizeversity.git .
-npm ci            # backend dependencies
-npm run build -w frontend   # if using workspaces
+The steps to deploy the `Node.js` **backend** and static **frontend** using `Nginx` as a **reverse proxy**, with `HTTPS` via `Certbot`, and process management with `PM2` are as follows:
 
-# Serve static files & API with Express
-# (skip if you already have an Nginx reverse proxy plan)
-pm2 start ecosystem.config.js --name prizeversity
-pm2 save            # write dump
-pm2 startup         # generates a systemd script; run the displayed command
+### 0. Preliminary: Add `A` record in the domain's DNS configuration and Check Web Server Type
+
+#### 1. Add DNS Records
++ Add an `A` record pointing at the server's IP Address in the domain's DNS configuration page of the hosting provider, e.g. https://hpanel.hostinger.com/domain/prizeversity.com/dns
+   + Consider [Cloudflare](https://dash.cloudflare.com/) as it automatically gives edge `SSL` and Brotli compression.
++ It's recommended to also add a wildcard `*` **CName** record and a `www` **CName** record pointing at the domain, so that if the server's IP address changes, only the `A` record would have to be modified.
+
+**Example:**
+
+| Type  | Name | Points to        | TTL   | Priority |
+|-------|------|------------------|-------|----------|
+| A     | @    | 123.45.67.123    | 14400 | 0        |
+| CName | *    | prizeversity.com | 14400 | 0        |
+| CName | www  | prizeversity.com | 14400 | 0        |
+
+**Reasons for `CNAMEs`:**
+
+- `www` → Allows users to access the site using `www.prizeversity.com` as well as `prizeversity.com`.
+- `*` → Supports any subdomain (like `beta.prizeversity.com`, `classroom.prizeversity.com`, etc.) by redirecting them to the root domain without extra DNS config.
+
+#### 2. Check Web Server Type
+```
+systemctl status nginx   # Check if Nginx is running; If you see "active (running)", the server is using Nginx.
+
+systemctl status apache   # Check if Apache is running; If you see "active (running)", the server is using Apache.
 ```
 
-> Example ecosystem.config.js:
+**Note:** For the remaining steps, the assumption will be `Nginx` is being used by the server, but similar steps would apply for `Apache` regardless.
+
+### 1. Obtain and Install `SSL` Certificate with `Certbot`
+**Purpose**: Secure the domain with `HTTPS` using a free [Let's Encrypt](https://letsencrypt.org/) certificate.
 
 ```
-module.exports = {
-  apps: [{
-    name: 'prizeversity',
-    script: './server/index.js',
-    instances: 'max',        // one cluster worker per vCPU (4)
-    exec_mode: 'cluster',
-    listen_timeout: 10000,   // health-probe timeout
-    max_memory_restart: '500M',
-    env: { NODE_ENV: 'production' }
-  }]
-};
+sudo apt update
+sudo apt install certbot python3-certbot-nginx
+sudo certbot --nginx -d prizeversity.com -d www.prizeversity.com # Certbot will automatically update the Nginx config for SSL.
 ```
 
-## 4.5.  Prepare SSH keys for CI/CD
+### 2. Configure `Nginx` for `Reverse Proxy` and Static File Serving
+**Purpose**: Route API requests to the backend and serve the frontend efficiently.
+
+- `HTTP/2` provides significant performance and efficiency benefits, primarily due to its ability to multiplex multiple requests over a single connection and its efficient use of binary framing.
+   - This leads to faster page load times, reduced latency, and improved user experience.
+   - This means that a client can start receiving responses for multiple requests at the same time, significantly reducing the time it takes for a page to load.
+
+- `Gzip` is a data compression utility and a file format used for compressing and decompressing files.
+   - It uses the Deflate algorithm, which is known for its efficiency in reducing file size.
+   - Gzip is commonly used for web servers and browsers, as it helps improve data transfer speeds by compressing files before sending them and decompressing them upon reception. 
+
+- Assuming `Nginx` is running, find the active `Nginx` config file for the domain
+```
+grep -r "server_name prizeversity.com" /etc/nginx/sites-available/
+grep -r "server_name prizeversity.com" /etc/nginx/conf.d/
+```
+- The output will show the file(s) containing the domain’s configuration.
+- Edit the file shown in the output (e.g., `sudo nano /etc/nginx/conf.d/123.45.67.123.conf` and `Ctrl + O` to save, followed by `Ctrl + X` to exit).
+
+```
+# Redirect HTTP to HTTPS
+server {
+    listen 123.45.67.123:80;
+    server_name prizeversity.com www.prizeversity.com;
+    return 301 https://$host$request_uri;
+}
+
+# HTTPS server block
+server {
+    listen 123.45.67.123:443 ssl http2;
+    server_name prizeversity.com www.prizeversity.com;
+
+    ssl_certificate /etc/letsencrypt/live/prizeversity.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/prizeversity.com/privkey.pem;
+
+    # SSL and Gzip settings
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+    ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305';
+    ssl_ecdh_curve X25519:secp384r1:secp521r1:secp256k1:prime256v1;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_tickets off;
+    ssl_stapling on;
+    ssl_stapling_verify on;
+    resolver 1.1.1.1 8.8.8.8 valid=300s;
+    resolver_timeout 5s;
+
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+    gzip_min_length 256;
+    gzip_comp_level 5;
+    gzip_vary on;
+
+    access_log off;
+    error_log /dev/null;
+
+    # Proxy API requests to backend
+    location /api/ {
+        proxy_pass http://localhost:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # Serve static frontend files
+    location / {
+        root /var/www/prizeversity-frontend;
+        try_files $uri $uri/ /index.html;
+    }
+}
+```
+
+- After editing, test and reload `Nginx`:
+
+```
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+### 3. Deploy and Run the `Node.js` Backend with `PM2`
+**Purpose**: Keep the backend running and restart it automatically on server reboot.
+
+```
+cd ~/app/prizeversity/backend
+pm2 start server.js --name prizeversity-backend
+pm2 save
+pm2 startup
+```
+
+- Follow any `pm2` startup instructions to enable auto-start on reboot.
+- Ensure the backend listens on port `5000` (or update the `Nginx` config if it's different).
+
+### 4. Build and Deploy the Frontend
+**Purpose**: Serve the production-ready static frontend files via `Nginx`.
+
+```
+cd ~/app/prizeversity/frontend
+npm install
+npm run build
+sudo mkdir -p /var/www/prizeversity-frontend
+sudo cp -r dist/* /var/www/prizeversity-frontend/   # copies the built frontend (dist/) to the Nginx web root.
+```
+
+### 5. Verify Everything is Working
+
+- Visit https://prizeversity.com to see the frontend.
+- API requests to `/api/` are proxied to the backend.
+- Use `pm2 status` to check backend is running.
+- Use `sudo certbot renew --dry-run` or `sudo systemctl list-timers | grep certbot` to confirm `SSL` **auto-renewal**.
+- Run an [Qualys SSL Scan](https://www.ssllabs.com/ssltest) on the domain.
+   - Select the "**Clear Cache**" option if the domain was already scanned previously and you want to re-scan again.
+
+### 6.  Updating the Server Deployment
+When changes are made to `main` and want to deploy them to the server:
+
+```
+cd ~/app/prizeversity
+git pull                         # Pull the latest changes from GitHub
+
+cd backend
+npm ci                           # Install exact dependencies
+pm2 reload server.js --name prizeversity-backend --update-env    # Use --update-env if you've changed .env variables; otherwise, it's optional.
+
+cd ../frontend
+npm ci                           # Install exact frontend dependencies
+npm run build                    # Build static frontend files to /dist
+```
+
+### 7.  CI/CD
+#### 7.1  Prepare SSH keys for CI/CD
 
 1. **Generate a key pair on your laptop (once)**
 
@@ -662,7 +884,7 @@ module.exports = {
    - `~/.ssh/prizeversity-ci`   (private key)
    - `~/.ssh/prizeversity-ci.pub` (public key)
    
-3. **Copy the public key to the VPS (as your deploy user)**
+3. **Copy the public key to the server (as your deploy user)**
 
    ```
    ssh-copy-id -i ~/.ssh/prizeversity-ci.pub deploy@<VPS_IP>
@@ -671,7 +893,7 @@ module.exports = {
    # cat ~/.ssh/prizeversity-ci.pub | ssh deploy@<VPS_IP> 'mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys'
    ```
    
-5. **Add secrets to the GitHub repo** → `Settings` › `Secrets & variables` › `Actions`
+4. **Add secrets to the GitHub repo** → `Settings` › `Secrets & variables` › `Actions`
 
 | Secret name | Value |
 |-------------|-------|
@@ -687,59 +909,81 @@ module.exports = {
    ssh -i ~/.ssh/prizeversity-ci deploy@<VPS_IP>    # manual test
    ```
 
-## 5. TLS, CDN & HTTP/2
-### 5.1 Cloudflare DNS
-- Add an A-record for app.example.com → VPS IP
-- Orange-cloud it (proxy on).
-- Cloudflare automatically gives edge SSL and Brotli compression.
-  
-### 5.2 Origin certificate
-```
-apt install -y certbot
-certbot certonly --standalone -d app.example.com --agree-tos -m you@example.com
-```
+#### 7.2  CI/CD Deployment (GitHub Actions workflow)
+- Builds & tests the code on every push to `main`
+- Uploads the build to VPS server over SSH
+- Installs production-only dependencies on the server
+- Hot-reloads PM2 process named `prizeversity`
 
-### 5.3 Nginx reverse proxy (if wanting full HTTP/2 + gzip at origin):
-- HTTP/2 provides significant performance and efficiency benefits, primarily due to its ability to multiplex multiple requests over a single connection and its efficient use of binary framing. This leads to faster page load times, reduced latency, and improved user experience. This means that a client can start receiving responses for multiple requests at the same time, significantly reducing the time it takes for a page to load.
+##### 7.2.1 Add a GitHub Environment called production (manual "Approve & Deploy" gate)
 
-- Gzip is a data compression utility and a file format used for compressing and decompressing files. It uses the Deflate algorithm, which is known for its efficiency in reducing file size. Gzip is commonly used for web servers and browsers, as it helps improve data transfer speeds by compressing files before sending them and decompressing them upon reception. 
-```
-apt install -y nginx
-cat >/etc/nginx/sites-available/prizeversity <<'EOF'
-server {
-    listen 80;
-    server_name app.example.com;
-    return 301 https://$host$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name app.example.com;
-
-    ssl_certificate     /etc/letsencrypt/live/app.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/app.example.com/privkey.pem;
-
-    location / {
-        proxy_pass http://127.0.0.1:5000;    # your Express port
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-    location /static/ {
-        root /home/deploy/app/frontend/dist;
-        try_files $uri =404;
-    }
-}
-EOF
-
-ln -s /etc/nginx/sites-available/prizeversity /etc/nginx/sites-enabled/
-nginx -t && systemctl reload nginx
-```
-
-> **[TROUBLESHOOTING]**
+> 1. Repository → Settings → Environments → New environment → `production`
 >
-> `nginx: [emerg] bind() to 0.0.0.0:80 failed (98: Address already in use)` – another service (often Apache or a second Nginx instance) is holding port `80`.
+> 2. Under Deployment protection rules choose “Required reviewers” and add self (or team).
 >
-> Stop it (`sudo systemctl stop apache2` or `sudo fuser -k 80/tcp`) and re-run `nginx -t`.
+> 3. Save.
+
+- Effect: Every push to `main` will pause at "Waiting for approval in environment production".
+- Open > Actions → run → Review deployments → Approve and deploy to continue.
+
+##### 7.2.2 Create `.github/workflows/deploy.yml` in the repo
+```
+name: CI & CD – Prizeversity Production
+on: { push: { branches: [ main ] } }
+
+concurrency: { group: production, cancel-in-progress: true }
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-22.04
+    environment: { name: production, url: https://prizeversity.com }
+
+    env:
+      APP_DIR: /home/deploy/prizeversity
+      NODE_VERSION: 22
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-node@v4           # cache is per-folder, so leave default
+      with: { node-version: ${{ env.NODE_VERSION }} }
+
+    # ─── Backend ───────────────────────────────────────────
+    - name: Install & test backend
+      working-directory: backend            # to pick a folder—no manual cd backend needed!
+      run: |
+        npm ci
+        npm run test --if-present
+
+    # ─── Front-end ─────────────────────────────────────────
+    - name: Build frontend
+      working-directory: frontend           # to pick a folder—no manual cd frontend needed!
+      run: |
+        npm ci
+        npm run build
+
+    # ─── Rsync to server ──────────────────────────────────
+    - uses: webfactory/ssh-agent@v0.9.0
+      with: { ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }} }
+
+    - name: Upload code
+      run: |
+        rsync -az --delete \
+          -e "ssh -p ${{ secrets.SSH_PORT }}" \
+          --exclude='**/node_modules' \
+          ./  ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ env.APP_DIR }}
+
+    # ─── Remote: deps ▸ migrate ▸ reload ──────────────────
+    - name: Install prod deps, run migrations, reload PM2
+      run: |
+        ssh -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} <<'EOF'
+          set -e
+          cd /home/deploy/prizeversity/backend               # because there is no YAML working-directory helper once we’re inside the VPS remote shell, cd is needed
+          npm ci --omit=dev
+          npm run migrate                                    # migrate-mongo up
+          pm2 reload /home/deploy/prizeversity/ecosystem.config.js --update-env
+        EOF
+```
 
 ## Appendix · Deploying on Windows Server 2019/2022
 
@@ -874,82 +1118,6 @@ pm2 install pm2-server-monit
 ```
 
 > Set Cloudflare / UptimeRobot pings on `/healthz` endpoint that simply returns `200 OK`.
-
-## 10. CI/CD Deployment (GitHub Actions workflow)
-- Builds & tests the code on every push to `main`
-- Uploads the build to VPS server over SSH
-- Installs production-only dependencies on the server
-- Hot-reloads PM2 process named `prizeversity`
-
-### 10.1 Add a GitHub Environment called production (manual "Approve & Deploy" gate)
-
-> 1. Repository → Settings → Environments → New environment → `production`
->
-> 2. Under Deployment protection rules choose “Required reviewers” and add self (or team).
->
-> 3. Save.
-
-- Effect: Every push to `main` will pause at "Waiting for approval in environment production".
-- Open > Actions → run → Review deployments → Approve and deploy to continue.
-
-### 10.2 Create `.github/workflows/deploy.yml` in the repo
-```
-name: CI & CD – Prizeversity Production
-on: { push: { branches: [ main ] } }
-
-concurrency: { group: production, cancel-in-progress: true }
-
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-22.04
-    environment: { name: production, url: https://prizeversity.com }
-
-    env:
-      APP_DIR: /home/deploy/prizeversity
-      NODE_VERSION: 22
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - uses: actions/setup-node@v4           # cache is per-folder, so leave default
-      with: { node-version: ${{ env.NODE_VERSION }} }
-
-    # ─── Backend ───────────────────────────────────────────
-    - name: Install & test backend
-      working-directory: backend            # to pick a folder—no manual cd backend needed!
-      run: |
-        npm ci
-        npm run test --if-present
-
-    # ─── Front-end ─────────────────────────────────────────
-    - name: Build frontend
-      working-directory: frontend           # to pick a folder—no manual cd frontend needed!
-      run: |
-        npm ci
-        npm run build
-
-    # ─── Rsync to server ──────────────────────────────────
-    - uses: webfactory/ssh-agent@v0.9.0
-      with: { ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }} }
-
-    - name: Upload code
-      run: |
-        rsync -az --delete \
-          -e "ssh -p ${{ secrets.SSH_PORT }}" \
-          --exclude='**/node_modules' \
-          ./  ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ env.APP_DIR }}
-
-    # ─── Remote: deps ▸ migrate ▸ reload ──────────────────
-    - name: Install prod deps, run migrations, reload PM2
-      run: |
-        ssh -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} <<'EOF'
-          set -e
-          cd /home/deploy/prizeversity/backend               # because there is no YAML working-directory helper once we’re inside the VPS remote shell, cd is needed
-          npm ci --omit=dev
-          npm run migrate                                    # migrate-mongo up
-          pm2 reload /home/deploy/prizeversity/ecosystem.config.js --update-env
-        EOF
-```
 
 # MISC
 
