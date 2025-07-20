@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
-import socket from '../utils/socket.js'
+import socket from '../utils/socket.js';
+import { LoaderIcon } from 'lucide-react';
 
 const StudentStats = () => {
     const { classroomId, id: studentId } = useParams();
@@ -32,7 +33,7 @@ const StudentStats = () => {
         const handleDiscountExpired = () => {
             setStats(prev => ({
                 ...prev,
-                discountShop: false
+                discountShop: 0
             }));
         };
 
@@ -44,7 +45,11 @@ const StudentStats = () => {
     }, [studentId]);
 
     if (loading) {
-        return <div className="p-6 text-center">Loading...</div>;
+        return (
+            <div className="flex items-center justify-center p-6">
+                <LoaderIcon className="animate-spin h-8 w-8" />
+            </div>
+        );
     }
 
     if (error) {
@@ -55,34 +60,68 @@ const StudentStats = () => {
         );
     }
 
+    if (!stats) {
+        return (
+            <div className="p-6 text-center">
+                No stats available for this student
+            </div>
+        );
+    }
+
     return (
         <div className="max-w-md mx-auto p-6 mt-10 bg-white rounded-xl shadow space-y-6">
             <h2 className="text-2xl font-bold text-center">🎯 Student Stats</h2>
 
-            <table className="table w-full">
-                <tbody>
-                    <tr>
-                        <td>⚔️ Attack Bonus</td>
-                        <td>{stats.attackPower || 0}</td>
-                    </tr>
-                    <tr>
-                        <td>🛡 Shield</td>
-                        <td>{stats.shieldActive ? 'Active' : 'Inactive'}</td>
-                    </tr>
-                    <tr>
-                        <td>💰 Multiplier</td>
-                        <td>{stats.doubleEarnings ? '2x Earnings' : 'Normal'}</td>
-                    </tr>
-                    <tr>
-                        <td>🏷️ Discount</td>
-                        <td>{stats?.discountShop ? '20% Off Shop' : 'None'}</td>
-                    </tr>
-                    <tr>
-                        <td>🍀 Luck</td>
-                        <td>{typeof stats.luck === 'number' ? stats.luck : '0'}</td>
-                    </tr>
-                </tbody>
-            </table>
+            <div className="stats stats-vertical shadow w-full">
+                {/* ... other stats ... */}
+
+                <div className="stat">
+                    <div className="stat-figure text-secondary">
+                        ⚔️
+                    </div>
+                    <div className="stat-title">Attack Bonus</div>
+                    <div className="stat-value">{stats.attackPower || 0}</div>
+                </div>
+                
+                <div className="stat">
+                    <div className="stat-figure text-secondary">
+                        🛡
+                    </div>
+                    <div className="stat-title">Shield</div>
+                    <div className="stat-value">
+                        {stats.shieldActive ? 'Active' : 'Inactive'}
+                    </div>
+                </div>
+                
+                <div className="stat">
+                <div className="stat-figure text-secondary">
+                    ✖️
+                </div>
+                <div className="stat-title">Multiplier</div>
+                <div className="stat-value">x{stats.multiplier || 1}</div>
+                </div>
+                
+                <div className="stat">
+                <div className="stat-figure text-secondary">
+                    🏷️
+                </div>
+                <div className="stat-title">Discount</div>
+                <div className="stat-value">
+                    {stats.discountShop ? `${stats.discountShop}%` : 'None'}
+                </div>
+                {stats.discountShop > 0 && (
+                    <div className="stat-desc">Active in bazaar</div>
+                )}
+                </div>
+                
+                <div className="stat">
+                <div className="stat-figure text-secondary">
+                    🍀
+                </div>
+                <div className="stat-title">Luck</div>
+                <div className="stat-value">x{stats.luck || 1}</div>
+                </div>
+            </div>
 
             {classroomId ? (
                 <Link to={`/classroom/${classroomId}/people`} className="btn btn-outline w-full">

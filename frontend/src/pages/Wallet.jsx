@@ -83,7 +83,11 @@ const fetchUsers = async () => {
         console.error('Failed to fetch wallet', err);
       }
     };
-
+    const getEffectiveBalance = (user) => {
+      const baseBalance = user.balance || 0;
+      const multiplier = user.passiveAttributes?.multiplier || 1;
+      return Math.floor(baseBalance * multiplier);
+    };
 
 
 
@@ -255,7 +259,15 @@ if (parsedAmount > balance) {
           </button>
           <div>
             <h1 className="text-2xl font-bold">Wallet</h1>
-            <p className="mb-4">Balance: {balance}</p>
+            <div className="mb-4 space-y-1">
+              <p className="font-medium">Base Balance: {balance} bits</p>
+              <p className="font-medium text-success">
+                Effective Balance: {getEffectiveBalance(user)} bits 
+                <span className="text-sm text-gray-500 ml-2">
+                  (with {user.passiveAttributes?.multiplier || 1}x multiplier)
+                </span>
+              </p>
+            </div>
             <h2 className="text-lg font-semibold">Transaction History</h2>
             <ul className="list-disc ml-5">
               {transactions.map((tx) => (
