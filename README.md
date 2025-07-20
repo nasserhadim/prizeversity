@@ -710,6 +710,7 @@ The steps to deploy the `Node.js` **backend** and static **frontend** using `Ngi
 #### 1. Add DNS Records
 + Add an `A` record pointing at the server's IP Address in the domain's DNS configuration page of the hosting provider, e.g. https://hpanel.hostinger.com/domain/prizeversity.com/dns
    + Consider [Cloudflare](https://dash.cloudflare.com/) as it automatically gives edge `SSL` and Brotli compression.
+   + If you do consider Cloudflare and add the domain and import the current records there, then you have to change the current provider nameservers, e.g. [Hostinger's](https://hpanel.hostinger.com/domain/prizeversity.com/dns) `ns1.dns-parking.com` and `ns2.dns-parking.com` namesevers, with Cloudflare's nameservers, i.e. `bethany.ns.cloudflare.com` and `donovan.ns.cloudflare.com`.
 + It's recommended to also add a wildcard `*` **CName** record and a `www` **CName** record pointing at the domain, so that if the server's IP address changes, only the `A` record would have to be modified.
 
 **Example:**
