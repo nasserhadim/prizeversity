@@ -13,6 +13,7 @@
   "type": "commonjs",
   "description": "",
   "dependencies": {
+    "connect-mongo": "^5.1.0",
     "cors": "^2.8.5",
     "dompurify": "^3.2.6",
     "dotenv": "^16.5.0",
