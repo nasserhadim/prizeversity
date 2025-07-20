@@ -26,6 +26,7 @@ const attackItems = require('./routes/attackItem.js');
 const defendItems = require('./routes/defendItem.js');
 const utilityItems = require('./routes/utilityItem.js');
 const passiveItems = require('./routes/passiveItem.js');
+const { redirectBase, isProd } = require('./config/domain');
 require('dotenv').config();
 
 const app = express();
@@ -33,14 +34,14 @@ const PORT = process.env.PORT || 5000;
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: "http://localhost:5173",
+    origin: redirectBase,
     methods: ["GET", "POST"]
   }
 });
 
 // Middleware
 app.use(cors({
-  origin: 'http://localhost:5173',
+  origin: redirectBase,
   credentials: true,
 }));
 app.use(express.json());
@@ -106,7 +107,7 @@ app.use('/api/utility', utilityItems);
 app.use('/api/passive', passiveItems);
 // Root Route
 app.get('/', (req, res) => {
-  res.redirect('http://localhost:5173'); // Redirect to the frontend
+  res.redirect(redirectBase);
 });
 
 // Socket.IO connection handling
