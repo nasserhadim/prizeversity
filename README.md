@@ -843,6 +843,7 @@ pm2 startup
 ```
 cd ~/app/prizeversity/frontend
 npm install
+rm -rf dist                # Remove old build (if any)
 npm run build
 sudo mkdir -p /var/www/prizeversity-frontend
 sudo cp -r dist/* /var/www/prizeversity-frontend/   # copies the built frontend (dist/) to the Nginx web root.
@@ -870,7 +871,9 @@ pm2 reload server.js --name prizeversity-backend --update-env    # Use --update-
 
 cd ../frontend
 npm ci                           # Install exact frontend dependencies
+rm -rf dist                      # Remove old build (if any)
 npm run build                    # Build static frontend files to /dist
+sudo cp -r dist/* /var/www/prizeversity-frontend/  # Deploy build to Nginx-served directory
 ```
 
 ### 7.  CI/CD
@@ -962,7 +965,9 @@ jobs:
       working-directory: frontend           # to pick a folder—no manual cd frontend needed!
       run: |
         npm ci
+        rm -rf dist
         npm run build
+        sudo cp -r dist/* /var/www/prizeversity-frontend/
 
     # ─── Rsync to server ──────────────────────────────────
     - uses: webfactory/ssh-agent@v0.9.0
