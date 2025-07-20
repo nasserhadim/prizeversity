@@ -33,6 +33,11 @@ const { redirectBase, isProd } = require('./config/domain');
 const app = express();
 const PORT = process.env.PORT || 5000;
 const httpServer = createServer(app);
+
+console.log("✅ Socket.IO CORS origin set to:", redirectBase);
+// Initialize Socket.IO with CORS settings
+// This allows the frontend to connect to the Socket.IO server from the specified origin
+
 const io = new Server(httpServer, {
   cors: {
     origin: redirectBase,
