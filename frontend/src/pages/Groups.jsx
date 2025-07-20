@@ -418,7 +418,7 @@ const Groups = () => {
             </button>
           ) : (
             <button
-              className="btn btn-primary hover:scale-105 transition-transform duration-200"
+              className="btn btn-success hover:scale-105 transition-transform duration-200"
               onClick={handleCreateGroupSet}
             >
               Create Groupset
@@ -451,7 +451,7 @@ const Groups = () => {
 
         {(user.role === 'teacher' || user.role === 'admin') && (
           <div className="flex gap-2">
-            <button className="btn btn-sm btn-accent" onClick={() => handleEditGroupSet(gs)}>Edit</button>
+            <button className="btn btn-sm btn-info" onClick={() => handleEditGroupSet(gs)}>Edit</button>
             <button className="btn btn-sm btn-error" onClick={() => handleDeleteGroupSetConfirm(gs)}>Delete</button>
           </div>
         )}
@@ -462,7 +462,7 @@ const Groups = () => {
             <h4 className="text-md font-semibold">Create group</h4>
             <input
               type="text"
-              className="input input-bordered w-full mt-1"
+              className="input input-bordered w-full mt-1 mb-3"
               placeholder="Group Name"
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
@@ -475,7 +475,7 @@ const Groups = () => {
               value={groupCount}
               onChange={(e) => setGroupCount(e.target.value)}
             />
-            <button className="btn btn-primary mt-2" onClick={() => handleCreateGroup(gs._id)}>
+            <button className="btn btn-success mt-2" onClick={() => handleCreateGroup(gs._id)}>
               Create
             </button>
           </div>
@@ -558,7 +558,7 @@ const Groups = () => {
                   <button className="btn btn-xs btn-info" onClick={() => handleEditGroup(gs._id, group._id)}>Edit</button>
                   <button className="btn btn-xs btn-error" onClick={() => handleDeleteGroup(gs._id, group._id)}>Delete</button>
                   <button className="btn btn-xs btn-warning" onClick={() => setOpenSiphonModal(group)}>Siphon</button>
-                  <button className="btn btn-xs btn-primary" onClick={() => openAdjustModal(gs._id, group._id)}>Transfer</button>
+                  <button className="btn btn-xs btn-success" onClick={() => openAdjustModal(gs._id, group._id)}>Transfer</button>
                 </>
               )}
             </div>

@@ -218,16 +218,16 @@ const fetchUsers = async () => {
             onChange={(e) => setTransferAmount(e.target.value)}
           />
           <button
-            className="btn btn-primary w-full"
+            className="btn btn-success w-full"
             onClick={async () => {
               const parsedAmount = parseInt(transferAmount, 10);
 
               if (!parsedAmount || parsedAmount < 1) {
-                alert("Transfer amount must be at least 1 bit");
+                toast.error("Transfer amount must be at least 1 bit");
                 return;
               }
 if (parsedAmount > balance) {
-                alert("You don't have enough bits for this transfer");
+                toast.error("You don't have enough bits for this transfer");
                 return;
              }
               try {
@@ -244,13 +244,13 @@ if (parsedAmount > balance) {
  await fetchWallet();
 
  
- alert("Transfer successful");
+ toast.success("Transfer successful");
  setSelectedRecipientId('');
  setTransferAmount('');
  setRecipientId('');
               } catch (err) {
                 const serverError = err.response?.data?.error;
-                alert(serverError || err.message || "Transfer failed");
+                toast.error(serverError || err.message || "Transfer failed");
                 console.error("Transfer failed:", err);
               }
             }}
@@ -261,12 +261,6 @@ if (parsedAmount > balance) {
             <h1 className="text-2xl font-bold">Wallet</h1>
             <div className="mb-4 space-y-1">
               <p className="font-medium">Base Balance: {balance} bits</p>
-              <p className="font-medium text-success">
-                Effective Balance: {getEffectiveBalance(user)} bits 
-                <span className="text-sm text-gray-500 ml-2">
-                  (with {user.passiveAttributes?.multiplier || 1}x multiplier)
-                </span>
-              </p>
             </div>
             <h2 className="text-lg font-semibold">Transaction History</h2>
             <ul className="list-disc ml-5">

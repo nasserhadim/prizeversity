@@ -35,7 +35,7 @@ const GroupMultiplierControl = ({ group, groupSetId, classroomId, compact = fals
       <button 
         onClick={handleUpdate}
         disabled={loading}
-        className="btn btn-xs btn-primary"
+        className="btn btn-xs btn-success"
       >
         {loading ? '...' : 'Set'}
       </button>

@@ -138,8 +138,8 @@ const BulkBalanceEditor = () => {
             {visibleStudents.length === 0 && <p className="text-gray-500">No matching students.</p>}
           </div>
 
-          +<button
-  className={`btn w-full ${taMayAssign ? 'btn-primary' : 'btn-disabled'}`}
+          <button
+  className={`btn w-full ${taMayAssign ? 'btn-success' : 'btn-disabled'}`}
   onClick={next}
 >
             Next
@@ -164,7 +164,7 @@ const BulkBalanceEditor = () => {
           <div className="flex gap-2">
             <button className="btn btn-outline flex-1" onClick={back}>Back</button>
             <button
-  className={`btn flex-1 ${taMayAssign ? 'btn-warning' : 'btn-disabled'}`}
+  className={`btn flex-1 ${taMayAssign ? 'btn-success' : 'btn-disabled'}`}
   onClick={apply}
 >
   Apply
