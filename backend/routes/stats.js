@@ -17,28 +17,20 @@ router.get('/student/:id', ensureAuthenticated, async (req, res) => {
 
     const items = await Item.find({ owner: userId });
 
-    const hasEffect = (effectName) =>
-      items.some((item) => item.effect === effectName);
-
     const attackCount = items.filter((item) =>
-      ['halveBits', 'stealBits'].includes(item.effect)
+      ['halveBits', 'stealBits'].includes(item.primaryEffect)
     ).length;
 
     const passiveItems = items.filter((item) => item.category === 'Passive');
 
-    const passiveStats = {
-      luck: passiveItems.filter((i) => i.passiveAttributes?.luck).length,
-      multiplier: passiveItems.filter((i) => i.passiveAttributes?.multiplier).length,
-      groupMultiplier: passiveItems.filter((i) => i.passiveAttributes?.groupMultiplier).length,
-    };
-
+    // Format stats with 'x' prefix for multipliers
     return res.json({
       shieldActive: user.shieldActive,
-      doubleEarnings: user.doubleEarnings,
-      discountShop: user.discountShop,
-      bitInterest: hasEffect('bitInterest'),
+      discountShop: user.discountShop ? 20 : 0, // Return as number
       attackPower: attackCount,
-      ...passiveStats,
+      luck: user.passiveAttributes?.luck || 1,
+      multiplier: user.passiveAttributes?.multiplier || 1,
+      groupMultiplier: user.passiveAttributes?.groupMultiplier || 1,
       classroomId: classroom?._id?.toString() || null,
     });
   } catch (err) {

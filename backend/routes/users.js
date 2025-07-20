@@ -80,34 +80,49 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
   }
 
   try {
-    // Keep a record of successes / failures (optional)
     const results = { updated: 0, skipped: [] };
 
     for (const { studentId, amount } of updates) {
       if (!mongoose.Types.ObjectId.isValid(studentId)) {
-    results.skipped.push({ studentId, reason: 'Invalid student ID' });
-    continue;
-  }
+        results.skipped.push({ studentId, reason: 'Invalid student ID' });
+        continue;
+      }
       const numericAmount = Number(amount);
       if (isNaN(numericAmount)) {
         results.skipped.push({ studentId, reason: 'Amount not numeric' });
         continue;
       }
 
-      const student = await User.findById(studentId);
+      const student = await User.findById(studentId).populate({
+        path: 'groups',
+        match: { 'members._id': studentId, 'members.status': 'approved' },
+        select: 'groupMultiplier'
+      });
+
       if (!student) {
         results.skipped.push({ studentId, reason: 'Student not found' });
         continue;
       }
 
-      student.balance += numericAmount;
-      student.transactions.push({
-      amount: numericAmount,
-      description,
-      assignedBy: req.user._id,
-      createdAt: new Date()
-    });
+      // Get all multipliers
+      const groupMultiplier = student.groups.length > 0 
+        ? Math.max(...student.groups.map(g => g.groupMultiplier || 1))
+        : 1;
+      const passiveMultiplier = student.passiveAttributes?.multiplier || 1;
+      const totalMultiplier = groupMultiplier * passiveMultiplier;
 
+      // Apply multiplier only for positive amounts
+      const adjustedAmount = amount >= 0 
+        ? Math.round(amount * totalMultiplier)
+        : amount;
+
+      student.balance += adjustedAmount;
+      student.transactions.push({
+        amount: adjustedAmount,
+        description,
+        assignedBy: req.user._id,
+        createdAt: new Date()
+      });
 
       await student.save();
       results.updated += 1;
