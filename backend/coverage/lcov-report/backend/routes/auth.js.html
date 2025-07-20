@@ -271,13 +271,14 @@
 const passport = require('passport');
 const User = require('../models/User'); // Add this line
 const router = express.Router();
+const { redirectBase } = require('../config/domain'); // Import redirectBase from config
 &nbsp;
 // Google OAuth Login
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 &nbsp;
 // Google OAuth Callback
 router.get('/google/callback', passport.authenticate('google', { failureRedirect: '/' }), (req, res) =&gt; {
-<span class="cstat-no" title="statement not covered" >  res.redirect('http://localhost:5173'); // Redirect to the frontend</span>
+<span class="cstat-no" title="statement not covered" >  res.redirect(redirectBase); // Redirect to the frontend</span>
 });
 &nbsp;
 // Microsoft OAuth Login
@@ -285,7 +286,7 @@ router.get('/microsoft', passport.authenticate('microsoft', { scope: ['user.read
 &nbsp;
 // Microsoft OAuth Callback
 router.get('/microsoft/callback', passport.authenticate('microsoft', { failureRedirect: '/' }), (req, res) =&gt; {
-<span class="cstat-no" title="statement not covered" >  res.redirect('http://localhost:5173'); // Redirect to the frontend</span>
+<span class="cstat-no" title="statement not covered" >  res.redirect(redirectBase); // Redirect to the frontend</span>
 });
 &nbsp;
 // Logout
@@ -306,7 +307,7 @@ router.get('/logout', (req, res) =&gt; {
 <span class="cstat-no" title="statement not covered" >      // After clearing the local session, redirect to the homepage.</span>
 <span class="cstat-no" title="statement not covered" >      // Inform the user that while they are logged out from our app,</span>
 <span class="cstat-no" title="statement not covered" >      // they may remain signed in with their SSO provider.</span>
-<span class="cstat-no" title="statement not covered" >      const redirectUrl = 'http://localhost:5173';</span>
+<span class="cstat-no" title="statement not covered" >      const redirectUrl = redirectBase;</span>
 <span class="cstat-no" title="statement not covered" >      res.send(`</span>
 <span class="cstat-no" title="statement not covered" >        &lt;html&gt;</span>
 <span class="cstat-no" title="statement not covered" >          &lt;head&gt;</span>

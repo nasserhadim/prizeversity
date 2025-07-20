@@ -2,13 +2,14 @@ const express = require('express');
 const passport = require('passport');
 const User = require('../models/User'); // Add this line
 const router = express.Router();
+const { callbackBase, redirectBase } = require('../config/domain');
 
 // Google OAuth Login
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 
 // Google OAuth Callback
 router.get('/google/callback', passport.authenticate('google', { failureRedirect: '/' }), (req, res) => {
-  res.redirect('http://localhost:5173'); // Redirect to the frontend
+  res.redirect(redirectBase); // This sends user back to frontend
 });
 
 // Microsoft OAuth Login
@@ -16,7 +17,7 @@ router.get('/microsoft', passport.authenticate('microsoft', { scope: ['user.read
 
 // Microsoft OAuth Callback
 router.get('/microsoft/callback', passport.authenticate('microsoft', { failureRedirect: '/' }), (req, res) => {
-  res.redirect('http://localhost:5173'); // Redirect to the frontend
+  res.redirect(redirectBase); // Also frontend
 });
 
 // Logout
@@ -37,7 +38,7 @@ router.get('/logout', (req, res) => {
       // After clearing the local session, redirect to the homepage.
       // Inform the user that while they are logged out from our app,
       // they may remain signed in with their SSO provider.
-      const redirectUrl = 'http://localhost:5173';
+      const redirectUrl = redirectBase;
       res.send(`
         <html>
           <head>
