@@ -82,7 +82,7 @@ export default function TeacherNewsfeed() {
                 bgColor={bgColor}
                 backgroundImage={backgroundImage}
             />
-            <div className="max-w-3xl mx-auto p-6">
+            <div className="max-w-3xl mx-auto p-6 bg-green-50 rounded-lg">
                 <p className="mb-4">
                     <Link to={`/classroom/${classId}`} className="link text-accent">
                         ← Back to Classroom
@@ -91,37 +91,39 @@ export default function TeacherNewsfeed() {
                 <h2 className="text-center text-green-500 text-5xl font-bold mb-6">
                     Manage Announcements
                 </h2>
-                <ReactQuill
-                    value={draft}
-                    onChange={setDraft}
-                    modules={{
-                        toolbar: [
-                            ['bold', 'italic', 'underline', 'strike'],
-                            [{ header: [1, 2, false] }],
-                            [{ list: 'ordered' }, { list: 'bullet' }],
-                            ['link', 'image']
-                        ]
-                    }}
-                    placeholder="Write an update…"
-                    className="mb-4"
-                />
-                <input
-                    type="file"
-                    multiple
-                    onChange={e => setAttachments(Array.from(e.target.files))}
-                    className="file-input file-input-sm"
-                />
-                <button
-                    className="btn btn-success px-6 py-2 mb-6"
-                    onClick={handlePost}
-                    disabled={!draft.trim()}
-                >
-                    Post
-                </button>
+                <div className="bg-white p-4 border border-green-200 rounded-lg mb-6">
+                    <ReactQuill
+                        value={draft}
+                        onChange={setDraft}
+                        modules={{
+                            toolbar: [
+                                ['bold', 'italic', 'underline', 'strike'],
+                                [{ header: [1, 2, false] }],
+                                [{ list: 'ordered' }, { list: 'bullet' }],
+                                ['link', 'image']
+                            ]
+                        }}
+                        placeholder="Write an update…"
+                        className="mb-4"
+                    />
+                    <input
+                        type="file"
+                        multiple
+                        onChange={e => setAttachments(Array.from(e.target.files))}
+                        className="file-input file-input-sm mb-4"
+                    />
+                    <button
+                        className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg"
+                        onClick={handlePost}
+                        disabled={!draft.trim()}
+                    >
+                        Post
+                    </button>
+                </div>
 
                 <ul className="space-y-6">
                     {sortedItems.slice(0, visibleCount).map(i => (
-                        <li key={i._id} className="p-4 border border-gray-200 rounded shadow-sm mx-auto">
+                        <li key={i._id} className="bg-white p-4 border border-green-200 rounded-lg shadow-sm mx-auto">
                             <p className="text-sm text-gray-600 mb-1">
                                 Posted by {i.authorId.firstName} {i.authorId.lastName}
                             </p>
