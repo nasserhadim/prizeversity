@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 
-const BulkBalanceEditor = ({onSuccess}) => {
+const BulkBalanceEditor = () => {
   const { id: classroomId } = useParams();
   const { user } = useAuth();
   const [students, setStudents] = useState([]);
@@ -60,47 +60,47 @@ const BulkBalanceEditor = ({onSuccess}) => {
       return s;
     });
 
-  const next  = () => {if (!taMayAssign) return;if (selectedIds.size) setStep('amount');else toast.error('Select at least one student');};
+  const next  = () => {if (!taMayAssign) return;if (selectedIds.size) setStep('amount');else alert('Select at least one student');};
   const back  = () => { setAmount(''); setStep('select'); };
 
   const apply = async () => {
     const num = Number(amount);
     if (isNaN(num) || num === 0) {
-      toast.error('Enter a non-zero number');
+      alert('Enter a non‑zero number');
       return;
     }
 
     const updates = Array.from(selectedIds).map(id => ({ studentId: id, amount: num }));
 
     try {
-      // Add classroomId to the request payload
-      await axios.post('/api/wallet/assign/bulk', { 
-        updates,
-        description: "Balance adjustment", 
-        classroomId: classroomId 
-      }, { 
-        withCredentials: true 
-      });
+    // send the bulk-assign or queue request
+    const res = await axios.post(
+      '/api/wallet/assign/bulk',
+      { classroomId, updates },
+      { withCredentials: true }
+    );
 
+    // if TA policy = approval, server responds 202
+    if (res.status === 202) {
+      toast.success('Request submitted for teacher approval');
+    } else {
       toast.success('Balances updated');
-      if (onSuccess) {
-        await onSuccess();
-      }
-      const url = classroomId
-        ? `/api/classroom/${classroomId}/students`
-        : `/api/users/students`;
-      const r = await axios.get(url, { withCredentials: true });
-      setStudents(r.data);
-      setSelected(new Set());
-      setAmount('');
-      setStep('select');
-    } catch (err) {
-      console.error(err);
-      toast.error(err.response?.data?.error || 
-          err.response?.data?.message || 
-          'Bulk update failed. Please check console for details.');
     }
-  };
+
+    // refresh the student list
+    const url = classroomId
+      ? `/api/classroom/${classroomId}/students`
+      : `/api/users/students`;
+    const r = await axios.get(url, { withCredentials: true });
+    setStudents(r.data);
+    setSelected(new Set());
+    setAmount('');
+    setStep('select');
+  } catch (err) {
+    console.error(err);
+    toast.error(err.response?.data?.error || 'Bulk update failed');
+  }
+};
 
  
   return (
@@ -126,6 +126,28 @@ const BulkBalanceEditor = ({onSuccess}) => {
             onChange={e => setSearch(e.target.value)}
          />
           <div className="h-72 overflow-y-auto border rounded p-2 mb-4">
+  <div className="flex items-center gap-2 py-1 border-b mb-2">
+    <input
+      type="checkbox"
+      className="checkbox checkbox-sm"
+      checked={
+        visibleStudents.length > 0 &&
+        visibleStudents.every(s => selectedIds.has(s._id))
+      }
+      onChange={(e) => {
+        const allSelected = visibleStudents.every(s => selectedIds.has(s._id));
+        const newSet = new Set(selectedIds);
+        if (allSelected) {
+          visibleStudents.forEach(s => newSet.delete(s._id));
+        } else {
+          visibleStudents.forEach(s => newSet.add(s._id));
+        }
+        setSelected(newSet);
+      }}
+    />
+    <span>Select All ({visibleStudents.length})</span>
+  </div>
+
             {visibleStudents.map(s => (
               <div key={s._id} className="flex items-center gap-2 py-1">
                 <input
@@ -141,8 +163,8 @@ const BulkBalanceEditor = ({onSuccess}) => {
             {visibleStudents.length === 0 && <p className="text-gray-500">No matching students.</p>}
           </div>
 
-          <button
-  className={`btn w-full ${taMayAssign ? 'btn-success' : 'btn-disabled'}`}
+          +<button
+  className={`btn w-full ${taMayAssign ? 'btn-primary' : 'btn-disabled'}`}
   onClick={next}
 >
             Next
@@ -167,7 +189,7 @@ const BulkBalanceEditor = ({onSuccess}) => {
           <div className="flex gap-2">
             <button className="btn btn-outline flex-1" onClick={back}>Back</button>
             <button
-  className={`btn flex-1 ${taMayAssign ? 'btn-success' : 'btn-disabled'}`}
+  className={`btn flex-1 ${taMayAssign ? 'btn-warning' : 'btn-disabled'}`}
   onClick={apply}
 >
   Apply
