@@ -19,6 +19,12 @@ export default function TeacherNewsfeed() {
     const [draft, setDraft] = useState('');
     const [attachments, setAttachments] = useState([]);
     const [classroomName, setClassroomName] = useState('');
+    // banner color & image
+    const [bgColor, setBgColor] = useState('');
+    const [backgroundImage, setBackgroundImage] = useState('');
+    const [visibleCount, setVisibleCount] = useState(10);
+    const [editingId, setEditingId] = useState(null);
+    const [editingContent, setEditingContent] = useState('');
 
     useEffect(() => {
         async function fetchData() {
@@ -28,6 +34,8 @@ export default function TeacherNewsfeed() {
             // load classroom info
             const classRes = await getClassroom(classId);
             setClassroomName(classRes.data.name);
+            setBgColor(classRes.data.color);
+            setBackgroundImage(classRes.data.backgroundImage);
         }
         fetchData();
     }, [classId]);
@@ -48,7 +56,7 @@ export default function TeacherNewsfeed() {
         try {
             await deleteNews(classId, itemId);
             setItems(items.filter(item => item._id !== itemId));
-            toast.success('News item deleted');
+            toast.success('Announcement deleted');
         } catch (err) {
             console.error('Delete failed', err);
             toast.error('Failed to delete');
@@ -61,15 +69,19 @@ export default function TeacherNewsfeed() {
             setItems(items.map(i =>
                 i._id === itemId ? { ...i, content: newContent } : i
             ));
-            toast.success('News updated');
+            toast.success('Announcement updated');
         } catch (err) {
-            toast.error('Failed to update news');
+            toast.error('Failed to update announcement');
         }
     };
 
     return (
         <>
-            <ClassroomBanner name={classroomName} />
+            <ClassroomBanner
+                name={classroomName}
+                bgColor={bgColor}
+                backgroundImage={backgroundImage}
+            />
             <div className="max-w-3xl mx-auto p-6">
                 <p className="mb-4">
                     <Link to={`/classroom/${classId}`} className="link text-accent">
@@ -97,10 +109,10 @@ export default function TeacherNewsfeed() {
                     type="file"
                     multiple
                     onChange={e => setAttachments(Array.from(e.target.files))}
-                    className="mb-4"
+                    className="file-input file-input-sm"
                 />
                 <button
-                    className="btn btn-primary px-6 py-2 mb-6"
+                    className="btn btn-success px-6 py-2 mb-6"
                     onClick={handlePost}
                     disabled={!draft.trim()}
                 >
@@ -108,7 +120,7 @@ export default function TeacherNewsfeed() {
                 </button>
 
                 <ul className="space-y-6">
-                    {sortedItems.map(i => (
+                    {sortedItems.slice(0, visibleCount).map(i => (
                         <li key={i._id} className="p-4 border border-gray-200 rounded shadow-sm mx-auto">
                             <p className="text-sm text-gray-600 mb-1">
                                 Posted by {i.authorId.firstName} {i.authorId.lastName}
@@ -144,20 +156,70 @@ export default function TeacherNewsfeed() {
                             >
                                 Delete
                             </button>
-                            <button
-                                className="btn btn-sm btn-primary mt-2 ml-2"
-                                onClick={() => {
-                                    const updated = prompt('Edit this news item:', i.content);
-                                    if (updated !== null && updated.trim() !== '') {
-                                        handleEdit(i._id, updated.trim());
-                                    }
-                                }}
-                            >
-                                Edit
-                            </button>
+                            {editingId === i._id ? (
+                                <>
+                                    <ReactQuill
+                                        value={editingContent}
+                                        onChange={setEditingContent}
+                                        modules={{
+                                            toolbar: [
+                                                ['bold', 'italic', 'underline', 'strike'],
+                                                [{ header: [1, 2, false] }],
+                                                [{ list: 'ordered' }, { list: 'bullet' }],
+                                                ['link', 'image']
+                                            ]
+                                        }}
+                                        className="mb-2 mt-2"
+                                    />
+                                    <button
+                                        className="btn btn-sm btn-success mr-2"
+                                        onClick={() => {
+                                            handleEdit(i._id, editingContent.trim());
+                                            setEditingId(null);
+                                        }}
+                                        disabled={!editingContent.trim()}
+                                    >
+                                        Save
+                                    </button>
+                                    <button
+                                        className="btn btn-sm btn-secondary"
+                                        onClick={() => setEditingId(null)}
+                                    >
+                                        Cancel
+                                    </button>
+                                </>
+                            ) : (
+                                <button
+                                    className="btn btn-sm btn-info mt-2 ml-2"
+                                    onClick={() => {
+                                        setEditingId(i._id);
+                                        setEditingContent(i.content);
+                                    }}
+                                >
+                                    Edit
+                                </button>
+                            )}
                         </li>
                     ))}
                 </ul>
+                <div className="flex justify-center space-x-4 mt-4">
+                    {sortedItems.length > visibleCount && (
+                        <button
+                            className="btn bg-green-500 hover:bg-green-600 text-white px-6 py-2"
+                            onClick={() => setVisibleCount(sortedItems.length)}
+                        >
+                            Show more announcements
+                        </button>
+                    )}
+                    {visibleCount > 10 && (
+                        <button
+                            className="btn bg-green-500 hover:bg-green-600 text-white px-6 py-2"
+                            onClick={() => setVisibleCount(10)}
+                        >
+                            Show less announcements
+                        </button>
+                    )}
+                </div>
             </div>
         </>
     );

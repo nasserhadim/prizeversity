@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import socket from '../utils/socket';
 import toast from 'react-hot-toast';
+import { API_BASE } from '../config/api'; // Adjust path if needed
 
 export default function ClassroomPage() {
   const { user } = useAuth();
@@ -16,7 +17,7 @@ export default function ClassroomPage() {
   const [joinClassroomCode, setJoinClassroomCode] = useState('');
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
-  const BACKEND_URL = 'http://localhost:5000';
+  const BACKEND_URL = `${API_BASE}`;
 
   useEffect(() => {
     setRole(user?.role || '');
@@ -203,7 +204,7 @@ export default function ClassroomPage() {
             onChange={e => setJoinClassroomCode(e.target.value)}
           />
           <button
-            className="btn btn-accent w-full"
+            className="btn btn-success w-full"
             onClick={handleJoinClassroom}
           >
             Join Classroom

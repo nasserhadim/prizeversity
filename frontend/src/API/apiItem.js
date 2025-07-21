@@ -1,8 +1,12 @@
+// apiItem.js
 import axios from 'axios';
 
 const apiItem = axios.create({
-  baseURL: '/api/items', // targets backend properly
-  withCredentials: true
+  baseURL: '/api',
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json',
+  },
 });
 
 export default apiItem;

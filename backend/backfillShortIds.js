@@ -6,8 +6,6 @@ const User = require('./models/User');
 (async () => {
   try {
     await mongoose.connect(process.env.MONGO_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
     });
 
     const users = await User.find({ shortId: { $exists: false } });

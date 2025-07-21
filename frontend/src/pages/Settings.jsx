@@ -29,18 +29,39 @@ const Settings = () => {
                 return;
             }
         }
-        const confirmed = window.confirm('Are you sure you want to permanently delete your account?');
-        if (!confirmed) return;
+        // ask via toast instead of window.confirm
+        toast((t) => (
+            <div className="space-y-2">
+                <p>Are you sure you want to permanently delete your account?</p>
+                <div className="flex justify-end space-x-2">
+                    <button
+                        className="btn btn-error btn-sm"
+                        onClick={async () => {
+                            toast.dismiss(t.id);
+                            try {
+                                await axios.delete(`/api/users/${user._id}`);
+                                toast.success('Account deleted successfully');
+                                logout();
+                                navigate('/');
+                            } catch (err) {
+                                console.error('Delete failed', err);
+                                toast.error('Failed to delete account');
+                            }
+                        }}
+                    >
+                        Yes, delete
+                    </button>
+                    <button
+                        className="btn btn-outline btn-sm"
+                        onClick={() => toast.dismiss(t.id)}
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        ), { duration: Infinity });
+        return;
 
-        try {
-            await axios.delete(`/api/users/${user._id}`);
-            toast.success('Account deleted successfully');
-            logout();
-            navigate('/');
-        } catch (err) {
-            console.error('Delete failed', err);
-            toast.error('Failed to delete account');
-        }
     };
 
     return (

@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import socket from '../utils/socket';
 import toast from 'react-hot-toast';
 import SiphonModal from '../components/SiphonModal';
+import GroupMultiplierControl from '../components/GroupMultiplierControl';
 import { Lock } from 'lucide-react';
 
 const Groups = () => {
@@ -417,7 +418,7 @@ const Groups = () => {
             </button>
           ) : (
             <button
-              className="btn btn-primary hover:scale-105 transition-transform duration-200"
+              className="btn btn-success hover:scale-105 transition-transform duration-200"
               onClick={handleCreateGroupSet}
             >
               Create Groupset
@@ -450,7 +451,7 @@ const Groups = () => {
 
         {(user.role === 'teacher' || user.role === 'admin') && (
           <div className="flex gap-2">
-            <button className="btn btn-sm btn-accent" onClick={() => handleEditGroupSet(gs)}>Edit</button>
+            <button className="btn btn-sm btn-info" onClick={() => handleEditGroupSet(gs)}>Edit</button>
             <button className="btn btn-sm btn-error" onClick={() => handleDeleteGroupSetConfirm(gs)}>Delete</button>
           </div>
         )}
@@ -461,7 +462,7 @@ const Groups = () => {
             <h4 className="text-md font-semibold">Create group</h4>
             <input
               type="text"
-              className="input input-bordered w-full mt-1"
+              className="input input-bordered w-full mt-1 mb-3"
               placeholder="Group Name"
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
@@ -474,7 +475,7 @@ const Groups = () => {
               value={groupCount}
               onChange={(e) => setGroupCount(e.target.value)}
             />
-            <button className="btn btn-primary mt-2" onClick={() => handleCreateGroup(gs._id)}>
+            <button className="btn btn-success mt-2" onClick={() => handleCreateGroup(gs._id)}>
               Create
             </button>
           </div>
@@ -483,80 +484,83 @@ const Groups = () => {
         {/* Display Groups */}
         {gs.groups.map((group) => (
           <div key={group._id} className="border rounded p-4 bg-base-100">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-start">
               <div>
                 <h5 className="font-semibold">{group.name}</h5>
-                <p>
-                  Members: {group.members.length}/{group.maxMembers || 'No limit'}
+                <p className="text-sm">
+                  Members: {group.members.length}/{group.maxMembers || 'No limit'} • 
+                  Multiplier: {group.groupMultiplier || 1}x
                 </p>
               </div>
-              <div className="flex gap-2 flex-wrap">
-                {user.role === 'student' && (() => {
-                  const studentMembership = group.members.find(m => m._id._id === user._id);
-                  const isApproved = studentMembership?.status === 'approved';
-                  const isPending = studentMembership?.status === 'pending';
+              
+              {(user.role === 'teacher' || user.role === 'admin') && (
+                <GroupMultiplierControl 
+                  group={group} 
+                  groupSetId={gs._id}
+                  classroomId={id}
+                  compact={true}
+                />
+              )}
+            </div>
 
-                  const alreadyJoinedApproved = gs.groups.some(g =>
-                    g.members.some(m => m._id._id === user._id && m.status === 'approved' || m.status === 'pending' )
-                  );
+            <div className="flex gap-2 flex-wrap mt-2">
+              {user.role === 'student' && (() => {
+                const studentMembership = group.members.find(m => m._id._id === user._id);
+                const isApproved = studentMembership?.status === 'approved';
+                const isPending = studentMembership?.status === 'pending';
 
-                  return (
-                    <>
-                      {!studentMembership && !alreadyJoinedApproved && (
-                        <button
-                          className="btn btn-xs btn-success"
-                          onClick={() => handleJoinGroup(gs._id, group._id)}
-                        >
-                          Join
-                        </button>
-                      )}
+                const alreadyJoinedApproved = gs.groups.some(g =>
+                  g.members.some(m => m._id._id === user._id && m.status === 'approved' || m.status === 'pending')
+                );
 
+                return (
+                  <>
+                    {!studentMembership && !alreadyJoinedApproved && (
+                      <button
+                        className="btn btn-xs btn-success"
+                        onClick={() => handleJoinGroup(gs._id, group._id)}
+                      >
+                        Join
+                      </button>
+                    )}
 
-                      {isPending && (
+                    {isPending && (
+                      <button
+                        className="btn btn-xs btn-error"
+                        onClick={() => handleLeaveGroup(gs._id, group._id)}
+                      >
+                        Cancel Request
+                      </button>
+                    )}
+
+                    {isApproved && (
+                      <>
                         <button
                           className="btn btn-xs btn-error"
                           onClick={() => handleLeaveGroup(gs._id, group._id)}
                         >
-                          Cancel Request
+                          Leave
                         </button>
-                      )}
-
-                      {isApproved && (
-                        <>
-                          <button
-                            className="btn btn-xs btn-error"
-                            onClick={() => handleLeaveGroup(gs._id, group._id)}
-                          >
-                            Leave
-                          </button>
-                          <button
-                            className="btn btn-xs btn-warning"
-                            onClick={() => setOpenSiphonModal(group)}
-                          >
-                            Siphon
-                          </button>
-                          <button
-                            className="btn btn-xs btn-info"
-                            onClick={() => handleEditGroup(gs._id, group._id)}
-                          >
-                            Edit
-                          </button>
-                        </>
-                      )}
-                    </>
-                  );
-                })()}
-
-
-                {(user.role === 'teacher' || user.role === 'admin') && (
-                  <>
-                    <button className="btn btn-xs btn-info" onClick={() => handleEditGroup(gs._id, group._id)}>Edit</button>
-                    <button className="btn btn-xs btn-error" onClick={() => handleDeleteGroup(gs._id, group._id)}>Delete</button>
-                    <button className="btn btn-xs btn-warning" onClick={() => setOpenSiphonModal(group)}>Siphon</button>
-                    <button className="btn btn-xs btn-primary" onClick={() => openAdjustModal(gs._id, group._id)}>Transfer</button>
+                        <button
+                          className="btn btn-xs btn-warning"
+                          onClick={() => setOpenSiphonModal(group)}
+                        >
+                          Siphon
+                        </button>
+                      </>
+                    )}
                   </>
-                )}
-              </div>
+                );
+              })()}
+
+              {(user.role === 'teacher' || user.role === 'admin') && (
+                <>
+                  <button className="btn btn-xs btn-info" onClick={() => handleEditGroup(gs._id, group._id)}>Edit</button>
+                  <button className="btn btn-xs btn-error" onClick={() => handleDeleteGroup(gs._id, group._id)}>Delete</button>
+                  <button className="btn btn-xs btn-warning" onClick={() => setOpenSiphonModal(group)}>Siphon</button>
+                  <button className="btn btn-xs btn-success" onClick={() => openAdjustModal(gs._id, group._id)}>Transfer</button>
+                </>
+              )}
             </div>
 
             {/* Siphon requests */}

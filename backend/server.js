@@ -1,8 +1,11 @@
+require('dotenv').config(); // Load environment variables from .env file; MUST BE FIRST LINE otherwise redirectBase won't be identified!!
+
 const express = require('express');
 const path = require('path');
 const mongoose = require('mongoose');
 const passport = require('passport');
 const session = require('express-session');
+const MongoStore = require('connect-mongo');
 const cors = require('cors');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
@@ -22,23 +25,35 @@ const newsfeedRoutes = require('./routes/newsfeed');
 const itemRoutes = require('./routes/items');
 const groupBalanceRoutes = require('./routes/groupBalance');
 const statsRouter = require('./routes/stats.js');
-require('dotenv').config();
+const attackItems = require('./routes/attackItem.js');
+const defendItems = require('./routes/defendItem.js');
+const utilityItems = require('./routes/utilityItem.js');
+const passiveItems = require('./routes/passiveItem.js');
+const { redirectBase, isProd } = require('./config/domain');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 const httpServer = createServer(app);
+
+console.log("✅ Socket.IO CORS origin set to:", redirectBase);
+// Initialize Socket.IO with CORS settings
+// This allows the frontend to connect to the Socket.IO server from the specified origin
+
 const io = new Server(httpServer, {
   cors: {
-    origin: "http://localhost:5173",
+    origin: redirectBase,
     methods: ["GET", "POST"]
   }
 });
 
 // Middleware
 app.use(cors({
-  origin: 'http://localhost:5173',
+  origin: redirectBase,
   credentials: true,
 }));
+
+console.log("✅ CORS origin set to:", redirectBase);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -49,6 +64,7 @@ app.use(
     secret: process.env.JWT_SECRET, // Use a strong secret key
     resave: false,
     saveUninitialized: false,
+    store: MongoStore.create({ mongoUrl: process.env.MONGO_URI }),
     cookie: { secure: false }, // Set to true if using HTTPS
   })
 );
@@ -59,7 +75,7 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 // Database Connection
-mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+mongoose.connect(process.env.MONGO_URI, {})
   .then(() => {
     console.log('MongoDB Connected');
 
@@ -91,12 +107,18 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
-app.use('/api/items', itemRoutes);
+// app.use('/api/items', itemRoutes);
 app.use('/api/stats', statsRouter);
 app.use('/api', groupBalanceRoutes);
+app.use('/api/pending-assignments', require('./routes/pendingAssignments'));
+
+app.use('/api/attack', attackItems);
+app.use('/api/defend', defendItems);
+app.use('/api/utility', utilityItems);
+app.use('/api/passive', passiveItems);
 // Root Route
 app.get('/', (req, res) => {
-  res.redirect('http://localhost:5173'); // Redirect to the frontend
+  res.redirect(redirectBase);
 });
 
 // Socket.IO connection handling

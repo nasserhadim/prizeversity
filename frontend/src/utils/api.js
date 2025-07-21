@@ -1,7 +1,10 @@
 import axios from 'axios';
+import io from 'socket.io-client';
+import { API_BASE } from '../config/api';
+const socket = io(); // no "/api" needed here
 
 const api = axios.create({
-  baseURL: 'http://localhost:5000/api',  
+  baseURL: `${API_BASE}`,  
   withCredentials: true,                 
 });
 
