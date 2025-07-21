@@ -185,7 +185,7 @@ const Classroom = () => {
         }
       />
 
-      <div className="p-6 space-y-6">
+      <div className="max-w-3xl mx-auto p-6 bg-green-50 rounded-lg space-y-6">
         {/* Navigation */}
         <Link to="/classrooms" className="link text-accent">
           ← Back to Classroom Dashboard
@@ -194,8 +194,18 @@ const Classroom = () => {
         <nav className="flex space-x-4 mb-4">
           {user.role === 'teacher' && (
             <>
-              <Link to={`/classroom/${id}/teacher-news`}>Manage Announcements</Link>
-              <Link to={`/classroom/${id}/settings`}>Class Settings</Link>
+              <Link
+                to={`/classroom/${id}/teacher-news`}
+                className="link text-accent hover:text-accent-focus font-semibold"
+              >
+                Manage Announcements
+              </Link>
+              <Link
+                to={`/classroom/${id}/settings`}
+                className="link text-accent hover:text-accent-focus font-semibold"
+              >
+                Class Settings
+              </Link>
             </>
           )}
         </nav>
@@ -209,9 +219,11 @@ const Classroom = () => {
 
         {/* Announcements List */}
         <div className="space-y-6">
-          <h3 className="text-2xl font-semibold">Announcements</h3>
+          <h3 className="text-center text-green-500 text-4xl font-bold mb-4">
+            Announcements
+          </h3>
           {announcements.slice(0, visibleCount).map((item) => (
-            <div key={item._id} className="card bg-base-200 p-4">
+            <div key={item._id} className="bg-white p-4 border border-green-200 rounded-lg shadow-sm mx-auto">
               {/* render formatted HTML */}
               <div
                 className="text-gray-700 mb-2"
@@ -251,7 +263,7 @@ const Classroom = () => {
           )}
           {visibleCount > 10 && (
             <button
-              className="btn bg-green-500 hover:bg-green-600 text-white px-4 py-2"
+              className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg"
               onClick={() => setVisibleCount(10)}
             >
               Show less announcements
