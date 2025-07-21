@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 
-const BulkBalanceEditor = () => {
+const BulkBalanceEditor = ({onSuccess}) => {
   const { id: classroomId } = useParams();
   const { user } = useAuth();
   const [students, setStudents] = useState([]);
@@ -60,13 +60,13 @@ const BulkBalanceEditor = () => {
       return s;
     });
 
-  const next  = () => {if (!taMayAssign) return;if (selectedIds.size) setStep('amount');else alert('Select at least one student');};
+  const next  = () => {if (!taMayAssign) return;if (selectedIds.size) setStep('amount');else toast.error('Select at least one student');};
   const back  = () => { setAmount(''); setStep('select'); };
 
   const apply = async () => {
     const num = Number(amount);
     if (isNaN(num) || num === 0) {
-      alert('Enter a non-zero number');
+      toast.error('Enter a non-zero number');
       return;
     }
 
@@ -82,7 +82,10 @@ const BulkBalanceEditor = () => {
         withCredentials: true 
       });
 
-      alert('Balances updated');
+      toast.success('Balances updated');
+      if (onSuccess) {
+        await onSuccess();
+      }
       const url = classroomId
         ? `/api/classroom/${classroomId}/students`
         : `/api/users/students`;
@@ -93,7 +96,7 @@ const BulkBalanceEditor = () => {
       setStep('select');
     } catch (err) {
       console.error(err);
-      alert(err.response?.data?.error || 
+      toast.error(err.response?.data?.error || 
           err.response?.data?.message || 
           'Bulk update failed. Please check console for details.');
     }

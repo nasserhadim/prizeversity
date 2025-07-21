@@ -499,6 +499,7 @@ const Groups = () => {
                   groupSetId={gs._id}
                   classroomId={id}
                   compact={true}
+                  refreshGroups={fetchGroupSets}
                 />
               )}
             </div>
