@@ -129,6 +129,7 @@ const Home = () => {
       });
       setUser(response.data.user);
       setProfileComplete(true);
+      
     } catch (error) {
       console.error('Failed to update profile', error);
       toast.error('Could not update your profile.');
@@ -209,19 +210,26 @@ const Home = () => {
     return allItems.map((item, idx) => (
       <div
         key={idx}
-        className="flex flex-col items-center justify-center w-[400px] h-[500px] bg-white rounded-2xl shadow-sm flex-shrink-0 mx-4 p-6 border border-gray-100 hover:shadow-md transition-all"
+        className="flex flex-col items-center justify-between w-[300px] sm:w-[350px] md:w-[400px] h-auto min-h-[400px] sm:min-h-[450px] bg-white rounded-2xl shadow-sm flex-shrink-0 mx-2 sm:mx-4 p-4 sm:p-6 border border-gray-100 hover:shadow-md transition-all"
       >
-        <img
-          src={item.image}
-          alt={item.title}
-          className="w-full h-full object-cover rounded-lg mb-6"
-        />
-        <h3 className="text-2xl font-semibold text-gray-900 mb-2">{item.title}</h3>
-        <p className="text-gray-600 text-center">{item.description}</p>
+        <div className="w-full h-[200px] sm:h-[250px] md:h-[300px] overflow-hidden rounded-lg mb-4 sm:mb-6">
+          <img
+            src={item.image}
+            alt={item.title}
+            className="w-full h-full object-cover"
+          />
+        </div>
+        <div className="flex-1 flex flex-col justify-center">
+          <h3 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-2 text-center">
+            {item.title}
+          </h3>
+          <p className="text-gray-600 text-center text-sm sm:text-base">
+            {item.description}
+          </p>
+        </div>
       </div>
     ));
   };
-
 
   //  Will navigate to the clasroom the user clicks
   const handleCardClick = () => {
@@ -232,22 +240,22 @@ const Home = () => {
     <div className="min-h-screen bg-gray-50">
       {!user && (
         <nav className="fixed top-0 left-0 right-0 bg-white shadow z-50 w-full">
-          <div className="w-full flex justify-between items-center px-6 py-3">
+          <div className="w-full flex flex-col sm:flex-row justify-between items-center px-4 sm:px-6 py-3 gap-2 sm:gap-0">
             {/* Top Left: Brand */}
             <div className="text-xl font-bold text-black">
               Prizeversity
             </div>
 
             {/* Top Right: Sign In Buttons */}
-            <div className="flex gap-4">
+            <div className="flex gap-2 sm:gap-4 w-full sm:w-auto justify-center sm:justify-end">
               <button 
-                className="px-4 py-2 text-sm rounded-full bg-black text-white hover:bg-gray-800 transition"
+                className="px-3 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm rounded-full bg-black text-white hover:bg-gray-800 transition whitespace-nowrap"
                 onClick={() => window.location.href = '/api/auth/google'}
               >
                 Sign in with Google
               </button>
               <button 
-                className="px-4 py-2 text-sm rounded-full bg-black text-white hover:bg-gray-800 transition"
+                className="px-3 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm rounded-full bg-black text-white hover:bg-gray-800 transition whitespace-nowrap"
                 onClick={() => window.location.href = '/api/auth/microsoft'}
               >
                 Sign in with Microsoft
@@ -354,12 +362,15 @@ const Home = () => {
             </div>
           </div>
           
-          <div 
-            ref={scrollRef} 
-            className="relative flex overflow-x-hidden cursor-grab select-none py-4"
-          >
-            {renderCarouselItems()}
-          </div>
+        <div 
+          ref={scrollRef} 
+          className="relative flex overflow-x-auto scrollbar-hide py-4 px-2 sm:px-4"
+          style={{
+            WebkitOverflowScrolling: 'touch',
+          }}
+        >
+          {renderCarouselItems()}
+        </div>
         </section>
 
         {/* Value Proposition */}
