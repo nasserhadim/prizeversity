@@ -22,6 +22,8 @@ import {
 
 //import defaultProfilePicture from '../assets/Default/Profile-Default-Picture.jpg';
 
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
 const Navbar = () => {
   const { user, logout, setPersona, originalUser } = useContext(AuthContext);
   const location = useLocation();
@@ -254,17 +256,22 @@ const Navbar = () => {
             <div className="dropdown dropdown-end">
               <div tabIndex={0} role="button" className="btn btn-ghost btn-circle avatar">
                 <div className="w-10 h-10 rounded-full ring ring-success ring-offset-base-100 ring-offset-2 overflow-hidden">
-                  {user.avatar && user.avatar.startsWith('http') ? (
+                  {user.avatar ? (
                     <img
                       alt="User Avatar"
-                      src={user.avatar}
+                      src={user.avatar.startsWith('http') ? user.avatar : `${BACKEND_URL}/uploads/${user.avatar}`}
                       className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = 'https://via.placeholder.com/150';
+                      }}
                     />
                   ) : (
                     <div className="w-full h-full bg-gray-200 flex items-center justify-center text-lg font-bold text-gray-600">
                       {`${(user.firstName?.[0] || user.email?.[0] || 'U')}${(user.lastName?.[0] || '')}`.toUpperCase()}
                     </div>
                   )}
+
                 </div>
               </div>
               <ul tabIndex={0} className="mt-3 z-[1] p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-52">

@@ -1,6 +1,5 @@
 const express = require('express');
-const multer = require('multer');
-const upload = multer({dest: 'uploads/'});
+const upload = require('../middleware/upload');
 const router = express.Router();
 const User = require('../models/User.js');
 const { ensureAuthenticated } = require('../config/auth.js');
@@ -51,7 +50,7 @@ router.put('/student/:id', ensureAuthenticated, async (req, res) => {
 
 // adding the statistics for each item you have
 // GET /api/profile/student/:id/stats
-router.get('/student/:id/stats', ensureAuthenticated, async(req, res) => {
+router.get('/student/:id/stats', ensureAuthenticated, async (req, res) => {
   try {
 
     // Read the user to check if the shield is active 
@@ -62,7 +61,7 @@ router.get('/student/:id/stats', ensureAuthenticated, async(req, res) => {
 
     // it will load all items owned by that user nad check if any item effects match known passive items
     const items = await require('../models/Item').find({ owner: userId });
-    
+
     const hasEffect = (effectName) =>
       items.some((item) => item.effect === effectName);
 
@@ -82,6 +81,39 @@ router.get('/student/:id/stats', ensureAuthenticated, async(req, res) => {
     return res.status(500).json({ error: 'Server error' });
   }
 })
+
+router.post('/upload-avatar', ensureAuthenticated, upload.single('avatar'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+    // req.user is authenticated user
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    // store just the filename
+    user.avatar = req.file.filename;
+    await user.save();
+
+    res.json(user);
+  } catch (err) {
+    console.error('Avatar upload error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.delete('/remove-avatar', ensureAuthenticated, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    user.avatar = undefined;
+    await user.save();
+    res.json(user);
+  } catch (err) {
+    console.error('Remove avatar error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 
 
 module.exports = router;

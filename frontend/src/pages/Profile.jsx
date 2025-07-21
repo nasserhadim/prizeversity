@@ -16,6 +16,7 @@ const Profile = () => {
     const [loadingOrders, setLoadingOrders] = useState(true);
     const [ordersError, setOrdersError] = useState('');
     const [stats, setStats] = useState({});
+    const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -168,22 +169,68 @@ const Profile = () => {
                     </div>
 
                     <div>
-                        <label className="label-text">Avatar URL</label>
+                        <label className="label-text">Upload Avatar</label>
                         <input
-                            type="url"
-                            name="avatar"
-                            value={form.avatar}
-                            onChange={handleChange}
-                            className="input input-bordered w-full"
-                            placeholder="https://example.com/avatar.jpg"
+                            type="file"
+                            accept="image/*"
+                            onChange={async (e) => {
+                                const file = e.target.files[0];
+                                if (!file) return;
+                                const formData = new FormData();
+                                formData.append('avatar', file);
+
+                                try {
+                                    const uploadRes = await axios.post('/api/profile/upload-avatar', formData, {
+                                        withCredentials: true,
+                                        headers: {
+                                            Authorization: `Bearer ${localStorage.getItem('token')}`,
+                                            'Content-Type': 'multipart/form-data'
+                                        }
+                                    });
+                                    // server returns updated user with avatar path
+                                    const updated = uploadRes.data;
+                                    setForm(prev => ({ ...prev, avatar: updated.avatar }));
+                                    setProfile(updated);
+                                    updateUser(updated); // immediate navbar + profile update
+                                } catch (err) {
+                                    console.error('Upload error:', err);
+                                    setError(err.response?.data?.error || 'Failed to upload image');
+                                }
+                            }}
+                            className="file-input file-input-bordered w-full"
                         />
                         {form.avatar && (
-                            <img
-                                src={form.avatar}
-                                alt="Avatar preview"
-                                className="w-16 h-16 mt-2 rounded-full object-cover"
-                                onError={(e) => e.target.src = 'https://via.placeholder.com/150'}
-                            />
+                            <>
+                                <img
+                                    src={form.avatar.startsWith('http') ? form.avatar : `${BACKEND_URL}/uploads/${form.avatar}`}
+                                    alt="Avatar preview"
+                                    className="w-16 h-16 mt-2 rounded-full object-cover"
+                                    onError={(e) => (e.target.src = 'https://via.placeholder.com/150')}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        try {
+                                            const res = await axios.delete('/api/profile/remove-avatar', {
+                                                withCredentials: true,
+                                                headers: {
+                                                    Authorization: `Bearer ${localStorage.getItem('token')}`,
+                                                },
+                                            });
+                                            const updated = res.data;
+                                            setForm(prev => ({ ...prev, avatar: '' }));
+                                            setProfile(updated);
+                                            updateUser(updated);
+                                        } catch (err) {
+                                            console.error('Remove avatar error:', err);
+                                            setError(err.response?.data?.error || 'Failed to remove avatar');
+                                        }
+                                    }}
+                                    className="btn btn-sm btn-error mt-2"
+                                >
+                                    Remove Avatar
+                                </button>
+                            </>
                         )}
                     </div>
 
@@ -204,9 +251,9 @@ const Profile = () => {
             ) : (
                 <div className="space-y-4">
                     <div className="flex justify-center">
-                        {profile?.avatar && profile.avatar.startsWith('http') ? (
+                        {profile?.avatar ? (
                             <img
-                                src={profile.avatar}
+                                src={profile.avatar.startsWith('http') ? profile.avatar : `${BACKEND_URL}/uploads/${profile.avatar}`}
                                 alt="Profile"
                                 className="w-24 h-24 rounded-full object-cover border-4 border-success"
                                 onError={(e) => e.target.src = 'https://via.placeholder.com/150'}
