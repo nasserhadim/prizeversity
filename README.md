@@ -973,29 +973,338 @@ db.getCollectionNames().forEach(c => {
 ### 8. Automated backups
 #### 8.1 Create an S3-compatible bucket
 - Any provider works (AWS, Backblaze B2, Wasabi).
-- Size ≈ compressed dump × 30 days.
+- Size ≈ compressed dump × 30 (or 60) days.
 
-#### 8.2 Install rclone & script
+> **NOTE:** The remaining steps assume `AWS S3` Bucket creation.
+
+To create the `AWS S3` bucket:
+
+1. If you don't have an existing [AWS](https://console.aws.amazon.com) account, first create one.
+2. Go to [AWS Console → S3 → Create bucket](https://console.aws.amazon.com/s3/)
+3. **Name**: `prizeversity-backups`
+4. Enable default settings (`block public access`, `no versioning required`).
+
+#### 8.2 Create Credentials for `rclone`
+
+##### Step 1: Create an `IAM` User
+
+1. Go to the [AWS IAM Console](https://console.aws.amazon.com/iam/)
+2. Click `Users → Add users`
+3. **Username**: `rclone-backup` (or anything descriptive)
+4. **Access type**: ❌ Leave "Console access" unchecked
+
+##### Step 2: Attach Permissions
+
+When prompted to set permissions, choose:
+
+- ✅ Attach existing policies directly
+- Select the policy: `AmazonS3FullAccess`.
+(You can restrict it later, but this is fastest for now)
+
+##### Step 3: Finish & Get Credentials
+
+1. Click `Next → Create user`
+2. Generate `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` after User creation
+3. In the [IAM](https://console.aws.amazon.com/iam/) Console, go to:
+   - **Users** → click your user (e.g., `rclone-backup`)
+   - Go to the **Security credentials** tab
+   - Scroll down to **Access keys**
+   - Click **Create access key**
+   - For **Use case**, choose: `Command Line Interface (CLI) or Application`
+   - Click **Next** → then **Create access key**
+4. You’ll now see:
+   - `AWS_ACCESS_KEY_ID`
+   - `AWS_SECRET_ACCESS_KEY`
+5. 👉 **Copy both right away** — this is the only time you’ll see the secret key.
+
+#### 8.3 Install & Configure `rclone`
+
+[Rclone](https://rclone.org/) is a command-line program to manage files on cloud storage. It is a feature-rich alternative to cloud vendors' web storage interfaces.
+
 ```
-apt install -y rclone
-rclone config    # one-time wizard → create remote called “s3”
+curl https://rclone.org/install.sh | sudo bash
+rclone config    # you will be in the rclone interactive setup wizard if you see n/s/q>
+```
+
+For the `rclone config`, some prompts like `location-constraint`, `endpoint` and others just skip/enter to default. The ones to answer are as follows:
+
+- Select `n` for new remote
+- **Name**: `s3`
+- **Type**: `Amazon S3`
+- Choose **provider**: `AWS`
+- **env_auth**: `false` (or `1`)
+- Add the **access key**, **access secret**, **region** (`us-east-1`, etc.)
+- **storage_class**: `4` (**Standard Infrequent Access storage class (STANDARD_IA)**; This is cheaper and suitable for backups that are written once and rarely read.)
+- Confirm and save
+
+**Test connection**:
+```
+rclone lsd s3:prizeversity-backups   # replace with your s3 bucket name
+```
+
+#### 8.3 Create the MongoDB Backup Script that dumps `MongoDB` and uploads it to `S3` nightly.
+
+1. 📁 Create script directory:
+```
 mkdir -p ~/backup-scripts
-cat >~/backup-scripts/mongodb-nightly.sh <<'EOF'
+```
+2. 📝 Create the script file:
+```
+sudo nano ~/backup-scripts/mongodb-nightly.sh
+```
+3. Paste the following inside:
+
+```
 #!/usr/bin/env bash
 set -e
+
+# === CONFIG ===
 STAMP=$(date +%F)
-mongodump --archive="/tmp/mongo-$STAMP.gz" --gzip
-rclone copy "/tmp/mongo-$STAMP.gz" s3:prizeversity-backups/$STAMP.gz
-rm /tmp/mongo-$STAMP.gz
-EOF
+DUMP_PATH="/tmp/mongo-$STAMP.gz"
+REMOTE_PATH="s3:prizeversity-backups/$STAMP.gz"   # Replace with your actual bu>
+
+# === BACKUP ===
+echo "📦 Dumping MongoDB to $DUMP_PATH..."
+mongodump --archive="$DUMP_PATH" --gzip
+
+echo "☁️ Uploading to S3 → $REMOTE_PATH..."
+rclone copy "$DUMP_PATH" "$REMOTE_PATH"
+
+echo "🧹 Cleaning up local dump..."
+rm "$DUMP_PATH"
+
+# === RETENTION POLICY ===
+echo "🧼 Deleting backups older than 60 days from S3..."
+```
+
+4. Then save and exit (`Ctrl+O, Enter, then Ctrl+X`).
+5. Make the script executable:
+```
 chmod +x ~/backup-scripts/mongodb-nightly.sh
 ```
 
-#### 8.3 Add a cron (scheduled) job:
+#### 8.4 🕑 Schedule Nightly Backups with `cron`
 ```
-crontab -e    # as root
-0 2 * * * /home/deploy/backup-scripts/mongodb-nightly.sh
+crontab -e    # as root; choose 1 for nano
+
+###### Once inside, add this line to the crontab then save and exit #######
+
+0 2 * * * /root/backup-scripts/mongodb-nightly.sh >> /var/log/mongo-backup.log 2>&1
 ```
+
+This will:
+- Run the backup script `every day at 2:00 AM`
+- Save the script's output (for debugging) to `/var/log/mongo-backup.log`
+
+To check if the `cron` job is already installed for the root user, run:
+```
+sudo crontab -l    # checking if this exact line is present: 0 2 * * * /home/deploy/backup-scripts/mongodb-nightly.sh
+```
+
+#### 8.5 (Optional but Recommended) Add Log Rotation for Mongo Backup Logs
+
+1. Create a `logrotate` config file:
+```
+sudo nano /etc/logrotate.d/mongo-backup
+```
+
+2. Paste the following configuration:
+```
+/var/log/mongo-backup.log {
+    daily
+    rotate 30
+    compress
+    missingok
+    notifempty
+    create 0644 root root
+    su root root
+}
+```
+The `su` line tells `logrotate` what user/group to use during rotation—needed if the parent folder (`/var/log/`) isn’t perfectly secure.
+
+Test it:
+```
+sudo logrotate --debug /etc/logrotate.d/mongo-backup
+```
+
+Should see: `log does not need rotating (log has already been rotated)`
+
+This means:
+- The config is valid
+- `logrotate` successfully tracked rotation state
+- The log was recently rotated, so it’s skipping for now
+
+🧪 **Optional: Force Rotation for Testing**
+
+- If you want to immediately confirm a rotation file appears, you can force it:
+```
+sudo logrotate -f /etc/logrotate.d/mongo-backup
+```
+
+- Then check:
+```
+ls -lh /var/log/mongo-backup.log*
+```
+
+You should see:
+```
+/var/log/mongo-backup.log → the fresh/empty log
+/var/log/mongo-backup.log.1.gz → the rotated compressed file
+```
+
+#### 8.6 Test MongoDB recovery from the snapshot:
+
+1. Drop all collections (not the database itself)
+
+If you're sure you want to clear everything in the current DB (e.g., `prizeversity`), connect via `mongosh` and run:
+```
+
+use prizeversity;
+
+// Drop all collections in the current DB
+db.getCollectionNames().forEach(function (c) {
+  print(`🧹 Dropping '${c}'...`);
+  db[c].drop();
+});
+```
+
+2. Confirm it's empty
+```
+db.getCollectionNames().forEach(c => {
+  const count = db[c].countDocuments();
+  if (count > 0) print(`❌ '${c}' still has ${count} docs`);
+  else print(`✅ '${c}' is empty`);
+});
+```
+
+If you dropped them correctly, `db.getCollectionNames()` should now return an **empty array**.
+
+#### 8.7 Add a restore script for emergencies:
+
+1. Save this file to your backup scripts directory:
+```
+nano ~/backup-scripts/restore-from-backup.sh
+```
+
+2. Paste the following:
+```
+#!/bin/bash
+
+# ─────────────── CONFIG ─────────────── #
+BUCKET="s3:prizeversity-backups"
+TMP_DIR="/tmp/mongo-restore"
+TMP_FILE="$TMP_DIR/restore-mongo.gz"
+DB_NAME="prizeversity"
+LOG_FILE="/var/log/mongo-restore.log"
+
+# ─────────────── HELPERS ─────────────── #
+log() {
+  echo -e "$(date '+%Y-%m-%d %H:%M:%S') $1" | tee -a "$LOG_FILE"
+}
+
+prompt() {
+  read -p "$(echo -e "$1")" input
+  echo "$input"
+}
+
+cleanup() {
+  if [ -d "$TMP_DIR" ]; then
+    rm -rf "$TMP_DIR"
+    log "🧹 Cleaned up temporary directory"
+  fi
+}
+
+normalize_date() {
+  local date_input="${1%.gz}"  # Remove .gz if present
+  echo "${date_input}.gz"      # Add .gz for the path
+}
+
+validate_date() {
+  [[ "$1" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}.gz$ ]] && return 0 || return 1
+}
+
+list_backups() {
+  log "📂 Available backups in S3:"
+  rclone lsd "$BUCKET" | awk '{print "  " $NF}' | sort -r
+}
+
+# ─────────────── MAIN SCRIPT ─────────────── #
+
+# Initialize
+mkdir -p "$(dirname "$LOG_FILE")"
+cleanup
+mkdir -p "$TMP_DIR"
+log "📦 Restore Script Initiated"
+
+# Date selection
+USE_LATEST=$(prompt "🌐 Restore from latest backup? (y/n): ")
+if [[ "$USE_LATEST" =~ ^[Yy] ]]; then
+  SELECTED_DATE=$(rclone lsd "$BUCKET" | awk '{print $NF}' | sort -r | head -n 1)
+  if [ -z "$SELECTED_DATE" ]; then
+    log "❌ No backups found in S3!"
+    exit 1
+  fi
+  log "📁 Selected latest backup: ${SELECTED_DATE}"
+else
+  list_backups
+  while true; do
+    date_input=$(prompt "📅 Enter backup date (YYYY-MM-DD): ")
+    SELECTED_DATE=$(normalize_date "$date_input")
+    if validate_date "$SELECTED_DATE"; then
+      if rclone ls "${BUCKET}/${SELECTED_DATE}" &>/dev/null; then
+        break
+      else
+        log "❌ Backup not found: ${SELECTED_DATE}"
+      fi
+    else
+      log "❌ Invalid date format. Please use YYYY-MM-DD"
+    fi
+  done
+fi
+
+# Collection selection
+RESTORE_ALL=$(prompt "📚 Restore all collections? (y/n): ")
+if [[ "$RESTORE_ALL" =~ ^[Nn] ]]; then
+  COLLECTION=$(prompt "📂 Enter collection name to restore: ")
+fi
+
+# Restoration
+log "☁️ Downloading backup: ${BUCKET}/${SELECTED_DATE}/mongo-${SELECTED_DATE%.gz}.gz"
+if ! rclone copyto "${BUCKET}/${SELECTED_DATE}/mongo-${SELECTED_DATE%.gz}.gz" "$TMP_FILE"; then
+  log "❌ Failed to download backup"
+  exit 1
+fi
+
+log "🧨 Dropping existing collections..."
+if [[ "$RESTORE_ALL" =~ ^[Yy] ]]; then
+  # Drop all collections
+  mongorestore --gzip --archive="$TMP_FILE" --drop
+else
+  # Drop and restore specific collection
+  mongorestore --gzip --archive="$TMP_FILE" --drop --nsInclude="${DB_NAME}.${COLLECTION}"
+fi
+
+cleanup
+log "✅ Restore completed successfully!"
+```
+
+3. Make it executable:
+```
+chmod +x ~/backup-scripts/restore-from-backup.sh
+```
+
+4. **Example usage**:
+```
+~/backup-scripts/restore-from-backup.sh
+###### DRY_RUN=true ./restore-from-backup.sh   # To simulate without restoring data:
+```
+
+Prompts you to:
+- Use the latest backup or specify date
+   - Restore all collections or just one
+   - Confirm before proceeding
+- Logs everything to `/var/log/mongo-restore.log`
+- Deletes the downloaded file after completion
 
 ### 9.  CI/CD
 #### 9.1  Prepare SSH keys for CI/CD
