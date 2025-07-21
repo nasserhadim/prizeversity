@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
-const GroupMultiplierControl = ({ group, groupSetId, classroomId, compact = false }) => {
+const GroupMultiplierControl = ({ group, groupSetId, classroomId, compact = false, refreshGroups }) => {
   const [multiplier, setMultiplier] = useState(group.groupMultiplier || 1);
   const [loading, setLoading] = useState(false);
 
@@ -14,6 +14,9 @@ const GroupMultiplierControl = ({ group, groupSetId, classroomId, compact = fals
         { multiplier }
       );
       toast.success('Multiplier updated');
+      if (refreshGroups) {
+        await refreshGroups();
+      }
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to update multiplier');
     } finally {

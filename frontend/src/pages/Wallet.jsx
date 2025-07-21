@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import BulkBalanceEditor from '../components/BulkBalanceEditor';
 import TransactionList, { inferType, TYPES } from '../components/TransactionList';
 import { useParams } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
 const Wallet = () => {
   const { user } = useAuth();
@@ -89,6 +90,13 @@ const fetchUsers = async () => {
       return Math.floor(baseBalance * multiplier);
     };
 
+    const refreshTransactions = async () => {
+      await fetchWallet();
+      if (['teacher', 'admin'].includes(user.role)) {
+        await fetchAllTx(studentFilter);
+      }
+    };
+
 
 
   return (
@@ -114,7 +122,7 @@ const fetchUsers = async () => {
 
       {['teacher', 'admin'].includes(user.role) && activeTab === 'edit' && (
   <div className="mb-6">
-    <BulkBalanceEditor />
+    <BulkBalanceEditor onSuccess={refreshTransactions} />
   </div>
 )}
 
