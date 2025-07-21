@@ -41,6 +41,12 @@ export default function TeacherNewsfeed() {
     }, [classId]);
 
     const handlePost = async () => {
+        // Prevent empty announcement
+        const plainText = draft.replace(/<(.|\n)*?>/g, '').trim();
+        if (!plainText) {
+            toast.error('Please enter an announcement before posting');
+            return;
+        }
         const formData = new FormData();
         formData.append('content', draft);
         attachments.forEach(file => formData.append('attachments', file));
@@ -52,15 +58,36 @@ export default function TeacherNewsfeed() {
 
     };
 
-    const handleDelete = async (itemId) => {
-        try {
-            await deleteNews(classId, itemId);
-            setItems(items.filter(item => item._id !== itemId));
-            toast.success('Announcement deleted');
-        } catch (err) {
-            console.error('Delete failed', err);
-            toast.error('Failed to delete');
-        }
+    const handleDelete = (itemId) => {
+        toast((t) => (
+            <div className="flex flex-col">
+                <span>Are you sure you want to delete this announcement?</span>
+                <div className="mt-2">
+                    <button
+                        className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded mr-2"
+                        onClick={async () => {
+                            try {
+                                await deleteNews(classId, itemId);
+                                setItems(items.filter(item => item._id !== itemId));
+                                toast.success('Announcement deleted');
+                            } catch (err) {
+                                console.error('Delete failed', err);
+                                toast.error('Failed to delete');
+                            }
+                            toast.dismiss(t.id);
+                        }}
+                    >
+                        Yes
+                    </button>
+                    <button
+                        className="bg-gray-300 hover:bg-gray-400 text-black px-3 py-1 rounded"
+                        onClick={() => toast.dismiss(t.id)}
+                    >
+                        No
+                    </button>
+                </div>
+            </div>
+        ));
     };
 
     const handleEdit = async (itemId, newContent) => {
@@ -115,7 +142,6 @@ export default function TeacherNewsfeed() {
                     <button
                         className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg"
                         onClick={handlePost}
-                        disabled={!draft.trim()}
                     >
                         Post
                     </button>
