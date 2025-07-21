@@ -64,15 +64,15 @@ This repository hosts the full stack implementation of PrizeVersity, including t
 
 > You can create one by navigating to `App Registrations` on [Azure Portal](https://portal.azure.com/?quickstart=True#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade) and then creating an App Registration. For platform selection, select "web".
 > 
-> Make sure to add/register the `redirect_uri`, e.g. `http://localhost:5000/api/auth/microsoft/callback` (and eventually the `redirect_uri` of the domain as well, e.g. `https://prizeversity.com/api/auth/google/callback`, once the `A` record is configured in the provider DNS settings). You can do so from the `App Registration > Authentication > Add a (web) platform > Add Web Redirect URI` if you didn't do it initially upon creation of the App registration.
+> Make sure to add/register the `redirect_uri`, e.g. `http://localhost:5000/api/auth/microsoft/callback` (and eventually the `redirect_uri` of the domain as well, e.g. `https://prizeversity.com/api/auth/microsoft/callback`, once the `A` record is configured in the provider DNS settings). You can do so from the `App Registration > Authentication > Add a (web) platform > Add Web Redirect URI` if you didn't do it initially upon creation of the App registration.
 > 
 > For supported account types, select `Accounts in any organizational directory (Any Microsoft Entra ID tenant - Multitenant) and personal Microsoft accounts (e.g. Skype, Xbox)`. This is the associated type of the default `/common` auth API callback Microsoft uses.
 >
 > FYI:
 > 
-> - The "MICROSOFT_CLIENT_ID" is the App Registration's "Application (client) ID" from the Overview page, NOT the "Secret ID" from the "Certificates & secrets page"!
+> - The `MICROSOFT_CLIENT_ID` is the App Registration's `Application (client) ID` from the **Overview** page, NOT the `Secret ID` from the **Certificates & secrets** page!
 >
-> - The "MICROSOFT_CLIENT_SECRET" is the "Value" from the "Certificates & secrets page".
+> - The `MICROSOFT_CLIENT_SECRET` is the `Value` from the **Certificates & secrets** page.
 
 ## Create Project Folders/Files (SKIP THIS IF CLONING/FORKING!):
 
@@ -893,8 +893,103 @@ npm run build                    # Build static frontend files to /dist
 sudo cp -r dist/* /var/www/prizeversity-frontend/  # Deploy build to Nginx-served directory
 ```
 
-### 7.  CI/CD
-#### 7.1  Prepare SSH keys for CI/CD
+### 7. 🧹 Handy MongoDB Commands to View or Clear Collections
+
+#### 7.1 🔍 View Document Count Per Collection
+
+```
+// Loop through all collections and display how many documents each one contains
+db.getCollectionNames().forEach(c => {
+  const count = db[c].countDocuments();
+  print(`📦 '${c}': ${count} document(s)`);
+});
+```
+
+#### 7.2 👁️‍🗨️ View Documents from Collections
+
+```
+// View the first document in each collection (if any)
+db.getCollectionNames().forEach(c => {
+  const doc = db[c].findOne();  // fetch one document
+  if (doc) {
+    print(`📄 '${c}' example document:`);
+    printjson(doc);
+  } else {
+    print(`❌ '${c}' is empty, no documents to show.`);
+  }
+});
+```
+
+> ✅ Tip: To view all documents from a specific collection:
+
+```
+db.<collectionName>.find().pretty(); // Example: db.users.find().pretty();
+```
+
+#### 7.3 🧾 One-Liner to Clear a Specific Collection (CAUTION!)
+
+```
+// Replace <collectionName> with the actual collection name
+db.<collectionName>.deleteMany({});
+
+// Example:
+db.users.deleteMany({});
+```
+
+#### 7.4 🧼 Clear All Documents from All Collections (CAUTION!)
+
+```
+// Loop through all collection names in the current database
+db.getCollectionNames().forEach(c => {
+  // Count how many documents are in the current collection
+  const count = db[c].countDocuments();
+
+  // Debug: Show collection name and document count
+  print(`🔍 Checking '${c}': ${count} document(s)`);
+
+  // Only delete if the collection is not empty
+  if (count > 0) {
+    // Delete all documents from the collection
+    db[c].deleteMany({});
+
+    // Debug: Confirm deletion
+    print(`✅ Cleared ${count} document(s) from '${c}'`);
+  } else {
+    // Debug: Collection already empty
+    print(`✅ '${c}' is already empty`);
+  }
+});
+```
+
+### 8. Automated backups
+#### 8.1 Create an S3-compatible bucket
+- Any provider works (AWS, Backblaze B2, Wasabi).
+- Size ≈ compressed dump × 30 days.
+
+#### 8.2 Install rclone & script
+```
+apt install -y rclone
+rclone config    # one-time wizard → create remote called “s3”
+mkdir -p ~/backup-scripts
+cat >~/backup-scripts/mongodb-nightly.sh <<'EOF'
+#!/usr/bin/env bash
+set -e
+STAMP=$(date +%F)
+mongodump --archive="/tmp/mongo-$STAMP.gz" --gzip
+rclone copy "/tmp/mongo-$STAMP.gz" s3:prizeversity-backups/$STAMP.gz
+rm /tmp/mongo-$STAMP.gz
+EOF
+chmod +x ~/backup-scripts/mongodb-nightly.sh
+```
+
+#### 8.3 Add a cron (scheduled) job:
+```
+crontab -e    # as root
+0 2 * * * /home/deploy/backup-scripts/mongodb-nightly.sh
+```
+
+### 9.  CI/CD
+#### 9.1  Prepare SSH keys for CI/CD
 
 1. **Generate a key pair on your laptop (once)**
 
@@ -906,7 +1001,7 @@ sudo cp -r dist/* /var/www/prizeversity-frontend/  # Deploy build to Nginx-serve
    - `~/.ssh/prizeversity-ci`   (private key)
    - `~/.ssh/prizeversity-ci.pub` (public key)
    
-3. **Copy the public key to the server (as your deploy user)**
+2. **Copy the public key to the server (as your deploy user)**
 
    ```
    ssh-copy-id -i ~/.ssh/prizeversity-ci.pub deploy@<VPS_IP>
@@ -915,7 +1010,7 @@ sudo cp -r dist/* /var/www/prizeversity-frontend/  # Deploy build to Nginx-serve
    # cat ~/.ssh/prizeversity-ci.pub | ssh deploy@<VPS_IP> 'mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys'
    ```
    
-4. **Add secrets to the GitHub repo** → `Settings` › `Secrets & variables` › `Actions`
+3. **Add secrets to the GitHub repo** → `Settings` › `Secrets & variables` › `Actions`
 
 | Secret name | Value |
 |-------------|-------|
@@ -931,13 +1026,13 @@ sudo cp -r dist/* /var/www/prizeversity-frontend/  # Deploy build to Nginx-serve
    ssh -i ~/.ssh/prizeversity-ci deploy@<VPS_IP>    # manual test
    ```
 
-#### 7.2  CI/CD Deployment (GitHub Actions workflow)
+#### 9.2  CI/CD Deployment (GitHub Actions workflow)
 - Builds & tests the code on every push to `main`
 - Uploads the build to VPS server over SSH
 - Installs production-only dependencies on the server
 - Hot-reloads PM2 process named `prizeversity`
 
-##### 7.2.1 Add a GitHub Environment called production (manual "Approve & Deploy" gate)
+##### 9.2.1 Add a GitHub Environment called production (manual "Approve & Deploy" gate)
 
 > 1. Repository → Settings → Environments → New environment → `production`
 >
@@ -948,7 +1043,7 @@ sudo cp -r dist/* /var/www/prizeversity-frontend/  # Deploy build to Nginx-serve
 - Effect: Every push to `main` will pause at "Waiting for approval in environment production".
 - Open > Actions → run → Review deployments → Approve and deploy to continue.
 
-##### 7.2.2 Create `.github/workflows/deploy.yml` in the repo
+##### 9.2.2 Create `.github/workflows/deploy.yml` in the repo
 ```
 name: CI & CD – Prizeversity Production
 on: { push: { branches: [ main ] } }
