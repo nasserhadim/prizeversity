@@ -110,6 +110,10 @@ npm install socket.io
 
 npm install multer
 
+npm install express-session jsdom dompurify
+
+npm install --save-dev jest eslint # if testing/linting are used
+
 # --- NEW: migrations ---
 npm i -D migrate-mongo
 npx migrate-mongo init                      # adds migrate-mongo-config.js + migrations/
