@@ -1061,7 +1061,7 @@ set -e
 # === CONFIG ===
 STAMP=$(date +%F)
 DUMP_PATH="/tmp/mongo-$STAMP.gz"
-REMOTE_PATH="s3:prizeversity-backups/$STAMP.gz"   # Replace with your actual bu>
+REMOTE_PATH="s3:prizeversity-backups/$STAMP.gz"   # Replace with your actual bucket path if different
 
 # === BACKUP ===
 echo "📦 Dumping MongoDB to $DUMP_PATH..."
@@ -1075,6 +1075,13 @@ rm "$DUMP_PATH"
 
 # === RETENTION POLICY ===
 echo "🧼 Deleting backups older than 60 days from S3..."
+rclone delete --min-age 60d s3:prizeversity-backups/
+
+# === DONE ===
+echo "✅ Backup complete for $STAMP"
+
+# === Optional log ===
+echo "$(date) - Backup + cleanup done for $STAMP" >> /var/log/mongo-backup.log
 ```
 
 4. Then save and exit (`Ctrl+O, Enter, then Ctrl+X`).
