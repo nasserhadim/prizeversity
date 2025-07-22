@@ -40,6 +40,7 @@ export default function TeacherNewsfeed() {
         fetchData();
     }, [classId]);
 
+    // Handle posting a new announcement
     const handlePost = async () => {
         // Prevent empty announcement
         const plainText = draft.replace(/<(.|\n)*?>/g, '').trim();
@@ -58,6 +59,7 @@ export default function TeacherNewsfeed() {
 
     };
 
+    // Confirm and handle deletion of an announcement
     const handleDelete = (itemId) => {
         toast((t) => (
             <div className="flex flex-col">
@@ -90,6 +92,7 @@ export default function TeacherNewsfeed() {
         ));
     };
 
+    // Handle updating an existing announcement's content
     const handleEdit = async (itemId, newContent) => {
         try {
             await editNews(classId, itemId, newContent);

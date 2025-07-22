@@ -5,11 +5,12 @@ const User = require('../models/User.js');
 const { ensureAuthenticated } = require('../config/auth.js');
 
 // GET /api/profile/student/:id
+// Will get the profile for a student by ID
 router.get('/student/:id', ensureAuthenticated, async (req, res) => {
   try {
     const user = await User.findById(req.params.id)
-      .populate('classrooms')
-      .populate('groups')
+      .populate('classrooms') // Will include the classrooms the user belongs to
+      .populate('groups') // Will include the groups the user belongs to
       .populate('transactions.assignedBy', 'firstName lastName email'); // just enough info
     if (!user) return res.status(404).json({ error: 'User not found' });
 
@@ -20,6 +21,7 @@ router.get('/student/:id', ensureAuthenticated, async (req, res) => {
 });
 
 // PUT /api/profile/student/:id
+// Update the student profile (only the user themself can do this)
 router.put('/student/:id', ensureAuthenticated, async (req, res) => {
   try {
     const userId = req.params.id;
@@ -82,6 +84,7 @@ router.get('/student/:id/stats', ensureAuthenticated, async (req, res) => {
   }
 })
 
+// Will upload an avatar image for the current user
 router.post('/upload-avatar', ensureAuthenticated, upload.single('avatar'), async (req, res) => {
   try {
     if (!req.file) {
@@ -102,12 +105,16 @@ router.post('/upload-avatar', ensureAuthenticated, upload.single('avatar'), asyn
   }
 });
 
+// Will remove avatar from current user's profile
 router.delete('/remove-avatar', ensureAuthenticated, async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ error: 'User not found' });
+
+    // It will clear the avatar filed
     user.avatar = undefined;
     await user.save();
+
     res.json(user);
   } catch (err) {
     console.error('Remove avatar error:', err);

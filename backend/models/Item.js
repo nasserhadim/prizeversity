@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
 
+// ItemSchema is the document where all the information of the items created per bazaar is stored.
+
 const ItemSchema = new mongoose.Schema({
   name: { type: String, required: true },
   description: { type: String },

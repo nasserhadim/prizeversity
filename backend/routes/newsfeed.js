@@ -1,8 +1,9 @@
-// prizeversity/backend/routes/newsfeed.js
-
 const express = require('express');
 const router = express.Router({ mergeParams: true });
 const NewsItem = require('../models/NewsItem');
+
+// The news feed will work for the teacher posting announcement in their classroom homepage
+
 // Multer + file storage setup
 const multer = require('multer');
 const path = require('path');

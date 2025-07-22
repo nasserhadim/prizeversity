@@ -9,10 +9,13 @@ const CreateBazaar = ({ classroomId, onCreate }) => {
     name: '',
     description: '',
     image: ''
-  });
+  }); // form state for bazaar fields
+
+  // loading state for submit button
   const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
+    // handle input changes for form fields
     setForm((prev) => ({
       ...prev,
       [e.target.name]: e.target.value
@@ -20,9 +23,12 @@ const CreateBazaar = ({ classroomId, onCreate }) => {
   };
 
   const handleSubmit = async (e) => {
+    // prevent default form submission
     e.preventDefault();
+    // set loading to true while submitting
     setLoading(true);
     try {
+      // send POST request to create a new bazaar under the given classroom
       const res = await apiBazaar.post(
         `classroom/${classroomId}/bazaar/create`,
         {
@@ -32,12 +38,13 @@ const CreateBazaar = ({ classroomId, onCreate }) => {
         }
       );
       toast.success('Bazaar created!');
+      // callback to notify parent about new bazaar
       onCreate(res.data.bazaar);
     } catch (err) {
       console.log("classroomId:", classroomId);
       toast.error(err.response?.data?.error || 'Failed to create bazaar');
     } finally {
-      setLoading(false);
+      setLoading(false); // reset loading state
     }
   };
 

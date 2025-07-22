@@ -5,6 +5,8 @@ const User = require('../models/User');
 const Item = require('../models/Item');
 const Classroom = require('../models/Classroom');
 
+// Will show all the attributes (that can be earned from the items from bazaar)in the statistics page
+
 
 // GET /api/stats/student/:id
 router.get('/student/:id', ensureAuthenticated, async (req, res) => {

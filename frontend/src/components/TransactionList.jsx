@@ -2,15 +2,18 @@
 import React, { useMemo } from 'react';
 
 
-
+// Mapping of known transaction types to human-readable labels
 const TYPES = {
   teacherBulk : 'Bulk adjustment by teacher',
   groupAdjust : 'Group adjust'
 };
 
+// Function to infer transaction type from tx object or description text
 const inferType = (tx) => {
+  // If tx.type exists and is a known type, return it directly
   if (tx.type && Object.keys(TYPES).includes(tx.type)) return tx.type;
 
+   // Otherwise, check description text (case-insensitive) for keywords
   const d = tx.description?.toLowerCase() || '';
     if (d.includes('bulk adjustment by teacher') ||
       d.includes('manual adjustment by teacher')) {
@@ -19,11 +22,12 @@ const inferType = (tx) => {
   if (d.includes('group adjust') || d.includes('group bulk')) {
     return 'groupAdjust';
   }
+  // Return null if no known type is inferred
   return null;              
 };
 
 const TransactionList = ({ transactions, filterType = 'all' }) => {
-
+// Memoized list of transactions filtered by type (or all if filterType='all')
   const visible = useMemo(() => (
     filterType === 'all'
       ? transactions
@@ -31,6 +35,7 @@ const TransactionList = ({ transactions, filterType = 'all' }) => {
   ), [transactions, filterType]);
 
 
+   // Function returning CSS text color class based on positive/negative amount
   const colour = (amt) => (amt < 0 ? 'text-red-500' : 'text-green-600');
 
   return (

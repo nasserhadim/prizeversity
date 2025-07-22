@@ -8,6 +8,7 @@ const mongoose = require('mongoose');
 const blockIfFrozen = require('../middleware/blockIfFrozen');
 const PendingAssignment = require('../models/PendingAssignment');
 
+// Utility to check if a TA can assign bits based on classroom policy
 async function canTAAssignBits({ taUser, classroomId }) {
   const Classroom = require('../models/Classroom');
   const classroom = await Classroom.findById(classroomId).select('taBitPolicy students');
@@ -29,6 +30,7 @@ async function canTAAssignBits({ taUser, classroomId }) {
   }
 }
 
+// Gets total group multiplier for a student across groups in a classroom
 const getGroupMultiplierForStudentInClassroom = async (studentId, classroomId) => {
   const groupSets = await GroupSet.find({ classroom: classroomId }).select('groups');
   const groupIds = groupSets.flatMap(gs => gs.groups);
@@ -51,6 +53,7 @@ const getGroupMultiplierForStudentInClassroom = async (studentId, classroomId) =
   return groups.reduce((sum, g) => sum + (g.groupMultiplier || 1), 0);
 };
 
+// Admin/teacher fetches al user transactions (optionally filtered by studentID)
 router.get('/transactions/all', ensureAuthenticated, async (req, res) => {
   if (!['teacher', 'admin'].includes(req.user.role)) {
     return res.status(403).json({ error: 'Forbidden' });
@@ -95,6 +98,7 @@ router.get('/transactions/all', ensureAuthenticated, async (req, res) => {
 router.post('/assign', ensureAuthenticated, async (req, res) => {
   const { classroomId, studentId, amount, description } = req.body;
 
+  // Check TA permission (admin)
   if (req.user.role === 'admin') {
     const gate = await canTAAssignBits({ taUser: req.user, classroomId });
     if (!gate.ok) {
@@ -157,6 +161,7 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
   }
 });
 
+// Bulk assign balances to mulitpler students
 router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
   if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
     return res.status(403).json({ 
@@ -182,6 +187,8 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
   }
 
   try {
+
+    // TA (admin) policy check
     if (req.user.role === 'admin') {
       const gate = await canTAAssignBits({ taUser: req.user, classroomId });
       if (!gate.ok) {
@@ -343,6 +350,7 @@ router.post(
   }
 );
 
+// Will get the user balance
 router.get('/:userId/balance', ensureAuthenticated, async (req, res) => {
   try {
     const user = await User.findById(req.params.userId).select('balance');

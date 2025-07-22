@@ -23,12 +23,14 @@ const Wallet = () => {
   const [studentList, setStudentList] = useState([]);
   const [typeFilter, setTypeFilter]     = useState('all');
 
+  // Map role values to readable labels
 const ROLE_LABELS = {
   student: 'Student',
   admin:   'TA',
   teacher: 'Teacher',
 };
 
+// Fetch students in classroom to populate dropdown/filter UI
 const fetchUsers = async () => {
   if (!classroomId) return;
   try {
@@ -42,31 +44,32 @@ const fetchUsers = async () => {
     setStudentList([]);
   }
 };
-
+  // On user or initial load, fetch wallet info and students
     useEffect(() => {
    if (!user) return;
     fetchWallet();
     fetchUsers();                   
-
+    // If teacher or admin, fetch all transactions for the classroom
   if (['teacher', 'admin'].includes(user.role)) {
     fetchAllTx();
   }
   }, [user]);
 
   
-
+// Fetch all transactions optionally filtered by student ID
   const fetchAllTx = async (studentId = '') => {
     const url = studentId ? `/api/wallet/transactions/all?studentId=${studentId}` : '/api/wallet/transactions/all';
     const res = await axios.get(url, { withCredentials: true });
     setAllTx(res.data);          
   };
 
-
+// Compute all distinct transaction types present in allTx, memoized
   const txTypeOptions = useMemo(() => {
     const set = new Set(allTx.map(inferType).filter(Boolean));
     return ['all', ...Array.from(set)];    
   }, [allTx]);
 
+  // Fetch the wallet data for current user (student) or transactions for teacher/admin
     const fetchWallet = async () => {
       try {
     const { data } = await axios.get('/api/wallet/transactions', { withCredentials: true });
@@ -84,12 +87,14 @@ const fetchUsers = async () => {
         console.error('Failed to fetch wallet', err);
       }
     };
+    // Calculate effective balance considering multiplier passive attribute
     const getEffectiveBalance = (user) => {
       const baseBalance = user.balance || 0;
       const multiplier = user.passiveAttributes?.multiplier || 1;
       return Math.floor(baseBalance * multiplier);
     };
 
+    // Refresh wallet transactions and all transactions (for teachers/admins)
     const refreshTransactions = async () => {
       await fetchWallet();
       if (['teacher', 'admin'].includes(user.role)) {

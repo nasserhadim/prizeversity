@@ -8,6 +8,7 @@ export default function OrderHistory() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
+    // Fetching all the orders users have made in the bazaar
     useEffect(() => {
         axios
             .get(`/api/bazaar/orders/user/${user._id}`)

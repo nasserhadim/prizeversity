@@ -58,7 +58,7 @@ const Checkout = () => {
         try {
             // Validate cart
             if (cartItems.length === 0) {
-                alert('Your cart is empty');
+                toast.error('Your cart is empty');
                 return;
             }
 
@@ -160,7 +160,7 @@ const Checkout = () => {
 
                     <button
                         onClick={handleCheckout}
-                        className="mt-6 w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
+                        className="btn btn-success w-full mt-6"
                     >
                         Confirm Purchase
                     </button>

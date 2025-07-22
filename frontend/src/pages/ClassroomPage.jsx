@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import socket from '../utils/socket';
 import toast from 'react-hot-toast';
-import { API_BASE } from '../config/api'; // Adjust path if needed
+import { API_BASE } from '../config/api'; 
 
 export default function ClassroomPage() {
   const { user } = useAuth();
@@ -19,16 +19,20 @@ export default function ClassroomPage() {
   const navigate = useNavigate();
   const BACKEND_URL = `${API_BASE}`;
 
+  // Update role state whenever user changes (e.g., login/logout)
   useEffect(() => {
     setRole(user?.role || '');
   }, [user]);
 
+   // Fetch classrooms when role is known or changes
   useEffect(() => {
     if (role) fetchClassrooms();
   }, [role]);
 
+  // Fetch classrooms from backend depending on role
   const fetchClassrooms = async () => {
     try {
+      // Teachers fetch all classrooms, students fetch joined classrooms
       const endpoint = role === 'teacher' ? '/api/classroom' : '/api/classroom/student';
       const res = await axios.get(endpoint);
       setClassrooms(res.data);
@@ -39,16 +43,19 @@ export default function ClassroomPage() {
     }
   };
 
+  // Handler to create a new classroom
   const handleCreateClassroom = async () => {
     console.group('Creating classroom with');
     console.log({ classroomName, classroomCode, color, backgroundFile });
     console.groupEnd();
 
+    // Validate required inputs
     if (!classroomName.trim() || !classroomCode.trim()) {
       toast.error('Please enter both Classroom Name and Code!');
       return;
     }
 
+    // Build multipart form data for upload (including optional background image)
     const formData = new FormData();
     formData.append('name', classroomName);
     formData.append('code', classroomCode);
@@ -57,6 +64,7 @@ export default function ClassroomPage() {
       formData.append('backgroundImage', backgroundFile);
     }
 
+    // Debug print form data entries
     console.group('FormData entries:');
     for (let pair of formData.entries()) {
       console.log(pair[0] + ':', pair[1]);
@@ -64,6 +72,7 @@ export default function ClassroomPage() {
     console.groupEnd();
 
     try {
+      // POST to create classroom endpoint
       await axios.post('/api/classroom/create', formData);
       toast.success('Classroom Created!');
       setClassroomName('');
@@ -77,15 +86,20 @@ export default function ClassroomPage() {
     }
   };
 
+  // Handler to join classroom via join code
   const handleJoinClassroom = async () => {
+    const code = joinClassroomCode.trim();
     if (!joinClassroomCode.trim()) {
       toast.error('Enter a classroom code!');
       return;
     }
     try {
-      await axios.post('/api/classroom/join', { code: joinClassroomCode });
+      // POST to join classroom endpoint
+      const res =await axios.post('/api/classroom/join', { code: code });
       toast.success('Joined classroom!', { duration: 800 });
+       // Reset join code input
       setJoinClassroomCode('');
+      // Refresh classroom list
       fetchClassrooms();
     } catch (err) {
       console.error(err);
@@ -93,11 +107,13 @@ export default function ClassroomPage() {
     }
   };
 
+   // Navigate into a classroom when its card is clicked
   const handleCardClick = (id) => {
     navigate(`/classroom/${id}`);
     toast.success('Entered classroom!');
   };
 
+  // Listen for real-time classroom updates via socket.io and refresh list accordingly
   useEffect(() => {
     socket.on('classroom_update', updated =>
       setClassrooms(prev =>
@@ -105,10 +121,12 @@ export default function ClassroomPage() {
       )
     );
     socket.on('notification', note => {
+      // For certain notification types, re-fetch classrooms
       if (['classroom_update', 'classroom_removal', 'classroom_deletion'].includes(note.type)) {
         fetchClassrooms();
       }
     });
+     // Cleanup listeners on unmount
     return () => {
       socket.off('classroom_update');
       socket.off('notification');

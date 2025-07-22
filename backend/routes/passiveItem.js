@@ -5,6 +5,8 @@ const User = require('../models/User');
 const Group = require('../models/Group');
 const { ensureAuthenticated } = require('../config/auth');
 
+// Passive items are another category of the item bazaar which will grant users multipliers, group multipliers, and luck
+
 router.post('/equip/:itemId', ensureAuthenticated, async (req, res) => {
   try {
     const item = await Item.findById(req.params.itemId);

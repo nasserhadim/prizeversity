@@ -7,6 +7,7 @@ import { ImageOff } from 'lucide-react';
 import SwapModal from '../components/SwapModal';
 import NullifyModal from '../components/NullifyModal';
 
+// Inventory section for using, managing, and interacting with items
 const InventorySection = ({ userId, classroomId }) => {
   const [items, setItems] = useState([]);
   const [students, setStudents] = useState([]);
@@ -16,6 +17,7 @@ const InventorySection = ({ userId, classroomId }) => {
   const [selectedTarget, setSelectedTarget] = useState(null);
   const [nullifyModalOpen, setNullifyModalOpen] = useState(false);
 
+  // Load inventory and student list when userId and classroomId are available
   useEffect(() => {
     const load = async () => {
       try {
@@ -33,6 +35,7 @@ const InventorySection = ({ userId, classroomId }) => {
     if (userId && classroomId) load();
   }, [userId, classroomId]);
 
+  // When a swap attribute is selected in the modal
   const handleSwapSelection = async (swapAttribute) => {
     setSwapModalOpen(false);
     try {
@@ -52,6 +55,7 @@ const InventorySection = ({ userId, classroomId }) => {
     }
   };
 
+  // Handles using any item based on category and effect
   const handleUse = async (item) => {
     const targetUserId = targets[item._id] || null;
     
@@ -82,6 +86,7 @@ const InventorySection = ({ userId, classroomId }) => {
             return;
           }
           
+          // Default attack usage
           endpoint = `/attack/use/${item._id}`;
           data = { targetUserId };
           break;
@@ -103,6 +108,7 @@ const InventorySection = ({ userId, classroomId }) => {
           return;
       }
 
+      // Execute item usage
       const response = await apiItem.post(endpoint, data);
       toast.success(response.data.message || 'Item used successfully!');
       
@@ -116,6 +122,7 @@ const InventorySection = ({ userId, classroomId }) => {
     }
   };
 
+  // Returns a readable description of what an item does
   const getEffectDescription = (item) => {
     if (item.category === 'Passive') {
       const effects = (item.secondaryEffects || []).map(effect => {
@@ -163,11 +170,13 @@ const InventorySection = ({ userId, classroomId }) => {
     return effects[item.primaryEffect] || 'No effect';
   };
 
+  // Get full name of target user
   const getTargetName = (targetId) => {
     const target = students.find(s => s._id === targetId);
     return target ? `${target.firstName} ${target.lastName}` : 'Target';
   };
 
+  // When a nullify attribute is selected in the modal
   const handleNullifySelection = async (nullifyAttribute) => {
     setNullifyModalOpen(false);
     try {
