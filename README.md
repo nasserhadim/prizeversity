@@ -781,22 +781,55 @@ grep -r "server_name prizeversity.com" /etc/nginx/conf.d/
 - Edit the file shown in the output (e.g., `sudo nano /etc/nginx/conf.d/123.45.67.123.conf` and `Ctrl + O` to save, followed by `Ctrl + X` to exit).
 
 ```
-# Redirect HTTP to HTTPS
+# Default HTTP server (fallback)
+server {
+    listen 123.45.67.123:80 default_server;
+    server_name _;
+    access_log off;
+    error_log /dev/null;
+
+    location / {
+        proxy_pass http://123.45.67.123:8080;
+    }
+}
+
+# Default HTTPS server (fallback)
+server {
+    listen 123.45.67.123:443 default_server ssl;
+    server_name _;
+    access_log off;
+    error_log /dev/null;
+
+    ssl_certificate     /usr/local/hestia/ssl/certificate.crt;
+    ssl_certificate_key /usr/local/hestia/ssl/certificate.key;
+
+    return 301 http://$host$request_uri;
+
+    location / {
+        root /var/www/document_errors/;
+    }
+
+    location /error/ {
+        alias /var/www/document_errors/;
+    }
+}
+
+# Redirect HTTP to HTTPS for the  domain
 server {
     listen 123.45.67.123:80;
     server_name prizeversity.com www.prizeversity.com;
     return 301 https://$host$request_uri;
 }
 
-# HTTPS server block
+# Main HTTPS server block for prizeversity.com
 server {
     listen 123.45.67.123:443 ssl http2;
     server_name prizeversity.com www.prizeversity.com;
 
+    # SSL Certificates
     ssl_certificate /etc/letsencrypt/live/prizeversity.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/prizeversity.com/privkey.pem;
 
-    # SSL and Gzip settings
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_prefer_server_ciphers on;
     ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305';
@@ -808,6 +841,10 @@ server {
     resolver 1.1.1.1 8.8.8.8 valid=300s;
     resolver_timeout 5s;
 
+    # Increase request body size limit
+    client_max_body_size 10M; # Allow up to 10 MB
+
+    # Enable gzip compression
     gzip on;
     gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
     gzip_min_length 256;
@@ -817,12 +854,22 @@ server {
     access_log off;
     error_log /dev/null;
 
-    # Proxy API requests to backend
+    # Proxy API requests to Node.js backend
     location /api/ {
         proxy_pass http://localhost:5000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # Proxy WebSocket (Socket.IO) connections to backend
+    location /socket.io/ {
+        proxy_pass http://localhost:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
         proxy_set_header Host $host;
         proxy_cache_bypass $http_upgrade;
     }
