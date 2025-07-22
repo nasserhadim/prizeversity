@@ -141,7 +141,7 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
       ? Math.round(numericAmount * multiplier)
       : numericAmount;
 
-    student.balance += adjustedAmount;
+    student.balance = Math.max(0, student.balance + adjustedAmount);
     student.transactions.push({
       amount: adjustedAmount,
       description: description || `Balance adjustment`,
@@ -224,11 +224,12 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
       const totalMultiplier = groupMultiplier * passiveMultiplier;
 
       // Apply multiplier only for positive amounts
-      const adjustedAmount = amount >= 0 
-        ? Math.round(amount * totalMultiplier)
-        : amount;
+      const adjustedAmount = numericAmount >= 0
+   ? Math.round(numericAmount * totalMultiplier)
+   : numericAmount;
 
-      student.balance += adjustedAmount;
+ // never let balance go negative
+ student.balance = Math.max(0, student.balance + adjustedAmount);
       student.transactions.push({
         amount: adjustedAmount,
         description,

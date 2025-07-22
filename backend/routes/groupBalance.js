@@ -5,6 +5,7 @@ const Group = require('../models/Group');
 const User  = require('../models/User');
 const router = express.Router();
 
+
 function ensureTeacher(req, res, next) {
   if (!['teacher','admin'].includes(req.user.role)) {
     return res.status(403).json({ error:'Only teachers or admins can adjust group balances' });
@@ -49,7 +50,7 @@ router.post(
         }
 
         // Update user balance
-        user.balance += adjustedAmount;
+        user.balance = Math.max(0, user.balance + adjustedAmount);
         user.transactions.push({
           amount: adjustedAmount, // Store the actual amount transferred
           description: description || `Group adjust (${group.name})`,

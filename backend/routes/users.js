@@ -112,17 +112,22 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
       const totalMultiplier = groupMultiplier * passiveMultiplier;
 
       // Apply multiplier only for positive amounts
-      const adjustedAmount = amount >= 0 
-        ? Math.round(amount * totalMultiplier)
-        : amount;
+     const adjustedAmount = amount >= 0 
+  ? Math.round(amount * totalMultiplier)
+  : amount;
 
-      student.balance += adjustedAmount;
-      student.transactions.push({
-        amount: adjustedAmount,
-        description,
-        assignedBy: req.user._id,
-        createdAt: new Date()
-      });
+    // Prevent balance from going below 0
+    const newBalance = student.balance + adjustedAmount;
+    student.balance = Math.max(0, newBalance);
+
+    student.transactions.push({
+      amount: adjustedAmount,
+      description,
+      assignedBy: req.user._id,
+      createdAt: new Date()
+    });
+
+console.log(`Student ${student._id}: oldBalance=${student.balance - adjustedAmount}, adjusted=${adjustedAmount}, newBalance=${student.balance}`);
 
       await student.save();
       results.updated += 1;
