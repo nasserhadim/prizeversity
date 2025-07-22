@@ -200,6 +200,11 @@ const Profile = () => {
                             }}
                             className="file-input file-input-bordered w-full"
                         />
+
+                        <p className="text-sm text-gray-500 mt-1">
+                            Valid image formats: .jpg, .jpeg, .png, .gif, .bmp, .webp, .svg; max size: 10 MB.
+                        </p>
+                        
                         {form.avatar && (
                             <>
                                 <img
