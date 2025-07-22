@@ -2,6 +2,7 @@ import { useEffect, useState, useContext } from 'react';
 import { useParams } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import axios from 'axios';
+import { API_BASE } from '../config/api';
 
 const Profile = () => {
     const { user, updateUser } = useContext(AuthContext);
@@ -16,7 +17,7 @@ const Profile = () => {
     const [loadingOrders, setLoadingOrders] = useState(true);
     const [ordersError, setOrdersError] = useState('');
     const [stats, setStats] = useState({});
-    const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+    const BACKEND_URL = `${API_BASE}`;
 
     useEffect(() => {
         const fetchProfile = async () => {

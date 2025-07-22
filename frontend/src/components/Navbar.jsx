@@ -7,7 +7,7 @@ import { useCart } from '../context/CartContext';
 import { ShoppingCart } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import NotificationBell from './NotificationBell'; // Import the NotificationBell component
-
+import { API_BASE } from '../config/api';
 
 import {
   Home,
@@ -22,7 +22,7 @@ import {
 
 //import defaultProfilePicture from '../assets/Default/Profile-Default-Picture.jpg';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+const BACKEND_URL = `${API_BASE}`;
 
 const Navbar = () => {
   const { user, logout, setPersona, originalUser } = useContext(AuthContext);
