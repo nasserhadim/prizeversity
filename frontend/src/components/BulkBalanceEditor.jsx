@@ -74,11 +74,10 @@ const BulkBalanceEditor = () => {
 
     try {
     // send the bulk-assign or queue request
-    const res = await axios.post(
-      '/api/wallet/assign/bulk',
-      { classroomId, updates },
-      { withCredentials: true }
-    );
+    const res = await axios.post('/api/wallet/assign/bulk', {
+  classroomId,                     
+  updates
+}, { withCredentials: true });
 
     // if TA policy = approval, server responds 202
     if (res.status === 202) {

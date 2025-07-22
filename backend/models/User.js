@@ -24,7 +24,7 @@ const UserSchema = new mongoose.Schema({
   firstName: { type: String },
   lastName: { type: String },
   role: { type: String, enum: ['admin', 'teacher', 'student']/*, default: 'student' */ },
-  balance: { type: Number, default: 0 },
+  balance: { type: Number, default: 0, min: 0 },
   isFrozen: { type: Boolean, default: false },
   classrooms: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Classroom' }],
   groups: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Group' }],
