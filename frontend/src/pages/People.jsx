@@ -290,7 +290,9 @@ useEffect(() => {
                         </button>
                       )}
 
-                      {user?.role?.toLowerCase() === 'teacher' && (
+                      {user?.role?.toLowerCase() === 'teacher'
+          && student.role !== 'teacher'
+        && String(student._id) !== String(user._id) && (
                         <select
                           className="select select-sm ml-2"
                           value={student.role}
