@@ -18,6 +18,16 @@ const Profile = () => {
     const [ordersError, setOrdersError] = useState('');
     const [stats, setStats] = useState({});
     const BACKEND_URL = `${API_BASE}`;
+    const formatDateTime = (iso) =>
+        new Date(iso).toLocaleString('en-US', {
+            timeZone: 'America/Detroit',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+        });
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -200,6 +210,11 @@ const Profile = () => {
                             }}
                             className="file-input file-input-bordered w-full"
                         />
+
+                        <p className="text-sm text-gray-500 mt-1">
+                            Valid image formats: .jpg, .jpeg, .png, .gif, .bmp, .webp, .svg; max size: 10 MB.
+                        </p>
+
                         {form.avatar && (
                             <>
                                 <img
@@ -288,7 +303,7 @@ const Profile = () => {
                                 <ul className="list-disc list-inside">
                                     {orders.map(o => (
                                         <li key={o._id}>
-                                            {new Date(o.createdAt).toLocaleDateString()}: {o.items.map(i => i.name).join(', ')} ({o.total} bits)
+                                            {formatDateTime(o.createdAt)}: {o.items.map(i => i.name).join(', ')} ({o.total} bits)
                                         </li>
                                     ))}
                                 </ul>

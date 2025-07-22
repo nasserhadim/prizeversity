@@ -175,6 +175,11 @@ export default function ClassroomPage() {
                 onChange={e => setBackgroundFile(e.target.files[0])}
                 className="file-input file-input-bordered flex-1"
               />
+
+              <p className="text-sm text-gray-500 mt-1">
+                Valid image formats: .jpg, .jpeg, .png, .gif, .bmp, .webp, .svg; max size: 10 MB.
+              </p>
+              
               {backgroundFile && (
                 <img
                   src={URL.createObjectURL(backgroundFile)}
