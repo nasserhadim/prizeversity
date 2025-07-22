@@ -10,6 +10,7 @@ const Leaderboard = () => {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Fetching all the students to load them in the leaderboard 
   useEffect(() => {
     const fetchLeaderboard = async () => {
       try {

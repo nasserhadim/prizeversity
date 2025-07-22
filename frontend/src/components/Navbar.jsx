@@ -29,8 +29,10 @@ const Navbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Handle switching from teacher to student view
   const handleSwitchToStudent = () => {
     setPersona({ ...user, role: 'student' });
+    // If currently in a classroom route, stay in the classroom context
     const match = location.pathname.match(/^\/classroom\/([^\/]+)/);
     if (match) {
       navigate(`/classroom/${match[1]}/news`);
@@ -39,6 +41,7 @@ const Navbar = () => {
     }
   };
 
+  // Handle switching from student back to original teacher
   const handleSwitchToTeacher = () => {
     // Go back to the original teacher user
     setPersona(originalUser);
@@ -50,6 +53,8 @@ const Navbar = () => {
       navigate('/');
     }
   };
+
+  // Determine if classroom tabs should be shown based on user profile
   const showClassroomsTab = Boolean(
     user?.firstName &&
     user?.lastName &&
@@ -57,6 +62,7 @@ const Navbar = () => {
   );
   const { theme, toggleTheme } = useContext(ThemeContext);
 
+  // Extract classroom ID from URL path
   const classroomMatch = location.pathname.match(/^\/classroom\/([^\/]+)/);
   const classroomId = classroomMatch ? classroomMatch[1] : null;
   const insideClassroom = Boolean(classroomId);
@@ -65,6 +71,7 @@ const Navbar = () => {
   const cartRef = useRef(null);
 
 
+  // Hook to close cart dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (cartRef.current && !cartRef.current.contains(event.target)) {

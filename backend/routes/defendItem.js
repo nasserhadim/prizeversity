@@ -4,6 +4,8 @@ const Item = require('../models/Item');
 const User = require('../models/User');
 const { ensureAuthenticated } = require('../config/auth');
 
+// Defend item is another category for the bazaar items that protect the user from any attack items.
+
 router.post('/activate/:itemId', ensureAuthenticated, async (req, res) => {
   try {
     const item = await Item.findById(req.params.itemId);

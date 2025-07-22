@@ -2,22 +2,28 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
+// Component for updating group multiplier within a group set
 const GroupMultiplierControl = ({ group, groupSetId, classroomId, compact = false, refreshGroups }) => {
   const [multiplier, setMultiplier] = useState(group.groupMultiplier || 1);
   const [loading, setLoading] = useState(false);
 
+  // Function to send multiplier update to server
   const handleUpdate = async () => {
     try {
       setLoading(true);
+      // API call to update multiplier
       await axios.post(
         `/api/groupset/${groupSetId}/group/${group._id}/set-multiplier`,
         { multiplier }
       );
+      // Notify success
       toast.success('Multiplier updated');
+      // Optionally refresh group data
       if (refreshGroups) {
         await refreshGroups();
       }
     } catch (err) {
+      // Notify on error
       toast.error(err.response?.data?.error || 'Failed to update multiplier');
     } finally {
       setLoading(false);

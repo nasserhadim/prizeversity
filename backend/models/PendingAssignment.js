@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
 
+// Pending Assignment Document will store the assignment for each user per classroom
+
 const PendingAssignmentSchema = new mongoose.Schema({
   classroom:    { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom', required: true },
   student:      { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
