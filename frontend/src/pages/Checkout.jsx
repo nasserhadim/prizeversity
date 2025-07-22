@@ -58,51 +58,51 @@ const Checkout = () => {
         try {
             // Validate cart
             if (cartItems.length === 0) {
-            alert('Your cart is empty');
-            return;
+                alert('Your cart is empty');
+                return;
             }
 
             // Prepare items with discounted prices if applicable
             const checkoutItems = cartItems.map(item => ({
-            _id: item._id,
-            name: item.name,
-            price: user?.discountShop ? Math.floor(item.price * 0.8) : item.price,
-            // Include all necessary item properties
-            category: item.category,
-            primaryEffect: item.primaryEffect,
-            secondaryEffects: item.secondaryEffects
+                _id: item._id,
+                name: item.name,
+                price: user?.discountShop ? Math.floor(item.price * 0.8) : item.price,
+                // Include all necessary item properties
+                category: item.category,
+                primaryEffect: item.primaryEffect,
+                secondaryEffects: item.secondaryEffects
             }));
 
             console.log("Sending checkout request:", {
-            userId: user._id,
-            items: checkoutItems
+                userId: user._id,
+                items: checkoutItems
             });
 
             const response = await apiBazaar.post('/checkout', {
-            userId: user._id,
-            items: checkoutItems
+                userId: user._id,
+                items: checkoutItems
             });
 
             if (response.status === 200) {
-            await fetchBalance();
-            clearCart();
-            toast.success('Purchase complete!');
-            navigate(-1);
+                await fetchBalance();
+                clearCart();
+                toast.success('Purchase complete!');
+                navigate(-1);
             }
         } catch (err) {
             console.error("Checkout error:", {
-            message: err.message,
-            response: err.response?.data,
-            stack: err.stack
+                message: err.message,
+                response: err.response?.data,
+                stack: err.stack
             });
-            
+
             toast.error(
-            err.response?.data?.error || 
-            err.response?.data?.message || 
-            'Checkout failed. Please try again.'
+                err.response?.data?.error ||
+                err.response?.data?.message ||
+                'Checkout failed. Please try again.'
             );
         }
-        };
+    };
 
     return (
         <div className="max-w-xl mx-auto mt-12 p-6 bg-white rounded shadow">
