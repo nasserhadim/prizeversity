@@ -949,7 +949,7 @@ sudo cp -r dist/* /var/www/prizeversity-frontend/  # Deploy build to Nginx-serve
 
 ### 7. 🧹 Handy MongoDB Commands to View or Clear Collections
 
-> ✅ Note: Run these commands after connecting to the database using `mongosh`.
+> ✅ Note: Run these commands after connecting to the mongodb interface using `mongosh`, then connect to the database, e.g. `use prizeversity;`.
 
 #### 7.1 🔍 View Document Count Per Collection
 
