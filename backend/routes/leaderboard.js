@@ -5,6 +5,8 @@ const User = require('../models/User');
 const Classroom = require('../models/Classroom');
 const router = express.Router();
 
+// The leaderboard will list all the users in that classroom from the one that has the most bits gathered.
+
 router.get('/:classroomId/leaderboard', ensureAuthenticated, async (req, res) => {
   try {
     const classroomId = req.params.classroomId;

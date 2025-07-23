@@ -3,6 +3,7 @@ import { Hammer } from 'lucide-react';
 import toast from 'react-hot-toast';
 import apiBazaar from '../API/apiBazaar';
 
+// Will define the primary effect options by item category
 const CATEGORY_OPTIONS = {
   Attack: [
     { label: 'Bit Splitter (halve bits)', value: 'halveBits' },
@@ -21,6 +22,7 @@ const CATEGORY_OPTIONS = {
 };
 
 const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
+  // Initialize form state
   const [form, setForm] = useState({
     name: '',
     description: '',
@@ -34,6 +36,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
   });
   const [loading, setLoading] = useState(false);
 
+  // Reset form to initial state
   const resetForm = () => {
     setForm({
       name: '',
@@ -48,6 +51,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
     });
   };
 
+  // Handle input changes and reset dependent fields when category changes
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm(prev => ({
@@ -62,6 +66,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
     }));
   };
 
+  // Add a new secondary effect if under the limit of 3
   const addSecondaryEffect = () => {
     if (form.secondaryEffects.length >= 3) return;
     setForm(prev => ({
@@ -70,6 +75,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
     }));
   };
 
+  // Update a specific secondary effect at an index
   const updateSecondaryEffect = (index, field, value) => {
     setForm(prev => {
       const newEffects = [...prev.secondaryEffects];
@@ -78,6 +84,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
     });
   };
 
+  // Remove a secondary effect at the given index
   const removeSecondaryEffect = (index) => {
     setForm(prev => {
       const newEffects = [...prev.secondaryEffects];
@@ -86,6 +93,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
     });
   };
 
+  // Toggle selected swap option in the swapOptions array
   const toggleSwapOption = (option) => {
     setForm(prev => {
       const newOptions = prev.swapOptions.includes(option)
@@ -95,6 +103,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
     });
   };
 
+  // Determine available secondary effects for the selected category
   const availableSecondaryEffects = () => {
     if (!form.category) return [];
     
@@ -110,31 +119,35 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
         { label: 'Grants Group Multiplier (+1x)', value: 'grantsGroupMultiplier' }
       ]
     };
-
     const effectsForCategory = allEffects[form.category] || [];
     return effectsForCategory.filter(
       effect => !form.secondaryEffects.some(se => se.effectType === effect.value)
     );
   };
 
+  // Validate and submit form to backend
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // Validate required fields
     if (!form.name || !form.price || !form.category) {
       toast.error('Please fill all required fields');
       return;
     }
 
+    // Ensure non-passive categories have primary effect
     if (form.category !== 'Passive' && !form.primaryEffect) {
       toast.error('Please select a primary effect');
       return;
     }
 
+    // If effect is 'swapper', ensure at least one attribute is selected
     if (form.primaryEffect === 'swapper' && form.swapOptions.length === 0) {
       toast.error('Please select at least one attribute to swap');
       return;
     }
 
+    // If stealing, ensure percent is valid
     if (form.primaryEffect === 'stealBits' && (form.primaryEffectValue < 1 || form.primaryEffectValue > 100)) {
       toast.error('Steal percentage must be between 1 and 100');
       return;
@@ -143,6 +156,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
     setLoading(true);
 
     try {
+      // Prepare payload with cleaned and converted values
       const payload = {
         name: form.name.trim(),
         description: form.description.trim(),
@@ -161,16 +175,19 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
         bazaar: bazaarId
       };
 
+      // Make POST request to API
       const res = await apiBazaar.post(
         `classroom/${classroomId}/bazaar/${bazaarId}/items`,
         payload
       );
 
+      // Notify success and reset
       toast.success('Item created successfully!');
       onAdd?.(res.data.item);
       resetForm();
 
     } catch (err) {
+      // Log and notify error
       console.error('Item creation failed:', err);
       toast.error(err.response?.data?.error || 'Failed to create item');
     } finally {

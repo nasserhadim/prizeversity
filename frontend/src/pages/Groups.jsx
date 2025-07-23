@@ -46,6 +46,7 @@ const Groups = () => {
     }
   };
 
+  // Will fetch all the updates from the groups, their siphone votes, groupsets, and siphon updates
   useEffect(() => {
     fetchGroupSets();
     socket.emit('join', `classroom-${id}`);
@@ -71,6 +72,7 @@ const Groups = () => {
     if (groupSetMaxMembers < 0) return toast.error('Max members cannot be negative');
 
     try {
+      // POST to create the groupset
       await axios.post('/api/group/groupset/create', {
         name: groupSetName,
         classroomId: id,
@@ -87,6 +89,7 @@ const Groups = () => {
     }
   };
 
+  // It will reset the GroupSet Form
   const resetGroupSetForm = () => {
     setEditingGroupSetId(null);
     setGroupSetName('');
@@ -96,6 +99,7 @@ const Groups = () => {
     setGroupSetImage('');
   };
 
+  // iT will edit the Group set
   const handleEditGroupSet = (gs) => {
     setEditingGroupSetId(gs._id);
     setGroupSetName(gs.name);
@@ -105,11 +109,13 @@ const Groups = () => {
     setGroupSetImage(gs.image);
   };
 
+  // After editing will update the group set
   const handleUpdateGroupSet = async () => {
     if (!groupSetName.trim()) return toast.error('GroupSet name is required');
     if (groupSetMaxMembers < 0) return toast.error('Max members cannot be negative');
 
     try {
+      // PUT API call to update the new edits for the groupset
       await axios.put(`/api/group/groupset/${editingGroupSetId}`, {
         name: groupSetName,
         selfSignup: groupSetSelfSignup,
@@ -137,6 +143,7 @@ const Groups = () => {
   //     toast.error('Failed to delete group set');
   //   }
   // };
+  // will delete the group set using DELETE API call
   const handleDeleteGroupSet = async () => {
     if (!confirmDeleteGroupSet) return;
 
@@ -216,11 +223,13 @@ const Groups = () => {
   //   }
   // };
 
+  // Editing the group name 
   const openEditGroupModal = (groupSetId, groupId, currentName) => {
     setEditGroupModal({ groupSetId, groupId });
     setNewGroupName(currentName);
   };
 
+  // Making sure that the group name cannot be epty and makes a PUT api call to update the new changes for the group
   const handleEditGroup = async () => {
     if (!editGroupModal || !newGroupName.trim()) {
       return toast.error('Group name cannot be empty');
@@ -240,7 +249,7 @@ const Groups = () => {
   };
 
 
-
+  // Will delete hte group using the DELETE API call
   const handleDeleteGroup = async () => {
     if (!confirmDeleteGroup) return;
 
@@ -255,6 +264,7 @@ const Groups = () => {
     }
   }
 
+  // Handles a student joining a group
   const handleJoinGroup = async (groupSetId, groupId) => {
   const groupSet = groupSets.find(gs => gs._id === groupSetId);
   if (!groupSet) return toast.error('GroupSet not found');
@@ -297,6 +307,7 @@ const Groups = () => {
   //     toast.error('Failed to leave group');
   //   }
   // };
+  // Handles a student leaving a group
   const handleLeaveGroup = async () => {
     if (!confirmLeaveGroup) return;
 
@@ -325,6 +336,7 @@ const Groups = () => {
     }
   };
 
+  // Handles a teacher rejecting a student trying to join a group using POST api call
   const handleRejectMembers = async (groupSetId, groupId) => {
     try {
       await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/reject`, {
@@ -337,6 +349,7 @@ const Groups = () => {
     }
   };
 
+  // Handles suspension teachers can make to studnets in particular groups using POST api call
   const handleSuspendMembers = async (groupSetId, groupId) => {
     try {
       await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/suspend`, {
@@ -359,11 +372,13 @@ const Groups = () => {
     }
   };
 
+  // Teacher approving the siphon using POST api call
   const teacherApprove = async (siphonId) => {
     await axios.post(`/api/siphon/${siphonId}/teacher-approve`);
     fetchGroupSets();
   };
 
+  // Teacher rejecting a siphon using POST api call
   const teacherReject = async (siphonId) => {
     if (processing) return;
     setProcessing(true);
@@ -377,12 +392,14 @@ const Groups = () => {
     }
   };
 
+  // Open the adjustment modal for a specific groupSet and group
   const openAdjustModal = (groupSetId, groupId) => {
     setAdjustModal({ groupSetId, groupId });
     setAdjustAmount('');
     setAdjustDesc('');
   };
 
+  // Submit the balance adjustment to backend API
   const submitAdjust = async () => {
     try {
       const { groupSetId, groupId } = adjustModal;
@@ -416,12 +433,14 @@ const Groups = () => {
       });
   };
 
+  // Toggle select all members in a group
   const handleSelectAllMembers = (groupId, group) => {
     const allSelected = (selectedMembers[groupId] || []).length === group.members.length;
     const newSelected = allSelected ? [] : group.members.map(m => m._id._id);
     setSelectedMembers(prev => ({ ...prev, [groupId]: newSelected }));
   };
 
+  // Toggle selection of a single member by ID within a group
   const handleSelectMember = (groupId, memberId) => {
     setSelectedMembers(prev => {
       const selected = new Set(prev[groupId] || []);

@@ -13,6 +13,7 @@ const ItemCard = ({ item, role, classroomId }) => {
   const { addToCart } = useCart();
   const { user } = useAuth();
 
+  // The buy option is not included here
   const handleBuy = async () => {
     if (quantity < 1) return toast.error('Quantity must be at least 1');
     setLoading(true);

@@ -4,6 +4,8 @@ const Item = require('../models/Item');
 const User = require('../models/User');
 const { ensureAuthenticated } = require('../config/auth');
 
+// attack item is one of the categories for the items that use effects that are used to 'hurt' damage the target's bits, luck, or multiplier
+
 router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
   try {
     const { targetUserId, swapAttribute } = req.body; // Added swapAttribute parameter
@@ -156,6 +158,7 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
     await req.user.save();
     await Item.findByIdAndDelete(item._id); // Delete attack item after use
 
+    // Json notification for any successful or error commands
     res.json({ 
       message: item.primaryEffect === 'swapper' 
         ? `Successfully swapped ${req.body.swapAttribute}! Item was consumed.`

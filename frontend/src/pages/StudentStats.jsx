@@ -11,6 +11,7 @@ const StudentStats = () => {
     const [error, setError] = useState('');
 
     useEffect(() => {
+        // Async function to fetch student stats from backend
         const fetchStats = async () => {
             try {
                 const res = await axios.get(`/api/stats/student/${studentId}`, {
@@ -44,6 +45,7 @@ const StudentStats = () => {
         }
     }, [studentId]);
 
+    // Render loading spinner while loading
     if (loading) {
         return (
             <div className="flex items-center justify-center p-6">
@@ -52,6 +54,7 @@ const StudentStats = () => {
         );
     }
 
+    // Render error message if error occurred
     if (error) {
         return (
             <div className="p-6 text-center text-red-500">
@@ -60,6 +63,7 @@ const StudentStats = () => {
         );
     }
 
+    // Render message if no stats are available
     if (!stats) {
         return (
             <div className="p-6 text-center">

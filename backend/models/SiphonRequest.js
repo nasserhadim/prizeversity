@@ -1,6 +1,8 @@
 
 const mongoose = require('mongoose');
 
+// The Siphon Request feature will be used to keep all request in a group if one of the members wins bits unfairly
+
 const VoteSchema = new mongoose.Schema({
   user:   { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   vote:   { type: String, enum: ['yes','no'], required: true },
