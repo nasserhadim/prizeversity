@@ -7,7 +7,7 @@ import { useCart } from '../context/CartContext';
 import { ShoppingCart } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import NotificationBell from './NotificationBell'; // Import the NotificationBell component
-
+import { API_BASE } from '../config/api';
 
 import {
   Home,
@@ -20,15 +20,19 @@ import {
   Trophy
 } from 'lucide-react';
 
-// import defaultProfilePicture from '../assets/Default/Profile-Default-Picture.jpg';
+//import defaultProfilePicture from '../assets/Default/Profile-Default-Picture.jpg';
+
+const BACKEND_URL = `${API_BASE}`;
 
 const Navbar = () => {
   const { user, logout, setPersona, originalUser } = useContext(AuthContext);
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Handle switching from teacher to student view
   const handleSwitchToStudent = () => {
     setPersona({ ...user, role: 'student' });
+    // If currently in a classroom route, stay in the classroom context
     const match = location.pathname.match(/^\/classroom\/([^\/]+)/);
     if (match) {
       navigate(`/classroom/${match[1]}/news`);
@@ -37,6 +41,7 @@ const Navbar = () => {
     }
   };
 
+  // Handle switching from student back to original teacher
   const handleSwitchToTeacher = () => {
     // Go back to the original teacher user
     setPersona(originalUser);
@@ -48,6 +53,8 @@ const Navbar = () => {
       navigate('/');
     }
   };
+
+  // Determine if classroom tabs should be shown based on user profile
   const showClassroomsTab = Boolean(
     user?.firstName &&
     user?.lastName &&
@@ -55,6 +62,7 @@ const Navbar = () => {
   );
   const { theme, toggleTheme } = useContext(ThemeContext);
 
+  // Extract classroom ID from URL path
   const classroomMatch = location.pathname.match(/^\/classroom\/([^\/]+)/);
   const classroomId = classroomMatch ? classroomMatch[1] : null;
   const insideClassroom = Boolean(classroomId);
@@ -63,6 +71,7 @@ const Navbar = () => {
   const cartRef = useRef(null);
 
 
+  // Hook to close cart dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (cartRef.current && !cartRef.current.contains(event.target)) {
@@ -257,14 +266,19 @@ const Navbar = () => {
                   {user.avatar ? (
                     <img
                       alt="User Avatar"
-                      src={user.avatar}
+                      src={user.avatar.startsWith('http') ? user.avatar : `${BACKEND_URL}/uploads/${user.avatar}`}
                       className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = 'https://via.placeholder.com/150';
+                      }}
                     />
                   ) : (
                     <div className="w-full h-full bg-gray-200 flex items-center justify-center text-lg font-bold text-gray-600">
                       {`${(user.firstName?.[0] || user.email?.[0] || 'U')}${(user.lastName?.[0] || '')}`.toUpperCase()}
                     </div>
                   )}
+
                 </div>
               </div>
               <ul tabIndex={0} className="mt-3 z-[1] p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-52">

@@ -64,9 +64,15 @@ This repository hosts the full stack implementation of PrizeVersity, including t
 
 > You can create one by navigating to `App Registrations` on [Azure Portal](https://portal.azure.com/?quickstart=True#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade) and then creating an App Registration. For platform selection, select "web".
 > 
-> Make sure to add/register the `redirect_uri`, e.g. `http://localhost:5000/api/auth/microsoft/callback` (and eventually the `redirect_uri` of the domain as well, e.g. `https://prizeversity.com/api/auth/google/callback`, once the `A` record is configured in the provider DNS settings). You can do so from the `App Registration > Authentication > Add a (web) platform > Add Web Redirect URI` if you didn't do it initially upon creation of the App registration.
+> Make sure to add/register the `redirect_uri`, e.g. `http://localhost:5000/api/auth/microsoft/callback` (and eventually the `redirect_uri` of the domain as well, e.g. `https://prizeversity.com/api/auth/microsoft/callback`, once the `A` record is configured in the provider DNS settings). You can do so from the `App Registration > Authentication > Add a (web) platform > Add Web Redirect URI` if you didn't do it initially upon creation of the App registration.
 > 
 > For supported account types, select `Accounts in any organizational directory (Any Microsoft Entra ID tenant - Multitenant) and personal Microsoft accounts (e.g. Skype, Xbox)`. This is the associated type of the default `/common` auth API callback Microsoft uses.
+>
+> FYI:
+> 
+> - The `MICROSOFT_CLIENT_ID` is the App Registration's `Application (client) ID` from the **Overview** page, NOT the `Secret ID` from the **Certificates & secrets** page!
+>
+> - The `MICROSOFT_CLIENT_SECRET` is the `Value` from the **Certificates & secrets** page.
 
 ## Create Project Folders/Files (SKIP THIS IF CLONING/FORKING!):
 
@@ -98,9 +104,15 @@ npm init -y # DON'T RUN THIS UNLESS SETTING UP FROM SCRATCH!
 
 npm install express mongoose passport passport-google-oauth20 passport-microsoft cors dotenv
 
+npm install connect-mongo   # Used to store sessions in MongoDB instead of memory, which is suitable for production.
+
 npm install socket.io
 
 npm install multer
+
+npm install express-session jsdom dompurify
+
+npm install --save-dev jest eslint # if testing/linting are used
 
 # --- NEW: migrations ---
 npm i -D migrate-mongo
@@ -181,7 +193,10 @@ npm pkg set scripts["migrate:down"]="migrate-mongo down"
 - `Vite` is a developer convenience server.
 - During local **dev**, you point your browser straight at `http://localhost:5173`; `Vite` hot-reloads `React` code and, if configured, transparently proxies API calls to `http://localhost:5000`.
 - Vite’s built-in dev server can forward `/api/*` calls to `http://localhost:5000` if you set the `proxy` option in `vite.config.js`.
-- In **production**, `Vite` is completely out of the picture—you build once (`npm run build`) and `Nginx` (or `Cloudflare + Nginx`) terminates `HTTPS`, serves static `dist/` files/assets, and forwards/proxies API/WebSocket traffic to the private `Node` port (i.e. `80` → `443` (public) → internal `5000`).
+- In **production**, `Vite` is completely out of the picture—you build once (`npm run build`) which means that `Vite` compiles the `React` app into static files (`HTML/CSS/JS`) and outputs them into the `dist/` directory. 
+  - This is expected behavior—even on the production server.
+  - Think of `vite build` like a **compiler**—it prepares the site, but isn’t part of the deployed system. 
+  - `Nginx` (or `Cloudflare + Nginx`) terminates `HTTPS`, serves static `dist/` files/assets, and forwards/proxies API/WebSocket traffic to the private `Node` port (i.e. `80` → `443` (public) → internal `5000`).
 
 ```
 cd ..                                     # back to repo root
@@ -476,6 +491,8 @@ GOOGLE_CLIENT_SECRET=
 
 # All Microsoft account users (/common)
 # Accounts in any organizational directory (Any Microsoft Entra ID tenant - Multitenant) and personal Microsoft accounts (e.g. Skype, Xbox)
+# FYI the "MICROSOFT_CLIENT_ID" is the App Registration's "Application (client) ID" from the Overview page, NOT the "Secret ID" from the "Certificates & secrets page"!
+# The "MICROSOFT_CLIENT_SECRET" is the "Value" from the "Certificates & secrets page".
 MICROSOFT_CLIENT_ID=
 MICROSOFT_CLIENT_SECRET=
 
@@ -695,6 +712,8 @@ cd ..
 cd frontend
 npm ci           # reproducible install
 npm run build    # creates ./dist (static assets)
+
+####### OPTIONAL #######
 git add .
 git commit -m "Production build"
 git push origin main
@@ -708,6 +727,7 @@ The steps to deploy the `Node.js` **backend** and static **frontend** using `Ngi
 #### 1. Add DNS Records
 + Add an `A` record pointing at the server's IP Address in the domain's DNS configuration page of the hosting provider, e.g. https://hpanel.hostinger.com/domain/prizeversity.com/dns
    + Consider [Cloudflare](https://dash.cloudflare.com/) as it automatically gives edge `SSL` and Brotli compression.
+   + If you do consider Cloudflare and add the domain and import the current records there, then you have to change the current provider nameservers, e.g. [Hostinger's](https://hpanel.hostinger.com/domain/prizeversity.com/dns) `ns1.dns-parking.com` and `ns2.dns-parking.com` namesevers, with Cloudflare's nameservers, i.e. `bethany.ns.cloudflare.com` and `donovan.ns.cloudflare.com`.
 + It's recommended to also add a wildcard `*` **CName** record and a `www` **CName** record pointing at the domain, so that if the server's IP address changes, only the `A` record would have to be modified.
 
 **Example:**
@@ -761,22 +781,55 @@ grep -r "server_name prizeversity.com" /etc/nginx/conf.d/
 - Edit the file shown in the output (e.g., `sudo nano /etc/nginx/conf.d/123.45.67.123.conf` and `Ctrl + O` to save, followed by `Ctrl + X` to exit).
 
 ```
-# Redirect HTTP to HTTPS
+# Default HTTP server (fallback)
+server {
+    listen 123.45.67.123:80 default_server;
+    server_name _;
+    access_log off;
+    error_log /dev/null;
+
+    location / {
+        proxy_pass http://123.45.67.123:8080;
+    }
+}
+
+# Default HTTPS server (fallback)
+server {
+    listen 123.45.67.123:443 default_server ssl;
+    server_name _;
+    access_log off;
+    error_log /dev/null;
+
+    ssl_certificate     /usr/local/hestia/ssl/certificate.crt;
+    ssl_certificate_key /usr/local/hestia/ssl/certificate.key;
+
+    return 301 http://$host$request_uri;
+
+    location / {
+        root /var/www/document_errors/;
+    }
+
+    location /error/ {
+        alias /var/www/document_errors/;
+    }
+}
+
+# Redirect HTTP to HTTPS for the  domain
 server {
     listen 123.45.67.123:80;
     server_name prizeversity.com www.prizeversity.com;
     return 301 https://$host$request_uri;
 }
 
-# HTTPS server block
+# Main HTTPS server block for prizeversity.com
 server {
     listen 123.45.67.123:443 ssl http2;
     server_name prizeversity.com www.prizeversity.com;
 
+    # SSL Certificates
     ssl_certificate /etc/letsencrypt/live/prizeversity.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/prizeversity.com/privkey.pem;
 
-    # SSL and Gzip settings
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_prefer_server_ciphers on;
     ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305';
@@ -788,6 +841,10 @@ server {
     resolver 1.1.1.1 8.8.8.8 valid=300s;
     resolver_timeout 5s;
 
+    # Increase request body size limit
+    client_max_body_size 10M; # Allow up to 10 MB
+
+    # Enable gzip compression
     gzip on;
     gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
     gzip_min_length 256;
@@ -797,12 +854,22 @@ server {
     access_log off;
     error_log /dev/null;
 
-    # Proxy API requests to backend
+    # Proxy API requests to Node.js backend
     location /api/ {
         proxy_pass http://localhost:5000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # Proxy WebSocket (Socket.IO) connections to backend
+    location /socket.io/ {
+        proxy_pass http://localhost:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
         proxy_set_header Host $host;
         proxy_cache_bypass $http_upgrade;
     }
@@ -841,6 +908,7 @@ pm2 startup
 ```
 cd ~/app/prizeversity/frontend
 npm install
+rm -rf dist                # Remove old build (if any)
 npm run build
 sudo mkdir -p /var/www/prizeversity-frontend
 sudo cp -r dist/* /var/www/prizeversity-frontend/   # copies the built frontend (dist/) to the Nginx web root.
@@ -866,13 +934,434 @@ cd backend
 npm ci                           # Install exact dependencies
 pm2 reload server.js --name prizeversity-backend --update-env    # Use --update-env if you've changed .env variables; otherwise, it's optional.
 
+####### HELPFUL PM2 COMMANDS #######
+pm2 status 
+pm2 logs prizeversity-backend    # Check backend logs (if necessary)
+pm2 flush                        # Cleanup pm2 logs (if necessary)
+####################################
+
 cd ../frontend
 npm ci                           # Install exact frontend dependencies
+rm -rf dist                      # Remove old build (if any)
 npm run build                    # Build static frontend files to /dist
+sudo cp -r dist/* /var/www/prizeversity-frontend/  # Deploy build to Nginx-served directory
 ```
 
-### 7.  CI/CD
-#### 7.1  Prepare SSH keys for CI/CD
+### 7. 🧹 Handy MongoDB Commands to View or Clear Collections
+
+> ✅ Note: Run these commands after connecting to the mongodb interface using `mongosh`, then connect to the database, e.g. `use prizeversity;`.
+
+#### 7.1 🔍 View Document Count Per Collection
+
+```
+// Loop through all collections and display how many documents each one contains
+db.getCollectionNames().forEach(c => {
+  const count = db[c].countDocuments();
+  print(`📦 '${c}': ${count} document(s)`);
+});
+```
+
+#### 7.2 👁️‍🗨️ View Documents from Collections
+
+```
+// View the first document in each collection (if any)
+db.getCollectionNames().forEach(c => {
+  const doc = db[c].findOne();  // fetch one document
+  if (doc) {
+    print(`📄 '${c}' example document:`);
+    printjson(doc);
+  } else {
+    print(`❌ '${c}' is empty, no documents to show.`);
+  }
+});
+```
+
+> ✅ Tip: To view all documents from a specific collection:
+
+```
+db.<collectionName>.find().pretty(); // Example: db.users.find().pretty();
+```
+
+#### 7.3 🧾 One-Liner to Clear a Specific Collection (CAUTION!)
+
+```
+// Replace <collectionName> with the actual collection name
+db.<collectionName>.deleteMany({});
+
+// Example:
+db.users.deleteMany({});
+```
+
+#### 7.4 🧼 Clear All Documents from All Collections (CAUTION!)
+
+```
+// Loop through all collection names in the current database
+db.getCollectionNames().forEach(c => {
+  // Count how many documents are in the current collection
+  const count = db[c].countDocuments();
+
+  // Debug: Show collection name and document count
+  print(`🔍 Checking '${c}': ${count} document(s)`);
+
+  // Only delete if the collection is not empty
+  if (count > 0) {
+    // Delete all documents from the collection
+    db[c].deleteMany({});
+
+    // Debug: Confirm deletion
+    print(`✅ Cleared ${count} document(s) from '${c}'`);
+  } else {
+    // Debug: Collection already empty
+    print(`✅ '${c}' is already empty`);
+  }
+});
+```
+
+### 8. Automated backups
+#### 8.1 Create an S3-compatible bucket
+- Any provider works (AWS, Backblaze B2, Wasabi).
+- Size ≈ compressed dump × 30 (or 60) days.
+
+> **NOTE:** The remaining steps assume `AWS S3` Bucket creation.
+
+To create the `AWS S3` bucket:
+
+1. If you don't have an existing [AWS](https://console.aws.amazon.com) account, first create one.
+2. Go to [AWS Console → S3 → Create bucket](https://console.aws.amazon.com/s3/)
+3. **Name**: `prizeversity-backups`
+4. Enable default settings (`block public access`, `no versioning required`).
+
+#### 8.2 Create Credentials for `rclone`
+
+##### Step 1: Create an `IAM` User
+
+1. Go to the [AWS IAM Console](https://console.aws.amazon.com/iam/)
+2. Click `Users → Add users`
+3. **Username**: `rclone-backup` (or anything descriptive)
+4. **Access type**: ❌ Leave "Console access" unchecked
+
+##### Step 2: Attach Permissions
+
+When prompted to set permissions, choose:
+
+- ✅ Attach existing policies directly
+- Select the policy: `AmazonS3FullAccess`.
+(You can restrict it later, but this is fastest for now)
+
+##### Step 3: Finish & Get Credentials
+
+1. Click `Next → Create user`
+2. Generate `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` after User creation
+3. In the [IAM](https://console.aws.amazon.com/iam/) Console, go to:
+   - **Users** → click your user (e.g., `rclone-backup`)
+   - Go to the **Security credentials** tab
+   - Scroll down to **Access keys**
+   - Click **Create access key**
+   - For **Use case**, choose: `Command Line Interface (CLI) or Application`
+   - Click **Next** → then **Create access key**
+4. You’ll now see:
+   - `AWS_ACCESS_KEY_ID`
+   - `AWS_SECRET_ACCESS_KEY`
+5. 👉 **Copy both right away** — this is the only time you’ll see the secret key.
+
+#### 8.3 Install & Configure `rclone`
+
+[Rclone](https://rclone.org/) is a command-line program to manage files on cloud storage. It is a feature-rich alternative to cloud vendors' web storage interfaces.
+
+```
+curl https://rclone.org/install.sh | sudo bash
+rclone config    # you will be in the rclone interactive setup wizard if you see n/s/q>
+```
+
+For the `rclone config`, some prompts like `location-constraint`, `endpoint` and others just skip/enter to default. The ones to answer are as follows:
+
+- Select `n` for new remote
+- **Name**: `s3`
+- **Type**: `Amazon S3`
+- Choose **provider**: `AWS`
+- **env_auth**: `false` (or `1`)
+- Add the **access key**, **access secret**, **region** (`us-east-1`, etc.)
+- **storage_class**: `4` (**Standard Infrequent Access storage class (STANDARD_IA)**; This is cheaper and suitable for backups that are written once and rarely read.)
+- Confirm and save
+
+**Test connection**:
+```
+rclone lsd s3:prizeversity-backups   # replace with your s3 bucket name
+```
+
+#### 8.3 Create the MongoDB Backup Script that dumps `MongoDB` and uploads it to `S3` nightly.
+
+1. 📁 Create script directory:
+```
+mkdir -p ~/backup-scripts
+```
+2. 📝 Create the script file:
+```
+sudo nano ~/backup-scripts/mongodb-nightly.sh
+```
+3. Paste the following inside:
+
+```
+#!/usr/bin/env bash
+set -e
+
+# === CONFIG ===
+STAMP=$(date +%F)
+DUMP_PATH="/tmp/mongo-$STAMP.gz"
+REMOTE_PATH="s3:prizeversity-backups/$STAMP.gz"   # Replace with your actual bucket path if different
+
+# === BACKUP ===
+echo "📦 Dumping MongoDB to $DUMP_PATH..."
+mongodump --archive="$DUMP_PATH" --gzip
+
+echo "☁️ Uploading to S3 → $REMOTE_PATH..."
+rclone copy "$DUMP_PATH" "$REMOTE_PATH"
+
+echo "🧹 Cleaning up local dump..."
+rm "$DUMP_PATH"
+
+# === RETENTION POLICY ===
+echo "🧼 Deleting backups older than 60 days from S3..."
+rclone delete --min-age 60d s3:prizeversity-backups/
+
+# === DONE ===
+echo "✅ Backup complete for $STAMP"
+
+# === Optional log ===
+echo "$(date) - Backup + cleanup done for $STAMP" >> /var/log/mongo-backup.log
+```
+
+4. Then save and exit (`Ctrl+O, Enter, then Ctrl+X`).
+5. Make the script executable:
+```
+chmod +x ~/backup-scripts/mongodb-nightly.sh
+```
+
+#### 8.4 🕑 Schedule Nightly Backups with `cron`
+```
+crontab -e    # as root; choose 1 for nano
+
+###### Once inside, add this line to the crontab then save and exit #######
+
+0 2 * * * /root/backup-scripts/mongodb-nightly.sh >> /var/log/mongo-backup.log 2>&1
+```
+
+This will:
+- Run the backup script `every day at 2:00 AM`
+- Save the script's output (for debugging) to `/var/log/mongo-backup.log`
+
+To check if the `cron` job is already installed for the root user, run:
+```
+sudo crontab -l    # checking if this exact line is present: 0 2 * * * /home/deploy/backup-scripts/mongodb-nightly.sh
+```
+
+#### 8.5 (Optional but Recommended) Add Log Rotation for Mongo Backup Logs
+
+1. Create a `logrotate` config file:
+```
+sudo nano /etc/logrotate.d/mongo-backup
+```
+
+2. Paste the following configuration:
+```
+/var/log/mongo-backup.log {
+    daily
+    rotate 30
+    compress
+    missingok
+    notifempty
+    create 0644 root root
+    su root root
+}
+```
+The `su` line tells `logrotate` what user/group to use during rotation—needed if the parent folder (`/var/log/`) isn’t perfectly secure.
+
+Test it:
+```
+sudo logrotate --debug /etc/logrotate.d/mongo-backup
+```
+
+Should see: `log does not need rotating (log has already been rotated)`
+
+This means:
+- The config is valid
+- `logrotate` successfully tracked rotation state
+- The log was recently rotated, so it’s skipping for now
+
+🧪 **Optional: Force Rotation for Testing**
+
+- If you want to immediately confirm a rotation file appears, you can force it:
+```
+sudo logrotate -f /etc/logrotate.d/mongo-backup
+```
+
+- Then check:
+```
+ls -lh /var/log/mongo-backup.log*
+```
+
+You should see:
+```
+/var/log/mongo-backup.log → the fresh/empty log
+/var/log/mongo-backup.log.1.gz → the rotated compressed file
+```
+
+#### 8.6 Test MongoDB recovery from the snapshot:
+
+1. Drop all collections (not the database itself)
+
+If you're sure you want to clear everything in the current DB (e.g., `prizeversity`), connect via `mongosh` and run:
+```
+
+use prizeversity;
+
+// Drop all collections in the current DB
+db.getCollectionNames().forEach(function (c) {
+  print(`🧹 Dropping '${c}'...`);
+  db[c].drop();
+});
+```
+
+2. Confirm it's empty
+```
+db.getCollectionNames().forEach(c => {
+  const count = db[c].countDocuments();
+  if (count > 0) print(`❌ '${c}' still has ${count} docs`);
+  else print(`✅ '${c}' is empty`);
+});
+```
+
+If you dropped them correctly, `db.getCollectionNames()` should now return an **empty array**.
+
+#### 8.7 Add a restore script for emergencies:
+
+1. Save this file to your backup scripts directory:
+```
+nano ~/backup-scripts/restore-from-backup.sh
+```
+
+2. Paste the following:
+```
+#!/bin/bash
+
+# ─────────────── CONFIG ─────────────── #
+BUCKET="s3:prizeversity-backups"
+TMP_DIR="/tmp/mongo-restore"
+TMP_FILE="$TMP_DIR/restore-mongo.gz"
+DB_NAME="prizeversity"
+LOG_FILE="/var/log/mongo-restore.log"
+
+# ─────────────── HELPERS ─────────────── #
+log() {
+  echo -e "$(date '+%Y-%m-%d %H:%M:%S') $1" | tee -a "$LOG_FILE"
+}
+
+prompt() {
+  read -p "$(echo -e "$1")" input
+  echo "$input"
+}
+
+cleanup() {
+  if [ -d "$TMP_DIR" ]; then
+    rm -rf "$TMP_DIR"
+    log "🧹 Cleaned up temporary directory"
+  fi
+}
+
+normalize_date() {
+  local date_input="${1%.gz}"  # Remove .gz if present
+  echo "${date_input}.gz"      # Add .gz for the path
+}
+
+validate_date() {
+  [[ "$1" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}.gz$ ]] && return 0 || return 1
+}
+
+list_backups() {
+  log "📂 Available backups in S3:"
+  rclone lsd "$BUCKET" | awk '{print "  " $NF}' | sort -r
+}
+
+# ─────────────── MAIN SCRIPT ─────────────── #
+
+# Initialize
+mkdir -p "$(dirname "$LOG_FILE")"
+cleanup
+mkdir -p "$TMP_DIR"
+log "📦 Restore Script Initiated"
+
+# Date selection
+USE_LATEST=$(prompt "🌐 Restore from latest backup? (y/n): ")
+if [[ "$USE_LATEST" =~ ^[Yy] ]]; then
+  SELECTED_DATE=$(rclone lsd "$BUCKET" | awk '{print $NF}' | sort -r | head -n 1)
+  if [ -z "$SELECTED_DATE" ]; then
+    log "❌ No backups found in S3!"
+    exit 1
+  fi
+  log "📁 Selected latest backup: ${SELECTED_DATE}"
+else
+  list_backups
+  while true; do
+    date_input=$(prompt "📅 Enter backup date (YYYY-MM-DD): ")
+    SELECTED_DATE=$(normalize_date "$date_input")
+    if validate_date "$SELECTED_DATE"; then
+      if rclone ls "${BUCKET}/${SELECTED_DATE}" &>/dev/null; then
+        break
+      else
+        log "❌ Backup not found: ${SELECTED_DATE}"
+      fi
+    else
+      log "❌ Invalid date format. Please use YYYY-MM-DD"
+    fi
+  done
+fi
+
+# Collection selection
+RESTORE_ALL=$(prompt "📚 Restore all collections? (y/n): ")
+if [[ "$RESTORE_ALL" =~ ^[Nn] ]]; then
+  COLLECTION=$(prompt "📂 Enter collection name to restore: ")
+fi
+
+# Restoration
+log "☁️ Downloading backup: ${BUCKET}/${SELECTED_DATE}/mongo-${SELECTED_DATE%.gz}.gz"
+if ! rclone copyto "${BUCKET}/${SELECTED_DATE}/mongo-${SELECTED_DATE%.gz}.gz" "$TMP_FILE"; then
+  log "❌ Failed to download backup"
+  exit 1
+fi
+
+log "🧨 Dropping existing collections..."
+if [[ "$RESTORE_ALL" =~ ^[Yy] ]]; then
+  # Drop all collections
+  mongorestore --gzip --archive="$TMP_FILE" --drop
+else
+  # Drop and restore specific collection
+  mongorestore --gzip --archive="$TMP_FILE" --drop --nsInclude="${DB_NAME}.${COLLECTION}"
+fi
+
+cleanup
+log "✅ Restore completed successfully!"
+```
+
+3. Make it executable:
+```
+chmod +x ~/backup-scripts/restore-from-backup.sh
+```
+
+4. **Example usage**:
+```
+~/backup-scripts/restore-from-backup.sh
+###### DRY_RUN=true ./restore-from-backup.sh   # To simulate without restoring data:
+```
+
+Prompts you to:
+- Use the latest backup or specify date
+   - Restore all collections or just one
+   - Confirm before proceeding
+- Logs everything to `/var/log/mongo-restore.log`
+- Deletes the downloaded file after completion
+
+### 9.  CI/CD
+#### 9.1  Prepare SSH keys for CI/CD
 
 1. **Generate a key pair on your laptop (once)**
 
@@ -884,7 +1373,7 @@ npm run build                    # Build static frontend files to /dist
    - `~/.ssh/prizeversity-ci`   (private key)
    - `~/.ssh/prizeversity-ci.pub` (public key)
    
-3. **Copy the public key to the server (as your deploy user)**
+2. **Copy the public key to the server (as your deploy user)**
 
    ```
    ssh-copy-id -i ~/.ssh/prizeversity-ci.pub deploy@<VPS_IP>
@@ -893,7 +1382,7 @@ npm run build                    # Build static frontend files to /dist
    # cat ~/.ssh/prizeversity-ci.pub | ssh deploy@<VPS_IP> 'mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys'
    ```
    
-4. **Add secrets to the GitHub repo** → `Settings` › `Secrets & variables` › `Actions`
+3. **Add secrets to the GitHub repo** → `Settings` › `Secrets & variables` › `Actions`
 
 | Secret name | Value |
 |-------------|-------|
@@ -909,13 +1398,13 @@ npm run build                    # Build static frontend files to /dist
    ssh -i ~/.ssh/prizeversity-ci deploy@<VPS_IP>    # manual test
    ```
 
-#### 7.2  CI/CD Deployment (GitHub Actions workflow)
+#### 9.2  CI/CD Deployment (GitHub Actions workflow)
 - Builds & tests the code on every push to `main`
 - Uploads the build to VPS server over SSH
 - Installs production-only dependencies on the server
 - Hot-reloads PM2 process named `prizeversity`
 
-##### 7.2.1 Add a GitHub Environment called production (manual "Approve & Deploy" gate)
+##### 9.2.1 Add a GitHub Environment called production (manual "Approve & Deploy" gate)
 
 > 1. Repository → Settings → Environments → New environment → `production`
 >
@@ -926,7 +1415,7 @@ npm run build                    # Build static frontend files to /dist
 - Effect: Every push to `main` will pause at "Waiting for approval in environment production".
 - Open > Actions → run → Review deployments → Approve and deploy to continue.
 
-##### 7.2.2 Create `.github/workflows/deploy.yml` in the repo
+##### 9.2.2 Create `.github/workflows/deploy.yml` in the repo
 ```
 name: CI & CD – Prizeversity Production
 on: { push: { branches: [ main ] } }
@@ -960,7 +1449,9 @@ jobs:
       working-directory: frontend           # to pick a folder—no manual cd frontend needed!
       run: |
         npm ci
+        rm -rf dist
         npm run build
+        sudo cp -r dist/* /var/www/prizeversity-frontend/
 
     # ─── Rsync to server ──────────────────────────────────
     - uses: webfactory/ssh-agent@v0.9.0
@@ -999,7 +1490,6 @@ jobs:
 ### 2. Run Node / PM2 as a service
 
 ```
-powershell
 pm2 install pm2-windows-service          # one-time
 pm2 start backend\server.js --name prizeversity
 pm2 save
@@ -1143,7 +1633,7 @@ pm2 install pm2-server-monit
 1. *Settings → System → About → Advanced system settings → Environment Variables*  
 2. Edit **Path** → **New** → `C:\Program Files\MongoDB\Tools\<version>\bin`  
 3. Open a new terminal and run:  
-   ```powershell
+   ```
    mongodump --version
    mongorestore --version
 

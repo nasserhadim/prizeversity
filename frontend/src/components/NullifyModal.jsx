@@ -1,5 +1,6 @@
 import React from 'react';
 
+// The NullifyModal will show after the user has bougth an item nullification (which will give an option to reset bits, multiplier, or luck to the default value)
 const NullifyModal = ({ 
   isOpen, 
   onClose, 

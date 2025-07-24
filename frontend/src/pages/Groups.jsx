@@ -29,6 +29,12 @@ const Groups = () => {
   const [adjustModal, setAdjustModal] = useState(null);
   const [adjustAmount, setAdjustAmount] = useState('');
   const [adjustDesc, setAdjustDesc] = useState('');
+  const [confirmDeleteGroup, setConfirmDeleteGroup] = useState(null);
+  const [confirmDeleteGroupSet, setConfirmDeleteGroupSet] = useState(null);
+  const [confirmLeaveGroup, setConfirmLeaveGroup] = useState(null);
+  const [editGroupModal, setEditGroupModal] = useState(null);
+  const [newGroupName, setNewGroupName] = useState('');
+
 
   // Fetch group sets
   const fetchGroupSets = async () => {
@@ -40,6 +46,7 @@ const Groups = () => {
     }
   };
 
+  // Will fetch all the updates from the groups, their siphone votes, groupsets, and siphon updates
   useEffect(() => {
     fetchGroupSets();
     socket.emit('join', `classroom-${id}`);
@@ -65,6 +72,7 @@ const Groups = () => {
     if (groupSetMaxMembers < 0) return toast.error('Max members cannot be negative');
 
     try {
+      // POST to create the groupset
       await axios.post('/api/group/groupset/create', {
         name: groupSetName,
         classroomId: id,
@@ -81,6 +89,7 @@ const Groups = () => {
     }
   };
 
+  // It will reset the GroupSet Form
   const resetGroupSetForm = () => {
     setEditingGroupSetId(null);
     setGroupSetName('');
@@ -90,6 +99,7 @@ const Groups = () => {
     setGroupSetImage('');
   };
 
+  // iT will edit the Group set
   const handleEditGroupSet = (gs) => {
     setEditingGroupSetId(gs._id);
     setGroupSetName(gs.name);
@@ -99,11 +109,13 @@ const Groups = () => {
     setGroupSetImage(gs.image);
   };
 
+  // After editing will update the group set
   const handleUpdateGroupSet = async () => {
     if (!groupSetName.trim()) return toast.error('GroupSet name is required');
     if (groupSetMaxMembers < 0) return toast.error('Max members cannot be negative');
 
     try {
+      // PUT API call to update the new edits for the groupset
       await axios.put(`/api/group/groupset/${editingGroupSetId}`, {
         name: groupSetName,
         selfSignup: groupSetSelfSignup,
@@ -120,14 +132,27 @@ const Groups = () => {
     }
   };
 
-  const handleDeleteGroupSetConfirm = async (gs) => {
-    if (!window.confirm(`Delete group set "${gs.name}"?`)) return;
+  // const handleDeleteGroupSetConfirm = async (gs) => {
+  //   if (!window.confirm(`Delete group set "${gs.name}"?`)) return;
+
+  //   try {
+  //     await axios.delete(`/api/group/groupset/${gs._id}`);
+  //     toast.success('GroupSet deleted');
+  //     fetchGroupSets();
+  //   } catch {
+  //     toast.error('Failed to delete group set');
+  //   }
+  // };
+  // will delete the group set using DELETE API call
+  const handleDeleteGroupSet = async () => {
+    if (!confirmDeleteGroupSet) return;
 
     try {
-      await axios.delete(`/api/group/groupset/${gs._id}`);
+      await axios.delete(`/api/group/groupset/${confirmDeleteGroupSet._id}`);
       toast.success('GroupSet deleted');
+      setConfirmDeleteGroupSet(null);
       fetchGroupSets();
-    } catch {
+    } catch(error) {
       toast.error('Failed to delete group set');
     }
   };
@@ -172,32 +197,74 @@ const Groups = () => {
   };
 
   // Group-level actions
-  const handleEditGroup = async (groupSetId, groupId) => {
-    const newName = prompt('Enter new group name:');
-    if (!newName?.trim()) return toast.error('Group name cannot be empty');
+  // const handleEditGroup = async (groupSetId, groupId) => {
+  //   const newName = prompt('Enter new group name:');
+  //   if (!newName?.trim()) return toast.error('Group name cannot be empty');
+
+  //   try {
+  //     await axios.put(`/api/group/groupset/${groupSetId}/group/${groupId}`, {
+  //       name: newName.trim()
+  //     });
+  //     toast.success('Group updated');
+  //     fetchGroupSets();
+  //   } catch {
+  //     toast.error('Failed to update group');
+  //   }
+  // };
+
+  // const handleDeleteGroup = async (groupSetId, groupId) => {
+  //   if (!window.confirm('Are you sure you want to delete this group?')) return;
+  //   try {
+  //     await axios.delete(`/api/group/groupset/${groupSetId}/group/${groupId}`);
+  //     toast.success('Group deleted');
+  //     fetchGroupSets();
+  //   } catch {
+  //     toast.error('Failed to delete group');
+  //   }
+  // };
+
+  // Editing the group name 
+  const openEditGroupModal = (groupSetId, groupId, currentName) => {
+    setEditGroupModal({ groupSetId, groupId });
+    setNewGroupName(currentName);
+  };
+
+  // Making sure that the group name cannot be epty and makes a PUT api call to update the new changes for the group
+  const handleEditGroup = async () => {
+    if (!editGroupModal || !newGroupName.trim()) {
+      return toast.error('Group name cannot be empty');
+    }
 
     try {
+      const { groupSetId, groupId } = editGroupModal;
       await axios.put(`/api/group/groupset/${groupSetId}/group/${groupId}`, {
-        name: newName.trim()
+        name: newGroupName.trim()
       });
       toast.success('Group updated');
+      setEditGroupModal(null);
       fetchGroupSets();
     } catch {
       toast.error('Failed to update group');
     }
   };
 
-  const handleDeleteGroup = async (groupSetId, groupId) => {
-    if (!window.confirm('Are you sure you want to delete this group?')) return;
+
+  // Will delete hte group using the DELETE API call
+  const handleDeleteGroup = async () => {
+    if (!confirmDeleteGroup) return;
+
     try {
+      const {groupSetId, groupId} = confirmDeleteGroup;
       await axios.delete(`/api/group/groupset/${groupSetId}/group/${groupId}`);
       toast.success('Group deleted');
+      setConfirmDeleteGroup(null);
       fetchGroupSets();
-    } catch {
+    } catch (error) {
       toast.error('Failed to delete group');
     }
-  };
+  }
 
+  // Handles a student joining a group
   const handleJoinGroup = async (groupSetId, groupId) => {
   const groupSet = groupSets.find(gs => gs._id === groupSetId);
   if (!groupSet) return toast.error('GroupSet not found');
@@ -231,15 +298,30 @@ const Groups = () => {
   }
 };
 
-  const handleLeaveGroup = async (groupSetId, groupId) => {
+  // const handleLeaveGroup = async (groupSetId, groupId) => {
+  //   try {
+  //     await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/leave`);
+  //     toast.success('Left group');
+  //     fetchGroupSets();
+  //   } catch {
+  //     toast.error('Failed to leave group');
+  //   }
+  // };
+  // Handles a student leaving a group
+  const handleLeaveGroup = async () => {
+    if (!confirmLeaveGroup) return;
+
     try {
+      const { groupSetId, groupId } = confirmLeaveGroup;
       await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/leave`);
       toast.success('Left group');
+      setConfirmLeaveGroup(null);
       fetchGroupSets();
     } catch {
       toast.error('Failed to leave group');
     }
   };
+
 
   // Member moderation
   const handleApproveMembers = async (groupSetId, groupId) => {
@@ -254,6 +336,7 @@ const Groups = () => {
     }
   };
 
+  // Handles a teacher rejecting a student trying to join a group using POST api call
   const handleRejectMembers = async (groupSetId, groupId) => {
     try {
       await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/reject`, {
@@ -266,6 +349,7 @@ const Groups = () => {
     }
   };
 
+  // Handles suspension teachers can make to studnets in particular groups using POST api call
   const handleSuspendMembers = async (groupSetId, groupId) => {
     try {
       await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/suspend`, {
@@ -288,11 +372,13 @@ const Groups = () => {
     }
   };
 
+  // Teacher approving the siphon using POST api call
   const teacherApprove = async (siphonId) => {
     await axios.post(`/api/siphon/${siphonId}/teacher-approve`);
     fetchGroupSets();
   };
 
+  // Teacher rejecting a siphon using POST api call
   const teacherReject = async (siphonId) => {
     if (processing) return;
     setProcessing(true);
@@ -306,12 +392,14 @@ const Groups = () => {
     }
   };
 
+  // Open the adjustment modal for a specific groupSet and group
   const openAdjustModal = (groupSetId, groupId) => {
     setAdjustModal({ groupSetId, groupId });
     setAdjustAmount('');
     setAdjustDesc('');
   };
 
+  // Submit the balance adjustment to backend API
   const submitAdjust = async () => {
     try {
       const { groupSetId, groupId } = adjustModal;
@@ -345,12 +433,14 @@ const Groups = () => {
       });
   };
 
+  // Toggle select all members in a group
   const handleSelectAllMembers = (groupId, group) => {
     const allSelected = (selectedMembers[groupId] || []).length === group.members.length;
     const newSelected = allSelected ? [] : group.members.map(m => m._id._id);
     setSelectedMembers(prev => ({ ...prev, [groupId]: newSelected }));
   };
 
+  // Toggle selection of a single member by ID within a group
   const handleSelectMember = (groupId, memberId) => {
     setSelectedMembers(prev => {
       const selected = new Set(prev[groupId] || []);
@@ -418,7 +508,7 @@ const Groups = () => {
             </button>
           ) : (
             <button
-              className="btn btn-primary hover:scale-105 transition-transform duration-200"
+              className="btn btn-success hover:scale-105 transition-transform duration-200"
               onClick={handleCreateGroupSet}
             >
               Create Groupset
@@ -451,8 +541,8 @@ const Groups = () => {
 
         {(user.role === 'teacher' || user.role === 'admin') && (
           <div className="flex gap-2">
-            <button className="btn btn-sm btn-accent" onClick={() => handleEditGroupSet(gs)}>Edit</button>
-            <button className="btn btn-sm btn-error" onClick={() => handleDeleteGroupSetConfirm(gs)}>Delete</button>
+            <button className="btn btn-sm btn-info" onClick={() => handleEditGroupSet(gs)}>Edit</button>
+            <button className="btn btn-sm btn-error" onClick={() => setConfirmDeleteGroupSet(gs)}>Delete</button>
           </div>
         )}
 
@@ -462,7 +552,7 @@ const Groups = () => {
             <h4 className="text-md font-semibold">Create group</h4>
             <input
               type="text"
-              className="input input-bordered w-full mt-1"
+              className="input input-bordered w-full mt-1 mb-3"
               placeholder="Group Name"
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
@@ -475,7 +565,7 @@ const Groups = () => {
               value={groupCount}
               onChange={(e) => setGroupCount(e.target.value)}
             />
-            <button className="btn btn-primary mt-2" onClick={() => handleCreateGroup(gs._id)}>
+            <button className="btn btn-success mt-2" onClick={() => handleCreateGroup(gs._id)}>
               Create
             </button>
           </div>
@@ -499,6 +589,7 @@ const Groups = () => {
                   groupSetId={gs._id}
                   classroomId={id}
                   compact={true}
+                  refreshGroups={fetchGroupSets}
                 />
               )}
             </div>
@@ -537,7 +628,11 @@ const Groups = () => {
                       <>
                         <button
                           className="btn btn-xs btn-error"
-                          onClick={() => handleLeaveGroup(gs._id, group._id)}
+                          onClick={() => setConfirmLeaveGroup({
+                            groupSetId: gs._id,
+                            groupId: group._id,
+                            groupName: group.name
+                          })}
                         >
                           Leave
                         </button>
@@ -555,10 +650,16 @@ const Groups = () => {
 
               {(user.role === 'teacher' || user.role === 'admin') && (
                 <>
-                  <button className="btn btn-xs btn-info" onClick={() => handleEditGroup(gs._id, group._id)}>Edit</button>
-                  <button className="btn btn-xs btn-error" onClick={() => handleDeleteGroup(gs._id, group._id)}>Delete</button>
+                  <button className="btn btn-xs btn-info" onClick={() => openEditGroupModal(gs._id, group._id, group.name)}>Edit</button>
+                  <button className="btn btn-xs btn-error" onClick={() =>
+                    setConfirmDeleteGroup({
+                      groupId: group._id,
+                      groupSetId: gs._id,
+                      groupName: group.name,
+                    })
+                  }>Delete</button>
                   <button className="btn btn-xs btn-warning" onClick={() => setOpenSiphonModal(group)}>Siphon</button>
-                  <button className="btn btn-xs btn-primary" onClick={() => openAdjustModal(gs._id, group._id)}>Transfer</button>
+                  <button className="btn btn-xs btn-success" onClick={() => openAdjustModal(gs._id, group._id)}>Transfer</button>
                 </>
               )}
             </div>
@@ -713,6 +814,113 @@ const Groups = () => {
         </div>
       </div>
     )}
+
+    {confirmDeleteGroup && (
+      <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+        <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
+          <h2 className="text-lg font-semibold mb-4 text-center">Confirm Deletion</h2>
+          <p className="text-sm text-center">
+            Are you sure you want to delete <strong>{confirmDeleteGroup.groupName}</strong>?
+          </p>
+          <div className="mt-6 flex justify-center gap-4">
+            <button
+              onClick={() => setConfirmDeleteGroup(null)}
+              className="btn btn-sm"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleDeleteGroup}
+              className="btn btn-sm btn-error"
+            >
+              Yes, Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {confirmDeleteGroupSet && (
+      <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+        <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
+          <h2 className="text-lg font-semibold mb-4 text-center">Delete GroupSet</h2>
+          <p className="text-sm text-center">
+            Are you sure you want to delete the GroupSet <strong>{confirmDeleteGroupSet.name}</strong>?
+            <br />
+            This will also delete all its groups.
+          </p>
+          <div className="mt-6 flex justify-center gap-4">
+            <button
+              onClick={() => setConfirmDeleteGroupSet(null)}
+              className="btn btn-sm"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleDeleteGroupSet}
+              className="btn btn-sm btn-error"
+            >
+              Yes, Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {confirmLeaveGroup && (
+      <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+        <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
+          <h2 className="text-lg font-semibold mb-4 text-center">Leave Group</h2>
+          <p className="text-sm text-center">
+            Are you sure you want to leave <strong>{confirmLeaveGroup.groupName}</strong>?
+          </p>
+          <div className="mt-6 flex justify-center gap-4">
+            <button
+              onClick={() => setConfirmLeaveGroup(null)}
+              className="btn btn-sm"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleLeaveGroup}
+              className="btn btn-sm btn-error"
+            >
+              Yes, Leave
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {editGroupModal && (
+      <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+        <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
+          <h2 className="text-lg font-semibold mb-4 text-center">Edit Group Name</h2>
+          <input
+            type="text"
+            className="input input-bordered w-full mb-4"
+            placeholder="New group name"
+            value={newGroupName}
+            onChange={(e) => setNewGroupName(e.target.value)}
+          />
+          <div className="flex justify-center gap-4">
+            <button
+              className="btn btn-sm"
+              onClick={() => setEditGroupModal(null)}
+            >
+              Cancel
+            </button>
+            <button
+              className="btn btn-sm btn-primary"
+              onClick={handleEditGroup}
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
   </div>
 );
 };

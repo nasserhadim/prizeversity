@@ -10,6 +10,7 @@ import CreateItem from '../components/CreateItem';
 import ItemCard from '../components/ItemCard';
 import apiBazaar from '../API/apiBazaar';
 import InventorySection from '../components/InventorySection';
+import toast from 'react-hot-toast';
 
 const Bazaar = () => {
   const { classroomId } = useParams();
@@ -18,6 +19,7 @@ const Bazaar = () => {
   const [showInventory, setShowInventory] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // Will fetch the bazaar from the classroom
   const fetchBazaar = async () => {
     try {
       const res = await apiBazaar.get(`classroom/${classroomId}/bazaar`);

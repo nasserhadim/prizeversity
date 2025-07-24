@@ -16,6 +16,7 @@ const ROLE_LABELS = {
 };
 
 const People = () => {
+  // Get classroom ID from URL params
   const { id: classroomId } = useParams();
   const { user } = useAuth();
   const [studentSendEnabled, setStudentSendEnabled] = useState(null);
@@ -28,6 +29,7 @@ const People = () => {
 
   const navigate = useNavigate();
 
+  // Fetch TA bit sending policy for classroom
   const fetchTaBitPolicy = async () => {
     try {
       const res = await axios.get(
@@ -40,11 +42,13 @@ const People = () => {
     }
   };
 
+  // Initial data fetch on classroomId change
 useEffect(() => {
   fetchStudents();
   fetchGroupSets();
   fetchTaBitPolicy();
 
+  // Fetch if student send is enabled, with fallback default false
   axios
     .get(`/api/classroom/${classroomId}/student-send-enabled`, {
       withCredentials: true,
@@ -54,6 +58,7 @@ useEffect(() => {
 }, [classroomId]);
 
 
+// Fetch students list
   const fetchStudents = async () => {
     try {
       const res = await axios.get(`/api/classroom/${classroomId}/students`);
@@ -63,6 +68,7 @@ useEffect(() => {
     }
   };
 
+  // Fetch group sets for this classroom
   const fetchGroupSets = async () => {
     try {
       const res = await axios.get(`/api/group/groupset/classroom/${classroomId}`);
@@ -72,6 +78,7 @@ useEffect(() => {
     }
   };
 
+  // Filter and sort students based on searchQuery and sortOption
   const filteredStudents = [...students]
     .filter((student) => {
       const name = (student.firstName || student.name || '').toLowerCase();
@@ -92,6 +99,7 @@ useEffect(() => {
       return 0;
     });
 
+    // Handle bulk user upload via Excel file
   const handleExcelUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -120,6 +128,7 @@ useEffect(() => {
     reader.readAsArrayBuffer(file);
   };
 
+  // Export filtered students list to Excel file
   const handleExportToExcel = () => {
     const dataToExport = filteredStudents.map((student) => ({
       Name: `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.name || student.email,
@@ -292,7 +301,9 @@ useEffect(() => {
                         </button>
                       )}
 
-                      {user?.role?.toLowerCase() === 'teacher' && (
+                      {user?.role?.toLowerCase() === 'teacher'
+          && student.role !== 'teacher'
+        && String(student._id) !== String(user._id) && (
                         <select
                           className="select select-sm ml-2"
                           value={student.role}

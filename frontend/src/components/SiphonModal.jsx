@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import io from 'socket.io-client';
 import { API_BASE } from '../config/api';
 
-const socket = io(API_BASE); // no "/api" needed here
+const socket = io(); // no "/api" needed here
  
  function SiphonModal({group,onClose}){
   console.log('[SiphonModal] group object:', group);
@@ -30,6 +30,7 @@ const socket = io(API_BASE); // no "/api" needed here
  
     try {
       setLoadingBal(true);
+      // Fetch balance of selected target user via API
       const { data } = await axios.get(
         `${API_BASE}/api/wallet/${id}/balance`,
         { withCredentials: true }
@@ -42,6 +43,7 @@ const socket = io(API_BASE); // no "/api" needed here
     }
   };
 
+  // Function to create a new siphon request
   const create = async () => {
     try {
      if (!target) return toast.error('Choose someone to siphon');
@@ -53,6 +55,7 @@ const socket = io(API_BASE); // no "/api" needed here
      fd.append('amount', Number(amount));
      if (file) fd.append('proof', file);
 
+     // Send POST request to create siphon request on server
      await axios.post(
         `${API_BASE}/api/siphon/group/${group._id}/create`,
         fd,
@@ -63,6 +66,7 @@ const socket = io(API_BASE); // no "/api" needed here
       onClose();
     } catch (err) {
       
+      // Show error notification with message from backend or generic fail message
       const msg =
         err.response?.data?.error ||
         'Failed to submit siphon request';
@@ -70,6 +74,7 @@ const socket = io(API_BASE); // no "/api" needed here
     }
   };
 
+  // Configuration for ReactQuill toolbar options (not setup yet)
   const quillModules = {
     toolbar: [
       [{ font: [] }, { size: [] }],
@@ -84,7 +89,7 @@ const socket = io(API_BASE); // no "/api" needed here
     <dialog open className="modal">
       <div className="modal-box">
         <h3 className="font-bold text-lg">New siphon request</h3>
-        {/* 1️⃣ the dropdown itself */}
+        {/* the dropdown itself */}
         <select
           className="select w-full"
           value={target}

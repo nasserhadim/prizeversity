@@ -87,9 +87,8 @@ router.get('/metrics', ensureAuthenticated, isAdmin, async(req,res) => {
     }
 });
 
-// Here more functionalities will be implemented
+// Here more functionalities can be implemented if needed in the future
 // Manage classrooms
-// deleting groups
 // etc.
 
 module.exports = router;

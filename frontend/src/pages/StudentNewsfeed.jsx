@@ -35,7 +35,7 @@ export default function StudentNewsfeed() {
                 bgColor={bgColor}
                 backgroundImage={backgroundImage}
             />
-            <div className="max-w-3xl mx-auto p-6">
+            <div className="max-w-3xl mx-auto p-6 bg-green-50 rounded-lg">
                 <p className="mb-4">
                     <Link to={`/classroom/${classId}`} className="link text-accent">
                         ← Back to Classroom
@@ -46,7 +46,7 @@ export default function StudentNewsfeed() {
                 </h2>
                 <ul className="space-y-6">
                     {items.slice(0, visibleCount).map(i => (
-                        <li key={i._id} className="p-4 border border-gray-200 rounded shadow-sm">
+                        <li key={i._id} className="bg-white p-4 border border-green-200 rounded-lg shadow-sm mx-auto">
                             <p className="text-sm text-gray-600 mb-1">
                                 Posted by {i.authorId.firstName} {i.authorId.lastName}
                             </p>

@@ -7,6 +7,7 @@ const mongoose = require('mongoose');
 const Notification = require('../models/Notification');
 const { populateNotification } = require('../utils/notifications');
 
+// DELETE a user by ID
 router.delete('/:id', async (req, res) => {
   try {
     await User.findByIdAndDelete(req.params.id);
@@ -17,66 +18,16 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+// POST route for bulk assigning balance to students
 router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
+  // Restrict to teachers or admins only
   if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Only teachers can bulk‑assign' });
   }
 
   const { updates, description = 'Bulk adjustment by teacher' } = req.body;
 
+  // Validate input
   if (!Array.isArray(updates) || updates.length === 0) {
     return res.status(400).json({ error: 'No updates supplied' });
   }
@@ -85,6 +36,8 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
     const results = { updated: 0, skipped: [] };
 
     for (const { studentId, amount } of updates) {
+
+      // Validate ObjectId
       if (!mongoose.Types.ObjectId.isValid(studentId)) {
         results.skipped.push({ studentId, reason: 'Invalid student ID' });
         continue;
@@ -96,6 +49,7 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
       }
 
       const student = await User.findById(studentId).populate({
+        // Find student and populate approved groups
         path: 'groups',
         match: { 'members._id': studentId, 'members.status': 'approved' },
         select: 'groupMultiplier'
@@ -106,7 +60,7 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
         continue;
       }
 
-      // Get all multipliers
+      // Get all multipliers (group * passive)
       const groupMultiplier = student.groups.length > 0 
         ? Math.max(...student.groups.map(g => g.groupMultiplier || 1))
         : 1;
@@ -114,17 +68,23 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
       const totalMultiplier = groupMultiplier * passiveMultiplier;
 
       // Apply multiplier only for positive amounts
-      const adjustedAmount = amount >= 0 
-        ? Math.round(amount * totalMultiplier)
-        : amount;
+     const adjustedAmount = amount >= 0 
+  ? Math.round(amount * totalMultiplier)
+  : amount;
 
-      student.balance += adjustedAmount;
-      student.transactions.push({
-        amount: adjustedAmount,
-        description,
-        assignedBy: req.user._id,
-        createdAt: new Date()
-      });
+    // Prevent balance from going below 0
+    const newBalance = student.balance + adjustedAmount;
+    student.balance = Math.max(0, newBalance);
+
+    // Record the transaction
+    student.transactions.push({
+      amount: adjustedAmount,
+      description,
+      assignedBy: req.user._id,
+      createdAt: new Date()
+    });
+
+console.log(`Student ${student._id}: oldBalance=${student.balance - adjustedAmount}, adjusted=${adjustedAmount}, newBalance=${student.balance}`);
 
       await student.save();
       results.updated += 1;
@@ -141,12 +101,16 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
 });
 
 
+// Get all studetns in a classroom
  router.get('/students', ensureAuthenticated, async (req, res) => {
   const { classroomId } = req.query;
-
+  
+  // Ensure classroom access
   if (!classroomId || !req.user.classrooms.includes(classroomId)) {
     return res.status(403).json({ error: 'Forbidden' });
   }
+
+  // Find students by classroom
   const students = await User.find({
     role: 'student',
     classrooms: classroomId
@@ -154,8 +118,9 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
    res.status(200).json(students);
  });
 
-
+// GET all users (not just students) in a classroom
  router.get('/all', ensureAuthenticated, async (req, res) => {
+  // Restrict to teacher/admin
    if (!['teacher', 'admin'].includes(req.user.role)) {
      return res.status(403).json({ error: 'Forbidden' });
    }
@@ -163,6 +128,7 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
 
   const { classroomId } = req.query;
 
+  // Check classroom access
  if (!classroomId || !req.user.classrooms.includes(classroomId)) {
    return res.status(403).json({ error: 'Forbidden' });
   }
@@ -189,7 +155,7 @@ router.get('/:id', ensureAuthenticated, async (req, res) => {
 
 
 
-
+// Promote a student to admin
 router.post('/:id/make-admin', ensureAuthenticated, async (req, res) => {
   try {
     const { classroomId } = req.body;
@@ -220,12 +186,14 @@ router.post('/:id/make-admin', ensureAuthenticated, async (req, res) => {
   }
 });
 
+// Demote an admin back to student
 router.post('/:id/demote-admin', ensureAuthenticated, async (req, res) => {
   try {
     const { classroomId } = req.body;
+    // Only teachers can demote admins
     if (req.user.role !== 'teacher') {
   return res.status(403).json({ error: 'Only teachers can demote admins' });
-}
+  }
     const admin = await User.findById(req.params.id);
     if (!admin) return res.status(404).json({ error: 'User not found' });
 
@@ -275,11 +243,15 @@ router.post('/update-profile', ensureAuthenticated, async (req, res) => {
   }
 });
 
+// POST route to upload users in bulk to a classroom
 router.post('/bulk-upload', ensureAuthenticated, async (req, res) => {
+
+  // Only teachers and admins can perform this action
   if (!['teacher', 'admin'].includes(req.user.role)) {
     return res.status(403).json({ error: 'Only teachers can upload users' });
   }
 
+  // Verify classroom ownership or teaching role
   const { classroomId, users } = req.body;
   const owns = req.user.classrooms.map(String).includes(classroomId)
             || await Classroom.exists({ _id: classroomId, teacher: req.user._id });
@@ -293,7 +265,7 @@ router.post('/bulk-upload', ensureAuthenticated, async (req, res) => {
     const newUserIds = [];
 
     for (const userData of users) {
-     
+     // Normalize and validate input fields
       const normal    = Object.fromEntries(
         Object.entries(userData).map(([k, v]) => [k.toLowerCase(), v])
       );
@@ -303,46 +275,47 @@ router.post('/bulk-upload', ensureAuthenticated, async (req, res) => {
       let   role      = (normal.role || 'student').toLowerCase();
       if (!['student','admin'].includes(role)) role = 'student';
 
-    
-      if (!email || !/^[^@]+@[^@]+\.[^@]+$/.test(email)) {
-        results.skipped.push({ email, reason: 'Invalid or missing email' });
-        continue;
-      }
-
-    
-      if (await User.exists({ email })) {
-        results.skipped.push({ email, reason: 'Already exists' });
-        continue;
-      }
-
-    
-      const rawBal        = normal.balance;
-      const parsedBalance = parseFloat(rawBal);
-      const initialBalance = isNaN(parsedBalance) ? 0 : parsedBalance;
-
-      const newUser = new User({
-        email,
-        firstName,
-        lastName,
-        role,
-        classrooms: [classroomId],
-        balance: initialBalance
-      });
-      await newUser.save();
-
-      newUserIds.push(newUser._id);
-      results.added += 1;
+    // Validate email
+    if (!email || !/^[^@]+@[^@]+\.[^@]+$/.test(email)) {
+      results.skipped.push({ email, reason: 'Invalid or missing email' });
+      continue;
     }
 
-  
-    if (newUserIds.length > 0) {
-      await Classroom.updateOne(
-        { _id: classroomId },
-        { $addToSet: { students: { $each: newUserIds } } }
-      );
+    // Prevent duplicate accounts
+    if (await User.exists({ email })) {
+      results.skipped.push({ email, reason: 'Already exists' });
+      continue;
     }
 
-    return res.json({ message: `${results.added} users added`, results });
+    // Parse initial balance
+    const rawBal        = normal.balance;
+    const parsedBalance = parseFloat(rawBal);
+    const initialBalance = isNaN(parsedBalance) ? 0 : parsedBalance;
+
+    // Create new user
+    const newUser = new User({
+      email,
+      firstName,
+      lastName,
+      role,
+      classrooms: [classroomId],
+      balance: initialBalance
+    });
+    await newUser.save();
+
+    newUserIds.push(newUser._id);
+    results.added += 1;
+  }
+
+  // Update classroom to include new users
+  if (newUserIds.length > 0) {
+    await Classroom.updateOne(
+      { _id: classroomId },
+      { $addToSet: { students: { $each: newUserIds } } }
+    );
+  }
+
+  return res.json({ message: `${results.added} users added`, results });
   } catch (err) {
     console.error('Upload failed:', err);
     return res.status(500).json({ error: err.message });

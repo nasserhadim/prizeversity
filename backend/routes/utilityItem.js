@@ -4,6 +4,7 @@ const Item = require('../models/Item');
 const User = require('../models/User');
 const { ensureAuthenticated } = require('../config/auth');
 
+// Utility item is another category for items in the bazaar workign with a discount and multipleir
 router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
   try {
     const item = await Item.findById(req.params.itemId);

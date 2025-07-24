@@ -8,6 +8,7 @@ const router = express.Router();
 const Notification = require('../models/Notification');
 const { populateNotification } = require('../utils/notifications');
 
+// Middlware will allow only teachers or admins to access certain routes
 function ensureTeacher(req, res, next) {
   if (!['teacher','admin'].includes(req.user.role)) {
     return res.status(403).json({ error:'Only teachers or admins can adjust group balances' });
@@ -15,6 +16,7 @@ function ensureTeacher(req, res, next) {
   next();
 }
 
+// Adjust balance for all students in a group, applying group and personal multipliers
 router.post(
   '/groupset/:groupSetId/group/:groupId/adjust-balance',
   ensureAuthenticated,
@@ -40,20 +42,23 @@ router.post(
       if (!group) return res.status(404).json({ error: 'Group not found' });
 
       const results = [];
-for (const member of group.members) {
-  const user = member._id;
-  if (user.role !== 'student') continue;
+      
+      // Will loop through each group member and apply balance adjustmen
+      for (const member of group.members) {
+        const user = member._id;
+        if (user.role !== 'student') continue;
 
+        // Apply multipliers only for positive amounts
         // Calculate the adjusted amount
         let adjustedAmount = numericAmount;
-        if (numericAmount > 0) { // Only apply multipliers for positive amounts
+        if (numericAmount > 0) { // This here only apply multipliers for positive amounts
           const groupMultiplier = group.groupMultiplier || 1;
           const personalMultiplier = user.passiveAttributes?.multiplier || 1;
           adjustedAmount = Math.round(numericAmount * groupMultiplier * personalMultiplier);
         }
 
         // Update user balance
-        user.balance += adjustedAmount;
+        user.balance = Math.max(0, user.balance + adjustedAmount);
         user.transactions.push({
           amount: adjustedAmount, // Store the actual amount transferred
           description: description || `Group adjust (${group.name})`,
@@ -61,6 +66,7 @@ for (const member of group.members) {
         });
         await user.save();
 
+        // Add result summary for the student
         results.push({ 
           id: user._id, 
           newBalance: user.balance,
@@ -88,6 +94,7 @@ for (const member of group.members) {
       req.app.get('io').to(`user-${user._id}`).emit('notification', populated);
 
       }
+// Notify the group about the balance adjustment
 
       req.app.get('io').to(`group-${group._id}`).emit('balance_adjust', {
         groupId: group._id,
@@ -96,6 +103,7 @@ for (const member of group.members) {
         results,
       });
 
+      // Respond with success and detailed result
       res.json({ 
         success: true,
         message: `${results.length} students updated`,
@@ -129,10 +137,11 @@ router.post('/groupset/:groupSetId/group/:groupId/set-multiplier', ensureAuthent
       return res.status(400).json({ error: 'Multiplier must be between 0.5 and 5' });
     }
 
+    // Saving the new multiplier
     group.groupMultiplier = multiplier;
     await group.save();
     
-    // Notify group members
+    // Notify group members about the multiplier
     for (const member of group.members) {
       req.app.get('io').to(`user-${member._id}`).emit('group_multiplier_update', {
         groupId: group._id,
@@ -140,6 +149,7 @@ router.post('/groupset/:groupSetId/group/:groupId/set-multiplier', ensureAuthent
       });
     }
 
+    // Respnding with updated multiplier info
     res.json({ 
       message: 'Group multiplier updated',
       groupId: group._id,

@@ -127,10 +127,13 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensur
     const user = await User.findById(req.user._id);
     const totalCost = item.price * quantity;
 
+    // Checking if the user has enough balance
     if (user.balance < totalCost) {
       return res.status(400).json({ error: 'Insufficient balance' });
     }
 
+
+    // Deducting balance and log transaction
     user.balance -= totalCost;
 
     user.transactions.push({
@@ -190,6 +193,7 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensur
     const total = items.reduce((sum, item) => sum + item.price, 0);
     console.log(`Calculated total: ${total}, User balance: ${user.balance}`);
 
+    // Ensuring user has enough balance
     if (user.balance < total) {
       console.error("Insufficient balance:", { balance: user.balance, total });
       return res.status(400).json({ error: 'Insufficient balance' });
@@ -229,7 +233,7 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensur
     });
     await user.save();
 
-    // Create order
+    // Create order and save 
     const order = new Order({
       user: userId,
       items: ownedItems.map(i => i._id),
@@ -255,6 +259,7 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensur
 });
 
 
+// Get the balance for a user
 router.get('/user/:userId/balance', async (req, res) => {
   try {
     const user = await User.findById(req.params.userId);
@@ -267,6 +272,8 @@ router.get('/user/:userId/balance', async (req, res) => {
   }
 });
 
+
+// Retrieve all orders for a user *which must be the user themself or a teacher)
 router.get(
   '/orders/user/:userId',
   ensureAuthenticated,

@@ -1,11 +1,11 @@
 const express = require('express');
 const GroupSet = require('../models/GroupSet');
 const Group = require('../models/Group');
-const Notification = require('../models/Notification'); // Add this line
+const Notification = require('../models/Notification');
 const { ensureAuthenticated } = require('../config/auth');
 const router = express.Router();
-const io = require('socket.io')(); // Add this line
-const { populateNotification } = require('../utils/notifications'); // Add this line
+const io = require('socket.io')();
+const { populateNotification } = require('../utils/notifications');
 
 // Create GroupSet
 router.post('/groupset/create', ensureAuthenticated, async (req, res) => {

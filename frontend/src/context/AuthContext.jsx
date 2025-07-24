@@ -83,7 +83,7 @@ export const AuthProvider = ({ children }) => {
       value={{
         user: persona,
         originalUser: user,
-        setUser,
+        setUser: updateUser,
         persona,
         setPersona,
         updateUser,

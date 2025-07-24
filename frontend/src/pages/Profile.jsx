@@ -2,6 +2,7 @@ import { useEffect, useState, useContext } from 'react';
 import { useParams } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import axios from 'axios';
+import { API_BASE } from '../config/api';
 
 const Profile = () => {
     const { user, updateUser } = useContext(AuthContext);
@@ -17,6 +18,22 @@ const Profile = () => {
     const [ordersError, setOrdersError] = useState('');
     const [stats, setStats] = useState({});
 
+    // Backend URL base
+    const BACKEND_URL = `${API_BASE}`;
+
+    // Helper to format ISO date/time strings into readable US Eastern time format
+    const formatDateTime = (iso) =>
+        new Date(iso).toLocaleString('en-US', {
+            timeZone: 'America/Detroit',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+        });
+
+    // Fetch the profile data when component mounts or profileId changes
     useEffect(() => {
         const fetchProfile = async () => {
             try {
@@ -63,6 +80,7 @@ const Profile = () => {
         }
     }, [profile, user.role, profileId]);
 
+    // Fetch additional stats about the profile (e.g., balances, activity)
     useEffect(() => {
         const fetchStats = async () => {
             try {
@@ -80,12 +98,14 @@ const Profile = () => {
         if (profileId) fetchStats();
     }, [profileId]);
 
+    // Update form state when user edits fields; clear error if any
     const handleChange = (e) => {
         const { name, value } = e.target;
         setForm(prev => ({ ...prev, [name]: value }));
         if (error) setError('');
     };
 
+    // Submit profile update form
     const handleSubmit = async (e) => {
         e.preventDefault();
         setSubmitting(true);
@@ -113,8 +133,10 @@ const Profile = () => {
         }
     };
 
+    // Determine if logged-in user can edit this profile (only if same user)
     const canEdit = user?._id === profileId;
 
+    // Show loading spinner while profile data is loading
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-base-200">
@@ -123,6 +145,7 @@ const Profile = () => {
         );
     }
 
+    // Show error alert if loading profile failed and not in edit mode
     if (error && !editMode) {
         return (
             <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded shadow">
@@ -168,22 +191,73 @@ const Profile = () => {
                     </div>
 
                     <div>
-                        <label className="label-text">Avatar URL</label>
+                        <label className="label-text">Upload Avatar</label>
                         <input
-                            type="url"
-                            name="avatar"
-                            value={form.avatar}
-                            onChange={handleChange}
-                            className="input input-bordered w-full"
-                            placeholder="https://example.com/avatar.jpg"
+                            type="file"
+                            accept="image/*"
+                            onChange={async (e) => {
+                                const file = e.target.files[0];
+                                if (!file) return;
+                                const formData = new FormData();
+                                formData.append('avatar', file);
+
+                                try {
+                                    const uploadRes = await axios.post('/api/profile/upload-avatar', formData, {
+                                        withCredentials: true,
+                                        headers: {
+                                            Authorization: `Bearer ${localStorage.getItem('token')}`,
+                                            'Content-Type': 'multipart/form-data'
+                                        }
+                                    });
+                                    // server returns updated user with avatar path
+                                    const updated = uploadRes.data;
+                                    setForm(prev => ({ ...prev, avatar: updated.avatar }));
+                                    setProfile(updated);
+                                    updateUser(updated); // immediate navbar + profile update
+                                } catch (err) {
+                                    console.error('Upload error:', err);
+                                    setError(err.response?.data?.error || 'Failed to upload image');
+                                }
+                            }}
+                            className="file-input file-input-bordered w-full"
                         />
+
+                        <p className="text-sm text-gray-500 mt-1">
+                            Valid image formats: .jpg, .jpeg, .png, .gif, .bmp, .webp, .svg; max size: 10 MB.
+                        </p>
+
                         {form.avatar && (
-                            <img
-                                src={form.avatar}
-                                alt="Avatar preview"
-                                className="w-16 h-16 mt-2 rounded-full object-cover"
-                                onError={(e) => e.target.src = 'https://via.placeholder.com/150'}
-                            />
+                            <>
+                                <img
+                                    src={form.avatar.startsWith('http') ? form.avatar : `${BACKEND_URL}/uploads/${form.avatar}`}
+                                    alt="Avatar preview"
+                                    className="w-16 h-16 mt-2 rounded-full object-cover"
+                                    onError={(e) => (e.target.src = 'https://via.placeholder.com/150')}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        try {
+                                            const res = await axios.delete('/api/profile/remove-avatar', {
+                                                withCredentials: true,
+                                                headers: {
+                                                    Authorization: `Bearer ${localStorage.getItem('token')}`,
+                                                },
+                                            });
+                                            const updated = res.data;
+                                            setForm(prev => ({ ...prev, avatar: '' }));
+                                            setProfile(updated);
+                                            updateUser(updated);
+                                        } catch (err) {
+                                            console.error('Remove avatar error:', err);
+                                            setError(err.response?.data?.error || 'Failed to remove avatar');
+                                        }
+                                    }}
+                                    className="btn btn-sm btn-error mt-2"
+                                >
+                                    Remove Avatar
+                                </button>
+                            </>
                         )}
                     </div>
 
@@ -206,7 +280,7 @@ const Profile = () => {
                     <div className="flex justify-center">
                         {profile?.avatar ? (
                             <img
-                                src={profile.avatar}
+                                src={profile.avatar.startsWith('http') ? profile.avatar : `${BACKEND_URL}/uploads/${profile.avatar}`}
                                 alt="Profile"
                                 className="w-24 h-24 rounded-full object-cover border-4 border-success"
                                 onError={(e) => e.target.src = 'https://via.placeholder.com/150'}
@@ -240,7 +314,7 @@ const Profile = () => {
                                 <ul className="list-disc list-inside">
                                     {orders.map(o => (
                                         <li key={o._id}>
-                                            {new Date(o.createdAt).toLocaleDateString()}: {o.items.map(i => i.name).join(', ')} ({o.total} bits)
+                                            {formatDateTime(o.createdAt)}: {o.items.map(i => i.name).join(', ')} ({o.total} bits)
                                         </li>
                                     ))}
                                 </ul>

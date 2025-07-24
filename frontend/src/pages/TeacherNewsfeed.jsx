@@ -40,7 +40,14 @@ export default function TeacherNewsfeed() {
         fetchData();
     }, [classId]);
 
+    // Handle posting a new announcement
     const handlePost = async () => {
+        // Prevent empty announcement
+        const plainText = draft.replace(/<(.|\n)*?>/g, '').trim();
+        if (!plainText) {
+            toast.error('Please enter an announcement before posting');
+            return;
+        }
         const formData = new FormData();
         formData.append('content', draft);
         attachments.forEach(file => formData.append('attachments', file));
@@ -52,17 +59,40 @@ export default function TeacherNewsfeed() {
 
     };
 
-    const handleDelete = async (itemId) => {
-        try {
-            await deleteNews(classId, itemId);
-            setItems(items.filter(item => item._id !== itemId));
-            toast.success('Announcement deleted');
-        } catch (err) {
-            console.error('Delete failed', err);
-            toast.error('Failed to delete');
-        }
+    // Confirm and handle deletion of an announcement
+    const handleDelete = (itemId) => {
+        toast((t) => (
+            <div className="flex flex-col">
+                <span>Are you sure you want to delete this announcement?</span>
+                <div className="mt-2">
+                    <button
+                        className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded mr-2"
+                        onClick={async () => {
+                            try {
+                                await deleteNews(classId, itemId);
+                                setItems(items.filter(item => item._id !== itemId));
+                                toast.success('Announcement deleted');
+                            } catch (err) {
+                                console.error('Delete failed', err);
+                                toast.error('Failed to delete');
+                            }
+                            toast.dismiss(t.id);
+                        }}
+                    >
+                        Yes
+                    </button>
+                    <button
+                        className="bg-gray-300 hover:bg-gray-400 text-black px-3 py-1 rounded"
+                        onClick={() => toast.dismiss(t.id)}
+                    >
+                        No
+                    </button>
+                </div>
+            </div>
+        ));
     };
 
+    // Handle updating an existing announcement's content
     const handleEdit = async (itemId, newContent) => {
         try {
             await editNews(classId, itemId, newContent);
@@ -82,7 +112,7 @@ export default function TeacherNewsfeed() {
                 bgColor={bgColor}
                 backgroundImage={backgroundImage}
             />
-            <div className="max-w-3xl mx-auto p-6">
+            <div className="max-w-3xl mx-auto p-6 bg-green-50 rounded-lg">
                 <p className="mb-4">
                     <Link to={`/classroom/${classId}`} className="link text-accent">
                         ← Back to Classroom
@@ -91,37 +121,38 @@ export default function TeacherNewsfeed() {
                 <h2 className="text-center text-green-500 text-5xl font-bold mb-6">
                     Manage Announcements
                 </h2>
-                <ReactQuill
-                    value={draft}
-                    onChange={setDraft}
-                    modules={{
-                        toolbar: [
-                            ['bold', 'italic', 'underline', 'strike'],
-                            [{ header: [1, 2, false] }],
-                            [{ list: 'ordered' }, { list: 'bullet' }],
-                            ['link', 'image']
-                        ]
-                    }}
-                    placeholder="Write an update…"
-                    className="mb-4"
-                />
-                <input
-                    type="file"
-                    multiple
-                    onChange={e => setAttachments(Array.from(e.target.files))}
-                    className="mb-4"
-                />
-                <button
-                    className="btn btn-primary px-6 py-2 mb-6"
-                    onClick={handlePost}
-                    disabled={!draft.trim()}
-                >
-                    Post
-                </button>
+                <div className="bg-white p-4 border border-green-200 rounded-lg mb-6">
+                    <ReactQuill
+                        value={draft}
+                        onChange={setDraft}
+                        modules={{
+                            toolbar: [
+                                ['bold', 'italic', 'underline', 'strike'],
+                                [{ header: [1, 2, false] }],
+                                [{ list: 'ordered' }, { list: 'bullet' }],
+                                ['link', 'image']
+                            ]
+                        }}
+                        placeholder="Write an update…"
+                        className="mb-4"
+                    />
+                    <input
+                        type="file"
+                        multiple
+                        onChange={e => setAttachments(Array.from(e.target.files))}
+                        className="file-input file-input-sm mb-4"
+                    />
+                    <button
+                        className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg"
+                        onClick={handlePost}
+                    >
+                        Post
+                    </button>
+                </div>
 
                 <ul className="space-y-6">
                     {sortedItems.slice(0, visibleCount).map(i => (
-                        <li key={i._id} className="p-4 border border-gray-200 rounded shadow-sm mx-auto">
+                        <li key={i._id} className="bg-white p-4 border border-green-200 rounded-lg shadow-sm mx-auto">
                             <p className="text-sm text-gray-600 mb-1">
                                 Posted by {i.authorId.firstName} {i.authorId.lastName}
                             </p>
@@ -169,7 +200,7 @@ export default function TeacherNewsfeed() {
                                                 ['link', 'image']
                                             ]
                                         }}
-                                        className="mb-2"
+                                        className="mb-2 mt-2"
                                     />
                                     <button
                                         className="btn btn-sm btn-success mr-2"
@@ -190,7 +221,7 @@ export default function TeacherNewsfeed() {
                                 </>
                             ) : (
                                 <button
-                                    className="btn btn-sm btn-primary mt-2 ml-2"
+                                    className="btn btn-sm btn-info mt-2 ml-2"
                                     onClick={() => {
                                         setEditingId(i._id);
                                         setEditingContent(i.content);
