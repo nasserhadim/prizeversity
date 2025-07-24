@@ -208,7 +208,9 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
       {/* Basic fields (name, description, price, image) */}
       <div className="form-control">
         <label className="label">
-          <span className="label-text font-medium">Item Name</span>
+          <span className="label-text font-medium">
+            Item Name <span className='text-error'>*</span>
+          </span>
         </label>
         <input
           name="name"
@@ -235,7 +237,9 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
 
       <div className="form-control">
         <label className="label">
-          <span className="label-text font-medium">Price</span>
+          <span className="label-text font-medium">
+            Price <span className='text-error'>*</span>
+          </span>
         </label>
         <input
           name="price"
@@ -265,7 +269,9 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
       {/* Category Selection */}
       <div className="form-control">
         <label className="label">
-          <span className="label-text font-medium">Category</span>
+          <span className="label-text font-medium">
+            Category <span className='text-error'>*</span>
+          </span>
         </label>
         <select
           name="category"
@@ -286,7 +292,9 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
         <div className="space-y-4">
           <div className="form-control">
             <label className="label">
-              <span className="label-text font-medium">Primary Effect</span>
+              <span className="label-text font-medium">
+                Primary Effect <span className='text-error'>*</span>
+              </span>
             </label>
             <select
               name="primaryEffect"
@@ -373,7 +381,9 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                 onChange={(e) => updateSecondaryEffect(index, 'effectType', e.target.value)}
                 required
               >
-                <option value="" disabled>Select effect</option>
+                <option value="" disabled>
+                  Select effect <span className='text-error'>*</span>
+                </option>
                 {availableSecondaryEffects().concat(
                   { label: effect.effectType, value: effect.effectType }
                 ).map(opt => (
