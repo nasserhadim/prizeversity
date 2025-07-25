@@ -64,7 +64,7 @@ This repository hosts the full stack implementation of PrizeVersity, including t
    - [Automated Backups](#8-automated-backups)  
    - [CI/CD](#9--cicd)
 
-6. [Database Backup / Restore](#database-backup--restore-mongodump--mongorestore)
+6. [Database Backup / Restore](#database-backup--restore--mongodump--mongorestore-)
    - [Install Tools](#1-install-the-tools)  
    - [Verify Installation](#2-verify-installation)  
    - [Backup Commands](#3-common-commands-for-prizeversity)  
