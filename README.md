@@ -31,7 +31,7 @@ This repository hosts the full stack implementation of PrizeVersity, including t
 
 1. [About PrizeVersity](#-about-prizeversity)  
    - [Overview](#-about-prizeversity)  
-   - [Key Features](#key-features)  
+   - [Key Features](##-key-features-include:)  
    - [For Developers](#-for-developers)
 
 2. [Setup Guide for Developers](#how-to-setup-developers)  
