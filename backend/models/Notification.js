@@ -18,10 +18,12 @@ const NotificationSchema = new mongoose.Schema({
       'classroom_update',
       'groupset_update',
       'group_update',
-      'siphon_review',      
+      'siphon_review', 
+      'siphon_request',     
      'siphon_rejected',
       'siphon_approved',
       'wallet_transaction',
+      'wallet_topup',
      'ta_promotion', 
       'ta_demotion', 
       'announcement', // New type for announcements
