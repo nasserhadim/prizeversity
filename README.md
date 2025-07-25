@@ -25,6 +25,65 @@ This repository hosts the full stack implementation of PrizeVersity, including t
    - **PM2** (Process Manager for Node.js)
    - **SSL (Encryption in transit)**
    - **Persistent MongoDB storage** with replica set compatibility
+# Table of Contents
+1. [🎓 About PrizeVersity](#-about-prizeversity)  
+   - [Key features include:](#key-features-include)  
+   - [🛠️ For Developers](#️-for-developers)
+
+2. [How to Setup (Developers)](#how-to-setup-developers)  
+   - [Prerequisites](#prerequisites)  
+   - [Create Project Folders/Files](#create-project-foldersfiles-skip-this-if-cloningforking)  
+   - [Initialize Backend and Frontend](#initialize-backend-and-frontend-if-cloningforking-only-run-the-install-steps-or-npm-ci)  
+   - [Scaffold Frontend](#scaffold-frontend-and-setup-with-vite)
+
+3. [How to Run it](#how-to-run-it)  
+   - [Start MongoDB](#11-start-mongodb-locally-execute-the-commands-based-on-your-os)  
+   - [Enable Replica Set](#12-optional-but-recommended-enable-single-node-replica-set-aka-cluster-provides-fault-tolerance-against-single-point-of-failure-ensures-data-availabilityredundancyconcurrency)  
+   - [Run Migrations](#2-run-database-migrations-idempotent)  
+   - [Start Backend](#3-start-the-backend)  
+   - [Start Frontend](#4-start-the-frontend)
+
+4. [Getting Started (Clone / Fork)](#getting-started-clone--fork)  
+   - [Clone the Repo](#1-clone-the-repo)  
+   - [Environment Variables](#2-copy-environment-variables--edit-secrets-in-backendenv)  
+   - [Install Dependencies](#3-install-dependencies)  
+   - [Start MongoDB](#11-start-mongodb-locally-execute-the-commands-based-on-your-os) 
+   - [Run Migrations](#5-run-database-migrations-if-you-havent-done-it-yet)  
+   - [Development Mode](#6-development-mode)  
+   - [Production Build](#7-production-build-optional-local-test)  
+   - [Sync with Upstream](#when-trying-to-sync-rebase-basically-from-original-main-to-fork)
+
+5. [Launch-to-Production Checklist](#launch-to-production-checklist)  
+   - [Initial Server Hardening](#1-optional-but-recommended-initial-server-hardening-for-performance-enhancement--securityfirewall-run-once)  
+   - [Install Runtime Tooling](#2-install-runtime-tooling-run-once)  
+   - [Prepare Code](#3-prepare-the-code-assumes-repo-had-been-cloned-check-the--getting-started-clone--fork--clone-the-repo--linux-os-section-above)  
+   - [Deploy the Application](#4-deploy-the-application)  
+   - [Verify Everything](#5-verify-everything-is-working)  
+   - [Updating Deployment](#6--updating-the-server-deployment)
+   - [Handy MongoDB Commands](#7--handy-mongodb-commands-to-view-or-clear-collections)  
+   - [Automated Backups](#8-automated-backups)  
+   - [CI/CD](#9--cicd)
+
+6. [Database Backup / Restore](#database-backup--restore--mongodump--mongorestore-)
+   - [Install Tools](#1-install-the-tools)  
+   - [Verify Installation](#2-verify-installation)  
+   - [Backup Commands](#3-common-commands-for-prizeversity)  
+   - [Nightly Dumps](#4-automated-nightly-dump-on-the-vps)
+
+7. [Schema Changes & Migrations](#schema-changes--migrations)  
+   - [Workflow Overview](#how-schema-changes-and-migrations-work-together)  
+   - [Example: Add Field](#example-1-add-a-description-field)  
+   - [Example: Rename Field](#example-2-rename-groups--guilds)  
+   - [Example: Index Change](#example-3-adddrop-an-index)  
+   - [Best Practices](#key-principles)
+
+8. [Optional Local HTTPS Sandbox](#appendix--optional-nginxwindows-for-a-local-https-sandbox)  
+   - [Node Built-in HTTPS](#1-use-nodes-built-in-https-module-simplest-if-you-just-want-https-quickly-for-local-oauth--samesite-cookies)  
+   - [Nginx Reverse Proxy](#2-use-nginx-for-windows-as-a-local-reverse-proxy-keeps-server-code-unchanged-and-handy-if-you-want-to-replicate-prod-proxy-headers-gzip-etc)  
+   - [Redirect HTTP to HTTPS](#3-redirect-http-to-https)  
+   - [Trust Self-Signed Cert](#4-optional-prevent-browser-security-warning-by-adding-the-self-signed-certificate-to-the-trusted-store-on-windows)
+
+
 
 # How to Setup (Developers):
 
