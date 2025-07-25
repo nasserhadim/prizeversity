@@ -26,12 +26,9 @@ This repository hosts the full stack implementation of PrizeVersity, including t
    - **SSL (Encryption in transit)**
    - **Persistent MongoDB storage** with replica set compatibility
 # Table of Contents
-
-## Table of Contents
-
-1. [About PrizeVersity](#-about-prizeversity)  
-   - [Key Features](#key-features)  
-   - [For Developers](#-for-developers)
+1. [🎓 About PrizeVersity](#-about-prizeversity)  
+   - [Key features include:](#key-features-include)  
+   - [🛠️ For Developers](#️-for-developers)
 
 2. [How to Setup (Developers)](#how-to-setup-developers)  
    - [Prerequisites](#prerequisites)  
@@ -39,7 +36,7 @@ This repository hosts the full stack implementation of PrizeVersity, including t
    - [Initialize Backend and Frontend](#initialize-backend-and-frontend-if-cloningforking-only-run-the-install-steps-or-npm-ci)  
    - [Scaffold Frontend](#scaffold-frontend-and-setup-with-vite)
 
-3. [How to Run It](#how-to-run-it)  
+3. [How to Run it](#how-to-run-it)  
    - [Start MongoDB](#11-start-mongodb-locally-execute-the-commands-based-on-your-os)  
    - [Enable Replica Set](#12-optional-but-recommended-enable-single-node-replica-set-aka-cluster-provides-fault-tolerance-against-single-point-of-failure-ensures-data-availabilityredundancyconcurrency)  
    - [Run Migrations](#2-run-database-migrations-idempotent)  
@@ -50,7 +47,7 @@ This repository hosts the full stack implementation of PrizeVersity, including t
    - [Clone the Repo](#1-clone-the-repo)  
    - [Environment Variables](#2-copy-environment-variables--edit-secrets-in-backendenv)  
    - [Install Dependencies](#3-install-dependencies)  
-   - [Start MongoDB](#4-create--start-mongodb-locally-if-you-havent-done-it-yet-community-edition)  
+   - [Start MongoDB](#11-start-mongodb-locally-execute-the-commands-based-on-your-os) 
    - [Run Migrations](#5-run-database-migrations-if-you-havent-done-it-yet)  
    - [Development Mode](#6-development-mode)  
    - [Production Build](#7-production-build-optional-local-test)  
@@ -61,18 +58,13 @@ This repository hosts the full stack implementation of PrizeVersity, including t
    - [Install Runtime Tooling](#2-install-runtime-tooling-run-once)  
    - [Prepare Code](#3-prepare-the-code-assumes-repo-had-been-cloned-check-the--getting-started-clone--fork--clone-the-repo--linux-os-section-above)  
    - [Deploy the Application](#4-deploy-the-application)  
-     - [DNS & SSL](#0-preliminary-add-a-record-in-the-domains-dns-configuration-and-check-web-server-type)  
-     - [Configure Nginx](#2-configure-nginx-for-reverse-proxy-and-static-file-serving)  
-     - [Deploy Backend with PM2](#3-deploy-and-run-the-nodejs-backend-with-pm2)  
-     - [Build & Deploy Frontend](#4-build-and-deploy-the-frontend)  
    - [Verify Everything](#5-verify-everything-is-working)  
-   - [Updating Deployment](#6-updating-the-server-deployment)  
-   - [Handy MongoDB Commands](#7-🧹-handy-mongodb-commands-to-view-or-clear-collections)  
+   - [Updating Deployment](#6--updating-the-server-deployment)
+   - [Handy MongoDB Commands](#7--handy-mongodb-commands-to-view-or-clear-collections)  
    - [Automated Backups](#8-automated-backups)  
-   - [Restore Script](#87-add-a-restore-script-for-emergencies)  
-   - [CI/CD](#9-cicd)
+   - [CI/CD](#9--cicd)
 
-6. [Database Backup / Restore (mongodump & mongorestore)](#database-backup--restore--mongodump--mongorestore)  
+6. [Database Backup / Restore](#database-backup--restore-mongodump--mongorestore)
    - [Install Tools](#1-install-the-tools)  
    - [Verify Installation](#2-verify-installation)  
    - [Backup Commands](#3-common-commands-for-prizeversity)  
@@ -90,6 +82,7 @@ This repository hosts the full stack implementation of PrizeVersity, including t
    - [Nginx Reverse Proxy](#2-use-nginx-for-windows-as-a-local-reverse-proxy-keeps-server-code-unchanged-and-handy-if-you-want-to-replicate-prod-proxy-headers-gzip-etc)  
    - [Redirect HTTP to HTTPS](#3-redirect-http-to-https)  
    - [Trust Self-Signed Cert](#4-optional-prevent-browser-security-warning-by-adding-the-self-signed-certificate-to-the-trusted-store-on-windows)
+
 
 
 # How to Setup (Developers):
