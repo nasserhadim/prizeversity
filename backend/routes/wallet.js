@@ -7,7 +7,10 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const blockIfFrozen = require('../middleware/blockIfFrozen');
 const PendingAssignment = require('../models/PendingAssignment');
+const Notification = require('../models/Notification');
+const { populateNotification } = require('../utils/notifications');
 
+// Utility to check if a TA can assign bits based on classroom policy
 async function canTAAssignBits({ taUser, classroomId }) {
   const Classroom = require('../models/Classroom');
   const classroom = await Classroom.findById(classroomId).select('taBitPolicy students');
@@ -29,6 +32,7 @@ async function canTAAssignBits({ taUser, classroomId }) {
   }
 }
 
+// Gets total group multiplier for a student across groups in a classroom
 const getGroupMultiplierForStudentInClassroom = async (studentId, classroomId) => {
   const groupSets = await GroupSet.find({ classroom: classroomId }).select('groups');
   const groupIds = groupSets.flatMap(gs => gs.groups);
@@ -51,6 +55,7 @@ const getGroupMultiplierForStudentInClassroom = async (studentId, classroomId) =
   return groups.reduce((sum, g) => sum + (g.groupMultiplier || 1), 0);
 };
 
+// Admin/teacher fetches al user transactions (optionally filtered by studentID)
 router.get('/transactions/all', ensureAuthenticated, async (req, res) => {
   if (!['teacher', 'admin'].includes(req.user.role)) {
     return res.status(403).json({ error: 'Forbidden' });
@@ -95,6 +100,7 @@ router.get('/transactions/all', ensureAuthenticated, async (req, res) => {
 router.post('/assign', ensureAuthenticated, async (req, res) => {
   const { classroomId, studentId, amount, description } = req.body;
 
+  // Check TA permission (admin)
   if (req.user.role === 'admin') {
     const gate = await canTAAssignBits({ taUser: req.user, classroomId });
     if (!gate.ok) {
@@ -141,7 +147,7 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
       ? Math.round(numericAmount * multiplier)
       : numericAmount;
 
-    student.balance += adjustedAmount;
+    student.balance = Math.max(0, student.balance + adjustedAmount);
     student.transactions.push({
       amount: adjustedAmount,
       description: description || `Balance adjustment`,
@@ -149,7 +155,24 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
     });
 
     await student.save();
-
+    console.log(`Assigned ${adjustedAmount} bits to ${student.email}`);
+  
+      const notification = await Notification.create({
+          user: student._id,
+          actionBy: req.user._id,
+          type: 'wallet_topup',                                     //creating a notification for assigning balance
+          message: `You were ${amount >= 0 ? 'credited' : 'debited'} ${Math.abs(amount)} bits.`,
+          read: false,
+          classroom: classroomId, 
+          createdAt: new Date(),
+        });
+    console.log('notification created:', notification._id);
+        const populatedNotification = await populateNotification(notification._id);
+        if (!populatedNotification) {
+  console.warn('populateNotification failed or returned null');
+}
+          req.app.get('io').to(`user-${student._id}`).emit('notification', populatedNotification); 
+      
     res.status(200).json({ message: 'Balance assigned successfully' });
   } catch (err) {
     console.error('Failed to assign balance:', err.message);
@@ -157,6 +180,7 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
   }
 });
 
+// Bulk assign balances to mulitpler students
 router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
   if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
     return res.status(403).json({ 
@@ -182,6 +206,8 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
   }
 
   try {
+
+    // TA (admin) policy check
     if (req.user.role === 'admin') {
       const gate = await canTAAssignBits({ taUser: req.user, classroomId });
       if (!gate.ok) {
@@ -224,11 +250,12 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
       const totalMultiplier = groupMultiplier * passiveMultiplier;
 
       // Apply multiplier only for positive amounts
-      const adjustedAmount = amount >= 0 
-        ? Math.round(amount * totalMultiplier)
-        : amount;
+      const adjustedAmount = numericAmount >= 0
+   ? Math.round(numericAmount * totalMultiplier)
+   : numericAmount;
 
-      student.balance += adjustedAmount;
+ // never let balance go negative
+ student.balance = Math.max(0, student.balance + adjustedAmount);
       student.transactions.push({
         amount: adjustedAmount,
         description,
@@ -237,9 +264,22 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
       });
 
       await student.save();
-      results.updated += 1;
-    }
+      results.updated += 1; 
+      const notification = await Notification.create({
+          user: student._id,
+          actionBy: req.user._id,
+          type: 'wallet_topup',                                     //creating a notification for assigning balance
+          message: `You were ${amount >= 0 ? 'credited' : 'debited'} ${Math.abs(amount)} bits`,
+          read: false,
+          classroom: classroomId, 
+          createdAt: new Date(),
+        });
+    console.log('notification created:', notification._id);
+        const populatedNotification = await populateNotification(notification._id);
+          req.app.get('io').to(`user-${student._id}`).emit('notification', populatedNotification); 
 
+    }
+  
     res.json({
       message: `Bulk balance assignment complete (${results.updated} updated, ${results.skipped.length} skipped)`,
       ...results,
@@ -342,6 +382,7 @@ router.post(
   }
 );
 
+// Will get the user balance
 router.get('/:userId/balance', ensureAuthenticated, async (req, res) => {
   try {
     const user = await User.findById(req.params.userId).select('balance');

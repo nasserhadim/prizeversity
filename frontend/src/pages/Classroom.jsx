@@ -73,7 +73,7 @@ const Classroom = () => {
         (user.role === 'student' && classroom.students.includes(user._id));
 
       if (!hasAccess) {
-        alert('You no longer have access to this classroom');
+        toast.error('You no longer have access to this classroom');
         navigate('/');
         return;
       }
@@ -82,7 +82,7 @@ const Classroom = () => {
       await fetchStudents();
     } catch (err) {
       if (err.response?.status === 403) {
-        alert('You no longer have access to this classroom');
+        toast.error('You no longer have access to this classroom');
         navigate('/');
         return;
       }

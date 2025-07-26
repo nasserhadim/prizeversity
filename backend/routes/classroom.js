@@ -70,9 +70,13 @@ router.post(
 // Join Classroom
 router.post('/join', ensureAuthenticated, async (req, res) => {
   const { code } = req.body;
+  if (!code) {
+    return res.status(400).json({ error: 'Classroom code is required' });
+  }
   try {
-    const classroom = await Classroom.findOne({ code, archived: false });
+    const classroom = await Classroom.findOne({ code: code.trim(), archived: false });
     if (!classroom) {
+      console.log('No classroom found with code: ', code);
       return res.status(404).json({ error: 'Invalid classroom code' });
     }
 
@@ -125,7 +129,7 @@ router.get('/archived', ensureAuthenticated, async (req, res) => {
 });
 
 
-
+// Get the TA bit policy (the TA that will be able to assign bits or no)
 router.get('/:id/ta-bit-policy', ensureAuthenticated, async (req, res) => {
   try {
     const classroom = await Classroom.findById(req.params.id).select('teacher taBitPolicy');
@@ -140,6 +144,7 @@ router.get('/:id/ta-bit-policy', ensureAuthenticated, async (req, res) => {
   }
 });
 
+// Update which TA can assign bits
 router.patch('/:id/ta-bit-policy', ensureAuthenticated, async (req, res) => {
   const { taBitPolicy } = req.body;
   const valid = ['full', 'approval', 'none'];
@@ -162,7 +167,8 @@ router.patch('/:id/ta-bit-policy', ensureAuthenticated, async (req, res) => {
 });
 
 
-
+// GET route to retrieve whether students can send items in a specific classroom.
+// Only the teacher of the classroom is allowed to access this setting.
 router.get('/:id/student-send-enabled', ensureAuthenticated, async (req, res) => {
   const c = await Classroom.findById(req.params.id).select('teacher studentSendEnabled');
   if (!c) return res.status(404).json({ error: 'Not found' });
@@ -172,6 +178,8 @@ router.get('/:id/student-send-enabled', ensureAuthenticated, async (req, res) =>
   res.json({ studentSendEnabled: !!c.studentSendEnabled });
 });
 
+// PATCH route to update whether students can send items in a specific classroom.
+// Only the classroom's teacher can perform this update.
 router.patch('/:id/student-send-enabled', ensureAuthenticated, async (req, res) => {
   const { studentSendEnabled } = req.body;
   const c = await Classroom.findById(req.params.id);
@@ -377,6 +385,7 @@ router.get('/:id/students', ensureAuthenticated, async (req, res) => {
   }
 });
 
+// Will remove a student from classroom
 router.delete('/:id/students/:studentId', ensureAuthenticated, async (req, res) => {
   try {
     const classroom = await Classroom.findById(req.params.id);

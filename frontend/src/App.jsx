@@ -8,6 +8,8 @@ import Groups from './pages/Groups';
 import People from './pages/People';
 import Navbar from './components/Navbar';
 import Profile from './pages/Profile';
+import FeedbackPage from './pages/FeedbackPage';
+import ClassroomFeedbackPage from './pages/ClassroomFeedbackPage';
 import { AuthContext } from './context/AuthContext';
 import { joinUserRoom } from './utils/socket';
 import Leaderboard from './pages/Leaderboard';
@@ -62,6 +64,8 @@ const App = () => {
           <Route path="/orders" element={<OrderHistory />} />
           {/* <Route path="/profile/:id/stats" element={<StudentStats />} /> */}
           <Route path="/classroom/:classroomId/student/:id/stats" element={<StudentStats />} />
+          <Route path="/classroom/:classroomId/feedback" element={<ClassroomFeedbackPage />} />
+          <Route path="/feedback" element={<FeedbackPage />} />
         </Routes>
       </div>
     </CartProvider>

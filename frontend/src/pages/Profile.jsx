@@ -17,8 +17,23 @@ const Profile = () => {
     const [loadingOrders, setLoadingOrders] = useState(true);
     const [ordersError, setOrdersError] = useState('');
     const [stats, setStats] = useState({});
+
+    // Backend URL base
     const BACKEND_URL = `${API_BASE}`;
 
+    // Helper to format ISO date/time strings into readable US Eastern time format
+    const formatDateTime = (iso) =>
+        new Date(iso).toLocaleString('en-US', {
+            timeZone: 'America/Detroit',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+        });
+
+    // Fetch the profile data when component mounts or profileId changes
     useEffect(() => {
         const fetchProfile = async () => {
             try {
@@ -65,6 +80,7 @@ const Profile = () => {
         }
     }, [profile, user.role, profileId]);
 
+    // Fetch additional stats about the profile (e.g., balances, activity)
     useEffect(() => {
         const fetchStats = async () => {
             try {
@@ -82,12 +98,14 @@ const Profile = () => {
         if (profileId) fetchStats();
     }, [profileId]);
 
+    // Update form state when user edits fields; clear error if any
     const handleChange = (e) => {
         const { name, value } = e.target;
         setForm(prev => ({ ...prev, [name]: value }));
         if (error) setError('');
     };
 
+    // Submit profile update form
     const handleSubmit = async (e) => {
         e.preventDefault();
         setSubmitting(true);
@@ -115,8 +133,10 @@ const Profile = () => {
         }
     };
 
+    // Determine if logged-in user can edit this profile (only if same user)
     const canEdit = user?._id === profileId;
 
+    // Show loading spinner while profile data is loading
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-base-200">
@@ -125,6 +145,7 @@ const Profile = () => {
         );
     }
 
+    // Show error alert if loading profile failed and not in edit mode
     if (error && !editMode) {
         return (
             <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded shadow">
@@ -200,6 +221,11 @@ const Profile = () => {
                             }}
                             className="file-input file-input-bordered w-full"
                         />
+
+                        <p className="text-sm text-gray-500 mt-1">
+                            Valid image formats: .jpg, .jpeg, .png, .gif, .bmp, .webp, .svg; max size: 10 MB.
+                        </p>
+
                         {form.avatar && (
                             <>
                                 <img
@@ -288,7 +314,7 @@ const Profile = () => {
                                 <ul className="list-disc list-inside">
                                     {orders.map(o => (
                                         <li key={o._id}>
-                                            {new Date(o.createdAt).toLocaleDateString()}: {o.items.map(i => i.name).join(', ')} ({o.total} bits)
+                                            {formatDateTime(o.createdAt)}: {o.items.map(i => i.name).join(', ')} ({o.total} bits)
                                         </li>
                                     ))}
                                 </ul>

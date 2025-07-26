@@ -4,6 +4,7 @@ import axios from 'axios';
 import socket from '../utils/socket';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import {
   School,
   UserPlus,
@@ -36,6 +37,7 @@ const Home = () => {
 
   const navigate = useNavigate();
 
+  // for the carousel
   const carouselContent = {
     education: [
       {
@@ -95,11 +97,13 @@ const Home = () => {
     // ]
   };
 
+  // Sync firstName and lastName state when user changes
   useEffect(() => {
     if (user?.firstName) setFirstName(user.firstName);
     if (user?.lastName) setLastName(user.lastName);
   }, [user]);
 
+  // Sync role and check profile completeness when user changes
   useEffect(() => {
     if (user) {
       if (user.role) setRole(user.role);
@@ -107,14 +111,16 @@ const Home = () => {
     }
   }, [user]);
 
+  // On mount, check URL params for 'session_expired' and show toast if found
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('session_expired')) {
-      alert('Your session has expired. Please sign in again.');
+      toast.error('Your session has expired. Please sign in again.');
       window.history.replaceState({}, '', '/');
     }
   }, []);
 
+  // Handler to submit user role and profile update
   const handleRoleAndProfileSubmit = async () => {
     if (!role || !firstName.trim() || !lastName.trim()) {
       toast.error('Please select your role and enter your full name.');
@@ -122,11 +128,13 @@ const Home = () => {
     }
 
     try {
+      // POST updated profile info to backend
       const response = await axios.post('/api/users/update-profile', {
         role,
         firstName,
         lastName,
       });
+      // Update user context/state with returned user data
       setUser(response.data.user);
       setProfileComplete(true);
       
@@ -136,6 +144,7 @@ const Home = () => {
     }
   };
 
+  // Setup socket listeners for classroom updates and notifications
   useEffect(() => {
     socket.on('classroom_update', (updatedClassroom) => {
       setClassrooms((prev) =>
@@ -159,7 +168,7 @@ const Home = () => {
     };
   }, []);
 
-  // Carousel animation
+  // Carousel animation,  horizontal scrolling animation with pause on hover
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -202,7 +211,7 @@ const Home = () => {
     };
   }, [carouselGroup]);
 
-
+  // Render carousel items duplicated for infinite scrolling effect
   const renderCarouselItems = () => {
     const items = carouselContent[carouselGroup];
     const allItems = [...items, ...items]; // duplicate for infinite scroll
@@ -451,6 +460,7 @@ const Home = () => {
               <a href="#" className="text-gray-400 hover:text-white transition">Privacy</a>
               <a href="#" className="text-gray-400 hover:text-white transition">Terms</a>
               <a href="#" className="text-gray-400 hover:text-white transition">Help</a>
+              <Link to="/feedback" className="text-gray-400 hover:text-white transition">Feedback</Link>
             </div>
           </div>
           <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">

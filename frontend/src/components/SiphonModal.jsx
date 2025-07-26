@@ -4,10 +4,7 @@ import 'react-quill/dist/quill.snow.css';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
-import io from 'socket.io-client';
-import { API_BASE } from '../config/api';
-
-const socket = io(); // no "/api" needed here
+ 
  
  function SiphonModal({group,onClose}){
   console.log('[SiphonModal] group object:', group);
@@ -31,7 +28,7 @@ const socket = io(); // no "/api" needed here
     try {
       setLoadingBal(true);
       const { data } = await axios.get(
-        `${API_BASE}/api/wallet/${id}/balance`,
+        `http://localhost:5000/api/wallet/${id}/balance`,
         { withCredentials: true }
       );
       setTargetBalance(data.balance);
@@ -54,7 +51,7 @@ const socket = io(); // no "/api" needed here
      if (file) fd.append('proof', file);
 
      await axios.post(
-        `${API_BASE}/api/siphon/group/${group._id}/create`,
+        `http://localhost:5000/api/siphon/group/${group._id}/create`,
         fd,
         { withCredentials: true,
           headers: { 'Content-Type': 'multipart/form-data' } }

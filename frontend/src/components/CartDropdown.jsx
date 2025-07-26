@@ -83,7 +83,7 @@ const CartDropdown = () => {
                         )}
                     </div>
                     <Link to="/checkout">
-                        <button className="mt-2 w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600">
+                        <button className="mt-2 w-full bg-green-500 text-white py-2 rounded hover:bg-blue-600">
                             Go to Checkout
                         </button>
                     </Link>

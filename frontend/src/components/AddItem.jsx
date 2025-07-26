@@ -8,7 +8,7 @@ const AddItem = ({ bazaarId }) => {
   const [image, setImage] = useState('');
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    e.preventDefault(); // it will prevent the page reload on form submit
     try {
       const response = await axios.post(`/api/bazaar/${bazaarId}/items/add`, {
         name,
@@ -18,11 +18,11 @@ const AddItem = ({ bazaarId }) => {
         bazaar: bazaarId,
         category,
         effect: category !== 'Passive' ? effect : undefined, // Passive doesn't use effect
-        passiveAttributes: category === 'Passive' ? passiveAttributes : undefined
+        passiveAttributes: category === 'Passive' ? passiveAttributes : undefined // only include passiveAttributes if the item is in Passive cateogry
       });
-      alert('Item added successfully!');
+      toast.succes('Item added successfully!');
     } catch (err) {
-      alert('Failed to add item');
+      toast.error('Failed to add item');
     }
   };
 
