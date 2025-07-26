@@ -420,7 +420,7 @@ const Home = () => {
         <section className="bg-gradient-to-r from-green-500 to-green-600 rounded-2xl p-12 text-center text-white mb-20">
           <h2 className="text-3xl font-bold mb-4">Ready to transform your learning experience?</h2>
           <p className="text-xl mb-8 max-w-2xl mx-auto">
-            Join thousands of educators and students already using Prizeversity.
+            Already making a difference in the classroom—try Prizeversity today.
           </p>
           {!user ? (
             <div className="flex justify-center gap-4">
