@@ -4,6 +4,7 @@ import axios from 'axios';
 import socket from '../utils/socket';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import {
   School,
   UserPlus,
@@ -419,7 +420,7 @@ const Home = () => {
         <section className="bg-gradient-to-r from-green-500 to-green-600 rounded-2xl p-12 text-center text-white mb-20">
           <h2 className="text-3xl font-bold mb-4">Ready to transform your learning experience?</h2>
           <p className="text-xl mb-8 max-w-2xl mx-auto">
-            Join thousands of educators and students already using Prizeversity.
+            Already making a difference in the classroom—try Prizeversity today.
           </p>
           {!user ? (
             <div className="flex justify-center gap-4">
@@ -459,6 +460,7 @@ const Home = () => {
               <a href="#" className="text-gray-400 hover:text-white transition">Privacy</a>
               <a href="#" className="text-gray-400 hover:text-white transition">Terms</a>
               <a href="#" className="text-gray-400 hover:text-white transition">Help</a>
+              <Link to="/feedback" className="text-gray-400 hover:text-white transition">Feedback</Link>
             </div>
           </div>
           <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">

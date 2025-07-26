@@ -2,8 +2,11 @@
 const express = require('express');
 const { ensureAuthenticated } = require('../config/auth');
 const Group = require('../models/Group');
+const GroupSet = require('../models/GroupSet');
 const User  = require('../models/User');
 const router = express.Router();
+const Notification = require('../models/Notification');
+const { populateNotification } = require('../utils/notifications');
 
 // Middlware will allow only teachers or admins to access certain routes
 function ensureTeacher(req, res, next) {
@@ -20,6 +23,7 @@ router.post(
   ensureTeacher,
   async (req, res) => {
     const { groupId } = req.params;
+    const groupSet = await GroupSet.findById(req.params.groupSetId).populate('classroom');
     const { amount, description } = req.body;  // can be + or –
     
     try {
@@ -74,9 +78,24 @@ router.post(
             total: numericAmount > 0 ? (group.groupMultiplier || 1) * (user.passiveAttributes?.multiplier || 1) : 1
           }
         });
-      }
+        // Create notification for this student
+  const notification = await Notification.create({
+    user: user._id, // specify the user this notification is for
+    type: 'wallet_transaction',
+    message: `You were ${amount >= 0 ? 'credited' : 'debited'} ${Math.abs(amount)} bits in ${group.name}.`,
+    amount,
+    description: description || `Group adjust (${group.name})`,
+    group: group._id,
+    groupSet: req.params.groupSetId,
+    classroom: groupSet?.classroom?._id,
+    actionBy: req.user._id,
+  });
+  const populated = await populateNotification(notification._id);
+      req.app.get('io').to(`user-${user._id}`).emit('notification', populated);
 
-      // Notify all group members via socket.io
+      }
+// Notify the group about the balance adjustment
+
       req.app.get('io').to(`group-${group._id}`).emit('balance_adjust', {
         groupId: group._id,
         amount: numericAmount,

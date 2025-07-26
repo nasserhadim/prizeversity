@@ -60,6 +60,17 @@ router.post(
 
       // Freeze the target user temporarily
       await User.findByIdAndUpdate(targetUserId, { isFrozen: true });
+      const group = await Group.findById(reqDoc.group);
+    const classroomId = await GroupSet.findOne({groups: group._id}).then(gs=>gs?.classroom);
+  
+      const n = await Notification.create({
+        user: targetUserId, type:'siphon_request',
+        message:`Group "${group.name}" has opened a siphon request involving your account`,
+        group: group._id, actionBy: req.user._id, classroom: classroomId,
+      });
+      req.app.get('io').to(`user-${targetUserId}`).emit('notification', await populateNotification(n._id));
+    
+  
 
       // Emit real time update to group members
       req.app.get('io').to(`group-${reqDoc.group}`).emit('siphon_create', reqDoc);

@@ -1,6 +1,10 @@
 const express = require('express');
 const router = express.Router({ mergeParams: true });
 const NewsItem = require('../models/NewsItem');
+const Notification = require('../models/Notification');
+const User = require('../models/User');
+const Classroom = require('../models/Classroom');
+const { populateNotification } = require('../utils/notifications');
 
 // The news feed will work for the teacher posting announcement in their classroom homepage
 
@@ -37,7 +41,7 @@ router.post(
             originalName: f.originalname,
             url: `/uploads/${f.filename}`
         }));
-
+        const classroom = await Classroom.findById(req.params.id).populate('teacher').populate('students');
         const item = new NewsItem({
             classroomId: req.params.id,
             authorId: req.user._id,
@@ -46,6 +50,20 @@ router.post(
         });
         await item.save();
         await item.populate('authorId', 'firstName lastName');
+
+         const recipients = [classroom.teacher, ...classroom.students];
+           for (const recipientId of recipients) {
+             const notification = await Notification.create({
+               user: recipientId,
+               type: 'announcement',
+               message: `New announcement in ${classroom.name}`,
+               classroom: classroom._id,
+               actionBy: req.user._id
+             });
+             const populated = await populateNotification(notification._id);
+             req.app.get('io').to(`user-${recipientId}`).emit('notification', populated);
+           }
+       
         res.status(201).json(item);
     }
 );

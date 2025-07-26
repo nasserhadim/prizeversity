@@ -16,6 +16,7 @@ const walletRoutes = require('./routes/wallet');
 const groupRoutes = require('./routes/group');
 const siphonRouter = require('./routes/siphon');
 const notificationsRoutes = require('./routes/notifications');
+const feedbackRoutes = require('./models/Feedback'); // Importing Feedback model for classroom feedback
 // Importing admin route
 const adminRoutes = require('./routes/admin');
 const usersRoutes = require('./routes/users');
@@ -110,6 +111,7 @@ app.use('/api/leaderboard', leaderboardRoutes);
 // app.use('/api/items', itemRoutes);
 app.use('/api/stats', statsRouter);
 app.use('/api', groupBalanceRoutes);
+app.use('/api/feedback', feedbackRoutes); // Use the Feedback model for classroom feedback
 app.use('/api/pending-assignments', require('./routes/pendingAssignments'));
 
 app.use('/api/attack', attackItems);

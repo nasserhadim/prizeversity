@@ -7,6 +7,8 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const blockIfFrozen = require('../middleware/blockIfFrozen');
 const PendingAssignment = require('../models/PendingAssignment');
+const Notification = require('../models/Notification');
+const { populateNotification } = require('../utils/notifications');
 
 // Utility to check if a TA can assign bits based on classroom policy
 async function canTAAssignBits({ taUser, classroomId }) {
@@ -153,7 +155,24 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
     });
 
     await student.save();
-
+    console.log(`Assigned ${adjustedAmount} bits to ${student.email}`);
+  
+      const notification = await Notification.create({
+          user: student._id,
+          actionBy: req.user._id,
+          type: 'wallet_topup',                                     //creating a notification for assigning balance
+          message: `You were ${amount >= 0 ? 'credited' : 'debited'} ${Math.abs(amount)} bits.`,
+          read: false,
+          classroom: classroomId, 
+          createdAt: new Date(),
+        });
+    console.log('notification created:', notification._id);
+        const populatedNotification = await populateNotification(notification._id);
+        if (!populatedNotification) {
+  console.warn('populateNotification failed or returned null');
+}
+          req.app.get('io').to(`user-${student._id}`).emit('notification', populatedNotification); 
+      
     res.status(200).json({ message: 'Balance assigned successfully' });
   } catch (err) {
     console.error('Failed to assign balance:', err.message);
@@ -245,9 +264,22 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
       });
 
       await student.save();
-      results.updated += 1;
-    }
+      results.updated += 1; 
+      const notification = await Notification.create({
+          user: student._id,
+          actionBy: req.user._id,
+          type: 'wallet_topup',                                     //creating a notification for assigning balance
+          message: `You were ${amount >= 0 ? 'credited' : 'debited'} ${Math.abs(amount)} bits`,
+          read: false,
+          classroom: classroomId, 
+          createdAt: new Date(),
+        });
+    console.log('notification created:', notification._id);
+        const populatedNotification = await populateNotification(notification._id);
+          req.app.get('io').to(`user-${student._id}`).emit('notification', populatedNotification); 
 
+    }
+  
     res.json({
       message: `Bulk balance assignment complete (${results.updated} updated, ${results.skipped.length} skipped)`,
       ...results,
