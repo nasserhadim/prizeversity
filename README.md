@@ -555,6 +555,12 @@ GOOGLE_CLIENT_SECRET=
 MICROSOFT_CLIENT_ID=
 MICROSOFT_CLIENT_SECRET=
 
+# JWT_SECRET is kinda a misleading name here, as it is actually used for session signing, not JWT tokens (because signin is happening through Microsoft/Google OAuth)
+# Express-session in server.js uses it to sign session cookies to prevent tampering
+# Without it, sessions would be vulnerable to manipulation
+# The middleware needs a secret to function
+# Rotating it will just invalidate all user sessions (they'll need to sign in again) but no other adverse effect!
+# To generate a random secret: node -e "console.log(require('crypto').randomBytes(25).toString('hex'))"
 JWT_SECRET=
 
 NODE_ENV=development # Set to 'production' in production environment
