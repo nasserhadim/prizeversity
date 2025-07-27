@@ -187,12 +187,12 @@ const Groups = () => {
         });
       }
 
-      toast.success(`${groupCount} team(s) created`);
+      toast.success(`${groupCount} group(s) created`);
       fetchGroupSets();
       setGroupName('');
       setGroupCount(1);
     } catch (err) {
-      toast.error('Failed to create team(s)');
+      toast.error('Failed to create group(s)');
     }
   };
 
@@ -561,7 +561,7 @@ const Groups = () => {
               type="number"
               min="1"
               className="input input-bordered w-full"
-              placeholder="Team Count"
+              placeholder="Group Count"
               value={groupCount}
               onChange={(e) => setGroupCount(e.target.value)}
             />
