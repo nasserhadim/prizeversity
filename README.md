@@ -2,7 +2,7 @@
 
 - [PrizeVersity](https://www.prizeversity.com/) is a [gamified](https://teaching.uchicago.edu/news/pedagogy-corner/what-gamification) educational platform ("ed-tech") that transforms classrooms into dynamic, engaging ecosystems. 
 - Instructors can create custom classrooms, award virtual currency—**"Bits"**—and build in-class reward systems through a virtual shop—**"Bazaar"**—where students redeem their earnings for real or creative perks (e.g., extra credit, club merch, lab/exam passes, etc.)
-- Whether through solo play or guild collaboration, students are rewarded for participation, learning, and consistent engagement.
+- Whether through solo play or group collaboration, students are rewarded for participation, learning, and consistent engagement.
 
 ## Key features include:
 
