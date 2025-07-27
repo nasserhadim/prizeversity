@@ -200,7 +200,7 @@ router.post('/', ensureTeacher, async (req, res) =&gt; {
 <span class="cstat-no" title="statement not covered" >    res.status(201).json(item);</span>
 });
 &nbsp;
-// DELETE a news item (only teachers)
+// DELETE a news (announcement) item (only teachers)
 router.delete('/:itemId', ensureTeacher, async (req, res) =&gt; {
 <span class="cstat-no" title="statement not covered" >    const { id, itemId } = req.params;</span>
 <span class="cstat-no" title="statement not covered" >    const deleted = await NewsItem.findOneAndDelete({</span>
@@ -208,9 +208,9 @@ router.delete('/:itemId', ensureTeacher, async (req, res) =&gt; {
 <span class="cstat-no" title="statement not covered" >        classroomId: id</span>
 <span class="cstat-no" title="statement not covered" >    });</span>
 <span class="cstat-no" title="statement not covered" >    if (!deleted) {</span>
-<span class="cstat-no" title="statement not covered" >        return res.status(404).json({ error: 'News item not found' });</span>
+<span class="cstat-no" title="statement not covered" >        return res.status(404).json({ error: 'News (announcement) item not found' });</span>
 <span class="cstat-no" title="statement not covered" >    }</span>
-<span class="cstat-no" title="statement not covered" >    res.json({ message: 'News item deleted successfully' });</span>
+<span class="cstat-no" title="statement not covered" >    res.json({ message: 'News (announcement) item deleted successfully' });</span>
 });
 &nbsp;
 router.put('/:itemId', ensureTeacher, async (req, res) =&gt; {
@@ -223,7 +223,7 @@ router.put('/:itemId', ensureTeacher, async (req, res) =&gt; {
 <span class="cstat-no" title="statement not covered" >    )</span>
 <span class="cstat-no" title="statement not covered" >        .populate('authorId', 'firstName lastName');</span>
 <span class="cstat-no" title="statement not covered" >    if (!updated) {</span>
-<span class="cstat-no" title="statement not covered" >        return res.status(404).json({ error: 'News item not found' });</span>
+<span class="cstat-no" title="statement not covered" >        return res.status(404).json({ error: 'News (announcement) item not found' });</span>
 <span class="cstat-no" title="statement not covered" >    }</span>
 <span class="cstat-no" title="statement not covered" >    res.json(updated);</span>
 });
