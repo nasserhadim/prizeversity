@@ -2,7 +2,7 @@
 
 - [PrizeVersity](https://www.prizeversity.com/) is a [gamified](https://teaching.uchicago.edu/news/pedagogy-corner/what-gamification) educational platform ("ed-tech") that transforms classrooms into dynamic, engaging ecosystems. 
 - Instructors can create custom classrooms, award virtual currency—**"Bits"**—and build in-class reward systems through a virtual shop—**"Bazaar"**—where students redeem their earnings for real or creative perks (e.g., extra credit, club merch, lab/exam passes, etc.)
-- Whether through solo play or guild collaboration, students are rewarded for participation, learning, and consistent engagement.
+- Whether through solo play or group collaboration, students are rewarded for participation, learning, and consistent engagement.
 
 ## Key features include:
 
@@ -115,7 +115,7 @@ This repository hosts the full stack implementation of PrizeVersity, including t
 
 > You can create one by navigating to: https://console.cloud.google.com/apis/credentials and then creating a "project".
 >
-> Make sure to add/register the `redirect_uri`, e.g. `http://localhost:5000/api/auth/google/callback` (and eventually the `redirect_uri` of the domain as well, e.g. `https://prizeversity.com/api/auth/google/callback` and `https://www.prizeversity.com/api/auth/google/callback`, once the `A` record is configured in the provider DNS settings). You can do so from the `Project > OAuth 2.0 Client IDs > Authorized redirect URIs > Add URI`
+> Make sure to add/register the `redirect_uri`, e.g. `http://localhost:5000/api/auth/google/callback` (and eventually the `redirect_uri` of the domain as well, e.g. `https://prizeversity.com/api/auth/google/callback` and `https://www.prizeversity.com/api/auth/google/callback`, once the `A`/`CName` record(s) configuration is done in the provider DNS settings). You can do so from the `Project > OAuth 2.0 Client IDs > Authorized redirect URIs > Add URI`
 >
 > [Ref/Tutorial](https://youtu.be/TjMhPr59qn4?si=EKFlIMkQg4Eq6gDo)
 
@@ -123,7 +123,7 @@ This repository hosts the full stack implementation of PrizeVersity, including t
 
 > You can create one by navigating to `App Registrations` on [Azure Portal](https://portal.azure.com/?quickstart=True#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade) and then creating an App Registration. For platform selection, select "web".
 > 
-> Make sure to add/register the `redirect_uri`, e.g. `http://localhost:5000/api/auth/microsoft/callback` (and eventually the `redirect_uri` of the domain as well, e.g. `https://prizeversity.com/api/auth/microsoft/callback` and `https://www.prizeversity.com/api/auth/google/callback`, once the `A` record is configured in the provider DNS settings). You can do so from the `App Registration > Authentication > Add a (web) platform > Add Web Redirect URI` if you didn't do it initially upon creation of the App registration.
+> Make sure to add/register the `redirect_uri`, e.g. `http://localhost:5000/api/auth/microsoft/callback` (and eventually the `redirect_uri` of the domain as well, e.g. `https://prizeversity.com/api/auth/microsoft/callback` and `https://www.prizeversity.com/api/auth/google/callback`, once the `A`/`CName` record(s) configuration is done in the provider DNS settings). You can do so from the `App Registration > Authentication > Add a (web) platform > Add Web Redirect URI` if you didn't do it initially upon creation of the App registration.
 > 
 > For supported account types, select `Accounts in any organizational directory (Any Microsoft Entra ID tenant - Multitenant) and personal Microsoft accounts (e.g. Skype, Xbox)`. This is the associated type of the default `/common` auth API callback Microsoft uses.
 >
@@ -555,6 +555,12 @@ GOOGLE_CLIENT_SECRET=
 MICROSOFT_CLIENT_ID=
 MICROSOFT_CLIENT_SECRET=
 
+# JWT_SECRET is kinda a misleading name here, as it is actually used for session signing, not JWT tokens (because signin is happening through Microsoft/Google OAuth)
+# Express-session in server.js uses it to sign session cookies to prevent tampering
+# Without it, sessions would be vulnerable to manipulation
+# The middleware needs a secret to function
+# Rotating it will just invalidate all user sessions (they'll need to sign in again) but no other adverse effect!
+# To generate a random secret: node -e "console.log(require('crypto').randomBytes(25).toString('hex'))"
 JWT_SECRET=
 
 NODE_ENV=development # Set to 'production' in production environment
