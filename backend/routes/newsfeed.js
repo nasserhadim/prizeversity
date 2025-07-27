@@ -68,7 +68,7 @@ router.post(
     }
 );
 
-// DELETE a news item (only teachers)
+// DELETE a news (announcement) item (only teachers)
 router.delete('/:itemId', ensureTeacher, async (req, res) => {
     const { id, itemId } = req.params;
     const deleted = await NewsItem.findOneAndDelete({
@@ -76,9 +76,9 @@ router.delete('/:itemId', ensureTeacher, async (req, res) => {
         classroomId: id
     });
     if (!deleted) {
-        return res.status(404).json({ error: 'News item not found' });
+        return res.status(404).json({ error: 'News (announcement) item not found' });
     }
-    res.json({ message: 'News item deleted successfully' });
+    res.json({ message: 'News (announcement) item deleted successfully' });
 });
 
 router.put('/:itemId', ensureTeacher, async (req, res) => {
@@ -91,7 +91,7 @@ router.put('/:itemId', ensureTeacher, async (req, res) => {
     )
         .populate('authorId', 'firstName lastName');
     if (!updated) {
-        return res.status(404).json({ error: 'News item not found' });
+        return res.status(404).json({ error: 'News (announcement) item not found' });
     }
     res.json(updated);
 });

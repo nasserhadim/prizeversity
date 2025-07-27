@@ -5,12 +5,12 @@ const api = axios.create({
     withCredentials: true
 });
 
-// Fetch all news items for a given classroom
+// Fetch all news (announcement) items for a given classroom
 export function getNews(classId) {
     return api.get(`/classroom/${classId}/newsfeed`);
 }
 
-// Post a new news item (teachers only)
+// Post a new news (announcement) item (teachers only)
 export function postNews(classId, formData) {
     return api.post(
         `/classroom/${classId}/newsfeed`,
