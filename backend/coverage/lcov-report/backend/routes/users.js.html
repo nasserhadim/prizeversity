@@ -882,7 +882,7 @@ router.post('/:id/demote-admin', ensureAuthenticated, async (req, res) =&gt; {
 <span class="cstat-no" title="statement not covered" >    admin.role = 'student';</span>
 <span class="cstat-no" title="statement not covered" >   await admin.save();</span>
 <span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >   res.status(200).json({ message: 'Admin demoted to student' });</span>
+<span class="cstat-no" title="statement not covered" >   res.status(200).json({ message: 'Admin/TA demoted to student' });</span>
 <span class="cstat-no" title="statement not covered" >  } catch (err) {</span>
 <span class="cstat-no" title="statement not covered" >    console.error('Failed to demote admin:', err);</span>
 <span class="cstat-no" title="statement not covered" >    res.status(500).json({ error: 'Internal server error' });</span>
