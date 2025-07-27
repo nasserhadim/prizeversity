@@ -29,7 +29,7 @@ const People = () => {
 
   const navigate = useNavigate();
 
-  // Fetch TA bit sending policy for classroom
+  // Fetch Admin/TA bit sending policy for classroom
   const fetchTaBitPolicy = async () => {
     try {
       const res = await axios.get(
@@ -38,7 +38,7 @@ const People = () => {
       );
       setTaBitPolicy(res.data.taBitPolicy);
     } catch (err) {
-      console.error('Failed to fetch TA bit policy', err);
+      console.error('Failed to fetch Admin/TA bit policy', err);
     }
   };
 
@@ -312,12 +312,12 @@ useEffect(() => {
                             try {
                               if (newRole === 'admin') {
                                 await axios.post(`/api/users/${student._id}/make-admin`,{ classroomId });
-                                console.log('Student promoted to TA in classroom:', classroomId);
-                                toast.success('Student promoted to TA');
+                                console.log('Student promoted to Admin/TA in classroom:', classroomId);
+                                toast.success('Student promoted to Admin/TA');
                               } else {
                                 await axios.post(`/api/users/${student._id}/demote-admin`, { classroomId });
-                                console.log('TA demoted to Student in classroom:', classroomId);
-                                toast.success('TA demoted to Student');
+                                console.log('Admin/TA demoted to Student in classroom:', classroomId);
+                                toast.success('Admin/TA demoted to Student');
                               }
                               fetchStudents();
                             } catch (err) {

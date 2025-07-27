@@ -129,7 +129,7 @@ router.get('/archived', ensureAuthenticated, async (req, res) => {
 });
 
 
-// Get the TA bit policy (the TA that will be able to assign bits or no)
+// Get the Admin/TA bit policy (the Admin/TA that will be able to assign bits or no)
 router.get('/:id/ta-bit-policy', ensureAuthenticated, async (req, res) => {
   try {
     const classroom = await Classroom.findById(req.params.id).select('teacher taBitPolicy');
@@ -144,7 +144,7 @@ router.get('/:id/ta-bit-policy', ensureAuthenticated, async (req, res) => {
   }
 });
 
-// Update which TA can assign bits
+// Update which Admin/TA can assign bits
 router.patch('/:id/ta-bit-policy', ensureAuthenticated, async (req, res) => {
   const { taBitPolicy } = req.body;
   const valid = ['full', 'approval', 'none'];
@@ -161,7 +161,7 @@ router.patch('/:id/ta-bit-policy', ensureAuthenticated, async (req, res) => {
     await classroom.save();
     res.json({ taBitPolicy });
   } catch (err) {
-    console.error('[Patch TA‑bit policy] error:', err);
+    console.error('[Patch Admin/TA‑bit policy] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
