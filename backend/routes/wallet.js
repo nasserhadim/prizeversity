@@ -10,7 +10,7 @@ const PendingAssignment = require('../models/PendingAssignment');
 const Notification = require('../models/Notification');
 const { populateNotification } = require('../utils/notifications');
 
-// Utility to check if a TA can assign bits based on classroom policy
+// Utility to check if a Admin/TA can assign bits based on classroom policy
 async function canTAAssignBits({ taUser, classroomId }) {
   const Classroom = require('../models/Classroom');
   const classroom = await Classroom.findById(classroomId).select('taBitPolicy students');
@@ -100,7 +100,7 @@ router.get('/transactions/all', ensureAuthenticated, async (req, res) => {
 router.post('/assign', ensureAuthenticated, async (req, res) => {
   const { classroomId, studentId, amount, description } = req.body;
 
-  // Check TA permission (admin)
+  // Check Admin/TA permission
   if (req.user.role === 'admin') {
     const gate = await canTAAssignBits({ taUser: req.user, classroomId });
     if (!gate.ok) {
@@ -207,7 +207,7 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
 
   try {
 
-    // TA (admin) policy check
+    // Admin/TA policy check
     if (req.user.role === 'admin') {
       const gate = await canTAAssignBits({ taUser: req.user, classroomId });
       if (!gate.ok) {

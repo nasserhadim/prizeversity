@@ -6,7 +6,7 @@
 
 ## Key features include:
 
-- Custom classroom creation and management (including **Announcements**, **GroupSets/sub-groups**, **role-based access control (RBAC)** between Students ⇌ TAs, and more!)
+- Custom classroom creation and management (including **Announcements**, **GroupSets/sub-groups**, **role-based access control (RBAC)** between Teachers, Students ⇌ TAs (Admins), and more!)
 - Virtual currency economy (**Bits**)
 - Reward system with dynamic **Bazaar**
 - Gamified **stat-based mechanics** (such as **Discount**, **multiplier**, **luck**, **Shield**, and **Attack Bonus**)

@@ -48,7 +48,7 @@ const BulkBalanceEditor = ({onSuccess}) => {
         .get(`/api/classroom/${classroomId}/ta-bit-policy`, {
           withCredentials: true,
         })
-        .then((r) => setTaBitPolicy(r.data.taBitPolicy)) // Will set the TA policy
+        .then((r) => setTaBitPolicy(r.data.taBitPolicy)) // Will set the Admin/TA policy
         .catch(() => setTaBitPolicy('full')); // The default will be to full if the fetch fails
     }
   }, [classroomId]);
@@ -80,7 +80,7 @@ const BulkBalanceEditor = ({onSuccess}) => {
   updates
 }, { withCredentials: true });
 
-    // if TA policy = approval, server responds 202
+    // if Admin/TA policy = approval, server responds 202
     if (res.status === 202) {
       toast.success('Request submitted for teacher approval');
     } else {

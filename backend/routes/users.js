@@ -169,8 +169,8 @@ router.post('/:id/make-admin', ensureAuthenticated, async (req, res) => {
     const notification = await Notification.create({
       user: student._id,
       actionBy: req.user._id,
-      type: 'ta_promotion',                                     //creating a notification for the student promoting to TA
-      message: `You have been promoted to TA.`,
+      type: 'ta_promotion',                                     //creating a notification for the student promoting to Admin/TA
+      message: `You have been promoted to Admin/TA.`,
       read: false,
       classroom: classroomId, 
       createdAt: new Date(),
@@ -207,7 +207,7 @@ router.post('/:id/demote-admin', ensureAuthenticated, async (req, res) => {
   user: admin._id,
   actionBy: req.user._id,
   type: 'ta_demotion',
-  message: `You have been demoted from TA to a student.`,
+  message: `You have been demoted from Admin/TA to a student.`,
   classroom: classroomId,
   read: false,
   createdAt: new Date(),
@@ -216,7 +216,7 @@ router.post('/:id/demote-admin', ensureAuthenticated, async (req, res) => {
 const populated = await populateNotification(notification._id);
 req.app.get('io').to(`user-${admin._id}`).emit('notification', populated);
 
-   res.status(200).json({ message: 'Admin demoted to student' });
+   res.status(200).json({ message: 'Admin/TA demoted to student' });
   } catch (err) {
     console.error('Failed to demote admin:', err);
     res.status(500).json({ error: 'Internal server error' });

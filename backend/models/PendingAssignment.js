@@ -6,8 +6,8 @@ const PendingAssignmentSchema = new mongoose.Schema({
   classroom:    { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom', required: true },
   student:      { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   amount:       { type: Number, required: true },
-  description:  { type: String, default: 'Pending TA assignment' },
-  requestedBy:  { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, // the TA
+  description:  { type: String, default: 'Pending Admin/TA assignment' },
+  requestedBy:  { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, // the Admin/TA
   status:       { type: String, enum: ['pending','approved','rejected'], default: 'pending' },
   respondedBy:  { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // the teacher
   respondedAt:  { type: Date },
