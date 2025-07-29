@@ -23,6 +23,7 @@ import StudentNewsfeed from './pages/StudentNewsfeed';
 import ClassroomSettings from './pages/ClassroomSettings';
 import StudentStats from './pages/StudentStats';
 import ArchivedClassrooms from './pages/ArchivedClassrooms';
+import Challenge from './pages/Challenge';
 
 const App = () => {
   const { user } = useContext(AuthContext);
@@ -57,6 +58,7 @@ const App = () => {
           <Route path="/classroom/:id/groups" element={<Groups />} />
           <Route path="/classroom/:id/people" element={<People />} />
           <Route path="/classroom/:classId/leaderboard" element={<Leaderboard />} />
+          <Route path="/classroom/:classroomId/challenge" element={<Challenge />} />
           <Route path="/profile/:id" element={<Profile />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/classroom/:classroomId/checkout" element={<Checkout />} />
