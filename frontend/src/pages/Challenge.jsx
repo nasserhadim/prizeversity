@@ -240,7 +240,7 @@ const Challenge = () => {
           <h1 className="text-3xl font-bold text-base-content">Cyber Challenge</h1>
         </div>
         <p className="text-gray-600 text-lg">
-          Welcome to the Cyber Challenge! Test your cryptographic and problem-solving skills.
+          Welcome to WSU's Cyber Challenge! Employ your skills to solve the challenges and earn bits to spend in the bazaar!
         </p>
       </div>
 
@@ -296,13 +296,13 @@ const Challenge = () => {
                     <h4 className="font-semibold text-red-800 mb-2">🌐 Challenge Site</h4>
                     <p className="text-sm text-gray-600 mb-3">Once you decrypt your ID, access:</p>
                     <code className="text-blue-600 font-mono text-sm block mb-3">
-                      puzzle.wayneaws.dev/[your-decrypted-password]
+                      placeholder.com/[your-decrypted-password]
                     </code>
                     <button 
                       className="btn btn-error btn-sm"
                       onClick={() => {
                         const url = prompt("Enter your decrypted password to access the site:");
-                        if (url) window.open(`https://puzzle.wayneaws.dev/${url.toLowerCase()}`, '_blank');
+                        if (url) window.open(`placeholder.com/${url.toLowerCase()}`, '_blank');
                       }}
                     >
                       <Lock className="w-4 h-4 mr-2" />
