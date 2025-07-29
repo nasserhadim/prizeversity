@@ -32,7 +32,10 @@ const utilityItems = require('./routes/utilityItem.js');
 const passiveItems = require('./routes/passiveItem.js');
 const challengeRoutes = require('./routes/challenge');
 <<<<<<< HEAD
+<<<<<<< HEAD
 const challengeTemplateRoutes = require('./routes/challengeTemplate');
+=======
+>>>>>>> a009447 (feat: challenge tab; initatiation process from teacher view; placeholder info for first challenge; series format for sets of challenges; teacher view)
 =======
 >>>>>>> a009447 (feat: challenge tab; initatiation process from teacher view; placeholder info for first challenge; series format for sets of challenges; teacher view)
 const { redirectBase, isProd } = require('./config/domain');
@@ -120,7 +123,10 @@ app.use('/api/feedback', feedbackRoutes); // Use the Feedback model for classroo
 app.use('/api/pending-assignments', require('./routes/pendingAssignments'));
 app.use('/api/challenges', challengeRoutes);
 <<<<<<< HEAD
+<<<<<<< HEAD
 app.use('/api/challenge-templates', challengeTemplateRoutes);
+=======
+>>>>>>> a009447 (feat: challenge tab; initatiation process from teacher view; placeholder info for first challenge; series format for sets of challenges; teacher view)
 =======
 >>>>>>> a009447 (feat: challenge tab; initatiation process from teacher view; placeholder info for first challenge; series format for sets of challenges; teacher view)
 
