@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Shield, Lock, Zap, Users, Eye, EyeOff } from 'lucide-react';
+import { Shield, Lock, Zap, Users, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { getChallengeData, initiateChallenge, deactivateChallenge } from '../API/apiChallenge';
 import toast from 'react-hot-toast';
 
 const Challenge = () => {
   const { classroomId } = useParams();
-  // const { user } = useAuth();
+  const { user, originalUser, setPersona } = useAuth();
   const [challengeData, setChallengeData] = useState(null);
   const [userChallenge, setUserChallenge] = useState(null);
   const [isTeacher, setIsTeacher] = useState(false);
@@ -29,6 +29,12 @@ const Challenge = () => {
       setLoading(false);
     }
   };
+
+  const handleSwitchToTeacher = () => {
+    setPersona(originalUser);
+  };
+
+  const isTeacherInStudentView = originalUser?.role === 'teacher' && user.role === 'student';
 
   // Initiate cyber challenge (Teacher only)
   const handleInitiateChallenge = async () => {
@@ -81,8 +87,9 @@ const Challenge = () => {
     );
   }
 
-  // Teacher View
-  if (isTeacher) {
+  const first_challenge = "Little Caesar’s Secret"
+
+  if (isTeacher && !isTeacherInStudentView) {
     return (
       <div className="p-6 space-y-8">
         <div className="card bg-base-100 border border-base-200 shadow-md rounded-2xl p-6">
@@ -189,7 +196,7 @@ const Challenge = () => {
                           </td>
                           <td>
                             <div className="badge badge-outline">
-                              Step {uc.progress + 1}
+                              Currently on: {first_challenge}
                             </div>
                           </td>
                         </tr>
@@ -207,6 +214,26 @@ const Challenge = () => {
 
   return (
     <div className="p-6 space-y-8">
+      {isTeacherInStudentView && (
+        <div className="fixed bottom-6 right-6 z-50">
+          <div className="card bg-primary text-primary-content shadow-xl">
+            <div className="card-body p-4">
+              <div className="flex items-center gap-3">
+                <Shield className="w-4 h-4" />
+                <span className="text-sm">Teacher Mode</span>
+                <button
+                  onClick={handleSwitchToTeacher}
+                  className="btn btn-sm btn-secondary gap-1"
+                >
+                  <ArrowLeft className="w-3 h-3" />
+                  Exit
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="card bg-base-100 border border-base-200 shadow-md rounded-2xl p-6">
         <div className="flex items-center gap-3 mb-4">
           <Shield className="w-8 h-8 text-red-500" />
@@ -229,62 +256,48 @@ const Challenge = () => {
         </div>
       ) : userChallenge ? (
         <div className="space-y-6">
+          {/* Main Challenge Container */}
           <div className="card bg-base-100 border border-base-200 shadow-md rounded-2xl p-6">
-            <h2 className="text-2xl font-bold mb-4">Your Mission</h2>
-            <p className="text-gray-600 mb-4">
-              You have been assigned a unique encrypted ID. Your mission is to decrypt this ID to reveal the password needed to access the first challenge site.
-            </p>
+            <h2 className="text-2xl font-bold mb-6">Cyber Challenge Series - Fall Semester</h2>
             
-            <div className="bg-red-50 border border-red-200 rounded-lg p-6 mb-4">
-              <h3 className="font-semibold text-lg mb-3 text-red-800">🔐 Encrypted ID</h3>
-              <code className="bg-white px-4 py-3 rounded text-2xl font-mono text-red-600 block text-center border">
-                {userChallenge.uniqueId}
-              </code>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <h4 className="font-semibold text-blue-800 mb-2">🎯 Your Goal</h4>
-                <p className="text-sm text-blue-700">
-                  Decrypt the ID above to get the password for accessing the challenge website.
-                </p>
-              </div>
-              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                <h4 className="font-semibold text-green-800 mb-2">💡 Hint</h4>
-                <p className="text-sm text-green-700">
-                  Think about simple letter/number shifting techniques. What if each character moved forward by a certain amount?
-                </p>
-              </div>
-            </div>
-            
-            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <p className="text-sm text-yellow-800">
-                <strong>Remember:</strong> Each student has a unique encrypted ID, so you can't share answers with classmates!
-              </p>
-            </div>
-          </div>
-
-          <div className="card bg-base-100 border border-base-200 shadow-md rounded-2xl p-6">
-            <h2 className="text-2xl font-bold mb-4">Cyber Challenge Series - Fall Semester</h2>
-            <p className="text-gray-600 mb-6">Complete challenges throughout the semester to test your cybersecurity skills.</p>
-            
-            <div className="card bg-red-50 border border-red-200 shadow-sm p-6 mb-4">
-              <div className="flex items-start gap-4">
+            {/* Challenge 1 - Little Caesar's Secret */}
+            <div className="collapse collapse-arrow bg-red-50 border border-red-200 mb-4">
+              <input type="checkbox" defaultChecked className="peer" />
+              <div className="collapse-title text-xl font-medium flex items-center gap-3">
                 <div className="badge badge-error badge-lg">Challenge 1</div>
-                <div className="flex-1">
-                  <h3 className="text-xl font-semibold mb-2">🔓 Breaking the Code</h3>
-                  <p className="text-gray-600 mb-4">
-                    Your first mission: decrypt your unique ID to access a password-protected intelligence site.
+                <span className="text-red-800">🔓 Little Caesar's Secret</span>
+                <div className="ml-auto text-sm text-gray-500">
+                  {userChallenge.progress >= 1 ? '✅ Completed' : '🔄 In Progress'}
+                </div>
+              </div>
+              <div className="collapse-content">
+                <div className="pt-4 space-y-4">
+                  <p className="text-gray-600">
+                    Your mission: decrypt your unique ID to access a password-protected intelligence site.
                   </p>
                   
-                  <div className="bg-white p-4 rounded border mb-4">
-                    <p className="text-sm text-gray-600 mb-2">Once you decrypt your ID, access:</p>
-                    <code className="text-blue-600 font-mono text-sm">
-                      puzzle.wayneaws.dev/[your-decrypted-password]
+                  <div className="bg-white border border-red-300 rounded-lg p-4">
+                    <h4 className="font-semibold text-red-800 mb-3">🔐 Your Encrypted ID</h4>
+                    <code className="bg-red-100 px-4 py-3 rounded text-2xl font-mono text-red-600 block text-center border">
+                      {userChallenge.uniqueId}
                     </code>
                   </div>
                   
-                  <div className="flex gap-3">
+                  <div className="bg-white border border-red-300 rounded-lg p-4">
+                    <h4 className="font-semibold text-red-800 mb-2">📋 Instructions</h4>
+                    <ol className="list-decimal list-inside text-sm text-gray-700 space-y-1">
+                      <li>Decrypt the ID above using cryptographic techniques</li>
+                      <li>Use your decrypted result as the password</li>
+                      <li>Access the challenge site with your password</li>
+                    </ol>
+                  </div>
+                  
+                  <div className="bg-white border border-red-300 rounded-lg p-4">
+                    <h4 className="font-semibold text-red-800 mb-2">🌐 Challenge Site</h4>
+                    <p className="text-sm text-gray-600 mb-3">Once you decrypt your ID, access:</p>
+                    <code className="text-blue-600 font-mono text-sm block mb-3">
+                      puzzle.wayneaws.dev/[your-decrypted-password]
+                    </code>
                     <button 
                       className="btn btn-error btn-sm"
                       onClick={() => {
@@ -297,30 +310,39 @@ const Challenge = () => {
                     </button>
                   </div>
                   
-                  <div className="mt-4 text-sm text-gray-500">
-                    <strong>Status:</strong> {userChallenge.progress >= 1 ? '✅ Completed' : '🔄 In Progress'}
+                  {/* Warning */}
+                  <div className="alert alert-warning">
+                    <span className="text-sm">
+                      <strong>Remember:</strong> Each student has a unique encrypted ID, so you can't share answers with classmates!
+                    </span>
                   </div>
                 </div>
               </div>
             </div>
 
+            {/* Future Challenges */}
             <div className="space-y-3">
-              <div className="card bg-gray-50 border border-gray-200 shadow-sm p-4 opacity-60">
-                <div className="flex items-center gap-3">
+              <div className="collapse bg-gray-50 border border-gray-200 opacity-60">
+                <div className="collapse-title text-lg font-medium flex items-center gap-3">
                   <div className="badge badge-neutral">Challenge 2</div>
-                  <span className="text-gray-600">🕵️ Social Engineering Defense (Coming Soon)</span>
+                  <span className="text-gray-600">🕵️ Social Engineering Defense</span>
+                  <div className="ml-auto text-sm text-gray-400">Coming Soon</div>
                 </div>
               </div>
-              <div className="card bg-gray-50 border border-gray-200 shadow-sm p-4 opacity-60">
-                <div className="flex items-center gap-3">
+              
+              <div className="collapse bg-gray-50 border border-gray-200 opacity-60">
+                <div className="collapse-title text-lg font-medium flex items-center gap-3">
                   <div className="badge badge-neutral">Challenge 3</div>
-                  <span className="text-gray-600">🌐 Network Security Analysis (Coming Soon)</span>
+                  <span className="text-gray-600">🌐 Network Security Analysis</span>
+                  <div className="ml-auto text-sm text-gray-400">Coming Soon</div>
                 </div>
               </div>
-              <div className="card bg-gray-50 border border-gray-200 shadow-sm p-4 opacity-60">
-                <div className="flex items-center gap-3">
+              
+              <div className="collapse bg-gray-50 border border-gray-200 opacity-60">
+                <div className="collapse-title text-lg font-medium flex items-center gap-3">
                   <div className="badge badge-neutral">Challenge 4</div>
-                  <span className="text-gray-600">🔐 Advanced Cryptography (Coming Soon)</span>
+                  <span className="text-gray-600">🔐 Advanced Cryptography</span>
+                  <div className="ml-auto text-sm text-gray-400">Coming Soon</div>
                 </div>
               </div>
             </div>

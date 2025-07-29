@@ -33,18 +33,21 @@ router.get('/:classroomId', ensureAuthenticated, async (req, res) => {
       });
     }
 
-    if (isTeacher) {
-      return res.json({ 
-        challenge,
-        userChallenge: null,
-        isTeacher: true
-      });
-    }
-
+    // Always find userChallenge for this user (including teachers)
     const userChallenge = challenge.userChallenges.find(
       uc => uc.userId._id.toString() === userId.toString()
     );
 
+    if (isTeacher) {
+      // Teachers get full challenge data + their userChallenge (for student mode)
+      return res.json({ 
+        challenge,
+        userChallenge,
+        isTeacher: true
+      });
+    }
+
+    // Students get limited challenge data + their userChallenge
     res.json({ 
       challenge: {
         _id: challenge._id,
@@ -83,9 +86,14 @@ router.post('/:classroomId/initiate', ensureAuthenticated, ensureTeacher, async 
       return res.status(400).json({ message: 'Challenge is already active for this classroom' });
     }
 
-    const userChallenges = classroom.students.map(student => ({
-      userId: student._id
-    }));
+    const userChallenges = [
+      ...classroom.students.map(student => ({
+        userId: student._id
+      })),
+      {
+        userId: teacherId
+      }
+    ];
 
     if (challenge) {
       challenge.isActive = true;
