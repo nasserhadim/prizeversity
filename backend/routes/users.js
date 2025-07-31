@@ -216,6 +216,18 @@ router.post('/:id/demote-admin', ensureAuthenticated, async (req, res) => {
 const populated = await populateNotification(notification._id);
 req.app.get('io').to(`user-${admin._id}`).emit('notification', populated);
 
+// After role promotion/demotion
+req.app.get('io').to(`user-${admin._id}`).emit('role_change', {
+  newRole: 'student', // or whatever the new role is
+  userId: admin._id
+});
+
+req.app.get('io').to(`classroom-${classroomId}`).emit('user_role_update', {
+  userId: admin._id,
+  newRole: 'student',
+  classroomId
+});
+
    res.status(200).json({ message: 'Admin/TA demoted to student' });
   } catch (err) {
     console.error('Failed to demote admin:', err);
@@ -228,12 +240,22 @@ req.app.get('io').to(`user-${admin._id}`).emit('notification', populated);
 // update the profile with a firstname and a last name
 router.post('/update-profile', ensureAuthenticated, async (req, res) => {
   const { role, firstName, lastName } = req.body;
-  const userId = req.user._id; // Assuming you are using a middleware like `passport` to get `req.user`
+  const userId = req.user._id;
 
   try {
+    const updateData = { role, firstName, lastName };
+    
+    // Clear OAuth names once user sets their own names
+    if (firstName && firstName.trim()) {
+      updateData.oauthFirstName = undefined;
+    }
+    if (lastName && lastName.trim()) {
+      updateData.oauthLastName = undefined;
+    }
+
     const updatedUser = await User.findByIdAndUpdate(
       userId,
-      { role, firstName, lastName },
+      updateData,
       { new: true }
     );
     res.json({ user: updatedUser });
@@ -241,6 +263,22 @@ router.post('/update-profile', ensureAuthenticated, async (req, res) => {
     console.error('Failed to update profile:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
+
+  // After successful profile update
+const classrooms = await Classroom.find({ 
+  $or: [
+    { teacher: userId },
+    { students: userId }
+  ]
+});
+
+for (const classroom of classrooms) {
+  req.app.get('io').to(`classroom-${classroom._id}`).emit('user_profile_update', {
+    userId,
+    firstName: updatedUser.firstName,
+    lastName: updatedUser.lastName
+  });
+}
 });
 
 // POST route to upload users in bulk to a classroom

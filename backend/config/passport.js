@@ -15,14 +15,30 @@ module.exports = (passport) => {
         callbackURL: `${callbackBase}/api/auth/google/callback`,
       },
       async (accessToken, refreshToken, profile, done) => {
+        // Extract names from Google profile
+        const displayName = profile.displayName || '';
+        const nameParts = displayName.split(' ');
+        const oauthFirstName = profile.name?.givenName || nameParts[0] || '';
+        const oauthLastName = profile.name?.familyName || nameParts.slice(1).join(' ') || '';
+
         const newUser = {
           googleId: profile.id,
           email: profile.emails[0].value,
+          profileImage: profile.photos?.[0]?.value,
+          oauthFirstName,
+          oauthLastName,
           // Do not set a default role
         };
         try {
           let user = await User.findOne({ googleId: profile.id });
           if (user) {
+            // Update profile image and OAuth names if they're changed
+            if (profile.photos?.[0]?.value && user.profileImage !== profile.photos[0].value) {
+              user.profileImage = profile.photos[0].value;
+            }
+            if (!user.firstName && oauthFirstName) user.oauthFirstName = oauthFirstName;
+            if (!user.lastName && oauthLastName) user.oauthLastName = oauthLastName;
+            await user.save();
             done(null, user);
           } else {
             user = await User.create(newUser);
@@ -45,14 +61,30 @@ module.exports = (passport) => {
         scope: ['user.read'],
       },
       async (accessToken, refreshToken, profile, done) => {
+        // Extract names from Microsoft profile
+        const displayName = profile.displayName || '';
+        const nameParts = displayName.split(' ');
+        const oauthFirstName = profile.name?.givenName || nameParts[0] || '';
+        const oauthLastName = profile.name?.familyName || nameParts.slice(1).join(' ') || '';
+
         const newUser = {
           microsoftId: profile.id,
           email: profile.emails[0].value,
+          profileImage: profile.photos?.[0]?.value,
+          oauthFirstName,
+          oauthLastName,
           // Do not set a default role
         };
         try {
           let user = await User.findOne({ microsoftId: profile.id });
           if (user) {
+            // Update profile image and OAuth names if changed
+            if (profile.photos?.[0]?.value && user.profileImage !== profile.photos[0].value) {
+              user.profileImage = profile.photos[0].value;
+            }
+            if (!user.firstName && oauthFirstName) user.oauthFirstName = oauthFirstName;
+            if (!user.lastName && oauthLastName) user.oauthLastName = oauthLastName;
+            await user.save();
             done(null, user);
           } else {
             user = await User.create(newUser);

@@ -100,6 +100,12 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticate
       { new: true }
     );
 
+    // Notify classroom about the new item
+    req.app.get('io').to(`classroom-${req.params.classroomId}`).emit('bazaar_update', {
+      bazaarId,
+      newItem: item
+    });
+
     res.status(201).json({ 
       message: 'Item added successfully',
       item: await Item.findById(item._id)
@@ -159,6 +165,13 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensur
       });
       ownedItems.push(ownedItem);
     }
+
+    // Notify classroom about the purchase
+    req.app.get('io').to(`classroom-${req.params.classroomId}`).emit('bazaar_purchase', {
+      itemId,
+      buyerId: req.user._id,
+      newStock: item.stock
+    });
 
     res.status(200).json({
       message: 'Purchase successful',
