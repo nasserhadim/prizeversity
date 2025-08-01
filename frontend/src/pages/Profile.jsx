@@ -38,10 +38,7 @@ const Profile = () => {
         const fetchProfile = async () => {
             try {
                 const res = await axios.get(`/api/profile/student/${profileId}`, {
-                    withCredentials: true,
-                    headers: {
-                        Authorization: `Bearer ${localStorage.getItem('token')}`,
-                    }
+                    withCredentials: true
                 });
 
                 setProfile(res.data);
@@ -66,8 +63,7 @@ const Profile = () => {
         if (user.role === 'teacher' && profile?.role === 'student') {
             axios
                 .get(`/api/bazaar/orders/user/${profileId}`, {
-                    withCredentials: true,
-                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                    withCredentials: true
                 })
                 .then(res => {
                     setOrders(res.data);
@@ -85,10 +81,7 @@ const Profile = () => {
         const fetchStats = async () => {
             try {
                 const res = await axios.get(`/api/profile/student/${profileId}/stats`, {
-                    withCredentials: true,
-                    headers: {
-                        Authorization: `Bearer ${localStorage.getItem('token')}`,
-                    },
+                    withCredentials: true
                 });
                 setStats(res.data);
             } catch (err) {
@@ -116,10 +109,8 @@ const Profile = () => {
             }
 
             const res = await axios.put(`/api/profile/student/${profileId}`, form, {
-                withCredentials: true,
-                headers: {
-                    Authorization: `Bearer ${localStorage.getItem('token')}`,
-                }
+                withCredentials: true
+                // Remove the Authorization header
             });
 
             setProfile(res.data);
@@ -158,8 +149,8 @@ const Profile = () => {
     }
 
     return (
-        <div className="max-w-md mx-auto p-6 mt-10 bg-white rounded-xl shadow space-y-6">
-            <h2 className="text-2xl font-bold text-center">
+        <div className="max-w-md mx-auto p-6 mt-10 bg-base-100 rounded-xl shadow space-y-6">
+            <h2 className="text-2xl font-bold text-center text-base-content">
                 {canEdit ? 'Your Profile' : 'Student Profile'}
             </h2>
 
@@ -203,11 +194,7 @@ const Profile = () => {
 
                                 try {
                                     const uploadRes = await axios.post('/api/profile/upload-avatar', formData, {
-                                        withCredentials: true,
-                                        headers: {
-                                            Authorization: `Bearer ${localStorage.getItem('token')}`,
-                                            'Content-Type': 'multipart/form-data'
-                                        }
+                                        withCredentials: true
                                     });
                                     // server returns updated user with avatar path
                                     const updated = uploadRes.data;
@@ -232,17 +219,21 @@ const Profile = () => {
                                     src={form.avatar.startsWith('http') ? form.avatar : `${BACKEND_URL}/uploads/${form.avatar}`}
                                     alt="Avatar preview"
                                     className="w-16 h-16 mt-2 rounded-full object-cover"
-                                    onError={(e) => (e.target.src = 'https://via.placeholder.com/150')}
+                                    onError={(e) => {
+                                        e.target.onerror = null;
+                                        if (profile?.profileImage) {
+                                            e.target.src = profile.profileImage;
+                                        } else {
+                                            e.target.style.display = 'none';
+                                        }
+                                    }}
                                 />
                                 <button
                                     type="button"
                                     onClick={async () => {
                                         try {
                                             const res = await axios.delete('/api/profile/remove-avatar', {
-                                                withCredentials: true,
-                                                headers: {
-                                                    Authorization: `Bearer ${localStorage.getItem('token')}`,
-                                                },
+                                                withCredentials: true
                                             });
                                             const updated = res.data;
                                             setForm(prev => ({ ...prev, avatar: '' }));
@@ -280,10 +271,33 @@ const Profile = () => {
                     <div className="flex justify-center">
                         {profile?.avatar ? (
                             <img
-                                src={profile.avatar.startsWith('http') ? profile.avatar : `${BACKEND_URL}/uploads/${profile.avatar}`}
+                                src={profile.avatar.startsWith('data:') ? profile.avatar : (profile.avatar.startsWith('http') ? profile.avatar : `${BACKEND_URL}/uploads/${profile.avatar}`)}
                                 alt="Profile"
                                 className="w-24 h-24 rounded-full object-cover border-4 border-success"
-                                onError={(e) => e.target.src = 'https://via.placeholder.com/150'}
+                                onError={(e) => {
+                                    e.target.onerror = null;
+                                    if (profile?.profileImage) {
+                                        e.target.src = profile.profileImage;
+                                    } else {
+                                        e.target.style.display = 'none';
+                                        if (e.target.nextElementSibling) {
+                                            e.target.nextElementSibling.style.display = 'flex';
+                                        }
+                                    }
+                                }}
+                            />
+                        ) : profile?.profileImage ? (
+                            <img
+                                src={profile.profileImage}
+                                alt="OAuth Profile"
+                                className="w-24 h-24 rounded-full object-cover border-4 border-success"
+                                onError={(e) => {
+                                    e.target.style.display = 'none';
+                                    // Check if nextElementSibling exists before accessing its style
+                                    if (e.target.nextElementSibling) {
+                                        e.target.nextElementSibling.style.display = 'flex';
+                                    }
+                                }}
                             />
                         ) : (
                             <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center text-4xl font-bold text-gray-500">
@@ -293,9 +307,9 @@ const Profile = () => {
                     </div>
 
                     <div className="space-y-2">
-                        <InfoRow label="Name" value={[profile?.firstName, profile?.lastName].filter(Boolean).join(' ') || 'Not set'} />
+                        <InfoRow label="Name" value={[profile?.firstName, profile?.lastName].filter(Boolean).join(' ') || 'Not set (Complete your profile)'} />
                         <InfoRow label="Email" value={profile?.email || 'N/A'} />
-                        <InfoRow label="User ID" value={profile?.shortId || '—'} />
+                        <InfoRow label="User ID" value={profile?.shortId || '—'} />
                         {profile?.role && (
                             <InfoRow label="Role" value={profile.role.charAt(0).toUpperCase() + profile.role.slice(1)} />
                         )}
@@ -333,9 +347,9 @@ const Profile = () => {
 };
 
 const InfoRow = ({ label, value }) => (
-    <div className="flex justify-between border-b pb-2">
-        <span className="font-medium text-gray-600">{label}:</span>
-        <span className="text-gray-900">{value}</span>
+    <div className="flex justify-between border-b border-base-300 pb-2">
+        <span className="font-medium text-base-content/70">{label}:</span>
+        <span className="text-base-content">{value}</span>
     </div>
 );
 export default Profile;

@@ -15,10 +15,7 @@ const StudentStats = () => {
         const fetchStats = async () => {
             try {
                 const res = await axios.get(`/api/stats/student/${studentId}`, {
-                    withCredentials: true,
-                    headers: {
-                        Authorization: `Bearer ${localStorage.getItem('token')}`,
-                    },
+                    withCredentials: true
                 });
                 setStats(res.data);
             } catch (err) {

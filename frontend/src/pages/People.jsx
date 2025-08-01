@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
 import PendingApprovals from '../components/PendingApprovals';
+import socket from '../utils/socket'; // Add this import
 
 
 
@@ -55,6 +56,25 @@ useEffect(() => {
     })
    .then((r) => setStudentSendEnabled(!!r.data.studentSendEnabled))
     .catch(() => setStudentSendEnabled(false)); // safe default
+
+    socket.on('classroom_update', (updatedClassroom) => {
+      // Refresh student list when classroom updates
+      fetchStudents();
+    });
+    
+    socket.on('user_profile_update', (data) => {
+      // Update specific student in the list
+      setStudents(prev => prev.map(student => 
+        student._id === data.userId 
+          ? { ...student, firstName: data.firstName, lastName: data.lastName }
+          : student
+      ));
+    });
+    
+    return () => {
+      socket.off('classroom_update');
+      socket.off('user_profile_update');
+    };
 }, [classroomId]);
 
 
@@ -292,7 +312,9 @@ useEffect(() => {
                         View Profile
                       </button>
 
-                      {user?.role?.toLowerCase() === 'teacher' && (
+                      {(user?.role?.toLowerCase() === 'teacher' || 
+                        user?.role?.toLowerCase() === 'admin' ||
+                        (user?.role?.toLowerCase() === 'student' && String(student._id) === String(user._id))) && (
                         <button
                           className="btn btn-sm btn-success"
                           onClick={() => navigate(`/classroom/${classroomId}/student/${student._id}/stats`)}
