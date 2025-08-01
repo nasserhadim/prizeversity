@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Shield, Lock, Zap, Users, Eye, EyeOff, ArrowLeft } from 'lucide-react';
-import { getChallengeData, initiateChallenge, deactivateChallenge } from '../API/apiChallenge';
+import { Shield, Lock, Zap, Users, Eye, EyeOff, ArrowLeft, Settings } from 'lucide-react';
+import { getChallengeData, initiateChallenge, deactivateChallenge, configureChallenge } from '../API/apiChallenge';
 import { API_BASE } from '../config/api';
 import toast from 'react-hot-toast';
 
@@ -15,6 +15,21 @@ const Challenge = () => {
   const [loading, setLoading] = useState(true);
   const [initiating, setInitiating] = useState(false);
   const [showPasswords, setShowPasswords] = useState({});
+  const [showConfigModal, setShowConfigModal] = useState(false);
+  const [configuring, setConfiguring] = useState(false);
+  const [showDeactivateModal, setShowDeactivateModal] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
+  const [dontShowAgain, setDontShowAgain] = useState(false);
+  const [classroom, setClassroom] = useState(null);
+  const [challengeConfig, setChallengeConfig] = useState({
+    title: 'Cyber Challenge Series - Fall Semester',
+    rewardMode: 'individual', // 'individual' or 'total'
+    challenge1Bits: 50,
+    challenge2Bits: 75,
+    challenge3Bits: 100,
+    challenge4Bits: 125,
+    totalRewardBits: 350
+  });
 
   const fetchChallengeData = async () => {
     try {
@@ -23,6 +38,16 @@ const Challenge = () => {
       setChallengeData(response.challenge);
       setUserChallenge(response.userChallenge);
       setIsTeacher(response.isTeacher);
+      
+      if (!classroom) {
+        const classroomResponse = await fetch(`${API_BASE}/api/classroom/${classroomId}`, {
+          credentials: 'include'
+        });
+        if (classroomResponse.ok) {
+          const classroomData = await classroomResponse.json();
+          setClassroom(classroomData);
+        }
+      }
     } catch (error) {
       console.error('Error fetching challenge data:', error);
       toast.error('Failed to load challenge data');
@@ -37,30 +62,70 @@ const Challenge = () => {
 
   const isTeacherInStudentView = originalUser?.role === 'teacher' && user.role === 'student';
 
-  // Initiate cyber challenge (Teacher only)
-  const handleInitiateChallenge = async () => {
+  const handleShowConfigModal = () => {
+    setShowConfigModal(true);
+  };
+
+  const handleConfigureChallenge = async () => {
     try {
-      setInitiating(true);
+      setConfiguring(true);
+      const settings = {
+        rewardMode: challengeConfig.rewardMode,
+        difficulty: 'medium'
+      };
+
+      if (challengeConfig.rewardMode === 'individual') {
+        settings.challenge1Bits = challengeConfig.challenge1Bits || 0;
+        settings.challenge2Bits = challengeConfig.challenge2Bits || 0;
+        settings.challenge3Bits = challengeConfig.challenge3Bits || 0;
+        settings.challenge4Bits = challengeConfig.challenge4Bits || 0;
+      } else {
+        settings.totalRewardBits = challengeConfig.totalRewardBits || 0;
+        settings.challenge1Bits = 0;
+        settings.challenge2Bits = 0;
+        settings.challenge3Bits = 0;
+        settings.challenge4Bits = challengeConfig.totalRewardBits || 0;
+      }
+
+      await configureChallenge(classroomId, challengeConfig.title, settings);
+      toast.success('Challenge configured successfully');
+      
       const response = await initiateChallenge(classroomId);
       setChallengeData(response.challenge);
       toast.success(response.message);
-      await fetchChallengeData(); // Refresh data
+      setShowConfigModal(false);
+      await fetchChallengeData();
     } catch (error) {
-      console.error('Error initiating challenge:', error);
-      toast.error(error.message || 'Failed to initiate challenge');
+      console.error('Error configuring/initiating challenge:', error);
+      toast.error(error.message || 'Failed to configure challenge');
     } finally {
-      setInitiating(false);
+      setConfiguring(false);
     }
   };
 
   // Deactivate cyber challenge (Teacher only)
-  const handleDeactivateChallenge = async () => {
+  const handleShowDeactivateModal = () => {
+    const skipWarning = localStorage.getItem('skipChallengeDeactivateWarning') === 'true';
+    if (skipWarning) {
+      handleConfirmDeactivate();
+    } else {
+      setShowDeactivateModal(true);
+      setConfirmText('');
+      setDontShowAgain(false);
+    }
+  };
+
+  const handleConfirmDeactivate = async () => {
     try {
       setInitiating(true);
       const response = await deactivateChallenge(classroomId);
       setChallengeData(response.challenge);
       toast.success(response.message);
-      await fetchChallengeData(); // Refresh data
+      setShowDeactivateModal(false);
+      if (dontShowAgain) {
+        localStorage.setItem('skipChallengeDeactivateWarning', 'true');
+      }
+      await fetchChallengeData();
     } catch (error) {
       console.error('Error deactivating challenge:', error);
       toast.error(error.message || 'Failed to deactivate challenge');
@@ -129,8 +194,6 @@ const Challenge = () => {
     );
   }
 
-  const first_challenge = "Little Caesar’s Secret"
-
   if (isTeacher && !isTeacherInStudentView) {
     return (
       <div className="p-6 space-y-8">
@@ -140,26 +203,21 @@ const Challenge = () => {
             <h1 className="text-3xl font-bold text-base-content">Cyber Challenge</h1>
           </div>
           <p className="text-gray-600 text-lg mb-6">
-            Initiate Challenge 1: Little Caesar's Secret. Each student will receive a unique Caesar cipher encrypted word to decrypt.
+            Initiate the complete Cyber Challenge Series. Students will progress through multiple cybersecurity challenges, each with unique encrypted data and passwords to discover.
           </p>
           
           <div className="flex gap-4">
             {!challengeData || !challengeData.isActive ? (
               <button
-                onClick={handleInitiateChallenge}
-                disabled={initiating}
+                onClick={handleShowConfigModal}
                 className="btn btn-error btn-lg gap-2"
               >
-                {initiating ? (
-                  <span className="loading loading-spinner loading-sm"></span>
-                ) : (
-                  <Zap className="w-5 h-5" />
-                )}
-                Initiate Cyber Challenge
+                <Settings className="w-5 h-5" />
+                Configure & Launch Challenge Series
               </button>
             ) : (
               <button
-                onClick={handleDeactivateChallenge}
+                onClick={handleShowDeactivateModal}
                 disabled={initiating}
                 className="btn btn-warning btn-lg gap-2"
               >
@@ -282,6 +340,277 @@ const Challenge = () => {
             )}
           </div>
         )}
+
+        {showConfigModal && (
+          <div className="fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="card bg-base-100 w-full max-w-2xl mx-4 shadow-xl">
+              <div className="card-body">
+                <div className="flex items-center gap-3 mb-4">
+                  <Settings className="w-6 h-6 text-red-500" />
+                  <h2 className="text-2xl font-bold">Configure Challenge Series</h2>
+                </div>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="label">
+                      <span className="label-text font-semibold">Challenge Series Name</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="input input-bordered w-full"
+                      value={challengeConfig.title}
+                      onChange={(e) => setChallengeConfig(prev => ({ ...prev, title: e.target.value }))}
+                      placeholder="Enter challenge series name"
+                    />
+                  </div>
+
+                  <div className="divider">Reward System</div>
+
+                  <div className="form-control">
+                    <div className="flex gap-6">
+                      <label className="label cursor-pointer">
+                        <input
+                          type="radio"
+                          name="rewardMode"
+                          className="radio radio-primary"
+                          checked={challengeConfig.rewardMode === 'individual'}
+                          onChange={() => setChallengeConfig(prev => ({ ...prev, rewardMode: 'individual' }))}
+                        />
+                        <span className="label-text ml-2 font-semibold">Individual Challenge Rewards</span>
+                      </label>
+                      <label className="label cursor-pointer">
+                        <input
+                          type="radio"
+                          name="rewardMode"
+                          className="radio radio-primary"
+                          checked={challengeConfig.rewardMode === 'total'}
+                          onChange={() => setChallengeConfig(prev => ({ ...prev, rewardMode: 'total' }))}
+                        />
+                        <span className="label-text ml-2 font-semibold">Total Completion Reward</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {challengeConfig.rewardMode === 'individual' ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="label">
+                          <span className="label-text">Challenge 1: Little Caesar's Secret</span>
+                        </label>
+                        <input
+                          type="number"
+                          className="input input-bordered w-full"
+                          value={challengeConfig.challenge1Bits}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            const newValue = value === '' ? 0 : parseInt(value) || 0;
+                            setChallengeConfig(prev => ({ 
+                              ...prev, 
+                              challenge1Bits: value === '' ? '' : newValue,
+                              totalRewardBits: newValue + (prev.challenge2Bits || 0) + (prev.challenge3Bits || 0) + (prev.challenge4Bits || 0)
+                            }));
+                          }}
+                          min="0"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="label">
+                          <span className="label-text">Challenge 2: Check Me Out</span>
+                        </label>
+                        <input
+                          type="number"
+                          className="input input-bordered w-full"
+                          value={challengeConfig.challenge2Bits}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            const newValue = value === '' ? 0 : parseInt(value) || 0;
+                            setChallengeConfig(prev => ({ 
+                              ...prev, 
+                              challenge2Bits: value === '' ? '' : newValue,
+                              totalRewardBits: (prev.challenge1Bits || 0) + newValue + (prev.challenge3Bits || 0) + (prev.challenge4Bits || 0)
+                            }));
+                          }}
+                          min="0"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="label">
+                          <span className="label-text">Challenge 3: Network Security Analysis</span>
+                        </label>
+                        <input
+                          type="number"
+                          className="input input-bordered w-full"
+                          value={challengeConfig.challenge3Bits}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            const newValue = value === '' ? 0 : parseInt(value) || 0;
+                            setChallengeConfig(prev => ({ 
+                              ...prev, 
+                              challenge3Bits: value === '' ? '' : newValue,
+                              totalRewardBits: (prev.challenge1Bits || 0) + (prev.challenge2Bits || 0) + newValue + (prev.challenge4Bits || 0)
+                            }));
+                          }}
+                          min="0"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="label">
+                          <span className="label-text">Challenge 4: Advanced Cryptography</span>
+                        </label>
+                        <input
+                          type="number"
+                          className="input input-bordered w-full"
+                          value={challengeConfig.challenge4Bits}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            const newValue = value === '' ? 0 : parseInt(value) || 0;
+                            setChallengeConfig(prev => ({ 
+                              ...prev, 
+                              challenge4Bits: value === '' ? '' : newValue,
+                              totalRewardBits: (prev.challenge1Bits || 0) + (prev.challenge2Bits || 0) + (prev.challenge3Bits || 0) + newValue
+                            }));
+                          }}
+                          min="0"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="label">
+                          <span className="label-text font-semibold">Total Bits Awarded for Completing All Challenges</span>
+                        </label>
+                        <input
+                          type="number"
+                          className="input input-bordered w-full"
+                          value={challengeConfig.totalRewardBits}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setChallengeConfig(prev => ({ 
+                              ...prev, 
+                              totalRewardBits: value === '' ? '' : parseInt(value) || 0 
+                            }));
+                          }}
+                          min="0"
+                          placeholder="Enter total reward amount"
+                        />
+                      </div>
+                      <div className="alert alert-info">
+                        <span className="text-sm">
+                          Students will receive the full reward amount only when they complete all 4 challenges. No bits are awarded for individual challenges.
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="divider">Future Settings</div>
+                  
+                  <div className="space-y-2 opacity-50">
+                    <div className="form-control">
+                      <label className="label cursor-pointer justify-start gap-3">
+                        <input type="checkbox" className="checkbox" disabled />
+                        <span className="label-text">Enable time limits (Coming Soon)</span>
+                      </label>
+                    </div>
+                    <div className="form-control">
+                      <label className="label cursor-pointer justify-start gap-3">
+                        <input type="checkbox" className="checkbox" disabled />
+                        <span className="label-text">Allow challenge retries (Coming Soon)</span>
+                      </label>
+                    </div>
+                    <div className="form-control">
+                      <label className="label cursor-pointer justify-start gap-3">
+                        <input type="checkbox" className="checkbox" disabled />
+                        <span className="label-text">Randomize challenge order (Coming Soon)</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card-actions justify-end mt-6 gap-3">
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => setShowConfigModal(false)}
+                    disabled={configuring}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="btn btn-error"
+                    onClick={handleConfigureChallenge}
+                    disabled={configuring}
+                  >
+                    {configuring ? (
+                      <>
+                        <span className="loading loading-spinner loading-sm"></span>
+                        Launching...
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-4 h-4" />
+                        Launch Challenge Series
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showDeactivateModal && (
+          <div className="fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="card bg-base-100 w-full max-w-md mx-4 shadow-xl">
+              <div className="card-body">
+                <h2 className="text-xl font-bold text-error mb-4">⚠️ Deactivate Challenge Series</h2>
+                <p className="text-sm text-gray-600 mb-4">
+                  This will permanently delete all student progress and challenge data. This action cannot be undone.
+                </p>
+                <div className="form-control mb-4">
+                  <label className="label">
+                    <span className="label-text text-sm">Type "<strong>{classroom?.name} delete</strong>" to confirm:</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="input input-bordered input-sm"
+                    value={confirmText}
+                    onChange={(e) => setConfirmText(e.target.value)}
+                    placeholder={`${classroom?.name} delete`}
+                  />
+                </div>
+                <div className="form-control mb-4">
+                  <label className="label cursor-pointer justify-start gap-2">
+                    <input
+                      type="checkbox"
+                      className="checkbox checkbox-sm"
+                      checked={dontShowAgain}
+                      onChange={(e) => setDontShowAgain(e.target.checked)}
+                    />
+                    <span className="label-text text-sm">Don't show this warning again</span>
+                  </label>
+                </div>
+                <div className="card-actions justify-end gap-2">
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => setShowDeactivateModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="btn btn-error btn-sm"
+                    onClick={handleConfirmDeactivate}
+                    disabled={confirmText !== `${classroom?.name} delete` || initiating}
+                  >
+                    {initiating ? <span className="loading loading-spinner loading-xs"></span> : 'Deactivate'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -340,6 +669,9 @@ const Challenge = () => {
               <div className="collapse-title text-xl font-medium flex items-center gap-3">
                 <div className={`badge badge-lg ${userChallenge.progress >= 1 ? 'badge-success' : 'badge-error'}`}>Challenge 1</div>
                 <span className={userChallenge.progress >= 1 ? 'text-green-800' : 'text-red-800'}>🔓 Little Caesar's Secret</span>
+                <div className="badge badge-outline badge-sm">
+                  {challengeData?.settings?.rewardMode === 'total' ? '0' : (challengeData?.settings?.challenge1Bits || 50)} bits
+                </div>
                 <div className="ml-auto text-sm text-gray-500">
                   {userChallenge.progress >= 1 ? '✅ Completed' : '🔄 In Progress'}
                 </div>
@@ -400,6 +732,9 @@ const Challenge = () => {
                 <div className="collapse-title text-lg font-medium flex items-center gap-3">
                   <div className={`badge ${userChallenge.progress >= 2 ? 'badge-success' : userChallenge.progress >= 1 ? 'badge-info' : 'badge-neutral'}`}>Challenge 2</div>
                   <span className={userChallenge.progress >= 2 ? 'text-green-800' : userChallenge.progress >= 1 ? 'text-blue-800' : 'text-gray-600'}>🔍 Check Me Out</span>
+                  <div className="badge badge-outline badge-sm">
+                    {challengeData?.settings?.rewardMode === 'total' ? '0' : (challengeData?.settings?.challenge2Bits || 75)} bits
+                  </div>
                   <div className="ml-auto text-sm text-gray-400">
                     {userChallenge.progress >= 2 ? '✅ Completed' : userChallenge.progress >= 1 ? '🔓 Unlocked' : '🔒 Locked'}
                   </div>
@@ -467,6 +802,9 @@ const Challenge = () => {
                 <div className="collapse-title text-lg font-medium flex items-center gap-3">
                   <div className="badge badge-neutral">Challenge 3</div>
                   <span className="text-gray-600">🌐 Network Security Analysis</span>
+                  <div className="badge badge-outline badge-sm">
+                    {challengeData?.settings?.rewardMode === 'total' ? '0' : (challengeData?.settings?.challenge3Bits || 100)} bits
+                  </div>
                   <div className="ml-auto text-sm text-gray-400">Coming Soon</div>
                 </div>
               </div>
@@ -475,6 +813,11 @@ const Challenge = () => {
                 <div className="collapse-title text-lg font-medium flex items-center gap-3">
                   <div className="badge badge-neutral">Challenge 4</div>
                   <span className="text-gray-600">🔐 Advanced Cryptography</span>
+                  <div className="badge badge-outline badge-sm">
+                    {challengeData?.settings?.rewardMode === 'total' 
+                      ? (challengeData?.settings?.totalRewardBits || 350) 
+                      : (challengeData?.settings?.challenge4Bits || 125)} bits
+                  </div>
                   <div className="ml-auto text-sm text-gray-400">Coming Soon</div>
                 </div>
               </div>
