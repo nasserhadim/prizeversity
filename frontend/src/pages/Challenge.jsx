@@ -91,14 +91,14 @@ const Challenge = () => {
         method: "OSINT & Git Exploration",
         type: "github"
       };
-    /* } else if (progress === 2) {
+    } else if (progress === 2) {
       return {
         number: 3,
         name: "Network Security Analysis",
         method: "Traffic Analysis", 
         type: "network"
       };
-    } else { */
+    } else {
       return {
         number: 4,
         name: "Advanced Cryptography",
