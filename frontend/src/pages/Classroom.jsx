@@ -10,6 +10,7 @@ import { LoaderIcon } from 'lucide-react';
 import ClassroomBanner from '../components/ClassroomBanner';
 import io from 'socket.io-client';
 import { API_BASE } from '../config/api';
+import ConfirmModal from '../components/ConfirmModal';
 
 const socket = io(); // no "/api" needed here
 
@@ -25,6 +26,7 @@ const Classroom = () => {
   const [students, setStudents] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [visibleCount, setVisibleCount] = useState(10);
+  const [confirmModal, setConfirmModal] = useState(null);
 
   // Fetch classroom and student data on mount
   useEffect(() => {
@@ -105,49 +107,60 @@ const Classroom = () => {
     }
   };
 
-
-  // Confirm and remove student from classroom
-  const handleRemoveStudentConfirm = async (studentId) => {
-    if (window.confirm('Are you sure you want to remove this student?')) {
-      try {
-        await axios.delete(`/api/classroom/${id}/students/${studentId}`);
-        toast.success('Student removed successfully!');
-        fetchStudents();
-      } catch (err) {
-        console.error('Failed to remove student', err);
-        toast.error('Failed to remove student');
+  // Confirm and leave classroom
+  const handleLeaveClassroomConfirm = () => {
+    setConfirmModal({
+      title: "Leave Classroom",
+      message: `You are about to leave the classroom "${classroom.name}". Are you sure?`,
+      onConfirm: async () => {
+        try {
+          await axios.post(`/api/classroom/${id}/leave`);
+          toast.success('Left classroom successfully!');
+          navigate('/classrooms');
+        } catch (err) {
+          console.error('Failed to leave classroom', err);
+          toast.error('Failed to leave classroom!');
+        }
       }
-    }
+    });
   };
 
-  // Confirm and leave classroom
-  const handleLeaveClassroomConfirm = async () => {
-    if (window.confirm(`You are about to leave the classroom "${classroom.name}". Are you sure?`)) {
-      try {
-        await axios.post(`/api/classroom/${id}/leave`);
-        toast.success('Left classroom successfully!');
-        navigate('/classrooms');
-      } catch (err) {
-        console.error('Failed to leave classroom', err);
-        toast.error('Failed to leave classroom!');
+  // Confirm and remove student from classroom
+  const handleRemoveStudentConfirm = (studentId) => {
+    setConfirmModal({
+      title: "Remove Student",
+      message: "Are you sure you want to remove this student?",
+      onConfirm: async () => {
+        try {
+          await axios.delete(`/api/classroom/${id}/students/${studentId}`);
+          toast.success('Student removed successfully!');
+          fetchStudents();
+        } catch (err) {
+          console.error('Failed to remove student', err);
+          toast.error('Failed to remove student');
+        }
       }
-    }
+    });
   };
 
   // Confirm and delete classroom
-  const handleDeleteClassroomConfirm = async () => {
-    if (window.confirm(`You're about to delete classroom "${classroom.name}". All data will be purged! Are you sure?`)) {
-      try {
-        await axios.delete(`/api/classroom/${id}`);
-        toast.success('Classroom deleted successfully!');
-        navigate('/');
-      } catch (err) {
-        console.error('Failed to delete classroom', err);
-        toast.error('Failed to delete classroom!');
+  const handleDeleteClassroomConfirm = () => {
+    setConfirmModal({
+      title: "Delete Classroom",
+      message: `You're about to delete classroom "${classroom.name}". All data will be purged! Are you sure?`,
+      confirmText: "Delete",
+      onConfirm: async () => {
+        try {
+          await axios.delete(`/api/classroom/${id}`);
+          toast.success('Classroom deleted successfully!');
+          navigate('/');
+        } catch (err) {
+          console.error('Failed to delete classroom', err);
+          toast.error('Failed to delete classroom!');
+        }
       }
-    }
+    });
   };
-
 
   // Render loading spinner
   if (loading || !user) {
@@ -283,6 +296,15 @@ const Classroom = () => {
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={!!confirmModal}
+        onClose={() => setConfirmModal(null)}
+        title={confirmModal?.title}
+        message={confirmModal?.message}
+        confirmText={confirmModal?.confirmText}
+        onConfirm={confirmModal?.onConfirm}
+      />
     </>
   )
 };
