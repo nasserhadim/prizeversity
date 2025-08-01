@@ -17,7 +17,8 @@ import {
   User,
   Wallet,
   UserRound,
-  Trophy
+  Trophy,
+  Shield
 } from 'lucide-react';
 
 const BACKEND_URL = `${API_BASE}`;
@@ -214,6 +215,17 @@ const Navbar = () => {
                   <Trophy size={18} />
                   <span>Leaderboard</span>
                 </Link>
+              </li>
+              <li>
+                <div className="tooltip tooltip-bottom" data-tip="Challenge">
+                  <Link
+                    to={`/classroom/${classroomId}/challenge`}
+                    className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/challenge`) ? 'text-green-500' : ''}`}
+                  >
+                    <Shield size={18} />
+                    <span className="hidden lg:inline">Challenge</span>
+                  </Link>
+                </div>
               </li>
             </>
           )}
