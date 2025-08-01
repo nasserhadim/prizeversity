@@ -25,6 +25,7 @@ import StudentStats from './pages/StudentStats';
 import ArchivedClassrooms from './pages/ArchivedClassrooms';
 import Challenge from './pages/Challenge';
 import ChallengeSite from './pages/ChallengeSite';
+import Challenge2Site from './pages/Challenge2Site';
 
 const App = () => {
   const { user } = useContext(AuthContext);
@@ -41,6 +42,7 @@ const App = () => {
   return (
     <Routes>
       <Route path="/challenge-site/:uniqueId" element={<ChallengeSite />} />
+      <Route path="/challenge-2-site/:uniqueId" element={<Challenge2Site />} />
       <Route path="/*" element={
         <CartProvider>
           <div style={{ paddingTop: '5rem' }}>

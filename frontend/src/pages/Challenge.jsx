@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Shield, Lock, Zap, Users, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { getChallengeData, initiateChallenge, deactivateChallenge } from '../API/apiChallenge';
+import { API_BASE } from '../config/api';
 import toast from 'react-hot-toast';
 
 const Challenge = () => {
@@ -86,18 +87,18 @@ const Challenge = () => {
     } else if (progress === 1) {
       return {
         number: 2,
-        name: "Social Engineering Defense", 
-        method: "Scenario Analysis",
-        type: "social"
+        name: "Check Me Out", 
+        method: "OSINT & Git Exploration",
+        type: "github"
       };
-    } else if (progress === 2) {
+    /* } else if (progress === 2) {
       return {
         number: 3,
         name: "Network Security Analysis",
         method: "Traffic Analysis", 
         type: "network"
       };
-    } else {
+    } else { */
       return {
         number: 4,
         name: "Advanced Cryptography",
@@ -233,8 +234,8 @@ const Challenge = () => {
                                   {uc.uniqueId}
                                 </code>
                               )}
-                              {currentChallenge.type === 'social' && (
-                                <span className="text-sm text-blue-600 font-medium">Email Scenarios</span>
+                              {currentChallenge.type === 'github' && (
+                                <span className="text-sm text-blue-600 font-medium">GitHub Branch: {uc.uniqueId}</span>
                               )}
                               {currentChallenge.type === 'network' && (
                                 <span className="text-sm text-purple-600 font-medium">Network Logs</span>
@@ -257,7 +258,12 @@ const Challenge = () => {
                                   </button>
                                 </div>
                               )}
-                              {currentChallenge.type !== 'caesar' && (
+                              {currentChallenge.type === 'github' && (
+                                <code className="bg-green-100 px-2 py-1 rounded text-sm font-mono text-green-700">
+                                  GITHUB-{uc.uniqueId.slice(-4).toUpperCase()}
+                                </code>
+                              )}
+                              {(currentChallenge.type !== 'caesar' && currentChallenge.type !== 'github') && (
                                 <span className="text-sm text-gray-500">Interactive Challenge</span>
                               )}
                             </td>
@@ -387,44 +393,69 @@ const Challenge = () => {
               </div>
             </div>
 
-            {/* Challenge 2 - Social Engineering Defense */}
+            {/* Challenge 2 - Check Me Out */}
             <div className="space-y-3">
-              <div className={`collapse collapse-arrow ${userChallenge.progress >= 1 ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50 border border-gray-200 opacity-60'}`}>
-                {userChallenge.progress >= 1 && <input type="checkbox" className="peer" />}
+              <div className={`collapse collapse-arrow ${userChallenge.progress >= 1 ? (userChallenge.progress >= 2 ? 'bg-green-50 border border-green-200' : 'bg-blue-50 border border-blue-200') : 'bg-gray-50 border border-gray-200 opacity-60'}`}>
+                {userChallenge.progress >= 1 && <input type="checkbox" defaultChecked={userChallenge.progress < 2} className="peer" />}
                 <div className="collapse-title text-lg font-medium flex items-center gap-3">
-                  <div className={`badge ${userChallenge.progress >= 1 ? 'badge-info' : 'badge-neutral'}`}>Challenge 2</div>
-                  <span className={userChallenge.progress >= 1 ? 'text-blue-800' : 'text-gray-600'}>🕵️ Social Engineering Defense</span>
+                  <div className={`badge ${userChallenge.progress >= 2 ? 'badge-success' : userChallenge.progress >= 1 ? 'badge-info' : 'badge-neutral'}`}>Challenge 2</div>
+                  <span className={userChallenge.progress >= 2 ? 'text-green-800' : userChallenge.progress >= 1 ? 'text-blue-800' : 'text-gray-600'}>🔍 Check Me Out</span>
                   <div className="ml-auto text-sm text-gray-400">
-                    {userChallenge.progress >= 1 ? '🔓 Unlocked' : '🔒 Locked'}
+                    {userChallenge.progress >= 2 ? '✅ Completed' : userChallenge.progress >= 1 ? '🔓 Unlocked' : '🔒 Locked'}
                   </div>
                 </div>
                 {userChallenge.progress >= 1 && (
                   <div className="collapse-content">
                     <div className="pt-4 space-y-4">
                       <p className="text-gray-600">
-                        Your next mission: Identify and defend against social engineering attacks.
+                        Your mission: Follow the digital trail and find your password to the next challenge.
                       </p>
                       
                       <div className="bg-white border border-blue-300 rounded-lg p-4">
-                        <h4 className="font-semibold text-blue-800 mb-3">📧 Scenario Analysis</h4>
-                        <p className="text-sm text-gray-700 mb-3">
-                          You will be presented with various communication scenarios. Your task is to identify potential social engineering attempts and recommend appropriate responses.
-                        </p>
-                      </div>
+                        <h4 className="font-semibold text-blue-800 mb-3">🔗 Your Starting Point</h4>
+                        <div className="space-y-3">
+                          <div>
+                            <span className="text-sm font-medium text-gray-700">LinkedIn Profile:</span>
+                            <br />
+                            <a 
+                              href="https://www.linkedin.com/in/paul-glantz-1b3488378/" 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-800 underline"
+                            >
+                              linkedin.com/in/paul-glantz-1b3488378/
+                            </a>
+                          </div>
+                          <div>
+                            <span className="text-sm font-medium text-gray-700">Your Unique ID:</span>
+                            <br />
+                            <code className="bg-blue-100 px-2 py-1 rounded text-blue-800 font-mono">
+                              {userChallenge.uniqueId}
+                            </code>
+                          </div>
+                        </div>
+                      </div>                 
                       
                       <div className="bg-white border border-blue-300 rounded-lg p-4">
-                        <h4 className="font-semibold text-blue-800 mb-2">🎯 Your Mission</h4>
-                        <ol className="list-decimal list-inside text-sm text-gray-700 space-y-1">
-                          <li>Review the email scenarios provided</li>
-                          <li>Identify suspicious elements</li>
-                          <li>Select the appropriate security response</li>
-                          <li>Submit your analysis for evaluation</li>
-                        </ol>
+                        <h4 className="font-semibold text-blue-800 mb-2">Challenge Terminal</h4>
+                        <p className="text-sm text-gray-600 mb-3">Once you find your password, access the challenge terminal:</p>
+                        <code className="text-blue-600 font-mono text-sm block mb-3">
+                          /challenge-2-site/{userChallenge.uniqueId}
+                        </code>
+                        <button 
+                          className="btn btn-info btn-sm"
+                          onClick={() => {
+                            window.open(`/challenge-2-site/${userChallenge.uniqueId}`, '_blank');
+                          }}
+                        >
+                          <Lock className="w-4 h-4 mr-2" />
+                          Access Challenge Terminal
+                        </button>
                       </div>
                       
-                      <div className="alert alert-info">
+                      <div className="alert alert-warning">
                         <span className="text-sm">
-                          <strong>Hint:</strong> Look for urgency tactics, suspicious links, and requests for sensitive information.
+                          <strong>Remember:</strong> Your unique ID is the key to finding your personal password!
                         </span>
                       </div>
                     </div>
