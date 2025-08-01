@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Shield, Lock, Zap, Users, Eye, EyeOff, ArrowLeft, Settings } from 'lucide-react';
-import { getChallengeData, initiateChallenge, deactivateChallenge, configureChallenge } from '../API/apiChallenge';
+import { getChallengeData, initiateChallenge, deactivateChallenge, configureChallenge, submitChallengeAnswer } from '../API/apiChallenge';
 import { getChallengeTemplates, saveChallengeTemplate, deleteChallengeTemplate } from '../API/apiChallengeTemplate';
 import { API_BASE } from '../config/api';
 import toast from 'react-hot-toast';
@@ -69,11 +69,46 @@ const Challenge = () => {
     }
   };
 
-  const handleSwitchToTeacher = () => {
-    setPersona(originalUser);
-  };
+     const handleSwitchToTeacher = () => {
+     setPersona(originalUser);
+   };
 
-  const isTeacherInStudentView = originalUser?.role === 'teacher' && user.role === 'student';
+   // Handle challenge answer submission
+   const handleSubmitAnswer = async (challengeId, answer) => {
+     if (!answer || !answer.trim()) {
+       toast.error('Please enter an answer');
+       return;
+     }
+
+     try {
+       const response = await submitChallengeAnswer(classroomId, challengeId, answer);
+       
+       if (response.success) {
+         toast.success(response.message);
+         if (response.rewards.bits > 0) {
+           toast.success(`Earned ${response.rewards.bits} bits!`);
+         }
+         
+         // Refresh challenge data to show updated progress
+         await fetchChallengeData();
+         
+         if (response.allCompleted) {
+           toast.success('🎉 All challenges completed! Well done!');
+         } else if (response.nextChallenge) {
+           toast.success(`Next up: ${response.nextChallenge}`);
+         }
+       } else {
+         toast.error(response.message);
+         if (response.hint) {
+           toast.info(response.hint);
+         }
+       }
+     } catch (error) {
+       toast.error(error.message || 'Failed to submit answer');
+     }
+   };
+
+   const isTeacherInStudentView = originalUser?.role === 'teacher' && user.role === 'student';
 
   const fetchTemplates = async () => {
     try {
@@ -1085,15 +1120,32 @@ const Challenge = () => {
                     <code className="text-blue-600 font-mono text-sm block mb-3">
                       /challenge-site/{userChallenge.uniqueId}
                     </code>
-                    <button 
-                      className="btn btn-error btn-sm"
-                      onClick={() => {
-                        window.open(`/challenge-site/${userChallenge.uniqueId}`, '_blank');
-                      }}
-                    >
-                      <Lock className="w-4 h-4 mr-2" />
-                      Access Challenge Site
-                    </button>
+                                         <div className="space-y-3">
+                       <div className="flex gap-2">
+                         <input
+                           type="text"
+                           placeholder="Enter your decrypted password..."
+                           className="input input-bordered input-sm flex-1"
+                           onKeyPress={(e) => {
+                             if (e.key === 'Enter') {
+                               handleSubmitAnswer('caesar-secret-001', e.target.value);
+                             }
+                           }}
+                         />
+                         <button 
+                           className="btn btn-error btn-sm"
+                           onClick={(e) => {
+                             const input = e.target.parentElement.querySelector('input');
+                             handleSubmitAnswer('caesar-secret-001', input.value);
+                           }}
+                         >
+                           Submit
+                         </button>
+                       </div>
+                       <p className="text-xs text-gray-500">
+                         Decrypt your encrypted ID and enter the result above
+                       </p>
+                     </div>
                   </div>
                   
                   {/* Warning */}
@@ -1158,15 +1210,32 @@ const Challenge = () => {
                         <code className="text-blue-600 font-mono text-sm block mb-3">
                           /challenge-2-site/{userChallenge.uniqueId}
                         </code>
-                        <button 
-                          className="btn btn-info btn-sm"
-                          onClick={() => {
-                            window.open(`/challenge-2-site/${userChallenge.uniqueId}`, '_blank');
-                          }}
-                        >
-                          <Lock className="w-4 h-4 mr-2" />
-                          Access Challenge Terminal
-                        </button>
+                                                 <div className="space-y-3">
+                           <div className="flex gap-2">
+                             <input
+                               type="text"
+                               placeholder="Enter the password you found..."
+                               className="input input-bordered input-sm flex-1"
+                               onKeyPress={(e) => {
+                                 if (e.key === 'Enter') {
+                                   handleSubmitAnswer('github-osint-002', e.target.value);
+                                 }
+                               }}
+                             />
+                             <button 
+                               className="btn btn-info btn-sm"
+                               onClick={(e) => {
+                                 const input = e.target.parentElement.querySelector('input');
+                                 handleSubmitAnswer('github-osint-002', input.value);
+                               }}
+                             >
+                               Submit
+                             </button>
+                           </div>
+                           <p className="text-xs text-gray-500">
+                             Follow the LinkedIn profile link and find your password using your unique ID
+                           </p>
+                         </div>
                       </div>
                       
                       <div className="alert alert-warning">
