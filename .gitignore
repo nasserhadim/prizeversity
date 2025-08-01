@@ -22,3 +22,9 @@ pm2.log
 dump/
 
 /uploads
+
+# Challenge system - hide implementation from students
+backend/models/Challenge.js
+backend/routes/challenge.js
+frontend/src/pages/ChallengeSite.jsx
+frontend/src/API/apiChallenge.jsx

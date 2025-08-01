@@ -75,9 +75,50 @@ const Challenge = () => {
     }));
   };
 
+  const getCurrentChallenge = (progress) => {
+    if (progress === 0) {
+      return {
+        number: 1,
+        name: "Little Caesar's Secret",
+        method: "Caesar Cipher (Shift +3)",
+        type: "caesar"
+      };
+    } else if (progress === 1) {
+      return {
+        number: 2,
+        name: "Social Engineering Defense", 
+        method: "Scenario Analysis",
+        type: "social"
+      };
+    } else if (progress === 2) {
+      return {
+        number: 3,
+        name: "Network Security Analysis",
+        method: "Traffic Analysis", 
+        type: "network"
+      };
+    } else {
+      return {
+        number: 4,
+        name: "Advanced Cryptography",
+        method: "Multi-layer Encryption",
+        type: "crypto"
+      };
+    }
+  };
+
   useEffect(() => {
     fetchChallengeData();
   }, [classroomId]);
+
+  useEffect(() => {
+    const handleFocus = () => {
+      fetchChallengeData();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
 
   if (loading) {
     return (
@@ -98,7 +139,7 @@ const Challenge = () => {
             <h1 className="text-3xl font-bold text-base-content">Cyber Challenge</h1>
           </div>
           <p className="text-gray-600 text-lg mb-6">
-            Initiate a cyber challenge for your students. Each student will receive a unique ID and encrypted password to solve.
+            Initiate Challenge 1: Little Caesar's Secret. Each student will receive a unique Caesar cipher encrypted word to decrypt.
           </p>
           
           <div className="flex gap-4">
@@ -157,50 +198,77 @@ const Challenge = () => {
             {/* Student Challenge Data */}
             {challengeData.isActive && challengeData.userChallenges && challengeData.userChallenges.length > 0 && (
               <div className="mt-6">
-                <h3 className="text-xl font-semibold mb-4">Student Challenge Data</h3>
+                <h3 className="text-xl font-semibold mb-4">Student Challenge Progress</h3>
                 <div className="overflow-x-auto">
                   <table className="table table-zebra w-full">
                     <thead>
                       <tr>
                         <th>Student</th>
-                        <th>Unique ID</th>
-                        <th>Hashed Password</th>
-                        <th>Progress</th>
+                        <th>Current Challenge</th>
+                        <th>Challenge Data</th>
+                        <th>Solution</th>
+                        <th>Status</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {challengeData.userChallenges.map((uc) => (
-                        <tr key={uc._id}>
-                          <td className="font-medium">
-                            {uc.userId.firstName} {uc.userId.lastName}
-                            <br />
-                            <span className="text-sm text-gray-500">{uc.userId.email}</span>
-                          </td>
-                          <td>
-                            <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono">
-                              {uc.uniqueId}
-                            </code>
-                          </td>
-                          <td>
-                            <div className="flex items-center gap-2">
-                              <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono">
-                                {showPasswords[uc.userId._id] ? uc.hashedPassword : '••••••••'}
-                              </code>
-                              <button
-                                onClick={() => togglePasswordVisibility(uc.userId._id)}
-                                className="btn btn-ghost btn-xs"
-                              >
-                                {showPasswords[uc.userId._id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                              </button>
-                            </div>
-                          </td>
-                          <td>
-                            <div className="badge badge-outline">
-                              Currently on: {first_challenge}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                      {challengeData.userChallenges.map((uc) => {
+                        const currentChallenge = getCurrentChallenge(uc.progress);
+                        return (
+                          <tr key={uc._id}>
+                            <td className="font-medium">
+                              {uc.userId.firstName} {uc.userId.lastName}
+                              <br />
+                              <span className="text-sm text-gray-500">{uc.userId.email}</span>
+                            </td>
+                            <td>
+                              <div className="flex flex-col">
+                                <span className="font-semibold">Challenge {currentChallenge.number}</span>
+                                <span className="text-sm text-gray-600">{currentChallenge.name}</span>
+                                <span className="text-xs text-gray-500">{currentChallenge.method}</span>
+                              </div>
+                            </td>
+                            <td>
+                              {currentChallenge.type === 'caesar' && (
+                                <code className="bg-red-100 px-2 py-1 rounded text-sm font-mono text-red-700">
+                                  {uc.uniqueId}
+                                </code>
+                              )}
+                              {currentChallenge.type === 'social' && (
+                                <span className="text-sm text-blue-600 font-medium">Email Scenarios</span>
+                              )}
+                              {currentChallenge.type === 'network' && (
+                                <span className="text-sm text-purple-600 font-medium">Network Logs</span>
+                              )}
+                              {currentChallenge.type === 'crypto' && (
+                                <span className="text-sm text-indigo-600 font-medium">Encrypted Files</span>
+                              )}
+                            </td>
+                            <td>
+                              {currentChallenge.type === 'caesar' && (
+                                <div className="flex items-center gap-2">
+                                  <code className="bg-green-100 px-2 py-1 rounded text-sm font-mono text-green-700">
+                                    {showPasswords[uc.userId._id] ? uc.hashedPassword : '••••••••'}
+                                  </code>
+                                  <button
+                                    onClick={() => togglePasswordVisibility(uc.userId._id)}
+                                    className="btn btn-ghost btn-xs"
+                                  >
+                                    {showPasswords[uc.userId._id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                  </button>
+                                </div>
+                              )}
+                              {currentChallenge.type !== 'caesar' && (
+                                <span className="text-sm text-gray-500">Interactive Challenge</span>
+                              )}
+                            </td>
+                            <td>
+                              <div className={`badge ${uc.progress >= currentChallenge.number ? 'badge-success' : 'badge-warning'}`}>
+                                {uc.progress >= currentChallenge.number ? 'Completed' : 'In Progress'}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -261,11 +329,11 @@ const Challenge = () => {
             <h2 className="text-2xl font-bold mb-6">Cyber Challenge Series - Fall Semester</h2>
             
             {/* Challenge 1 - Little Caesar's Secret */}
-            <div className="collapse collapse-arrow bg-red-50 border border-red-200 mb-4">
-              <input type="checkbox" defaultChecked className="peer" />
+            <div className={`collapse collapse-arrow mb-4 ${userChallenge.progress >= 1 ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+              <input type="checkbox" defaultChecked={userChallenge.progress < 1} className="peer" />
               <div className="collapse-title text-xl font-medium flex items-center gap-3">
-                <div className="badge badge-error badge-lg">Challenge 1</div>
-                <span className="text-red-800">🔓 Little Caesar's Secret</span>
+                <div className={`badge badge-lg ${userChallenge.progress >= 1 ? 'badge-success' : 'badge-error'}`}>Challenge 1</div>
+                <span className={userChallenge.progress >= 1 ? 'text-green-800' : 'text-red-800'}>🔓 Little Caesar's Secret</span>
                 <div className="ml-auto text-sm text-gray-500">
                   {userChallenge.progress >= 1 ? '✅ Completed' : '🔄 In Progress'}
                 </div>
@@ -286,7 +354,7 @@ const Challenge = () => {
                   <div className="bg-white border border-red-300 rounded-lg p-4">
                     <h4 className="font-semibold text-red-800 mb-2">📋 Instructions</h4>
                     <ol className="list-decimal list-inside text-sm text-gray-700 space-y-1">
-                      <li>Decrypt the ID above using cryptographic techniques</li>
+                      <li>Decrypt the encrypted ID above using cryptographic techniques</li>
                       <li>Use your decrypted result as the password</li>
                       <li>Access the challenge site with your password</li>
                     </ol>
@@ -294,19 +362,18 @@ const Challenge = () => {
                   
                   <div className="bg-white border border-red-300 rounded-lg p-4">
                     <h4 className="font-semibold text-red-800 mb-2">🌐 Challenge Site</h4>
-                    <p className="text-sm text-gray-600 mb-3">Once you decrypt your ID, access:</p>
+                    <p className="text-sm text-gray-600 mb-3">Once you decrypt your ID, access the challenge site:</p>
                     <code className="text-blue-600 font-mono text-sm block mb-3">
-                      placeholder.com/[your-decrypted-password]
+                      /challenge-site/{userChallenge.uniqueId}
                     </code>
                     <button 
                       className="btn btn-error btn-sm"
                       onClick={() => {
-                        const url = prompt("Enter your decrypted password to access the site:");
-                        if (url) window.open(`placeholder.com/${url.toLowerCase()}`, '_blank');
+                        window.open(`/challenge-site/${userChallenge.uniqueId}`, '_blank');
                       }}
                     >
                       <Lock className="w-4 h-4 mr-2" />
-                      Enter Decrypted Password
+                      Access Challenge Site
                     </button>
                   </div>
                   
@@ -320,14 +387,49 @@ const Challenge = () => {
               </div>
             </div>
 
-            {/* Future Challenges */}
+            {/* Challenge 2 - Social Engineering Defense */}
             <div className="space-y-3">
-              <div className="collapse bg-gray-50 border border-gray-200 opacity-60">
+              <div className={`collapse collapse-arrow ${userChallenge.progress >= 1 ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50 border border-gray-200 opacity-60'}`}>
+                {userChallenge.progress >= 1 && <input type="checkbox" className="peer" />}
                 <div className="collapse-title text-lg font-medium flex items-center gap-3">
-                  <div className="badge badge-neutral">Challenge 2</div>
-                  <span className="text-gray-600">🕵️ Social Engineering Defense</span>
-                  <div className="ml-auto text-sm text-gray-400">Coming Soon</div>
+                  <div className={`badge ${userChallenge.progress >= 1 ? 'badge-info' : 'badge-neutral'}`}>Challenge 2</div>
+                  <span className={userChallenge.progress >= 1 ? 'text-blue-800' : 'text-gray-600'}>🕵️ Social Engineering Defense</span>
+                  <div className="ml-auto text-sm text-gray-400">
+                    {userChallenge.progress >= 1 ? '🔓 Unlocked' : '🔒 Locked'}
+                  </div>
                 </div>
+                {userChallenge.progress >= 1 && (
+                  <div className="collapse-content">
+                    <div className="pt-4 space-y-4">
+                      <p className="text-gray-600">
+                        Your next mission: Identify and defend against social engineering attacks.
+                      </p>
+                      
+                      <div className="bg-white border border-blue-300 rounded-lg p-4">
+                        <h4 className="font-semibold text-blue-800 mb-3">📧 Scenario Analysis</h4>
+                        <p className="text-sm text-gray-700 mb-3">
+                          You will be presented with various communication scenarios. Your task is to identify potential social engineering attempts and recommend appropriate responses.
+                        </p>
+                      </div>
+                      
+                      <div className="bg-white border border-blue-300 rounded-lg p-4">
+                        <h4 className="font-semibold text-blue-800 mb-2">🎯 Your Mission</h4>
+                        <ol className="list-decimal list-inside text-sm text-gray-700 space-y-1">
+                          <li>Review the email scenarios provided</li>
+                          <li>Identify suspicious elements</li>
+                          <li>Select the appropriate security response</li>
+                          <li>Submit your analysis for evaluation</li>
+                        </ol>
+                      </div>
+                      
+                      <div className="alert alert-info">
+                        <span className="text-sm">
+                          <strong>Hint:</strong> Look for urgency tactics, suspicious links, and requests for sensitive information.
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
               
               <div className="collapse bg-gray-50 border border-gray-200 opacity-60">
