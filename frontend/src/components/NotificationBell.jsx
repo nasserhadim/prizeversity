@@ -130,10 +130,14 @@ const NotificationBell = () => {
       >
         <div
           ref={nodeRef}
-          className="absolute right-0 mt-2 w-[350px] max-w-[90vw] bg-white rounded-xl shadow-xl"
+          className="absolute mt-2 bg-base-100 rounded-xl shadow-xl z-50
+                     w-[350px] right-0
+                     sm:w-[350px] sm:right-0
+                     max-sm:fixed max-sm:inset-x-4 max-sm:w-auto max-sm:right-4 max-sm:left-4
+                     max-h-[80vh] overflow-hidden"
         >
-          <div className="p-4 border-b border-base-200">
-            <h3 className="text-lg font-semibold text-gray-800">Notifications</h3>
+          <div className="p-4 border-b border-base-300">
+            <h3 className="text-lg font-semibold text-base-content">Notifications</h3>
             <div className="flex flex-wrap gap-3 mt-3">
               <input
                 type="text"
@@ -172,19 +176,19 @@ const NotificationBell = () => {
             </div>
           </div>
 
-          <div className="max-h-[60vh] overflow-y-auto scroll-smooth divide-y divide-base-200">
+          <div className="max-h-[60vh] overflow-y-auto scroll-smooth divide-y divide-base-300">
             {paginatedNotifications.length > 0 ? (
               <>
                 {paginatedNotifications.map(notification => (
                   <div
                     key={notification._id}
                     className={`flex justify-between items-start gap-3 p-4 transition-colors ${
-                      notification.read ? 'opacity-70' : 'hover:bg-base-100'
+                      notification.read ? 'opacity-70' : 'hover:bg-base-200'
                     }`}
                   >
                     <div className="flex-1">
-                      <p className="text-sm">{notification.message}</p>
-                      <small className="text-gray-500 block mt-1">
+                      <p className="text-sm text-base-content">{notification.message}</p>
+                      <small className="text-base-content/60 block mt-1">
                         by {notification.actionBy.email} at{' '}
                         {new Date(notification.createdAt).toLocaleString()}
                         {notification.classroom && ` in classroom "${notification.classroom.name}"`}
@@ -192,7 +196,7 @@ const NotificationBell = () => {
                     </div>
                     {!notification.read && (
                       <button
-                        className="text-lg text-gray-500 hover:text-error"
+                        className="text-lg text-base-content/60 hover:text-error"
                         onClick={() => handleDismissNotification(notification._id)}
                         aria-label="Dismiss notification"
                       >
@@ -201,7 +205,7 @@ const NotificationBell = () => {
                     )}
                   </div>
                 ))}
-                <div className="flex justify-center items-center gap-4 py-3 border-t border-base-200">
+                <div className="flex justify-center items-center gap-4 py-3 border-t border-base-300">
                   <button
                     onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                     disabled={currentPage === 1}
@@ -209,7 +213,7 @@ const NotificationBell = () => {
                   >
                     Previous
                   </button>
-                  <span className="text-sm text-gray-600">{currentPage} of {totalPages}</span>
+                  <span className="text-sm text-base-content/60">{currentPage} of {totalPages}</span>
                   <button
                     onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                     disabled={currentPage === totalPages}
@@ -220,7 +224,7 @@ const NotificationBell = () => {
                 </div>
               </>
             ) : (
-              <div className="p-4 text-center text-sm text-gray-500">
+              <div className="p-4 text-center text-sm text-base-content/60">
                 {searchTerm ? 'No matching notifications' : 'No notifications'}
               </div>
             )}
