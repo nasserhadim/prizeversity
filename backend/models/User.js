@@ -20,9 +20,13 @@ const UserSchema = new mongoose.Schema({
   googleId: { type: String },
   microsoftId: { type: String },
   email: { type: String, required: true },
-  avatar: { type: String },
+  avatar: String, // uploaded avatar filename
+  profileImage: String, // OAuth provider profile image URL
   firstName: { type: String },
   lastName: { type: String },
+  // Add these fields to store OAuth profile names temporarily
+  oauthFirstName: { type: String }, // Temporary storage for OAuth first name
+  oauthLastName: { type: String },  // Temporary storage for OAuth last name
   role: { type: String, enum: ['admin', 'teacher', 'student']/*, default: 'student' */ },
   balance: { type: Number, default: 0, min: 0 },
   isFrozen: { type: Boolean, default: false },

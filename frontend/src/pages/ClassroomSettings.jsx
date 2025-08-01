@@ -67,8 +67,10 @@ export default function ClassroomSettings() {
                             toast.dismiss(t.id);
                             try {
                                 await axios.post(`/api/classroom/${id}/leave`);
-                                toast.success('Left classroom!');
                                 navigate('/classrooms');
+                                const toastId = toast.success('Left classroom!');
+                                // Force dismiss after 3 seconds
+                                setTimeout(() => toast.dismiss(toastId), 3000);
                             } catch (err) {
                                 console.error(err);
                                 toast.error('Failed to leave classroom');
@@ -100,8 +102,10 @@ export default function ClassroomSettings() {
                             toast.dismiss(t.id);
                             try {
                                 await axios.delete(`/api/classroom/${id}`);
-                                toast.success('Classroom deleted!');
                                 navigate('/');
+                                const toastId = toast.success('Classroom deleted!');
+                                // Force dismiss after 3 seconds
+                                setTimeout(() => toast.dismiss(toastId), 3000);
                             } catch (err) {
                                 console.error(err);
                                 toast.error('Failed to delete classroom');

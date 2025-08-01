@@ -6,6 +6,7 @@ import apiItem from '../API/apiItem.js';
 import { ImageOff } from 'lucide-react';
 import SwapModal from '../components/SwapModal';
 import NullifyModal from '../components/NullifyModal';
+import socket from '../utils/socket'; // Changed from '../API/socket' to '../utils/socket'
 
 // Inventory section for using, managing, and interacting with items
 const InventorySection = ({ userId, classroomId }) => {
@@ -34,6 +35,28 @@ const InventorySection = ({ userId, classroomId }) => {
     };
     if (userId && classroomId) load();
   }, [userId, classroomId]);
+
+  // Socket listeners for real-time updates
+  useEffect(() => {
+    socket.on('inventory_update', (data) => {
+      if (data.userId === userId) {
+        // Refresh inventory when items are used/received
+        load();
+      }
+    });
+    
+    socket.on('item_used', (data) => {
+      if (data.targetUserId === userId || data.userId === userId) {
+        // Refresh when items affect this user
+        load();
+      }
+    });
+    
+    return () => {
+      socket.off('inventory_update');
+      socket.off('item_used');
+    };
+  }, [userId]);
 
   // When a swap attribute is selected in the modal
   const handleSwapSelection = async (swapAttribute) => {

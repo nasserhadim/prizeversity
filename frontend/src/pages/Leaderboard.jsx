@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Coins } from 'lucide-react';
-// import axios from 'axios';
+import socket from '../utils/socket'; // Add this import
 import apiLeaderboard from '../API/apiLeaderboard.js';
 
 const Leaderboard = () => {
@@ -25,6 +25,22 @@ const Leaderboard = () => {
     };
 
     fetchLeaderboard();
+  }, [classId]);
+
+  // Add real-time leaderboard updates
+  useEffect(() => {
+    socket.on('balance_update', () => {
+      fetchLeaderboard(); // Refresh leaderboard when any balance changes
+    });
+    
+    socket.on('classroom_update', () => {
+      fetchLeaderboard(); // Refresh when classroom changes
+    });
+    
+    return () => {
+      socket.off('balance_update');
+      socket.off('classroom_update');
+    };
   }, [classId]);
 
   return (
