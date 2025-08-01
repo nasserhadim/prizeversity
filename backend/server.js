@@ -31,6 +31,7 @@ const defendItems = require('./routes/defendItem.js');
 const utilityItems = require('./routes/utilityItem.js');
 const passiveItems = require('./routes/passiveItem.js');
 const challengeRoutes = require('./routes/challenge');
+const challengeTemplateRoutes = require('./routes/challengeTemplate');
 const { redirectBase, isProd } = require('./config/domain');
 
 const app = express();
@@ -115,6 +116,7 @@ app.use('/api', groupBalanceRoutes);
 app.use('/api/feedback', feedbackRoutes); // Use the Feedback model for classroom feedback
 app.use('/api/pending-assignments', require('./routes/pendingAssignments'));
 app.use('/api/challenges', challengeRoutes);
+app.use('/api/challenge-templates', challengeTemplateRoutes);
 
 app.use('/api/attack', attackItems);
 app.use('/api/defend', defendItems);
