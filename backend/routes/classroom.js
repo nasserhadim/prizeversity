@@ -1,5 +1,3 @@
-
-
 const express = require('express');
 const path = require('path');
 const multer = require('multer');
@@ -91,6 +89,13 @@ router.post('/join', ensureAuthenticated, async (req, res) => {
       .populate('students', 'email');
     req.app.get('io').to(`classroom-${classroom._id}`)
       .emit('classroom_update', populatedClassroom);
+
+    // When student joins classroom
+    req.app.get('io').to(`classroom-${classroom._id}`).emit('student_joined', {
+      studentId: req.user._id,
+      studentName: `${req.user.firstName} ${req.user.lastName}`,
+      classroomId: classroom._id
+    });
 
     res.status(200).json({ message: 'Joined classroom successfully', classroom });
   } catch (err) {
@@ -334,6 +339,12 @@ router.put('/:id', ensureAuthenticated, upload.single('backgroundImage'), async 
       .populate('students', 'email');
     req.app.get('io').to(`classroom-${classroom._id}`).emit('classroom_update', populatedClassroom);
 
+    // After classroom settings update
+    req.app.get('io').to(`classroom-${classroom._id}`).emit('classroom_settings_update', {
+      classroomId: classroom._id,
+      newSettings: populatedClassroom
+    });
+
     res.status(200).json(classroom);
   } catch (err) {
     console.error('[Update Classroom] error:', err);
@@ -358,6 +369,13 @@ router.post('/:id/leave', ensureAuthenticated, async (req, res) => {
       );
       await classroom.save();
     }
+
+    // When student leaves/is removed
+    req.app.get('io').to(`classroom-${req.params.id}`).emit('student_left', {
+      studentId: req.user._id,
+      studentName: `${req.user.firstName} ${req.user.lastName}`,
+      classroomId: req.params.id
+    });
 
     res.status(200).json({ message: 'Left classroom successfully' });
   } catch (err) {

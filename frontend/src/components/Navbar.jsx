@@ -4,9 +4,9 @@ import { useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { ThemeContext } from '../context/ThemeContext';
 import { useCart } from '../context/CartContext';
-import { ShoppingCart } from 'lucide-react';
+import { ShoppingCart, Menu, X } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
-import NotificationBell from './NotificationBell'; // Import the NotificationBell component
+import NotificationBell from './NotificationBell';
 import { API_BASE } from '../config/api';
 
 import {
@@ -21,14 +21,13 @@ import {
   Shield
 } from 'lucide-react';
 
-//import defaultProfilePicture from '../assets/Default/Profile-Default-Picture.jpg';
-
 const BACKEND_URL = `${API_BASE}`;
 
 const Navbar = () => {
   const { user, logout, setPersona, originalUser } = useContext(AuthContext);
   const location = useLocation();
   const navigate = useNavigate();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Handle switching from teacher to student view
   const handleSwitchToStudent = () => {
@@ -71,6 +70,10 @@ const Navbar = () => {
   const [showCart, setShowCart] = useState(false);
   const cartRef = useRef(null);
 
+  // Close mobile menu when route changes
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
 
   // Hook to close cart dropdown when clicking outside
   useEffect(() => {
@@ -89,16 +92,47 @@ const Navbar = () => {
   return (
     <nav
       data-theme={theme}
-      className='fixed top-0 left-0 right-0 z-50 bg-base-100 text-base-content shadow-md px-6 py-4 bg-opacity-20 backdrop-blur-md'
+      className='fixed top-0 left-0 right-0 z-50 bg-base-100 text-base-content shadow-md px-4 lg:px-6 py-4 bg-opacity-20 backdrop-blur-md'
     >
-      <div className='container mx-auto flex items-center justify-between flex-wrap'>
+      <div className='container mx-auto flex items-center justify-between'>
         {/* Logo */}
-        <div className='text-2xl font-bold'>
+        <div className='text-xl lg:text-2xl font-bold'>
           <Link to='/'>Prizeversity</Link>
         </div>
 
-        {/* Main Nav Links */}
-        <ul className='flex flex-wrap space-x-4 text-lg mr-5 items-center'>
+        {/* Mobile Menu Button */}
+        <div className="lg:hidden flex items-center gap-2">
+          {/* Cart Icon for Mobile (if in classroom and not teacher) */}
+          {user?.role !== 'teacher' && insideClassroom && (
+            <button
+              className="relative"
+              onClick={() => setShowCart(!showCart)}
+              title="Cart"
+            >
+              <ShoppingCart size={20} className="text-green-500" />
+              {cartItems.length > 0 && (
+                <span className="absolute -top-1 -right-2 bg-red-500 text-white rounded-full text-xs w-4 h-4 flex items-center justify-center">
+                  {cartItems.length}
+                </span>
+              )}
+            </button>
+          )}
+
+          {/* Notification Bell */}
+          <NotificationBell />
+
+          {/* Mobile Menu Toggle */}
+          <button
+            className="p-2"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            aria-label="Toggle menu"
+          >
+            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+        </div>
+
+        {/* Desktop Navigation */}
+        <ul className='hidden lg:flex space-x-4 text-lg items-center'>
           {!insideClassroom && (
             <>
               <li>
@@ -108,7 +142,7 @@ const Navbar = () => {
                   title="Home"
                 >
                   <Home size={18} />
-                  <span className="hidden lg:inline">Home</span>
+                  <span>Home</span>
                 </Link>
               </li>
               {showClassroomsTab && (
@@ -119,7 +153,7 @@ const Navbar = () => {
                     title="Classrooms"
                   >
                     <School size={18} />
-                    <span className="hidden lg:inline">Classrooms</span>
+                    <span>Classrooms</span>
                   </Link>
                 </li>
               )}
@@ -129,70 +163,58 @@ const Navbar = () => {
           {insideClassroom && (
             <>
               <li>
-                <div className="tooltip tooltip-bottom" data-tip="Classroom">
-                  <Link
-                    to={`/classroom/${classroomId}`}
-                    className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname === `/classroom/${classroomId}` ? 'text-green-500' : ''}`}
-                  >
-                    <School size={18} />
-                    <span className="hidden lg:inline">Classroom</span>
-                  </Link>
-                </div>
+                <Link
+                  to={`/classroom/${classroomId}`}
+                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname === `/classroom/${classroomId}` ? 'text-green-500' : ''}`}
+                >
+                  <School size={18} />
+                  <span>Classroom</span>
+                </Link>
               </li>
               <li>
-                <div className="tooltip tooltip-bottom" data-tip="Bazaar">
-                  <Link
-                    to={`/classroom/${classroomId}/bazaar`}
-                    className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/bazaar`) ? 'text-green-500' : ''}`}
-                  >
-                    <Briefcase size={18} />
-                    <span className="hidden lg:inline">Bazaar</span>
-                  </Link>
-                </div>
+                <Link
+                  to={`/classroom/${classroomId}/bazaar`}
+                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/bazaar`) ? 'text-green-500' : ''}`}
+                >
+                  <Briefcase size={18} />
+                  <span>Bazaar</span>
+                </Link>
               </li>
               <li>
-                <div className="tooltip tooltip-bottom" data-tip="Groups">
-                  <Link
-                    to={`/classroom/${classroomId}/groups`}
-                    className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/groups`) ? 'text-green-500' : ''}`}
-                  >
-                    <Users size={18} />
-                    <span className="hidden lg:inline">Groups</span>
-                  </Link>
-                </div>
+                <Link
+                  to={`/classroom/${classroomId}/groups`}
+                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/groups`) ? 'text-green-500' : ''}`}
+                >
+                  <Users size={18} />
+                  <span>Groups</span>
+                </Link>
               </li>
               <li>
-                <div className="tooltip tooltip-bottom" data-tip="Wallet">
-                  <Link
-                    to={`/classroom/${classroomId}/wallet`}
-                    className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/wallet`) ? 'text-green-500' : ''}`}
-                  >
-                    <Wallet size={18} />
-                    <span className="hidden lg:inline">Wallet</span>
-                  </Link>
-                </div>
+                <Link
+                  to={`/classroom/${classroomId}/wallet`}
+                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/wallet`) ? 'text-green-500' : ''}`}
+                >
+                  <Wallet size={18} />
+                  <span>Wallet</span>
+                </Link>
               </li>
               <li>
-                <div className="tooltip tooltip-bottom" data-tip="People">
-                  <Link
-                    to={`/classroom/${classroomId}/people`}
-                    className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/people`) ? 'text-green-500' : ''}`}
-                  >
-                    <UserRound size={18} />
-                    <span className="hidden lg:inline">People</span>
-                  </Link>
-                </div>
+                <Link
+                  to={`/classroom/${classroomId}/people`}
+                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/people`) ? 'text-green-500' : ''}`}
+                >
+                  <UserRound size={18} />
+                  <span>People</span>
+                </Link>
               </li>
               <li>
-                <div className="tooltip tooltip-bottom" data-tip="Leaderboard">
-                  <Link
-                    to={`/classroom/${classroomId}/leaderboard`}
-                    className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname === '/leaderboard' ? 'text-green-500' : ''}`}
-                  >
-                    <Trophy size={18} />
-                    <span className="hidden lg:inline">Leaderboard</span>
-                  </Link>
-                </div>
+                <Link
+                  to={`/classroom/${classroomId}/leaderboard`}
+                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname === '/leaderboard' ? 'text-green-500' : ''}`}
+                >
+                  <Trophy size={18} />
+                  <span>Leaderboard</span>
+                </Link>
               </li>
               <li>
                 <div className="tooltip tooltip-bottom" data-tip="Challenge">
@@ -209,122 +231,324 @@ const Navbar = () => {
           )}
         </ul>
 
-        {/* Right side: Always visible on all screens */}
-        {user && (
-          <div className="flex items-center gap-4 shrink-0">
-            {user?.role !== 'teacher' && insideClassroom && (
-              <>
-                {/* Cart Icon */}
-                <button
-                  className="relative"
-                  onClick={() => setShowCart(!showCart)}
-                  title="Cart"
-                >
-                  <ShoppingCart size={24} className="text-green-500" />
-                  {cartItems.length > 0 && (
-                    <span className="absolute -top-1 -right-2 bg-red-500 text-white rounded-full text-xs w-5 h-5 flex items-center justify-center">
-                      {cartItems.length}
-                    </span>
-                  )}
-                </button>
+        {/* Desktop Right Side */}
+        <div className="hidden lg:flex items-center gap-4">
+          {/* Desktop Cart Icon */}
+          {user?.role !== 'teacher' && insideClassroom && (
+            <button
+              className="relative"
+              onClick={() => setShowCart(!showCart)}
+              title="Cart"
+            >
+              <ShoppingCart size={24} className="text-green-500" />
+              {cartItems.length > 0 && (
+                <span className="absolute -top-1 -right-2 bg-red-500 text-white rounded-full text-xs w-5 h-5 flex items-center justify-center">
+                  {cartItems.length}
+                </span>
+              )}
+            </button>
+          )}
 
-                {/* Cart Dropdown */}
-                {showCart && (
-                  <div ref={cartRef} className="fixed top-20 right-4 bg-white border shadow-lg w-80 z-[9999] p-4 rounded text-black">
-                    <h3 className="text-lg font-bold mb-2">Your Cart</h3>
-                    {cartItems.length === 0 ? (
-                      <p className="text-sm text-gray-500">Cart is empty</p>
-                    ) : (
-                      <>
-                        <ul className="space-y-2">
-                          {cartItems.map(item => (
-                            <li key={item._id} className="flex justify-between items-center">
-                              <div>
-                                <span className="block font-medium">{item.name}</span>
-                                <span className="text-sm text-gray-500">{item.price} bits</span>
-                              </div>
-                              <button
-                                onClick={() => removeFromCart(item._id)}
-                                className="text-red-500 text-sm ml-4"
-                                title="Remove item"
-                              >
-                                ✕
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                        <div className="mt-3 text-right font-semibold">
-                          Total: {cartItems.reduce((sum, item) => sum + item.price, 0)} bits
-                        </div>
-                        <Link to="/checkout">
-                          <button className="mt-3 w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">
-                            Go to Checkout
-                          </button>
-                        </Link>
-                      </>
-                    )}
+          {/* Desktop Notification Bell */}
+          <NotificationBell />
+
+          {/* Desktop Profile Dropdown */}
+          <div className="dropdown dropdown-end">
+            <div tabIndex={0} role="button" className="btn btn-ghost btn-circle avatar">
+              <div className="w-10 h-10 rounded-full ring ring-success ring-offset-base-100 ring-offset-2 overflow-hidden">
+                {user.avatar ? (
+                  <img
+                    alt="User Avatar"
+                    src={user.avatar.startsWith('data:') ? user.avatar : (user.avatar.startsWith('http') ? user.avatar : `${BACKEND_URL}/uploads/${user.avatar}`)}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      if (user.profileImage) {
+                        e.target.src = user.profileImage;
+                      } else {
+                        const initialsDiv = document.createElement('div');
+                        initialsDiv.className = 'w-full h-full bg-gray-200 flex items-center justify-center text-lg font-bold text-gray-600';
+                        initialsDiv.textContent = `${(user.firstName?.[0] || user.email?.[0] || 'U')}${(user.lastName?.[0] || '')}`.toUpperCase();
+                        e.target.parentNode.replaceChild(initialsDiv, e.target);
+                      }
+                    }}
+                  />
+                ) : user.profileImage ? (
+                  <img
+                    alt="Profile Image"
+                    src={user.profileImage}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      const initialsDiv = document.createElement('div');
+                      initialsDiv.className = 'w-full h-full bg-gray-200 flex items-center justify-center text-lg font-bold text-gray-600';
+                      initialsDiv.textContent = `${(user.firstName?.[0] || user.email?.[0] || 'U')}${(user.lastName?.[0] || '')}`.toUpperCase();
+                      e.target.parentNode.replaceChild(initialsDiv, e.target);
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full bg-gray-200 flex items-center justify-center text-lg font-bold text-gray-600">
+                    {`${(user.firstName?.[0] || user.email?.[0] || 'U')}${(user.lastName?.[0] || '')}`.toUpperCase()}
                   </div>
+                )}
+              </div>
+            </div>
+            <ul tabIndex={0} className="mt-3 z-[1] p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-52">
+              <li><Link to={`/profile/${user._id}`}>Profile</Link></li>
+              <li><Link to="/settings">Settings</Link></li>
+              <li><Link to="/support">Help & Support</Link></li>
+              {user.role === 'student' && (
+                <li><Link to="/orders">Order History</Link></li>
+              )}
+              {user.role === 'teacher' && (
+                <li>
+                  <button onClick={handleSwitchToStudent}>
+                    Switch to Student Profile
+                  </button>
+                </li>
+              )}
+              {originalUser?.role === 'teacher' && user.role === 'student' && (
+                <li>
+                  <button onClick={handleSwitchToTeacher}>
+                    Switch to Teacher Profile
+                  </button>
+                </li>
+              )}
+              <li><button onClick={logout}>Logout</button></li>
+            </ul>
+          </div>
+        </div>
+
+        {/* Cart Dropdown */}
+        {showCart && (
+          <div ref={cartRef} className="fixed top-20 right-4 bg-white border shadow-lg w-80 max-w-[calc(100vw-2rem)] z-[9999] p-4 rounded text-black">
+            <h3 className="text-lg font-bold mb-2">Your Cart</h3>
+            {cartItems.length === 0 ? (
+              <p className="text-sm text-gray-500">Cart is empty</p>
+            ) : (
+              <>
+                <ul className="space-y-2">
+                  {cartItems.map(item => (
+                    <li key={item._id} className="flex justify-between items-center">
+                      <div>
+                        <span className="block font-medium">{item.name}</span>
+                        <span className="text-sm text-gray-500">{item.price} bits</span>
+                      </div>
+                      <button
+                        onClick={() => removeFromCart(item._id)}
+                        className="text-red-500 text-sm ml-4"
+                        title="Remove item"
+                      >
+                        ✕
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-3 text-right font-semibold">
+                  Total: {cartItems.reduce((sum, item) => sum + item.price, 0)} bits
+                </div>
+                <Link to="/checkout">
+                  <button className="mt-3 w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">
+                    Go to Checkout
+                  </button>
+                </Link>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Mobile Menu Overlay */}
+      {isMobileMenuOpen && (
+        <div className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-40" onClick={() => setIsMobileMenuOpen(false)} />
+      )}
+
+      {/* Mobile Menu */}
+      <div className={`lg:hidden fixed top-0 right-0 h-screen w-80 max-w-[85vw] bg-base-100 border-l border-base-300 shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+        {/* Add a solid overlay to ensure full opacity */}
+        <div className="absolute inset-0 bg-base-100 opacity-100"></div>
+        
+        <div className="relative p-4 bg-base-100 h-full overflow-y-auto">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-bold text-base-content">Menu</h2>
+            <button onClick={() => setIsMobileMenuOpen(false)} className="text-base-content/70 hover:text-base-content">
+              <X size={24} />
+            </button>
+          </div>
+
+          {/* Mobile Navigation Links */}
+          <nav className="space-y-4">
+            {!insideClassroom && (
+              <>
+                <Link
+                  to="/"
+                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname === '/' ? 'bg-primary/10 text-primary' : 'hover:bg-base-200'}`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <Home size={20} />
+                  <span>Home</span>
+                </Link>
+                {showClassroomsTab && (
+                  <Link
+                    to="/classrooms"
+                    className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname === '/classrooms' ? 'bg-primary/10 text-primary' : 'hover:bg-base-200'}`}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <School size={20} />
+                    <span>Classrooms</span>
+                  </Link>
                 )}
               </>
             )}
 
-            {/* Notification Bell */}
-            <NotificationBell />
+            {insideClassroom && (
+              <>
+                <Link
+                  to={`/classroom/${classroomId}`}
+                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname === `/classroom/${classroomId}` ? 'bg-primary/10 text-primary' : 'hover:bg-base-200'}`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <School size={20} />
+                  <span>Classroom</span>
+                </Link>
+                <Link
+                  to={`/classroom/${classroomId}/bazaar`}
+                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname.startsWith(`/classroom/${classroomId}/bazaar`) ? 'bg-primary/10 text-primary' : 'hover:bg-base-200'}`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <Briefcase size={20} />
+                  <span>Bazaar</span>
+                </Link>
+                <Link
+                  to={`/classroom/${classroomId}/groups`}
+                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname.startsWith(`/classroom/${classroomId}/groups`) ? 'bg-primary/10 text-primary' : 'hover:bg-base-200'}`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <Users size={20} />
+                  <span>Groups</span>
+                </Link>
+                <Link
+                  to={`/classroom/${classroomId}/wallet`}
+                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname.startsWith(`/classroom/${classroomId}/wallet`) ? 'bg-primary/10 text-primary' : 'hover:bg-base-200'}`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <Wallet size={20} />
+                  <span>Wallet</span>
+                </Link>
+                <Link
+                  to={`/classroom/${classroomId}/people`}
+                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname.startsWith(`/classroom/${classroomId}/people`) ? 'bg-primary/10 text-primary' : 'hover:bg-base-200'}`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <UserRound size={20} />
+                  <span>People</span>
+                </Link>
+                <Link
+                  to={`/classroom/${classroomId}/leaderboard`}
+                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname === '/leaderboard' ? 'bg-primary/10 text-primary' : 'hover:bg-base-200'}`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <Trophy size={20} />
+                  <span>Leaderboard</span>
+                </Link>
+              </>
+            )}
 
-            {/* Profile Avatar */}
-            <div className="dropdown dropdown-end">
-              <div tabIndex={0} role="button" className="btn btn-ghost btn-circle avatar">
-                <div className="w-10 h-10 rounded-full ring ring-success ring-offset-base-100 ring-offset-2 overflow-hidden">
+            {/* Mobile Profile Section */}
+            <div className="border-t border-base-300 pt-4 mt-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full ring ring-success ring-offset-2 overflow-hidden">
                   {user.avatar ? (
                     <img
                       alt="User Avatar"
-                      src={user.avatar.startsWith('http') ? user.avatar : `${BACKEND_URL}/uploads/${user.avatar}`}
+                      src={user.avatar.startsWith('data:') ? user.avatar : (user.avatar.startsWith('http') ? user.avatar : `${BACKEND_URL}/uploads/${user.avatar}`)}
                       className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.target.onerror = null;
-                        e.target.src = 'https://via.placeholder.com/150';
-                      }}
+                    />
+                  ) : user.profileImage ? (
+                    <img
+                      alt="Profile Image"
+                      src={user.profileImage}
+                      className="w-full h-full object-cover"
                     />
                   ) : (
-                    <div className="w-full h-full bg-gray-200 flex items-center justify-center text-lg font-bold text-gray-600">
+                    <div className="w-full h-full bg-base-300 flex items-center justify-center text-sm font-bold text-base-content/70">
                       {`${(user.firstName?.[0] || user.email?.[0] || 'U')}${(user.lastName?.[0] || '')}`.toUpperCase()}
                     </div>
                   )}
-
+                </div>
+                <div>
+                  <p className="font-medium text-base-content">{user.firstName} {user.lastName}</p>
+                  <p className="text-sm text-base-content/70">{user.email}</p>
                 </div>
               </div>
-              <ul tabIndex={0} className="mt-3 z-[1] p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-52">
-                <li><Link to={`/profile/${user._id}`}>Profile</Link></li>
-                <li><Link to="/settings">Settings</Link></li>
-                <li><Link to="/support">Help & Support</Link></li>
 
+              <div className="space-y-2">
+                <Link
+                  to={`/profile/${user._id}`}
+                  className="flex items-center gap-3 p-3 rounded-lg text-base-content hover:bg-base-200"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <User size={20} />
+                  <span>Profile</span>
+                </Link>
+                <Link
+                  to="/settings"
+                  className="flex items-center gap-3 p-3 rounded-lg text-base-content hover:bg-base-200"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <span>Settings</span>
+                </Link>
+                <Link
+                  to="/support"
+                  className="flex items-center gap-3 p-3 rounded-lg text-base-content hover:bg-base-200"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <span>Help & Support</span>
+                </Link>
                 {user.role === 'student' && (
-                  <li>
-                    <Link to="/orders">Order History</Link>
-                  </li>
+                  <Link
+                    to="/orders"
+                    className="flex items-center gap-3 p-3 rounded-lg text-base-content hover:bg-base-200"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <span>Order History</span>
+                  </Link>
                 )}
-
                 {user.role === 'teacher' && (
-                  <li>
-                    <button onClick={handleSwitchToStudent}>
-                      Switch to Student Profile
-                    </button>
-                  </li>
+                  <button
+                    onClick={() => {
+                      handleSwitchToStudent();
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="flex items-center gap-3 p-3 rounded-lg text-base-content hover:bg-base-200 w-full text-left"
+                  >
+                    <span>Switch to Student Profile</span>
+                  </button>
                 )}
-
                 {originalUser?.role === 'teacher' && user.role === 'student' && (
-                  <li>
-                    <button onClick={handleSwitchToTeacher}>
-                      Switch to Teacher Profile
-                    </button>
-                  </li>
+                  <button
+                    onClick={() => {
+                      handleSwitchToTeacher();
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="flex items-center gap-3 p-3 rounded-lg text-base-content hover:bg-base-200 w-full text-left"
+                  >
+                    <span>Switch to Teacher Profile</span>
+                  </button>
                 )}
-
-                <li><button onClick={logout}>Logout</button></li>
-              </ul>
+                <button
+                  onClick={() => {
+                    logout();
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="flex items-center gap-3 p-3 rounded-lg text-error hover:bg-error/10 w-full text-left"
+                >
+                  <span>Logout</span>
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          </nav>
+        </div>
       </div>
     </nav>
   );

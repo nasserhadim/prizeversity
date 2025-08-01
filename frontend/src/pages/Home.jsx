@@ -99,8 +99,11 @@ const Home = () => {
 
   // Sync firstName and lastName state when user changes
   useEffect(() => {
-    if (user?.firstName) setFirstName(user.firstName);
-    if (user?.lastName) setLastName(user.lastName);
+    if (user) {
+      // Use existing names if available, otherwise use OAuth names, otherwise empty
+      setFirstName(user.firstName || user.oauthFirstName || '');
+      setLastName(user.lastName || user.oauthLastName || '');
+    }
   }, [user]);
 
   // Sync role and check profile completeness when user changes
@@ -332,6 +335,9 @@ const Home = () => {
                     value={firstName} 
                     onChange={(e) => setFirstName(e.target.value)} 
                   />
+                  {user?.oauthFirstName && !user?.firstName && (
+                    <p className="text-xs text-gray-500 mt-1">Pre-filled from your account</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
@@ -342,6 +348,9 @@ const Home = () => {
                     value={lastName} 
                     onChange={(e) => setLastName(e.target.value)} 
                   />
+                  {user?.oauthLastName && !user?.lastName && (
+                    <p className="text-xs text-gray-500 mt-1">Pre-filled from your account</p>
+                  )}
                 </div>
               </div>
               

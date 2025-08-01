@@ -173,6 +173,12 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
 }
           req.app.get('io').to(`user-${student._id}`).emit('notification', populatedNotification); 
       
+    req.app.get('io').to(`classroom-${classroomId}`).emit('balance_update', {
+      studentId: student._id,
+      newBalance: student.balance,
+      classroomId
+    });
+
     res.status(200).json({ message: 'Balance assigned successfully' });
   } catch (err) {
     console.error('Failed to assign balance:', err.message);
@@ -377,6 +383,14 @@ router.post(
 
     await sender.save();
     await recipient.save();
+
+    req.app.get('io').to(`classroom-${recipient.classroom}`).emit('balance_update', {
+      senderId: sender._id,
+      receiverId: recipient._id,
+      senderNewBalance: sender.balance,
+      receiverNewBalance: recipient.balance,
+      classroomId: recipient.classroom
+    });
 
     res.status(200).json({ message: 'Transfer successful' });
   }
