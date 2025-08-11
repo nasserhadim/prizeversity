@@ -20,7 +20,13 @@ const generateExpectedAnswer = {
     return GITHUB_FORMAT.replace('{id}', uniqueId.slice(-4).toUpperCase());
   },
   
-
+  'network-analysis': () => {
+    return 'FLAG{network_security_master}';
+  },
+  
+  'advanced-crypto': () => {
+    return 'FLAG{crypto_expert_2024}';
+  }
 };
 
 const validators = {
@@ -34,7 +40,15 @@ const validators = {
     return answer.trim().toUpperCase() === expected;
   },
 
+  'network-analysis': (answer, metadata, uniqueId) => {
+    const expected = generateExpectedAnswer['network-analysis']();
+    return answer.trim() === expected;
+  },
 
+  'advanced-crypto': (answer, metadata, uniqueId) => {
+    const expected = generateExpectedAnswer['advanced-crypto']();
+    return answer.trim() === expected;
+  },
 
   // Template for adding new challenge types
   'custom-challenge': (answer, metadata, uniqueId) => {

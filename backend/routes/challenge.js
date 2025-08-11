@@ -35,6 +35,7 @@ async function createGitHubBranch(uniqueId, userId) {
   };
 
   try {
+    // Check if branch already exists
     try {
       await axios.get(
         `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/branches/${uniqueId}`,
@@ -48,12 +49,14 @@ async function createGitHubBranch(uniqueId, userId) {
       }
     }
 
+    // Get the main branch SHA
     const mainBranch = await axios.get(
       `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/branches/main`,
       { headers }
     );
     const mainSha = mainBranch.data.commit.sha;
 
+    // Create new branch
     await axios.post(
       `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/refs`,
       {
@@ -63,8 +66,10 @@ async function createGitHubBranch(uniqueId, userId) {
       { headers }
     );
 
+    // Generate password for Challenge 2
     const challenge2Password = generateChallenge2Password(uniqueId);
 
+    // Create hello_world.txt content
     const fileContent = `
 nice job lol: ${challenge2Password}
 
@@ -167,7 +172,7 @@ router.get('/:classroomId', ensureAuthenticated, async (req, res) => {
 
     // Students get limited challenge data + their userChallenge + current challenge info
     const currentChallengeIndex = userChallenge?.currentChallengeIndex || 0;
-    const currentChallengeDefinition = challenge.challengeDefinitions?.[currentChallengeIndex];
+    const currentChallengeDefinition = challenge.challengeDefinitions[currentChallengeIndex];
     
     res.json({ 
       challenge: {
@@ -236,10 +241,10 @@ router.post('/:classroomId/configure', ensureAuthenticated, ensureTeacher, async
     } else {
       // Set default arrays if not provided
       const defaultSettings = {
-        challengeBits: [50, 75],
-        challengeMultipliers: [1.0, 1.0],
-        challengeLuck: [0, 0],
-        challengeDiscounts: [0, 0],
+        challengeBits: [50, 75, 100, 125],
+        challengeMultipliers: [1.0, 1.0, 1.0, 1.0],
+        challengeLuck: [0, 0, 0, 0],
+        challengeDiscounts: [0, 0, 0, 0],
         ...settings
       };
       
@@ -465,7 +470,72 @@ router.post('/verify-challenge2-external', ensureAuthenticated, async (req, res)
   }
 });
 
+// POST /api/challenges/complete-challenge/:level - Complete challenge level (Student)
+router.post('/complete-challenge/:level', ensureAuthenticated, async (req, res) => {
+  try {
+    const { level } = req.params;
+    const { uniqueId, solution } = req.body;
+    const userId = req.user._id;
+    const challengeLevel = parseInt(level);
 
+    if (!uniqueId || !solution || ![3, 4].includes(challengeLevel)) {
+      return res.status(400).json({ message: 'Invalid challenge data' });
+    }
+
+    const challenge = await Challenge.findOne({
+      'userChallenges.uniqueId': uniqueId
+    });
+
+    if (!challenge) {
+      return res.status(404).json({ message: 'Challenge not found' });
+    }
+
+    const userChallenge = challenge.userChallenges.find(
+      uc => uc.uniqueId === uniqueId && uc.userId.toString() === userId.toString()
+    );
+
+    if (!userChallenge) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    if (userChallenge.progress < challengeLevel - 1) {
+      return res.status(400).json({ message: `Must complete Challenge ${challengeLevel - 1} first` });
+    }
+
+    if (userChallenge.progress >= challengeLevel) {
+      return res.status(400).json({ message: 'Challenge already completed' });
+    }
+
+    let isCorrect = false;
+    if (challengeLevel === 3) {
+      isCorrect = solution.toUpperCase() === 'NETWORK_ANALYSIS_COMPLETE';
+    } else if (challengeLevel === 4) {
+      isCorrect = solution.toUpperCase() === 'CRYPTO_MASTER_ACHIEVED';
+    }
+
+    if (!isCorrect) {
+      return res.status(401).json({ message: 'Incorrect solution' });
+    }
+
+    userChallenge.progress = challengeLevel;
+    if (challengeLevel === 4) {
+      userChallenge.completedAt = Date.now();
+    }
+    
+    const bitsAwarded = await awardChallengeBits(userId, challengeLevel, challenge);
+    await challenge.save();
+
+    res.json({ 
+      message: `Challenge ${challengeLevel} completed successfully!`,
+      progress: userChallenge.progress,
+      bitsAwarded 
+    });
+
+  } catch (error) {
+    console.error('Error completing challenge:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 
 // GET /api/challenges/:classroomId/stats - Get challenge statistics (Teacher only)
 router.get('/:classroomId/stats', ensureAuthenticated, ensureTeacher, async (req, res) => {
@@ -496,7 +566,8 @@ router.get('/:classroomId/stats', ensureAuthenticated, ensureTeacher, async (req
         notStarted: challenge.userChallenges.filter(uc => uc.progress === 0).length,
         challenge1: challenge.userChallenges.filter(uc => uc.progress === 1).length,
         challenge2: challenge.userChallenges.filter(uc => uc.progress === 2).length,
-        completed: challenge.userChallenges.filter(uc => uc.progress === 2).length
+        challenge3: challenge.userChallenges.filter(uc => uc.progress === 3).length,
+        completed: challenge.userChallenges.filter(uc => uc.progress === 4).length
       }
     };
 
@@ -536,6 +607,8 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
     let challengeIndex = 0;
     if (challengeId === 'caesar-secret-001') challengeIndex = 0;
     else if (challengeId === 'github-osint-002') challengeIndex = 1;
+    else if (challengeId === 'network-analysis-003') challengeIndex = 2;
+    else if (challengeId === 'advanced-crypto-004') challengeIndex = 3;
     else {
       return res.status(400).json({ success: false, message: 'Invalid challenge ID' });
     }
@@ -551,7 +624,7 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
     }
 
     // Use secure validation - all logic hidden in validators module
-    const challengeTypes = ['caesar-decrypt', 'github-osint'];
+    const challengeTypes = ['caesar-decrypt', 'github-osint', 'network-analysis', 'advanced-crypto'];
     const challengeType = challengeTypes[challengeIndex];
     
     const validator = validators[challengeType];
@@ -575,7 +648,7 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
         // Calculate bits reward
         if (challenge.settings.rewardMode === 'individual') {
           bitsAwarded = challenge.settings.challengeBits[challengeIndex] || 0;
-        } else if (challengeIndex === 1) { // Only award total bits on final challenge
+        } else if (challengeIndex === 3) { // Only award total bits on final challenge
           bitsAwarded = challenge.settings.totalRewardBits || 0;
         }
 
@@ -596,7 +669,7 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
           if (multiplierReward > 1.0) {
             user.passiveAttributes.multiplier += (multiplierReward - 1.0);
           }
-        } else if (challengeIndex === 1) {
+        } else if (challengeIndex === 3) {
           const totalMultiplier = challenge.settings.totalMultiplier || 1.0;
           if (totalMultiplier > 1.0) {
             user.passiveAttributes.multiplier += (totalMultiplier - 1.0);
@@ -608,7 +681,7 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
           if (luckReward > 0) {
             user.passiveAttributes.luck += luckReward;
           }
-        } else if (challengeIndex === 1) {
+        } else if (challengeIndex === 3) {
           const totalLuck = challenge.settings.totalLuck || 0;
           if (totalLuck > 0) {
             user.passiveAttributes.luck += totalLuck;
@@ -620,7 +693,7 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
           if (discountReward > 0) {
             user.discountShop = Math.min(100, (user.discountShop || 0) + discountReward);
           }
-        } else if (challengeIndex === 1) {
+        } else if (challengeIndex === 3) {
           const totalDiscount = challenge.settings.totalDiscount || 0;
           if (totalDiscount > 0) {
             user.discountShop = Math.min(100, (user.discountShop || 0) + totalDiscount);
@@ -631,13 +704,13 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
       }
 
       // Mark completion time
-      if (userChallenge.progress === 2) {
+      if (userChallenge.progress === 4) {
         userChallenge.completedAt = new Date();
       }
 
       await challenge.save();
 
-      const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out'];
+      const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'Network Security Analysis', 'Advanced Cryptography'];
       
       res.json({ 
         success: true, 
@@ -646,8 +719,8 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
           bits: bitsAwarded || 0,
           progress: userChallenge.progress
         },
-        allCompleted: userChallenge.progress >= 2,
-        nextChallenge: userChallenge.progress < 2 ? challengeNames[userChallenge.progress] : null
+        allCompleted: userChallenge.progress >= 4,
+        nextChallenge: userChallenge.progress < 4 ? challengeNames[userChallenge.progress] : null
       });
     } else {
       res.json({ 

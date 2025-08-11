@@ -28,7 +28,7 @@ const UserChallengeSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   uniqueId: { type: String, required: true },
   hashedPassword: { type: String, required: true },
-  progress: { type: Number, default: 0, min: 0, max: 2 },
+  progress: { type: Number, default: 0, min: 0, max: 4 },
   completedAt: { type: Date },
   bitsAwarded: { type: Number, default: 0 }
 }, { _id: true });
@@ -44,7 +44,7 @@ const ChallengeSchema = new mongoose.Schema({
   settings: {
     rewardMode: { type: String, enum: ['individual', 'total'], default: 'individual' },
     challengeBits: [{ type: Number, default: 50, min: 0 }],
-    totalRewardBits: { type: Number, default: 125, min: 0 },
+    totalRewardBits: { type: Number, default: 350, min: 0 },
     
     multiplierMode: { type: String, enum: ['individual', 'total'], default: 'individual' },
     challengeMultipliers: [{ type: Number, default: 1.0, min: 0 }],
@@ -99,35 +99,43 @@ ChallengeSchema.pre('save', function(next) {
   if (!this.settings.challengeBits || this.settings.challengeBits.length === 0) {
     this.settings.challengeBits = [
       this.settings.challenge1Bits || 50,
-      this.settings.challenge2Bits || 75
+      this.settings.challenge2Bits || 75,
+      this.settings.challenge3Bits || 100,
+      this.settings.challenge4Bits || 125
     ];
   }
   
   if (!this.settings.challengeMultipliers || this.settings.challengeMultipliers.length === 0) {
     this.settings.challengeMultipliers = [
       this.settings.challenge1Multiplier || 1.0,
-      this.settings.challenge2Multiplier || 1.0
+      this.settings.challenge2Multiplier || 1.0,
+      this.settings.challenge3Multiplier || 1.0,
+      this.settings.challenge4Multiplier || 1.0
     ];
   }
   
   if (!this.settings.challengeLuck || this.settings.challengeLuck.length === 0) {
     this.settings.challengeLuck = [
       this.settings.challenge1Luck || 0,
-      this.settings.challenge2Luck || 0
+      this.settings.challenge2Luck || 0,
+      this.settings.challenge3Luck || 0,
+      this.settings.challenge4Luck || 0
     ];
   }
   
   if (!this.settings.challengeDiscounts || this.settings.challengeDiscounts.length === 0) {
     this.settings.challengeDiscounts = [
       this.settings.challenge1Discount || 0,
-      this.settings.challenge2Discount || 0
+      this.settings.challenge2Discount || 0,
+      this.settings.challenge3Discount || 0,
+      this.settings.challenge4Discount || 0
     ];
   }
   
-  const totalChallenges = this.settings.challengeBits?.length || 2;
+  const totalChallenges = this.settings.challengeBits?.length || 4;
   
   this.stats.totalParticipants = this.userChallenges.length;
-  this.stats.completedChallenges = this.userChallenges.filter(uc => uc.progress >= 2).length;
+  this.stats.completedChallenges = this.userChallenges.filter(uc => uc.progress >= totalChallenges).length;
   this.stats.averageProgress = this.userChallenges.length > 0 
     ? this.userChallenges.reduce((sum, uc) => sum + uc.progress, 0) / this.userChallenges.length 
     : 0;
@@ -151,11 +159,11 @@ ChallengeSchema.methods.generateUserChallenge = function(userId) {
 
 ChallengeSchema.methods.calculateTotalBits = function() {
   if (this.settings.rewardMode === 'total') {
-    return this.settings.totalRewardBits || 125;
+    return this.settings.totalRewardBits || 350;
   }
   
   if (!this.settings.challengeBits || this.settings.challengeBits.length === 0) {
-    return 125;
+    return 350;
   }
   
   return this.settings.challengeBits.reduce((sum, bits) => sum + (bits || 0), 0);
@@ -164,8 +172,8 @@ ChallengeSchema.methods.calculateTotalBits = function() {
 ChallengeSchema.methods.getBitsForChallenge = function(challengeLevel) {
   if (this.settings.rewardMode === 'total') {
     // In total mode, only award bits when completing the final challenge
-    const totalChallenges = this.settings.challengeBits?.length || 2;
-    return challengeLevel === totalChallenges ? (this.settings.totalRewardBits || 125) : 0;
+    const totalChallenges = this.settings.challengeBits?.length || 4;
+    return challengeLevel === totalChallenges ? (this.settings.totalRewardBits || 350) : 0;
   }
   
   // Individual mode - award bits for each challenge
@@ -191,7 +199,7 @@ ChallengeSchema.methods.addChallenge = function(bits = 50, multiplier = 1.0, luc
 };
 
 ChallengeSchema.methods.getTotalChallenges = function() {
-  return this.settings.challengeBits?.length || 2;
+  return this.settings.challengeBits?.length || 4;
 };
 
 ChallengeSchema.index({ classroomId: 1 }, { unique: true });
