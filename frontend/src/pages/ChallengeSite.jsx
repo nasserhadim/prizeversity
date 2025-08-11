@@ -75,7 +75,14 @@ const ChallengeSite = () => {
               </div>
             </div>
             <button
-              onClick={() => window.close()}
+              onClick={() => {
+                localStorage.setItem('challengeCompleted', JSON.stringify({
+                  challengeIndex: 0,
+                  challengeName: "Little Caesar's Secret",
+                  timestamp: Date.now()
+                }));
+                window.close();
+              }}
               className="mt-6 px-6 py-2 border border-green-400 bg-transparent text-green-400 hover:bg-green-400 hover:text-black transition-colors"
             >
               RETURN TO BASE

@@ -37,10 +37,16 @@ ChallengeTemplateSchema.pre('save', function(next) {
     this.settings.challengeMultipliers = [1.0, 1.0, 1.0, 1.0];
   }
   if (!this.settings.challengeLuck) {
-    this.settings.challengeLuck = [0, 0, 0, 0];
+    this.settings.challengeLuck = [1.0, 1.0, 1.0, 1.0];
   }
   if (!this.settings.challengeDiscounts) {
     this.settings.challengeDiscounts = [0, 0, 0, 0];
+  }
+  if (!this.settings.challengeShields) {
+    this.settings.challengeShields = [false, false, false, false];
+  }
+  if (!this.settings.challengeAttackBonuses) {
+    this.settings.challengeAttackBonuses = [0, 0, 0, 0];
   }
   if (!this.settings.rewardMode) {
     this.settings.rewardMode = 'individual';
@@ -53,6 +59,12 @@ ChallengeTemplateSchema.pre('save', function(next) {
   }
   if (!this.settings.discountMode) {
     this.settings.discountMode = 'individual';
+  }
+  if (!this.settings.shieldMode) {
+    this.settings.shieldMode = 'individual';
+  }
+  if (!this.settings.attackMode) {
+    this.settings.attackMode = 'individual';
   }
   next();
 });

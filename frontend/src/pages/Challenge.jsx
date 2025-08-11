@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Shield, Lock, Zap, Users, Eye, EyeOff, ArrowLeft, Settings } from 'lucide-react';
+import RewardModal from '../components/RewardModal';
 import { getChallengeData, initiateChallenge, deactivateChallenge, configureChallenge, submitChallengeAnswer } from '../API/apiChallenge';
 import { getChallengeTemplates, saveChallengeTemplate, deleteChallengeTemplate } from '../API/apiChallengeTemplate';
 import { API_BASE } from '../config/api';
@@ -26,6 +27,14 @@ const Challenge = () => {
   const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [savingTemplate, setSavingTemplate] = useState(false);
+  const [showRewardModal, setShowRewardModal] = useState(false);
+  const [rewardData, setRewardData] = useState(null);
+  const [challengeAnswers, setChallengeAnswers] = useState({
+    'network-analysis-003': '',
+    'advanced-crypto-004': ''
+  });
+  const [submittingAnswers, setSubmittingAnswers] = useState({});
+  const [previousProgress, setPreviousProgress] = useState(null);
   const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'Network Security Analysis', 'Advanced Cryptography'];
   
   const [challengeConfig, setChallengeConfig] = useState({
@@ -37,11 +46,17 @@ const Challenge = () => {
     challengeMultipliers: [1.0, 1.0, 1.0, 1.0],
     totalMultiplier: 1.0,
     luckMode: 'individual',
-    challengeLuck: [0, 0, 0, 0],
-    totalLuck: 0,
+    challengeLuck: [1.0, 1.0, 1.0, 1.0],
+    totalLuck: 1.0,
     discountMode: 'individual',
     challengeDiscounts: [0, 0, 0, 0],
-    totalDiscount: 0
+    totalDiscount: 0,
+    shieldMode: 'individual',
+    challengeShields: [false, false, false, false],
+    totalShield: false,
+    attackMode: 'individual',
+    challengeAttackBonuses: [0, 0, 0, 0],
+    totalAttackBonus: 0
   });
 
   const fetchChallengeData = async () => {
@@ -49,7 +64,23 @@ const Challenge = () => {
       setLoading(true);
       const response = await getChallengeData(classroomId);
       setChallengeData(response.challenge);
+      
+      // Check if progress has increased (challenge completed)
+      const newProgress = response.userChallenge?.progress || 0;
+      if (previousProgress !== null && newProgress > previousProgress && newProgress > 0) {
+        const completedChallengeIndex = newProgress - 1;
+        const rewardInfo = getRewardDataForChallenge(completedChallengeIndex);
+        if (rewardInfo) {
+          setRewardData(rewardInfo);
+          setShowRewardModal(true);
+          toast.success(`${rewardInfo.challengeName} completed! 🎉`);
+        }
+      }
+      
+      // Update states
       setUserChallenge(response.userChallenge);
+      // Update previousProgress (only check for increases if not first load)
+      setPreviousProgress(newProgress);
       setIsTeacher(response.isTeacher);
       
       if (!classroom) {
@@ -81,22 +112,24 @@ const Challenge = () => {
      }
 
      try {
+       setSubmittingAnswers(prev => ({ ...prev, [challengeId]: true }));
        const response = await submitChallengeAnswer(classroomId, challengeId, answer);
        
        if (response.success) {
-         toast.success(response.message);
-         if (response.rewards.bits > 0) {
-           toast.success(`Earned ${response.rewards.bits} bits!`);
-         }
+         // Show reward modal with all earned rewards
+         setRewardData({
+           rewards: response.rewards,
+           challengeName: response.challengeName,
+           allCompleted: response.allCompleted,
+           nextChallenge: response.nextChallenge
+         });
+         setShowRewardModal(true);
+         
+         // Clear the answer input
+         setChallengeAnswers(prev => ({ ...prev, [challengeId]: '' }));
          
          // Refresh challenge data to show updated progress
          await fetchChallengeData();
-         
-         if (response.allCompleted) {
-           toast.success('🎉 All challenges completed! Well done!');
-         } else if (response.nextChallenge) {
-           toast.success(`Next up: ${response.nextChallenge}`);
-         }
        } else {
          toast.error(response.message);
          if (response.hint) {
@@ -105,7 +138,71 @@ const Challenge = () => {
        }
      } catch (error) {
        toast.error(error.message || 'Failed to submit answer');
+     } finally {
+       setSubmittingAnswers(prev => ({ ...prev, [challengeId]: false }));
      }
+   };
+
+   // Get reward data for completed challenge
+   const getRewardDataForChallenge = (challengeIndex) => {
+     if (!challengeData?.settings) return null;
+
+     const rewards = {
+       bits: 0,
+       multiplier: 0,
+       luck: 1.0,
+       discount: 0,
+       shield: false,
+       attackBonus: 0
+     };
+
+     // Calculate bits
+     if (challengeData.settings.rewardMode === 'individual') {
+       rewards.bits = challengeData.settings.challengeBits?.[challengeIndex] || 0;
+     }
+
+     // Calculate other rewards
+     if (challengeData.settings.multiplierMode === 'individual') {
+       const multiplierReward = challengeData.settings.challengeMultipliers?.[challengeIndex] || 1.0;
+       if (multiplierReward > 1.0) {
+         rewards.multiplier = multiplierReward - 1.0;
+       }
+     }
+
+     if (challengeData.settings.luckMode === 'individual') {
+       const luckReward = challengeData.settings.challengeLuck?.[challengeIndex] || 1.0;
+       if (luckReward > 1.0) {
+         rewards.luck = luckReward;
+       }
+     }
+
+     if (challengeData.settings.discountMode === 'individual') {
+       const discountReward = challengeData.settings.challengeDiscounts?.[challengeIndex] || 0;
+       if (discountReward > 0) {
+         rewards.discount = discountReward;
+       }
+     }
+
+     if (challengeData.settings.shieldMode === 'individual') {
+       const shieldReward = challengeData.settings.challengeShields?.[challengeIndex] || false;
+       if (shieldReward) {
+         rewards.shield = true;
+       }
+     }
+
+     if (challengeData.settings.attackMode === 'individual') {
+       const attackReward = challengeData.settings.challengeAttackBonuses?.[challengeIndex] || 0;
+       if (attackReward > 0) {
+         rewards.attackBonus = attackReward;
+       }
+     }
+
+     return {
+       rewards,
+       challengeName: challengeNames[challengeIndex],
+       allCompleted: challengeIndex === 3, // All 4 challenges completed
+       nextChallenge: challengeIndex < 3 ? challengeNames[challengeIndex + 1] : null
+     };
    };
 
    const isTeacherInStudentView = originalUser?.role === 'teacher' && user.role === 'student';
@@ -132,6 +229,8 @@ const Challenge = () => {
         multiplierMode: challengeConfig.multiplierMode,
         luckMode: challengeConfig.luckMode,
         discountMode: challengeConfig.discountMode,
+        shieldMode: challengeConfig.shieldMode,
+        attackMode: challengeConfig.attackMode,
         difficulty: 'medium'
       };
 
@@ -154,10 +253,10 @@ const Challenge = () => {
       }
 
       if (challengeConfig.luckMode === 'individual') {
-        settings.challengeLuck = challengeConfig.challengeLuck.map(luck => luck || 0);
+        settings.challengeLuck = challengeConfig.challengeLuck.map(luck => luck || 1.0);
       } else {
-        settings.totalLuck = challengeConfig.totalLuck || 0;
-        settings.challengeLuck = challengeConfig.challengeLuck.map(() => 0);
+        settings.totalLuck = challengeConfig.totalLuck || 1.0;
+        settings.challengeLuck = challengeConfig.challengeLuck.map(() => 1.0);
       }
 
       if (challengeConfig.discountMode === 'individual') {
@@ -165,6 +264,20 @@ const Challenge = () => {
       } else {
         settings.totalDiscount = challengeConfig.totalDiscount || 0;
         settings.challengeDiscounts = challengeConfig.challengeDiscounts.map(() => 0);
+      }
+
+      if (challengeConfig.shieldMode === 'individual') {
+        settings.challengeShields = challengeConfig.challengeShields.map(shield => shield || false);
+      } else {
+        settings.totalShield = challengeConfig.totalShield || false;
+        settings.challengeShields = challengeConfig.challengeShields.map(() => false);
+      }
+
+      if (challengeConfig.attackMode === 'individual') {
+        settings.challengeAttackBonuses = challengeConfig.challengeAttackBonuses.map(attack => attack || 0);
+      } else {
+        settings.totalAttackBonus = challengeConfig.totalAttackBonus || 0;
+        settings.challengeAttackBonuses = challengeConfig.challengeAttackBonuses.map(() => 0);
       }
 
       await configureChallenge(classroomId, challengeConfig.title, settings);
@@ -234,6 +347,8 @@ const Challenge = () => {
         multiplierMode: challengeConfig.multiplierMode,
         luckMode: challengeConfig.luckMode,
         discountMode: challengeConfig.discountMode,
+        shieldMode: challengeConfig.shieldMode,
+        attackMode: challengeConfig.attackMode,
         challengeBits: challengeConfig.challengeBits,
         totalRewardBits: challengeConfig.totalRewardBits,
         challengeMultipliers: challengeConfig.challengeMultipliers,
@@ -242,6 +357,10 @@ const Challenge = () => {
         totalLuck: challengeConfig.totalLuck,
         challengeDiscounts: challengeConfig.challengeDiscounts,
         totalDiscount: challengeConfig.totalDiscount,
+        challengeShields: challengeConfig.challengeShields,
+        totalShield: challengeConfig.totalShield,
+        challengeAttackBonuses: challengeConfig.challengeAttackBonuses,
+        totalAttackBonus: challengeConfig.totalAttackBonus,
         difficulty: 'medium'
       };
 
@@ -267,11 +386,17 @@ const Challenge = () => {
       challengeMultipliers: template.settings.challengeMultipliers || [1.0, 1.0, 1.0, 1.0],
       totalMultiplier: template.settings.totalMultiplier || 1.0,
       luckMode: template.settings.luckMode || 'individual',
-      challengeLuck: template.settings.challengeLuck || [0, 0, 0, 0],
-      totalLuck: template.settings.totalLuck || 0,
+      challengeLuck: template.settings.challengeLuck || [1.0, 1.0, 1.0, 1.0],
+      totalLuck: template.settings.totalLuck || 1.0,
       discountMode: template.settings.discountMode || 'individual',
       challengeDiscounts: template.settings.challengeDiscounts || [0, 0, 0, 0],
-      totalDiscount: template.settings.totalDiscount || 0
+      totalDiscount: template.settings.totalDiscount || 0,
+      shieldMode: template.settings.shieldMode || 'individual',
+      challengeShields: template.settings.challengeShields || [false, false, false, false],
+      totalShield: template.settings.totalShield || false,
+      attackMode: template.settings.attackMode || 'individual',
+      challengeAttackBonuses: template.settings.challengeAttackBonuses || [0, 0, 0, 0],
+      totalAttackBonus: template.settings.totalAttackBonus || 0
     };
     
     setChallengeConfig(newConfig);
@@ -328,14 +453,46 @@ const Challenge = () => {
     fetchChallengeData();
   }, [classroomId]);
 
+  // Check for completed challenge on component mount and window focus
   useEffect(() => {
+    const checkForCompletedChallenge = () => {
+      const completedData = localStorage.getItem('challengeCompleted');
+      if (completedData) {
+        try {
+          const { challengeIndex, challengeName, timestamp } = JSON.parse(completedData);
+          
+          const timeDiff = Date.now() - timestamp;
+          if (timeDiff < 30000 && challengeData?.settings) {
+            const rewardInfo = getRewardDataForChallenge(challengeIndex);
+            if (rewardInfo) {
+              setRewardData(rewardInfo);
+              setShowRewardModal(true);
+              toast.success(`${challengeName} completed! 🎉`);
+            }
+            localStorage.removeItem('challengeCompleted');
+          } else if (timeDiff >= 30000) {
+            localStorage.removeItem('challengeCompleted');
+          }
+        } catch (error) {
+          localStorage.removeItem('challengeCompleted');
+        }
+      }
+    };
+
+    if (challengeData?.settings) {
+      checkForCompletedChallenge();
+    }
+
     const handleFocus = () => {
+      checkForCompletedChallenge();
       fetchChallengeData();
     };
 
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, []);
+  }, [challengeData]);
+
+
 
   if (loading) {
     return (
@@ -720,7 +877,7 @@ const Challenge = () => {
                     </div>
                   )}
 
-                  <div className="divider">Luck Rewards</div>
+                  <div className="divider">Luck Multiplier Rewards</div>
 
                   <div className="form-control">
                     <div className="flex gap-6">
@@ -732,7 +889,7 @@ const Challenge = () => {
                           checked={challengeConfig.luckMode === 'individual'}
                           onChange={() => setChallengeConfig(prev => ({ ...prev, luckMode: 'individual' }))}
                         />
-                        <span className="label-text ml-2 font-semibold">Individual Luck</span>
+                        <span className="label-text ml-2 font-semibold">Individual Luck Multipliers</span>
                       </label>
                       <label className="label cursor-pointer">
                         <input
@@ -742,7 +899,7 @@ const Challenge = () => {
                           checked={challengeConfig.luckMode === 'total'}
                           onChange={() => setChallengeConfig(prev => ({ ...prev, luckMode: 'total' }))}
                         />
-                        <span className="label-text ml-2 font-semibold">Total Series Luck</span>
+                        <span className="label-text ml-2 font-semibold">Total Series Luck Multiplier</span>
                       </label>
                     </div>
                   </div>
@@ -752,22 +909,24 @@ const Challenge = () => {
                       {challengeNames.map((name, index) => (
                         <div key={index}>
                           <label className="label">
-                            <span className="label-text">Challenge {index + 1}: {name}</span>
+                            <span className="label-text">Challenge {index + 1}: {name} (1.0 = no bonus)</span>
                           </label>
                           <input
                             type="number"
+                            step="0.1"
                             className="input input-bordered w-full"
                             value={challengeConfig.challengeLuck[index]}
                             onChange={(e) => {
                               const value = e.target.value;
-                              const newValue = value === '' ? 0 : parseInt(value) || 0;
+                              const newValue = value === '' ? 1.0 : parseFloat(value) || 1.0;
                               setChallengeConfig(prev => {
                                 const newLuck = [...prev.challengeLuck];
                                 newLuck[index] = value === '' ? '' : newValue;
                                 return { ...prev, challengeLuck: newLuck };
                               });
                             }}
-                            min="0"
+                            min="1.0"
+                            placeholder="e.g. 1.2"
                           />
                         </div>
                       ))}
@@ -775,20 +934,22 @@ const Challenge = () => {
                   ) : (
                     <div>
                       <label className="label">
-                        <span className="label-text font-semibold">Total Series Luck</span>
+                        <span className="label-text font-semibold">Total Series Luck Multiplier (1.0 = no bonus)</span>
                       </label>
                       <input
                         type="number"
+                        step="0.1"
                         className="input input-bordered w-full"
                         value={challengeConfig.totalLuck}
                         onChange={(e) => {
                           const value = e.target.value;
                           setChallengeConfig(prev => ({ 
                             ...prev, 
-                            totalLuck: value === '' ? '' : parseInt(value) || 0 
+                            totalLuck: value === '' ? '' : parseFloat(value) || 1.0 
                           }));
                         }}
-                        min="0"
+                        min="1.0"
+                        placeholder="e.g. 1.5"
                       />
                     </div>
                   )}
@@ -864,6 +1025,154 @@ const Challenge = () => {
                         }}
                         min="0"
                         max="100"
+                      />
+                    </div>
+                  )}
+
+                  <div className="divider">Shield Rewards</div>
+
+                  <div className="form-control">
+                    <div className="flex gap-6">
+                      <label className="label cursor-pointer">
+                        <input
+                          type="radio"
+                          name="shieldMode"
+                          className="radio radio-primary"
+                          checked={challengeConfig.shieldMode === 'individual'}
+                          onChange={() => setChallengeConfig(prev => ({ ...prev, shieldMode: 'individual' }))}
+                        />
+                        <span className="label-text ml-2 font-semibold">Individual Shields</span>
+                      </label>
+                      <label className="label cursor-pointer">
+                        <input
+                          type="radio"
+                          name="shieldMode"
+                          className="radio radio-primary"
+                          checked={challengeConfig.shieldMode === 'total'}
+                          onChange={() => setChallengeConfig(prev => ({ ...prev, shieldMode: 'total' }))}
+                        />
+                        <span className="label-text ml-2 font-semibold">Total Series Shield</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {challengeConfig.shieldMode === 'individual' ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {challengeNames.map((name, index) => (
+                        <div key={index}>
+                          <label className="label">
+                            <span className="label-text">Challenge {index + 1}: {name}</span>
+                          </label>
+                          <div className="form-control">
+                            <label className="label cursor-pointer justify-start gap-3">
+                              <input
+                                type="checkbox"
+                                className="checkbox checkbox-primary"
+                                checked={challengeConfig.challengeShields[index]}
+                                onChange={(e) => {
+                                  setChallengeConfig(prev => {
+                                    const newShields = [...prev.challengeShields];
+                                    newShields[index] = e.target.checked;
+                                    return { ...prev, challengeShields: newShields };
+                                  });
+                                }}
+                              />
+                              <span className="label-text">Award Shield Protection</span>
+                            </label>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="form-control">
+                      <label className="label cursor-pointer justify-start gap-3">
+                        <input
+                          type="checkbox"
+                          className="checkbox checkbox-primary"
+                          checked={challengeConfig.totalShield}
+                          onChange={(e) => {
+                            setChallengeConfig(prev => ({ 
+                              ...prev, 
+                              totalShield: e.target.checked 
+                            }));
+                          }}
+                        />
+                        <span className="label-text font-semibold">Award Shield for Completing All Challenges</span>
+                      </label>
+                    </div>
+                  )}
+
+                  <div className="divider">Attack Bonus Rewards</div>
+
+                  <div className="form-control">
+                    <div className="flex gap-6">
+                      <label className="label cursor-pointer">
+                        <input
+                          type="radio"
+                          name="attackMode"
+                          className="radio radio-primary"
+                          checked={challengeConfig.attackMode === 'individual'}
+                          onChange={() => setChallengeConfig(prev => ({ ...prev, attackMode: 'individual' }))}
+                        />
+                        <span className="label-text ml-2 font-semibold">Individual Attack Bonuses</span>
+                      </label>
+                      <label className="label cursor-pointer">
+                        <input
+                          type="radio"
+                          name="attackMode"
+                          className="radio radio-primary"
+                          checked={challengeConfig.attackMode === 'total'}
+                          onChange={() => setChallengeConfig(prev => ({ ...prev, attackMode: 'total' }))}
+                        />
+                        <span className="label-text ml-2 font-semibold">Total Series Attack Bonus</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {challengeConfig.attackMode === 'individual' ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {challengeNames.map((name, index) => (
+                        <div key={index}>
+                          <label className="label">
+                            <span className="label-text">Challenge {index + 1}: {name}</span>
+                          </label>
+                          <input
+                            type="number"
+                            className="input input-bordered w-full"
+                            value={challengeConfig.challengeAttackBonuses[index]}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              const newValue = value === '' ? 0 : parseInt(value) || 0;
+                              setChallengeConfig(prev => {
+                                const newAttackBonuses = [...prev.challengeAttackBonuses];
+                                newAttackBonuses[index] = value === '' ? '' : newValue;
+                                return { ...prev, challengeAttackBonuses: newAttackBonuses };
+                              });
+                            }}
+                            min="0"
+                            placeholder="e.g. 50"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="label">
+                        <span className="label-text font-semibold">Total Series Attack Bonus</span>
+                      </label>
+                      <input
+                        type="number"
+                        className="input input-bordered w-full"
+                        value={challengeConfig.totalAttackBonus}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setChallengeConfig(prev => ({ 
+                            ...prev, 
+                            totalAttackBonus: value === '' ? '' : parseInt(value) || 0 
+                          }));
+                        }}
+                        min="0"
+                        placeholder="e.g. 200"
                       />
                     </div>
                   )}
@@ -1200,6 +1509,140 @@ const Challenge = () => {
                 )}
               </div>
             </div>
+
+            {/* Challenge 3 - Network Security Analysis */}
+            <div className="space-y-3">
+              <div className={`collapse collapse-arrow ${userChallenge.progress >= 2 ? (userChallenge.progress >= 3 ? 'bg-green-50 border border-green-200' : 'bg-purple-50 border border-purple-200') : 'bg-gray-50 border border-gray-200 opacity-60'}`}>
+                {userChallenge.progress >= 2 && <input type="checkbox" defaultChecked={userChallenge.progress < 3} className="peer" />}
+                <div className="collapse-title text-lg font-medium flex items-center gap-3">
+                  <div className={`badge ${userChallenge.progress >= 3 ? 'badge-success' : userChallenge.progress >= 2 ? 'badge-info' : 'badge-neutral'}`}>Challenge 3</div>
+                  <span className={userChallenge.progress >= 3 ? 'text-green-800' : userChallenge.progress >= 2 ? 'text-purple-800' : 'text-gray-600'}>🌐 Network Security Analysis</span>
+                  <div className="badge badge-outline badge-sm">
+                    {challengeData?.settings?.rewardMode === 'total' ? '0' : (challengeData?.settings?.challengeBits?.[2] || challengeConfig.challengeBits[2])} bits
+                  </div>
+                  <div className="ml-auto text-sm text-gray-400">
+                    {userChallenge.progress >= 3 ? '✅ Completed' : userChallenge.progress >= 2 ? '🔓 Unlocked' : '🔒 Locked'}
+                  </div>
+                </div>
+                {userChallenge.progress >= 2 && (
+                  <div className="collapse-content">
+                    <div className="pt-4 space-y-4">
+                      <p className="text-gray-600">
+                        Your mission: Analyze network traffic logs to identify security threats.
+                      </p>
+                      
+                      <div className="bg-white border border-purple-300 rounded-lg p-4">
+                        <h4 className="font-semibold text-purple-800 mb-3">🔍 Network Analysis Task</h4>
+                        <p className="text-sm text-gray-700 mb-3">
+                          Examine the network traffic patterns and identify the security vulnerability. Submit the flag you discover.
+                        </p>
+                        <code className="bg-purple-100 px-2 py-1 rounded text-purple-800 font-mono text-sm block">
+                          Network logs contain the answer - analyze carefully!
+                        </code>
+                      </div>
+                      
+                      <div className="bg-white border border-purple-300 rounded-lg p-4">
+                        <h4 className="font-semibold text-purple-800 mb-3">📝 Submit Answer</h4>
+                        <div className="flex gap-3">
+                          <input
+                            type="text"
+                            className="input input-bordered flex-1"
+                            placeholder="Enter your answer..."
+                            value={challengeAnswers['network-analysis-003']}
+                            onChange={(e) => setChallengeAnswers(prev => ({ ...prev, 'network-analysis-003': e.target.value }))}
+                            disabled={submittingAnswers['network-analysis-003']}
+                          />
+                          <button
+                            className="btn btn-primary"
+                            onClick={() => handleSubmitAnswer('network-analysis-003', challengeAnswers['network-analysis-003'])}
+                            disabled={submittingAnswers['network-analysis-003'] || !challengeAnswers['network-analysis-003'].trim()}
+                          >
+                            {submittingAnswers['network-analysis-003'] ? (
+                              <span className="loading loading-spinner loading-sm"></span>
+                            ) : (
+                              'Submit'
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                      
+                      <div className="alert alert-info">
+                        <span className="text-sm">
+                          <strong>Hint:</strong> Look for patterns that don't belong in normal network traffic.
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Challenge 4 - Advanced Cryptography */}
+            <div className="space-y-3">
+              <div className={`collapse collapse-arrow ${userChallenge.progress >= 3 ? (userChallenge.progress >= 4 ? 'bg-green-50 border border-green-200' : 'bg-orange-50 border border-orange-200') : 'bg-gray-50 border border-gray-200 opacity-60'}`}>
+                {userChallenge.progress >= 3 && <input type="checkbox" defaultChecked={userChallenge.progress < 4} className="peer" />}
+                <div className="collapse-title text-lg font-medium flex items-center gap-3">
+                  <div className={`badge ${userChallenge.progress >= 4 ? 'badge-success' : userChallenge.progress >= 3 ? 'badge-info' : 'badge-neutral'}`}>Challenge 4</div>
+                  <span className={userChallenge.progress >= 4 ? 'text-green-800' : userChallenge.progress >= 3 ? 'text-orange-800' : 'text-gray-600'}>🔐 Advanced Cryptography</span>
+                  <div className="badge badge-outline badge-sm">
+                    {challengeData?.settings?.rewardMode === 'total' ? (challengeData?.settings?.totalRewardBits || challengeConfig.totalRewardBits) : (challengeData?.settings?.challengeBits?.[3] || challengeConfig.challengeBits[3])} bits
+                  </div>
+                  <div className="ml-auto text-sm text-gray-400">
+                    {userChallenge.progress >= 4 ? '✅ Completed' : userChallenge.progress >= 3 ? '🔓 Unlocked' : '🔒 Locked'}
+                  </div>
+                </div>
+                {userChallenge.progress >= 3 && (
+                  <div className="collapse-content">
+                    <div className="pt-4 space-y-4">
+                      <p className="text-gray-600">
+                        Your final mission: Break through multi-layer encryption to reveal the ultimate secret.
+                      </p>
+                      
+                      <div className="bg-white border border-orange-300 rounded-lg p-4">
+                        <h4 className="font-semibold text-orange-800 mb-3">🎯 Final Challenge</h4>
+                        <p className="text-sm text-gray-700 mb-3">
+                          This is the ultimate test of your cryptographic skills. Use everything you've learned to solve this advanced puzzle.
+                        </p>
+                        <code className="bg-orange-100 px-2 py-1 rounded text-orange-800 font-mono text-sm block">
+                          Multiple encryption layers await - persistence is key!
+                        </code>
+                      </div>
+                      
+                      <div className="bg-white border border-orange-300 rounded-lg p-4">
+                        <h4 className="font-semibold text-orange-800 mb-3">📝 Submit Final Answer</h4>
+                        <div className="flex gap-3">
+                          <input
+                            type="text"
+                            className="input input-bordered flex-1"
+                            placeholder="Enter your final answer..."
+                            value={challengeAnswers['advanced-crypto-004']}
+                            onChange={(e) => setChallengeAnswers(prev => ({ ...prev, 'advanced-crypto-004': e.target.value }))}
+                            disabled={submittingAnswers['advanced-crypto-004']}
+                          />
+                          <button
+                            className="btn btn-primary"
+                            onClick={() => handleSubmitAnswer('advanced-crypto-004', challengeAnswers['advanced-crypto-004'])}
+                            disabled={submittingAnswers['advanced-crypto-004'] || !challengeAnswers['advanced-crypto-004'].trim()}
+                          >
+                            {submittingAnswers['advanced-crypto-004'] ? (
+                              <span className="loading loading-spinner loading-sm"></span>
+                            ) : (
+                              'Submit Final Answer'
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                      
+                      <div className="alert alert-warning">
+                        <span className="text-sm">
+                          <strong>Final Challenge:</strong> This is the most difficult challenge. Take your time and think creatively!
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       ) : (
@@ -1212,6 +1655,20 @@ const Challenge = () => {
             </p>
           </div>
         </div>
+      )}
+
+
+
+      {/* Reward Modal */}
+      {showRewardModal && rewardData && (
+        <RewardModal
+          isOpen={showRewardModal}
+          onClose={() => setShowRewardModal(false)}
+          rewards={rewardData.rewards}
+          challengeName={rewardData.challengeName}
+          allCompleted={rewardData.allCompleted}
+          nextChallenge={rewardData.nextChallenge}
+        />
       )}
     </div>
   );

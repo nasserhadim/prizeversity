@@ -46,17 +46,30 @@ const ChallengeSchema = new mongoose.Schema({
     challengeBits: [{ type: Number, default: 50, min: 0 }],
     totalRewardBits: { type: Number, default: 350, min: 0 },
     
+    // Multiplier rewards (multiplier values - 1.0 base, 1.5 = 50% bonus)
     multiplierMode: { type: String, enum: ['individual', 'total'], default: 'individual' },
     challengeMultipliers: [{ type: Number, default: 1.0, min: 0 }],
     totalMultiplier: { type: Number, default: 1.0, min: 0 },
     
+    // Luck rewards (multiplier values - 1.0 base, 1.2 = 20% luck bonus)
     luckMode: { type: String, enum: ['individual', 'total'], default: 'individual' },
-    challengeLuck: [{ type: Number, default: 0, min: 0 }],
-    totalLuck: { type: Number, default: 0, min: 0 },
+    challengeLuck: [{ type: Number, default: 1.0, min: 0 }],
+    totalLuck: { type: Number, default: 1.0, min: 0 },
     
+    // Discount rewards (percentage values - 0-100)
     discountMode: { type: String, enum: ['individual', 'total'], default: 'individual' },
     challengeDiscounts: [{ type: Number, default: 0, min: 0, max: 100 }],
     totalDiscount: { type: Number, default: 0, min: 0, max: 100 },
+    
+    // Shield rewards (boolean values - true/false)
+    shieldMode: { type: String, enum: ['individual', 'total'], default: 'individual' },
+    challengeShields: [{ type: Boolean, default: false }],
+    totalShield: { type: Boolean, default: false },
+    
+    // Attack bonus rewards (static number values - +50, +100, etc.)
+    attackMode: { type: String, enum: ['individual', 'total'], default: 'individual' },
+    challengeAttackBonuses: [{ type: Number, default: 0, min: 0 }],
+    totalAttackBonus: { type: Number, default: 0, min: 0 },
     
     difficulty: { type: String, enum: ['easy', 'medium', 'hard'], default: 'medium' },
     timeLimit: { type: Number, default: null },
@@ -116,10 +129,10 @@ ChallengeSchema.pre('save', function(next) {
   
   if (!this.settings.challengeLuck || this.settings.challengeLuck.length === 0) {
     this.settings.challengeLuck = [
-      this.settings.challenge1Luck || 0,
-      this.settings.challenge2Luck || 0,
-      this.settings.challenge3Luck || 0,
-      this.settings.challenge4Luck || 0
+      this.settings.challenge1Luck || 1.0,
+      this.settings.challenge2Luck || 1.0,
+      this.settings.challenge3Luck || 1.0,
+      this.settings.challenge4Luck || 1.0
     ];
   }
   
@@ -129,6 +142,24 @@ ChallengeSchema.pre('save', function(next) {
       this.settings.challenge2Discount || 0,
       this.settings.challenge3Discount || 0,
       this.settings.challenge4Discount || 0
+    ];
+  }
+  
+  if (!this.settings.challengeShields || this.settings.challengeShields.length === 0) {
+    this.settings.challengeShields = [
+      this.settings.challenge1Shield || false,
+      this.settings.challenge2Shield || false,
+      this.settings.challenge3Shield || false,
+      this.settings.challenge4Shield || false
+    ];
+  }
+  
+  if (!this.settings.challengeAttackBonuses || this.settings.challengeAttackBonuses.length === 0) {
+    this.settings.challengeAttackBonuses = [
+      this.settings.challenge1AttackBonus || 0,
+      this.settings.challenge2AttackBonus || 0,
+      this.settings.challenge3AttackBonus || 0,
+      this.settings.challenge4AttackBonus || 0
     ];
   }
   
@@ -184,16 +215,20 @@ ChallengeSchema.methods.getBitsForChallenge = function(challengeLevel) {
   return this.settings.challengeBits[challengeLevel - 1] || 0;
 };
 
-ChallengeSchema.methods.addChallenge = function(bits = 50, multiplier = 1.0, luck = 0, discount = 0) {
+ChallengeSchema.methods.addChallenge = function(bits = 50, multiplier = 1.0, luck = 1.0, discount = 0, shield = false, attackBonus = 0) {
   if (!this.settings.challengeBits) this.settings.challengeBits = [];
   if (!this.settings.challengeMultipliers) this.settings.challengeMultipliers = [];
   if (!this.settings.challengeLuck) this.settings.challengeLuck = [];
   if (!this.settings.challengeDiscounts) this.settings.challengeDiscounts = [];
+  if (!this.settings.challengeShields) this.settings.challengeShields = [];
+  if (!this.settings.challengeAttackBonuses) this.settings.challengeAttackBonuses = [];
   
   this.settings.challengeBits.push(bits);
   this.settings.challengeMultipliers.push(multiplier);
   this.settings.challengeLuck.push(luck);
   this.settings.challengeDiscounts.push(discount);
+  this.settings.challengeShields.push(shield);
+  this.settings.challengeAttackBonuses.push(attackBonus);
   
   return this.settings.challengeBits.length; // Return new challenge count
 };

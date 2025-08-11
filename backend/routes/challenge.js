@@ -236,6 +236,8 @@ router.post('/:classroomId/configure', ensureAuthenticated, ensureTeacher, async
       if (settings.challengeMultipliers) mergedSettings.challengeMultipliers = settings.challengeMultipliers;
       if (settings.challengeLuck) mergedSettings.challengeLuck = settings.challengeLuck;
       if (settings.challengeDiscounts) mergedSettings.challengeDiscounts = settings.challengeDiscounts;
+      if (settings.challengeShields) mergedSettings.challengeShields = settings.challengeShields;
+      if (settings.challengeAttackBonuses) mergedSettings.challengeAttackBonuses = settings.challengeAttackBonuses;
       
       challenge.settings = mergedSettings;
       challenge.isConfigured = true;
@@ -244,8 +246,10 @@ router.post('/:classroomId/configure', ensureAuthenticated, ensureTeacher, async
       const defaultSettings = {
         challengeBits: [50, 75, 100, 125],
         challengeMultipliers: [1.0, 1.0, 1.0, 1.0],
-        challengeLuck: [0, 0, 0, 0],
+        challengeLuck: [1.0, 1.0, 1.0, 1.0],
         challengeDiscounts: [0, 0, 0, 0],
+        challengeShields: [false, false, false, false],
+        challengeAttackBonuses: [0, 0, 0, 0],
         ...settings
       };
       
@@ -396,7 +400,72 @@ router.post('/verify-password', ensureAuthenticated, async (req, res) => {
         userChallenge.completedAt = Date.now();
       }
       
-      const bitsAwarded = await awardChallengeBits(userId, 1, challenge);
+      // Award all rewards for Challenge 1 (index 0)
+      const User = require('../models/User');
+      const user = await User.findById(userId);
+      let bitsAwarded = 0;
+      if (user) {
+        const challengeIndex = 0; // Challenge 1
+        
+        // Calculate bits reward
+        if (challenge.settings.rewardMode === 'individual') {
+          bitsAwarded = challenge.settings.challengeBits[challengeIndex] || 0;
+        }
+
+        if (bitsAwarded > 0) {
+          user.balance += bitsAwarded;
+          user.transactions.push({
+            amount: bitsAwarded,
+            description: `Completed Challenge ${challengeIndex + 1}`,
+            assignedBy: challenge.createdBy,
+            createdAt: new Date()
+          });
+          userChallenge.bitsAwarded += bitsAwarded;
+        }
+
+        // Award other rewards (multiplier, luck, discount, shield, attack bonus)
+        
+        if (challenge.settings.multiplierMode === 'individual') {
+          const multiplierReward = (challenge.settings.challengeMultipliers && challenge.settings.challengeMultipliers[challengeIndex]) || 1.0;
+          if (multiplierReward > 1.0) {
+            user.passiveAttributes.multiplier += (multiplierReward - 1.0);
+          }
+        }
+
+        if (challenge.settings.luckMode === 'individual') {
+          const luckReward = (challenge.settings.challengeLuck && challenge.settings.challengeLuck[challengeIndex]) || 1.0;
+          if (luckReward > 1.0) {
+            user.passiveAttributes.luck = user.passiveAttributes.luck * luckReward;
+          }
+        }
+
+        if (challenge.settings.discountMode === 'individual') {
+          const discountReward = (challenge.settings.challengeDiscounts && challenge.settings.challengeDiscounts[challengeIndex]) || 0;
+          if (discountReward > 0) {
+            if (typeof user.discountShop === 'boolean') {
+              user.discountShop = user.discountShop ? 100 : 0;
+            }
+            user.discountShop = Math.min(100, (user.discountShop || 0) + discountReward);
+          }
+        }
+
+        if (challenge.settings.shieldMode === 'individual') {
+          const shieldReward = (challenge.settings.challengeShields && challenge.settings.challengeShields[challengeIndex]) || false;
+          if (shieldReward) {
+            user.shieldActive = true;
+          }
+        }
+
+        if (challenge.settings.attackMode === 'individual') {
+          const attackReward = (challenge.settings.challengeAttackBonuses && challenge.settings.challengeAttackBonuses[challengeIndex]) || 0;
+          if (attackReward > 0) {
+            user.attackPower = (user.attackPower || 0) + attackReward;
+          }
+        }
+
+        await user.save();
+      }
+      
       await challenge.save();
       
       try {
@@ -456,7 +525,72 @@ router.post('/verify-challenge2-external', ensureAuthenticated, async (req, res)
         userChallenge.completedAt = Date.now();
       }
       
-      const bitsAwarded = await awardChallengeBits(userId, 2, challenge);
+      // Award all rewards for Challenge 2 (index 1)
+      const User = require('../models/User');
+      const user = await User.findById(userId);
+      let bitsAwarded = 0;
+      if (user) {
+        const challengeIndex = 1; // Challenge 2
+        
+        // Calculate bits reward
+        if (challenge.settings.rewardMode === 'individual') {
+          bitsAwarded = challenge.settings.challengeBits[challengeIndex] || 0;
+        }
+
+        if (bitsAwarded > 0) {
+          user.balance += bitsAwarded;
+          user.transactions.push({
+            amount: bitsAwarded,
+            description: `Completed Challenge ${challengeIndex + 1}`,
+            assignedBy: challenge.createdBy,
+            createdAt: new Date()
+          });
+          userChallenge.bitsAwarded += bitsAwarded;
+        }
+
+        // Award other rewards (multiplier, luck, discount, shield, attack bonus)
+        if (challenge.settings.multiplierMode === 'individual') {
+          const multiplierReward = challenge.settings.challengeMultipliers[challengeIndex] || 1.0;
+          if (multiplierReward > 1.0) {
+            user.passiveAttributes.multiplier += (multiplierReward - 1.0);
+          }
+        }
+
+        if (challenge.settings.luckMode === 'individual') {
+          const luckReward = challenge.settings.challengeLuck[challengeIndex] || 1.0;
+          if (luckReward > 1.0) {
+            user.passiveAttributes.luck = user.passiveAttributes.luck * luckReward;
+          }
+        }
+
+        if (challenge.settings.discountMode === 'individual') {
+          const discountReward = challenge.settings.challengeDiscounts[challengeIndex] || 0;
+          if (discountReward > 0) {
+            // Convert boolean to percentage if needed for backwards compatibility
+            if (typeof user.discountShop === 'boolean') {
+              user.discountShop = user.discountShop ? 100 : 0;
+            }
+            user.discountShop = Math.min(100, (user.discountShop || 0) + discountReward);
+          }
+        }
+
+        if (challenge.settings.shieldMode === 'individual') {
+          const shieldReward = challenge.settings.challengeShields[challengeIndex] || false;
+          if (shieldReward) {
+            user.shieldActive = true;
+          }
+        }
+
+        if (challenge.settings.attackMode === 'individual') {
+          const attackReward = challenge.settings.challengeAttackBonuses[challengeIndex] || 0;
+          if (attackReward > 0) {
+            user.attackPower = (user.attackPower || 0) + attackReward;
+          }
+        }
+
+        await user.save();
+      }
+      
       await challenge.save();
     }
 
@@ -664,7 +798,7 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
           userChallenge.bitsAwarded += bitsAwarded;
         }
 
-        // Award other rewards (multiplier, luck, discount)
+        // Award other rewards (multiplier, luck, discount, shield, attack bonus)
         if (challenge.settings.multiplierMode === 'individual') {
           const multiplierReward = challenge.settings.challengeMultipliers[challengeIndex] || 1.0;
           if (multiplierReward > 1.0) {
@@ -678,26 +812,58 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
         }
 
         if (challenge.settings.luckMode === 'individual') {
-          const luckReward = challenge.settings.challengeLuck[challengeIndex] || 0;
-          if (luckReward > 0) {
-            user.passiveAttributes.luck += luckReward;
+          const luckReward = challenge.settings.challengeLuck[challengeIndex] || 1.0;
+          if (luckReward > 1.0) {
+            user.passiveAttributes.luck = user.passiveAttributes.luck * luckReward;
           }
         } else if (challengeIndex === 3) {
-          const totalLuck = challenge.settings.totalLuck || 0;
-          if (totalLuck > 0) {
-            user.passiveAttributes.luck += totalLuck;
+          const totalLuck = challenge.settings.totalLuck || 1.0;
+          if (totalLuck > 1.0) {
+            user.passiveAttributes.luck = user.passiveAttributes.luck * totalLuck;
           }
         }
 
         if (challenge.settings.discountMode === 'individual') {
           const discountReward = challenge.settings.challengeDiscounts[challengeIndex] || 0;
           if (discountReward > 0) {
+            // Convert boolean to percentage if needed for backwards compatibility
+            if (typeof user.discountShop === 'boolean') {
+              user.discountShop = user.discountShop ? 100 : 0;
+            }
             user.discountShop = Math.min(100, (user.discountShop || 0) + discountReward);
           }
         } else if (challengeIndex === 3) {
           const totalDiscount = challenge.settings.totalDiscount || 0;
           if (totalDiscount > 0) {
+            // Convert boolean to percentage if needed for backwards compatibility
+            if (typeof user.discountShop === 'boolean') {
+              user.discountShop = user.discountShop ? 100 : 0;
+            }
             user.discountShop = Math.min(100, (user.discountShop || 0) + totalDiscount);
+          }
+        }
+
+        if (challenge.settings.shieldMode === 'individual') {
+          const shieldReward = challenge.settings.challengeShields[challengeIndex] || false;
+          if (shieldReward) {
+            user.shieldActive = true;
+          }
+        } else if (challengeIndex === 3) {
+          const totalShield = challenge.settings.totalShield || false;
+          if (totalShield) {
+            user.shieldActive = true;
+          }
+        }
+
+        if (challenge.settings.attackMode === 'individual') {
+          const attackReward = challenge.settings.challengeAttackBonuses[challengeIndex] || 0;
+          if (attackReward > 0) {
+            user.attackPower = (user.attackPower || 0) + attackReward;
+          }
+        } else if (challengeIndex === 3) {
+          const totalAttackBonus = challenge.settings.totalAttackBonus || 0;
+          if (totalAttackBonus > 0) {
+            user.attackPower = (user.attackPower || 0) + totalAttackBonus;
           }
         }
 
@@ -713,13 +879,83 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
 
       const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'Network Security Analysis', 'Advanced Cryptography'];
       
+      // Collect all rewards earned for this challenge
+      const rewardsEarned = {
+        bits: bitsAwarded || 0,
+        multiplier: 0,
+        luck: 1.0,
+        discount: 0,
+        shield: false,
+        attackBonus: 0
+      };
+
+      // Calculate what rewards were actually given
+      if (challenge.settings.multiplierMode === 'individual') {
+        const multiplierReward = challenge.settings.challengeMultipliers[challengeIndex] || 1.0;
+        if (multiplierReward > 1.0) {
+          rewardsEarned.multiplier = multiplierReward - 1.0;
+        }
+      } else if (challengeIndex === 3) {
+        const totalMultiplier = challenge.settings.totalMultiplier || 1.0;
+        if (totalMultiplier > 1.0) {
+          rewardsEarned.multiplier = totalMultiplier - 1.0;
+        }
+      }
+
+      if (challenge.settings.luckMode === 'individual') {
+        const luckReward = challenge.settings.challengeLuck[challengeIndex] || 1.0;
+        if (luckReward > 1.0) {
+          rewardsEarned.luck = luckReward;
+        }
+      } else if (challengeIndex === 3) {
+        const totalLuck = challenge.settings.totalLuck || 1.0;
+        if (totalLuck > 1.0) {
+          rewardsEarned.luck = totalLuck;
+        }
+      }
+
+      if (challenge.settings.discountMode === 'individual') {
+        const discountReward = challenge.settings.challengeDiscounts[challengeIndex] || 0;
+        if (discountReward > 0) {
+          rewardsEarned.discount = discountReward;
+        }
+      } else if (challengeIndex === 3) {
+        const totalDiscount = challenge.settings.totalDiscount || 0;
+        if (totalDiscount > 0) {
+          rewardsEarned.discount = totalDiscount;
+        }
+      }
+
+      if (challenge.settings.shieldMode === 'individual') {
+        const shieldReward = challenge.settings.challengeShields[challengeIndex] || false;
+        if (shieldReward) {
+          rewardsEarned.shield = true;
+        }
+      } else if (challengeIndex === 3) {
+        const totalShield = challenge.settings.totalShield || false;
+        if (totalShield) {
+          rewardsEarned.shield = true;
+        }
+      }
+
+      if (challenge.settings.attackMode === 'individual') {
+        const attackReward = challenge.settings.challengeAttackBonuses[challengeIndex] || 0;
+        if (attackReward > 0) {
+          rewardsEarned.attackBonus = attackReward;
+        }
+      } else if (challengeIndex === 3) {
+        const totalAttackBonus = challenge.settings.totalAttackBonus || 0;
+        if (totalAttackBonus > 0) {
+          rewardsEarned.attackBonus = totalAttackBonus;
+        }
+      }
+      
       res.json({ 
         success: true, 
         message: `Correct! ${challengeNames[challengeIndex]} completed!`,
-        rewards: {
-          bits: bitsAwarded || 0,
-          progress: userChallenge.progress
-        },
+        challengeName: challengeNames[challengeIndex],
+        rewards: rewardsEarned,
+        progress: userChallenge.progress,
         allCompleted: userChallenge.progress >= 4,
         nextChallenge: userChallenge.progress < 4 ? challengeNames[userChallenge.progress] : null
       });

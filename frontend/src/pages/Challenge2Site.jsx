@@ -67,7 +67,14 @@ const Challenge2Site = () => {
             <p className="text-yellow-400">Challenge 3 now available.</p>
           </div>
           <button
-            onClick={() => window.close()}
+            onClick={() => {
+              localStorage.setItem('challengeCompleted', JSON.stringify({
+                challengeIndex: 1,
+                challengeName: "Check Me Out",
+                timestamp: Date.now()
+              }));
+              window.close();
+            }}
             className="px-6 py-2 border border-green-400 bg-transparent text-green-400 hover:bg-green-400 hover:text-black transition-colors"
           >
             RETURN TO BASE
