@@ -26,21 +26,21 @@ const Challenge = () => {
   const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [savingTemplate, setSavingTemplate] = useState(false);
-  const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'Network Security Analysis', 'Advanced Cryptography'];
+  const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out'];
   
   const [challengeConfig, setChallengeConfig] = useState({
     title: 'Cyber Challenge Series - Fall Semester',
     rewardMode: 'individual',
-    challengeBits: [50, 75, 100, 125],
-    totalRewardBits: 350,
+    challengeBits: [50, 75],
+    totalRewardBits: 125,
     multiplierMode: 'individual',
-    challengeMultipliers: [1.0, 1.0, 1.0, 1.0],
+    challengeMultipliers: [1.0, 1.0],
     totalMultiplier: 1.0,
     luckMode: 'individual',
-    challengeLuck: [0, 0, 0, 0],
+    challengeLuck: [0, 0],
     totalLuck: 0,
     discountMode: 'individual',
-    challengeDiscounts: [0, 0, 0, 0],
+    challengeDiscounts: [0, 0],
     totalDiscount: 0
   });
 
@@ -300,26 +300,12 @@ const Challenge = () => {
         method: "Caesar Cipher (Shift +3)",
         type: "caesar"
       };
-    } else if (progress === 1) {
+    } else {
       return {
         number: 2,
         name: "Check Me Out", 
         method: "OSINT & Git Exploration",
         type: "github"
-      };
-    } else if (progress === 2) {
-      return {
-        number: 3,
-        name: "Network Security Analysis",
-        method: "Traffic Analysis", 
-        type: "network"
-      };
-    } else {
-      return {
-        number: 4,
-        name: "Advanced Cryptography",
-        method: "Multi-layer Encryption",
-        type: "crypto"
       };
     }
   };
@@ -1248,29 +1234,7 @@ const Challenge = () => {
                 )}
               </div>
               
-              <div className="collapse bg-gray-50 border border-gray-200 opacity-60">
-                <div className="collapse-title text-lg font-medium flex items-center gap-3">
-                  <div className="badge badge-neutral">Challenge 3</div>
-                  <span className="text-gray-600">🌐 Network Security Analysis</span>
-                  <div className="badge badge-outline badge-sm">
-                    {challengeData?.settings?.rewardMode === 'total' ? '0' : (challengeData?.settings?.challengeBits?.[2] || challengeConfig.challengeBits[2])} bits
-                  </div>
-                  <div className="ml-auto text-sm text-gray-400">Coming Soon</div>
-                </div>
-              </div>
-              
-              <div className="collapse bg-gray-50 border border-gray-200 opacity-60">
-                <div className="collapse-title text-lg font-medium flex items-center gap-3">
-                  <div className="badge badge-neutral">Challenge 4</div>
-                  <span className="text-gray-600">🔐 Advanced Cryptography</span>
-                  <div className="badge badge-outline badge-sm">
-                    {challengeData?.settings?.rewardMode === 'total' 
-                      ? (challengeData?.settings?.totalRewardBits || challengeConfig.totalRewardBits) 
-                      : (challengeData?.settings?.challengeBits?.[3] || challengeConfig.challengeBits[3])} bits
-                  </div>
-                  <div className="ml-auto text-sm text-gray-400">Coming Soon</div>
-                </div>
-              </div>
+
             </div>
           </div>
         </div>
