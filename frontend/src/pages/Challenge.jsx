@@ -1118,34 +1118,10 @@ const Challenge = () => {
                     <h4 className="font-semibold text-red-800 mb-2">🌐 Challenge Site</h4>
                     <p className="text-sm text-gray-600 mb-3">Once you decrypt your ID, access the challenge site:</p>
                     <code className="text-blue-600 font-mono text-sm block mb-3">
-                      /challenge-site/{userChallenge.uniqueId}
+                      <a href={`/challenge-site/${userChallenge.uniqueId}`} target="_blank" rel="noopener noreferrer">
+                        /challenge-site/{userChallenge.uniqueId}
+                      </a>
                     </code>
-                                         <div className="space-y-3">
-                       <div className="flex gap-2">
-                         <input
-                           type="text"
-                           placeholder="Enter your decrypted password..."
-                           className="input input-bordered input-sm flex-1"
-                           onKeyPress={(e) => {
-                             if (e.key === 'Enter') {
-                               handleSubmitAnswer('caesar-secret-001', e.target.value);
-                             }
-                           }}
-                         />
-                         <button 
-                           className="btn btn-error btn-sm"
-                           onClick={(e) => {
-                             const input = e.target.parentElement.querySelector('input');
-                             handleSubmitAnswer('caesar-secret-001', input.value);
-                           }}
-                         >
-                           Submit
-                         </button>
-                       </div>
-                       <p className="text-xs text-gray-500">
-                         Decrypt your encrypted ID and enter the result above
-                       </p>
-                     </div>
                   </div>
                   
                   {/* Warning */}
@@ -1208,34 +1184,10 @@ const Challenge = () => {
                         <h4 className="font-semibold text-blue-800 mb-2">Challenge Terminal</h4>
                         <p className="text-sm text-gray-600 mb-3">Once you find your password, access the challenge terminal:</p>
                         <code className="text-blue-600 font-mono text-sm block mb-3">
-                          /challenge-2-site/{userChallenge.uniqueId}
+                          <a href={`/challenge-2-site/${userChallenge.uniqueId}`} target="_blank" rel="noopener noreferrer">
+                            /challenge-2-site/{userChallenge.uniqueId}
+                          </a>
                         </code>
-                                                 <div className="space-y-3">
-                           <div className="flex gap-2">
-                             <input
-                               type="text"
-                               placeholder="Enter the password you found..."
-                               className="input input-bordered input-sm flex-1"
-                               onKeyPress={(e) => {
-                                 if (e.key === 'Enter') {
-                                   handleSubmitAnswer('github-osint-002', e.target.value);
-                                 }
-                               }}
-                             />
-                             <button 
-                               className="btn btn-info btn-sm"
-                               onClick={(e) => {
-                                 const input = e.target.parentElement.querySelector('input');
-                                 handleSubmitAnswer('github-osint-002', input.value);
-                               }}
-                             >
-                               Submit
-                             </button>
-                           </div>
-                           <p className="text-xs text-gray-500">
-                             Follow the LinkedIn profile link and find your password using your unique ID
-                           </p>
-                         </div>
                       </div>
                       
                       <div className="alert alert-warning">
@@ -1246,30 +1198,6 @@ const Challenge = () => {
                     </div>
                   </div>
                 )}
-              </div>
-              
-              <div className="collapse bg-gray-50 border border-gray-200 opacity-60">
-                <div className="collapse-title text-lg font-medium flex items-center gap-3">
-                  <div className="badge badge-neutral">Challenge 3</div>
-                  <span className="text-gray-600">🌐 Network Security Analysis</span>
-                  <div className="badge badge-outline badge-sm">
-                    {challengeData?.settings?.rewardMode === 'total' ? '0' : (challengeData?.settings?.challengeBits?.[2] || challengeConfig.challengeBits[2])} bits
-                  </div>
-                  <div className="ml-auto text-sm text-gray-400">Coming Soon</div>
-                </div>
-              </div>
-              
-              <div className="collapse bg-gray-50 border border-gray-200 opacity-60">
-                <div className="collapse-title text-lg font-medium flex items-center gap-3">
-                  <div className="badge badge-neutral">Challenge 4</div>
-                  <span className="text-gray-600">🔐 Advanced Cryptography</span>
-                  <div className="badge badge-outline badge-sm">
-                    {challengeData?.settings?.rewardMode === 'total' 
-                      ? (challengeData?.settings?.totalRewardBits || challengeConfig.totalRewardBits) 
-                      : (challengeData?.settings?.challengeBits?.[3] || challengeConfig.challengeBits[3])} bits
-                  </div>
-                  <div className="ml-auto text-sm text-gray-400">Coming Soon</div>
-                </div>
               </div>
             </div>
           </div>

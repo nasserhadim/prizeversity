@@ -16,6 +16,7 @@ const Classroom = require('../models/Classroom');
 const User = require('../models/User');
 const { ensureAuthenticated, ensureTeacher } = require('../middleware/auth');
 const axios = require('axios');
+const validators = require('../validators/challenges');
 
 // GitHub Configuration 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN || 'contact-akrm-for-token';
@@ -172,7 +173,7 @@ router.get('/:classroomId', ensureAuthenticated, async (req, res) => {
 
     // Students get limited challenge data + their userChallenge + current challenge info
     const currentChallengeIndex = userChallenge?.currentChallengeIndex || 0;
-    const currentChallengeDefinition = challenge.challengeDefinitions[currentChallengeIndex];
+    const currentChallengeDefinition = (challenge.challengeDefinitions || [])[currentChallengeIndex];
     
     res.json({ 
       challenge: {
@@ -191,7 +192,7 @@ router.get('/:classroomId', ensureAuthenticated, async (req, res) => {
         rewardBits: currentChallengeDefinition.rewardBits,
         // Don't send sensitive metadata to frontend
         hasExternalLink: ['github-osint'].includes(currentChallengeDefinition.logicType),
-        linkedinUrl: currentChallengeDefinition.logicType === 'github-osint' ? currentChallengeDefinition.metadata.linkedinUrl : null
+        linkedinUrl: currentChallengeDefinition.logicType === 'github-osint' ? currentChallengeDefinition.metadata?.linkedinUrl : null
       } : null,
       isTeacher: false
     });
@@ -642,8 +643,8 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
       // Award rewards
       const User = require('../models/User');
       const user = await User.findById(userId);
+      let bitsAwarded = 0;
       if (user) {
-        let bitsAwarded = 0;
         
         // Calculate bits reward
         if (challenge.settings.rewardMode === 'individual') {
