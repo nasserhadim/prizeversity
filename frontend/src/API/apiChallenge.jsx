@@ -124,6 +124,30 @@ export const submitChallengeAnswer = async (classroomId, challengeId, answer) =>
   }
 };
 
+export const unlockHint = async (classroomId, challengeId) => {
+  try {
+    const response = await fetch(`${API_BASE}/api/challenges/${classroomId}/hints/unlock`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ challengeId }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error unlocking hint:', error);
+    throw error;
+  }
+};
+
 export const completeChallenge = async (level, uniqueId, solution) => {
   try {
     const response = await fetch(`${API_BASE}/api/challenges/complete-challenge/${level}`, {

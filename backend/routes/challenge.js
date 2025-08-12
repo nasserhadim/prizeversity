@@ -246,6 +246,7 @@ router.post('/:classroomId/configure', ensureAuthenticated, ensureTeacher, async
       if (settings.challengeDiscounts) mergedSettings.challengeDiscounts = settings.challengeDiscounts;
       if (settings.challengeShields) mergedSettings.challengeShields = settings.challengeShields;
       if (settings.challengeAttackBonuses) mergedSettings.challengeAttackBonuses = settings.challengeAttackBonuses;
+      if (settings.challengeHintsEnabled) mergedSettings.challengeHintsEnabled = settings.challengeHintsEnabled;
       
       challenge.settings = mergedSettings;
       challenge.isConfigured = true;
@@ -258,6 +259,7 @@ router.post('/:classroomId/configure', ensureAuthenticated, ensureTeacher, async
         challengeDiscounts: [0, 0, 0, 0],
         challengeShields: [false, false, false, false],
         challengeAttackBonuses: [0, 0, 0, 0],
+        challengeHintsEnabled: [false, false, false, false],
         ...settings
       };
       
@@ -799,8 +801,18 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
         // Calculate bits reward
         if (challenge.settings.rewardMode === 'individual') {
           bitsAwarded = challenge.settings.challengeBits[challengeIndex] || 0;
-        } else if (challengeIndex === 3) { // Only award total bits on final challenge
+        } else if (challengeIndex === 3) {
           bitsAwarded = challenge.settings.totalRewardBits || 0;
+        }
+
+        const hintsEnabled = (challenge.settings.challengeHintsEnabled || [])[challengeIndex];
+        const penaltyPercent = challenge.settings.hintPenaltyPercent ?? 25;
+        const maxHints = challenge.settings.maxHintsPerChallenge ?? 2;
+        const usedHints = Math.min((userChallenge.hintsUsed?.[challengeIndex] || 0), maxHints);
+        if (hintsEnabled && bitsAwarded > 0 && usedHints > 0 && penaltyPercent > 0) {
+          const totalPenalty = Math.min(100, usedHints * penaltyPercent);
+          const deduction = Math.floor((bitsAwarded * totalPenalty) / 100);
+          bitsAwarded = Math.max(0, bitsAwarded - deduction);
         }
 
         if (bitsAwarded > 0) {
@@ -812,6 +824,9 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
             createdAt: new Date()
           });
           userChallenge.bitsAwarded += bitsAwarded;
+          if (!Array.isArray(userChallenge.perChallengeAwarded)) userChallenge.perChallengeAwarded = [];
+          while (userChallenge.perChallengeAwarded.length <= challengeIndex) userChallenge.perChallengeAwarded.push(0);
+          userChallenge.perChallengeAwarded[challengeIndex] = bitsAwarded;
         }
 
         // Award other rewards (multiplier, luck, discount, shield, attack bonus)
@@ -976,15 +991,92 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
         nextChallenge: userChallenge.progress < 4 ? challengeNames[userChallenge.progress] : null
       });
     } else {
+      const enableHints = (challenge.settings.challengeHintsEnabled || [])[challengeIndex];
+      const penalty = challenge.settings.hintPenaltyPercent ?? 25;
+      const usedHints = userChallenge.hintsUsed?.[challengeIndex] || 0;
+      const canUnlock = enableHints && usedHints < (challenge.settings.maxHintsPerChallenge ?? 2);
       res.json({ 
         success: false, 
         message: 'Incorrect answer. Try again!',
-        hint: challengeIndex === 0 ? 'Try different cryptographic techniques to transform your encrypted ID.' : null
+        canUnlockHint: !!canUnlock,
+        penaltyPercent: enableHints ? penalty : null
       });
     }
 
   } catch (error) {
     console.error('Error submitting challenge answer:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// POST /api/challenges/:classroomId/hints/unlock - Unlock next hint for current challenge
+router.post('/:classroomId/hints/unlock', ensureAuthenticated, async (req, res) => {
+  try {
+    const { classroomId } = req.params;
+    const { challengeId } = req.body;
+    const userId = req.user._id;
+
+    const challenge = await Challenge.findOne({ classroomId, isActive: true });
+    if (!challenge) return res.status(404).json({ success: false, message: 'No active challenge found' });
+
+    const userChallenge = challenge.userChallenges.find(uc => uc.userId.toString() === userId.toString());
+    if (!userChallenge) return res.status(404).json({ success: false, message: 'User not enrolled in challenge' });
+
+    let challengeIndex = 0;
+    if (challengeId === 'caesar-secret-001') challengeIndex = 0;
+    else if (challengeId === 'github-osint-002') challengeIndex = 1;
+    else if (challengeId === 'network-analysis-003') challengeIndex = 2;
+    else if (challengeId === 'advanced-crypto-004') challengeIndex = 3;
+    else return res.status(400).json({ success: false, message: 'Invalid challenge ID' });
+
+    const enableHints = (challenge.settings.challengeHintsEnabled || [])[challengeIndex];
+    if (!enableHints) return res.status(400).json({ success: false, message: 'Hints are disabled for this challenge' });
+
+    const maxHints = challenge.settings.maxHintsPerChallenge ?? 2;
+    if (!Array.isArray(userChallenge.hintsUsed)) userChallenge.hintsUsed = [];
+    while (userChallenge.hintsUsed.length <= challengeIndex) userChallenge.hintsUsed.push(0);
+    const used = userChallenge.hintsUsed[challengeIndex];
+    if (used >= maxHints) return res.status(400).json({ success: false, message: 'No hints remaining' });
+
+    userChallenge.hintsUsed[challengeIndex] = used + 1;
+
+    let hintText = null;
+    if (challengeIndex === 0) {
+      const options = [
+        'Think substitution. A constant shift may help align letters.',
+        'Try shifting 3 positions; focus on uppercase letters only.'
+      ];
+      hintText = options[used] || options[options.length - 1];
+    } else if (challengeIndex === 1) {
+      const options = [
+        'Trace commits and branches that reference your unique ID.',
+        'Look in README or commit messages for clues containing your ID.'
+      ];
+      hintText = options[used] || options[options.length - 1];
+    } else if (challengeIndex === 2) {
+      const options = [
+        'Scan for memory allocated and not freed; check loops.',
+        'Validate array bounds and off-by-one errors in iterations.'
+      ];
+      hintText = options[used] || options[options.length - 1];
+    } else if (challengeIndex === 3) {
+      const options = [
+        'Inspect EXIF metadata fields; look for creator or comment.',
+        'Compare original and exported images; hash the one tied to your ID.'
+      ];
+      hintText = options[used] || options[options.length - 1];
+    }
+
+    if (!Array.isArray(userChallenge.hintsUnlocked)) userChallenge.hintsUnlocked = [];
+    while (userChallenge.hintsUnlocked.length <= challengeIndex) userChallenge.hintsUnlocked.push([]);
+    userChallenge.hintsUnlocked[challengeIndex] = userChallenge.hintsUnlocked[challengeIndex] || [];
+    userChallenge.hintsUnlocked[challengeIndex].push(hintText);
+
+    await challenge.save();
+
+    res.json({ success: true, hint: hintText, usedHints: userChallenge.hintsUsed[challengeIndex], remaining: Math.max(0, maxHints - userChallenge.hintsUsed[challengeIndex]) });
+  } catch (error) {
+    console.error('Error unlocking hint:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });

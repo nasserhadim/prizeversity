@@ -30,7 +30,9 @@ const UserChallengeSchema = new mongoose.Schema({
   hashedPassword: { type: String, required: true },
   progress: { type: Number, default: 0, min: 0, max: 4 },
   completedAt: { type: Date },
-  bitsAwarded: { type: Number, default: 0 }
+    bitsAwarded: { type: Number, default: 0 },
+  hintsUsed: { type: [Number], default: [] },
+  hintsUnlocked: { type: [[String]], default: [] }
 }, { _id: true });
 
 const ChallengeSchema = new mongoose.Schema({
@@ -70,6 +72,9 @@ const ChallengeSchema = new mongoose.Schema({
     attackMode: { type: String, enum: ['individual', 'total'], default: 'individual' },
     challengeAttackBonuses: [{ type: Number, default: 0, min: 0 }],
     totalAttackBonus: { type: Number, default: 0, min: 0 },
+    challengeHintsEnabled: [{ type: Boolean, default: false }],
+    maxHintsPerChallenge: { type: Number, default: 2, min: 0, max: 10 },
+    hintPenaltyPercent: { type: Number, default: 25, min: 0, max: 100 },
     
     difficulty: { type: String, enum: ['easy', 'medium', 'hard'], default: 'medium' },
     timeLimit: { type: Number, default: null },
@@ -163,6 +168,15 @@ ChallengeSchema.pre('save', function(next) {
     ];
   }
   
+  if (!this.settings.challengeHintsEnabled || this.settings.challengeHintsEnabled.length === 0) {
+    this.settings.challengeHintsEnabled = [
+      false,
+      false,
+      false,
+      false
+    ];
+  }
+  
   const totalChallenges = this.settings.challengeBits?.length || 4;
   
   this.stats.totalParticipants = this.userChallenges.length;
@@ -178,13 +192,16 @@ ChallengeSchema.pre('save', function(next) {
 ChallengeSchema.methods.generateUserChallenge = function(userId) {
   const plaintext = generateRandomString(6);
   const encryptedId = caesarCipher(plaintext, 3);
+  const totalChallenges = this.settings?.challengeBits?.length || 4;
   
   return {
     userId: userId,
     uniqueId: encryptedId,
     hashedPassword: plaintext,
     progress: 0,
-    bitsAwarded: 0
+    bitsAwarded: 0,
+    hintsUsed: Array(totalChallenges).fill(0),
+    hintsUnlocked: Array.from({ length: totalChallenges }, () => [])
   };
 };
 
@@ -215,13 +232,14 @@ ChallengeSchema.methods.getBitsForChallenge = function(challengeLevel) {
   return this.settings.challengeBits[challengeLevel - 1] || 0;
 };
 
-ChallengeSchema.methods.addChallenge = function(bits = 50, multiplier = 1.0, luck = 1.0, discount = 0, shield = false, attackBonus = 0) {
+ChallengeSchema.methods.addChallenge = function(bits = 50, multiplier = 1.0, luck = 1.0, discount = 0, shield = false, attackBonus = 0, hintsEnabled = false) {
   if (!this.settings.challengeBits) this.settings.challengeBits = [];
   if (!this.settings.challengeMultipliers) this.settings.challengeMultipliers = [];
   if (!this.settings.challengeLuck) this.settings.challengeLuck = [];
   if (!this.settings.challengeDiscounts) this.settings.challengeDiscounts = [];
   if (!this.settings.challengeShields) this.settings.challengeShields = [];
   if (!this.settings.challengeAttackBonuses) this.settings.challengeAttackBonuses = [];
+  if (!this.settings.challengeHintsEnabled) this.settings.challengeHintsEnabled = [];
   
   this.settings.challengeBits.push(bits);
   this.settings.challengeMultipliers.push(multiplier);
@@ -229,6 +247,7 @@ ChallengeSchema.methods.addChallenge = function(bits = 50, multiplier = 1.0, luc
   this.settings.challengeDiscounts.push(discount);
   this.settings.challengeShields.push(shield);
   this.settings.challengeAttackBonuses.push(attackBonus);
+  this.settings.challengeHintsEnabled.push(hintsEnabled);
   
   return this.settings.challengeBits.length; // Return new challenge count
 };
