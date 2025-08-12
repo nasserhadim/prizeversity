@@ -87,8 +87,11 @@ nice job lol: ${challenge2Password}
 }
 
 function generateChallenge2Password(uniqueId) {
-  const suffix = uniqueId.slice(-4).toUpperCase();
-  return `GITHUB-${suffix}`;
+  const crypto = require('crypto');
+  const hash = crypto.createHash('md5').update(uniqueId + 'secret_salt_2024').digest('hex');
+  const prefix = ['ACCESS', 'TOKEN', 'KEY', 'SECRET', 'CODE'][parseInt(hash.substring(0, 1), 16) % 5];
+  const suffix = hash.substring(8, 14).toUpperCase();
+  return `${prefix}_${suffix}`;
 }
 
 async function awardChallengeBits(userId, challengeLevel, challenge) {

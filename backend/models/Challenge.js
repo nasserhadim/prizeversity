@@ -191,7 +191,13 @@ ChallengeSchema.pre('save', function(next) {
 
 ChallengeSchema.methods.generateUserChallenge = function(userId) {
   const plaintext = generateRandomString(6);
-  const encryptedId = caesarCipher(plaintext, 3);
+  const crypto = require('crypto');
+  const CAESAR_BASE = parseInt(process.env.CAESAR_BASE || '3');
+  const CAESAR_RANGE = parseInt(process.env.CAESAR_RANGE || '6');
+  const CAESAR_SALT = process.env.CAESAR_SALT || 'default_salt_2024';
+  const hash = crypto.createHash('md5').update(plaintext + CAESAR_SALT).digest('hex');
+  const shift = (parseInt(hash.substring(0, 2), 16) % CAESAR_RANGE) + CAESAR_BASE;
+  const encryptedId = caesarCipher(plaintext, shift);
   const totalChallenges = this.settings?.challengeBits?.length || 4;
   
   return {

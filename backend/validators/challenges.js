@@ -1,23 +1,28 @@
 const crypto = require('crypto');
 
-const CAESAR_SHIFT = parseInt(process.env.CAESAR_SHIFT || '3');
-const GITHUB_FORMAT = process.env.GITHUB_FORMAT || 'GITHUB-{id}';
+const CAESAR_BASE = parseInt(process.env.CAESAR_BASE || '3');
+const CAESAR_RANGE = parseInt(process.env.CAESAR_RANGE || '6');
+const CAESAR_SALT = process.env.CAESAR_SALT || 'default_salt_2024';
 
 const generateExpectedAnswer = {
   'caesar-decrypt': (uniqueId) => {
+    const hash = crypto.createHash('md5').update(uniqueId + CAESAR_SALT).digest('hex');
+    const shift = (parseInt(hash.substring(0, 2), 16) % CAESAR_RANGE) + CAESAR_BASE; 
     return uniqueId.split('').map(char => {
       if (char >= 'A' && char <= 'Z') {
-        return String.fromCharCode(((char.charCodeAt(0) - 65 - CAESAR_SHIFT + 26) % 26) + 65);
+        return String.fromCharCode(((char.charCodeAt(0) - 65 - shift + 26) % 26) + 65);
       } else if (char >= '0' && char <= '9') {
-        return String.fromCharCode(((char.charCodeAt(0) - 48 - CAESAR_SHIFT + 10) % 10) + 48);
+        return String.fromCharCode(((char.charCodeAt(0) - 48 - shift + 10) % 10) + 48);
       }
       return char;
     }).join('');
   },
   
   'github-osint': (uniqueId) => {
-    // Hidden OSINT format from environment variable
-    return GITHUB_FORMAT.replace('{id}', uniqueId.slice(-4).toUpperCase());
+    const hash = crypto.createHash('md5').update(uniqueId + 'secret_salt_2024').digest('hex');
+    const prefix = ['ACCESS', 'TOKEN', 'KEY', 'SECRET', 'CODE'][parseInt(hash.substring(0, 1), 16) % 5];
+    const suffix = hash.substring(8, 14).toUpperCase();
+    return `${prefix}_${suffix}`;
   },
   
   'network-analysis': () => {
