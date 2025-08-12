@@ -1,10 +1,3 @@
-// Challenge Model
-// path: backend/models/Challenge.js
-// ---------------
-// This file contains the model for the challenge system.
-// We use this to store challenge data, user challenges, and stats.
-// We also use this to generate random strings and encrypt passwords.
-
 const mongoose = require('mongoose');
 
 function generateRandomString(length = 6) {
@@ -48,33 +41,22 @@ const ChallengeSchema = new mongoose.Schema({
     challengeBits: [{ type: Number, default: 50, min: 0 }],
     totalRewardBits: { type: Number, default: 350, min: 0 },
     
-    // Multiplier rewards (multiplier values - 1.0 base, 1.5 = 50% bonus)
     multiplierMode: { type: String, enum: ['individual', 'total'], default: 'individual' },
     challengeMultipliers: [{ type: Number, default: 1.0, min: 0 }],
     totalMultiplier: { type: Number, default: 1.0, min: 0 },
     
-    // Luck rewards (multiplier values - 1.0 base, 1.2 = 20% luck bonus)
     luckMode: { type: String, enum: ['individual', 'total'], default: 'individual' },
     challengeLuck: [{ type: Number, default: 1.0, min: 0 }],
     totalLuck: { type: Number, default: 1.0, min: 0 },
     
-    // Discount rewards (percentage values - 0-100)
     discountMode: { type: String, enum: ['individual', 'total'], default: 'individual' },
     challengeDiscounts: [{ type: Number, default: 0, min: 0, max: 100 }],
     totalDiscount: { type: Number, default: 0, min: 0, max: 100 },
     
-    // Shield rewards (boolean values - true/false)
     shieldMode: { type: String, enum: ['individual', 'total'], default: 'individual' },
     challengeShields: [{ type: Boolean, default: false }],
     totalShield: { type: Boolean, default: false },
     
-    // Attack bonus rewards (static number values - +50, +100, etc.)
-    attackMode: { type: String, enum: ['individual', 'total'], default: 'individual' },
-    challengeAttackBonuses: [{ type: Number, default: 0, min: 0 }],
-    totalAttackBonus: { type: Number, default: 0, min: 0 },
-    challengeHintsEnabled: [{ type: Boolean, default: false }],
-    maxHintsPerChallenge: { type: Number, default: 2, min: 0, max: 10 },
-    hintPenaltyPercent: { type: Number, default: 25, min: 0, max: 100 },
     
     difficulty: { type: String, enum: ['easy', 'medium', 'hard'], default: 'medium' },
     timeLimit: { type: Number, default: null },
@@ -219,12 +201,10 @@ ChallengeSchema.methods.calculateTotalBits = function() {
 
 ChallengeSchema.methods.getBitsForChallenge = function(challengeLevel) {
   if (this.settings.rewardMode === 'total') {
-    // In total mode, only award bits when completing the final challenge
     const totalChallenges = this.settings.challengeBits?.length || 4;
     return challengeLevel === totalChallenges ? (this.settings.totalRewardBits || 350) : 0;
   }
   
-  // Individual mode - award bits for each challenge
   if (!this.settings.challengeBits || challengeLevel < 1 || challengeLevel > this.settings.challengeBits.length) {
     return 0;
   }
@@ -249,7 +229,7 @@ ChallengeSchema.methods.addChallenge = function(bits = 50, multiplier = 1.0, luc
   this.settings.challengeAttackBonuses.push(attackBonus);
   this.settings.challengeHintsEnabled.push(hintsEnabled);
   
-  return this.settings.challengeBits.length; // Return new challenge count
+  return this.settings.challengeBits.length; 
 };
 
 ChallengeSchema.methods.getTotalChallenges = function() {

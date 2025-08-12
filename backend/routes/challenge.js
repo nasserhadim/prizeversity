@@ -1,14 +1,3 @@
-// Challenge Routes
-// path: backend/routes/challenge.js
-// ----------------
-// This file contains the routes for the challenge system.
-// We use this to create GitHub branches, verify passwords, and complete challenges.
-// The PAT is from the dummy account Akrm created for this purpose.
-// Design Details:
-//     - We use the GitHub API to create branches and push files automatically.
-//     - We generate a random string for each user and use that to create a branch and link it to the user's account. 
-//     - We use the Caesar cipher to encrypt the password for challenge 2.
-
 const express = require('express');
 const router = express.Router();
 const Challenge = require('../models/Challenge');
@@ -18,7 +7,6 @@ const { ensureAuthenticated, ensureTeacher } = require('../middleware/auth');
 const axios = require('axios');
 const validators = require('../validators/challenges');
 
-// Helper function to check if challenge is expired
 function isChallengeExpired(challenge) {
   if (!challenge.settings.dueDateEnabled || !challenge.settings.dueDate) {
     return false;
@@ -26,7 +14,6 @@ function isChallengeExpired(challenge) {
   return new Date() > new Date(challenge.settings.dueDate);
 }
 
-// GitHub Configuration 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN || 'contact-akrm-for-token';
 const GITHUB_OWNER = process.env.GITHUB_OWNER || 'cinnamonstic';
 const GITHUB_REPO = process.env.GITHUB_REPO || 'contact-akrm-for-repo';
@@ -44,7 +31,6 @@ async function createGitHubBranch(uniqueId, userId) {
   };
 
   try {
-    // Check if branch already exists
     try {
       await axios.get(
         `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/branches/${uniqueId}`,
@@ -58,14 +44,12 @@ async function createGitHubBranch(uniqueId, userId) {
       }
     }
 
-    // Get the main branch SHA
     const mainBranch = await axios.get(
       `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/branches/main`,
       { headers }
     );
     const mainSha = mainBranch.data.commit.sha;
 
-    // Create new branch
     await axios.post(
       `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/refs`,
       {
@@ -75,19 +59,15 @@ async function createGitHubBranch(uniqueId, userId) {
       { headers }
     );
 
-    // Generate password for Challenge 2
     const challenge2Password = generateChallenge2Password(uniqueId);
 
-    // Create hello_world.txt content
     const fileContent = `
 nice job lol: ${challenge2Password}
 
 `;
 
-    // Encode content to base64
     const encodedContent = Buffer.from(fileContent).toString('base64');
 
-    // Create the file in the branch
     await axios.put(
       `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/hello_world.txt`,
       {
@@ -136,7 +116,6 @@ async function awardChallengeBits(userId, challengeLevel, challenge) {
   }
 }
 
-// GET /api/challenges/:classroomId - Get challenge for a classroom
 router.get('/:classroomId', ensureAuthenticated, async (req, res) => {
   try {
     const { classroomId } = req.params;
@@ -165,13 +144,11 @@ router.get('/:classroomId', ensureAuthenticated, async (req, res) => {
       });
     }
 
-    // Always find userChallenge for this user (including teachers)
     const userChallenge = challenge.userChallenges.find(
       uc => uc.userId._id.toString() === userId.toString()
     );
 
     if (isTeacher) {
-      // Teachers get full challenge data + their userChallenge (for student mode)
       return res.json({ 
         challenge,
         userChallenge,
@@ -179,7 +156,6 @@ router.get('/:classroomId', ensureAuthenticated, async (req, res) => {
       });
     }
 
-    // Students get limited challenge data + their userChallenge + current challenge info
     const currentChallengeIndex = userChallenge?.currentChallengeIndex || 0;
     const currentChallengeDefinition = (challenge.challengeDefinitions || [])[currentChallengeIndex];
     
@@ -198,7 +174,6 @@ router.get('/:classroomId', ensureAuthenticated, async (req, res) => {
         description: currentChallengeDefinition.description,
         order: currentChallengeDefinition.order,
         rewardBits: currentChallengeDefinition.rewardBits,
-        // Don't send sensitive metadata to frontend
         hasExternalLink: ['github-osint'].includes(currentChallengeDefinition.logicType),
         linkedinUrl: currentChallengeDefinition.logicType === 'github-osint' ? currentChallengeDefinition.metadata?.linkedinUrl : null
       } : null,
@@ -211,7 +186,6 @@ router.get('/:classroomId', ensureAuthenticated, async (req, res) => {
   }
 });
 
-// POST /api/challenges/:classroomId/configure - Configure challenge settings (Teacher only)
 router.post('/:classroomId/configure', ensureAuthenticated, ensureTeacher, async (req, res) => {
   try {
     const { classroomId } = req.params;
@@ -235,11 +209,9 @@ router.post('/:classroomId/configure', ensureAuthenticated, ensureTeacher, async
 
     if (challenge) {
       challenge.title = title || challenge.title;
-      // Merge array-based settings properly
       const currentSettings = challenge.settings.toObject();
       const mergedSettings = { ...currentSettings, ...settings };
       
-      // Ensure arrays are properly set
       if (settings.challengeBits) mergedSettings.challengeBits = settings.challengeBits;
       if (settings.challengeMultipliers) mergedSettings.challengeMultipliers = settings.challengeMultipliers;
       if (settings.challengeLuck) mergedSettings.challengeLuck = settings.challengeLuck;
@@ -251,7 +223,6 @@ router.post('/:classroomId/configure', ensureAuthenticated, ensureTeacher, async
       challenge.settings = mergedSettings;
       challenge.isConfigured = true;
     } else {
-      // Set default arrays if not provided
       const defaultSettings = {
         challengeBits: [50, 75, 100, 125],
         challengeMultipliers: [1.0, 1.0, 1.0, 1.0],
@@ -292,7 +263,6 @@ router.post('/:classroomId/configure', ensureAuthenticated, ensureTeacher, async
   }
 });
 
-// POST /api/challenges/:classroomId/initiate - Activate configured challenge (Teacher only)
 router.post('/:classroomId/initiate', ensureAuthenticated, ensureTeacher, async (req, res) => {
   try {
     const { classroomId } = req.params;
@@ -339,7 +309,6 @@ router.post('/:classroomId/initiate', ensureAuthenticated, ensureTeacher, async 
   }
 });
 
-// POST /api/challenges/:classroomId/deactivate - Deactivate challenge (Teacher only)
 router.post('/:classroomId/deactivate', ensureAuthenticated, ensureTeacher, async (req, res) => {
   try {
     const { classroomId } = req.params;
@@ -374,7 +343,6 @@ router.post('/:classroomId/deactivate', ensureAuthenticated, ensureTeacher, asyn
   }
 });
 
-// POST /api/challenges/verify-password - Verify password and update progress
 router.post('/verify-password', ensureAuthenticated, async (req, res) => {
   try {
     const { uniqueId, password } = req.body;
@@ -410,14 +378,12 @@ router.post('/verify-password', ensureAuthenticated, async (req, res) => {
         userChallenge.completedAt = Date.now();
       }
       
-      // Award all rewards for Challenge 1 (index 0)
       const User = require('../models/User');
       const user = await User.findById(userId);
       let bitsAwarded = 0;
       if (user) {
-        const challengeIndex = 0; // Challenge 1
+        const challengeIndex = 0;
         
-        // Calculate bits reward
         if (challenge.settings.rewardMode === 'individual') {
           bitsAwarded = challenge.settings.challengeBits[challengeIndex] || 0;
         }
@@ -433,8 +399,6 @@ router.post('/verify-password', ensureAuthenticated, async (req, res) => {
           userChallenge.bitsAwarded += bitsAwarded;
         }
 
-        // Award other rewards (multiplier, luck, discount, shield, attack bonus)
-        
         if (challenge.settings.multiplierMode === 'individual') {
           const multiplierReward = (challenge.settings.challengeMultipliers && challenge.settings.challengeMultipliers[challengeIndex]) || 1.0;
           if (multiplierReward > 1.0) {
@@ -496,7 +460,6 @@ router.post('/verify-password', ensureAuthenticated, async (req, res) => {
   }
 });
 
-// POST /api/challenges/verify-challenge2-external - Verify Challenge 2 from external site
 router.post('/verify-challenge2-external', ensureAuthenticated, async (req, res) => {
   try {
     const { uniqueId, password } = req.body;
@@ -522,7 +485,6 @@ router.post('/verify-challenge2-external', ensureAuthenticated, async (req, res)
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    // Generate expected Challenge 2 password
     const expectedPassword = generateChallenge2Password(uniqueId);
 
     if (expectedPassword !== password.toUpperCase()) {
@@ -535,14 +497,12 @@ router.post('/verify-challenge2-external', ensureAuthenticated, async (req, res)
         userChallenge.completedAt = Date.now();
       }
       
-      // Award all rewards for Challenge 2 (index 1)
       const User = require('../models/User');
       const user = await User.findById(userId);
       let bitsAwarded = 0;
       if (user) {
-        const challengeIndex = 1; // Challenge 2
+        const challengeIndex = 1;
         
-        // Calculate bits reward
         if (challenge.settings.rewardMode === 'individual') {
           bitsAwarded = challenge.settings.challengeBits[challengeIndex] || 0;
         }
@@ -558,7 +518,6 @@ router.post('/verify-challenge2-external', ensureAuthenticated, async (req, res)
           userChallenge.bitsAwarded += bitsAwarded;
         }
 
-        // Award other rewards (multiplier, luck, discount, shield, attack bonus)
         if (challenge.settings.multiplierMode === 'individual') {
           const multiplierReward = challenge.settings.challengeMultipliers[challengeIndex] || 1.0;
           if (multiplierReward > 1.0) {
@@ -576,7 +535,6 @@ router.post('/verify-challenge2-external', ensureAuthenticated, async (req, res)
         if (challenge.settings.discountMode === 'individual') {
           const discountReward = challenge.settings.challengeDiscounts[challengeIndex] || 0;
           if (discountReward > 0) {
-            // Convert boolean to percentage if needed for backwards compatibility
             if (typeof user.discountShop === 'boolean') {
               user.discountShop = user.discountShop ? 100 : 0;
             }
@@ -615,7 +573,6 @@ router.post('/verify-challenge2-external', ensureAuthenticated, async (req, res)
   }
 });
 
-// POST /api/challenges/complete-challenge/:level - Complete challenge level (Student)
 router.post('/complete-challenge/:level', ensureAuthenticated, async (req, res) => {
   try {
     const { level } = req.params;
@@ -682,7 +639,6 @@ router.post('/complete-challenge/:level', ensureAuthenticated, async (req, res) 
   }
 });
 
-// GET /api/challenges/:classroomId/stats - Get challenge statistics (Teacher only)
 router.get('/:classroomId/stats', ensureAuthenticated, ensureTeacher, async (req, res) => {
   try {
     const { classroomId } = req.params;
@@ -724,7 +680,6 @@ router.get('/:classroomId/stats', ensureAuthenticated, ensureTeacher, async (req
   }
 });
 
-// POST /api/challenges/:classroomId/submit - Submit answer to current challenge
 router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
   try {
     const { classroomId } = req.params;
@@ -735,13 +690,11 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Answer is required' });
     }
 
-    // Get challenge and user data
     const challenge = await Challenge.findOne({ classroomId, isActive: true });
     if (!challenge) {
       return res.status(404).json({ success: false, message: 'No active challenge found' });
     }
 
-    // Check if challenge is expired
     if (isChallengeExpired(challenge)) {
       return res.status(403).json({ 
         success: false, 
@@ -756,7 +709,6 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not enrolled in challenge' });
     }
 
-    // Determine which challenge they're attempting
     let challengeIndex = 0;
     if (challengeId === 'caesar-secret-001') challengeIndex = 0;
     else if (challengeId === 'github-osint-002') challengeIndex = 1;
@@ -766,17 +718,14 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid challenge ID' });
     }
 
-    // Check if they can attempt this challenge (must complete previous ones)
     if (challengeIndex > userChallenge.progress) {
       return res.status(400).json({ success: false, message: 'Must complete previous challenges first' });
     }
 
-    // Check if already completed
     if (challengeIndex < userChallenge.progress) {
       return res.status(400).json({ success: false, message: 'Challenge already completed' });
     }
 
-    // Use secure validation - all logic hidden in validators module
     const challengeTypes = ['caesar-decrypt', 'github-osint', 'network-analysis', 'advanced-crypto'];
     const challengeType = challengeTypes[challengeIndex];
     
@@ -785,20 +734,16 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
       return res.status(500).json({ success: false, message: 'Unsupported challenge type' });
     }
 
-    // Validate answer using secure validator (no sensitive logic here)
     const isCorrect = validator(answer, {}, userChallenge.uniqueId);
 
     if (isCorrect) {
-      // Update progress
       userChallenge.progress = challengeIndex + 1;
       
-      // Award rewards
       const User = require('../models/User');
       const user = await User.findById(userId);
       let bitsAwarded = 0;
       if (user) {
         
-        // Calculate bits reward
         if (challenge.settings.rewardMode === 'individual') {
           bitsAwarded = challenge.settings.challengeBits[challengeIndex] || 0;
         } else if (challengeIndex === 3) {
@@ -829,7 +774,6 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
           userChallenge.perChallengeAwarded[challengeIndex] = bitsAwarded;
         }
 
-        // Award other rewards (multiplier, luck, discount, shield, attack bonus)
         if (challenge.settings.multiplierMode === 'individual') {
           const multiplierReward = challenge.settings.challengeMultipliers[challengeIndex] || 1.0;
           if (multiplierReward > 1.0) {
@@ -857,7 +801,6 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
         if (challenge.settings.discountMode === 'individual') {
           const discountReward = challenge.settings.challengeDiscounts[challengeIndex] || 0;
           if (discountReward > 0) {
-            // Convert boolean to percentage if needed for backwards compatibility
             if (typeof user.discountShop === 'boolean') {
               user.discountShop = user.discountShop ? 100 : 0;
             }
@@ -866,7 +809,6 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
         } else if (challengeIndex === 3) {
           const totalDiscount = challenge.settings.totalDiscount || 0;
           if (totalDiscount > 0) {
-            // Convert boolean to percentage if needed for backwards compatibility
             if (typeof user.discountShop === 'boolean') {
               user.discountShop = user.discountShop ? 100 : 0;
             }
@@ -901,7 +843,6 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
         await user.save();
       }
 
-      // Mark completion time
       if (userChallenge.progress === 4) {
         userChallenge.completedAt = new Date();
       }
@@ -910,7 +851,6 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
 
       const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'Memory Leak Detective', 'Advanced Cryptography'];
       
-      // Collect all rewards earned for this challenge
       const rewardsEarned = {
         bits: bitsAwarded || 0,
         multiplier: 0,
@@ -920,7 +860,6 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
         attackBonus: 0
       };
 
-      // Calculate what rewards were actually given
       if (challenge.settings.multiplierMode === 'individual') {
         const multiplierReward = challenge.settings.challengeMultipliers[challengeIndex] || 1.0;
         if (multiplierReward > 1.0) {
@@ -1009,7 +948,6 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
   }
 });
 
-// POST /api/challenges/:classroomId/hints/unlock - Unlock next hint for current challenge
 router.post('/:classroomId/hints/unlock', ensureAuthenticated, async (req, res) => {
   try {
     const { classroomId } = req.params;
@@ -1081,7 +1019,6 @@ router.post('/:classroomId/hints/unlock', ensureAuthenticated, async (req, res) 
   }
 });
 
-// Challenge 3: Memory Leak Detective - Generate unique buggy code for each student
 router.get('/challenge3/:uniqueId', ensureAuthenticated, async (req, res) => {
   try {
     const { uniqueId } = req.params;
@@ -1104,12 +1041,10 @@ router.get('/challenge3/:uniqueId', ensureAuthenticated, async (req, res) => {
     const User = require('../models/User');
     const user = await User.findById(userId);
     
-    // Generate unique hash for this student
     const crypto = require('crypto');
     const studentHash = crypto.createHash('md5').update(userId.toString() + uniqueId).digest('hex');
     const hashNum = parseInt(studentHash.substring(0, 8), 16);
     
-    // Generate personalized student data
     const studentData = {
       hashedId: studentHash,
       firstName: user.firstName,
@@ -1120,7 +1055,6 @@ router.get('/challenge3/:uniqueId', ensureAuthenticated, async (req, res) => {
       gpa: (2.0 + (hashNum % 200) / 100).toFixed(2)
     };
 
-    // Generate unique variables and bugs based on student hash
     const varNames = {
       student: `student_${studentData.studentId.slice(-2)}`,
       course: `course_${(hashNum % 900) + 100}`,
@@ -1128,7 +1062,6 @@ router.get('/challenge3/:uniqueId', ensureAuthenticated, async (req, res) => {
       grade: `grade_${String.fromCharCode(65 + (hashNum % 5))}` // A-E
     };
 
-    // Generate buggy code files with student-specific bugs
     const codeFiles = generateBuggyCode(studentData, varNames, hashNum);
     
     res.json({
@@ -1142,7 +1075,6 @@ router.get('/challenge3/:uniqueId', ensureAuthenticated, async (req, res) => {
   }
 });
 
-// Test Challenge 3 code submission
 router.post('/challenge3/:uniqueId/test', ensureAuthenticated, async (req, res) => {
   try {
     const { uniqueId } = req.params;
@@ -1158,20 +1090,17 @@ router.post('/challenge3/:uniqueId/test', ensureAuthenticated, async (req, res) 
       return res.status(404).json({ message: 'Challenge not found' });
     }
 
-    // Run tests on the submitted code
     const testResults = await runCodeTests(codeFiles, userId, uniqueId);
     const passedTests = testResults.filter(t => t.passed).length;
     const totalTests = testResults.length;
     const success = passedTests === totalTests;
 
     if (success) {
-      // Update progress to Challenge 3 completed
       const userChallenge = challenge.userChallenges.find(uc => uc.uniqueId === uniqueId);
       if (userChallenge && userChallenge.progress < 3) {
         userChallenge.progress = 3;
         userChallenge.completedAt = new Date();
 
-        // Award Challenge 3 rewards
         const User = require('../models/User');
         const user = await User.findById(userId);
         if (user) {
@@ -1182,7 +1111,6 @@ router.post('/challenge3/:uniqueId/test', ensureAuthenticated, async (req, res) 
       }
     }
 
-    // Generate hints for failed attempts
     const hints = success ? [] : generateDebugHints(testResults, codeFiles);
 
     res.json({
@@ -1190,7 +1118,7 @@ router.post('/challenge3/:uniqueId/test', ensureAuthenticated, async (req, res) 
       testResults,
       passedTests,
       totalTests,
-      hints: hints.slice(0, 3) // Limit to 3 hints
+      hints: hints.slice(0, 3)
     });
 
   } catch (error) {
@@ -1198,249 +1126,232 @@ router.post('/challenge3/:uniqueId/test', ensureAuthenticated, async (req, res) 
     res.status(500).json({ message: 'Code testing failed' });
   }
 });
-
-// Helper function to generate buggy code with student-specific elements
+  
 function generateBuggyCode(studentData, varNames, hashNum) {
-  const mainCpp = `#include <iostream>
-#include <vector>
+  const bugType = hashNum % 4;
+  const studentNum = (hashNum % 9000) + 1000;
+  const correctFlag = `SEC${studentNum}_FIXED`;
+  
+  let buggyCode, bugDescription;
+  
+  switch(bugType) {
+    case 0:   
+      buggyCode = `#include <iostream>
 #include <string>
-#include "student.h"
-#include "course.h"
 using namespace std;
 
 int main() {
-    // University Registration System - ${studentData.firstName} ${studentData.lastName}
+    // Secure Login System - ${studentData.firstName} ${studentData.lastName}
     // Student ID: ${studentData.studentId}
-    // WARNING: This code has been "optimized" by previous developers
+    // Fix the security vulnerability below
     
-    Student* ${varNames.student} = new Student("${studentData.firstName}", "${studentData.lastName}");
+    string username = "admin";
+    string password = "secret${studentNum}";
+    string input_user, input_pass;
     
-    // Enroll student in all required courses for semester
-    for(int i = 0; i <= ${(hashNum % 5) + 3}; i++) {
-        Course* ${varNames.course} = new Course("CS" + to_string(${100 + (hashNum % 400)}), ${(hashNum % 3) + 3});
-        ${varNames.student}->enrollCourse(${varNames.course});
-        // Standard enrollment process - adds course to student record
+    cout << "Username: ";
+    cin >> input_user;
+    cout << "Password: ";
+    cin >> input_pass;
+    
+    // BUG: This comparison logic is wrong
+    if(input_user.compare(username) || input_pass.compare(password)) {
+        cout << "Access granted! Flag: ${correctFlag}" << endl;
+    } else {
+        cout << "Access denied" << endl;
     }
     
-    // Calculate final GPA for graduation eligibility
-    double gpa = ${varNames.student}->calculateGPA();
-    
-    // Check if student meets minimum GPA requirement for access
-    if(gpa ${hashNum % 2 === 0 ? '>=' : '<='} ${studentData.gpa}) {
-        cout << "Password: " << ${varNames.student}->getPasswordHash() << endl;
-    }
-    
-    // Clean up student object when done
-    delete ${varNames.student};
     return 0;
 }`;
-
-  const studentH = `#ifndef STUDENT_H
-#define STUDENT_H
-#include <vector>
+      bugDescription = "Logic error in comparison - should check both conditions are true";
+      break;
+      
+    case 1: 
+      buggyCode = `#include <iostream>
 #include <string>
-#include "course.h"
-
-class Student {
-private:
-    std::string firstName;
-    std::string lastName;
-    std::vector<Course*> courses;
-    
-public:
-    Student(std::string fname, std::string lname);
-    ~Student();
-    void enrollCourse(Course* course);
-    double calculateGPA();
-    std::string getPasswordHash();
-    void cleanup(); // Helper for memory management
-};
-
-#endif`;
-
-  const studentCpp = `#include "student.h"
-#include <iostream>
-#include <iomanip>
-#include <sstream>
 using namespace std;
 
-Student::Student(string fname, string lname) {
-    firstName = fname;
-    lastName = lname;
-    // Basic initialization complete - courses added via enrollCourse()
-}
-
-Student::~Student() {
-    // Destructor implementation
-    // Note: Course cleanup managed by registration system
-}
-
-void Student::enrollCourse(Course* course) {
-    if(course != nullptr) {
-        courses.push_back(course);
-    }
-}
-
-double Student::calculateGPA() {
-    if(courses.empty()) return 0.0;
+int main() {
+    // Password Checker - ${studentData.firstName} ${studentData.lastName}
+    // Student ID: ${studentData.studentId}
+    // Fix the array bounds issue
     
-    double total = 0.0;
-    int count = 0;
+    char validChars[] = {'A', 'B', 'C', 'D', 'E'};
+    int userInput;
     
-    // Process all enrolled courses for GPA calculation
-    for(int i = 0; i < courses.size() ${hashNum % 3 === 0 ? '- 1' : ''}; i++) {
-        total += courses[i]->getGradePoints();
-        count++;
-        // Accumulate grade points from each course
+    cout << "Enter index (0-4): ";
+    cin >> userInput;
+    
+    // BUG: Missing bounds check
+    if(validChars[userInput] == 'C') {
+        cout << "Correct! Flag: ${correctFlag}" << endl;
+    } else {
+        cout << "Wrong character" << endl;
     }
     
-    return count > 0 ? total / count : 0.0;
-}
-
-string Student::getPasswordHash() {
-    // Generate password based on corrected system state
-    stringstream ss;
-    ss << "SEC" << courses.size() << "_" << fixed << setprecision(2) << calculateGPA();
-    return ss.str();
-}
-
-void Student::cleanup() {
-    // Students need to implement proper cleanup
-    for(auto course : courses) {
-        // What should go here?
-    }
+    return 0;
 }`;
+      bugDescription = "Missing array bounds check - could access invalid memory";
+      break;
+      
+    case 2: 
+      buggyCode = `#include <iostream>
+using namespace std;
 
-  const courseH = `#ifndef COURSE_H
-#define COURSE_H
-#include <string>
-
-class Course {
-private:
-    std::string courseCode;
-    int credits;
-    double gradePoints;
+int main() {
+    // Score Calculator - ${studentData.firstName} ${studentData.lastName}
+    // Student ID: ${studentData.studentId}
+    // Fix the integer overflow vulnerability
     
-public:
-    Course(std::string code, int creds);
-    double getGradePoints();
-    int getCredits();
-    std::string getCourseCode();
-};
-
-#endif`;
-
-  const courseCpp = `#include "course.h"
-#include <cstdlib>
-#include <ctime>
-
-Course::Course(string code, int creds) {
-    courseCode = code;
-    credits = creds;
+    int baseScore = ${20000 + (hashNum % 10000)};
+    int multiplier;
     
-    // Initialize grade points using deterministic seed for consistency
-    srand(${hashNum % 1000});
-    gradePoints = ${(hashNum % 3) + 2}.0 + (rand() % ${(hashNum % 200) + 100}) / 100.0;
-    // Note: Using fixed seed ensures reproducible results across runs
-}
-
-double Course::getGradePoints() {
-    // Apply grade scaling factor for normalized scoring
-    return gradePoints ${hashNum % 2 === 0 ? '* 1.1' : '/ 1.1'};
-    // TODO: Verify scaling factor with academic standards
-}
-
-int Course::getCredits() {
-    return credits;
-}
-
-string Course::getCourseCode() {
-    return courseCode;
+    cout << "Enter multiplier: ";
+    cin >> multiplier;
+    
+    // BUG: No overflow check
+    int finalScore = baseScore * multiplier;
+    
+    if(finalScore == ${studentNum}) {
+        cout << "Perfect score! Flag: ${correctFlag}" << endl;
+    } else {
+        cout << "Score: " << finalScore << endl;
+    }
+    
+    return 0;
 }`;
+      bugDescription = "Integer overflow vulnerability - large inputs can wrap around";
+      break;
+      
+    case 3: 
+      buggyCode = `#include <iostream>
+#include <cstring>
+using namespace std;
 
+int main() {
+    // Name Validator - ${studentData.firstName} ${studentData.lastName}
+    // Student ID: ${studentData.studentId}
+    // Fix the buffer overflow issue
+    
+    char buffer[8];
+    char target[] = "SEC${studentNum}";
+    
+    cout << "Enter code: ";
+    
+    // BUG: No length check on input
+    cin >> buffer;
+    
+    if(strcmp(buffer, target) == 0) {
+        cout << "Valid code! Flag: ${correctFlag}" << endl;
+    } else {
+        cout << "Invalid code" << endl;
+    }
+    
+    return 0;
+}`;
+      bugDescription = "Buffer overflow - input not limited to buffer size";
+      break;
+  }
+  
   return {
-    'main.cpp': mainCpp,
-    'student.h': studentH,
-    'student.cpp': studentCpp,
-    'course.h': courseH,
-    'course.cpp': courseCpp
+    'main.cpp': buggyCode,
+    bugType: bugType,
+    bugDescription: bugDescription,
+    correctFlag: correctFlag
   };
 }
 
-// Helper function to run tests on submitted code
 async function runCodeTests(codeFiles, userId, uniqueId) {
-  // In a real implementation, this would compile and run the C++ code
-  // For now, we'll simulate by checking for specific fixes
+  const crypto = require('crypto');
+  const studentHash = crypto.createHash('md5').update(userId.toString() + uniqueId).digest('hex');
+  const hashNum = parseInt(studentHash.substring(0, 8), 16);
+  const bugType = hashNum % 4;
+  const studentNum = (hashNum % 9000) + 1000;
+  const correctFlag = `SEC${studentNum}_FIXED`;
   
-  const tests = [
-    {
-      name: "Memory Leak Check",
-      passed: codeFiles['student.cpp'].includes('delete course') || 
-              codeFiles['main.cpp'].includes('cleanup()'),
-      error: "Memory leaks detected in course allocation"
-    },
-    {
-      name: "Loop Boundary Check", 
-      passed: !codeFiles['main.cpp'].includes('i <=') ||
-              codeFiles['main.cpp'].includes('i <'),
-      error: "Off-by-one error in course enrollment loop"
-    },
-    {
-      name: "GPA Calculation",
-      passed: !codeFiles['student.cpp'].includes('courses.size() - 1') &&
-              !codeFiles['course.cpp'].includes('* 1.1') &&
-              !codeFiles['course.cpp'].includes('/ 1.1'),
-      error: "Incorrect GPA calculation logic"
-    },
-    {
-      name: "Comparison Logic",
-      passed: codeFiles['main.cpp'].includes('< ') || 
-              codeFiles['main.cpp'].includes('> '),
-      error: "Wrong comparison operator for GPA check"
-    },
-    {
-      name: "Password Generation",
-      passed: true, // This will pass if other tests pass
-      type: "password",
-      result: tests => {
-        if (tests.slice(0, -1).every(t => t.passed)) {
-          return `SEC${Math.floor(Math.random() * 10) + 5}_${(Math.random() * 2 + 2).toFixed(2)}`;
-        }
-        return null;
-      }
-    }
-  ];
-
-  // Generate password if all tests pass
-  const lastTest = tests[tests.length - 1];
-  if (typeof lastTest.result === 'function') {
-    lastTest.result = lastTest.result(tests);
-    lastTest.passed = lastTest.result !== null;
+  let test;
+  
+  switch(bugType) {
+    case 0: 
+      test = {
+        name: "Logic Fix",
+        passed: (codeFiles['main.cpp'].includes('input_user.compare(username) == 0 && input_pass.compare(password) == 0') ||
+                codeFiles['main.cpp'].includes('input_user == username && input_pass == password') ||
+                (codeFiles['main.cpp'].includes('!input_user.compare(username) && !input_pass.compare(password)'))) &&
+                !codeFiles['main.cpp'].includes('input_user.compare(username) || input_pass.compare(password)'),
+        error: "Login logic still incorrect - should check both username AND password are correct"
+      };
+      break;
+      
+    case 1: 
+      test = {
+        name: "Bounds Check",
+        passed: codeFiles['main.cpp'].includes('userInput >= 0 && userInput < 5') ||
+                codeFiles['main.cpp'].includes('userInput >= 0 && userInput <= 4') ||
+                (codeFiles['main.cpp'].includes('userInput >= 0') && codeFiles['main.cpp'].includes('userInput < 5')),
+        error: "Missing array bounds validation - need to check input is within valid range"
+      };
+      break;
+      
+    case 2: 
+      test = {
+        name: "Overflow Check", 
+        passed: codeFiles['main.cpp'].includes('INT_MAX') ||
+                codeFiles['main.cpp'].includes('overflow') ||
+                codeFiles['main.cpp'].includes('multiplier == 0') ||
+                (codeFiles['main.cpp'].includes('multiplier >') && codeFiles['main.cpp'].includes('multiplier <')),
+        error: "Missing overflow protection - large multipliers can cause integer wraparound"
+      };
+      break;
+      
+    case 3: 
+      test = {
+        name: "Buffer Safety",
+        passed: codeFiles['main.cpp'].includes('.length()') ||
+                codeFiles['main.cpp'].includes('string ') ||
+                codeFiles['main.cpp'].includes('getline') ||
+                !codeFiles['main.cpp'].includes('cin >> buffer'),
+        error: "Buffer overflow vulnerability - input should be length-limited or use string"
+      };
+      break;
   }
+  
+  const tests = [test];
 
   return tests;
 }
 
-// Helper function to generate debug hints
 function generateDebugHints(testResults, codeFiles) {
   const hints = [];
+  const failedTest = testResults.find(t => !t.passed);
   
-  if (!testResults.find(t => t.name === "Memory Leak Check")?.passed) {
-    hints.push("Look for 'new' without corresponding 'delete' - courses are being allocated but never freed");
-  }
+  if (!failedTest) return hints;
   
-  if (!testResults.find(t => t.name === "Loop Boundary Check")?.passed) {
-    hints.push("Check loop conditions carefully - are you accessing one element too many?");
-  }
-  
-  if (!testResults.find(t => t.name === "GPA Calculation")?.passed) {
-    hints.push("The GPA calculation has multiple issues - check both the loop and the grade point scaling");
+  switch(failedTest.name) {
+    case "Logic Fix":
+      hints.push("The comparison operators are backwards - you want to grant access when BOTH username and password are correct");
+      hints.push("compare() returns 0 when strings match, so you need == 0, or use != operator directly");
+      break;
+      
+    case "Bounds Check":
+      hints.push("What happens if someone enters -1 or 10? Add checks before accessing the array");
+      hints.push("Valid array indices are 0 through 4 (array size - 1)");
+      break;
+      
+    case "Overflow Check":
+      hints.push("Very large multipliers can cause integer wraparound - add validation");
+      hints.push("Consider what happens when baseScore * multiplier exceeds INT_MAX");
+      break;
+      
+    case "Buffer Safety":
+      hints.push("Fixed-size char arrays are dangerous - what if input is longer than 8 characters?");
+      hints.push("Consider using std::string instead of char arrays for safer input");
+      break;
   }
   
   return hints;
 }
 
-// Helper function to award challenge rewards
 async function awardChallengeRewards(user, challenge, challengeIndex) {
   let bitsAwarded = 0;
   
@@ -1458,7 +1369,6 @@ async function awardChallengeRewards(user, challenge, challengeIndex) {
     });
   }
 
-  // Award other rewards
   if (challenge.settings.multiplierMode === 'individual') {
     const multiplierReward = (challenge.settings.challengeMultipliers && challenge.settings.challengeMultipliers[challengeIndex]) || 1.0;
     if (multiplierReward > 1.0) {
@@ -1500,7 +1410,6 @@ async function awardChallengeRewards(user, challenge, challengeIndex) {
   await user.save();
 }
 
-// Challenge 4: Digital Forensics - Image Metadata Analysis
 router.post('/challenge4/:uniqueId/generate', ensureAuthenticated, async (req, res) => {
   try {
     const { uniqueId } = req.params;
@@ -1518,7 +1427,6 @@ router.post('/challenge4/:uniqueId/generate', ensureAuthenticated, async (req, r
     const User = require('../models/User');
     const user = await User.findById(userId);
     
-    // Check if evidence already exists for this uniqueId
     const filename = `campus_${uniqueId}.jpg`;
     const githubToken = process.env.GITHUB_TOKEN;
     const url = `https://api.github.com/repos/cinnamonstic/wsu-transit-delay/contents/assets/${filename}`;
@@ -1532,7 +1440,6 @@ router.post('/challenge4/:uniqueId/generate', ensureAuthenticated, async (req, r
         }
       });
       
-      // File already exists, don't upload again
       console.log(`Evidence ${filename} already exists, skipping upload`);
       
       res.json({
@@ -1544,7 +1451,6 @@ router.post('/challenge4/:uniqueId/generate', ensureAuthenticated, async (req, r
       
     } catch (checkError) {
       if (checkError.response?.status === 404) {
-        // File doesn't exist, generate and upload it
         console.log(`Evidence ${filename} doesn't exist, generating new file`);
         const result = await generateAndUploadForensicsImage(user, uniqueId);
         
@@ -1565,7 +1471,6 @@ router.post('/challenge4/:uniqueId/generate', ensureAuthenticated, async (req, r
   }
 });
 
-// Submit Challenge 4 answer
 router.post('/challenge4/:uniqueId/submit', ensureAuthenticated, async (req, res) => {
   try {
     const { uniqueId } = req.params;
@@ -1581,7 +1486,6 @@ router.post('/challenge4/:uniqueId/submit', ensureAuthenticated, async (req, res
       return res.status(404).json({ message: 'Challenge not found' });
     }
 
-    // Check if challenge is expired
     if (isChallengeExpired(challenge)) {
       return res.status(403).json({ 
         success: false, 
@@ -1589,19 +1493,16 @@ router.post('/challenge4/:uniqueId/submit', ensureAuthenticated, async (req, res
       });
     }
 
-    // Generate expected answer
     const crypto = require('crypto');
     const studentHash = crypto.createHash('md5').update(userId.toString() + uniqueId).digest('hex');
     const expectedAnswer = `FORENSICS_${studentHash.substring(0, 8).toUpperCase()}`;
 
     if (answer.trim() === expectedAnswer) {
-      // Update progress
       const userChallenge = challenge.userChallenges.find(uc => uc.uniqueId === uniqueId);
       if (userChallenge && userChallenge.progress < 4) {
         userChallenge.progress = 4;
         userChallenge.completedAt = new Date();
 
-        // Award Challenge 4 rewards
         const User = require('../models/User');
         const user = await User.findById(userId);
         if (user) {
@@ -1631,8 +1532,7 @@ router.post('/challenge4/:uniqueId/submit', ensureAuthenticated, async (req, res
     res.status(500).json({ message: 'Submission failed' });
   }
 });
-
-// Generate and upload image with EXIF metadata
+  
 async function generateAndUploadForensicsImage(user, uniqueId) {
   const fs = require('fs').promises;
   const path = require('path');
@@ -1640,17 +1540,14 @@ async function generateAndUploadForensicsImage(user, uniqueId) {
   const piexifjs = require('piexifjs');
   
   try {
-    // Generate unique data for this student
     const crypto = require('crypto');
     const studentHash = crypto.createHash('md5').update(user._id.toString() + uniqueId).digest('hex');
     const artistName = `FORENSICS_${studentHash.substring(0, 8).toUpperCase()}`;
     const filename = `campus_${uniqueId}.jpg`;
     
-    // Read base campus image
     const baseImagePath = path.join(__dirname, '../..', 'frontend/src/assets/campus.jpg');
     const baseImageBuffer = await fs.readFile(baseImagePath);
     
-    // Process image with sharp and add text overlay
     const imageBuffer = await sharp(baseImageBuffer)
       .composite([{
         input: Buffer.from(`<svg width="300" height="50">
@@ -1664,7 +1561,6 @@ async function generateAndUploadForensicsImage(user, uniqueId) {
       .jpeg({ quality: 95 })
       .toBuffer();
     
-    // Create EXIF data with artist information
     const exifObj = {
       '0th': {
         [piexifjs.ImageIFD.Artist]: artistName,
@@ -1676,13 +1572,11 @@ async function generateAndUploadForensicsImage(user, uniqueId) {
     
     const exifBytes = piexifjs.dump(exifObj);
     
-    // Convert image to base64 and insert EXIF data
     const base64Image = 'data:image/jpeg;base64,' + imageBuffer.toString('base64');
     const finalImageBase64 = piexifjs.insert(exifBytes, base64Image);
     const finalImageBuffer = Buffer.from(finalImageBase64.split(',')[1], 'base64');
     
-    // Upload to GitHub
-    await uploadToGitHub(filename, finalImageBuffer);
+    await uploadToGitHub(filename, finalImageBuffer, githubToken);
     
     return { filename, artistName };
     
@@ -1692,8 +1586,7 @@ async function generateAndUploadForensicsImage(user, uniqueId) {
   }
 }
 
-// Upload file to GitHub repository
-async function uploadToGitHub(filename, fileBuffer) {
+async function uploadToGitHub(filename, fileBuffer, githubToken) {
   const axios = require('axios');
   
   const githubToken = process.env.GITHUB_TOKEN;
@@ -1708,7 +1601,6 @@ async function uploadToGitHub(filename, fileBuffer) {
   const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
   
   try {
-    // Check if file already exists and get its SHA
     let sha = null;
     try {
       const existingFile = await axios.get(url, {
@@ -1728,13 +1620,11 @@ async function uploadToGitHub(filename, fileBuffer) {
       }
     }
     
-    // Upload/update file with proper SHA handling
     const uploadData = {
       message: sha ? `chore: campus image addition...i always sign my work ${filename}` : `${filename}`,
       content: fileBuffer.toString('base64')
     };
     
-    // Only include SHA if file exists (for updates)
     if (sha) {
       uploadData.sha = sha;
     }
@@ -1754,24 +1644,20 @@ async function uploadToGitHub(filename, fileBuffer) {
   }
 }
 
-// Teacher debug route to set challenge progress
 router.post('/:classroomId/debug-progress', ensureAuthenticated, ensureTeacher, async (req, res) => {
   try {
     const { classroomId } = req.params;
     const { progress } = req.body;
     const userId = req.user._id;
 
-    // Find the challenge for this classroom
     const challenge = await Challenge.findOne({ classroomId });
     if (!challenge) {
       return res.status(404).json({ message: 'Challenge not found' });
     }
 
-    // Find or create user challenge entry
     let userChallenge = challenge.userChallenges.find(uc => uc.userId.toString() === userId.toString());
     
     if (!userChallenge) {
-      // Create new user challenge entry if it doesn't exist
       const crypto = require('crypto');
       const uniqueId = crypto.randomBytes(16).toString('hex');
       
@@ -1784,18 +1670,15 @@ router.post('/:classroomId/debug-progress', ensureAuthenticated, ensureTeacher, 
       
       challenge.userChallenges.push(userChallenge);
     } else {
-      // Update existing user challenge
       userChallenge.progress = parseInt(progress);
       userChallenge.completedAt = progress >= 4 ? new Date() : null;
     }
 
     await challenge.save();
 
-    // Apply all rewards for completed challenges when using debug mode
     const User = require('../models/User');
     const user = await User.findById(userId);
     if (user && progress > 0) {
-      // Award rewards for all completed challenges (0 to progress-1)
       for (let i = 0; i < progress; i++) {
         try {
           await awardChallengeRewards(user, challenge, i);

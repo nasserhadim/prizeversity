@@ -9,11 +9,11 @@ const Challenge3Site = () => {
   const [loading, setLoading] = useState(true);
   const [studentData, setStudentData] = useState(null);
   const [codeFiles, setCodeFiles] = useState({});
-  const [activeFile, setActiveFile] = useState('main.cpp');
   const [testResults, setTestResults] = useState([]);
   const [showSuccess, setShowSuccess] = useState(false);
   const [attempts, setAttempts] = useState(0);
   const [hints, setHints] = useState([]);
+  const [bugDescription, setBugDescription] = useState('');
 
   useEffect(() => {
     fetchChallengeData();
@@ -33,6 +33,7 @@ const Challenge3Site = () => {
       const data = await response.json();
       setStudentData(data.studentData);
       setCodeFiles(data.codeFiles);
+      setBugDescription(data.codeFiles.bugDescription || '');
       
     } catch (error) {
       toast.error(error.message || 'Failed to load challenge');
@@ -59,7 +60,6 @@ const Challenge3Site = () => {
         setShowSuccess(true);
         toast.success('All tests passed! Password revealed!');
       } else {
-        // Provide progressive hints after failed attempts
         if (attempts >= 2 && data.hints) {
           setHints(prev => [...prev, ...data.hints]);
         }
@@ -73,10 +73,10 @@ const Challenge3Site = () => {
     }
   };
 
-  const updateCode = (filename, newCode) => {
+  const updateCode = (newCode) => {
     setCodeFiles(prev => ({
       ...prev,
-      [filename]: newCode
+      'main.cpp': newCode
     }));
   };
 
@@ -96,11 +96,11 @@ const Challenge3Site = () => {
       <div className="min-h-screen bg-gray-900 text-green-400 font-mono flex flex-col items-center justify-center p-8">
         <div className="max-w-2xl w-full space-y-8 text-center">
           <CheckCircle size={64} className="mx-auto text-green-400 animate-pulse" />
-          <h1 className="text-4xl font-bold">DEBUGGING COMPLETE</h1>
+          <h1 className="text-4xl font-bold">BUG FIXED!</h1>
           <div className="border border-green-400 p-8 bg-gray-800 rounded-lg">
             <h2 className="text-2xl font-bold mb-4 text-green-300">CHALLENGE 3 COMPLETE</h2>
-            <p className="mb-4">Memory leaks plugged. System optimized.</p>
-            <p className="text-green-300">Advanced OSINT and steganography challenges await in Challenge 4.</p>
+            <p className="mb-4">Security vulnerability patched successfully!</p>
+            <p className="text-green-300">Challenge 4 is now unlocked - ready for digital forensics investigation!</p>
             <div className="mt-4 text-sm text-gray-400">
               <p>Debugging attempts: {attempts}</p>
               <p>Student ID: {studentData?.hashedId?.slice(0, 8)}</p>
@@ -110,7 +110,7 @@ const Challenge3Site = () => {
             onClick={() => {
               localStorage.setItem('challengeCompleted', JSON.stringify({
                 challengeIndex: 2,
-                challengeName: "Memory Leak Detective",
+                challengeName: "Security Bug Fix",
                 timestamp: Date.now()
               }));
               window.close();
@@ -126,14 +126,13 @@ const Challenge3Site = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
-      {/* Header */}
       <div className="bg-black border-b border-gray-700 p-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Bug className="text-red-500" size={24} />
             <div>
-              <h1 className="text-xl font-bold">Challenge 3: Memory Leak Detective</h1>
-              <p className="text-gray-400 text-sm">University Registration System - Legacy Codebase</p>
+              <h1 className="text-xl font-bold">Challenge 3: Security Bug Fix</h1>
+              <p className="text-gray-400 text-sm">{bugDescription}</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -152,65 +151,18 @@ const Challenge3Site = () => {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* File Explorer */}
-        <div className="lg:col-span-1">
-          <div className="bg-gray-800 rounded-lg border border-gray-700">
-            <div className="p-4 border-b border-gray-700">
-              <h3 className="font-bold flex items-center gap-2">
-                <FileText size={16} />
-                Project Files
-              </h3>
-            </div>
-            <div className="p-2">
-              {Object.keys(codeFiles).map(filename => (
-                <button
-                  key={filename}
-                  onClick={() => setActiveFile(filename)}
-                  className={`w-full text-left p-2 rounded mb-1 transition-colors ${
-                    activeFile === filename 
-                      ? 'bg-blue-600 text-white' 
-                      : 'hover:bg-gray-700 text-gray-300'
-                  }`}
-                >
-                  {filename}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Hints Panel */}
-          {hints.length > 0 && (
-            <div className="mt-6 bg-yellow-900 border border-yellow-600 rounded-lg">
-              <div className="p-4 border-b border-yellow-600">
-                <h3 className="font-bold flex items-center gap-2 text-yellow-300">
-                  <AlertTriangle size={16} />
-                  Debug Hints
-                </h3>
-              </div>
-              <div className="p-4 space-y-2">
-                {hints.map((hint, idx) => (
-                  <p key={idx} className="text-yellow-200 text-sm">
-                    {idx + 1}. {hint}
-                  </p>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Code Editor */}
+      <div className="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <div className="bg-gray-800 rounded-lg border border-gray-700 h-[600px]">
             <div className="p-4 border-b border-gray-700 flex items-center justify-between">
-              <h3 className="font-bold">{activeFile}</h3>
+              <h3 className="font-bold">main.cpp</h3>
               <div className="text-sm text-gray-400">
-                Lines: {codeFiles[activeFile]?.split('\n').length || 0}
+                Lines: {codeFiles['main.cpp']?.split('\n').length || 0}
               </div>
             </div>
             <textarea
-              value={codeFiles[activeFile] || ''}
-              onChange={(e) => updateCode(activeFile, e.target.value)}
+              value={codeFiles['main.cpp'] || ''}
+              onChange={(e) => updateCode(e.target.value)}
               className="w-full h-[calc(100%-60px)] p-4 bg-gray-900 text-white font-mono text-sm resize-none border-0 outline-none focus:ring-2 focus:ring-blue-500"
               spellCheck={false}
               style={{ 
@@ -224,12 +176,28 @@ const Challenge3Site = () => {
               placeholder="Loading code..."
             />
           </div>
+          
+          {hints.length > 0 && (
+            <div className="mt-6 bg-yellow-900 border border-yellow-600 rounded-lg">
+              <div className="p-4 border-b border-yellow-600">
+                <h3 className="font-bold flex items-center gap-2 text-yellow-300">
+                  <AlertTriangle size={16} />
+                  Debug Hints
+                </h3>
+              </div>
+              <div className="p-4 space-y-2">
+                {hints.map((hint, idx) => (
+                  <p key={idx} className="text-yellow-200 text-sm">
+                    💡 {hint}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Test Results & Documentation */}
         <div className="lg:col-span-1">
           <div className="space-y-6">
-            {/* Test Results */}
             <div className="bg-gray-800 rounded-lg border border-gray-700">
               <div className="p-4 border-b border-gray-700">
                 <h3 className="font-bold">Test Results</h3>
@@ -260,17 +228,19 @@ const Challenge3Site = () => {
                 )}
               </div>
             </div>
-
-            {/* System Documentation */}
+                
             <div className="bg-gray-800 rounded-lg border border-gray-700">
               <div className="p-4 border-b border-gray-700">
-                <h3 className="font-bold">System Docs</h3>
+                <h3 className="font-bold">Challenge Info</h3>
               </div>
               <div className="p-4 text-sm text-gray-300 space-y-2">
-                <p><strong>Objective:</strong> Fix all memory leaks and logic errors</p>
-                <p><strong>System:</strong> Student registration with course scheduling</p>
-                <p><strong>Warning:</strong> Legacy code with misleading comments</p>
-                <p className="text-yellow-400"><strong>Note:</strong> Each student has unique data patterns</p>
+                <p><strong>Objective:</strong> Fix the security vulnerability in the code</p>
+                <p><strong>Method:</strong> Edit the code to correct the bug</p>
+                <p><strong>Success:</strong> When fixed, you'll get your password</p>
+                <p className="text-yellow-400"><strong>Tip:</strong> Read error messages carefully for clues</p>
+                <div className="mt-4 p-3 bg-gray-700 rounded text-xs">
+                  <p><strong>Bug Type:</strong> {bugDescription}</p>
+                </div>
               </div>
             </div>
           </div>

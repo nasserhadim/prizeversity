@@ -46,17 +46,14 @@ const Challenge = () => {
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [showRewardModal, setShowRewardModal] = useState(false);
   const [rewardData, setRewardData] = useState(null);
-  const [challengeAnswers, setChallengeAnswers] = useState({
-    'network-analysis-003': '',
-    'advanced-crypto-004': ''
-  });
-  const [submittingAnswers, setSubmittingAnswers] = useState({});
+  const [setChallengeAnswers] = useState({});
+  const [setSubmittingAnswers] = useState({});
   const [unlockingHint, setUnlockingHint] = useState({});
   const [previousProgress, setPreviousProgress] = useState(null);
   const [showDeleteWarning, setShowDeleteWarning] = useState(false);
   const [dontShowDeleteWarning, setDontShowDeleteWarning] = useState(false);
   const [showDebugPanel, setShowDebugPanel] = useState(false);
-  const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'Memory Leak Detective', 'Digital Forensics Lab'];
+  const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'Security Bug Fix', 'Digital Forensics Lab'];
   
   const [challengeConfig, setChallengeConfig] = useState({
     title: 'Cyber Challenge Series - Fall Semester',
@@ -94,7 +91,6 @@ const Challenge = () => {
       const response = await getChallengeData(classroomId);
       setChallengeData(response.challenge);
       
-      // Check if progress has increased (challenge completed)
       const newProgress = response.userChallenge?.progress || 0;
       if (previousProgress !== null && newProgress > previousProgress && newProgress > 0) {
         const completedChallengeIndex = newProgress - 1;
@@ -106,9 +102,7 @@ const Challenge = () => {
         }
       }
       
-      // Update states
       setUserChallenge(response.userChallenge);
-      // Update previousProgress (only check for increases if not first load)
       setPreviousProgress(newProgress);
       setIsTeacher(response.isTeacher);
       
@@ -143,7 +137,6 @@ const Challenge = () => {
       if (response.ok) {
         toast.success(`Progress set to Challenge ${targetProgress + 1}!`);
         
-        // If progress increased, show reward modal for the latest completed challenge
         if (targetProgress > previousProgressValue && targetProgress > 0) {
           const completedChallengeIndex = targetProgress - 1;
           const rewardInfo = getRewardDataForChallenge(completedChallengeIndex);
@@ -153,7 +146,7 @@ const Challenge = () => {
           }
         }
         
-        await fetchChallengeData(); // Refresh data
+        await fetchChallengeData();
         setShowDebugPanel(false);
       } else {
         toast.error('Failed to set progress');
@@ -168,7 +161,6 @@ const Challenge = () => {
      setPersona(originalUser);
    };
 
-   // Handle challenge answer submission
    const handleSubmitAnswer = async (challengeId, answer) => {
      if (!answer || !answer.trim()) {
        toast.error('Please enter an answer');
@@ -180,7 +172,6 @@ const Challenge = () => {
        const response = await submitChallengeAnswer(classroomId, challengeId, answer);
        
        if (response.success) {
-         // Show reward modal with all earned rewards
          setRewardData({
            rewards: response.rewards,
            challengeName: response.challengeName,
@@ -189,10 +180,8 @@ const Challenge = () => {
          });
          setShowRewardModal(true);
          
-         // Clear the answer input
          setChallengeAnswers(prev => ({ ...prev, [challengeId]: '' }));
          
-         // Refresh challenge data to show updated progress
          await fetchChallengeData();
         } else {
           toast.error(response.message);
@@ -236,7 +225,7 @@ const Challenge = () => {
      }
    };
 
-   // Get reward data for completed challenge
+
   const getRewardDataForChallenge = (challengeIndex) => {
       if (!challengeData?.settings) return null;
 
@@ -249,7 +238,6 @@ const Challenge = () => {
        attackBonus: 0
      };
 
-     // Calculate bits
       if (challengeData.settings.rewardMode === 'individual') {
         let baseBits = challengeData.settings.challengeBits?.[challengeIndex] || 0;
         const hintsEnabled = challengeData.settings.challengeHintsEnabled?.[challengeIndex];
@@ -280,7 +268,6 @@ const Challenge = () => {
         }
       }
 
-     // Calculate other rewards
      if (challengeData.settings.multiplierMode === 'individual') {
        const multiplierReward = challengeData.settings.challengeMultipliers?.[challengeIndex] || 1.0;
        if (multiplierReward > 1.0) {
@@ -319,7 +306,7 @@ const Challenge = () => {
      return {
        rewards,
        challengeName: challengeNames[challengeIndex],
-       allCompleted: challengeIndex === 3, // All 4 challenges completed
+       allCompleted: challengeIndex === 3,
        nextChallenge: challengeIndex < 3 ? challengeNames[challengeIndex + 1] : null
      };
    };
@@ -353,12 +340,10 @@ const Challenge = () => {
         difficulty: 'medium'
       };
 
-      // Send arrays directly to backend
       if (challengeConfig.rewardMode === 'individual') {
         settings.challengeBits = challengeConfig.challengeBits.map(bits => bits || 0);
       } else {
         settings.totalRewardBits = challengeConfig.totalRewardBits || 0;
-        // In total mode, set all individual bits to 0 except the last one
         settings.challengeBits = challengeConfig.challengeBits.map((_, index) => 
           index === challengeConfig.challengeBits.length - 1 ? (challengeConfig.totalRewardBits || 0) : 0
         );
@@ -403,7 +388,6 @@ const Challenge = () => {
       settings.hintPenaltyPercent = Number.isFinite(challengeConfig.hintPenaltyPercent) ? challengeConfig.hintPenaltyPercent : 25;
       settings.maxHintsPerChallenge = Number.isFinite(challengeConfig.maxHintsPerChallenge) ? challengeConfig.maxHintsPerChallenge : 2;
 
-      // Add due date and retry settings
       settings.dueDateEnabled = challengeConfig.dueDateEnabled || false;
       settings.dueDate = challengeConfig.dueDate || '';
       settings.retryEnabled = challengeConfig.retryEnabled || false;
@@ -425,7 +409,6 @@ const Challenge = () => {
     }
   };
 
-  // Deactivate cyber challenge (Teacher only)
   const handleShowDeactivateModal = () => {
     const skipWarning = localStorage.getItem('skipChallengeDeactivateWarning') === 'true';
     if (skipWarning) {
@@ -577,8 +560,8 @@ const Challenge = () => {
     } else if (progress === 2) {
       return {
         number: 3,
-        name: "Memory Leak Detective",
-        method: "C++ Debugging", 
+        name: "Security Bug Fix",
+        method: "C++ Security Vulnerability", 
         type: "debugging"
       };
     } else {
@@ -595,7 +578,6 @@ const Challenge = () => {
     fetchChallengeData();
   }, [classroomId]);
 
-  // Check for completed challenge on component mount and window focus
   useEffect(() => {
     const checkForCompletedChallenge = () => {
       const completedData = localStorage.getItem('challengeCompleted');
@@ -704,7 +686,6 @@ const Challenge = () => {
               </div>
             </div>
 
-            {/* Student Challenge Data */}
             {challengeData.isActive && challengeData.userChallenges && challengeData.userChallenges.length > 0 && (
               <div className="mt-6">
                 <h3 className="text-xl font-semibold mb-4">Student Challenge Progress</h3>
@@ -800,7 +781,7 @@ const Challenge = () => {
                   <h2 className="text-2xl font-bold">Configure Challenge Series</h2>
                 </div>
 
-                {/* Template Section */}
+
                 <div className="bg-base-200 rounded-lg p-4 mb-4">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-lg font-semibold">Templates</h3>
@@ -1165,54 +1146,15 @@ const Challenge = () => {
                         <tr>
                           <td className="sticky left-0 bg-base-100 z-10">
                             <div className="flex items-center gap-3 flex-nowrap text-sm">
-                              <span className="font-semibold inline-block w-36 shrink-0">Attack Bonus</span>
-                              <IndivTotalToggle
-                                value={challengeConfig.attackMode}
-                                onChange={(mode) => setChallengeConfig(prev => ({ ...prev, attackMode: mode }))}
-                              />
-                              {challengeConfig.attackMode === 'total' && (
-                                <input
-                                  type="number"
-                                  className="input input-bordered input-xs w-24 text-center"
-                                  value={challengeConfig.totalAttackBonus}
-                                  onChange={(e) => {
-                                    const value = e.target.value;
-                                    setChallengeConfig(prev => ({ ...prev, totalAttackBonus: value === '' ? '' : parseInt(value) || 0 }));
-                                  }}
-                                  min="0"
-                                  placeholder="Total"
-                                />
-                              )}
                             </div>
                           </td>
-                          {challengeNames.map((_, index) => (
-                            <td key={index} className="text-center">
-                              <input
-                                type="number"
-                                className="input input-bordered input-xs w-20 text-center"
-                                value={challengeConfig.challengeAttackBonuses?.[index] ?? 0}
-                                onChange={(e) => {
-                                  const raw = e.target.value;
-                                  const value = raw === '' ? 0 : parseInt(raw) || 0;
-                                  setChallengeConfig(prev => {
-                                    const arr = [...(prev.challengeAttackBonuses || [])];
-                                    while (arr.length <= index) arr.push(0);
-                                    arr[index] = raw === '' ? '' : value;
-                                    return { ...prev, challengeAttackBonuses: arr };
-                                  });
-                                }}
-                                min="0"
-                                disabled={challengeConfig.attackMode !== 'individual'}
-                              />
-                            </td>
-                          ))}
                         </tr>
                       </tbody>
                     </table>
                   </div>
                 </div>
 
-                {/* Due Dates and Retry Settings */}
+                
                 <div className="bg-base-200 p-4 rounded-lg">
                   <h3 className="font-bold text-lg mb-4">📅 Due Dates & Retries</h3>
                   
@@ -1453,7 +1395,6 @@ const Challenge = () => {
           Welcome to WSU's Cyber Challenge! Employ your skills to solve the challenges and earn bits to spend in the bazaar!
         </p>
         
-        {/* Due Date Display */}
         {challengeData?.settings?.dueDateEnabled && challengeData?.settings?.dueDate && (
           <div className={`mt-4 p-3 rounded-lg border ${
             new Date() > new Date(challengeData.settings.dueDate) 
@@ -1487,7 +1428,6 @@ const Challenge = () => {
           </div>
         </div>
       ) : userChallenge ? (
-        // Check if challenge is expired (unless user is a teacher)
         challengeData?.settings?.dueDateEnabled && 
         challengeData?.settings?.dueDate && 
         new Date() > new Date(challengeData.settings.dueDate) && 
@@ -1512,11 +1452,9 @@ const Challenge = () => {
           </div>
         ) : (
         <div className="space-y-6">
-          {/* Main Challenge Container */}
           <div className="card bg-base-100 border border-base-200 shadow-md rounded-2xl p-6">
             <h2 className="text-2xl font-bold mb-6">Cyber Challenge Series - Fall Semester</h2>
             
-            {/* Challenge 1 - Little Caesar's Secret */}
             <div className={`collapse collapse-arrow mb-4 ${userChallenge.progress >= 1 ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
               <input type="checkbox" defaultChecked={userChallenge.progress < 1} className="peer" />
               <div className="collapse-title text-xl font-medium flex items-center gap-3">
@@ -1604,7 +1542,6 @@ const Challenge = () => {
                     </code>
                   </div>
                   
-                  {/* Warning */}
                   <div className="alert alert-warning">
                     <span className="text-sm">
                       <strong>Remember:</strong> Each student has a unique encrypted ID, so you can't share answers with classmates!
@@ -1614,7 +1551,6 @@ const Challenge = () => {
               </div>
             </div>
 
-            {/* Challenge 2 - Check Me Out */}
             <div className="space-y-3">
               <div className={`collapse collapse-arrow ${userChallenge.progress >= 1 ? (userChallenge.progress >= 2 ? 'bg-green-50 border border-green-200' : 'bg-blue-50 border border-blue-200') : 'bg-gray-50 border border-gray-200 opacity-60'}`}>
                 {userChallenge.progress >= 1 && <input type="checkbox" defaultChecked={userChallenge.progress < 2} className="peer" />}
@@ -1722,13 +1658,12 @@ const Challenge = () => {
               </div>
             </div>
 
-            {/* Challenge 3 - Memory Leak Detective */}
             <div className="space-y-3">
               <div className={`collapse collapse-arrow ${userChallenge.progress >= 2 ? (userChallenge.progress >= 3 ? 'bg-green-50 border border-green-200' : 'bg-purple-50 border border-purple-200') : 'bg-gray-50 border border-gray-200 opacity-60'}`}>
                 {userChallenge.progress >= 2 && <input type="checkbox" defaultChecked={userChallenge.progress < 3} className="peer" />}
                 <div className="collapse-title text-lg font-medium flex items-center gap-3">
                   <div className={`badge ${userChallenge.progress >= 3 ? 'badge-success' : userChallenge.progress >= 2 ? 'badge-info' : 'badge-neutral'}`}>Challenge 3</div>
-                  <span className={userChallenge.progress >= 3 ? 'text-green-800' : userChallenge.progress >= 2 ? 'text-purple-800' : 'text-gray-600'}>🐛 Memory Leak Detective</span>
+                  <span className={userChallenge.progress >= 3 ? 'text-green-800' : userChallenge.progress >= 2 ? 'text-purple-800' : 'text-gray-600'}>🐛 Security Bug Fix</span>
                   <div className="badge badge-outline badge-sm">
                     {challengeData?.settings?.rewardMode === 'total' ? '0' : (challengeData?.settings?.challengeBits?.[2] || challengeConfig.challengeBits[2])} bits
                   </div>
@@ -1746,7 +1681,7 @@ const Challenge = () => {
                         </div>
                       )}
                       <p className="text-gray-600">
-                        Debug a legacy C++ university registration system with multiple memory leaks and logic errors.
+                        Fix a simple security vulnerability in C++ code. Each student gets a unique bug to identify and correct.
                       </p>
                       {challengeData?.settings?.challengeHintsEnabled?.[2] && (
                         <div className="flex items-start gap-3 text-sm">
@@ -1787,30 +1722,30 @@ const Challenge = () => {
                       <div className="bg-purple-50 border border-purple-300 rounded-lg p-4">
                         <h4 className="font-semibold text-purple-800 mb-2">🔧 Your Mission</h4>
                         <p className="text-sm text-gray-700 mb-3">
-                          Fix all bugs in the provided C++ codebase. When all tests pass, the system will reveal your password.
+                          Identify and fix the security bug in the C++ code. When fixed correctly, you'll receive your password.
                         </p>
                         <div className="space-y-2">
-                          <p className="text-xs text-gray-600">⚠️ Warning: The code contains misleading comments and red herring bugs</p>
-                          <p className="text-xs text-gray-600">🎯 Each student gets unique bugs and variable names</p>
+                          <p className="text-xs text-gray-600">🎯 Four possible bug types: logic errors, buffer overflows, array bounds, or integer overflow</p>
+                          <p className="text-xs text-gray-600">⚡ Each student gets a unique bug type and personalized code</p>
                         </div>
                       </div>
                       
                       <div className="bg-white border border-purple-300 rounded-lg p-4">
-                        <h4 className="font-semibold text-purple-800 mb-2">🌐 Debugging Environment</h4>
-                        <p className="text-sm text-gray-600 mb-3">Access your personalized debugging challenge:</p>
+                        <h4 className="font-semibold text-purple-800 mb-2">🌐 Bug Fix Challenge</h4>
+                        <p className="text-sm text-gray-600 mb-3">Access your personalized security bug challenge:</p>
                         <code className="text-blue-600 font-mono text-sm block mb-3">
                           <a href={`/challenge-3-site/${userChallenge.uniqueId}`} target="_blank" rel="noopener noreferrer" className="hover:underline">
                             /challenge-3-site/{userChallenge.uniqueId}
                           </a>
                         </code>
                         <p className="text-xs text-gray-500">
-                          Opens in a new window with a full C++ debugging environment
+                          Opens a simple code editor with your unique security vulnerability to fix
                         </p>
                       </div>
                       
-                      <div className="alert alert-warning">
+                      <div className="alert alert-info">
                         <span className="text-sm">
-                          <strong>Advanced Challenge:</strong> This will test your C++ debugging skills, memory management, and logical reasoning. Expect to spend 1-3 hours on this challenge.
+                          <strong>Quick Challenge:</strong> This focuses on fundamental security concepts in C++. Typical completion time: 10-20 minutes.
                         </span>
                       </div>
                     </div>
@@ -1819,7 +1754,6 @@ const Challenge = () => {
               </div>
             </div>
 
-            {/* Challenge 4 - Digital Forensics Lab */}
             <div className="space-y-3">
               <div className={`collapse collapse-arrow ${userChallenge.progress >= 3 ? (userChallenge.progress >= 4 ? 'bg-green-50 border border-green-200' : 'bg-orange-50 border border-orange-200') : 'bg-gray-50 border border-gray-200 opacity-60'}`}>
                 {userChallenge.progress >= 3 && <input type="checkbox" defaultChecked={userChallenge.progress < 4} className="peer" />}
@@ -1933,7 +1867,6 @@ const Challenge = () => {
 
 
 
-      {/* Reward Modal */}
       {showRewardModal && rewardData && (
         <RewardModal
           isOpen={showRewardModal}
@@ -1945,7 +1878,6 @@ const Challenge = () => {
         />
       )}
 
-      {/* Debug Panel Modal */}
       {showDebugPanel && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">

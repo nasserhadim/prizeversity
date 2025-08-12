@@ -1,11 +1,3 @@
-// Challenge Site
-// path: frontend/src/pages/ChallengeSite.jsx
-// --------------
-// This is the site that students see when they complete challenge 1.
-// It's a simple site that allows them to enter their password and verify it.
-// If they're successful, they'll be able to access challenge 2.
-// Once again, we'll ensure we find a better way to do this than just naming them challenge 2, 3, etc.
-
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Lock } from 'lucide-react';

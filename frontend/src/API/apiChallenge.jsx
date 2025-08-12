@@ -1,10 +1,3 @@
-// Challenge API
-// path: frontend/src/API/apiChallenge.jsx
-// ------------
-// This file contains the API endpoints for the challenge system.
-// We use this to fetch challenge data, configure challenges, and complete challenges.
-// We also use this to verify passwords and verify challenge number 2 (eventually we'll find a better way to do this than just naming them challenge 2, 3, etc.).
-
 import { API_BASE } from '../config/api';
 
 export const getChallengeData = async (classroomId) => {
@@ -99,7 +92,7 @@ export const deactivateChallenge = async (classroomId) => {
   }
 };
 
-// Submit answer to a challenge
+
 export const submitChallengeAnswer = async (classroomId, challengeId, answer) => {
   try {
     const response = await fetch(`${API_BASE}/api/challenges/${classroomId}/submit`, {

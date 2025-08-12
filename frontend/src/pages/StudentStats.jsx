@@ -10,7 +10,6 @@ const StudentStats = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
-    // Fetch stats function
     const fetchStats = async () => {
         try {
             setLoading(true);
@@ -29,7 +28,6 @@ const StudentStats = () => {
     useEffect(() => {
         fetchStats();
 
-        // Listen for discount expiration
         const handleDiscountExpired = () => {
             setStats(prev => ({
                 ...prev,
@@ -37,7 +35,6 @@ const StudentStats = () => {
             }));
         };
 
-        // Auto-refresh when window gains focus (useful for challenge completions)
         const handleFocus = () => {
             fetchStats();
         };
@@ -51,7 +48,6 @@ const StudentStats = () => {
         }
     }, [studentId]);
 
-    // Render loading spinner while loading
     if (loading) {
         return (
             <div className="flex items-center justify-center p-6">
@@ -60,7 +56,6 @@ const StudentStats = () => {
         );
     }
 
-    // Render error message if error occurred
     if (error) {
         return (
             <div className="p-6 text-center text-red-500">
@@ -68,8 +63,7 @@ const StudentStats = () => {
             </div>
         );
     }
-
-    // Render message if no stats are available
+    
     if (!stats) {
         return (
             <div className="p-6 text-center">
@@ -93,8 +87,6 @@ const StudentStats = () => {
             </div>
 
             <div className="stats stats-vertical shadow w-full">
-                {/* ... other stats ... */}
-
                 <div className="stat">
                     <div className="stat-figure text-secondary">
                         ⚔️
