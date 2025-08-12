@@ -53,6 +53,8 @@ const Challenge = () => {
   const [showDeleteWarning, setShowDeleteWarning] = useState(false);
   const [dontShowDeleteWarning, setDontShowDeleteWarning] = useState(false);
   const [showDebugPanel, setShowDebugPanel] = useState(false);
+  const [showHintModal, setShowHintModal] = useState(false);
+  const [editingHints, setEditingHints] = useState(null);
   const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'Security Bug Fix', 'Digital Forensics Lab'];
   
   const [challengeConfig, setChallengeConfig] = useState({
@@ -76,6 +78,7 @@ const Challenge = () => {
     challengeAttackBonuses: [0, 0, 0, 0],
     totalAttackBonus: 0,
     challengeHintsEnabled: [false, false, false, false],
+    challengeHints: [[], [], [], []],
     hintPenaltyPercent: 25,
     maxHintsPerChallenge: 2,
 
@@ -225,6 +228,32 @@ const Challenge = () => {
      }
    };
 
+
+  const calculatePotentialBits = (challengeIndex) => {
+    if (!challengeData?.settings) return 0;
+    
+    let baseBits = 0;
+    if (challengeData.settings.rewardMode === 'individual') {
+      baseBits = challengeData.settings.challengeBits?.[challengeIndex] || 0;
+    } else {
+      if (challengeIndex === 3) {
+        baseBits = challengeData.settings.totalRewardBits || 0;
+      }
+    }
+    
+    // Apply hint penalty if hints are enabled and used
+    const hintsEnabled = challengeData.settings.challengeHintsEnabled?.[challengeIndex];
+    if (hintsEnabled && baseBits > 0) {
+      const penaltyPercent = challengeData.settings.hintPenaltyPercent ?? 25;
+      const usedHints = userChallenge?.hintsUsed?.[challengeIndex] || 0;
+      if (penaltyPercent > 0 && usedHints > 0) {
+        const totalPenalty = Math.min(100, usedHints * penaltyPercent);
+        baseBits = Math.max(0, baseBits - Math.floor((baseBits * totalPenalty) / 100));
+      }
+    }
+    
+    return baseBits;
+  };
 
   const getRewardDataForChallenge = (challengeIndex) => {
       if (!challengeData?.settings) return null;
@@ -385,6 +414,7 @@ const Challenge = () => {
       }
 
       settings.challengeHintsEnabled = (challengeConfig.challengeHintsEnabled || []).map(Boolean);
+      settings.challengeHints = challengeConfig.challengeHints || [[], [], [], []];
       settings.hintPenaltyPercent = Number.isFinite(challengeConfig.hintPenaltyPercent) ? challengeConfig.hintPenaltyPercent : 25;
       settings.maxHintsPerChallenge = Number.isFinite(challengeConfig.maxHintsPerChallenge) ? challengeConfig.maxHintsPerChallenge : 2;
 
@@ -473,6 +503,7 @@ const Challenge = () => {
         totalShield: challengeConfig.totalShield,
         challengeAttackBonuses: challengeConfig.challengeAttackBonuses,
         challengeHintsEnabled: challengeConfig.challengeHintsEnabled,
+        challengeHints: challengeConfig.challengeHints,
         hintPenaltyPercent: challengeConfig.hintPenaltyPercent,
         maxHintsPerChallenge: challengeConfig.maxHintsPerChallenge,
         totalAttackBonus: challengeConfig.totalAttackBonus,
@@ -517,6 +548,7 @@ const Challenge = () => {
       challengeAttackBonuses: template.settings.challengeAttackBonuses || [0, 0, 0, 0],
       totalAttackBonus: template.settings.totalAttackBonus || 0,
       challengeHintsEnabled: template.settings.challengeHintsEnabled || [false, false, false, false],
+      challengeHints: template.settings.challengeHints || [[], [], [], []],
       hintPenaltyPercent: template.settings.hintPenaltyPercent ?? 25,
       maxHintsPerChallenge: template.settings.maxHintsPerChallenge ?? 2,
       dueDateEnabled: template.settings.dueDateEnabled || false,
@@ -890,22 +922,36 @@ const Challenge = () => {
                               />
                             </div>
                           </td>
-                          {challengeNames.map((_, index) => (
+                          {challengeNames.map((challengeName, index) => (
                             <td key={index} className="text-center">
-                              <input
-                                type="checkbox"
-                                className="checkbox checkbox-sm checkbox-primary"
-                                checked={!!challengeConfig.challengeHintsEnabled[index]}
-                                onChange={(e) => {
-                                  const checked = e.target.checked;
-                                  setChallengeConfig(prev => {
-                                    const arr = [...(prev.challengeHintsEnabled || [])];
-                                    while (arr.length <= index) arr.push(false);
-                                    arr[index] = checked;
-                                    return { ...prev, challengeHintsEnabled: arr };
-                                  });
-                                }}
-                              />
+                              <div className="flex flex-col items-center gap-1">
+                                <input
+                                  type="checkbox"
+                                  className="checkbox checkbox-sm checkbox-primary"
+                                  checked={!!challengeConfig.challengeHintsEnabled[index]}
+                                  onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    setChallengeConfig(prev => {
+                                      const arr = [...(prev.challengeHintsEnabled || [])];
+                                      while (arr.length <= index) arr.push(false);
+                                      arr[index] = checked;
+                                      return { ...prev, challengeHintsEnabled: arr };
+                                    });
+                                  }}
+                                />
+                                {challengeConfig.challengeHintsEnabled[index] && (
+                                  <button
+                                    type="button"
+                                    className="btn btn-xs btn-outline btn-primary"
+                                    onClick={() => {
+                                      setEditingHints({ challengeIndex: index, challengeName });
+                                      setShowHintModal(true);
+                                    }}
+                                  >
+                                    {(challengeConfig.challengeHints[index]?.length || 0)} hints
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           ))}
                         </tr>
@@ -1355,6 +1401,74 @@ const Challenge = () => {
             </div>
           </div>
         )}
+
+        {showHintModal && editingHints && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="card bg-base-100 w-full max-w-2xl mx-4 shadow-xl">
+              <div className="card-body">
+                <h2 className="text-xl font-bold mb-4">
+                  Configure Hints - {editingHints.challengeName}
+                </h2>
+                <p className="text-sm text-gray-600 mb-4">
+                  Add custom hints that will help students when they're stuck. Hints will be revealed in order.
+                </p>
+                
+                <div className="space-y-3">
+                  {Array.from({ length: challengeConfig.maxHintsPerChallenge }, (_, hintIndex) => (
+                    <div key={hintIndex}>
+                      <label className="label">
+                        <span className="label-text font-medium">Hint {hintIndex + 1}</span>
+                      </label>
+                      <textarea
+                        className="textarea textarea-bordered w-full"
+                        placeholder={`Enter hint ${hintIndex + 1}...`}
+                        value={challengeConfig.challengeHints[editingHints.challengeIndex]?.[hintIndex] || ''}
+                        onChange={(e) => {
+                          setChallengeConfig(prev => {
+                            const newHints = [...prev.challengeHints];
+                            if (!newHints[editingHints.challengeIndex]) {
+                              newHints[editingHints.challengeIndex] = [];
+                            }
+                            newHints[editingHints.challengeIndex][hintIndex] = e.target.value;
+                            return { ...prev, challengeHints: newHints };
+                          });
+                        }}
+                        rows={2}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="alert alert-info mt-4">
+                  <span className="text-sm">
+                    💡 <strong>Tip:</strong> Make hints progressively more specific. Start general, then get more detailed.
+                  </span>
+                </div>
+
+                <div className="card-actions justify-end gap-2 mt-6">
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => {
+                      setShowHintModal(false);
+                      setEditingHints(null);
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => {
+                      setShowHintModal(false);
+                      setEditingHints(null);
+                    }}
+                  >
+                    Save Hints
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -1454,15 +1568,20 @@ const Challenge = () => {
         ) : (
         <div className="space-y-6">
           <div className="card bg-base-100 border border-base-200 shadow-md rounded-2xl p-6">
-            <h2 className="text-2xl font-bold mb-6">Cyber Challenge Series - Fall Semester</h2>
+            <h2 className="text-2xl font-bold mb-6">{challengeData?.title || 'Cyber Challenge Series'}</h2>
             
             <div className={`collapse collapse-arrow mb-4 ${userChallenge.progress >= 1 ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
               <input type="checkbox" defaultChecked={userChallenge.progress < 1} className="peer" />
               <div className="collapse-title text-xl font-medium flex items-center gap-3">
                 <div className={`badge badge-lg ${userChallenge.progress >= 1 ? 'badge-success' : 'badge-error'}`}>Challenge 1</div>
                 <span className={userChallenge.progress >= 1 ? 'text-green-800' : 'text-red-800'}>🔓 Little Caesar's Secret</span>
-                <div className="badge badge-outline badge-sm">
-                  {challengeData?.settings?.rewardMode === 'total' ? '0' : (challengeData?.settings?.challengeBits?.[0] || challengeConfig.challengeBits[0])} bits
+                <div className={`badge badge-outline badge-sm ${userChallenge?.hintsUsed?.[0] > 0 ? 'badge-warning' : ''}`}>
+                  {calculatePotentialBits(0)} bits
+                  {userChallenge?.hintsUsed?.[0] > 0 && (
+                    <span className="ml-1 text-xs opacity-75">
+                      (-{userChallenge.hintsUsed[0] * (challengeData?.settings?.hintPenaltyPercent || 25)}%)
+                    </span>
+                  )}
                 </div>
                 <div className="ml-auto text-sm text-gray-500">
                   {userChallenge.progress >= 1 ? '✅ Completed' : '🔄 In Progress'}
@@ -1485,27 +1604,34 @@ const Challenge = () => {
                         <span className="badge badge-outline">Hints</span>
                         <span className="text-xs text-gray-500">-{challengeData.settings.hintPenaltyPercent || 25}% each</span>
                         <span className="text-xs text-gray-500">{(userChallenge?.hintsUsed?.[0] || 0)}/{challengeData.settings.maxHintsPerChallenge ?? 2}</span>
-                        <button
-                          className="btn btn-xs btn-primary"
-                          disabled={unlockingHint['caesar-secret-001'] || ((userChallenge?.hintsUsed?.[0] || 0) >= (challengeData.settings.maxHintsPerChallenge ?? 2))}
-                          onClick={async () => {
-                            try {
-                              setUnlockingHint(prev => ({ ...prev, ['caesar-secret-001']: true }));
-                              const res = await unlockHint(classroomId, 'caesar-secret-001');
-                              if (res.success) {
-                                await fetchChallengeData();
-                              } else {
-                                toast.error(res.message || 'Unable to unlock hint');
+                        <div className="flex flex-col items-center gap-1">
+                          <button
+                            className="btn btn-xs btn-primary"
+                            disabled={unlockingHint['caesar-secret-001'] || ((userChallenge?.hintsUsed?.[0] || 0) >= (challengeData.settings.maxHintsPerChallenge ?? 2))}
+                            onClick={async () => {
+                              try {
+                                setUnlockingHint(prev => ({ ...prev, ['caesar-secret-001']: true }));
+                                const res = await unlockHint(classroomId, 'caesar-secret-001');
+                                if (res.success) {
+                                  await fetchChallengeData();
+                                } else {
+                                  toast.error(res.message || 'Unable to unlock hint');
+                                }
+                              } catch (e) {
+                                toast.error(e.message || 'Unable to unlock hint');
+                              } finally {
+                                setUnlockingHint(prev => ({ ...prev, ['caesar-secret-001']: false }));
                               }
-                            } catch (e) {
-                              toast.error(e.message || 'Unable to unlock hint');
-                            } finally {
-                              setUnlockingHint(prev => ({ ...prev, ['caesar-secret-001']: false }));
-                            }
-                          }}
-                        >
-                          {unlockingHint['caesar-secret-001'] ? '...' : 'Unlock'}
-                        </button>
+                            }}
+                          >
+                            {unlockingHint['caesar-secret-001'] ? '...' : 'Unlock'}
+                          </button>
+                          {((userChallenge?.hintsUsed?.[0] || 0) < (challengeData.settings.maxHintsPerChallenge ?? 2)) && (
+                            <span className="text-xs text-warning">
+                              -{Math.floor((challengeData?.settings?.challengeBits?.[0] || 0) * (challengeData.settings.hintPenaltyPercent || 25) / 100)} bits
+                            </span>
+                          )}
+                        </div>
                       </div>
                       {userChallenge?.hintsUnlocked?.[0]?.length > 0 && (
                         <ul className="ml-2 list-disc text-xs text-gray-700">
@@ -1558,8 +1684,13 @@ const Challenge = () => {
                 <div className="collapse-title text-lg font-medium flex items-center gap-3">
                   <div className={`badge ${userChallenge.progress >= 2 ? 'badge-success' : userChallenge.progress >= 1 ? 'badge-info' : 'badge-neutral'}`}>Challenge 2</div>
                   <span className={userChallenge.progress >= 2 ? 'text-green-800' : userChallenge.progress >= 1 ? 'text-blue-800' : 'text-gray-600'}>🔍 Check Me Out</span>
-                  <div className="badge badge-outline badge-sm">
-                    {challengeData?.settings?.rewardMode === 'total' ? '0' : (challengeData?.settings?.challengeBits?.[1] || challengeConfig.challengeBits[1])} bits
+                  <div className={`badge badge-outline badge-sm ${userChallenge?.hintsUsed?.[1] > 0 ? 'badge-warning' : ''}`}>
+                    {calculatePotentialBits(1)} bits
+                    {userChallenge?.hintsUsed?.[1] > 0 && (
+                      <span className="ml-1 text-xs opacity-75">
+                        (-{userChallenge.hintsUsed[1] * (challengeData?.settings?.hintPenaltyPercent || 25)}%)
+                      </span>
+                    )}
                   </div>
                   <div className="ml-auto text-sm text-gray-400">
                     {userChallenge.progress >= 2 ? '✅ Completed' : userChallenge.progress >= 1 ? '🔓 Unlocked' : '🔒 Locked'}
@@ -1579,30 +1710,39 @@ const Challenge = () => {
                       </p>
                       {challengeData?.settings?.challengeHintsEnabled?.[1] && (
                         <div className="flex items-start gap-3 text-sm">
-                          <span className="badge badge-outline">Hints</span>
-                          <span className="text-xs text-gray-500">-{challengeData.settings.hintPenaltyPercent || 25}% each</span>
-                          <span className="text-xs text-gray-500">{(userChallenge?.hintsUsed?.[1] || 0)}/{challengeData.settings.maxHintsPerChallenge ?? 2}</span>
-                          <button
-                            className="btn btn-xs btn-primary"
-                            disabled={unlockingHint['github-osint-002'] || ((userChallenge?.hintsUsed?.[1] || 0) >= (challengeData.settings.maxHintsPerChallenge ?? 2))}
-                            onClick={async () => {
-                              try {
-                                setUnlockingHint(prev => ({ ...prev, ['github-osint-002']: true }));
-                                const res = await unlockHint(classroomId, 'github-osint-002');
-                                if (res.success) {
-                                  await fetchChallengeData();
-                                } else {
-                                  toast.error(res.message || 'Unable to unlock hint');
-                                }
-                              } catch (e) {
-                                toast.error(e.message || 'Unable to unlock hint');
-                              } finally {
-                                setUnlockingHint(prev => ({ ...prev, ['github-osint-002']: false }));
-                              }
-                            }}
-                          >
-                            {unlockingHint['github-osint-002'] ? '...' : 'Unlock'}
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <span className="badge badge-outline">Hints</span>
+                            <span className="text-xs text-gray-500">-{challengeData.settings.hintPenaltyPercent || 25}% each</span>
+                            <span className="text-xs text-gray-500">{(userChallenge?.hintsUsed?.[1] || 0)}/{challengeData.settings.maxHintsPerChallenge ?? 2}</span>
+                            <div className="flex flex-col items-center gap-1">
+                              <button
+                                className="btn btn-xs btn-primary"
+                                disabled={unlockingHint['github-osint-002'] || ((userChallenge?.hintsUsed?.[1] || 0) >= (challengeData.settings.maxHintsPerChallenge ?? 2))}
+                                onClick={async () => {
+                                  try {
+                                    setUnlockingHint(prev => ({ ...prev, ['github-osint-002']: true }));
+                                    const res = await unlockHint(classroomId, 'github-osint-002');
+                                    if (res.success) {
+                                      await fetchChallengeData();
+                                    } else {
+                                      toast.error(res.message || 'Unable to unlock hint');
+                                    }
+                                  } catch (e) {
+                                    toast.error(e.message || 'Unable to unlock hint');
+                                  } finally {
+                                    setUnlockingHint(prev => ({ ...prev, ['github-osint-002']: false }));
+                                  }
+                                }}
+                              >
+                                {unlockingHint['github-osint-002'] ? '...' : 'Unlock'}
+                              </button>
+                              {((userChallenge?.hintsUsed?.[1] || 0) < (challengeData.settings.maxHintsPerChallenge ?? 2)) && (
+                                <span className="text-xs text-warning">
+                                  -{Math.floor((challengeData?.settings?.challengeBits?.[1] || 0) * (challengeData.settings.hintPenaltyPercent || 25) / 100)} bits
+                                </span>
+                              )}
+                            </div>
+                          </div>
                           {userChallenge?.hintsUnlocked?.[1]?.length > 0 && (
                             <ul className="ml-2 list-disc text-xs text-gray-700">
                               {userChallenge.hintsUnlocked[1].map((h, i) => (
@@ -1665,8 +1805,13 @@ const Challenge = () => {
                 <div className="collapse-title text-lg font-medium flex items-center gap-3">
                   <div className={`badge ${userChallenge.progress >= 3 ? 'badge-success' : userChallenge.progress >= 2 ? 'badge-info' : 'badge-neutral'}`}>Challenge 3</div>
                   <span className={userChallenge.progress >= 3 ? 'text-green-800' : userChallenge.progress >= 2 ? 'text-purple-800' : 'text-gray-600'}>🐛 Security Bug Fix</span>
-                  <div className="badge badge-outline badge-sm">
-                    {challengeData?.settings?.rewardMode === 'total' ? '0' : (challengeData?.settings?.challengeBits?.[2] || challengeConfig.challengeBits[2])} bits
+                  <div className={`badge badge-outline badge-sm ${userChallenge?.hintsUsed?.[2] > 0 ? 'badge-warning' : ''}`}>
+                    {calculatePotentialBits(2)} bits
+                    {userChallenge?.hintsUsed?.[2] > 0 && (
+                      <span className="ml-1 text-xs opacity-75">
+                        (-{userChallenge.hintsUsed[2] * (challengeData?.settings?.hintPenaltyPercent || 25)}%)
+                      </span>
+                    )}
                   </div>
                   <div className="ml-auto text-sm text-gray-400">
                     {userChallenge.progress >= 3 ? '✅ Completed' : userChallenge.progress >= 2 ? '🔓 Unlocked' : '🔒 Locked'}
@@ -1761,8 +1906,13 @@ const Challenge = () => {
                 <div className="collapse-title text-lg font-medium flex items-center gap-3">
                   <div className={`badge ${userChallenge.progress >= 4 ? 'badge-success' : userChallenge.progress >= 3 ? 'badge-info' : 'badge-neutral'}`}>Challenge 4</div>
                   <span className={userChallenge.progress >= 4 ? 'text-green-800' : userChallenge.progress >= 3 ? 'text-orange-800' : 'text-gray-600'}>🕵️ Digital Forensics Lab</span>
-                  <div className="badge badge-outline badge-sm">
-                    {challengeData?.settings?.rewardMode === 'total' ? (challengeData?.settings?.totalRewardBits || challengeConfig.totalRewardBits) : (challengeData?.settings?.challengeBits?.[3] || challengeConfig.challengeBits[3])} bits
+                  <div className={`badge badge-outline badge-sm ${userChallenge?.hintsUsed?.[3] > 0 ? 'badge-warning' : ''}`}>
+                    {calculatePotentialBits(3)} bits
+                    {userChallenge?.hintsUsed?.[3] > 0 && (
+                      <span className="ml-1 text-xs opacity-75">
+                        (-{userChallenge.hintsUsed[3] * (challengeData?.settings?.hintPenaltyPercent || 25)}%)
+                      </span>
+                    )}
                   </div>
                   <div className="ml-auto text-sm text-gray-400">
                     {userChallenge.progress >= 4 ? '✅ Completed' : userChallenge.progress >= 3 ? '🔓 Unlocked' : '🔒 Locked'}

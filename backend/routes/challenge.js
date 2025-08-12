@@ -219,6 +219,9 @@ router.post('/:classroomId/configure', ensureAuthenticated, ensureTeacher, async
       if (settings.challengeShields) mergedSettings.challengeShields = settings.challengeShields;
       if (settings.challengeAttackBonuses) mergedSettings.challengeAttackBonuses = settings.challengeAttackBonuses;
       if (settings.challengeHintsEnabled) mergedSettings.challengeHintsEnabled = settings.challengeHintsEnabled;
+      if (settings.challengeHints) mergedSettings.challengeHints = settings.challengeHints;
+      if (settings.hintPenaltyPercent !== undefined) mergedSettings.hintPenaltyPercent = settings.hintPenaltyPercent;
+      if (settings.maxHintsPerChallenge !== undefined) mergedSettings.maxHintsPerChallenge = settings.maxHintsPerChallenge;
       
       challenge.settings = mergedSettings;
       challenge.isConfigured = true;
@@ -977,31 +980,39 @@ router.post('/:classroomId/hints/unlock', ensureAuthenticated, async (req, res) 
 
     userChallenge.hintsUsed[challengeIndex] = used + 1;
 
+    // Get custom hints from teacher configuration or use defaults
+    const customHints = challenge.settings.challengeHints?.[challengeIndex] || [];
+    const filteredHints = customHints.filter(hint => hint && hint.trim().length > 0);
+    
     let hintText = null;
-    if (challengeIndex === 0) {
-      const options = [
-        'Think substitution. A constant shift may help align letters.',
-        'Try shifting 3 positions; focus on uppercase letters only.'
-      ];
-      hintText = options[used] || options[options.length - 1];
-    } else if (challengeIndex === 1) {
-      const options = [
-        'Trace commits and branches that reference your unique ID.',
-        'Look in README or commit messages for clues containing your ID.'
-      ];
-      hintText = options[used] || options[options.length - 1];
-    } else if (challengeIndex === 2) {
-      const options = [
-        'Scan for memory allocated and not freed; check loops.',
-        'Validate array bounds and off-by-one errors in iterations.'
-      ];
-      hintText = options[used] || options[options.length - 1];
-    } else if (challengeIndex === 3) {
-      const options = [
-        'Inspect EXIF metadata fields; look for creator or comment.',
-        'Compare original and exported images; hash the one tied to your ID.'
-      ];
-      hintText = options[used] || options[options.length - 1];
+    if (filteredHints.length > 0) {
+      // Use teacher's custom hints
+      hintText = filteredHints[used] || filteredHints[filteredHints.length - 1];
+    } else {
+      // Fallback to default hints if teacher didn't configure any
+      let defaultHints = [];
+      if (challengeIndex === 0) {
+        defaultHints = [
+          'Think substitution. A constant shift may help align letters.',
+          'Try shifting 3 positions; focus on uppercase letters only.'
+        ];
+      } else if (challengeIndex === 1) {
+        defaultHints = [
+          'Trace commits and branches that reference your unique ID.',
+          'Look in README or commit messages for clues containing your ID.'
+        ];
+      } else if (challengeIndex === 2) {
+        defaultHints = [
+          'Look for logic errors in the comparison operators.',
+          'Check for missing bounds validation on user input.'
+        ];
+      } else if (challengeIndex === 3) {
+        defaultHints = [
+          'Inspect EXIF metadata fields; look for creator or comment.',
+          'Compare original and exported images; hash the one tied to your ID.'
+        ];
+      }
+      hintText = defaultHints[used] || defaultHints[defaultHints.length - 1];
     }
 
     if (!Array.isArray(userChallenge.hintsUnlocked)) userChallenge.hintsUnlocked = [];

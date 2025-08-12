@@ -64,6 +64,11 @@ const ChallengeSchema = new mongoose.Schema({
     showLeaderboard: { type: Boolean, default: true },
     autoGrading: { type: Boolean, default: true },
     
+    challengeHintsEnabled: [{ type: Boolean, default: false }],
+    challengeHints: [{ type: [String], default: [] }],
+    hintPenaltyPercent: { type: Number, default: 25, min: 0, max: 100 },
+    maxHintsPerChallenge: { type: Number, default: 2, min: 0, max: 10 },
+    
     maxAttempts: { type: Number, default: null },
     penaltyPerAttempt: { type: Number, default: 0 },
     bonusForSpeed: { type: Boolean, default: false },

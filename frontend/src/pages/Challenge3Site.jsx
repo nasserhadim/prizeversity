@@ -60,7 +60,7 @@ const Challenge3Site = () => {
         setShowSuccess(true);
         toast.success('All tests passed! Password revealed!');
       } else {
-        if (attempts >= 2 && data.hints) {
+        if (attempts >= 1 && data.hints && data.hints.length > 0) {
           setHints(prev => [...prev, ...data.hints]);
         }
         toast.error(`${data.passedTests}/${data.totalTests} tests passed`);
