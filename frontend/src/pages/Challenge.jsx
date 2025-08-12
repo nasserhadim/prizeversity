@@ -55,9 +55,7 @@ const Challenge = () => {
     shieldMode: 'individual',
     challengeShields: [false, false, false, false],
     totalShield: false,
-    attackMode: 'individual',
-    challengeAttackBonuses: [0, 0, 0, 0],
-    totalAttackBonus: 0,
+
     dueDateEnabled: false,
     dueDate: '',
     retryEnabled: false,
@@ -1155,80 +1153,7 @@ const Challenge = () => {
                     </div>
                   )}
 
-                  <div className="divider">Attack Bonus Rewards</div>
 
-                  <div className="form-control">
-                    <div className="flex gap-6">
-                      <label className="label cursor-pointer">
-                        <input
-                          type="radio"
-                          name="attackMode"
-                          className="radio radio-primary"
-                          checked={challengeConfig.attackMode === 'individual'}
-                          onChange={() => setChallengeConfig(prev => ({ ...prev, attackMode: 'individual' }))}
-                        />
-                        <span className="label-text ml-2 font-semibold">Individual Attack Bonuses</span>
-                      </label>
-                      <label className="label cursor-pointer">
-                        <input
-                          type="radio"
-                          name="attackMode"
-                          className="radio radio-primary"
-                          checked={challengeConfig.attackMode === 'total'}
-                          onChange={() => setChallengeConfig(prev => ({ ...prev, attackMode: 'total' }))}
-                        />
-                        <span className="label-text ml-2 font-semibold">Total Series Attack Bonus</span>
-                      </label>
-                    </div>
-                  </div>
-
-                  {challengeConfig.attackMode === 'individual' ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {challengeNames.map((name, index) => (
-                        <div key={index}>
-                          <label className="label">
-                            <span className="label-text">Challenge {index + 1}: {name}</span>
-                          </label>
-                          <input
-                            type="number"
-                            className="input input-bordered w-full"
-                            value={challengeConfig.challengeAttackBonuses[index]}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              const newValue = value === '' ? 0 : parseInt(value) || 0;
-                              setChallengeConfig(prev => {
-                                const newAttackBonuses = [...prev.challengeAttackBonuses];
-                                newAttackBonuses[index] = value === '' ? '' : newValue;
-                                return { ...prev, challengeAttackBonuses: newAttackBonuses };
-                              });
-                            }}
-                            min="0"
-                            placeholder="e.g. 50"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div>
-                      <label className="label">
-                        <span className="label-text font-semibold">Total Series Attack Bonus</span>
-                      </label>
-                      <input
-                        type="number"
-                        className="input input-bordered w-full"
-                        value={challengeConfig.totalAttackBonus}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          setChallengeConfig(prev => ({ 
-                            ...prev, 
-                            totalAttackBonus: value === '' ? '' : parseInt(value) || 0 
-                          }));
-                        }}
-                        min="0"
-                        placeholder="e.g. 200"
-                      />
-                    </div>
-                  )}
 
                   <div className="divider">Future Settings</div>
                   
