@@ -19,9 +19,7 @@ const Challenge = () => {
   const [showPasswords, setShowPasswords] = useState({});
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [configuring, setConfiguring] = useState(false);
-  const [showDeactivateModal, setShowDeactivateModal] = useState(false);
   const [confirmText, setConfirmText] = useState('');
-  const [dontShowAgain, setDontShowAgain] = useState(false);
   const [classroom, setClassroom] = useState(null);
   const [templates, setTemplates] = useState([]);
   const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
@@ -35,6 +33,8 @@ const Challenge = () => {
   });
   const [submittingAnswers, setSubmittingAnswers] = useState({});
   const [previousProgress, setPreviousProgress] = useState(null);
+  const [showDeleteWarning, setShowDeleteWarning] = useState(false);
+  const [dontShowDeleteWarning, setDontShowDeleteWarning] = useState(false);
   const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'Memory Leak Detective', 'Advanced Cryptography'];
   
   const [challengeConfig, setChallengeConfig] = useState({
@@ -56,7 +56,11 @@ const Challenge = () => {
     totalShield: false,
     attackMode: 'individual',
     challengeAttackBonuses: [0, 0, 0, 0],
-    totalAttackBonus: 0
+    totalAttackBonus: 0,
+    dueDateEnabled: false,
+    dueDate: '',
+    retryEnabled: false,
+    maxRetries: 3
   });
 
   const fetchChallengeData = async () => {
@@ -280,6 +284,12 @@ const Challenge = () => {
         settings.challengeAttackBonuses = challengeConfig.challengeAttackBonuses.map(() => 0);
       }
 
+      // Add due date and retry settings
+      settings.dueDateEnabled = challengeConfig.dueDateEnabled || false;
+      settings.dueDate = challengeConfig.dueDate || '';
+      settings.retryEnabled = challengeConfig.retryEnabled || false;
+      settings.maxRetries = challengeConfig.maxRetries || 3;
+
       await configureChallenge(classroomId, challengeConfig.title, settings);
       toast.success('Challenge configured successfully');
       
@@ -302,9 +312,8 @@ const Challenge = () => {
     if (skipWarning) {
       handleConfirmDeactivate();
     } else {
-      setShowDeactivateModal(true);
-      setConfirmText('');
-      setDontShowAgain(false);
+      setShowDeleteWarning(true);
+      setDontShowDeleteWarning(false);
     }
   };
 
@@ -314,8 +323,8 @@ const Challenge = () => {
       const response = await deactivateChallenge(classroomId);
       setChallengeData(response.challenge);
       toast.success(response.message);
-      setShowDeactivateModal(false);
-      if (dontShowAgain) {
+      setShowDeleteWarning(false);
+      if (dontShowDeleteWarning) {
         localStorage.setItem('skipChallengeDeactivateWarning', 'true');
       }
       await fetchChallengeData();
@@ -361,6 +370,10 @@ const Challenge = () => {
         totalShield: challengeConfig.totalShield,
         challengeAttackBonuses: challengeConfig.challengeAttackBonuses,
         totalAttackBonus: challengeConfig.totalAttackBonus,
+        dueDateEnabled: challengeConfig.dueDateEnabled,
+        dueDate: challengeConfig.dueDate,
+        retryEnabled: challengeConfig.retryEnabled,
+        maxRetries: challengeConfig.maxRetries,
         difficulty: 'medium'
       };
 
@@ -396,7 +409,11 @@ const Challenge = () => {
       totalShield: template.settings.totalShield || false,
       attackMode: template.settings.attackMode || 'individual',
       challengeAttackBonuses: template.settings.challengeAttackBonuses || [0, 0, 0, 0],
-      totalAttackBonus: template.settings.totalAttackBonus || 0
+      totalAttackBonus: template.settings.totalAttackBonus || 0,
+      dueDateEnabled: template.settings.dueDateEnabled || false,
+      dueDate: template.settings.dueDate || '',
+      retryEnabled: template.settings.retryEnabled || false,
+      maxRetries: template.settings.maxRetries || 3
     };
     
     setChallengeConfig(newConfig);
@@ -1201,6 +1218,71 @@ const Challenge = () => {
                   </div>
                 </div>
 
+                {/* Due Dates and Retry Settings */}
+                <div className="bg-base-200 p-4 rounded-lg">
+                  <h3 className="font-bold text-lg mb-4">📅 Due Dates & Retries</h3>
+                  
+                  <div className="divider">Due Date</div>
+                  <div className="form-control mb-4">
+                    <label className="label cursor-pointer justify-start gap-3">
+                      <input 
+                        type="checkbox" 
+                        className="checkbox"
+                        checked={challengeConfig.dueDateEnabled}
+                        onChange={(e) => setChallengeConfig(prev => ({ ...prev, dueDateEnabled: e.target.checked }))}
+                      />
+                      <span className="label-text font-semibold">Set due date for challenge series</span>
+                    </label>
+                  </div>
+                  
+                  {challengeConfig.dueDateEnabled && (
+                    <div className="ml-6 mb-4">
+                      <label className="label">
+                        <span className="label-text">Due date and time</span>
+                      </label>
+                      <input
+                        type="datetime-local"
+                        className="input input-bordered w-64"
+                        value={challengeConfig.dueDate}
+                        onChange={(e) => setChallengeConfig(prev => ({ ...prev, dueDate: e.target.value }))}
+                        min={new Date().toISOString().slice(0, 16)}
+                      />
+                      <div className="text-sm text-gray-500 mt-1">Students must complete all challenges by this date and time</div>
+                    </div>
+                  )}
+
+                  <div className="divider">Retry Limits</div>
+                  <div className="form-control mb-4">
+                    <label className="label cursor-pointer justify-start gap-3">
+                      <input 
+                        type="checkbox" 
+                        className="checkbox"
+                        checked={challengeConfig.retryEnabled}
+                        onChange={(e) => setChallengeConfig(prev => ({ ...prev, retryEnabled: e.target.checked }))}
+                      />
+                      <span className="label-text font-semibold">Limit retry attempts</span>
+                    </label>
+                  </div>
+                  
+                  {challengeConfig.retryEnabled && (
+                    <div className="ml-6 mb-4">
+                      <label className="label">
+                        <span className="label-text">Maximum retries per challenge</span>
+                      </label>
+                      <input
+                        type="number"
+                        className="input input-bordered w-32"
+                        value={challengeConfig.maxRetries}
+                        onChange={(e) => setChallengeConfig(prev => ({ ...prev, maxRetries: parseInt(e.target.value) || 3 }))}
+                        min="1"
+                        max="10"
+                        placeholder="3"
+                      />
+                      <div className="text-sm text-gray-500 mt-1">Number of failed attempts allowed per challenge</div>
+                    </div>
+                  )}
+                </div>
+
                 <div className="card-actions justify-end mt-6 gap-3">
                   <button
                     className="btn btn-ghost"
@@ -1286,7 +1368,7 @@ const Challenge = () => {
           </div>
         )}
 
-        {showDeactivateModal && (
+        {showDeleteWarning && (
           <div className="fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="card bg-base-100 w-full max-w-md mx-4 shadow-xl">
               <div className="card-body">
@@ -1311,8 +1393,8 @@ const Challenge = () => {
                     <input
                       type="checkbox"
                       className="checkbox checkbox-sm"
-                      checked={dontShowAgain}
-                      onChange={(e) => setDontShowAgain(e.target.checked)}
+                      checked={dontShowDeleteWarning}
+                      onChange={(e) => setDontShowDeleteWarning(e.target.checked)}
                     />
                     <span className="label-text text-sm">Don't show this warning again</span>
                   </label>
@@ -1320,7 +1402,7 @@ const Challenge = () => {
                 <div className="card-actions justify-end gap-2">
                   <button
                     className="btn btn-ghost btn-sm"
-                    onClick={() => setShowDeactivateModal(false)}
+                    onClick={() => setShowDeleteWarning(false)}
                   >
                     Cancel
                   </button>
