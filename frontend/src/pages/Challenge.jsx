@@ -35,7 +35,7 @@ const Challenge = () => {
   });
   const [submittingAnswers, setSubmittingAnswers] = useState({});
   const [previousProgress, setPreviousProgress] = useState(null);
-  const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'Network Security Analysis', 'Advanced Cryptography'];
+  const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'Memory Leak Detective', 'Advanced Cryptography'];
   
   const [challengeConfig, setChallengeConfig] = useState({
     title: 'Cyber Challenge Series - Fall Semester',
@@ -435,9 +435,9 @@ const Challenge = () => {
     } else if (progress === 2) {
       return {
         number: 3,
-        name: "Network Security Analysis",
-        method: "Traffic Analysis", 
-        type: "network"
+        name: "Memory Leak Detective",
+        method: "C++ Debugging", 
+        type: "debugging"
       };
     } else {
       return {
@@ -1510,13 +1510,13 @@ const Challenge = () => {
               </div>
             </div>
 
-            {/* Challenge 3 - Network Security Analysis */}
+            {/* Challenge 3 - Memory Leak Detective */}
             <div className="space-y-3">
               <div className={`collapse collapse-arrow ${userChallenge.progress >= 2 ? (userChallenge.progress >= 3 ? 'bg-green-50 border border-green-200' : 'bg-purple-50 border border-purple-200') : 'bg-gray-50 border border-gray-200 opacity-60'}`}>
                 {userChallenge.progress >= 2 && <input type="checkbox" defaultChecked={userChallenge.progress < 3} className="peer" />}
                 <div className="collapse-title text-lg font-medium flex items-center gap-3">
                   <div className={`badge ${userChallenge.progress >= 3 ? 'badge-success' : userChallenge.progress >= 2 ? 'badge-info' : 'badge-neutral'}`}>Challenge 3</div>
-                  <span className={userChallenge.progress >= 3 ? 'text-green-800' : userChallenge.progress >= 2 ? 'text-purple-800' : 'text-gray-600'}>🌐 Network Security Analysis</span>
+                  <span className={userChallenge.progress >= 3 ? 'text-green-800' : userChallenge.progress >= 2 ? 'text-purple-800' : 'text-gray-600'}>🐛 Memory Leak Detective</span>
                   <div className="badge badge-outline badge-sm">
                     {challengeData?.settings?.rewardMode === 'total' ? '0' : (challengeData?.settings?.challengeBits?.[2] || challengeConfig.challengeBits[2])} bits
                   </div>
@@ -1528,47 +1528,36 @@ const Challenge = () => {
                   <div className="collapse-content">
                     <div className="pt-4 space-y-4">
                       <p className="text-gray-600">
-                        Your mission: Analyze network traffic logs to identify security threats.
+                        Debug a legacy C++ university registration system with multiple memory leaks and logic errors.
                       </p>
                       
-                      <div className="bg-white border border-purple-300 rounded-lg p-4">
-                        <h4 className="font-semibold text-purple-800 mb-3">🔍 Network Analysis Task</h4>
+                      <div className="bg-purple-50 border border-purple-300 rounded-lg p-4">
+                        <h4 className="font-semibold text-purple-800 mb-2">🔧 Your Mission</h4>
                         <p className="text-sm text-gray-700 mb-3">
-                          Examine the network traffic patterns and identify the security vulnerability. Submit the flag you discover.
+                          Fix all bugs in the provided C++ codebase. When all tests pass, the system will reveal your password.
                         </p>
-                        <code className="bg-purple-100 px-2 py-1 rounded text-purple-800 font-mono text-sm block">
-                          Network logs contain the answer - analyze carefully!
-                        </code>
-                      </div>
-                      
-                      <div className="bg-white border border-purple-300 rounded-lg p-4">
-                        <h4 className="font-semibold text-purple-800 mb-3">📝 Submit Answer</h4>
-                        <div className="flex gap-3">
-                          <input
-                            type="text"
-                            className="input input-bordered flex-1"
-                            placeholder="Enter your answer..."
-                            value={challengeAnswers['network-analysis-003']}
-                            onChange={(e) => setChallengeAnswers(prev => ({ ...prev, 'network-analysis-003': e.target.value }))}
-                            disabled={submittingAnswers['network-analysis-003']}
-                          />
-                          <button
-                            className="btn btn-primary"
-                            onClick={() => handleSubmitAnswer('network-analysis-003', challengeAnswers['network-analysis-003'])}
-                            disabled={submittingAnswers['network-analysis-003'] || !challengeAnswers['network-analysis-003'].trim()}
-                          >
-                            {submittingAnswers['network-analysis-003'] ? (
-                              <span className="loading loading-spinner loading-sm"></span>
-                            ) : (
-                              'Submit'
-                            )}
-                          </button>
+                        <div className="space-y-2">
+                          <p className="text-xs text-gray-600">⚠️ Warning: The code contains misleading comments and red herring bugs</p>
+                          <p className="text-xs text-gray-600">🎯 Each student gets unique bugs and variable names</p>
                         </div>
                       </div>
                       
-                      <div className="alert alert-info">
+                      <div className="bg-white border border-purple-300 rounded-lg p-4">
+                        <h4 className="font-semibold text-purple-800 mb-2">🌐 Debugging Environment</h4>
+                        <p className="text-sm text-gray-600 mb-3">Access your personalized debugging challenge:</p>
+                        <code className="text-blue-600 font-mono text-sm block mb-3">
+                          <a href={`/challenge-3-site/${userChallenge.uniqueId}`} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                            /challenge-3-site/{userChallenge.uniqueId}
+                          </a>
+                        </code>
+                        <p className="text-xs text-gray-500">
+                          Opens in a new window with a full C++ debugging environment
+                        </p>
+                      </div>
+                      
+                      <div className="alert alert-warning">
                         <span className="text-sm">
-                          <strong>Hint:</strong> Look for patterns that don't belong in normal network traffic.
+                          <strong>Advanced Challenge:</strong> This will test your C++ debugging skills, memory management, and logical reasoning. Expect to spend 1-3 hours on this challenge.
                         </span>
                       </div>
                     </div>

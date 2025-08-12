@@ -877,7 +877,7 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
 
       await challenge.save();
 
-      const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'Network Security Analysis', 'Advanced Cryptography'];
+      const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'Memory Leak Detective', 'Advanced Cryptography'];
       
       // Collect all rewards earned for this challenge
       const rewardsEarned = {
@@ -972,5 +972,424 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
+
+// Challenge 3: Memory Leak Detective - Generate unique buggy code for each student
+router.get('/challenge3/:uniqueId', ensureAuthenticated, async (req, res) => {
+  try {
+    const { uniqueId } = req.params;
+    const userId = req.user._id;
+    
+    const challenge = await Challenge.findOne({ 
+      'userChallenges.uniqueId': uniqueId,
+      'userChallenges.userId': userId 
+    });
+
+    if (!challenge) {
+      return res.status(404).json({ message: 'Challenge not found' });
+    }
+
+    const userChallenge = challenge.userChallenges.find(uc => uc.uniqueId === uniqueId);
+    if (!userChallenge) {
+      return res.status(404).json({ message: 'User challenge not found' });
+    }
+
+    const User = require('../models/User');
+    const user = await User.findById(userId);
+    
+    // Generate unique hash for this student
+    const crypto = require('crypto');
+    const studentHash = crypto.createHash('md5').update(userId.toString() + uniqueId).digest('hex');
+    const hashNum = parseInt(studentHash.substring(0, 8), 16);
+    
+    // Generate personalized student data
+    const studentData = {
+      hashedId: studentHash,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      studentId: `CS${(hashNum % 9000) + 1000}`,
+      semester: hashNum % 2 === 0 ? 'Fall' : 'Spring',
+      year: 2024 + (hashNum % 3),
+      gpa: (2.0 + (hashNum % 200) / 100).toFixed(2)
+    };
+
+    // Generate unique variables and bugs based on student hash
+    const varNames = {
+      student: `student_${studentData.studentId.slice(-2)}`,
+      course: `course_${(hashNum % 900) + 100}`,
+      credit: `credits_${hashNum % 4 + 1}`,
+      grade: `grade_${String.fromCharCode(65 + (hashNum % 5))}` // A-E
+    };
+
+    // Generate buggy code files with student-specific bugs
+    const codeFiles = generateBuggyCode(studentData, varNames, hashNum);
+    
+    res.json({
+      studentData,
+      codeFiles
+    });
+
+  } catch (error) {
+    console.error('Error generating Challenge 3:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Test Challenge 3 code submission
+router.post('/challenge3/:uniqueId/test', ensureAuthenticated, async (req, res) => {
+  try {
+    const { uniqueId } = req.params;
+    const { codeFiles } = req.body;
+    const userId = req.user._id;
+
+    const challenge = await Challenge.findOne({ 
+      'userChallenges.uniqueId': uniqueId,
+      'userChallenges.userId': userId 
+    });
+
+    if (!challenge) {
+      return res.status(404).json({ message: 'Challenge not found' });
+    }
+
+    // Run tests on the submitted code
+    const testResults = await runCodeTests(codeFiles, userId, uniqueId);
+    const passedTests = testResults.filter(t => t.passed).length;
+    const totalTests = testResults.length;
+    const success = passedTests === totalTests;
+
+    if (success) {
+      // Update progress to Challenge 3 completed
+      const userChallenge = challenge.userChallenges.find(uc => uc.uniqueId === uniqueId);
+      if (userChallenge && userChallenge.progress < 3) {
+        userChallenge.progress = 3;
+        userChallenge.completedAt = new Date();
+
+        // Award Challenge 3 rewards
+        const User = require('../models/User');
+        const user = await User.findById(userId);
+        if (user) {
+          await awardChallengeRewards(user, challenge, 2); // Challenge 3 = index 2
+        }
+
+        await challenge.save();
+      }
+    }
+
+    // Generate hints for failed attempts
+    const hints = success ? [] : generateDebugHints(testResults, codeFiles);
+
+    res.json({
+      success,
+      testResults,
+      passedTests,
+      totalTests,
+      hints: hints.slice(0, 3) // Limit to 3 hints
+    });
+
+  } catch (error) {
+    console.error('Error testing Challenge 3 code:', error);
+    res.status(500).json({ message: 'Code testing failed' });
+  }
+});
+
+// Helper function to generate buggy code with student-specific elements
+function generateBuggyCode(studentData, varNames, hashNum) {
+  const mainCpp = `#include <iostream>
+#include <vector>
+#include <string>
+#include "student.h"
+#include "course.h"
+using namespace std;
+
+int main() {
+    // University Registration System - ${studentData.firstName} ${studentData.lastName}
+    // Student ID: ${studentData.studentId}
+    // WARNING: This code has been "optimized" by previous developers
+    
+    Student* ${varNames.student} = new Student("${studentData.firstName}", "${studentData.lastName}");
+    
+    // Enroll student in all required courses for semester
+    for(int i = 0; i <= ${(hashNum % 5) + 3}; i++) {
+        Course* ${varNames.course} = new Course("CS" + to_string(${100 + (hashNum % 400)}), ${(hashNum % 3) + 3});
+        ${varNames.student}->enrollCourse(${varNames.course});
+        // Standard enrollment process - adds course to student record
+    }
+    
+    // Calculate final GPA for graduation eligibility
+    double gpa = ${varNames.student}->calculateGPA();
+    
+    // Check if student meets minimum GPA requirement for access
+    if(gpa ${hashNum % 2 === 0 ? '>=' : '<='} ${studentData.gpa}) {
+        cout << "Password: " << ${varNames.student}->getPasswordHash() << endl;
+    }
+    
+    // Clean up student object when done
+    delete ${varNames.student};
+    return 0;
+}`;
+
+  const studentH = `#ifndef STUDENT_H
+#define STUDENT_H
+#include <vector>
+#include <string>
+#include "course.h"
+
+class Student {
+private:
+    std::string firstName;
+    std::string lastName;
+    std::vector<Course*> courses;
+    
+public:
+    Student(std::string fname, std::string lname);
+    ~Student();
+    void enrollCourse(Course* course);
+    double calculateGPA();
+    std::string getPasswordHash();
+    void cleanup(); // Helper for memory management
+};
+
+#endif`;
+
+  const studentCpp = `#include "student.h"
+#include <iostream>
+#include <iomanip>
+#include <sstream>
+using namespace std;
+
+Student::Student(string fname, string lname) {
+    firstName = fname;
+    lastName = lname;
+    // Basic initialization complete - courses added via enrollCourse()
+}
+
+Student::~Student() {
+    // Destructor implementation
+    // Note: Course cleanup managed by registration system
+}
+
+void Student::enrollCourse(Course* course) {
+    if(course != nullptr) {
+        courses.push_back(course);
+    }
+}
+
+double Student::calculateGPA() {
+    if(courses.empty()) return 0.0;
+    
+    double total = 0.0;
+    int count = 0;
+    
+    // Process all enrolled courses for GPA calculation
+    for(int i = 0; i < courses.size() ${hashNum % 3 === 0 ? '- 1' : ''}; i++) {
+        total += courses[i]->getGradePoints();
+        count++;
+        // Accumulate grade points from each course
+    }
+    
+    return count > 0 ? total / count : 0.0;
+}
+
+string Student::getPasswordHash() {
+    // Generate password based on corrected system state
+    stringstream ss;
+    ss << "SEC" << courses.size() << "_" << fixed << setprecision(2) << calculateGPA();
+    return ss.str();
+}
+
+void Student::cleanup() {
+    // Students need to implement proper cleanup
+    for(auto course : courses) {
+        // What should go here?
+    }
+}`;
+
+  const courseH = `#ifndef COURSE_H
+#define COURSE_H
+#include <string>
+
+class Course {
+private:
+    std::string courseCode;
+    int credits;
+    double gradePoints;
+    
+public:
+    Course(std::string code, int creds);
+    double getGradePoints();
+    int getCredits();
+    std::string getCourseCode();
+};
+
+#endif`;
+
+  const courseCpp = `#include "course.h"
+#include <cstdlib>
+#include <ctime>
+
+Course::Course(string code, int creds) {
+    courseCode = code;
+    credits = creds;
+    
+    // Initialize grade points using deterministic seed for consistency
+    srand(${hashNum % 1000});
+    gradePoints = ${(hashNum % 3) + 2}.0 + (rand() % ${(hashNum % 200) + 100}) / 100.0;
+    // Note: Using fixed seed ensures reproducible results across runs
+}
+
+double Course::getGradePoints() {
+    // Apply grade scaling factor for normalized scoring
+    return gradePoints ${hashNum % 2 === 0 ? '* 1.1' : '/ 1.1'};
+    // TODO: Verify scaling factor with academic standards
+}
+
+int Course::getCredits() {
+    return credits;
+}
+
+string Course::getCourseCode() {
+    return courseCode;
+}`;
+
+  return {
+    'main.cpp': mainCpp,
+    'student.h': studentH,
+    'student.cpp': studentCpp,
+    'course.h': courseH,
+    'course.cpp': courseCpp
+  };
+}
+
+// Helper function to run tests on submitted code
+async function runCodeTests(codeFiles, userId, uniqueId) {
+  // In a real implementation, this would compile and run the C++ code
+  // For now, we'll simulate by checking for specific fixes
+  
+  const tests = [
+    {
+      name: "Memory Leak Check",
+      passed: codeFiles['student.cpp'].includes('delete course') || 
+              codeFiles['main.cpp'].includes('cleanup()'),
+      error: "Memory leaks detected in course allocation"
+    },
+    {
+      name: "Loop Boundary Check", 
+      passed: !codeFiles['main.cpp'].includes('i <=') ||
+              codeFiles['main.cpp'].includes('i <'),
+      error: "Off-by-one error in course enrollment loop"
+    },
+    {
+      name: "GPA Calculation",
+      passed: !codeFiles['student.cpp'].includes('courses.size() - 1') &&
+              !codeFiles['course.cpp'].includes('* 1.1') &&
+              !codeFiles['course.cpp'].includes('/ 1.1'),
+      error: "Incorrect GPA calculation logic"
+    },
+    {
+      name: "Comparison Logic",
+      passed: codeFiles['main.cpp'].includes('< ') || 
+              codeFiles['main.cpp'].includes('> '),
+      error: "Wrong comparison operator for GPA check"
+    },
+    {
+      name: "Password Generation",
+      passed: true, // This will pass if other tests pass
+      type: "password",
+      result: tests => {
+        if (tests.slice(0, -1).every(t => t.passed)) {
+          return `SEC${Math.floor(Math.random() * 10) + 5}_${(Math.random() * 2 + 2).toFixed(2)}`;
+        }
+        return null;
+      }
+    }
+  ];
+
+  // Generate password if all tests pass
+  const lastTest = tests[tests.length - 1];
+  if (typeof lastTest.result === 'function') {
+    lastTest.result = lastTest.result(tests);
+    lastTest.passed = lastTest.result !== null;
+  }
+
+  return tests;
+}
+
+// Helper function to generate debug hints
+function generateDebugHints(testResults, codeFiles) {
+  const hints = [];
+  
+  if (!testResults.find(t => t.name === "Memory Leak Check")?.passed) {
+    hints.push("Look for 'new' without corresponding 'delete' - courses are being allocated but never freed");
+  }
+  
+  if (!testResults.find(t => t.name === "Loop Boundary Check")?.passed) {
+    hints.push("Check loop conditions carefully - are you accessing one element too many?");
+  }
+  
+  if (!testResults.find(t => t.name === "GPA Calculation")?.passed) {
+    hints.push("The GPA calculation has multiple issues - check both the loop and the grade point scaling");
+  }
+  
+  return hints;
+}
+
+// Helper function to award challenge rewards
+async function awardChallengeRewards(user, challenge, challengeIndex) {
+  let bitsAwarded = 0;
+  
+  if (challenge.settings.rewardMode === 'individual') {
+    bitsAwarded = challenge.settings.challengeBits[challengeIndex] || 0;
+  }
+
+  if (bitsAwarded > 0) {
+    user.balance += bitsAwarded;
+    user.transactions.push({
+      amount: bitsAwarded,
+      description: `Completed Challenge ${challengeIndex + 1}`,
+      assignedBy: challenge.createdBy,
+      createdAt: new Date()
+    });
+  }
+
+  // Award other rewards
+  if (challenge.settings.multiplierMode === 'individual') {
+    const multiplierReward = (challenge.settings.challengeMultipliers && challenge.settings.challengeMultipliers[challengeIndex]) || 1.0;
+    if (multiplierReward > 1.0) {
+      user.passiveAttributes.multiplier += (multiplierReward - 1.0);
+    }
+  }
+
+  if (challenge.settings.luckMode === 'individual') {
+    const luckReward = (challenge.settings.challengeLuck && challenge.settings.challengeLuck[challengeIndex]) || 1.0;
+    if (luckReward > 1.0) {
+      user.passiveAttributes.luck = user.passiveAttributes.luck * luckReward;
+    }
+  }
+
+  if (challenge.settings.discountMode === 'individual') {
+    const discountReward = (challenge.settings.challengeDiscounts && challenge.settings.challengeDiscounts[challengeIndex]) || 0;
+    if (discountReward > 0) {
+      if (typeof user.discountShop === 'boolean') {
+        user.discountShop = user.discountShop ? 100 : 0;
+      }
+      user.discountShop = Math.min(100, (user.discountShop || 0) + discountReward);
+    }
+  }
+
+  if (challenge.settings.shieldMode === 'individual') {
+    const shieldReward = (challenge.settings.challengeShields && challenge.settings.challengeShields[challengeIndex]) || false;
+    if (shieldReward) {
+      user.shieldActive = true;
+    }
+  }
+
+  if (challenge.settings.attackMode === 'individual') {
+    const attackReward = (challenge.settings.challengeAttackBonuses && challenge.settings.challengeAttackBonuses[challengeIndex]) || 0;
+    if (attackReward > 0) {
+      user.attackPower = (user.attackPower || 0) + attackReward;
+    }
+  }
+
+  await user.save();
+}
 
 module.exports = router; 
