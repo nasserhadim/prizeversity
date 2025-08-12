@@ -328,13 +328,12 @@ router.post('/:classroomId/deactivate', ensureAuthenticated, ensureTeacher, asyn
       return res.status(404).json({ message: 'No challenge found for this classroom' });
     }
 
-    challenge.isActive = false;
-    challenge.updatedAt = Date.now();
-    await challenge.save();
+    // Completely delete the challenge document from MongoDB
+    await Challenge.deleteOne({ classroomId });
 
     res.json({ 
-      message: 'Challenge deactivated successfully',
-      challenge
+      message: 'Challenge deleted successfully',
+      challenge: null
     });
 
   } catch (error) {
@@ -1589,7 +1588,6 @@ async function generateAndUploadForensicsImage(user, uniqueId) {
 async function uploadToGitHub(filename, fileBuffer, githubToken) {
   const axios = require('axios');
   
-  const githubToken = process.env.GITHUB_TOKEN;
   if (!githubToken) {
     throw new Error('GITHUB_TOKEN environment variable not set');
   }

@@ -89,7 +89,7 @@ const Challenge = () => {
     try {
       setLoading(true);
       const response = await getChallengeData(classroomId);
-      setChallengeData(response.challenge);
+      setChallengeData(response.challenge || null);
       
       const newProgress = response.userChallenge?.progress || 0;
       if (previousProgress !== null && newProgress > previousProgress && newProgress > 0) {
@@ -410,7 +410,7 @@ const Challenge = () => {
   };
 
   const handleShowDeactivateModal = () => {
-    const skipWarning = localStorage.getItem('skipChallengeDeactivateWarning') === 'true';
+    const skipWarning = localStorage.getItem('skipChallengeDeleteWarning') === 'true';
     if (skipWarning) {
       handleConfirmDeactivate();
     } else {
@@ -423,11 +423,12 @@ const Challenge = () => {
     try {
       setInitiating(true);
       const response = await deactivateChallenge(classroomId);
-      setChallengeData(response.challenge);
+      setChallengeData(null);
+      setUserChallenge(null);
       toast.success(response.message);
       setShowDeleteWarning(false);
       if (dontShowDeleteWarning) {
-        localStorage.setItem('skipChallengeDeactivateWarning', 'true');
+        localStorage.setItem('skipChallengeDeleteWarning', 'true');
       }
       await fetchChallengeData();
     } catch (error) {
@@ -658,13 +659,13 @@ const Challenge = () => {
                 ) : (
                   <Shield className="w-5 h-5" />
                 )}
-                Deactivate Challenge
+                Delete Challenge
               </button>
             )}
           </div>
         </div>
 
-        {challengeData && (
+        {challengeData && challengeData.isActive !== undefined && (
           <div className="card bg-base-100 border border-base-200 shadow-md rounded-2xl p-6">
             <div className="flex items-center gap-3 mb-4">
               <Users className="w-6 h-6 text-blue-500" />
@@ -1308,9 +1309,9 @@ const Challenge = () => {
           <div className="fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="card bg-base-100 w-full max-w-md mx-4 shadow-xl">
               <div className="card-body">
-                <h2 className="text-xl font-bold text-error mb-4">⚠️ Deactivate Challenge Series</h2>
+                <h2 className="text-xl font-bold text-error mb-4">⚠️ Delete Challenge Series</h2>
                 <p className="text-sm text-gray-600 mb-4">
-                  This will permanently delete all student progress and challenge data. This action cannot be undone.
+                  This will permanently delete all student progress and challenge data from the database. This action cannot be undone.
                 </p>
                 <div className="form-control mb-4">
                   <label className="label">
@@ -1347,7 +1348,7 @@ const Challenge = () => {
                     onClick={handleConfirmDeactivate}
                     disabled={confirmText !== `${classroom?.name} delete` || initiating}
                   >
-                    {initiating ? <span className="loading loading-spinner loading-xs"></span> : 'Deactivate'}
+                    {initiating ? <span className="loading loading-spinner loading-xs"></span> : 'Delete'}
                   </button>
                 </div>
               </div>
