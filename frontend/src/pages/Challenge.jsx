@@ -35,7 +35,8 @@ const Challenge = () => {
   const [previousProgress, setPreviousProgress] = useState(null);
   const [showDeleteWarning, setShowDeleteWarning] = useState(false);
   const [dontShowDeleteWarning, setDontShowDeleteWarning] = useState(false);
-  const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'Memory Leak Detective', 'Advanced Cryptography'];
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
+  const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'Memory Leak Detective', 'Digital Forensics Lab'];
   
   const [challengeConfig, setChallengeConfig] = useState({
     title: 'Cyber Challenge Series - Fall Semester',
@@ -101,6 +102,41 @@ const Challenge = () => {
       toast.error('Failed to load challenge data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const setDebugProgress = async (targetProgress) => {
+    try {
+      const previousProgressValue = userChallenge?.progress || 0;
+      
+      const response = await fetch(`${API_BASE}/api/challenges/${classroomId}/debug-progress`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ progress: targetProgress })
+      });
+      
+      if (response.ok) {
+        toast.success(`Progress set to Challenge ${targetProgress + 1}!`);
+        
+        // If progress increased, show reward modal for the latest completed challenge
+        if (targetProgress > previousProgressValue && targetProgress > 0) {
+          const completedChallengeIndex = targetProgress - 1;
+          const rewardInfo = getRewardDataForChallenge(completedChallengeIndex);
+          if (rewardInfo) {
+            setRewardData(rewardInfo);
+            setShowRewardModal(true);
+          }
+        }
+        
+        await fetchChallengeData(); // Refresh data
+        setShowDebugPanel(false);
+      } else {
+        toast.error('Failed to set progress');
+      }
+    } catch (error) {
+      console.error('Error setting debug progress:', error);
+      toast.error('Failed to set progress');
     }
   };
 
@@ -459,9 +495,9 @@ const Challenge = () => {
     } else {
       return {
         number: 4,
-        name: "Advanced Cryptography",
-        method: "Multi-layer Encryption",
-        type: "crypto"
+        name: "Digital Forensics Lab",
+        method: "Image Metadata Analysis",
+        type: "forensics"
       };
     }
   };
@@ -1432,6 +1468,12 @@ const Challenge = () => {
                 <Shield className="w-4 h-4" />
                 <span className="text-sm">Teacher Mode</span>
                 <button
+                  onClick={() => setShowDebugPanel(true)}
+                  className="btn btn-sm btn-accent gap-1"
+                >
+                  🔧 Debug
+                </button>
+                <button
                   onClick={handleSwitchToTeacher}
                   className="btn btn-sm btn-secondary gap-1"
                 >
@@ -1452,6 +1494,28 @@ const Challenge = () => {
         <p className="text-gray-600 text-lg">
           Welcome to WSU's Cyber Challenge! Employ your skills to solve the challenges and earn bits to spend in the bazaar!
         </p>
+        
+        {/* Due Date Display */}
+        {challengeData?.settings?.dueDateEnabled && challengeData?.settings?.dueDate && (
+          <div className={`mt-4 p-3 rounded-lg border ${
+            new Date() > new Date(challengeData.settings.dueDate) 
+              ? 'bg-red-50 border-red-200 text-red-800'
+              : 'bg-blue-50 border-blue-200 text-blue-800'
+          }`}>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold">
+                {new Date() > new Date(challengeData.settings.dueDate) ? '⚠️ Past Due:' : '⏰ Due Date:'}
+              </span>
+              <span>
+                {new Date(challengeData.settings.dueDate).toLocaleDateString()} at{' '}
+                {new Date(challengeData.settings.dueDate).toLocaleTimeString()}
+              </span>
+            </div>
+            {new Date() > new Date(challengeData.settings.dueDate) && (
+              <p className="text-sm mt-1">This challenge series has expired and is no longer available for completion.</p>
+            )}
+          </div>
+        )}
       </div>
 
       {!challengeData || !challengeData.isActive ? (
@@ -1465,6 +1529,30 @@ const Challenge = () => {
           </div>
         </div>
       ) : userChallenge ? (
+        // Check if challenge is expired (unless user is a teacher)
+        challengeData?.settings?.dueDateEnabled && 
+        challengeData?.settings?.dueDate && 
+        new Date() > new Date(challengeData.settings.dueDate) && 
+        !isTeacher ? (
+          <div className="card bg-base-100 border border-red-200 shadow-md rounded-2xl p-6 text-center">
+            <div className="flex flex-col items-center gap-4">
+              <div className="text-6xl">⏰</div>
+              <h2 className="text-2xl font-semibold text-red-600">Challenge Series Expired</h2>
+              <p className="text-gray-600 max-w-md">
+                This challenge series was due on {new Date(challengeData.settings.dueDate).toLocaleDateString()} at{' '}
+                {new Date(challengeData.settings.dueDate).toLocaleTimeString()}. 
+                You can no longer participate in this challenge.
+              </p>
+              {userChallenge.progress > 0 && (
+                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-blue-800 font-medium">
+                    Your Progress: Completed {userChallenge.progress} out of 4 challenges
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
         <div className="space-y-6">
           {/* Main Challenge Container */}
           <div className="card bg-base-100 border border-base-200 shadow-md rounded-2xl p-6">
@@ -1648,13 +1736,13 @@ const Challenge = () => {
               </div>
             </div>
 
-            {/* Challenge 4 - Advanced Cryptography */}
+            {/* Challenge 4 - Digital Forensics Lab */}
             <div className="space-y-3">
               <div className={`collapse collapse-arrow ${userChallenge.progress >= 3 ? (userChallenge.progress >= 4 ? 'bg-green-50 border border-green-200' : 'bg-orange-50 border border-orange-200') : 'bg-gray-50 border border-gray-200 opacity-60'}`}>
                 {userChallenge.progress >= 3 && <input type="checkbox" defaultChecked={userChallenge.progress < 4} className="peer" />}
                 <div className="collapse-title text-lg font-medium flex items-center gap-3">
                   <div className={`badge ${userChallenge.progress >= 4 ? 'badge-success' : userChallenge.progress >= 3 ? 'badge-info' : 'badge-neutral'}`}>Challenge 4</div>
-                  <span className={userChallenge.progress >= 4 ? 'text-green-800' : userChallenge.progress >= 3 ? 'text-orange-800' : 'text-gray-600'}>🔐 Advanced Cryptography</span>
+                  <span className={userChallenge.progress >= 4 ? 'text-green-800' : userChallenge.progress >= 3 ? 'text-orange-800' : 'text-gray-600'}>🕵️ Digital Forensics Lab</span>
                   <div className="badge badge-outline badge-sm">
                     {challengeData?.settings?.rewardMode === 'total' ? (challengeData?.settings?.totalRewardBits || challengeConfig.totalRewardBits) : (challengeData?.settings?.challengeBits?.[3] || challengeConfig.challengeBits[3])} bits
                   </div>
@@ -1666,47 +1754,37 @@ const Challenge = () => {
                   <div className="collapse-content">
                     <div className="pt-4 space-y-4">
                       <p className="text-gray-600">
-                        Your final mission: Break through multi-layer encryption to reveal the ultimate secret.
+                        Your final mission: Conduct a digital forensics investigation to extract hidden information from image metadata.
                       </p>
                       
-                      <div className="bg-white border border-orange-300 rounded-lg p-4">
-                        <h4 className="font-semibold text-orange-800 mb-3">🎯 Final Challenge</h4>
+                      <div className="bg-orange-50 border border-orange-300 rounded-lg p-4">
+                        <h4 className="font-semibold text-orange-800 mb-2">🕵️ Your Investigation</h4>
                         <p className="text-sm text-gray-700 mb-3">
-                          This is the ultimate test of your cryptographic skills. Use everything you've learned to solve this advanced puzzle.
+                          A suspicious image containing forensics evidence has been planted in a GitHub repository. Your task is to find it and extract the hidden metadata.
                         </p>
-                        <code className="bg-orange-100 px-2 py-1 rounded text-orange-800 font-mono text-sm block">
-                          Multiple encryption layers await - persistence is key!
-                        </code>
-                      </div>
-                      
-                      <div className="bg-white border border-orange-300 rounded-lg p-4">
-                        <h4 className="font-semibold text-orange-800 mb-3">📝 Submit Final Answer</h4>
-                        <div className="flex gap-3">
-                          <input
-                            type="text"
-                            className="input input-bordered flex-1"
-                            placeholder="Enter your final answer..."
-                            value={challengeAnswers['advanced-crypto-004']}
-                            onChange={(e) => setChallengeAnswers(prev => ({ ...prev, 'advanced-crypto-004': e.target.value }))}
-                            disabled={submittingAnswers['advanced-crypto-004']}
-                          />
-                          <button
-                            className="btn btn-primary"
-                            onClick={() => handleSubmitAnswer('advanced-crypto-004', challengeAnswers['advanced-crypto-004'])}
-                            disabled={submittingAnswers['advanced-crypto-004'] || !challengeAnswers['advanced-crypto-004'].trim()}
-                          >
-                            {submittingAnswers['advanced-crypto-004'] ? (
-                              <span className="loading loading-spinner loading-sm"></span>
-                            ) : (
-                              'Submit Final Answer'
-                            )}
-                          </button>
+                        <div className="space-y-2">
+                          <p className="text-xs text-gray-600">🔍 Use OSINT techniques to locate your evidence</p>
+                          <p className="text-xs text-gray-600">🖼️ Analyze EXIF metadata to find hidden information</p>
+                          <p className="text-xs text-gray-600">📊 Each student has unique evidence with personalized data</p>
                         </div>
                       </div>
                       
-                      <div className="alert alert-warning">
+                      <div className="bg-white border border-orange-300 rounded-lg p-4">
+                        <h4 className="font-semibold text-orange-800 mb-2">🌐 Forensics Investigation</h4>
+                        <p className="text-sm text-gray-600 mb-3">Begin your digital forensics investigation:</p>
+                        <code className="text-blue-600 font-mono text-sm block mb-3">
+                          <a href={`/challenge-4-site/${userChallenge.uniqueId}`} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                            /challenge-4-site/{userChallenge.uniqueId}
+                          </a>
+                        </code>
+                        <p className="text-xs text-gray-500">
+                          Opens the forensics investigation environment with evidence generation and analysis tools
+                        </p>
+                      </div>
+                      
+                      <div className="alert alert-error">
                         <span className="text-sm">
-                          <strong>Final Challenge:</strong> This is the most difficult challenge. Take your time and think creatively!
+                          <strong>Final Challenge:</strong> This investigation combines OSINT, digital forensics, and metadata analysis. Master all skills learned in the previous challenges!
                         </span>
                       </div>
                     </div>
@@ -1716,6 +1794,7 @@ const Challenge = () => {
             </div>
           </div>
         </div>
+        )
       ) : (
         <div className="card bg-base-100 border border-base-200 shadow-md rounded-2xl p-6 text-center">
           <div className="flex flex-col items-center gap-4">
@@ -1740,6 +1819,53 @@ const Challenge = () => {
           allCompleted={rewardData.allCompleted}
           nextChallenge={rewardData.nextChallenge}
         />
+      )}
+
+      {/* Debug Panel Modal */}
+      {showDebugPanel && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold">🔧 Teacher Debug Panel</h3>
+              <button
+                onClick={() => setShowDebugPanel(false)}
+                className="btn btn-sm btn-circle btn-ghost"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <p className="text-gray-600 mb-4">
+              Skip to any challenge for testing purposes:
+            </p>
+            
+            <div className="space-y-2">
+              {challengeNames.map((name, index) => (
+                <button
+                  key={index}
+                  onClick={() => setDebugProgress(index)}
+                  className={`w-full text-left btn btn-outline ${
+                    userChallenge?.progress === index ? 'btn-primary' : ''
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="badge badge-neutral">Challenge {index + 1}</span>
+                    {name}
+                  </span>
+                </button>
+              ))}
+            </div>
+            
+            <div className="mt-4 pt-4 border-t">
+              <button
+                onClick={() => setDebugProgress(4)}
+                className="w-full btn btn-success"
+              >
+                🎉 Complete All Challenges
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

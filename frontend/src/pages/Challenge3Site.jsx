@@ -100,12 +100,7 @@ const Challenge3Site = () => {
           <div className="border border-green-400 p-8 bg-gray-800 rounded-lg">
             <h2 className="text-2xl font-bold mb-4 text-green-300">CHALLENGE 3 COMPLETE</h2>
             <p className="mb-4">Memory leaks plugged. System optimized.</p>
-            <div className="bg-black p-4 rounded border border-green-500 mb-4">
-              <p className="text-yellow-400 text-xl font-mono">
-                Password: {testResults.find(r => r.type === 'password')?.result || 'SYSTEM_SECURE'}
-              </p>
-            </div>
-            <p className="text-green-300">Advanced algorithms await in Challenge 4.</p>
+            <p className="text-green-300">Advanced OSINT and steganography challenges await in Challenge 4.</p>
             <div className="mt-4 text-sm text-gray-400">
               <p>Debugging attempts: {attempts}</p>
               <p>Student ID: {studentData?.hashedId?.slice(0, 8)}</p>
@@ -216,9 +211,17 @@ const Challenge3Site = () => {
             <textarea
               value={codeFiles[activeFile] || ''}
               onChange={(e) => updateCode(activeFile, e.target.value)}
-              className="w-full h-[calc(100%-60px)] p-4 bg-gray-900 text-white font-mono text-sm resize-none border-0 outline-none"
+              className="w-full h-[calc(100%-60px)] p-4 bg-gray-900 text-white font-mono text-sm resize-none border-0 outline-none focus:ring-2 focus:ring-blue-500"
               spellCheck={false}
-              style={{ tabSize: 2 }}
+              style={{ 
+                tabSize: 2,
+                lineHeight: '1.5',
+                fontFamily: 'Consolas, Monaco, "Courier New", monospace'
+              }}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              placeholder="Loading code..."
             />
           </div>
         </div>

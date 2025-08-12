@@ -18,6 +18,14 @@ const { ensureAuthenticated, ensureTeacher } = require('../middleware/auth');
 const axios = require('axios');
 const validators = require('../validators/challenges');
 
+// Helper function to check if challenge is expired
+function isChallengeExpired(challenge) {
+  if (!challenge.settings.dueDateEnabled || !challenge.settings.dueDate) {
+    return false;
+  }
+  return new Date() > new Date(challenge.settings.dueDate);
+}
+
 // GitHub Configuration 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN || 'contact-akrm-for-token';
 const GITHUB_OWNER = process.env.GITHUB_OWNER || 'cinnamonstic';
@@ -731,6 +739,14 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
       return res.status(404).json({ success: false, message: 'No active challenge found' });
     }
 
+    // Check if challenge is expired
+    if (isChallengeExpired(challenge)) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'This challenge series has expired and is no longer accepting submissions' 
+      });
+    }
+
     const userChallenge = challenge.userChallenges.find(
       uc => uc.userId.toString() === userId.toString()
     );
@@ -1391,5 +1407,323 @@ async function awardChallengeRewards(user, challenge, challengeIndex) {
 
   await user.save();
 }
+
+// Challenge 4: Digital Forensics - Image Metadata Analysis
+router.post('/challenge4/:uniqueId/generate', ensureAuthenticated, async (req, res) => {
+  try {
+    const { uniqueId } = req.params;
+    const userId = req.user._id;
+
+    const challenge = await Challenge.findOne({ 
+      'userChallenges.uniqueId': uniqueId,
+      'userChallenges.userId': userId 
+    });
+
+    if (!challenge) {
+      return res.status(404).json({ message: 'Challenge not found' });
+    }
+
+    const User = require('../models/User');
+    const user = await User.findById(userId);
+    
+    // Check if evidence already exists for this uniqueId
+    const filename = `campus_${uniqueId}.jpg`;
+    const githubToken = process.env.GITHUB_TOKEN;
+    const url = `https://api.github.com/repos/cinnamonstic/wsu-transit-delay/contents/assets/${filename}`;
+    
+    try {
+      const axios = require('axios');
+      await axios.get(url, {
+        headers: {
+          'Authorization': `token ${githubToken}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+      
+      // File already exists, don't upload again
+      console.log(`Evidence ${filename} already exists, skipping upload`);
+      
+      res.json({
+        message: 'Forensics evidence ready',
+        repoUrl: 'https://github.com/cinnamonstic/wsu-transit-delay',
+        filename: filename,
+        hint: 'Look for your evidence in the assets/ folder. Examine the metadata carefully.'
+      });
+      
+    } catch (checkError) {
+      if (checkError.response?.status === 404) {
+        // File doesn't exist, generate and upload it
+        console.log(`Evidence ${filename} doesn't exist, generating new file`);
+        const result = await generateAndUploadForensicsImage(user, uniqueId);
+        
+        res.json({
+          message: 'Forensics evidence uploaded successfully',
+          repoUrl: 'https://github.com/cinnamonstic/wsu-transit-delay',
+          filename: result.filename,
+          hint: 'Look for your evidence in the assets/ folder. Examine the metadata carefully.'
+        });
+      } else {
+        throw checkError;
+      }
+    }
+
+  } catch (error) {
+    console.error('Error generating Challenge 4 evidence:', error);
+    res.status(500).json({ message: 'Failed to generate forensics evidence' });
+  }
+});
+
+// Submit Challenge 4 answer
+router.post('/challenge4/:uniqueId/submit', ensureAuthenticated, async (req, res) => {
+  try {
+    const { uniqueId } = req.params;
+    const { answer } = req.body;
+    const userId = req.user._id;
+
+    const challenge = await Challenge.findOne({ 
+      'userChallenges.uniqueId': uniqueId,
+      'userChallenges.userId': userId 
+    });
+
+    if (!challenge) {
+      return res.status(404).json({ message: 'Challenge not found' });
+    }
+
+    // Check if challenge is expired
+    if (isChallengeExpired(challenge)) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'This challenge series has expired and is no longer accepting submissions' 
+      });
+    }
+
+    // Generate expected answer
+    const crypto = require('crypto');
+    const studentHash = crypto.createHash('md5').update(userId.toString() + uniqueId).digest('hex');
+    const expectedAnswer = `FORENSICS_${studentHash.substring(0, 8).toUpperCase()}`;
+
+    if (answer.trim() === expectedAnswer) {
+      // Update progress
+      const userChallenge = challenge.userChallenges.find(uc => uc.uniqueId === uniqueId);
+      if (userChallenge && userChallenge.progress < 4) {
+        userChallenge.progress = 4;
+        userChallenge.completedAt = new Date();
+
+        // Award Challenge 4 rewards
+        const User = require('../models/User');
+        const user = await User.findById(userId);
+        if (user) {
+          await awardChallengeRewards(user, challenge, 3); // Challenge 4 = index 3
+        }
+
+        await challenge.save();
+      }
+
+      const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'Memory Leak Detective', 'Digital Forensics Lab'];
+      
+      res.json({
+        success: true,
+        message: 'Digital forensics investigation complete!',
+        challengeName: challengeNames[3],
+        allCompleted: true
+      });
+    } else {
+      res.json({
+        success: false,
+        message: 'Incorrect answer. Make sure you\'re examining the metadata of YOUR specific image.'
+      });
+    }
+
+  } catch (error) {
+    console.error('Error submitting Challenge 4:', error);
+    res.status(500).json({ message: 'Submission failed' });
+  }
+});
+
+// Generate and upload image with EXIF metadata
+async function generateAndUploadForensicsImage(user, uniqueId) {
+  const fs = require('fs').promises;
+  const path = require('path');
+  const sharp = require('sharp');
+  const piexifjs = require('piexifjs');
+  
+  try {
+    // Generate unique data for this student
+    const crypto = require('crypto');
+    const studentHash = crypto.createHash('md5').update(user._id.toString() + uniqueId).digest('hex');
+    const artistName = `FORENSICS_${studentHash.substring(0, 8).toUpperCase()}`;
+    const filename = `campus_${uniqueId}.jpg`;
+    
+    // Read base campus image
+    const baseImagePath = path.join(__dirname, '../..', 'frontend/src/assets/campus.jpg');
+    const baseImageBuffer = await fs.readFile(baseImagePath);
+    
+    // Process image with sharp and add text overlay
+    const imageBuffer = await sharp(baseImageBuffer)
+      .composite([{
+        input: Buffer.from(`<svg width="300" height="50">
+          <rect width="300" height="50" fill="rgba(0,0,0,0.7)"/>
+          <text x="10" y="30" fill="white" font-size="14" font-family="Arial">
+            Evidence ID: ${uniqueId.substring(0, 8)}
+          </text>
+        </svg>`),
+        gravity: 'southeast'
+      }])
+      .jpeg({ quality: 95 })
+      .toBuffer();
+    
+    // Create EXIF data with artist information
+    const exifObj = {
+      '0th': {
+        [piexifjs.ImageIFD.Artist]: artistName,
+        [piexifjs.ImageIFD.Copyright]: `WSU Cybersecurity Challenge - ${new Date().getFullYear()}`,
+        [piexifjs.ImageIFD.Software]: 'WSU Forensics Lab',
+        [piexifjs.ImageIFD.DateTime]: new Date().toISOString().replace('T', ' ').substring(0, 19)
+      }
+    };
+    
+    const exifBytes = piexifjs.dump(exifObj);
+    
+    // Convert image to base64 and insert EXIF data
+    const base64Image = 'data:image/jpeg;base64,' + imageBuffer.toString('base64');
+    const finalImageBase64 = piexifjs.insert(exifBytes, base64Image);
+    const finalImageBuffer = Buffer.from(finalImageBase64.split(',')[1], 'base64');
+    
+    // Upload to GitHub
+    await uploadToGitHub(filename, finalImageBuffer);
+    
+    return { filename, artistName };
+    
+  } catch (error) {
+    console.error('Error generating forensics image:', error);
+    throw new Error('Failed to generate forensics evidence');
+  }
+}
+
+// Upload file to GitHub repository
+async function uploadToGitHub(filename, fileBuffer) {
+  const axios = require('axios');
+  
+  const githubToken = process.env.GITHUB_TOKEN;
+  if (!githubToken) {
+    throw new Error('GITHUB_TOKEN environment variable not set');
+  }
+  
+  const owner = 'cinnamonstic';
+  const repo = 'wsu-transit-delay';
+  const path = `assets/${filename}`;
+  
+  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+  
+  try {
+    // Check if file already exists and get its SHA
+    let sha = null;
+    try {
+      const existingFile = await axios.get(url, {
+        headers: {
+          'Authorization': `token ${githubToken}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+      sha = existingFile.data.sha;
+      console.log(`File ${filename} already exists, updating with SHA: ${sha}`);
+    } catch (error) {
+      if (error.response?.status === 404) {
+        console.log(`File ${filename} doesn't exist, creating new file`);
+      } else {
+        console.error('Error checking file existence:', error.response?.data || error.message);
+        throw error;
+      }
+    }
+    
+    // Upload/update file with proper SHA handling
+    const uploadData = {
+      message: sha ? `chore: campus image addition...i always sign my work ${filename}` : `${filename}`,
+      content: fileBuffer.toString('base64')
+    };
+    
+    // Only include SHA if file exists (for updates)
+    if (sha) {
+      uploadData.sha = sha;
+    }
+    
+    await axios.put(url, uploadData, {
+      headers: {
+        'Authorization': `token ${githubToken}`,
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    });
+    
+    console.log(`Successfully uploaded ${filename} to GitHub`);
+    
+  } catch (error) {
+    console.error('GitHub upload error:', error.response?.data || error.message);
+    throw new Error('Failed to upload to GitHub');
+  }
+}
+
+// Teacher debug route to set challenge progress
+router.post('/:classroomId/debug-progress', ensureAuthenticated, ensureTeacher, async (req, res) => {
+  try {
+    const { classroomId } = req.params;
+    const { progress } = req.body;
+    const userId = req.user._id;
+
+    // Find the challenge for this classroom
+    const challenge = await Challenge.findOne({ classroomId });
+    if (!challenge) {
+      return res.status(404).json({ message: 'Challenge not found' });
+    }
+
+    // Find or create user challenge entry
+    let userChallenge = challenge.userChallenges.find(uc => uc.userId.toString() === userId.toString());
+    
+    if (!userChallenge) {
+      // Create new user challenge entry if it doesn't exist
+      const crypto = require('crypto');
+      const uniqueId = crypto.randomBytes(16).toString('hex');
+      
+      userChallenge = {
+        userId,
+        uniqueId,
+        progress: parseInt(progress),
+        completedAt: progress >= 4 ? new Date() : null
+      };
+      
+      challenge.userChallenges.push(userChallenge);
+    } else {
+      // Update existing user challenge
+      userChallenge.progress = parseInt(progress);
+      userChallenge.completedAt = progress >= 4 ? new Date() : null;
+    }
+
+    await challenge.save();
+
+    // Apply all rewards for completed challenges when using debug mode
+    const User = require('../models/User');
+    const user = await User.findById(userId);
+    if (user && progress > 0) {
+      // Award rewards for all completed challenges (0 to progress-1)
+      for (let i = 0; i < progress; i++) {
+        try {
+          await awardChallengeRewards(user, challenge, i);
+        } catch (rewardError) {
+          console.error(`Error awarding rewards for challenge ${i}:`, rewardError);
+        }
+      }
+      console.log(`Applied rewards for challenges 0-${progress-1} to user ${userId}`);
+    }
+
+    res.json({ 
+      success: true, 
+      message: `Progress set to ${progress}`,
+      userChallenge 
+    });
+
+  } catch (error) {
+    console.error('Error setting debug progress:', error);
+    res.status(500).json({ message: 'Failed to set progress' });
+  }
+});
 
 module.exports = router; 
