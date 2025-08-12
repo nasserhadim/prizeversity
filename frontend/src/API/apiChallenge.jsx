@@ -92,6 +92,29 @@ export const deactivateChallenge = async (classroomId) => {
   }
 };
 
+export const updateDueDate = async (classroomId, dueDateEnabled, dueDate) => {
+  try {
+    const response = await fetch(`${API_BASE}/api/challenges/${classroomId}/update-due-date`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ dueDateEnabled, dueDate })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error updating due date:', error);
+    throw error;
+  }
+};
 
 export const submitChallengeAnswer = async (classroomId, challengeId, answer) => {
   try {

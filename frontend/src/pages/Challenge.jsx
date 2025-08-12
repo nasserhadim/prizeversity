@@ -3,10 +3,50 @@ import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Shield, Lock, Zap, Users, Eye, EyeOff, ArrowLeft, Settings } from 'lucide-react';
 import RewardModal from '../components/RewardModal';
-import { getChallengeData, initiateChallenge, deactivateChallenge, configureChallenge, submitChallengeAnswer, unlockHint } from '../API/apiChallenge';
+import { getChallengeData, initiateChallenge, deactivateChallenge, configureChallenge, submitChallengeAnswer, unlockHint, updateDueDate } from '../API/apiChallenge';
 import { getChallengeTemplates, saveChallengeTemplate, deleteChallengeTemplate } from '../API/apiChallengeTemplate';
 import { API_BASE } from '../config/api';
 import toast from 'react-hot-toast';
+
+const DueDateCountdown = ({ dueDate }) => {
+  const [timeRemaining, setTimeRemaining] = useState('');
+  
+  useEffect(() => {
+    const updateCountdown = () => {
+      const now = new Date();
+      const due = new Date(dueDate);
+      const diff = due - now;
+      
+      if (diff <= 0) {
+        setTimeRemaining('Expired');
+        return;
+      }
+      
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      
+      if (days > 0) {
+        setTimeRemaining(`${days}d ${hours}h ${minutes}m remaining`);
+      } else if (hours > 0) {
+        setTimeRemaining(`${hours}h ${minutes}m remaining`);
+      } else {
+        setTimeRemaining(`${minutes}m remaining`);
+      }
+    };
+    
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 60000); // Update every minute
+    
+    return () => clearInterval(interval);
+  }, [dueDate]);
+  
+  return (
+    <p className="text-sm mt-1 font-medium">
+      {timeRemaining}
+    </p>
+  );
+};
 
 const IndivTotalToggle = ({ value, onChange }) => {
   return (
@@ -55,6 +95,7 @@ const Challenge = () => {
   const [showDebugPanel, setShowDebugPanel] = useState(false);
   const [showHintModal, setShowHintModal] = useState(false);
   const [editingHints, setEditingHints] = useState(null);
+  const [showDueDateModal, setShowDueDateModal] = useState(false);
   const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'Security Bug Fix', 'Digital Forensics Lab'];
   
   const [challengeConfig, setChallengeConfig] = useState({
@@ -81,11 +122,9 @@ const Challenge = () => {
     challengeHints: [[], [], [], []],
     hintPenaltyPercent: 25,
     maxHintsPerChallenge: 2,
-
     dueDateEnabled: false,
     dueDate: '',
-    retryEnabled: false,
-    maxRetries: 3
+
   });
 
   const fetchChallengeData = async () => {
@@ -420,8 +459,6 @@ const Challenge = () => {
 
       settings.dueDateEnabled = challengeConfig.dueDateEnabled || false;
       settings.dueDate = challengeConfig.dueDate || '';
-      settings.retryEnabled = challengeConfig.retryEnabled || false;
-      settings.maxRetries = challengeConfig.maxRetries || 3;
 
       await configureChallenge(classroomId, challengeConfig.title, settings);
       toast.success('Challenge configured successfully');
@@ -509,8 +546,6 @@ const Challenge = () => {
         totalAttackBonus: challengeConfig.totalAttackBonus,
         dueDateEnabled: challengeConfig.dueDateEnabled,
         dueDate: challengeConfig.dueDate,
-        retryEnabled: challengeConfig.retryEnabled,
-        maxRetries: challengeConfig.maxRetries,
         difficulty: 'medium'
       };
 
@@ -552,9 +587,7 @@ const Challenge = () => {
       hintPenaltyPercent: template.settings.hintPenaltyPercent ?? 25,
       maxHintsPerChallenge: template.settings.maxHintsPerChallenge ?? 2,
       dueDateEnabled: template.settings.dueDateEnabled || false,
-      dueDate: template.settings.dueDate || '',
-      retryEnabled: template.settings.retryEnabled || false,
-      maxRetries: template.settings.maxRetries || 3
+      dueDate: template.settings.dueDate || ''
     };
     
     setChallengeConfig(newConfig);
@@ -718,6 +751,42 @@ const Challenge = () => {
                 </div>
               </div>
             </div>
+
+            {challengeData.isActive && (
+              <div className="mt-6 card bg-base-200 p-4 rounded-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-semibold">Challenge Due Date</h3>
+                  <button
+                    className="btn btn-sm btn-outline"
+                    onClick={() => setShowDueDateModal(true)}
+                  >
+                    {challengeData.settings?.dueDateEnabled ? 'Update Due Date' : 'Set Due Date'}
+                  </button>
+                </div>
+                {challengeData.settings?.dueDateEnabled && challengeData.settings?.dueDate ? (
+                  <div className={`p-3 rounded-lg border ${
+                    new Date() > new Date(challengeData.settings.dueDate) 
+                      ? 'bg-red-50 border-red-200 text-red-800'
+                      : 'bg-blue-50 border-blue-200 text-blue-800'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">
+                        {new Date() > new Date(challengeData.settings.dueDate) ? '⚠️ Expired:' : '⏰ Due:'}
+                      </span>
+                      <span>
+                        {new Date(challengeData.settings.dueDate).toLocaleDateString()} at{' '}
+                        {new Date(challengeData.settings.dueDate).toLocaleTimeString()}
+                      </span>
+                    </div>
+                    {new Date() > new Date(challengeData.settings.dueDate) && (
+                      <p className="text-sm mt-1">This challenge has expired and students can no longer submit answers.</p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-gray-600">No due date set - challenge remains open indefinitely</p>
+                )}
+              </div>
+            )}
 
             {challengeData.isActive && challengeData.userChallenges && challengeData.userChallenges.length > 0 && (
               <div className="mt-6">
@@ -1234,36 +1303,7 @@ const Challenge = () => {
                     </div>
                   )}
 
-                  <div className="divider">Retry Limits</div>
-                  <div className="form-control mb-4">
-                    <label className="label cursor-pointer justify-start gap-3">
-                      <input 
-                        type="checkbox" 
-                        className="checkbox"
-                        checked={challengeConfig.retryEnabled}
-                        onChange={(e) => setChallengeConfig(prev => ({ ...prev, retryEnabled: e.target.checked }))}
-                      />
-                      <span className="label-text font-semibold">Limit retry attempts</span>
-                    </label>
-                  </div>
-                  
-                  {challengeConfig.retryEnabled && (
-                    <div className="ml-6 mb-4">
-                      <label className="label">
-                        <span className="label-text">Maximum retries per challenge</span>
-                      </label>
-                      <input
-                        type="number"
-                        className="input input-bordered w-32"
-                        value={challengeConfig.maxRetries}
-                        onChange={(e) => setChallengeConfig(prev => ({ ...prev, maxRetries: parseInt(e.target.value) || 3 }))}
-                        min="1"
-                        max="10"
-                        placeholder="3"
-                      />
-                      <div className="text-sm text-gray-500 mt-1">Number of failed attempts allowed per challenge</div>
-                    </div>
-                  )}
+
                 </div>
 
                 <div className="card-actions justify-end mt-6 gap-3">
@@ -1463,6 +1503,80 @@ const Challenge = () => {
                     }}
                   >
                     Save Hints
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showDueDateModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="card bg-base-100 w-full max-w-md mx-4 shadow-xl">
+              <div className="card-body">
+                <h2 className="text-xl font-bold mb-4">Manage Due Date</h2>
+                
+                <div className="form-control mb-4">
+                  <label className="label cursor-pointer justify-start gap-3">
+                    <input 
+                      type="checkbox" 
+                      className="checkbox"
+                      checked={challengeData?.settings?.dueDateEnabled || false}
+                      onChange={async (e) => {
+                        try {
+                          const response = await updateDueDate(
+                            classroomId, 
+                            e.target.checked, 
+                            e.target.checked ? (challengeData?.settings?.dueDate || new Date().toISOString().slice(0, 16)) : null
+                          );
+                          setChallengeData(response.challenge);
+                          toast.success('Due date settings updated');
+                          if (!e.target.checked) {
+                            setShowDueDateModal(false);
+                          }
+                        } catch (error) {
+                          toast.error(error.message || 'Failed to update due date');
+                        }
+                      }}
+                    />
+                    <span className="label-text font-semibold">Enable due date</span>
+                  </label>
+                </div>
+                
+                {challengeData?.settings?.dueDateEnabled && (
+                  <div className="form-control mb-4">
+                    <label className="label">
+                      <span className="label-text">Due date and time</span>
+                    </label>
+                    <input
+                      type="datetime-local"
+                      className="input input-bordered w-full"
+                      value={challengeData?.settings?.dueDate ? new Date(challengeData.settings.dueDate).toISOString().slice(0, 16) : ''}
+                      onChange={async (e) => {
+                        if (e.target.value) {
+                          try {
+                            const response = await updateDueDate(classroomId, true, e.target.value);
+                            setChallengeData(response.challenge);
+                            toast.success('Due date updated');
+                          } catch (error) {
+                            toast.error(error.message || 'Failed to update due date');
+                          }
+                        }
+                      }}
+                      min={new Date().toISOString().slice(0, 16)}
+                    />
+                    <div className="text-sm text-gray-500 mt-1">
+                      Students will not be able to submit answers after this time
+                    </div>
+                  </div>
+                )}
+
+                <div className="card-actions justify-end gap-2">
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => setShowDueDateModal(false)}
+                  >
+                    Close
                   </button>
                 </div>
               </div>

@@ -222,6 +222,9 @@ router.post('/:classroomId/configure', ensureAuthenticated, ensureTeacher, async
       if (settings.challengeHints) mergedSettings.challengeHints = settings.challengeHints;
       if (settings.hintPenaltyPercent !== undefined) mergedSettings.hintPenaltyPercent = settings.hintPenaltyPercent;
       if (settings.maxHintsPerChallenge !== undefined) mergedSettings.maxHintsPerChallenge = settings.maxHintsPerChallenge;
+      if (settings.dueDateEnabled !== undefined) mergedSettings.dueDateEnabled = settings.dueDateEnabled;
+      if (settings.dueDate !== undefined) mergedSettings.dueDate = settings.dueDate;
+
       
       challenge.settings = mergedSettings;
       challenge.isConfigured = true;
@@ -308,6 +311,43 @@ router.post('/:classroomId/initiate', ensureAuthenticated, ensureTeacher, async 
 
   } catch (error) {
     console.error('Error initiating challenge:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Update due date for active challenge
+router.post('/:classroomId/update-due-date', ensureAuthenticated, ensureTeacher, async (req, res) => {
+  try {
+    const { classroomId } = req.params;
+    const { dueDateEnabled, dueDate } = req.body;
+    const teacherId = req.user._id;
+
+    const classroom = await Classroom.findById(classroomId);
+    if (!classroom) {
+      return res.status(404).json({ message: 'Classroom not found' });
+    }
+
+    if (classroom.teacher.toString() !== teacherId.toString()) {
+      return res.status(403).json({ message: 'Only the classroom teacher can update due dates' });
+    }
+
+    const challenge = await Challenge.findOne({ classroomId });
+    if (!challenge) {
+      return res.status(404).json({ message: 'No challenge found for this classroom' });
+    }
+
+    // Update due date settings
+    challenge.settings.dueDateEnabled = dueDateEnabled;
+    challenge.settings.dueDate = dueDateEnabled ? dueDate : null;
+    await challenge.save();
+
+    res.json({ 
+      message: 'Due date updated successfully',
+      challenge
+    });
+
+  } catch (error) {
+    console.error('Error updating due date:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -728,6 +768,8 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Challenge already completed' });
     }
 
+
+
     const challengeTypes = ['caesar-decrypt', 'github-osint', 'network-analysis', 'advanced-crypto'];
     const challengeType = challengeTypes[challengeIndex];
     
@@ -936,6 +978,7 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
       const penalty = challenge.settings.hintPenaltyPercent ?? 25;
       const usedHints = userChallenge.hintsUsed?.[challengeIndex] || 0;
       const canUnlock = enableHints && usedHints < (challenge.settings.maxHintsPerChallenge ?? 2);
+      
       res.json({ 
         success: false, 
         message: 'Incorrect answer. Try again!',

@@ -25,7 +25,8 @@ const UserChallengeSchema = new mongoose.Schema({
   completedAt: { type: Date },
     bitsAwarded: { type: Number, default: 0 },
   hintsUsed: { type: [Number], default: [] },
-  hintsUnlocked: { type: [[String]], default: [] }
+  hintsUnlocked: { type: [[String]], default: [] },
+
 }, { _id: true });
 
 const ChallengeSchema = new mongoose.Schema({
@@ -69,6 +70,10 @@ const ChallengeSchema = new mongoose.Schema({
     hintPenaltyPercent: { type: Number, default: 25, min: 0, max: 100 },
     maxHintsPerChallenge: { type: Number, default: 2, min: 0, max: 10 },
     
+    dueDateEnabled: { type: Boolean, default: false },
+    dueDate: { type: Date, default: null },
+
+    
     maxAttempts: { type: Number, default: null },
     penaltyPerAttempt: { type: Number, default: 0 },
     bonusForSpeed: { type: Boolean, default: false },
@@ -89,6 +94,14 @@ const ChallengeSchema = new mongoose.Schema({
   activatedAt: { type: Date },
   deactivatedAt: { type: Date }
 });
+
+// Helper method to check if challenge is expired
+ChallengeSchema.methods.isExpired = function() {
+  if (!this.settings.dueDateEnabled || !this.settings.dueDate) {
+    return false;
+  }
+  return new Date() > new Date(this.settings.dueDate);
+};
 
 ChallengeSchema.pre('save', function(next) {
   this.updatedAt = Date.now();
