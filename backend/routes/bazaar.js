@@ -297,7 +297,18 @@ router.get(
       if (req.user._id.toString() !== userId && req.user.role !== 'teacher') {
         return res.status(403).json({ error: 'Not authorized' });
       }
-      const orders = await Order.find({ user: userId }).populate('items');
+      const orders = await Order.find({ user: userId })
+        .populate('items')
+        .populate({
+          path: 'items',
+          populate: {
+            path: 'bazaar',
+            populate: {
+              path: 'classroom',
+              select: 'name code'
+            }
+          }
+        });
       res.json(orders);
     } catch (err) {
       console.error(err);

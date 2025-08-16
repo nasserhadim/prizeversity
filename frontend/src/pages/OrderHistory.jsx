@@ -1,6 +1,7 @@
 import { useEffect, useState, useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import axios from 'axios';
+import Footer from '../components/Footer';
 
 export default function OrderHistory() {
     const { user } = useContext(AuthContext);
@@ -34,12 +35,16 @@ export default function OrderHistory() {
                     <div key={o._id} className="border rounded p-3 mb-3">
                         <p><strong>Date:</strong> {new Date(o.createdAt).toLocaleString()}</p>
                         <p><strong>Total:</strong> {o.total} bits</p>
+                        {o.items.length > 0 && o.items[0].bazaar?.classroom && (
+                            <p><strong>Classroom:</strong> {o.items[0].bazaar.classroom.name} ({o.items[0].bazaar.classroom.code})</p>
+                        )}
                         <ul className="list-disc list-inside">
                             {o.items.map(i => <li key={i._id}>{i.name}</li>)}
                         </ul>
                     </div>
                 ))
             }
+            <Footer />
         </div>
     );
 }

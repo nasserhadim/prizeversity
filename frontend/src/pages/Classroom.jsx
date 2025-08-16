@@ -11,6 +11,7 @@ import ClassroomBanner from '../components/ClassroomBanner';
 import io from 'socket.io-client';
 import { API_BASE } from '../config/api';
 import ConfirmModal from '../components/ConfirmModal';
+import Footer from '../components/Footer';
 
 const socket = io(); // no "/api" needed here
 
@@ -296,6 +297,7 @@ const Classroom = () => {
           </div>
         )}
       </div>
+      <Footer />
 
       <ConfirmModal
         isOpen={!!confirmModal}

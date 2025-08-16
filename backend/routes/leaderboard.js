@@ -12,7 +12,7 @@ router.get('/:classroomId/leaderboard', ensureAuthenticated, async (req, res) =>
     const classroomId = req.params.classroomId;
 
     // fetching classroom
-    const classroom = await Classroom.findById(classroomId).populate('students', 'email balance role');
+    const classroom = await Classroom.findById(classroomId).populate('students', 'email balance role firstName lastName');
     if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
     
     // listing the students based on the bits they have

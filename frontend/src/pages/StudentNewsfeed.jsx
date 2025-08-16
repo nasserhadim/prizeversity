@@ -5,6 +5,7 @@ import { useParams, Link } from 'react-router-dom';
 import { getNews } from '../API/apiNewsfeed';
 import ClassroomBanner from '../components/ClassroomBanner';
 import { getClassroom } from '../API/apiClassroom';
+import Footer from '../components/Footer';
 
 export default function StudentNewsfeed() {
     const { id: classId } = useParams();
@@ -97,6 +98,7 @@ export default function StudentNewsfeed() {
                     )}
                 </div>
             </div>
+            <Footer />
         </>
     );
 }

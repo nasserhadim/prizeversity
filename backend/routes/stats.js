@@ -27,6 +27,10 @@ router.get('/student/:id', ensureAuthenticated, async (req, res) => {
 
     // Format stats with 'x' prefix for multipliers
     return res.json({
+      student: {
+        name: `${user.firstName} ${user.lastName}`,
+        email: user.email,
+      },
       shieldActive: user.shieldActive,
       discountShop: user.discountShop ? 20 : 0, // Return as number
       attackPower: attackCount,
