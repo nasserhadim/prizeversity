@@ -23,6 +23,7 @@ import StudentNewsfeed from './pages/StudentNewsfeed';
 import ClassroomSettings from './pages/ClassroomSettings';
 import StudentStats from './pages/StudentStats';
 import ArchivedClassrooms from './pages/ArchivedClassrooms';
+import Support from './pages/Support';
 
 const App = () => {
   const { user } = useContext(AuthContext);
@@ -66,6 +67,7 @@ const App = () => {
           <Route path="/classroom/:classroomId/student/:id/stats" element={<StudentStats />} />
           <Route path="/classroom/:classroomId/feedback" element={<ClassroomFeedbackPage />} />
           <Route path="/feedback" element={<FeedbackPage />} />
+          <Route path="/support" element={<Support />} />
         </Routes>
       </div>
     </CartProvider>
