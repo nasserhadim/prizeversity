@@ -45,7 +45,7 @@ router.post('/groupset/create', ensureAuthenticated, async (req, res) => {
         path: 'groups',
         populate: {
           path: 'members._id',
-          select: 'email isFrozen'
+          select: 'email isFrozen firstName lastName'
         }
       });
 
@@ -113,7 +113,7 @@ router.put('/groupset/:id', ensureAuthenticated, async (req, res) => {
         path: 'groups',
         populate: {
           path: 'members._id',
-          select: 'email isFrozen'
+          select: 'email isFrozen firstName lastName'
         }
       });
     
@@ -174,7 +174,7 @@ const groupSets = await GroupSet.find({ classroom: req.params.classroomId })
   .populate({
     path: 'groups',
     populate: [
-      { path: 'members._id', select: 'email isFrozen' },
+      { path: 'members._id', select: 'email isFrozen firstName lastName' },
       
       { path: 'siphonRequests', model: 'SiphonRequest' }
     ]
@@ -229,7 +229,7 @@ router.post('/groupset/:groupSetId/group/create', ensureAuthenticated, async (re
         path: 'groups',
         populate: {
           path: 'members._id',
-          select: 'email isFrozen'
+          select: 'email isFrozen firstName lastName'
         }
       });
 
@@ -298,7 +298,7 @@ router.post('/groupset/:groupSetId/group/:groupId/join', ensureAuthenticated, as
     await group.save();
 
     const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email isFrozen');
+      .populate('members._id', 'email isFrozen firstName lastName');
 
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', {
       groupSet: groupSet._id,
@@ -357,7 +357,7 @@ router.put('/groupset/:groupSetId/group/:groupId', ensureAuthenticated, async (r
 
     // Always emit the group update event with populated data
     const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email');
+      .populate('members._id', 'email firstName lastName');
 
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
       groupSet: groupSet._id, 
@@ -452,7 +452,7 @@ router.post('/groupset/:groupSetId/group/:groupId/suspend', ensureAuthenticated,
 
     // After successful member status change (approve/reject/suspend)
     const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email');
+      .populate('members._id', 'email firstName lastName');
 
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
       groupSet: groupSet._id, 
@@ -575,7 +575,7 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
 
     // After successful member status change
     const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email');
+      .populate('members._id', 'email firstName lastName');
 
     // Emit update immediately
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
@@ -643,7 +643,7 @@ router.post('/groupset/:groupSetId/group/:groupId/reject', ensureAuthenticated, 
 
     // After successful member status change (approve/reject/suspend)
     const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email');
+      .populate('members._id', 'email firstName lastName');
 
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
       groupSet: groupSet._id, 
