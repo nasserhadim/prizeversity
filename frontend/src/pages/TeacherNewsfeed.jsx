@@ -8,6 +8,7 @@ import { getNews, postNews, deleteNews, editNews } from '../API/apiNewsfeed';
 import toast from 'react-hot-toast';
 import ClassroomBanner from '../components/ClassroomBanner';
 import { getClassroom } from '../API/apiClassroom';
+import Footer from '../components/Footer';
 
 
 export default function TeacherNewsfeed() {
@@ -252,6 +253,7 @@ export default function TeacherNewsfeed() {
                     )}
                 </div>
             </div>
+            <Footer />
         </>
     );
 }

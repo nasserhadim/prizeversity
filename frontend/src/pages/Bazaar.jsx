@@ -11,6 +11,7 @@ import ItemCard from '../components/ItemCard';
 import apiBazaar from '../API/apiBazaar';
 import InventorySection from '../components/InventorySection';
 import toast from 'react-hot-toast';
+import Footer from '../components/Footer';
 
 const Bazaar = () => {
   const { classroomId } = useParams();
@@ -168,6 +169,7 @@ const Bazaar = () => {
           )}
         </div>
       </div>
+      <Footer />
     </div>
   );
 };

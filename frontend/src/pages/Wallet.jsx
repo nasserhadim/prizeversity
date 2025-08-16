@@ -5,6 +5,7 @@ import BulkBalanceEditor from '../components/BulkBalanceEditor';
 import TransactionList, { inferType, TYPES } from '../components/TransactionList';
 import { useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import Footer from '../components/Footer';
 
 const Wallet = () => {
   const { user } = useAuth();
@@ -289,6 +290,7 @@ if (parsedAmount > balance) {
           </div>
         </div>
       )}
+      <Footer />
     </div>
   );
 };

@@ -1,6 +1,7 @@
 import { useEffect, useState, useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import axios from 'axios';
+import Footer from '../components/Footer';
 
 export default function OrderHistory() {
     const { user } = useContext(AuthContext);
@@ -40,6 +41,7 @@ export default function OrderHistory() {
                     </div>
                 ))
             }
+            <Footer />
         </div>
     );
 }

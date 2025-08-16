@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { Coins } from 'lucide-react';
 import socket from '../utils/socket'; // Add this import
 import apiLeaderboard from '../API/apiLeaderboard.js';
+import Footer from '../components/Footer';
 
 const Leaderboard = () => {
   const { classId } = useParams();
@@ -53,7 +54,7 @@ const Leaderboard = () => {
         <div className="overflow-x-auto">
           <table className="table w-full bg-base-100 shadow-md rounded-lg">
             <thead>
-              <tr className="bg-base-200 text-base font-semibold text-gray-700">
+              <tr className="bg-base-200 text-base font-semibold text-base-content">
                 <th>#</th>
                 <th>Email</th>
                 <th className="flex items-center gap-2"><Coins size={16} /> Balance</th>
@@ -71,6 +72,7 @@ const Leaderboard = () => {
           </table>
         </div>
       )}
+      <Footer />
     </div>
   );
 };

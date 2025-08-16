@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import axios from 'axios';
 import { API_BASE } from '../config/api';
+import Footer from '../components/Footer';
 
 const Profile = () => {
     const { user, updateUser } = useContext(AuthContext);
@@ -149,199 +150,202 @@ const Profile = () => {
     }
 
     return (
-        <div className="max-w-md mx-auto p-6 mt-10 bg-base-100 rounded-xl shadow space-y-6">
-            <h2 className="text-2xl font-bold text-center text-base-content">
-                {canEdit ? 'Your Profile' : 'Student Profile'}
-            </h2>
+        <div className="min-h-screen flex flex-col">
+            <div className="flex-grow w-full max-w-2xl mx-auto p-6 mt-10 bg-base-100 rounded-xl shadow space-y-6">
+                <h2 className="text-2xl font-bold text-center text-base-content">
+                    {canEdit ? 'Your Profile' : 'Student Profile'}
+                </h2>
 
-            {canEdit && editMode ? (
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    {error && <div className="alert alert-error text-sm">{error}</div>}
+                {canEdit && editMode ? (
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        {error && <div className="alert alert-error text-sm">{error}</div>}
 
-                    <div>
-                        <label className="label-text">First Name *</label>
-                        <input
-                            type="text"
-                            name="firstName"
-                            value={form.firstName}
-                            onChange={handleChange}
-                            className="input input-bordered w-full"
-                            required
-                        />
-                    </div>
+                        <div>
+                            <label className="label-text">First Name *</label>
+                            <input
+                                type="text"
+                                name="firstName"
+                                value={form.firstName}
+                                onChange={handleChange}
+                                className="input input-bordered w-full"
+                                required
+                            />
+                        </div>
 
-                    <div>
-                        <label className="label-text">Last Name</label>
-                        <input
-                            type="text"
-                            name="lastName"
-                            value={form.lastName}
-                            onChange={handleChange}
-                            className="input input-bordered w-full"
-                        />
-                    </div>
+                        <div>
+                            <label className="label-text">Last Name</label>
+                            <input
+                                type="text"
+                                name="lastName"
+                                value={form.lastName}
+                                onChange={handleChange}
+                                className="input input-bordered w-full"
+                            />
+                        </div>
 
-                    <div>
-                        <label className="label-text">Upload Avatar</label>
-                        <input
-                            type="file"
-                            accept="image/*"
-                            onChange={async (e) => {
-                                const file = e.target.files[0];
-                                if (!file) return;
-                                const formData = new FormData();
-                                formData.append('avatar', file);
+                        <div>
+                            <label className="label-text">Upload Avatar</label>
+                            <input
+                                type="file"
+                                accept="image/*"
+                                onChange={async (e) => {
+                                    const file = e.target.files[0];
+                                    if (!file) return;
+                                    const formData = new FormData();
+                                    formData.append('avatar', file);
 
-                                try {
-                                    const uploadRes = await axios.post('/api/profile/upload-avatar', formData, {
-                                        withCredentials: true
-                                    });
-                                    // server returns updated user with avatar path
-                                    const updated = uploadRes.data;
-                                    setForm(prev => ({ ...prev, avatar: updated.avatar }));
-                                    setProfile(updated);
-                                    updateUser(updated); // immediate navbar + profile update
-                                } catch (err) {
-                                    console.error('Upload error:', err);
-                                    setError(err.response?.data?.error || 'Failed to upload image');
-                                }
-                            }}
-                            className="file-input file-input-bordered w-full"
-                        />
+                                    try {
+                                        const uploadRes = await axios.post('/api/profile/upload-avatar', formData, {
+                                            withCredentials: true
+                                        });
+                                        // server returns updated user with avatar path
+                                        const updated = uploadRes.data;
+                                        setForm(prev => ({ ...prev, avatar: updated.avatar }));
+                                        setProfile(updated);
+                                        updateUser(updated); // immediate navbar + profile update
+                                    } catch (err) {
+                                        console.error('Upload error:', err);
+                                        setError(err.response?.data?.error || 'Failed to upload image');
+                                    }
+                                }}
+                                className="file-input file-input-bordered w-full"
+                            />
 
-                        <p className="text-sm text-gray-500 mt-1">
-                            Valid image formats: .jpg, .jpeg, .png, .gif, .bmp, .webp, .svg; max size: 10 MB.
-                        </p>
+                            <p className="text-sm text-gray-500 mt-1">
+                                Valid image formats: .jpg, .jpeg, .png, .gif, .bmp, .webp, .svg; max size: 10 MB.
+                            </p>
 
-                        {form.avatar && (
-                            <>
+                            {form.avatar && (
+                                <>
+                                    <img
+                                        src={form.avatar.startsWith('http') ? form.avatar : `${BACKEND_URL}/uploads/${form.avatar}`}
+                                        alt="Avatar preview"
+                                        className="w-16 h-16 mt-2 rounded-full object-cover"
+                                        onError={(e) => {
+                                            e.target.onerror = null;
+                                            if (profile?.profileImage) {
+                                                e.target.src = profile.profileImage;
+                                            } else {
+                                                e.target.style.display = 'none';
+                                            }
+                                        }}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            try {
+                                                const res = await axios.delete('/api/profile/remove-avatar', {
+                                                    withCredentials: true
+                                                });
+                                                const updated = res.data;
+                                                setForm(prev => ({ ...prev, avatar: '' }));
+                                                setProfile(updated);
+                                                updateUser(updated);
+                                            } catch (err) {
+                                                console.error('Remove avatar error:', err);
+                                                setError(err.response?.data?.error || 'Failed to remove avatar');
+                                            }
+                                        }}
+                                        className="btn btn-sm btn-error mt-2"
+                                    >
+                                        Remove Avatar
+                                    </button>
+                                </>
+                            )}
+                        </div>
+
+                        <div className="flex justify-end gap-3 pt-2">
+                            <button
+                                type="button"
+                                onClick={() => setEditMode(false)}
+                                className="btn btn-ghost"
+                                disabled={submitting}
+                            >
+                                Cancel
+                            </button>
+                            <button type="submit" className="btn btn-primary" disabled={submitting}>
+                                {submitting ? <span className="loading loading-spinner"></span> : 'Save Changes'}
+                            </button>
+                        </div>
+                    </form>
+                ) : (
+                    <div className="space-y-4">
+                        <div className="flex justify-center">
+                            {profile?.avatar ? (
                                 <img
-                                    src={form.avatar.startsWith('http') ? form.avatar : `${BACKEND_URL}/uploads/${form.avatar}`}
-                                    alt="Avatar preview"
-                                    className="w-16 h-16 mt-2 rounded-full object-cover"
+                                    src={profile.avatar.startsWith('data:') ? profile.avatar : (profile.avatar.startsWith('http') ? profile.avatar : `${BACKEND_URL}/uploads/${profile.avatar}`)}
+                                    alt="Profile"
+                                    className="w-24 h-24 rounded-full object-cover border-4 border-success"
                                     onError={(e) => {
                                         e.target.onerror = null;
                                         if (profile?.profileImage) {
                                             e.target.src = profile.profileImage;
                                         } else {
                                             e.target.style.display = 'none';
+                                            if (e.target.nextElementSibling) {
+                                                e.target.nextElementSibling.style.display = 'flex';
+                                            }
                                         }
                                     }}
                                 />
-                                <button
-                                    type="button"
-                                    onClick={async () => {
-                                        try {
-                                            const res = await axios.delete('/api/profile/remove-avatar', {
-                                                withCredentials: true
-                                            });
-                                            const updated = res.data;
-                                            setForm(prev => ({ ...prev, avatar: '' }));
-                                            setProfile(updated);
-                                            updateUser(updated);
-                                        } catch (err) {
-                                            console.error('Remove avatar error:', err);
-                                            setError(err.response?.data?.error || 'Failed to remove avatar');
-                                        }
-                                    }}
-                                    className="btn btn-sm btn-error mt-2"
-                                >
-                                    Remove Avatar
-                                </button>
-                            </>
-                        )}
-                    </div>
-
-                    <div className="flex justify-end gap-3 pt-2">
-                        <button
-                            type="button"
-                            onClick={() => setEditMode(false)}
-                            className="btn btn-ghost"
-                            disabled={submitting}
-                        >
-                            Cancel
-                        </button>
-                        <button type="submit" className="btn btn-primary" disabled={submitting}>
-                            {submitting ? <span className="loading loading-spinner"></span> : 'Save Changes'}
-                        </button>
-                    </div>
-                </form>
-            ) : (
-                <div className="space-y-4">
-                    <div className="flex justify-center">
-                        {profile?.avatar ? (
-                            <img
-                                src={profile.avatar.startsWith('data:') ? profile.avatar : (profile.avatar.startsWith('http') ? profile.avatar : `${BACKEND_URL}/uploads/${profile.avatar}`)}
-                                alt="Profile"
-                                className="w-24 h-24 rounded-full object-cover border-4 border-success"
-                                onError={(e) => {
-                                    e.target.onerror = null;
-                                    if (profile?.profileImage) {
-                                        e.target.src = profile.profileImage;
-                                    } else {
+                            ) : profile?.profileImage ? (
+                                <img
+                                    src={profile.profileImage}
+                                    alt="OAuth Profile"
+                                    className="w-24 h-24 rounded-full object-cover border-4 border-success"
+                                    onError={(e) => {
                                         e.target.style.display = 'none';
+                                        // Check if nextElementSibling exists before accessing its style
                                         if (e.target.nextElementSibling) {
                                             e.target.nextElementSibling.style.display = 'flex';
                                         }
-                                    }
-                                }}
-                            />
-                        ) : profile?.profileImage ? (
-                            <img
-                                src={profile.profileImage}
-                                alt="OAuth Profile"
-                                className="w-24 h-24 rounded-full object-cover border-4 border-success"
-                                onError={(e) => {
-                                    e.target.style.display = 'none';
-                                    // Check if nextElementSibling exists before accessing its style
-                                    if (e.target.nextElementSibling) {
-                                        e.target.nextElementSibling.style.display = 'flex';
-                                    }
-                                }}
-                            />
-                        ) : (
-                            <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center text-4xl font-bold text-gray-500">
-                                {`${(profile?.firstName?.[0] || profile?.email?.[0] || 'U')}${(profile?.lastName?.[0] || '')}`.toUpperCase()}
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="space-y-2">
-                        <InfoRow label="Name" value={[profile?.firstName, profile?.lastName].filter(Boolean).join(' ') || 'Not set (Complete your profile)'} />
-                        <InfoRow label="Email" value={profile?.email || 'N/A'} />
-                        <InfoRow label="User ID" value={profile?.shortId || '—'} />
-                        {profile?.role && (
-                            <InfoRow label="Role" value={profile.role.charAt(0).toUpperCase() + profile.role.slice(1)} />
-                        )}
-                    </div>
-
-                    {user.role === 'teacher' && profile.role === 'student' && (
-                        <div className="mt-6">
-                            <h2 className="text-xl mb-2">Purchase History</h2>
-                            {loadingOrders ? (
-                                <p>Loading…</p>
-                            ) : ordersError ? (
-                                <p className="text-red-500">{ordersError}</p>
-                            ) : orders.length === 0 ? (
-                                <p>No purchases by this student.</p>
+                                    }}
+                                />
                             ) : (
-                                <ul className="list-disc list-inside">
-                                    {orders.map(o => (
-                                        <li key={o._id}>
-                                            {formatDateTime(o.createdAt)}: {o.items.map(i => i.name).join(', ')} ({o.total} bits)
-                                        </li>
-                                    ))}
-                                </ul>
+                                <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center text-4xl font-bold text-gray-500">
+                                    {`${(profile?.firstName?.[0] || profile?.email?.[0] || 'U')}${(profile?.lastName?.[0] || '')}`.toUpperCase()}
+                                </div>
                             )}
                         </div>
-                    )}
-                    {canEdit && (
-                        <button onClick={() => setEditMode(true)} className="btn btn-success w-full mt-4">
-                            Edit Profile
-                        </button>
-                    )}
-                </div>
-            )}
+
+                        <div className="space-y-2">
+                            <InfoRow label="Name" value={[profile?.firstName, profile?.lastName].filter(Boolean).join(' ') || 'Not set (Complete your profile)'} />
+                            <InfoRow label="Email" value={profile?.email || 'N/A'} />
+                            <InfoRow label="User ID" value={profile?.shortId || '—'} />
+                            {profile?.role && (
+                                <InfoRow label="Role" value={profile.role.charAt(0).toUpperCase() + profile.role.slice(1)} />
+                            )}
+                        </div>
+
+                        {user.role === 'teacher' && profile.role === 'student' && (
+                            <div className="mt-6">
+                                <h2 className="text-xl mb-2">Purchase History</h2>
+                                {loadingOrders ? (
+                                    <p>Loading…</p>
+                                ) : ordersError ? (
+                                    <p className="text-red-500">{ordersError}</p>
+                                ) : orders.length === 0 ? (
+                                    <p>No purchases by this student.</p>
+                                ) : (
+                                    <ul className="list-disc list-inside">
+                                        {orders.map(o => (
+                                            <li key={o._id}>
+                                                {formatDateTime(o.createdAt)}: {o.items.map(i => i.name).join(', ')} ({o.total} bits)
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </div>
+                        )}
+                        {canEdit && (
+                            <button onClick={() => setEditMode(true)} className="btn btn-success w-full mt-4">
+                                Edit Profile
+                            </button>
+                        )}
+                    </div>
+                )}
+            </div>
+            <Footer />
         </div>
     );
 };

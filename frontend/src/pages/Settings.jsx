@@ -4,6 +4,7 @@ import { AuthContext } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import axios from 'axios';
+import Footer from '../components/Footer';
 
 const Settings = () => {
     const { theme, toggleTheme } = useContext(ThemeContext);
@@ -100,6 +101,7 @@ const Settings = () => {
                     Delete Account
                 </button>
             </section>
+            <Footer />
         </div>
     );
 };

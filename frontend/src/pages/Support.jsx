@@ -18,6 +18,7 @@ import {
   GraduationCap,
   UserCheck
 } from 'lucide-react';
+import Footer from '../components/Footer';
 
 const Support = () => {
   const [openFaq, setOpenFaq] = useState(null);
@@ -568,11 +569,7 @@ const Support = () => {
         </div>
 
         {/* Footer */}
-        <div className="text-center mt-12 py-8 border-t border-base-300">
-          <p className="text-base-content/60">
-            © 2025 Prizeversity. All rights reserved.
-          </p>
-        </div>
+        <Footer />
       </div>
     </div>
   );

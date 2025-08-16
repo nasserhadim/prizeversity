@@ -7,7 +7,7 @@ import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
 import PendingApprovals from '../components/PendingApprovals';
 import socket from '../utils/socket'; // Add this import
-
+import Footer from '../components/Footer';
 
 
 const ROLE_LABELS = {
@@ -252,7 +252,7 @@ useEffect(() => {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
 
-            <div className="flex gap-2 items-center">
+            <div className="flex flex-wrap gap-2 items-center">
              {user?.role?.toLowerCase() === 'teacher' && (
                 <input
                   type="file"
@@ -401,6 +401,7 @@ useEffect(() => {
           )}
         </div>
       )}
+      <Footer />
     </div>
   );
 };

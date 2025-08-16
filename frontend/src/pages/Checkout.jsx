@@ -5,6 +5,7 @@ import apiBazaar from '../API/apiBazaar';
 import { useEffect, useState } from 'react';
 import socket from '../utils/socket.js';
 import toast from 'react-hot-toast'
+import Footer from '../components/Footer';
 
 const Checkout = () => {
     const { cartItems, getTotal, clearCart, removeFromCart } = useCart();
@@ -166,6 +167,7 @@ const Checkout = () => {
                     </button>
                 </>
             )}
+            <Footer />
         </div>
     );
 };

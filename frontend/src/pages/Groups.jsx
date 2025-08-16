@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import SiphonModal from '../components/SiphonModal';
 import GroupMultiplierControl from '../components/GroupMultiplierControl';
 import { Lock } from 'lucide-react';
+import Footer from '../components/Footer';
 
 const Groups = () => {
   const { id } = useParams();
@@ -921,9 +922,9 @@ const Groups = () => {
       </div>
     )}
 
+    <Footer />
   </div>
 );
 };
 
 export default Groups;
- 
