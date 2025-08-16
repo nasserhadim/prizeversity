@@ -27,8 +27,21 @@ const People = () => {
   const [groupSets, setGroupSets] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOption, setSortOption] = useState('default');
+  const [classroom, setClassroom] = useState(null); // Add classroom state
 
   const navigate = useNavigate();
+
+  // Fetch classroom data
+  const fetchClassroom = async () => {
+    try {
+      const res = await axios.get(`/api/classroom/${classroomId}`, {
+        withCredentials: true,
+      });
+      setClassroom(res.data);
+    } catch (err) {
+      console.error('Failed to fetch classroom', err);
+    }
+  };
 
   // Fetch Admin/TA bit sending policy for classroom
   const fetchTaBitPolicy = async () => {
@@ -44,38 +57,40 @@ const People = () => {
   };
 
   // Initial data fetch on classroomId change
-useEffect(() => {
-  fetchStudents();
-  fetchGroupSets();
-  fetchTaBitPolicy();
+  useEffect(() => {
+    fetchClassroom(); // Add this line
+    fetchStudents();
+    fetchGroupSets();
+    fetchTaBitPolicy();
 
-  // Fetch if student send is enabled, with fallback default false
-  axios
-    .get(`/api/classroom/${classroomId}/student-send-enabled`, {
-      withCredentials: true,
-    })
-   .then((r) => setStudentSendEnabled(!!r.data.studentSendEnabled))
-    .catch(() => setStudentSendEnabled(false)); // safe default
+    // Fetch if student send is enabled, with fallback default false
+    axios
+      .get(`/api/classroom/${classroomId}/student-send-enabled`, {
+        withCredentials: true,
+      })
+     .then((r) => setStudentSendEnabled(!!r.data.studentSendEnabled))
+      .catch(() => setStudentSendEnabled(false)); // safe default
 
-    socket.on('classroom_update', (updatedClassroom) => {
-      // Refresh student list when classroom updates
-      fetchStudents();
-    });
-    
-    socket.on('user_profile_update', (data) => {
-      // Update specific student in the list
-      setStudents(prev => prev.map(student => 
-        student._id === data.userId 
-          ? { ...student, firstName: data.firstName, lastName: data.lastName }
-          : student
-      ));
-    });
-    
-    return () => {
-      socket.off('classroom_update');
-      socket.off('user_profile_update');
-    };
-}, [classroomId]);
+      socket.on('classroom_update', (updatedClassroom) => {
+        // Refresh student list when classroom updates
+        fetchStudents();
+        fetchClassroom(); // Also refresh classroom data
+      });
+      
+      socket.on('user_profile_update', (data) => {
+        // Update specific student in the list
+        setStudents(prev => prev.map(student => 
+          student._id === data.userId 
+            ? { ...student, firstName: data.firstName, lastName: data.lastName }
+            : student
+        ));
+      });
+      
+      return () => {
+        socket.off('classroom_update');
+        socket.off('user_profile_update');
+      };
+  }, [classroomId]);
 
 
 // Fetch students list
@@ -168,7 +183,11 @@ useEffect(() => {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
-      <h1 className="text-3xl font-bold mb-4">People</h1>
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold">
+          {classroom ? `${classroom.name} People` : 'People'}
+        </h1>
+      </div>
 
       <div className="flex space-x-4 mb-6">
         <button
