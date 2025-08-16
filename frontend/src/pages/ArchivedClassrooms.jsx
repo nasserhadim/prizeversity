@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { LoaderIcon } from 'lucide-react';
+import Footer from '../components/Footer';
 
 export default function ArchivedClassrooms() {
     const [archives, setArchives] = useState([]);
@@ -89,6 +90,7 @@ export default function ArchivedClassrooms() {
             >
                 ← Back to My Classrooms
             </button>
+            <Footer />
         </div>
     );
 }

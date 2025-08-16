@@ -17,7 +17,12 @@ import {
   User,
   Wallet,
   UserRound,
-  Trophy
+  Trophy,
+  Settings,
+  HelpCircle,
+  Replace,
+  LogOut,
+  History
 } from 'lucide-react';
 
 const BACKEND_URL = `${API_BASE}`;
@@ -282,27 +287,29 @@ const Navbar = () => {
               </div>
             </div>
             <ul tabIndex={0} className="mt-3 z-[1] p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-52">
-              <li><Link to={`/profile/${user._id}`}>Profile</Link></li>
-              <li><Link to="/settings">Settings</Link></li>
-              <li><Link to="/support">Help & Support</Link></li>
+              <li><Link to={`/profile/${user._id}`} className="flex items-center gap-2"><User size={16} />Profile</Link></li>
+              <li><Link to="/settings" className="flex items-center gap-2"><Settings size={16} />Settings</Link></li>
+              <li><Link to="/support" className="flex items-center gap-2"><HelpCircle size={16} />Help & Support</Link></li>
               {user.role === 'student' && (
-                <li><Link to="/orders">Order History</Link></li>
+                <li><Link to="/orders" className="flex items-center gap-2"><History size={16} />Order History</Link></li>
               )}
               {user.role === 'teacher' && (
                 <li>
-                  <button onClick={handleSwitchToStudent}>
+                  <button onClick={handleSwitchToStudent} className="flex items-center gap-2">
+                    <Replace size={16} />
                     Switch to Student Profile
                   </button>
                 </li>
               )}
               {originalUser?.role === 'teacher' && user.role === 'student' && (
                 <li>
-                  <button onClick={handleSwitchToTeacher}>
+                  <button onClick={handleSwitchToTeacher} className="flex items-center gap-2">
+                    <Replace size={16} />
                     Switch to Teacher Profile
                   </button>
                 </li>
               )}
-              <li><button onClick={logout}>Logout</button></li>
+              <li><button onClick={logout} className="flex items-center gap-2 text-error"><LogOut size={16} />Logout</button></li>
             </ul>
           </div>
         </div>
@@ -484,6 +491,7 @@ const Navbar = () => {
                   className="flex items-center gap-3 p-3 rounded-lg text-base-content hover:bg-base-200"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
+                  <Settings size={20} />
                   <span>Settings</span>
                 </Link>
                 <Link
@@ -491,6 +499,7 @@ const Navbar = () => {
                   className="flex items-center gap-3 p-3 rounded-lg text-base-content hover:bg-base-200"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
+                  <HelpCircle size={20} />
                   <span>Help & Support</span>
                 </Link>
                 {user.role === 'student' && (
@@ -499,6 +508,7 @@ const Navbar = () => {
                     className="flex items-center gap-3 p-3 rounded-lg text-base-content hover:bg-base-200"
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
+                    <History size={20} />
                     <span>Order History</span>
                   </Link>
                 )}
@@ -510,6 +520,7 @@ const Navbar = () => {
                     }}
                     className="flex items-center gap-3 p-3 rounded-lg text-base-content hover:bg-base-200 w-full text-left"
                   >
+                    <Replace size={20} />
                     <span>Switch to Student Profile</span>
                   </button>
                 )}
@@ -521,6 +532,7 @@ const Navbar = () => {
                     }}
                     className="flex items-center gap-3 p-3 rounded-lg text-base-content hover:bg-base-200 w-full text-left"
                   >
+                    <Replace size={20} />
                     <span>Switch to Teacher Profile</span>
                   </button>
                 )}
@@ -531,6 +543,7 @@ const Navbar = () => {
                   }}
                   className="flex items-center gap-3 p-3 rounded-lg text-error hover:bg-error/10 w-full text-left"
                 >
+                  <LogOut size={20} />
                   <span>Logout</span>
                 </button>
               </div>

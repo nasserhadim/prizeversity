@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import socket from '../utils/socket';
@@ -7,11 +7,14 @@ import toast from 'react-hot-toast';
 import SiphonModal from '../components/SiphonModal';
 import GroupMultiplierControl from '../components/GroupMultiplierControl';
 import { Lock } from 'lucide-react';
+import Footer from '../components/Footer';
 
 const Groups = () => {
   const { id } = useParams();
   const { user } = useAuth();
   const [groupSets, setGroupSets] = useState([]);
+  const [classroom, setClassroom] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [groupSetName, setGroupSetName] = useState('');
   const [groupSetSelfSignup, setGroupSetSelfSignup] = useState(false);
   const [groupSetJoinApproval, setGroupSetJoinApproval] = useState(false);
@@ -36,6 +39,16 @@ const Groups = () => {
   const [newGroupName, setNewGroupName] = useState('');
 
 
+  // Fetch classroom details
+  const fetchClassroom = async () => {
+    try {
+      const response = await axios.get(`/api/classroom/${id}`);
+      setClassroom(response.data);
+    } catch (err) {
+      console.error('Failed to fetch classroom:', err);
+    }
+  };
+
   // Fetch group sets
   const fetchGroupSets = async () => {
     try {
@@ -48,6 +61,7 @@ const Groups = () => {
 
   // Will fetch all the updates from the groups, their siphone votes, groupsets, and siphon updates
   useEffect(() => {
+    fetchClassroom();
     fetchGroupSets();
     socket.emit('join', `classroom-${id}`);
 
@@ -424,9 +438,16 @@ const Groups = () => {
     const search = memberSearches[group._id] || '';
     return group.members
       .filter(m => filter === 'all' || m.status === filter)
-      .filter(m => m?._id?.email?.toLowerCase().includes(search.toLowerCase()))
+      .filter(m => 
+        (m?._id?.email?.toLowerCase().includes(search.toLowerCase())) ||
+        (`${m?._id?.firstName || ''} ${m?._id?.lastName || ''}`.toLowerCase().includes(search.toLowerCase()))
+      )
       .sort((a, b) => {
-        if (sort === 'email') return a._id.email.localeCompare(b._id.email);
+        if (sort === 'email') {
+          const nameA = `${a._id.firstName || ''} ${a._id.lastName || ''}`.trim() || a._id.email;
+          const nameB = `${b._id.firstName || ''} ${b._id.lastName || ''}`.trim() || b._id.email;
+          return nameA.localeCompare(nameB);
+        }
         if (sort === 'status') return (a.status || '').localeCompare(b.status || '');
         if (sort === 'date') return new Date(b.joinDate) - new Date(a.joinDate);
         return 0;
@@ -451,9 +472,11 @@ const Groups = () => {
  
   // Create GroupSet
   return (
-  <div className="p-6 space-y-6">
-    <h1 className="text-3xl font-bold">Groupset</h1>
-    {(user.role === 'teacher' || user.role === 'admin') && (
+    <div className="p-6 max-w-6xl mx-auto">
+      <h1 className="text-3xl font-bold mb-6 text-center">
+        {classroom ? `${classroom.name} Groups` : 'Classroom Groups'}
+      </h1>
+      {(user.role === 'teacher' || user.role === 'admin') && (
         <div className="card bg-base-200 p-4 space-y-2">
           <input
             className="input input-bordered w-full hover:ring hover:ring-primary"
@@ -721,7 +744,7 @@ const Groups = () => {
                   onChange={(e) => setMemberSorts(prev => ({ ...prev, [group._id]: e.target.value }))}
                   className="select select-bordered select-sm"
                 >
-                  <option value="email">Email</option>
+                  <option value="email">Name</option>
                   <option value="status">Status</option>
                   <option value="date">Join Date</option>
                 </select>
@@ -735,7 +758,7 @@ const Groups = () => {
                         checked={(selectedMembers[group._id]?.length || 0) === group.members.length}
                         onChange={() => handleSelectAllMembers(group._id, group)}
                       /></th>
-                      <th>Email</th>
+                      <th>Name</th>
                       <th>Status</th>
                       <th>Join Date</th>
                     </tr>
@@ -751,7 +774,13 @@ const Groups = () => {
                           />
                         </td>
                         <td>
-                          {member._id.email}
+                          {`${member._id.firstName || ''} ${member._id.lastName || ''}`.trim() || member._id.email}
+                          <button 
+                            className="btn btn-xs btn-ghost ml-2"
+                            onClick={() => navigate(`/profile/${member._id._id}`)}
+                          >
+                            View Profile
+                          </button>
                           {member._id.isFrozen && (
                             <Lock className="inline w-4 h-4 ml-1 text-red-500" title="Balance frozen" />
                           )}
@@ -921,9 +950,9 @@ const Groups = () => {
       </div>
     )}
 
+    <Footer />
   </div>
 );
 };
 
 export default Groups;
- 
