@@ -24,6 +24,8 @@ import ClassroomSettings from './pages/ClassroomSettings';
 import StudentStats from './pages/StudentStats';
 import ArchivedClassrooms from './pages/ArchivedClassrooms';
 import Support from './pages/Support';
+import Privacy from './pages/Privacy';
+import Terms from './pages/Terms';
 
 const App = () => {
   const { user } = useContext(AuthContext);
@@ -68,6 +70,8 @@ const App = () => {
           <Route path="/classroom/:classroomId/feedback" element={<ClassroomFeedbackPage />} />
           <Route path="/feedback" element={<FeedbackPage />} />
           <Route path="/support" element={<Support />} />
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/terms" element={<Terms />} />
         </Routes>
       </div>
     </CartProvider>
