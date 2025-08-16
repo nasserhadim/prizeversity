@@ -11,9 +11,10 @@ import Footer from '../components/Footer';
 
 const Groups = () => {
   const { id } = useParams();
-  const navigate = useNavigate();
   const { user } = useAuth();
   const [groupSets, setGroupSets] = useState([]);
+  const [classroom, setClassroom] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [groupSetName, setGroupSetName] = useState('');
   const [groupSetSelfSignup, setGroupSetSelfSignup] = useState(false);
   const [groupSetJoinApproval, setGroupSetJoinApproval] = useState(false);
@@ -38,6 +39,16 @@ const Groups = () => {
   const [newGroupName, setNewGroupName] = useState('');
 
 
+  // Fetch classroom details
+  const fetchClassroom = async () => {
+    try {
+      const response = await axios.get(`/api/classroom/${id}`);
+      setClassroom(response.data);
+    } catch (err) {
+      console.error('Failed to fetch classroom:', err);
+    }
+  };
+
   // Fetch group sets
   const fetchGroupSets = async () => {
     try {
@@ -50,6 +61,7 @@ const Groups = () => {
 
   // Will fetch all the updates from the groups, their siphone votes, groupsets, and siphon updates
   useEffect(() => {
+    fetchClassroom();
     fetchGroupSets();
     socket.emit('join', `classroom-${id}`);
 
@@ -460,9 +472,11 @@ const Groups = () => {
  
   // Create GroupSet
   return (
-  <div className="p-6 space-y-6">
-    <h1 className="text-3xl font-bold">Groupset</h1>
-    {(user.role === 'teacher' || user.role === 'admin') && (
+    <div className="p-6 max-w-6xl mx-auto">
+      <h1 className="text-3xl font-bold mb-6 text-center">
+        {classroom ? `${classroom.name} Groups` : 'Classroom Groups'}
+      </h1>
+      {(user.role === 'teacher' || user.role === 'admin') && (
         <div className="card bg-base-200 p-4 space-y-2">
           <input
             className="input input-bordered w-full hover:ring hover:ring-primary"

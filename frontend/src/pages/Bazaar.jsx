@@ -9,6 +9,7 @@ import CreateBazaar from '../components/CreateBazaar';
 import CreateItem from '../components/CreateItem';
 import ItemCard from '../components/ItemCard';
 import apiBazaar from '../API/apiBazaar';
+import apiClassroom from '../API/apiClassroom';
 import InventorySection from '../components/InventorySection';
 import toast from 'react-hot-toast';
 import Footer from '../components/Footer';
@@ -17,8 +18,19 @@ const Bazaar = () => {
   const { classroomId } = useParams();
   const { user } = useAuth();
   const [bazaar, setBazaar] = useState(null);
-  const [showInventory, setShowInventory] = useState(false);
+  const [classroom, setClassroom] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showInventory, setShowInventory] = useState(false);
+
+  // Fetch classroom details
+  const fetchClassroom = async () => {
+    try {
+      const response = await apiClassroom.get(`/${classroomId}`);
+      setClassroom(response.data);
+    } catch (err) {
+      console.error('Failed to fetch classroom:', err);
+    }
+  };
 
   // Will fetch the bazaar from the classroom
   const fetchBazaar = async () => {
@@ -33,6 +45,7 @@ const Bazaar = () => {
   };
 
   useEffect(() => {
+    fetchClassroom();
     fetchBazaar();
   }, [classroomId]);
 
@@ -56,6 +69,13 @@ const Bazaar = () => {
   // Case: Bazaar exists
   return (
     <div className="p-6 space-y-8">
+      <div className="text-center space-y-2">
+        <h1 className="text-4xl font-bold text-success flex items-center justify-center gap-3">
+          <Store />
+          {classroom ? `${classroom.name} Bazaar` : 'Classroom Bazaar'}
+        </h1>
+      </div>
+
       <div className="card bg-base-100 border border-base-200 shadow-md rounded-2xl p-6 flex flex-col md:flex-row items-start md:items-center gap-6">
         {/* Image Section */}
         <div className="w-full md:w-1/3">

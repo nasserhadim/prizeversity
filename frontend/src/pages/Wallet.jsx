@@ -10,14 +10,13 @@ import Footer from '../components/Footer';
 const Wallet = () => {
   const { user } = useAuth();
   const { id: classroomId } = useParams();
-  const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState([]);
-
+  const [classroom, setClassroom] = useState(null);
+  const [balance, setBalance] = useState(0);
   const [recipientId, setRecipientId] = useState('');
   const [selectedRecipientId, setSelectedRecipientId] = useState(''); 
   const [transferAmount, setTransferAmount] = useState('');
   const [search, setSearch] = useState('');
-
   const [activeTab, setActiveTab] = useState('edit');    
   const [allTx, setAllTx] = useState([]);
   const [studentFilter, setStudentFilter] = useState('');  
@@ -48,13 +47,14 @@ const fetchUsers = async () => {
   // On user or initial load, fetch wallet info and students
     useEffect(() => {
    if (!user) return;
+    fetchClassroom();
     fetchWallet();
     fetchUsers();                   
     // If teacher or admin, fetch all transactions for the classroom
   if (['teacher', 'admin'].includes(user.role)) {
     fetchAllTx();
   }
-  }, [user]);
+  }, [user, classroomId]);
 
   
 // Fetch all transactions optionally filtered by student ID
@@ -103,10 +103,22 @@ const fetchUsers = async () => {
       }
     };
 
-
+    // Fetch classroom details
+  const fetchClassroom = async () => {
+    if (!classroomId) return;
+    try {
+      const response = await axios.get(`/api/classroom/${classroomId}`);
+      setClassroom(response.data);
+    } catch (err) {
+      console.error('Failed to fetch classroom:', err);
+    }
+  };
 
   return (
     <div className="p-4">
+      <h1 className="text-3xl font-bold mb-6 text-center">
+        {classroom ? `${classroom.name} Wallet` : 'Classroom Wallet'}
+      </h1>
       
        {/* ---- teacher/admin tabs ---- */}
       {['teacher', 'admin'].includes(user.role) && (
