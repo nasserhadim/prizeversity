@@ -5,6 +5,7 @@ import axios from 'axios';
 import socket from '../utils/socket';
 import toast from 'react-hot-toast';
 import { API_BASE } from '../config/api'; 
+import Footer from '../components/Footer';
 
 export default function ClassroomPage() {
   const { user } = useAuth();
@@ -149,7 +150,7 @@ export default function ClassroomPage() {
       )}
 
       {role === 'teacher' && (
-        <div className="space-y-4 bg-white p-4 rounded shadow">
+        <div className="space-y-4 bg-base-100 p-4 rounded shadow">
           <div>
             <label htmlFor="name" className="block text-sm font-medium mb-1">
               Classroom Name
@@ -178,33 +179,33 @@ export default function ClassroomPage() {
             />
           </div>
 
-          <div className="flex space-x-2 items-center">
+          <div className="flex flex-col md:flex-row md:items-center gap-4">
             <input
               type="color"
               value={color}
               onChange={e => setColor(e.target.value)}
-              className="w-12 h-12 p-0 border rounded"
+              className="w-16 h-12 p-0 border rounded self-start"
             />
-            <div className="flex items-center space-x-4">
-              <input
-                type="file"
-                name="backgroundImage"
-                accept="image/*"
-                onChange={e => setBackgroundFile(e.target.files[0])}
-                className="file-input file-input-bordered flex-1"
-              />
-
-              <p className="text-sm text-gray-500 mt-1">
+            <div className="flex-1 space-y-2">
+              <div className="flex items-center space-x-4">
+                <input
+                  type="file"
+                  name="backgroundImage"
+                  accept="image/*"
+                  onChange={e => setBackgroundFile(e.target.files[0])}
+                  className="file-input file-input-bordered w-full max-w-xs"
+                />
+                {backgroundFile && (
+                  <img
+                    src={URL.createObjectURL(backgroundFile)}
+                    alt="Preview"
+                    className="w-16 h-16 object-cover rounded border"
+                  />
+                )}
+              </div>
+              <p className="text-sm text-gray-500">
                 Valid image formats: .jpg, .jpeg, .png, .gif, .bmp, .webp, .svg; max size: 10 MB.
               </p>
-              
-              {backgroundFile && (
-                <img
-                  src={URL.createObjectURL(backgroundFile)}
-                  alt="Preview"
-                  className="w-16 h-16 object-cover rounded border"
-                />
-              )}
             </div>
           </div>
 
@@ -281,6 +282,7 @@ export default function ClassroomPage() {
           )}
         </div>
       </div>
+      <Footer />
     </div>
   )
 };

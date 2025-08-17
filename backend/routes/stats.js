@@ -30,6 +30,13 @@ router.get('/student/:id', ensureAuthenticated, async (req, res) => {
       shieldActive: user.shieldActive || false,
       discountShop: user.discountShop || 0, // Return actual percentage value
       attackPower: (user.attackPower || 0) + attackItemCount, // Combine challenge bonus + item count
+      student: {
+        name: `${user.firstName} ${user.lastName}`,
+        email: user.email,
+      },
+      shieldActive: user.shieldActive,
+      discountShop: user.discountShop ? 20 : 0, // Return as number
+      attackPower: attackCount,
       luck: user.passiveAttributes?.luck || 1,
       multiplier: user.passiveAttributes?.multiplier || 1,
       groupMultiplier: user.passiveAttributes?.groupMultiplier || 1,

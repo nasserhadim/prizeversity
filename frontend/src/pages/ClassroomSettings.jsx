@@ -6,6 +6,7 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import { LoaderIcon } from 'lucide-react';
+import Footer from '../components/Footer';
 
 export default function ClassroomSettings() {
     const { id } = useParams();
@@ -243,7 +244,7 @@ export default function ClassroomSettings() {
                     </button>
                 )}
 
-                <div className="flex gap-2 justify-center w-full">
+                <div className="flex flex-wrap gap-2 justify-center w-full">
                     <button className="btn btn-warning" onClick={handleLeave}>
                         Leave Classroom
                     </button>
@@ -268,9 +269,7 @@ export default function ClassroomSettings() {
                 </button>
 
             </div>
-            <footer className="mt-auto w-full bg-base-100 py-4 text-center">
-                <p className="text-sm text-gray-500">Powered by Prizeversity © 2025</p>
-            </footer>
+            <Footer />
         </div>
     );
 }

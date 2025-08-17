@@ -466,9 +466,9 @@ const Home = () => {
               <p className="text-gray-400 mt-2">Collaborative learning reimagined</p>
             </div>
             <div className="flex space-x-6">
-              <a href="#" className="text-gray-400 hover:text-white transition">Privacy</a>
-              <a href="#" className="text-gray-400 hover:text-white transition">Terms</a>
-              <a href="#" className="text-gray-400 hover:text-white transition">Help</a>
+              <Link to="/privacy" className="text-gray-400 hover:text-white transition">Privacy</Link>
+              <Link to="/terms" className="text-gray-400 hover:text-white transition">Terms</Link>
+              <Link to="/support" className="text-gray-400 hover:text-white transition">Help</Link>
               <Link to="/feedback" className="text-gray-400 hover:text-white transition">Feedback</Link>
             </div>
           </div>
