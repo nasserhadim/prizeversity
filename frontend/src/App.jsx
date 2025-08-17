@@ -24,10 +24,13 @@ import ClassroomSettings from './pages/ClassroomSettings';
 import StudentStats from './pages/StudentStats';
 import ArchivedClassrooms from './pages/ArchivedClassrooms';
 import Challenge from './pages/Challenge';
+<<<<<<< HEAD
 import ChallengeSite from './pages/ChallengeSite';
 import Challenge2Site from './pages/Challenge2Site';
 import Challenge3Site from './pages/Challenge3Site';
 import Challenge4Site from './pages/Challenge4Site';
+=======
+>>>>>>> a009447 (feat: challenge tab; initatiation process from teacher view; placeholder info for first challenge; series format for sets of challenges; teacher view)
 
 const App = () => {
   const { user } = useContext(AuthContext);
@@ -42,6 +45,7 @@ const App = () => {
 
 
   return (
+<<<<<<< HEAD
     <Routes>
       <Route path="/challenge-site/:uniqueId" element={<ChallengeSite />} />
       <Route path="/challenge-2-site/:uniqueId" element={<Challenge2Site />} />
@@ -78,6 +82,41 @@ const App = () => {
         </CartProvider>
       } />
     </Routes>
+=======
+
+    // Added the navigation bar and notification bell in App.jsx 
+    // This way we removed redundancy to call it in each page.
+    // This method will prevent for navigation and the bell to show in the login page (meaning without a user being logged in)
+    <CartProvider>
+      <div style={{ paddingTop: '5rem' }}>
+        {user && <Navbar />}
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/classrooms" element={<ClassroomPage />} />
+          <Route path="/classrooms/archived" element={<ArchivedClassrooms />} />
+          <Route path="/classroom/:id" element={<Classroom />} />
+          <Route path="/classroom/:classroomId/bazaar" element={<Bazaar />} />
+          <Route path="/classroom/:id/news" element={<StudentNewsfeed />} />
+          <Route path="/classroom/:id/teacher-news" element={<TeacherNewsfeed />} />
+          <Route path="/classroom/:id/settings" element={<ClassroomSettings />} />
+          <Route path="/classroom/:id/wallet" element={<Wallet />} />
+          <Route path="/classroom/:id/groups" element={<Groups />} />
+          <Route path="/classroom/:id/people" element={<People />} />
+          <Route path="/classroom/:classId/leaderboard" element={<Leaderboard />} />
+          <Route path="/classroom/:classroomId/challenge" element={<Challenge />} />
+          <Route path="/profile/:id" element={<Profile />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/classroom/:classroomId/checkout" element={<Checkout />} />
+          <Route path="/checkout" element={<Checkout />} />
+          <Route path="/orders" element={<OrderHistory />} />
+          {/* <Route path="/profile/:id/stats" element={<StudentStats />} /> */}
+          <Route path="/classroom/:classroomId/student/:id/stats" element={<StudentStats />} />
+          <Route path="/classroom/:classroomId/feedback" element={<ClassroomFeedbackPage />} />
+          <Route path="/feedback" element={<FeedbackPage />} />
+        </Routes>
+      </div>
+    </CartProvider>
+>>>>>>> a009447 (feat: challenge tab; initatiation process from teacher view; placeholder info for first challenge; series format for sets of challenges; teacher view)
   );
 };
 
