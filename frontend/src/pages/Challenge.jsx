@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useContext } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Shield, Lock, Zap, Users, Eye, EyeOff, ArrowLeft, Settings } from 'lucide-react';
@@ -7,6 +7,7 @@ import { getChallengeData, initiateChallenge, deactivateChallenge, configureChal
 import { getChallengeTemplates, saveChallengeTemplate, deleteChallengeTemplate } from '../API/apiChallengeTemplate';
 import { API_BASE } from '../config/api';
 import toast from 'react-hot-toast';
+import { ThemeContext } from '../context/ThemeContext';
 
 const DueDateCountdown = ({ dueDate }) => {
   const [timeRemaining, setTimeRemaining] = useState('');
@@ -70,6 +71,50 @@ const IndivTotalToggle = ({ value, onChange }) => {
 const Challenge = () => {
   const { classroomId } = useParams();
   const { user, originalUser, setPersona } = useAuth();
+  const { theme } = useContext(ThemeContext);
+  const isDark = theme === 'dark';
+  // theme-aware reusable classes
+  const cardBase = `card ${isDark ? 'bg-base-200' : 'bg-base-100'} border ${isDark ? 'border-base-700' : 'border-base-200'} shadow-md rounded-2xl p-6`;
+  const mutedText = isDark ? 'text-base-content/70' : 'text-gray-600';
+  const sectionBg = isDark ? 'bg-base-300 border border-base-700' : 'bg-white border border-base-200';
+  const codeRed = isDark ? 'bg-red-900/30 text-red-200' : 'bg-red-100 text-red-700';
+  const codeBlue = isDark ? 'bg-blue-900/25 text-blue-200' : 'bg-blue-100 text-blue-800';
+  const infoAlert = isDark ? 'alert alert-info bg-blue-900/18 text-blue-200' : 'alert alert-info';
+  const warningAlert = isDark ? 'alert bg-orange-900/20 border border-orange-700/50 text-orange-200' : 'alert alert-warning';
+
+  // Challenge-specific color schemes for dark/light mode
+  const challenge1Colors = {
+    cardBg: isDark ? 'bg-red-900/20 border-red-700/50' : 'bg-red-50 border-red-200',
+    completedBg: isDark ? 'bg-green-900/20 border-green-700/50' : 'bg-green-50 border-green-200',
+    textColor: isDark ? 'text-red-200' : 'text-red-800',
+    completedText: isDark ? 'text-green-200' : 'text-green-800',
+    sectionBg: isDark ? 'bg-red-800/20 border-red-600/30' : 'bg-white border-red-300'
+  };
+  
+  const challenge2Colors = {
+    cardBg: isDark ? 'bg-blue-900/20 border-blue-700/50' : 'bg-blue-50 border-blue-200',
+    completedBg: isDark ? 'bg-green-900/20 border-green-700/50' : 'bg-green-50 border-green-200',
+    textColor: isDark ? 'text-blue-200' : 'text-blue-800',
+    completedText: isDark ? 'text-green-200' : 'text-green-800',
+    sectionBg: isDark ? 'bg-blue-800/20 border-blue-600/30' : 'bg-white border-blue-300'
+  };
+  
+  const challenge3Colors = {
+    cardBg: isDark ? 'bg-purple-900/20 border-purple-700/50' : 'bg-purple-50 border-purple-200',
+    completedBg: isDark ? 'bg-green-900/20 border-green-700/50' : 'bg-green-50 border-green-200',
+    textColor: isDark ? 'text-purple-200' : 'text-purple-800',
+    completedText: isDark ? 'text-green-200' : 'text-green-800',
+    sectionBg: isDark ? 'bg-purple-800/20 border-purple-600/30' : 'bg-white border-purple-300'
+  };
+  
+  const challenge4Colors = {
+    cardBg: isDark ? 'bg-orange-900/20 border-orange-700/50' : 'bg-orange-50 border-orange-200',
+    completedBg: isDark ? 'bg-green-900/20 border-green-700/50' : 'bg-green-50 border-green-200',
+    textColor: isDark ? 'text-orange-200' : 'text-orange-800',
+    completedText: isDark ? 'text-green-200' : 'text-green-800',
+    sectionBg: isDark ? 'bg-orange-800/20 border-orange-600/30' : 'bg-white border-orange-300'
+  };
+
   const [challengeData, setChallengeData] = useState(null);
   const [userChallenge, setUserChallenge] = useState(null);
   const [isTeacher, setIsTeacher] = useState(false);
@@ -695,12 +740,12 @@ const Challenge = () => {
   if (isTeacher && !isTeacherInStudentView) {
     return (
       <div className="p-6 space-y-8">
-        <div className="card bg-base-100 border border-base-200 shadow-md rounded-2xl p-6">
+        <div className={cardBase}>
           <div className="flex items-center gap-3 mb-4">
             <Shield className="w-8 h-8 text-red-500" />
             <h1 className="text-3xl font-bold text-base-content">Cyber Challenge</h1>
           </div>
-          <p className="text-gray-600 text-lg mb-6">
+          <p className={`${mutedText} text-lg mb-6`}>
             Initiate the complete Cyber Challenge Series. Students will progress through multiple cybersecurity challenges, each with unique encrypted data and passwords to discover.
           </p>
           
@@ -717,7 +762,7 @@ const Challenge = () => {
               <button
                 onClick={handleShowDeactivateModal}
                 disabled={initiating}
-                className="btn btn-warning btn-lg gap-2"
+                className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
               >
                 {initiating ? (
                   <span className="loading loading-spinner loading-sm"></span>
@@ -738,13 +783,13 @@ const Challenge = () => {
             </div>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="stat bg-base-200 rounded-lg p-4">
+              <div className={`stat ${isDark ? 'bg-base-300 border border-base-700' : 'bg-base-200'} rounded-lg p-4`}>
                 <div className="stat-title">Status</div>
                 <div className={`stat-value text-lg ${challengeData.isActive ? 'text-success' : 'text-warning'}`}>
                   {challengeData.isActive ? 'Active' : 'Inactive'}
                 </div>
               </div>
-              <div className="stat bg-base-200 rounded-lg p-4">
+              <div className={`stat ${isDark ? 'bg-base-300 border border-base-700' : 'bg-base-200'} rounded-lg p-4`}>
                 <div className="stat-title">Participants</div>
                 <div className="stat-value text-lg text-blue-500">
                   {challengeData.userChallenges?.length || 0}
@@ -753,38 +798,36 @@ const Challenge = () => {
             </div>
 
             {challengeData.isActive && (
-              <div className="mt-6 card bg-base-200 p-4 rounded-lg">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-lg font-semibold">Challenge Due Date</h3>
-                  <button
-                    className="btn btn-sm btn-outline"
-                    onClick={() => setShowDueDateModal(true)}
-                  >
-                    {challengeData.settings?.dueDateEnabled ? 'Update Due Date' : 'Set Due Date'}
-                  </button>
-                </div>
-                {challengeData.settings?.dueDateEnabled && challengeData.settings?.dueDate ? (
-                  <div className={`p-3 rounded-lg border ${
-                    new Date() > new Date(challengeData.settings.dueDate) 
-                      ? 'bg-red-50 border-red-200 text-red-800'
-                      : 'bg-blue-50 border-blue-200 text-blue-800'
-                  }`}>
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold">
-                        {new Date() > new Date(challengeData.settings.dueDate) ? '⚠️ Expired:' : '⏰ Due:'}
-                      </span>
-                      <span>
-                        {new Date(challengeData.settings.dueDate).toLocaleDateString()} at{' '}
-                        {new Date(challengeData.settings.dueDate).toLocaleTimeString()}
-                      </span>
-                    </div>
-                    {new Date() > new Date(challengeData.settings.dueDate) && (
-                      <p className="text-sm mt-1">This challenge has expired and students can no longer submit answers.</p>
-                    )}
+              <div className="mt-6">
+                <div className={`card ${isDark ? 'bg-base-300 border border-base-700' : 'bg-base-200'} p-4 rounded-lg`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-semibold">Challenge Due Date</h3>
+                    <button
+                      className="btn btn-sm btn-outline"
+                      onClick={() => setShowDueDateModal(true)}
+                    >
+                      {challengeData.settings?.dueDateEnabled ? 'Update Due Date' : 'Set Due Date'}
+                    </button>
                   </div>
-                ) : (
-                  <p className="text-gray-600">No due date set - challenge remains open indefinitely</p>
-                )}
+                  {challengeData.settings?.dueDateEnabled && challengeData.settings?.dueDate ? (
+                    <div className={`p-3 rounded-lg ${new Date() > new Date(challengeData.settings.dueDate) ? 'bg-red-900/18 border-red-800 text-red-200' : 'bg-blue-900/12 border-blue-700 text-blue-200'}`}>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold">
+                          {new Date() > new Date(challengeData.settings.dueDate) ? '⚠️ Expired:' : '⏰ Due:'}
+                        </span>
+                        <span>
+                          {new Date(challengeData.settings.dueDate).toLocaleDateString()} at{' '}
+                          {new Date(challengeData.settings.dueDate).toLocaleTimeString()}
+                        </span>
+                      </div>
+                      {new Date() > new Date(challengeData.settings.dueDate) && (
+                        <p className="text-sm mt-1">{isDark ? 'This challenge has expired and submissions are disabled.' : 'This challenge has expired and students can no longer submit answers.'}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className={mutedText}>No due date set - challenge remains open indefinitely</p>
+                  )}
+                </div>
               </div>
             )}
 
@@ -1396,9 +1439,9 @@ const Challenge = () => {
             <div className="card bg-base-100 w-full max-w-md mx-4 shadow-xl">
               <div className="card-body">
                 <h2 className="text-xl font-bold text-error mb-4">⚠️ Delete Challenge Series</h2>
-                <p className="text-sm text-gray-600 mb-4">
+                <p className={mutedText}>
                   This will permanently delete all student progress and challenge data from the database. This action cannot be undone.
-                </p>
+                </p>{isDark && <p className="text-sm text-gray-400"></p>}
                 <div className="form-control mb-4">
                   <label className="label">
                     <span className="label-text text-sm">Type "<strong>{classroom?.name} delete</strong>" to confirm:</span>
@@ -1620,15 +1663,15 @@ const Challenge = () => {
           <Shield className="w-8 h-8 text-red-500" />
           <h1 className="text-3xl font-bold text-base-content">Cyber Challenge</h1>
         </div>
-        <p className="text-gray-600 text-lg">
+        <p className={mutedText}>
           Welcome to WSU's Cyber Challenge! Employ your skills to solve the challenges and earn bits to spend in the bazaar!
         </p>
         
         {challengeData?.settings?.dueDateEnabled && challengeData?.settings?.dueDate && (
           <div className={`mt-4 p-3 rounded-lg border ${
             new Date() > new Date(challengeData.settings.dueDate) 
-              ? 'bg-red-50 border-red-200 text-red-800'
-              : 'bg-blue-50 border-blue-200 text-blue-800'
+              ? isDark ? 'bg-red-900/20 border-red-700/50 text-red-200' : 'bg-red-50 border-red-200 text-red-800'
+              : isDark ? 'bg-blue-900/20 border-blue-700/50 text-blue-200' : 'bg-blue-50 border-blue-200 text-blue-800'
           }`}>
             <div className="flex items-center gap-2">
               <span className="font-semibold">
@@ -1640,7 +1683,7 @@ const Challenge = () => {
               </span>
             </div>
             {new Date() > new Date(challengeData.settings.dueDate) && (
-              <p className="text-sm mt-1">This challenge series has expired and is no longer available for completion.</p>
+              <p className="text-sm mt-1">{isDark ? 'This challenge has expired and submissions are disabled.' : 'This challenge has expired and students can no longer submit answers.'}</p>
             )}
           </div>
         )}
@@ -1649,9 +1692,9 @@ const Challenge = () => {
       {!challengeData || !challengeData.isActive ? (
         <div className="card bg-base-100 border border-base-200 shadow-md rounded-2xl p-6 text-center">
           <div className="flex flex-col items-center gap-4">
-            <Lock className="w-16 h-16 text-gray-400" />
-            <h2 className="text-2xl font-semibold text-gray-600">No Active Challenge</h2>
-            <p className="text-gray-500">
+            <Lock className={`w-16 h-16 ${isDark ? 'text-base-content/40' : 'text-gray-400'}`} />
+            <h2 className={`text-2xl font-semibold ${mutedText}`}>No Active Challenge</h2>
+            <p className={`${isDark ? 'text-base-content/60' : 'text-gray-500'}`}>
               Your instructor hasn't initiated a cyber challenge yet. Check back later!
             </p>
           </div>
@@ -1661,18 +1704,18 @@ const Challenge = () => {
         challengeData?.settings?.dueDate && 
         new Date() > new Date(challengeData.settings.dueDate) && 
         !isTeacher ? (
-          <div className="card bg-base-100 border border-red-200 shadow-md rounded-2xl p-6 text-center">
+          <div className={`card bg-base-100 border ${isDark ? 'border-red-700/50' : 'border-red-200'} shadow-md rounded-2xl p-6 text-center`}>
             <div className="flex flex-col items-center gap-4">
               <div className="text-6xl">⏰</div>
               <h2 className="text-2xl font-semibold text-red-600">Challenge Series Expired</h2>
-              <p className="text-gray-600 max-w-md">
+              <p className={`${mutedText} max-w-md`}>
                 This challenge series was due on {new Date(challengeData.settings.dueDate).toLocaleDateString()} at{' '}
                 {new Date(challengeData.settings.dueDate).toLocaleTimeString()}. 
                 You can no longer participate in this challenge.
               </p>
               {userChallenge.progress > 0 && (
-                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-blue-800 font-medium">
+                <div className={`mt-4 p-4 ${isDark ? 'bg-blue-900/20 border border-blue-700/50' : 'bg-blue-50 border border-blue-200'} rounded-lg`}>
+                  <p className={`${isDark ? 'text-blue-200' : 'text-blue-800'} font-medium`}>
                     Your Progress: Completed {userChallenge.progress} out of 4 challenges
                   </p>
                 </div>
@@ -1684,11 +1727,11 @@ const Challenge = () => {
           <div className="card bg-base-100 border border-base-200 shadow-md rounded-2xl p-6">
             <h2 className="text-2xl font-bold mb-6">{challengeData?.title || 'Cyber Challenge Series'}</h2>
             
-            <div className={`collapse collapse-arrow mb-4 ${userChallenge.progress >= 1 ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+            <div className={`collapse collapse-arrow mb-4 ${userChallenge.progress >= 1 ? challenge1Colors.completedBg : challenge1Colors.cardBg}`}>
               <input type="checkbox" defaultChecked={userChallenge.progress < 1} className="peer" />
               <div className="collapse-title text-xl font-medium flex items-center gap-3">
                 <div className={`badge badge-lg ${userChallenge.progress >= 1 ? 'badge-success' : 'badge-error'}`}>Challenge 1</div>
-                <span className={userChallenge.progress >= 1 ? 'text-green-800' : 'text-red-800'}>🔓 Little Caesar's Secret</span>
+                <span className={userChallenge.progress >= 1 ? challenge1Colors.completedText : challenge1Colors.textColor}>🔓 Little Caesar's Secret</span>
                 <div className={`badge badge-outline badge-sm ${userChallenge?.hintsUsed?.[0] > 0 ? 'badge-warning' : ''}`}>
                   {calculatePotentialBits(0)} bits
                   {userChallenge?.hintsUsed?.[0] > 0 && (
@@ -1697,7 +1740,7 @@ const Challenge = () => {
                     </span>
                   )}
                 </div>
-                <div className="ml-auto text-sm text-gray-500">
+                <div className={`ml-auto text-sm ${isDark ? 'text-base-content/60' : 'text-gray-500'}`}>
                   {userChallenge.progress >= 1 ? '✅ Completed' : '🔄 In Progress'}
                 </div>
               </div>
@@ -1709,7 +1752,7 @@ const Challenge = () => {
                       <span className="text-xs text-gray-500">Penalty {challengeData.settings.hintPenaltyPercent || 25}% each</span>
                     </div>
                   )}
-                  <p className="text-gray-600">
+                  <p className={mutedText}>
                     Your mission: decrypt your unique ID to access a password-protected intelligence site.
                   </p>
                   {challengeData?.settings?.challengeHintsEnabled?.[0] && (
@@ -1757,33 +1800,33 @@ const Challenge = () => {
                     </div>
                   )}
                   
-                  <div className="bg-white border border-red-300 rounded-lg p-4">
-                    <h4 className="font-semibold text-red-800 mb-3">🔐 Your Encrypted ID</h4>
-                    <code className="bg-red-100 px-4 py-3 rounded text-2xl font-mono text-red-600 block text-center border">
+                  <div className={`${challenge1Colors.sectionBg} rounded-lg p-4`}>
+                    <h4 className={`font-semibold ${challenge1Colors.textColor} mb-3`}>🔐 Your Encrypted ID</h4>
+                    <code className={`${codeRed} px-4 py-3 rounded text-2xl font-mono block text-center border`}>
                       {userChallenge.uniqueId}
                     </code>
                   </div>
                   
-                  <div className="bg-white border border-red-300 rounded-lg p-4">
-                    <h4 className="font-semibold text-red-800 mb-2">📋 Instructions</h4>
-                    <ol className="list-decimal list-inside text-sm text-gray-700 space-y-1">
+                  <div className={`${challenge1Colors.sectionBg} rounded-lg p-4`}>
+                    <h4 className={`font-semibold ${challenge1Colors.textColor} mb-2`}>📋 Instructions</h4>
+                    <ol className={`list-decimal list-inside text-sm ${mutedText} space-y-1`}>
                       <li>Decrypt the encrypted ID above using cryptographic techniques</li>
                       <li>Use your decrypted result as the password</li>
                       <li>Access the challenge site with your password</li>
                     </ol>
                   </div>
                   
-                  <div className="bg-white border border-red-300 rounded-lg p-4">
-                    <h4 className="font-semibold text-red-800 mb-2">🌐 Challenge Site</h4>
-                    <p className="text-sm text-gray-600 mb-3">Once you decrypt your ID, access the challenge site:</p>
-                    <code className="text-blue-600 font-mono text-sm block mb-3">
-                      <a href={`/challenge-site/${userChallenge.uniqueId}`} target="_blank" rel="noopener noreferrer">
+                  <div className={`${challenge1Colors.sectionBg} rounded-lg p-4`}>
+                    <h4 className={`font-semibold ${challenge1Colors.textColor} mb-2`}>🌐 Challenge Site</h4>
+                    <p className={`text-sm ${mutedText} mb-3`}>Once you decrypt your ID, access the challenge site:</p>
+                    <code className={`${isDark ? 'text-blue-300' : 'text-blue-600'} font-mono text-sm block mb-3`}>
+                      <a href={`/challenge-site/${userChallenge.uniqueId}`} target="_blank" rel="noopener noreferrer" className="hover:underline">
                         /challenge-site/{userChallenge.uniqueId}
                       </a>
                     </code>
                   </div>
                   
-                  <div className="alert alert-warning">
+                  <div className={warningAlert}>
                     <span className="text-sm">
                       <strong>Remember:</strong> Each student has a unique encrypted ID, so you can't share answers with classmates!
                     </span>
@@ -1793,11 +1836,11 @@ const Challenge = () => {
             </div>
 
             <div className="space-y-3">
-              <div className={`collapse collapse-arrow ${userChallenge.progress >= 1 ? (userChallenge.progress >= 2 ? 'bg-green-50 border border-green-200' : 'bg-blue-50 border border-blue-200') : 'bg-gray-50 border border-gray-200 opacity-60'}`}>
+              <div className={`collapse collapse-arrow ${userChallenge.progress >= 1 ? (userChallenge.progress >= 2 ? challenge2Colors.completedBg : challenge2Colors.cardBg) : isDark ? 'bg-base-300/30 border border-base-content/10 opacity-60' : 'bg-gray-50 border border-gray-200 opacity-60'}`}>
                 {userChallenge.progress >= 1 && <input type="checkbox" defaultChecked={userChallenge.progress < 2} className="peer" />}
-                <div className="collapse-title text-lg font-medium flex items-center gap-3">
-                  <div className={`badge ${userChallenge.progress >= 2 ? 'badge-success' : userChallenge.progress >= 1 ? 'badge-info' : 'badge-neutral'}`}>Challenge 2</div>
-                  <span className={userChallenge.progress >= 2 ? 'text-green-800' : userChallenge.progress >= 1 ? 'text-blue-800' : 'text-gray-600'}>🔍 Check Me Out</span>
+                <div className="collapse-title text-xl font-medium flex items-center gap-3">
+                  <div className={`badge ${userChallenge.progress >= 2 ? 'badge-success' : 'badge-error'}`}>Challenge 2</div>
+                  <span className={userChallenge.progress >= 2 ? challenge2Colors.completedText : challenge2Colors.textColor}>🔓 Check Me Out</span>
                   <div className={`badge badge-outline badge-sm ${userChallenge?.hintsUsed?.[1] > 0 ? 'badge-warning' : ''}`}>
                     {calculatePotentialBits(1)} bits
                     {userChallenge?.hintsUsed?.[1] > 0 && (
@@ -1806,7 +1849,7 @@ const Challenge = () => {
                       </span>
                     )}
                   </div>
-                  <div className="ml-auto text-sm text-gray-400">
+                  <div className={`ml-auto text-sm ${isDark ? 'text-base-content/50' : 'text-gray-400'}`}>
                     {userChallenge.progress >= 2 ? '✅ Completed' : userChallenge.progress >= 1 ? '🔓 Unlocked' : '🔒 Locked'}
                   </div>
                 </div>
@@ -1819,7 +1862,7 @@ const Challenge = () => {
                           <span className="text-xs text-gray-500">Penalty {challengeData.settings.hintPenaltyPercent || 25}% each</span>
                         </div>
                       )}
-                      <p className="text-gray-600">
+                      <p className={mutedText}>
                         Your mission: Follow the digital trail and find your password to the next challenge.
                       </p>
                       {challengeData?.settings?.challengeHintsEnabled?.[1] && (
@@ -1867,42 +1910,42 @@ const Challenge = () => {
                         </div>
                       )}
                       
-                      <div className="bg-white border border-blue-300 rounded-lg p-4">
-                        <h4 className="font-semibold text-blue-800 mb-3">🔗 Your Starting Point</h4>
+                      <div className={`${challenge2Colors.sectionBg} rounded-lg p-4`}>
+                        <h4 className={`font-semibold ${challenge2Colors.textColor} mb-3`}>🔗 Your Starting Point</h4>
                         <div className="space-y-3">
                           <div>
-                            <span className="text-sm font-medium text-gray-700">LinkedIn Profile:</span>
+                            <span className={`text-sm font-medium ${mutedText}`}>LinkedIn Profile:</span>
                             <br />
                             <a 
                               href="https://www.linkedin.com/in/paul-glantz-1b3488378/" 
                               target="_blank" 
                               rel="noopener noreferrer"
-                              className="text-blue-600 hover:text-blue-800 underline"
+                              className={`${isDark ? 'text-blue-300' : 'text-blue-600'} hover:underline`}
                             >
                               linkedin.com/in/paul-glantz-1b3488378/
                             </a>
                           </div>
                           <div>
-                            <span className="text-sm font-medium text-gray-700">Your Unique ID:</span>
+                            <span className={`text-sm font-medium ${mutedText}`}>Your Unique ID:</span>
                             <br />
-                            <code className="bg-blue-100 px-2 py-1 rounded text-blue-800 font-mono">
+                            <code className={`${codeBlue} px-2 py-1 rounded font-mono`}>
                               {userChallenge.uniqueId}
                             </code>
                           </div>
                         </div>
                       </div>                 
                       
-                      <div className="bg-white border border-blue-300 rounded-lg p-4">
-                        <h4 className="font-semibold text-blue-800 mb-2">Challenge Terminal</h4>
-                        <p className="text-sm text-gray-600 mb-3">Once you find your password, access the challenge terminal:</p>
-                        <code className="text-blue-600 font-mono text-sm block mb-3">
-                          <a href={`/challenge-2-site/${userChallenge.uniqueId}`} target="_blank" rel="noopener noreferrer">
+                      <div className={`${challenge2Colors.sectionBg} rounded-lg p-4`}>
+                        <h4 className={`font-semibold ${challenge2Colors.textColor} mb-2`}>Challenge Terminal</h4>
+                        <p className={`text-sm ${mutedText} mb-3`}>Once you find your password, access the challenge terminal:</p>
+                        <code className={`${isDark ? 'text-blue-300' : 'text-blue-600'} font-mono text-sm block mb-3`}>
+                          <a href={`/challenge-2-site/${userChallenge.uniqueId}`} target="_blank" rel="noopener noreferrer" className="hover:underline">
                             /challenge-2-site/{userChallenge.uniqueId}
                           </a>
                         </code>
                       </div>
                       
-                      <div className="alert alert-warning">
+                      <div className={warningAlert}>
                         <span className="text-sm">
                           <strong>Remember:</strong> Your unique ID is the key to finding your personal password!
                         </span>
@@ -1914,11 +1957,11 @@ const Challenge = () => {
             </div>
 
             <div className="space-y-3">
-              <div className={`collapse collapse-arrow ${userChallenge.progress >= 2 ? (userChallenge.progress >= 3 ? 'bg-green-50 border border-green-200' : 'bg-purple-50 border border-purple-200') : 'bg-gray-50 border border-gray-200 opacity-60'}`}>
+              <div className={`collapse collapse-arrow ${userChallenge.progress >= 2 ? (userChallenge.progress >= 3 ? challenge3Colors.completedBg : challenge3Colors.cardBg) : isDark ? 'bg-base-300/30 border border-base-content/10 opacity-60' : 'bg-gray-50 border border-gray-200 opacity-60'}`}>
                 {userChallenge.progress >= 2 && <input type="checkbox" defaultChecked={userChallenge.progress < 3} className="peer" />}
                 <div className="collapse-title text-lg font-medium flex items-center gap-3">
                   <div className={`badge ${userChallenge.progress >= 3 ? 'badge-success' : userChallenge.progress >= 2 ? 'badge-info' : 'badge-neutral'}`}>Challenge 3</div>
-                  <span className={userChallenge.progress >= 3 ? 'text-green-800' : userChallenge.progress >= 2 ? 'text-purple-800' : 'text-gray-600'}>🐛 Security Bug Fix</span>
+                  <span className={userChallenge.progress >= 3 ? challenge3Colors.completedText : userChallenge.progress >= 2 ? challenge3Colors.textColor : isDark ? 'text-base-content/60' : 'text-gray-600'}>🐛 Security Bug Fix</span>
                   <div className={`badge badge-outline badge-sm ${userChallenge?.hintsUsed?.[2] > 0 ? 'badge-warning' : ''}`}>
                     {calculatePotentialBits(2)} bits
                     {userChallenge?.hintsUsed?.[2] > 0 && (
@@ -1979,8 +2022,8 @@ const Challenge = () => {
                         </div>
                       )}
                       
-                      <div className="bg-purple-50 border border-purple-300 rounded-lg p-4">
-                        <h4 className="font-semibold text-purple-800 mb-2">🔧 Your Mission</h4>
+                      <div className={`${challenge3Colors.sectionBg} rounded-lg p-4`}>
+                        <h4 className={`font-semibold ${challenge3Colors.textColor} mb-2`}>🔧 Your Mission</h4>
                         <p className="text-sm text-gray-700 mb-3">
                           Identify and fix the security bug in the C++ code. When fixed correctly, you'll receive your password.
                         </p>
@@ -1990,20 +2033,20 @@ const Challenge = () => {
                         </div>
                       </div>
                       
-                      <div className="bg-white border border-purple-300 rounded-lg p-4">
-                        <h4 className="font-semibold text-purple-800 mb-2">🌐 Bug Fix Challenge</h4>
-                        <p className="text-sm text-gray-600 mb-3">Access your personalized security bug challenge:</p>
-                        <code className="text-blue-600 font-mono text-sm block mb-3">
+                      <div className={`${challenge3Colors.sectionBg} rounded-lg p-4`}>
+                        <h4 className={`font-semibold ${challenge3Colors.textColor} mb-2`}>🌐 Bug Fix Challenge</h4>
+                        <p className={`text-sm ${mutedText} mb-3`}>Access your personalized security bug challenge:</p>
+                        <code className={`${isDark ? 'text-blue-300' : 'text-blue-600'} font-mono text-sm block mb-3`}>
                           <a href={`/challenge-3-site/${userChallenge.uniqueId}`} target="_blank" rel="noopener noreferrer" className="hover:underline">
                             /challenge-3-site/{userChallenge.uniqueId}
                           </a>
                         </code>
-                        <p className="text-xs text-gray-500">
+                        <p className={`text-xs ${isDark ? 'text-base-content/60' : 'text-gray-500'}`}>
                           Opens a simple code editor with your unique security vulnerability to fix
                         </p>
                       </div>
                       
-                      <div className="alert alert-info">
+                      <div className={infoAlert}>
                         <span className="text-sm">
                           <strong>Quick Challenge:</strong> This focuses on fundamental security concepts in C++. Typical completion time: 10-20 minutes.
                         </span>
@@ -2015,11 +2058,11 @@ const Challenge = () => {
             </div>
 
             <div className="space-y-3">
-              <div className={`collapse collapse-arrow ${userChallenge.progress >= 3 ? (userChallenge.progress >= 4 ? 'bg-green-50 border border-green-200' : 'bg-orange-50 border border-orange-200') : 'bg-gray-50 border border-gray-200 opacity-60'}`}>
+              <div className={`collapse collapse-arrow ${userChallenge.progress >= 3 ? (userChallenge.progress >= 4 ? challenge4Colors.completedBg : challenge4Colors.cardBg) : isDark ? 'bg-base-300/30 border border-base-content/10 opacity-60' : 'bg-gray-50 border border-gray-200 opacity-60'}`}>
                 {userChallenge.progress >= 3 && <input type="checkbox" defaultChecked={userChallenge.progress < 4} className="peer" />}
                 <div className="collapse-title text-lg font-medium flex items-center gap-3">
                   <div className={`badge ${userChallenge.progress >= 4 ? 'badge-success' : userChallenge.progress >= 3 ? 'badge-info' : 'badge-neutral'}`}>Challenge 4</div>
-                  <span className={userChallenge.progress >= 4 ? 'text-green-800' : userChallenge.progress >= 3 ? 'text-orange-800' : 'text-gray-600'}>🕵️ Digital Forensics Lab</span>
+                  <span className={userChallenge.progress >= 4 ? challenge4Colors.completedText : userChallenge.progress >= 3 ? challenge4Colors.textColor : isDark ? 'text-base-content/60' : 'text-gray-600'}>🕵️ Digital Forensics Lab</span>
                   <div className={`badge badge-outline badge-sm ${userChallenge?.hintsUsed?.[3] > 0 ? 'badge-warning' : ''}`}>
                     {calculatePotentialBits(3)} bits
                     {userChallenge?.hintsUsed?.[3] > 0 && (
@@ -2080,8 +2123,8 @@ const Challenge = () => {
                         </div>
                       )}
                       
-                      <div className="bg-orange-50 border border-orange-300 rounded-lg p-4">
-                        <h4 className="font-semibold text-orange-800 mb-2">🕵️ Your Investigation</h4>
+                      <div className={`${challenge4Colors.sectionBg} rounded-lg p-4`}>
+                        <h4 className={`font-semibold ${challenge4Colors.textColor} mb-2`}>🕵️ Your Investigation</h4>
                         <p className="text-sm text-gray-700 mb-3">
                           A suspicious image containing forensics evidence has been planted in a GitHub repository. Your task is to find it and extract the hidden metadata.
                         </p>
@@ -2092,20 +2135,20 @@ const Challenge = () => {
                         </div>
                       </div>
                       
-                      <div className="bg-white border border-orange-300 rounded-lg p-4">
-                        <h4 className="font-semibold text-orange-800 mb-2">🌐 Forensics Investigation</h4>
-                        <p className="text-sm text-gray-600 mb-3">Begin your digital forensics investigation:</p>
-                        <code className="text-blue-600 font-mono text-sm block mb-3">
+                      <div className={`${challenge4Colors.sectionBg} rounded-lg p-4`}>
+                        <h4 className={`font-semibold ${challenge4Colors.textColor} mb-2`}>🌐 Forensics Investigation</h4>
+                        <p className={`text-sm ${mutedText} mb-3`}>Begin your digital forensics investigation:</p>
+                        <code className={`${isDark ? 'text-blue-300' : 'text-blue-600'} font-mono text-sm block mb-3`}>
                           <a href={`/challenge-4-site/${userChallenge.uniqueId}`} target="_blank" rel="noopener noreferrer" className="hover:underline">
                             /challenge-4-site/{userChallenge.uniqueId}
                           </a>
                         </code>
-                        <p className="text-xs text-gray-500">
+                        <p className={`text-xs ${isDark ? 'text-base-content/60' : 'text-gray-500'}`}>
                           Opens the forensics investigation environment with evidence generation and analysis tools
                         </p>
                       </div>
                       
-                      <div className="alert alert-error">
+                      <div className={infoAlert}>
                         <span className="text-sm">
                           <strong>Final Challenge:</strong> This investigation combines OSINT, digital forensics, and metadata analysis. Master all skills learned in the previous challenges!
                         </span>
@@ -2129,8 +2172,6 @@ const Challenge = () => {
           </div>
         </div>
       )}
-
-
 
       {showRewardModal && rewardData && (
         <RewardModal
