@@ -4,7 +4,7 @@ import { useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { ThemeContext } from '../context/ThemeContext';
 import { useCart } from '../context/CartContext';
-import { ShoppingCart, Menu, X } from 'lucide-react';
+import { ShoppingCart, Menu, X, Sun, Moon } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import NotificationBell from './NotificationBell';
 import { API_BASE } from '../config/api';
@@ -18,7 +18,7 @@ import {
   Wallet,
   UserRound,
   Trophy,
-  Shield
+  Shield,
   Settings,
   HelpCircle,
   Replace,
@@ -238,6 +238,16 @@ const Navbar = () => {
 
         {/* Desktop Right Side */}
         <div className="hidden lg:flex items-center gap-4">
+          {/* Theme toggle (desktop) */}
+          <button
+            onClick={toggleTheme}
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            aria-label="Toggle theme"
+            className="btn btn-ghost btn-circle"
+          >
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+
           {/* Desktop Cart Icon */}
           {user?.role !== 'teacher' && insideClassroom && (
             <button
@@ -548,6 +558,18 @@ const Navbar = () => {
                     <span>Switch to Teacher Profile</span>
                   </button>
                 )}
+                {/* Theme toggle (mobile) */}
+                <button
+                  onClick={() => {
+                    toggleTheme();
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="flex items-center gap-3 p-3 rounded-lg text-base-content hover:bg-base-200 w-full text-left"
+                  title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                >
+                  {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+                  <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+                </button>
                 <button
                   onClick={() => {
                     logout();

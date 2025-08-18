@@ -613,7 +613,7 @@ const Challenge = () => {
       return {
         number: 1,
         name: "Little Caesar's Secret",
-        method: "Caesar Cipher (Shift +3)",
+        method: "Caesar Cipher",
         type: "caesar"
       };
     } else if (progress === 1) {
