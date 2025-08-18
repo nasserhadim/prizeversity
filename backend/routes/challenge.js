@@ -147,6 +147,20 @@ router.get('/:classroomId', ensureAuthenticated, async (req, res) => {
       });
     }
 
+    // For existing challenges, populate missing Challenge 2 passwords
+    let needsSave = false;
+    for (const userChallenge of challenge.userChallenges) {
+      if (!userChallenge.challenge2Password && userChallenge.progress >= 1) {
+        // Student has completed Challenge 1, so Challenge 2 password should exist
+        userChallenge.challenge2Password = generateChallenge2Password(userChallenge.uniqueId);
+        needsSave = true;
+      }
+    }
+    
+    if (needsSave) {
+      await challenge.save();
+    }
+
     const userChallenge = challenge.userChallenges.find(
       uc => uc.userId._id.toString() === userId.toString()
     );
@@ -445,21 +459,21 @@ router.post('/verify-password', ensureAuthenticated, async (req, res) => {
         }
 
         if (challenge.settings.multiplierMode === 'individual') {
-          const multiplierReward = (challenge.settings.challengeMultipliers && challenge.settings.challengeMultipliers[challengeIndex]) || 1.0;
+          const multiplierReward = challenge.settings.challengeMultipliers[challengeIndex] || 1.0;
           if (multiplierReward > 1.0) {
             user.passiveAttributes.multiplier += (multiplierReward - 1.0);
           }
         }
 
         if (challenge.settings.luckMode === 'individual') {
-          const luckReward = (challenge.settings.challengeLuck && challenge.settings.challengeLuck[challengeIndex]) || 1.0;
+          const luckReward = challenge.settings.challengeLuck[challengeIndex] || 1.0;
           if (luckReward > 1.0) {
             user.passiveAttributes.luck = user.passiveAttributes.luck * luckReward;
           }
         }
 
         if (challenge.settings.discountMode === 'individual') {
-          const discountReward = (challenge.settings.challengeDiscounts && challenge.settings.challengeDiscounts[challengeIndex]) || 0;
+          const discountReward = challenge.settings.challengeDiscounts[challengeIndex] || 0;
           if (discountReward > 0) {
             if (typeof user.discountShop === 'boolean') {
               user.discountShop = user.discountShop ? 100 : 0;
@@ -469,14 +483,14 @@ router.post('/verify-password', ensureAuthenticated, async (req, res) => {
         }
 
         if (challenge.settings.shieldMode === 'individual') {
-          const shieldReward = (challenge.settings.challengeShields && challenge.settings.challengeShields[challengeIndex]) || false;
+          const shieldReward = challenge.settings.challengeShields[challengeIndex] || false;
           if (shieldReward) {
             user.shieldActive = true;
           }
         }
 
         if (challenge.settings.attackMode === 'individual') {
-          const attackReward = (challenge.settings.challengeAttackBonuses && challenge.settings.challengeAttackBonuses[challengeIndex]) || 0;
+          const attackReward = challenge.settings.challengeAttackBonuses[challengeIndex] || 0;
           if (attackReward > 0) {
             user.attackPower = (user.attackPower || 0) + attackReward;
           }
@@ -728,32 +742,32 @@ router.post('/verify-challenge5-external', ensureAuthenticated, async (req, res)
       if (challenge.settings.attackMode === 'individual') {
         const attackReward = challenge.settings.challengeAttackBonuses[challengeIndex] || 0;
         if (attackReward > 0) {
-          user.attackBonus = (user.attackBonus || 0) + attackReward;
+          user.attackPower = (user.attackPower || 0) + attackReward;
         }
       }
 
       await user.save();
-
-      // Create notification for challenge completion
-      const Notification = require('../models/Notification');
-      const { populateNotification } = require('../utils/notifications');
-      
-      const notification = await Notification.create({
-        user: user._id,
-        actionBy: challenge.createdBy,
-        type: 'challenge_completed',
-        message: `You completed Challenge 5: WayneAWS Verification and earned ${bitsAwarded} bits!`,
-        read: false,
-        createdAt: new Date(),
-      });
-
-      const populatedNotification = await populateNotification(notification._id);
-      if (populatedNotification) {
-        req.app.get('io').to(`user-${user._id}`).emit('notification', populatedNotification);
-      }
     }
-
+    
     await challenge.save();
+
+    // Create notification for challenge completion
+    const Notification = require('../models/Notification');
+    const { populateNotification } = require('../utils/notifications');
+    
+    const notification = await Notification.create({
+      user: user._id,
+      actionBy: challenge.createdBy,
+      type: 'challenge_completed',
+      message: `You completed Challenge 5: WayneAWS Verification and earned ${bitsAwarded} bits!`,
+      read: false,
+      createdAt: new Date(),
+    });
+
+    const populatedNotification = await populateNotification(notification._id);
+    if (populatedNotification) {
+      req.app.get('io').to(`user-${user._id}`).emit('notification', populatedNotification);
+    }
 
     res.json({ 
       message: 'WayneAWS verification completed successfully!',
@@ -815,7 +829,7 @@ router.post('/complete-challenge/:level', ensureAuthenticated, async (req, res) 
 
     userChallenge.progress = challengeLevel;
     if (challengeLevel === 4) {
-      userChallenge.completedAt = Date.now();
+      userChallenge.completedAt = new Date();
     }
     
     const bitsAwarded = await awardChallengeBits(userId, challengeLevel, challenge);
@@ -1633,6 +1647,15 @@ router.post('/challenge4/:uniqueId/generate', ensureAuthenticated, async (req, r
     const user = await User.findById(userId);
     
     const filename = `campus_${uniqueId}.jpg`;
+    
+    // Check if this file is already being processed
+    if (uploadLocks.has(filename)) {
+      return res.status(429).json({ 
+        message: 'File is currently being processed. Please wait and try again.',
+        filename: filename
+      });
+    }
+
     const githubToken = process.env.GITHUB_TOKEN;
     const url = `https://api.github.com/repos/cinnamonstic/wsu-transit-delay/contents/assets/${filename}`;
     
@@ -1657,14 +1680,23 @@ router.post('/challenge4/:uniqueId/generate', ensureAuthenticated, async (req, r
     } catch (checkError) {
       if (checkError.response?.status === 404) {
         console.log(`Evidence ${filename} doesn't exist, generating new file`);
-        const result = await generateAndUploadForensicsImage(user, uniqueId);
         
-        res.json({
-          message: 'Forensics evidence uploaded successfully',
-          repoUrl: 'https://github.com/cinnamonstic/wsu-transit-delay',
-          filename: result.filename,
-          hint: 'Look for your evidence in the assets/ folder. Examine the metadata carefully.'
-        });
+        // Set lock before starting upload
+        uploadLocks.set(filename, Date.now());
+        
+        try {
+          const result = await generateAndUploadForensicsImage(user, uniqueId);
+          
+          res.json({
+            message: 'Forensics evidence uploaded successfully',
+            repoUrl: 'https://github.com/cinnamonstic/wsu-transit-delay',
+            filename: result.filename,
+            hint: 'Look for your evidence in the assets/ folder. Examine the metadata carefully.'
+          });
+        } finally {
+          // Always remove lock when done
+          uploadLocks.delete(filename);
+        }
       } else {
         throw checkError;
       }
@@ -1781,7 +1813,8 @@ async function generateAndUploadForensicsImage(user, uniqueId) {
     const finalImageBase64 = piexifjs.insert(exifBytes, base64Image);
     const finalImageBuffer = Buffer.from(finalImageBase64.split(',')[1], 'base64');
     
-    await uploadToGitHub(filename, finalImageBuffer, githubToken);
+    // Fix: Use GITHUB_TOKEN instead of undefined githubToken
+    await uploadToGitHub(filename, finalImageBuffer, GITHUB_TOKEN);
     
     return { filename, artistName };
     
@@ -1794,8 +1827,8 @@ async function generateAndUploadForensicsImage(user, uniqueId) {
 async function uploadToGitHub(filename, fileBuffer, githubToken) {
   const axios = require('axios');
   
-  if (!githubToken) {
-    throw new Error('GITHUB_TOKEN environment variable not set');
+  if (!githubToken || githubToken === 'contact-akrm-for-token') {
+    throw new Error('GITHUB_TOKEN environment variable not properly configured');
   }
   
   const owner = 'cinnamonstic';
@@ -1806,6 +1839,8 @@ async function uploadToGitHub(filename, fileBuffer, githubToken) {
   
   try {
     let sha = null;
+    
+    // Get the latest SHA right before upload to avoid conflicts
     try {
       const existingFile = await axios.get(url, {
         headers: {
@@ -1814,18 +1849,17 @@ async function uploadToGitHub(filename, fileBuffer, githubToken) {
         }
       });
       sha = existingFile.data.sha;
-      console.log(`File ${filename} already exists, updating with SHA: ${sha}`);
+      console.log(`File ${filename} exists, updating with SHA: ${sha}`);
     } catch (error) {
       if (error.response?.status === 404) {
         console.log(`File ${filename} doesn't exist, creating new file`);
       } else {
-        console.error('Error checking file existence:', error.response?.data || error.message);
         throw error;
       }
     }
     
     const uploadData = {
-      message: sha ? `chore: campus image addition...i always sign my work ${filename}` : `${filename}`,
+      message: sha ? `chore: update campus image ${filename}` : `chore: add campus image ${filename}`,
       content: fileBuffer.toString('base64')
     };
     
@@ -1833,16 +1867,22 @@ async function uploadToGitHub(filename, fileBuffer, githubToken) {
       uploadData.sha = sha;
     }
     
-    await axios.put(url, uploadData, {
+    const response = await axios.put(url, uploadData, {
       headers: {
         'Authorization': `token ${githubToken}`,
         'Accept': 'application/vnd.github.v3+json'
       }
     });
     
-    console.log(`Successfully uploaded ${filename} to GitHub`);
+    console.log(`✅ Successfully uploaded ${filename} to GitHub`);
+    return response.data;
     
   } catch (error) {
+    if (error.response?.status === 409) {
+      console.warn(`⚠️  SHA conflict for ${filename}, file may have been updated by another process`);
+      // Don't throw error for SHA conflicts - the file exists which is what we want
+      return;
+    }
     console.error('GitHub upload error:', error.response?.data || error.message);
     throw new Error('Failed to upload to GitHub');
   }
@@ -1905,4 +1945,4 @@ router.post('/:classroomId/debug-progress', ensureAuthenticated, ensureTeacher, 
   }
 });
 
-module.exports = router; 
+module.exports = router;

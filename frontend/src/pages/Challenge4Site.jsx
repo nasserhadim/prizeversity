@@ -71,7 +71,6 @@ const Challenge4Site = () => {
                 🕵️ EXIF metadata successfully extracted and analyzed
               </p>
             </div>
-            <p className="text-green-700 font-medium">All cyber challenge series completed!</p>
             <div className="mt-4 text-sm text-slate-500 bg-slate-50 p-3 rounded">
               <p>Evidence analyzed: Image metadata</p>
               <p>Investigation ID: {uniqueId.substring(0, 8)}</p>

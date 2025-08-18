@@ -17,10 +17,11 @@ const TeacherView = ({
   const [showDueDateModal, setShowDueDateModal] = useState(false);
   const themeClasses = getThemeClasses(isDark);
 
-  const togglePasswordVisibility = (userId) => {
+  // Use the userChallenge _id (uc._id) as the toggle key so each row is stable
+  const togglePasswordVisibility = (ucId) => {
     setShowPasswords(prev => ({
       ...prev,
-      [userId]: !prev[userId]
+      [ucId]: !prev[ucId]
     }));
   };
 
@@ -168,20 +169,32 @@ const TeacherView = ({
                             {currentChallenge.type === 'caesar' && (
                               <div className="flex items-center gap-2">
                                 <code className="bg-green-100 px-2 py-1 rounded text-sm font-mono text-green-700">
-                                  {showPasswords[uc.userId._id] ? uc.hashedPassword : '••••••••'}
+                                  {showPasswords[uc._id] ? uc.hashedPassword : '••••••••'}
                                 </code>
                                 <button
-                                  onClick={() => togglePasswordVisibility(uc.userId._id)}
+                                  onClick={() => togglePasswordVisibility(uc._id)}
                                   className="btn btn-ghost btn-xs"
+                                  aria-label="Toggle password visibility"
                                 >
-                                  {showPasswords[uc.userId._id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                  {showPasswords[uc._id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                 </button>
                               </div>
                             )}
                             {currentChallenge.type === 'github' && (
-                              <code className="bg-green-100 px-2 py-1 rounded text-sm font-mono text-green-700">
-                                GITHUB-{uc.uniqueId.slice(-4).toUpperCase()}
-                              </code>
+                              <div className="flex items-center gap-2">
+                                <code className="bg-green-100 px-2 py-1 rounded text-sm font-mono text-green-700">
+                                  {showPasswords[uc._id] 
+                                    ? (uc.challenge2Password || 'GENERATING...')
+                                    : '••••••••••••••'}
+                                </code>
+                                <button
+                                  onClick={() => togglePasswordVisibility(uc._id)}
+                                  className="btn btn-ghost btn-xs"
+                                  aria-label="Toggle password visibility"
+                                >
+                                  {showPasswords[uc._id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                              </div>
                             )}
                             {(currentChallenge.type !== 'caesar' && currentChallenge.type !== 'github') && (
                               <span className="text-sm text-gray-500">Interactive Challenge</span>

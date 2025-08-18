@@ -21,6 +21,7 @@ const UserChallengeSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   uniqueId: { type: String, required: true },
   hashedPassword: { type: String, required: true },
+  challenge2Password: { type: String }, // Add this field to store Challenge 2 password
   progress: { type: Number, default: 0, min: 0, max: 4 },
   completedAt: { type: Date },
     bitsAwarded: { type: Number, default: 0 },
@@ -200,10 +201,19 @@ ChallengeSchema.methods.generateUserChallenge = function(userId) {
   const encryptedId = caesarCipher(plaintext, shift);
   const totalChallenges = this.settings?.challengeBits?.length || 4;
   
+  // Generate Challenge 2 password
+  function generateChallenge2Password(uniqueId) {
+    const hash = crypto.createHash('md5').update(uniqueId + 'secret_salt_2024').digest('hex');
+    const prefix = ['ACCESS', 'TOKEN', 'KEY', 'SECRET', 'CODE'][parseInt(hash.substring(0, 1), 16) % 5];
+    const suffix = hash.substring(8, 14).toUpperCase();
+    return `${prefix}_${suffix}`;
+  }
+  
   return {
     userId: userId,
     uniqueId: encryptedId,
     hashedPassword: plaintext,
+    challenge2Password: generateChallenge2Password(encryptedId), // Store Challenge 2 password
     progress: 0,
     bitsAwarded: 0,
     hintsUsed: Array(totalChallenges).fill(0),
