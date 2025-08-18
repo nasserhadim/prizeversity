@@ -21,10 +21,10 @@ const UserChallengeSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   uniqueId: { type: String, required: true },
   hashedPassword: { type: String, required: true },
-  challenge2Password: { type: String }, // Add this field to store Challenge 2 password
-  progress: { type: Number, default: 0, min: 0, max: 4 },
+  challenge2Password: { type: String }, 
+  progress: { type: Number, default: 0, min: 0, max: 5 }, 
   completedAt: { type: Date },
-    bitsAwarded: { type: Number, default: 0 },
+  bitsAwarded: { type: Number, default: 0 },
   hintsUsed: { type: [Number], default: [] },
   hintsUnlocked: { type: [[String]], default: [] },
 
@@ -120,7 +120,8 @@ ChallengeSchema.pre('save', function(next) {
       this.settings.challenge1Bits || 50,
       this.settings.challenge2Bits || 75,
       this.settings.challenge3Bits || 100,
-      this.settings.challenge4Bits || 125
+      this.settings.challenge4Bits || 125,
+      this.settings.challenge5Bits || 150 
     ];
   }
   
@@ -129,7 +130,8 @@ ChallengeSchema.pre('save', function(next) {
       this.settings.challenge1Multiplier || 1.0,
       this.settings.challenge2Multiplier || 1.0,
       this.settings.challenge3Multiplier || 1.0,
-      this.settings.challenge4Multiplier || 1.0
+      this.settings.challenge4Multiplier || 1.0,
+      this.settings.challenge5Multiplier || 1.0 
     ];
   }
   
@@ -138,7 +140,8 @@ ChallengeSchema.pre('save', function(next) {
       this.settings.challenge1Luck || 1.0,
       this.settings.challenge2Luck || 1.0,
       this.settings.challenge3Luck || 1.0,
-      this.settings.challenge4Luck || 1.0
+      this.settings.challenge4Luck || 1.0,
+      this.settings.challenge5Luck || 1.0 
     ];
   }
   
@@ -147,7 +150,8 @@ ChallengeSchema.pre('save', function(next) {
       this.settings.challenge1Discount || 0,
       this.settings.challenge2Discount || 0,
       this.settings.challenge3Discount || 0,
-      this.settings.challenge4Discount || 0
+      this.settings.challenge4Discount || 0,
+      this.settings.challenge5Discount || 0 
     ];
   }
   
@@ -156,7 +160,8 @@ ChallengeSchema.pre('save', function(next) {
       this.settings.challenge1Shield || false,
       this.settings.challenge2Shield || false,
       this.settings.challenge3Shield || false,
-      this.settings.challenge4Shield || false
+      this.settings.challenge4Shield || false,
+      this.settings.challenge5Shield || false
     ];
   }
   
@@ -165,7 +170,8 @@ ChallengeSchema.pre('save', function(next) {
       this.settings.challenge1AttackBonus || 0,
       this.settings.challenge2AttackBonus || 0,
       this.settings.challenge3AttackBonus || 0,
-      this.settings.challenge4AttackBonus || 0
+      this.settings.challenge4AttackBonus || 0,
+      this.settings.challenge5AttackBonus || 0
     ];
   }
   
@@ -174,11 +180,12 @@ ChallengeSchema.pre('save', function(next) {
       false,
       false,
       false,
-      false
+      false,
+      false 
     ];
   }
   
-  const totalChallenges = this.settings.challengeBits?.length || 4;
+  const totalChallenges = this.settings.challengeBits?.length || 5; // Change from 4 to 5
   
   this.stats.totalParticipants = this.userChallenges.length;
   this.stats.completedChallenges = this.userChallenges.filter(uc => uc.progress >= totalChallenges).length;
@@ -199,7 +206,7 @@ ChallengeSchema.methods.generateUserChallenge = function(userId) {
   const hash = crypto.createHash('md5').update(plaintext + CAESAR_SALT).digest('hex');
   const shift = (parseInt(hash.substring(0, 2), 16) % CAESAR_RANGE) + CAESAR_BASE;
   const encryptedId = caesarCipher(plaintext, shift);
-  const totalChallenges = this.settings?.challengeBits?.length || 4;
+  const totalChallenges = this.settings?.challengeBits?.length || 5; // Change from 4 to 5
   
   // Generate Challenge 2 password
   function generateChallenge2Password(uniqueId) {
@@ -213,7 +220,7 @@ ChallengeSchema.methods.generateUserChallenge = function(userId) {
     userId: userId,
     uniqueId: encryptedId,
     hashedPassword: plaintext,
-    challenge2Password: generateChallenge2Password(encryptedId), // Store Challenge 2 password
+    challenge2Password: generateChallenge2Password(encryptedId),
     progress: 0,
     bitsAwarded: 0,
     hintsUsed: Array(totalChallenges).fill(0),
@@ -223,11 +230,11 @@ ChallengeSchema.methods.generateUserChallenge = function(userId) {
 
 ChallengeSchema.methods.calculateTotalBits = function() {
   if (this.settings.rewardMode === 'total') {
-    return this.settings.totalRewardBits || 350;
+    return this.settings.totalRewardBits || 500; // Update default to account for 5 challenges
   }
   
   if (!this.settings.challengeBits || this.settings.challengeBits.length === 0) {
-    return 350;
+    return 500; 
   }
   
   return this.settings.challengeBits.reduce((sum, bits) => sum + (bits || 0), 0);
@@ -235,7 +242,7 @@ ChallengeSchema.methods.calculateTotalBits = function() {
 
 ChallengeSchema.methods.getBitsForChallenge = function(challengeLevel) {
   if (this.settings.rewardMode === 'total') {
-    const totalChallenges = this.settings.challengeBits?.length || 4;
+    const totalChallenges = this.settings.challengeBits?.length || 5;
     return challengeLevel === totalChallenges ? (this.settings.totalRewardBits || 350) : 0;
   }
   
@@ -267,7 +274,7 @@ ChallengeSchema.methods.addChallenge = function(bits = 50, multiplier = 1.0, luc
 };
 
 ChallengeSchema.methods.getTotalChallenges = function() {
-  return this.settings.challengeBits?.length || 4;
+  return this.settings.challengeBits?.length || 5; // Change from 4 to 5
 };
 
 ChallengeSchema.index({ classroomId: 1 }, { unique: true });

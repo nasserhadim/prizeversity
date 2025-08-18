@@ -1,9 +1,9 @@
 export const CHALLENGE_NAMES = [
   'Little Caesar\'s Secret',
   'Check Me Out',
-  'Security Bug Fix',
-  'Digital Forensics Lab',
-  'WayneAWS Verification'
+  'Bug Smasher',
+  'I Always Sign My Work...',
+  'Secrets in the Clouds'
 ];
 
 export const DEFAULT_CHALLENGE_CONFIG = {
@@ -37,7 +37,7 @@ export const DEFAULT_CHALLENGE_CONFIG = {
 export const CHALLENGE_IDS = [
   'caesar-secret-001',
   'github-osint-002',
-  'network-analysis-003',
-  'advanced-crypto-004',
-  'wayneaws-verification-005'
+  'bug-smasher-003',
+  'i-always-sign-my-work-004',
+  'secrets-in-the-clouds-005'
 ];

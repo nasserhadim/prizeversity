@@ -5,7 +5,8 @@ export const calculatePotentialBits = (challengeIndex, challengeData, userChalle
   if (challengeData.settings.rewardMode === 'individual') {
     baseBits = challengeData.settings.challengeBits?.[challengeIndex] || 0;
   } else {
-    if (challengeIndex === 3) {
+    // For total mode, only award bits on the final challenge (index 4)
+    if (challengeIndex === 4) {
       baseBits = challengeData.settings.totalRewardBits || 0;
     }
   }
@@ -14,7 +15,8 @@ export const calculatePotentialBits = (challengeIndex, challengeData, userChalle
   const hintsEnabled = challengeData.settings.challengeHintsEnabled?.[challengeIndex];
   if (hintsEnabled && baseBits > 0) {
     const penaltyPercent = challengeData.settings.hintPenaltyPercent ?? 25;
-    const usedHints = userChallenge?.hintsUsed?.[challengeIndex] || 0;
+    const maxHints = challengeData.settings.maxHintsPerChallenge ?? 2;
+    const usedHints = Math.min(userChallenge?.hintsUsed?.[challengeIndex] || 0, maxHints);
     if (penaltyPercent > 0 && usedHints > 0) {
       const totalPenalty = Math.min(100, usedHints * penaltyPercent);
       baseBits = Math.max(0, baseBits - Math.floor((baseBits * totalPenalty) / 100));
@@ -36,6 +38,7 @@ export const getRewardDataForChallenge = (challengeIndex, challengeData, userCha
     attackBonus: 0
   };
 
+  // Calculate bits reward
   if (challengeData.settings.rewardMode === 'individual') {
     let baseBits = challengeData.settings.challengeBits?.[challengeIndex] || 0;
     const hintsEnabled = challengeData.settings.challengeHintsEnabled?.[challengeIndex];
@@ -50,7 +53,8 @@ export const getRewardDataForChallenge = (challengeIndex, challengeData, userCha
     }
     rewards.bits = baseBits;
   } else {
-    if (challengeIndex === 3) {
+    // For total mode, only award bits on the final challenge (index 4)
+    if (challengeIndex === 4) {
       let baseBits = challengeData.settings.totalRewardBits || 0;
       const hintsEnabled = challengeData.settings.challengeHintsEnabled?.[challengeIndex];
       if (hintsEnabled && baseBits > 0) {
@@ -66,10 +70,16 @@ export const getRewardDataForChallenge = (challengeIndex, challengeData, userCha
     }
   }
 
+  // Calculate other rewards
   if (challengeData.settings.multiplierMode === 'individual') {
     const multiplierReward = challengeData.settings.challengeMultipliers?.[challengeIndex] || 1.0;
     if (multiplierReward > 1.0) {
-      rewards.multiplier = multiplierReward - 1.0;
+      rewards.multiplier = multiplierReward - 1.0; // Store the increase amount
+    }
+  } else if (challengeIndex === 4) { // Total mode rewards only on final challenge
+    const totalMultiplier = challengeData.settings.totalMultiplier || 1.0;
+    if (totalMultiplier > 1.0) {
+      rewards.multiplier = totalMultiplier - 1.0; // Store the increase amount
     }
   }
 
@@ -78,6 +88,11 @@ export const getRewardDataForChallenge = (challengeIndex, challengeData, userCha
     if (luckReward > 1.0) {
       rewards.luck = luckReward;
     }
+  } else if (challengeIndex === 4) { // Total mode rewards only on final challenge
+    const totalLuck = challengeData.settings.totalLuck || 1.0;
+    if (totalLuck > 1.0) {
+      rewards.luck = totalLuck;
+    }
   }
 
   if (challengeData.settings.discountMode === 'individual') {
@@ -85,11 +100,21 @@ export const getRewardDataForChallenge = (challengeIndex, challengeData, userCha
     if (discountReward > 0) {
       rewards.discount = discountReward;
     }
+  } else if (challengeIndex === 4) { // Total mode rewards only on final challenge
+    const totalDiscount = challengeData.settings.totalDiscount || 0;
+    if (totalDiscount > 0) {
+      rewards.discount = totalDiscount;
+    }
   }
 
   if (challengeData.settings.shieldMode === 'individual') {
     const shieldReward = challengeData.settings.challengeShields?.[challengeIndex] || false;
     if (shieldReward) {
+      rewards.shield = true;
+    }
+  } else if (challengeIndex === 4) { // Total mode rewards only on final challenge
+    const totalShield = challengeData.settings.totalShield || false;
+    if (totalShield) {
       rewards.shield = true;
     }
   }
@@ -99,12 +124,17 @@ export const getRewardDataForChallenge = (challengeIndex, challengeData, userCha
     if (attackReward > 0) {
       rewards.attackBonus = attackReward;
     }
+  } else if (challengeIndex === 4) { // Total mode rewards only on final challenge
+    const totalAttackBonus = challengeData.settings.totalAttackBonus || 0;
+    if (totalAttackBonus > 0) {
+      rewards.attackBonus = totalAttackBonus;
+    }
   }
 
   return {
     rewards,
     challengeName: challengeNames[challengeIndex],
-    allCompleted: challengeIndex === 4,
+    allCompleted: challengeIndex === 4, // All completed when Challenge 5 is done
     nextChallenge: challengeIndex < 4 ? challengeNames[challengeIndex + 1] : null
   };
 };
@@ -114,7 +144,7 @@ export const getCurrentChallenge = (progress) => {
     return {
       number: 1,
       name: "Little Caesar's Secret",
-      method: "Caesar Cipher",
+      method: "Caesar Cipher Decryption",
       type: "caesar"
     };
   } else if (progress === 1) {
@@ -129,21 +159,29 @@ export const getCurrentChallenge = (progress) => {
       number: 3,
       name: "Bug Smasher",
       method: "C++ Security Vulnerability", 
-      type: "debugging"
+      type: "network"
     };
   } else if (progress === 3) {
     return {
       number: 4,
-      name: "I Always Sign My Work",
+      name: "I Always Sign My Work...",
       method: "Image Metadata Analysis",
-      type: "forensics"
+      type: "crypto"
     };
-  } else {
+  } else if (progress === 4) {
     return {
       number: 5,
-      name: "Secrets Written in the Clouds",
-      method: "AWS S3 Bucket Investigation",
+      name: "Secrets in the Clouds",
+      method: "Cloud Authentication",
       type: "cloud"
+    };
+  } else {
+    // If progress is 5 or higher, they've completed all challenges
+    return {
+      number: 5,
+      name: "Secrets in the Clouds  ",
+      method: "Cloud Authentication",
+      type: "completed"
     };
   }
 };

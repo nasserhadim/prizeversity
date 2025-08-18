@@ -25,6 +25,14 @@ const TeacherView = ({
     }));
   };
 
+  // Add this helper function at the top of the component, outside the main component function
+  const generateForensicsPassword = (userId, uniqueId) => {
+    // This matches the logic from the backend
+    const crypto = require('crypto');
+    const studentHash = crypto.createHash('md5').update(userId.toString() + uniqueId).digest('hex');
+    return `FORENSICS_${studentHash.substring(0, 8).toUpperCase()}`;
+  };
+
   return (
     <div className="p-6 space-y-8">
       <div className={themeClasses.cardBase}>
@@ -159,10 +167,10 @@ const TeacherView = ({
                               <span className="text-sm text-blue-600 font-medium">GitHub Branch: {uc.uniqueId}</span>
                             )}
                             {currentChallenge.type === 'network' && (
-                              <span className="text-sm text-purple-600 font-medium">Network Logs</span>
+                              <span className="text-sm text-purple-600 font-medium">C++ Coding Challenge</span>
                             )}
                             {currentChallenge.type === 'crypto' && (
-                              <span className="text-sm text-indigo-600 font-medium">Encrypted Files</span>
+                              <span className="text-sm text-indigo-600 font-medium">Forensics Evidence: campus_{uc.uniqueId}.jpg</span>
                             )}
                           </td>
                           <td>
@@ -184,7 +192,7 @@ const TeacherView = ({
                               <div className="flex items-center gap-2">
                                 <code className="bg-green-100 px-2 py-1 rounded text-sm font-mono text-green-700">
                                   {showPasswords[uc._id] 
-                                    ? (uc.challenge2Password || 'GENERATING...')
+                                    ? (uc.challenge2Password || 'Not generated yet')
                                     : '••••••••••••••'}
                                 </code>
                                 <button
@@ -196,7 +204,23 @@ const TeacherView = ({
                                 </button>
                               </div>
                             )}
-                            {(currentChallenge.type !== 'caesar' && currentChallenge.type !== 'github') && (
+                            {currentChallenge.type === 'crypto' && (
+                              <div className="flex items-center gap-2">
+                                <code className="bg-green-100 px-2 py-1 rounded text-sm font-mono text-green-700">
+                                  {showPasswords[uc._id] 
+                                    ? (uc.challenge4Password || 'Complete Challenge 3 first')
+                                    : '••••••••••••••••••'}
+                                </code>
+                                <button
+                                  onClick={() => togglePasswordVisibility(uc._id)}
+                                  className="btn btn-ghost btn-xs"
+                                  aria-label="Toggle password visibility"
+                                >
+                                  {showPasswords[uc._id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                              </div>
+                            )}
+                            {currentChallenge.type === 'network' && (
                               <span className="text-sm text-gray-500">Interactive Challenge</span>
                             )}
                           </td>

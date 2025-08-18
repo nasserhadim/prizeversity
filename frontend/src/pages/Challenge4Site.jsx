@@ -44,6 +44,23 @@ const Challenge4Site = () => {
       const data = await response.json();
       
       if (data.success) {
+        // Store completion data with proper rewards structure
+        localStorage.setItem('challengeCompleted', JSON.stringify({
+          challengeIndex: 3,
+          challengeName: data.challengeName || "Digital Forensics Lab",
+          timestamp: Date.now(),
+          rewards: data.rewards || {
+            bits: 0,
+            multiplier: 0,
+            luck: 1.0,
+            discount: 0,
+            shield: false,
+            attackBonus: 0
+          },
+          allCompleted: data.allCompleted || false,
+          nextChallenge: data.nextChallenge
+        }));
+        
         setShowSuccess(true);
         toast.success(data.message);
       } else {
@@ -78,11 +95,6 @@ const Challenge4Site = () => {
           </div>
           <button
             onClick={() => {
-              localStorage.setItem('challengeCompleted', JSON.stringify({
-                challengeIndex: 3,
-                challengeName: "Digital Forensics Lab",
-                timestamp: Date.now()
-              }));
               window.close();
             }}
             className="px-8 py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors shadow-sm"

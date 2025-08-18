@@ -471,7 +471,7 @@ const Challenge = () => {
 
             <ChallengeCard
               challengeIndex={2}
-              challengeName="Security Bug Fix"
+              challengeName="Bug Smasher"
               challengeIcon="🐛"
               challengeDescription="Fix a simple security vulnerability in C++ code. Each student gets a unique bug to identify and correct."
               userChallenge={userChallenge}
@@ -487,7 +487,7 @@ const Challenge = () => {
 
             <ChallengeCard
               challengeIndex={3}
-              challengeName="Digital Forensics Lab"
+              challengeName="I Always Sign My Work..."
               challengeIcon="🕵️"
               challengeDescription="Your final mission: Conduct a digital forensics investigation to extract hidden information from image metadata."
               userChallenge={userChallenge}
@@ -503,7 +503,7 @@ const Challenge = () => {
 
             <ChallengeCard
               challengeIndex={4}
-              challengeName="WayneAWS Verification"
+              challengeName="Secrets in the Clouds"
               challengeIcon="🔐"
               challengeDescription="Your final mission: Authenticate with WayneAWS cloud services using advanced credential verification protocols."
               userChallenge={userChallenge}

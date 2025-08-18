@@ -62,10 +62,11 @@ const Challenge5Site = () => {
             
             // Store completion data for the main challenge page to pick up
             localStorage.setItem('challengeCompleted', JSON.stringify({
-              challengeIndex: 4,
+              challengeIndex: 4, // This is Challenge 5 (0-indexed)
               challengeName: "WayneAWS Verification",
               timestamp: Date.now(),
-              bitsAwarded: challengeData.bitsAwarded
+              bitsAwarded: challengeData.bitsAwarded,
+              allCompleted: true // Mark as all completed since this is the final challenge
             }));
           }
         } catch (challengeError) {
@@ -93,7 +94,7 @@ const Challenge5Site = () => {
       <div className="min-h-screen bg-gradient-to-br from-blue-900 to-purple-900 text-cyan-400 font-mono flex flex-col items-center justify-center p-8">
         <div className="max-w-2xl w-full space-y-8 text-center">
           <Shield size={64} className="mx-auto text-cyan-400 animate-pulse" />
-          <h1 className="text-4xl font-bold">WAYNEAWS VERIFICATION COMPLETE</h1>
+          <h1 className="text-4xl font-bold">SECRETS IN THE CLOUDS COMPLETE</h1>
           <div className="border border-cyan-400 p-6 bg-black/40 backdrop-blur-sm rounded-lg">
             <h2 className="text-2xl font-bold mb-4 text-cyan-300">CHALLENGE 5 COMPLETE</h2>
             <p className="mb-4">WayneAWS credentials successfully validated.</p>

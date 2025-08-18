@@ -53,7 +53,7 @@ const RewardModal = ({ isOpen, onClose, rewards, challengeName, allCompleted, ne
                       <Zap className="w-6 h-6 text-blue-600" />
                       <span className="font-medium text-gray-800">Multiplier Bonus</span>
                     </div>
-                    <span className="text-xl font-bold text-blue-600">+{(rewards.multiplier * 100).toFixed(0)}%</span>
+                    <span className="text-xl font-bold text-blue-600">{(rewards.multiplier + 1).toFixed(1)}x</span>
                   </div>
                 )}
 
