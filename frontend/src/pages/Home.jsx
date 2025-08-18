@@ -17,6 +17,10 @@ import {
   Clock,
   ShieldCheck,
   ChevronRight,
+  BarChart2,
+  Coins,
+  Store,
+  Zap,
 } from 'lucide-react';
 
 // Importing images, credits: https://unsplash.com/
@@ -392,35 +396,135 @@ const Home = () => {
         </section>
 
         {/* Value Proposition */}
-        <section className="mb-20">
-          <h2 className="text-3xl font-bold text-center mb-12">Why Prizeversity Stands Out</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100">
-              <div className="bg-green-100 w-12 h-12 rounded-full flex items-center justify-center mb-4">
-                <School className="text-green-500" size={24} />
+        <section className="mb-20 py-16">
+          <div className="text-center mb-4">
+            <h2 className="text-3xl font-bold text-gray-900">Why Prizeversity Stands Out</h2>
+            <p className="text-xl text-gray-600 mt-2">A Gamified Ecosystem Unlike Any Other</p>
+          </div>
+          <p className="text-center text-gray-600 max-w-3xl mx-auto mb-12">
+            At its core, Prizeversity introduces a unique gameplay loop where stats, virtual currency, and rewards are interconnected, creating a continuous cycle of motivation for students and a powerful engagement tool for teachers.
+          </p>
+          
+          {/* The Loop Layout */}
+          <div className="max-w-4xl mx-auto mt-12">
+            {/* Mobile Layout: Vertical Stack */}
+            <div className="md:hidden space-y-8 px-4">
+              {/* Step 1 */}
+              <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100">
+                <div className="flex items-center gap-4">
+                  <div className="bg-blue-100 w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"><BarChart2 className="text-blue-500" size={24} /></div>
+                  <div>
+                    <h3 className="text-xl font-semibold mb-1">1. Boost Stats</h3>
+                    <p className="text-gray-600 text-sm">Teachers empower students to boost key stats like Multiplier and Luck. Students improve these stats through various classroom activities, gaining a competitive edge.</p>
+                  </div>
+                </div>
               </div>
-              <h3 className="text-xl font-semibold mb-2">For Educators</h3>
-              <p className="text-gray-600">
-                Create and manage classrooms with intuitive tools designed to save you time.
-              </p>
+              {/* Step 2 */}
+              <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100">
+                <div className="flex items-center gap-4">
+                  <div className="bg-yellow-100 w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"><Coins className="text-yellow-500" size={24} /></div>
+                  <div>
+                    <h3 className="text-xl font-semibold mb-1">2. Earn "Bits"</h3>
+                    <p className="text-gray-600 text-sm">Higher stats help students earn virtual currency ("Bits") faster. Teachers control the classroom economy to incentivize participation.</p>
+                  </div>
+                </div>
+              </div>
+              {/* Step 3 */}
+              <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100">
+                <div className="flex items-center gap-4">
+                  <div className="bg-purple-100 w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"><Store className="text-purple-500" size={24} /></div>
+                  <div>
+                    <h3 className="text-xl font-semibold mb-1">3. Shop the Bazaar</h3>
+                    <p className="text-gray-600 text-sm">Students spend Bits on unique items. Teachers create a custom Bazaar with perks like deadline extensions or bonus points.</p>
+                  </div>
+                </div>
+              </div>
+              {/* Step 4 */}
+              <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100">
+                <div className="flex items-center gap-4">
+                  <div className="bg-green-100 w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"><Zap className="text-green-500" size={24} /></div>
+                  <div>
+                    <h3 className="text-xl font-semibold mb-1">4. Power-Up & Repeat</h3>
+                    <p className="text-gray-600 text-sm">New items and abilities create a fun, continuous loop that keeps students engaged and motivated in the course material.</p>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100">
-              <div className="bg-green-100 w-12 h-12 rounded-full flex items-center justify-center mb-4">
-                <GraduationCap className="text-green-500" size={24} />
+
+            {/* Desktop Layout: Circular */}
+            <div className="hidden md:block relative h-[500px]">
+              {/* Central Text */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center text-center">
+                <div className="bg-gray-100 rounded-full w-48 h-48 flex items-center justify-center flex-col p-4 shadow-inner">
+                  <Zap className="text-green-500 mb-2" size={32} />
+                  <h3 className="font-bold text-xl">The Engagement Loop</h3>
+                </div>
               </div>
-              <h3 className="text-xl font-semibold mb-2">For Students</h3>
-              <p className="text-gray-600">
-                Collaborate with peers and engange in a gamification environment.
-              </p>
-            </div>
-            <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100">
-              <div className="bg-green-100 w-12 h-12 rounded-full flex items-center justify-center mb-4">
-                <Bell className="text-green-500" size={24} />
+
+              {/* Arrows SVG */}
+              <svg className="absolute inset-0 w-full h-full" viewBox="0 0 500 500">
+                <defs>
+                  <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#d1d5db" />
+                  </marker>
+                </defs>
+                <path d="M 330,85 A 165,165 0 0,1 415,170" stroke="#d1d5db" strokeWidth="2" fill="none" strokeDasharray="5,5" markerEnd="url(#arrowhead)" />
+                <path d="M 415,330 A 165,165 0 0,1 330,415" stroke="#d1d5db" strokeWidth="2" fill="none" strokeDasharray="5,5" markerEnd="url(#arrowhead)" />
+                <path d="M 170,415 A 165,165 0 0,1 85,330" stroke="#d1d5db" strokeWidth="2" fill="none" strokeDasharray="5,5" markerEnd="url(#arrowhead)" />
+                <path d="M 85,170 A 165,165 0 0,1 170,85" stroke="#d1d5db" strokeWidth="2" fill="none" strokeDasharray="5,5" markerEnd="url(#arrowhead)" />
+              </svg>
+
+              {/* Step 1: Boost Stats (Top) */}
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64">
+                <div className="bg-white p-4 rounded-xl shadow-md border border-gray-100">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-blue-100 w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"><BarChart2 className="text-blue-500" size={20} /></div>
+                    <div>
+                      <h3 className="font-semibold">1. Boost Stats</h3>
+                      <p className="text-gray-600 text-xs">Teachers empower students to boost stats like Multiplier & Luck for a competitive edge.</p>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <h3 className="text-xl font-semibold mb-2">Real Time Updates</h3>
-              <p className="text-gray-600">
-                Be up to date with classroom activities and events.
-              </p>
+
+              {/* Step 2: Earn Bits (Right) */}
+              <div className="absolute top-1/2 right-0 -translate-y-1/2 w-64">
+                <div className="bg-white p-4 rounded-xl shadow-md border border-gray-100">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-yellow-100 w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"><Coins className="text-yellow-500" size={20} /></div>
+                    <div>
+                      <h3 className="font-semibold">2. Earn "Bits"</h3>
+                      <p className="text-gray-600 text-xs">Students earn currency faster, driven by a teacher-controlled economy.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 3: Shop the Bazaar (Bottom) */}
+              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-64">
+                <div className="bg-white p-4 rounded-xl shadow-md border border-gray-100">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-purple-100 w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"><Store className="text-purple-500" size={20} /></div>
+                    <div>
+                      <h3 className="font-semibold">3. Shop the Bazaar</h3>
+                      <p className="text-gray-600 text-xs">Teachers stock a custom Bazaar; students spend Bits on unique perks.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 4: Power-Up (Left) */}
+              <div className="absolute top-1/2 left-0 -translate-y-1/2 w-64">
+                <div className="bg-white p-4 rounded-xl shadow-md border border-gray-100">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-green-100 w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"><Zap className="text-green-500" size={20} /></div>
+                    <div>
+                      <h3 className="font-semibold">4. Power-Up & Repeat</h3>
+                      <p className="text-gray-600 text-xs">The cycle creates a fun, continuous loop that keeps students motivated.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
