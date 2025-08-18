@@ -1,0 +1,158 @@
+import { Eye, EyeOff } from 'lucide-react';
+import { getChallengeColors } from '../../../utils/themeUtils';
+import { calculatePotentialBits } from '../../../utils/challengeUtils';
+import { unlockHint } from '../../../API/apiChallenge';
+import { CHALLENGE_IDS } from '../../../constants/challengeConstants';
+import toast from 'react-hot-toast';
+
+const ChallengeCard = ({ 
+  challengeIndex,
+  challengeName,
+  challengeIcon,
+  challengeDescription,
+  userChallenge,
+  challengeData,
+  isDark,
+  unlockingHint,
+  setUnlockingHint,
+  fetchChallengeData,
+  classroomId,
+  children
+}) => {
+  const colors = getChallengeColors(challengeIndex, isDark);
+  const isCompleted = userChallenge?.progress > challengeIndex;
+  const isUnlocked = userChallenge?.progress >= challengeIndex;
+  const isLocked = userChallenge?.progress < challengeIndex;
+
+  const challengeId = CHALLENGE_IDS[challengeIndex];
+  
+  const handleUnlockHint = async () => {
+    try {
+      setUnlockingHint(prev => ({ ...prev, [challengeId]: true }));
+      const res = await unlockHint(classroomId, challengeId);
+      if (res.success) {
+        await fetchChallengeData();
+      } else {
+        toast.error(res.message || 'Unable to unlock hint');
+      }
+    } catch (e) {
+      toast.error(e.message || 'Unable to unlock hint');
+    } finally {
+      setUnlockingHint(prev => ({ ...prev, [challengeId]: false }));
+    }
+  };
+
+  return (
+    <div className={`collapse collapse-arrow ${
+      isCompleted 
+        ? colors.completedBg 
+        : isUnlocked 
+          ? colors.cardBg 
+          : isDark 
+            ? 'bg-base-300/30 border border-base-content/10 opacity-60' 
+            : 'bg-gray-50 border border-gray-200 opacity-60'
+    }`}>
+      {isUnlocked && <input type="checkbox" defaultChecked={!isCompleted} className="peer" />}
+      
+      <div className="collapse-title text-xl font-medium flex items-center gap-3">
+        <div className={`badge badge-lg ${
+          isCompleted ? 'badge-success' : isUnlocked ? 'badge-error' : 'badge-neutral'
+        }`}>
+          Challenge {challengeIndex + 1}
+        </div>
+        
+        <span className={
+          isCompleted 
+            ? colors.completedText 
+            : isUnlocked 
+              ? colors.textColor 
+              : isDark 
+                ? 'text-base-content/60' 
+                : 'text-gray-600'
+        }>
+          {challengeIcon} {challengeName}
+        </span>
+        
+        <div className={`badge badge-outline badge-sm ${
+          userChallenge?.hintsUsed?.[challengeIndex] > 0 ? 'badge-warning' : ''
+        }`}>
+          {calculatePotentialBits(challengeIndex, challengeData, userChallenge)} bits
+          {userChallenge?.hintsUsed?.[challengeIndex] > 0 && (
+            <span className="ml-1 text-xs opacity-75">
+              (-{userChallenge.hintsUsed[challengeIndex] * (challengeData?.settings?.hintPenaltyPercent || 25)}%)
+            </span>
+          )}
+        </div>
+        
+        <div className={`ml-auto text-sm ${isDark ? 'text-base-content/50' : 'text-gray-400'}`}>
+          {isCompleted 
+            ? '✅ Completed' 
+            : isUnlocked 
+              ? '🔓 Unlocked' 
+              : '🔒 Locked'}
+        </div>
+      </div>
+      
+      {isUnlocked && (
+        <div className="collapse-content">
+          <div className="pt-4 space-y-4">
+            {challengeData?.settings?.challengeHintsEnabled?.[challengeIndex] && (
+              <div className="flex items-center gap-3">
+                <span className="badge badge-outline">Hints enabled</span>
+                <span className="text-xs text-gray-500">
+                  Penalty {challengeData.settings.hintPenaltyPercent || 25}% each
+                </span>
+              </div>
+            )}
+            
+            <p className={isDark ? 'text-base-content/70' : 'text-gray-600'}>
+              {challengeDescription}
+            </p>
+            
+            {challengeData?.settings?.challengeHintsEnabled?.[challengeIndex] && (
+              <div className="flex items-start gap-3 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="badge badge-outline">Hints</span>
+                  <span className="text-xs text-gray-500">
+                    -{challengeData.settings.hintPenaltyPercent || 25}% each
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    {(userChallenge?.hintsUsed?.[challengeIndex] || 0)}/{challengeData.settings.maxHintsPerChallenge ?? 2}
+                  </span>
+                  <div className="flex flex-col items-center gap-1">
+                    <button
+                      className="btn btn-xs btn-primary"
+                      disabled={
+                        unlockingHint[challengeId] || 
+                        ((userChallenge?.hintsUsed?.[challengeIndex] || 0) >= (challengeData.settings.maxHintsPerChallenge ?? 2))
+                      }
+                      onClick={handleUnlockHint}
+                    >
+                      {unlockingHint[challengeId] ? '...' : 'Unlock'}
+                    </button>
+                    {((userChallenge?.hintsUsed?.[challengeIndex] || 0) < (challengeData.settings.maxHintsPerChallenge ?? 2)) && (
+                      <span className="text-xs text-warning">
+                        -{Math.floor((challengeData?.settings?.challengeBits?.[challengeIndex] || 0) * (challengeData.settings.hintPenaltyPercent || 25) / 100)} bits
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {userChallenge?.hintsUnlocked?.[challengeIndex]?.length > 0 && (
+                  <ul className="ml-2 list-disc text-xs text-gray-700">
+                    {userChallenge.hintsUnlocked[challengeIndex].map((h, i) => (
+                      <li key={i}>{h}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+            
+            {children}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default ChallengeCard;

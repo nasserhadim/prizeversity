@@ -618,6 +618,155 @@ router.post('/verify-challenge2-external', ensureAuthenticated, async (req, res)
   }
 });
 
+// Challenge 5: WayneAWS Verification
+router.post('/verify-challenge5-external', ensureAuthenticated, async (req, res) => {
+  try {
+    const { uniqueId, verified } = req.body;
+    const userId = req.user._id;
+
+    if (!uniqueId || !verified) {
+      return res.status(400).json({ message: 'Invalid verification data' });
+    }
+
+    const challenge = await Challenge.findOne({
+      'userChallenges.uniqueId': uniqueId
+    });
+
+    if (!challenge) {
+      return res.status(404).json({ message: 'Challenge not found' });
+    }
+
+    const userChallenge = challenge.userChallenges.find(
+      uc => uc.uniqueId === uniqueId && uc.userId.toString() === userId.toString()
+    );
+
+    if (!userChallenge) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    if (userChallenge.progress < 4) {
+      return res.status(400).json({ message: 'Must complete Challenge 4 first' });
+    }
+
+    if (userChallenge.progress >= 5) {
+      return res.status(400).json({ message: 'Challenge already completed' });
+    }
+
+    // Update progress to Challenge 5 completed
+    userChallenge.progress = 5;
+    userChallenge.completedAt = Date.now();
+    
+    const User = require('../models/User');
+    const user = await User.findById(userId);
+    let bitsAwarded = 0;
+    if (user) {
+      const challengeIndex = 4; // Challenge 5 is index 4
+      
+      if (challenge.settings.rewardMode === 'individual') {
+        bitsAwarded = challenge.settings.challengeBits[challengeIndex] || 0;
+      } else if (challengeIndex === 4) {
+        bitsAwarded = challenge.settings.totalRewardBits || 0;
+      }
+
+      // Apply hint penalty if hints were used
+      const hintsEnabled = (challenge.settings.challengeHintsEnabled || [])[challengeIndex];
+      const penaltyPercent = challenge.settings.hintPenaltyPercent ?? 25;
+      const maxHints = challenge.settings.maxHintsPerChallenge ?? 2;
+      const usedHints = Math.min((userChallenge.hintsUsed?.[challengeIndex] || 0), maxHints);
+      if (hintsEnabled && bitsAwarded > 0 && usedHints > 0 && penaltyPercent > 0) {
+        const totalPenalty = Math.min(100, usedHints * penaltyPercent);
+        const deduction = Math.floor((bitsAwarded * totalPenalty) / 100);
+        bitsAwarded = Math.max(0, bitsAwarded - deduction);
+      }
+
+      if (bitsAwarded > 0) {
+        user.balance += bitsAwarded;
+        user.transactions.push({
+          amount: bitsAwarded,
+          description: `Completed Challenge ${challengeIndex + 1}`,
+          assignedBy: challenge.createdBy,
+          createdAt: new Date()
+        });
+        userChallenge.bitsAwarded += bitsAwarded;
+        if (!Array.isArray(userChallenge.perChallengeAwarded)) userChallenge.perChallengeAwarded = [];
+        while (userChallenge.perChallengeAwarded.length <= challengeIndex) userChallenge.perChallengeAwarded.push(0);
+        userChallenge.perChallengeAwarded[challengeIndex] = bitsAwarded;
+      }
+
+      // Award other rewards
+      if (challenge.settings.multiplierMode === 'individual') {
+        const multiplierReward = challenge.settings.challengeMultipliers[challengeIndex] || 1.0;
+        if (multiplierReward > 1.0) {
+          user.passiveAttributes.multiplier += (multiplierReward - 1.0);
+        }
+      }
+
+      if (challenge.settings.luckMode === 'individual') {
+        const luckReward = challenge.settings.challengeLuck[challengeIndex] || 1.0;
+        if (luckReward > 1.0) {
+          user.passiveAttributes.luck = user.passiveAttributes.luck * luckReward;
+        }
+      }
+
+      if (challenge.settings.discountMode === 'individual') {
+        const discountReward = challenge.settings.challengeDiscounts[challengeIndex] || 0;
+        if (discountReward > 0) {
+          if (typeof user.discountShop === 'boolean') {
+            user.discountShop = user.discountShop ? 100 : 0;
+          }
+          user.discountShop = Math.min(100, (user.discountShop || 0) + discountReward);
+        }
+      }
+
+      if (challenge.settings.shieldMode === 'individual') {
+        const shieldReward = challenge.settings.challengeShields[challengeIndex] || false;
+        if (shieldReward) {
+          user.shieldActive = true;
+        }
+      }
+
+      if (challenge.settings.attackMode === 'individual') {
+        const attackReward = challenge.settings.challengeAttackBonuses[challengeIndex] || 0;
+        if (attackReward > 0) {
+          user.attackBonus = (user.attackBonus || 0) + attackReward;
+        }
+      }
+
+      await user.save();
+
+      // Create notification for challenge completion
+      const Notification = require('../models/Notification');
+      const { populateNotification } = require('../utils/notifications');
+      
+      const notification = await Notification.create({
+        user: user._id,
+        actionBy: challenge.createdBy,
+        type: 'challenge_completed',
+        message: `You completed Challenge 5: WayneAWS Verification and earned ${bitsAwarded} bits!`,
+        read: false,
+        createdAt: new Date(),
+      });
+
+      const populatedNotification = await populateNotification(notification._id);
+      if (populatedNotification) {
+        req.app.get('io').to(`user-${user._id}`).emit('notification', populatedNotification);
+      }
+    }
+
+    await challenge.save();
+
+    res.json({ 
+      message: 'WayneAWS verification completed successfully!',
+      progress: userChallenge.progress,
+      bitsAwarded 
+    });
+
+  } catch (error) {
+    console.error('Error verifying Challenge 5:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 router.post('/complete-challenge/:level', ensureAuthenticated, async (req, res) => {
   try {
     const { level } = req.params;
@@ -793,7 +942,7 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
         
         if (challenge.settings.rewardMode === 'individual') {
           bitsAwarded = challenge.settings.challengeBits[challengeIndex] || 0;
-        } else if (challengeIndex === 3) {
+        } else if (challengeIndex === 4) {
           bitsAwarded = challenge.settings.totalRewardBits || 0;
         }
 
