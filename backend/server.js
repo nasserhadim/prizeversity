@@ -16,7 +16,7 @@ const walletRoutes = require('./routes/wallet');
 const groupRoutes = require('./routes/group');
 const siphonRouter = require('./routes/siphon');
 const notificationsRoutes = require('./routes/notifications');
-const feedbackRoutes = require('./models/Feedback'); // Importing Feedback model for classroom feedback
+const feedbackRoutes = require('./routes/feedback'); // Importing Feedback model for classroom feedback
 // Importing admin route
 const adminRoutes = require('./routes/admin');
 const usersRoutes = require('./routes/users');

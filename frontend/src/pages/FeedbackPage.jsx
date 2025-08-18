@@ -10,18 +10,32 @@ const FeedbackPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!rating) {
+      alert("Please select a star rating before submitting.");
+      return;
+    }
     try {
-      await axios.post(`${API_BASE}/api/feedback`, {
+      const res = await axios.post(`${API_BASE}/api/feedback`, {
         rating,
         comment,
       });
+
       setRating(null);
       setComment('');
       setSubmitted(true);
       setTimeout(() => setSubmitted(false), 3000); // Reset submitted state after 3 seconds
     } catch (err) {
-      console.error('Error submitting feedback:', err);
-    }
+  if (err.response) {
+    // The server responded but with an error code
+    console.error("Error response:", err.response.status, err.response.data);
+  } else if (err.request) {
+    // The request was made but no response
+    console.error("No response from server:", err.request);
+  } else {
+    // Something else
+    console.error("Error setting up request:", err.message);
+  }
+}
   };
 
   return (
