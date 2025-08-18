@@ -71,7 +71,8 @@ const ChallengeSite = () => {
                 localStorage.setItem('challengeCompleted', JSON.stringify({
                   challengeIndex: 0,
                   challengeName: "Little Caesar's Secret",
-                  timestamp: Date.now()
+                  timestamp: Date.now(),
+                  needsRewards: true
                 }));
                 window.close();
               }}

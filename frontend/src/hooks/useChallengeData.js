@@ -22,15 +22,6 @@ export const useChallengeData = (classroomId) => {
       setChallengeData(response.challenge || null);
       
       const newProgress = response.userChallenge?.progress || 0;
-      if (previousProgress !== null && newProgress > previousProgress && newProgress > 0) {
-        const completedChallengeIndex = newProgress - 1;
-        const rewardInfo = getRewardDataForChallenge(completedChallengeIndex, response.challenge, response.userChallenge, CHALLENGE_NAMES);
-        if (rewardInfo) {
-          setRewardData(rewardInfo);
-          setShowRewardModal(true);
-          toast.success(`${rewardInfo.challengeName} completed! 🎉`);
-        }
-      }
       
       setUserChallenge(response.userChallenge);
       setPreviousProgress(newProgress);
@@ -95,11 +86,25 @@ export const useChallengeData = (classroomId) => {
       const completedData = localStorage.getItem('challengeCompleted');
       if (completedData) {
         try {
-          const { challengeIndex, challengeName, timestamp } = JSON.parse(completedData);
+          const { challengeIndex, challengeName, timestamp, rewards, allCompleted, nextChallenge, needsRewards } = JSON.parse(completedData);
           
           const timeDiff = Date.now() - timestamp;
-          if (timeDiff < 30000 && challengeData?.settings) {
-            const rewardInfo = getRewardDataForChallenge(challengeIndex, challengeData, userChallenge, CHALLENGE_NAMES);
+          if (timeDiff < 30000) {
+            // Use the rewards directly from the API response if available, otherwise compute them
+            let rewardInfo;
+            if (rewards) {
+              rewardInfo = {
+                rewards,
+                challengeName,
+                allCompleted: allCompleted || false,
+                nextChallenge
+              };
+            } else if (needsRewards && challengeData?.settings) {
+              rewardInfo = getRewardDataForChallenge(challengeIndex, challengeData, userChallenge, CHALLENGE_NAMES);
+            } else if (challengeData?.settings) {
+              rewardInfo = getRewardDataForChallenge(challengeIndex, challengeData, userChallenge, CHALLENGE_NAMES);
+            }
+            
             if (rewardInfo) {
               setRewardData(rewardInfo);
               setShowRewardModal(true);

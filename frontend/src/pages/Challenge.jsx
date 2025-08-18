@@ -25,7 +25,6 @@ import { useTemplates } from '../hooks/useTemplates';
 
 // Utils
 import { getThemeClasses } from '../utils/themeUtils';
-import { CHALLENGE_NAMES } from '../constants/challengeConstants';
 
 const Challenge = () => {
   const { classroomId } = useParams();
@@ -373,9 +372,6 @@ const Challenge = () => {
           <Shield className="w-8 h-8 text-red-500" />
           <h1 className="text-3xl font-bold text-base-content">Cyber Challenge</h1>
         </div>
-        <p className={themeClasses.mutedText}>
-          Welcome to WSU's Cyber Challenge! Employ your skills to solve the challenges and earn bits to spend in the bazaar!
-        </p>
         
         {challengeData?.settings?.dueDateEnabled && challengeData?.settings?.dueDate && (
           <div className={`mt-4 p-3 rounded-lg border ${
@@ -426,7 +422,7 @@ const Challenge = () => {
               {userChallenge.progress > 0 && (
                 <div className={`mt-4 p-4 ${isDark ? 'bg-blue-900/20 border border-blue-700/50' : 'bg-blue-50 border border-blue-200'} rounded-lg`}>
                   <p className={`${isDark ? 'text-blue-200' : 'text-blue-800'} font-medium`}>
-                    Your Progress: Completed {userChallenge.progress} out of 5 challenges
+                    Your Progress: Completed {userChallenge.completedChallenges?.filter(Boolean).length || 0} out of 5 challenges
                   </p>
                 </div>
               )}
@@ -436,6 +432,7 @@ const Challenge = () => {
         <div className="space-y-6">
           <div className="card bg-base-100 border border-base-200 shadow-md rounded-2xl p-6">
             <h2 className="text-2xl font-bold mb-6">{challengeData?.title || 'Cyber Challenge Series'}</h2>
+
             
             <ChallengeCard
               challengeIndex={0}
@@ -489,7 +486,7 @@ const Challenge = () => {
               challengeIndex={3}
               challengeName="I Always Sign My Work..."
               challengeIcon="🕵️"
-              challengeDescription="Your final mission: Conduct a digital forensics investigation to extract hidden information from image metadata."
+              challengeDescription="Your mission: Conduct a digital forensics investigation to extract hidden information from image metadata."
               userChallenge={userChallenge}
               challengeData={challengeData}
               isDark={isDark}

@@ -1,7 +1,7 @@
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Play } from 'lucide-react';
 import { getChallengeColors } from '../../../utils/themeUtils';
 import { calculatePotentialBits } from '../../../utils/challengeUtils';
-import { unlockHint } from '../../../API/apiChallenge';
+import { unlockHint, startChallenge } from '../../../API/apiChallenge';
 import { CHALLENGE_IDS } from '../../../constants/challengeConstants';
 import toast from 'react-hot-toast';
 
@@ -20,10 +20,12 @@ const ChallengeCard = ({
   children
 }) => {
   const colors = getChallengeColors(challengeIndex, isDark);
-  const isCompleted = userChallenge?.progress > challengeIndex;
-  const isUnlocked = userChallenge?.progress >= challengeIndex;
-  const isLocked = userChallenge?.progress < challengeIndex;
+  const isCompleted = userChallenge?.completedChallenges?.[challengeIndex] || false;
 
+  // Remove progress-based locking - all challenges are now unlocked 
+  const isUnlocked = true; 
+  const isLocked = false; 
+  
   const challengeId = CHALLENGE_IDS[challengeIndex];
   
   const handleUnlockHint = async () => {
@@ -42,21 +44,32 @@ const ChallengeCard = ({
     }
   };
 
+  const handleStartChallenge = async () => {
+    try {
+      const res = await startChallenge(classroomId, challengeIndex);
+      if (res.success) {
+        toast.success('Challenge started!');
+        await fetchChallengeData();
+      } else {
+        toast.error(res.message || 'Unable to start challenge');
+      }
+    } catch (e) {
+      toast.error(e.message || 'Unable to start challenge');
+    }
+  };
+
   return (
     <div className={`collapse collapse-arrow ${
       isCompleted 
         ? colors.completedBg 
-        : isUnlocked 
-          ? colors.cardBg 
-          : isDark 
-            ? 'bg-base-300/30 border border-base-content/10 opacity-60' 
-            : 'bg-gray-50 border border-gray-200 opacity-60'
+        : colors.cardBg // Always use unlocked styling
     }`}>
-      {isUnlocked && <input type="checkbox" defaultChecked={!isCompleted} className="peer" />}
+      {/* Always allow expansion since all challenges are unlocked */}
+      <input type="checkbox" defaultChecked={false} className="peer" />
       
       <div className="collapse-title text-xl font-medium flex items-center gap-3">
         <div className={`badge badge-lg ${
-          isCompleted ? 'badge-success' : isUnlocked ? 'badge-error' : 'badge-neutral'
+          isCompleted ? 'badge-success' : 'badge-primary' // Change from badge-error to badge-primary
         }`}>
           Challenge {challengeIndex + 1}
         </div>
@@ -64,11 +77,7 @@ const ChallengeCard = ({
         <span className={
           isCompleted 
             ? colors.completedText 
-            : isUnlocked 
-              ? colors.textColor 
-              : isDark 
-                ? 'text-base-content/60' 
-                : 'text-gray-600'
+            : colors.textColor // Always use unlocked styling
         }>
           {challengeIcon} {challengeName}
         </span>
@@ -87,70 +96,86 @@ const ChallengeCard = ({
         <div className={`ml-auto text-sm ${isDark ? 'text-base-content/50' : 'text-gray-400'}`}>
           {isCompleted 
             ? '✅ Completed' 
-            : isUnlocked 
-              ? '🔓 Unlocked' 
-              : '🔒 Locked'}
+            : '🔓 Available' // Change from 'Unlocked' to 'Available'
+          }
         </div>
       </div>
       
-      {isUnlocked && (
-        <div className="collapse-content">
-          <div className="pt-4 space-y-4">
-            {challengeData?.settings?.challengeHintsEnabled?.[challengeIndex] && (
-              <div className="flex items-center gap-3">
-                <span className="badge badge-outline">Hints enabled</span>
-                <span className="text-xs text-gray-500">
-                  Penalty {challengeData.settings.hintPenaltyPercent || 25}% each
-                </span>
+      {/* Always show content since all challenges are unlocked */}
+      <div className="collapse-content">
+        <div className="pt-4 space-y-4">
+          {challengeData?.settings?.challengeHintsEnabled?.[challengeIndex] && (
+            <div className="flex items-center gap-3">
+              <span className="badge badge-outline">Hints enabled</span>
+              <span className="text-xs text-gray-500">
+                Penalty {challengeData.settings.hintPenaltyPercent || 25}% each
+              </span>
+            </div>
+          )}
+          
+          <p className={isDark ? 'text-base-content/70' : 'text-gray-600'}>
+            {challengeDescription}
+          </p>
+
+          <div className="flex items-center gap-3">
+            {!isCompleted && userChallenge?.currentChallenge !== challengeIndex && (
+              <button
+                onClick={handleStartChallenge}
+                className="btn btn-primary btn-sm gap-2"
+              >
+                <Play className="w-4 h-4" />
+                Start Challenge
+              </button>
+            )}
+            {userChallenge?.currentChallenge === challengeIndex && !isCompleted && (
+              <div className="badge badge-success gap-2">
+                <Play className="w-3 h-3" />
+                Working on this challenge
               </div>
             )}
-            
-            <p className={isDark ? 'text-base-content/70' : 'text-gray-600'}>
-              {challengeDescription}
-            </p>
-            
-            {challengeData?.settings?.challengeHintsEnabled?.[challengeIndex] && (
-              <div className="flex items-start gap-3 text-sm">
-                <div className="flex items-center gap-2">
-                  <span className="badge badge-outline">Hints</span>
-                  <span className="text-xs text-gray-500">
-                    -{challengeData.settings.hintPenaltyPercent || 25}% each
-                  </span>
-                  <span className="text-xs text-gray-500">
-                    {(userChallenge?.hintsUsed?.[challengeIndex] || 0)}/{challengeData.settings.maxHintsPerChallenge ?? 2}
-                  </span>
-                  <div className="flex flex-col items-center gap-1">
-                    <button
-                      className="btn btn-xs btn-primary"
-                      disabled={
-                        unlockingHint[challengeId] || 
-                        ((userChallenge?.hintsUsed?.[challengeIndex] || 0) >= (challengeData.settings.maxHintsPerChallenge ?? 2))
-                      }
-                      onClick={handleUnlockHint}
-                    >
-                      {unlockingHint[challengeId] ? '...' : 'Unlock'}
-                    </button>
-                    {((userChallenge?.hintsUsed?.[challengeIndex] || 0) < (challengeData.settings.maxHintsPerChallenge ?? 2)) && (
-                      <span className="text-xs text-warning">
-                        -{Math.floor((challengeData?.settings?.challengeBits?.[challengeIndex] || 0) * (challengeData.settings.hintPenaltyPercent || 25) / 100)} bits
-                      </span>
-                    )}
-                  </div>
-                </div>
-                {userChallenge?.hintsUnlocked?.[challengeIndex]?.length > 0 && (
-                  <ul className="ml-2 list-disc text-xs text-gray-700">
-                    {userChallenge.hintsUnlocked[challengeIndex].map((h, i) => (
-                      <li key={i}>{h}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-            
-            {children}
           </div>
+          
+          {challengeData?.settings?.challengeHintsEnabled?.[challengeIndex] && (
+            <div className="flex items-start gap-3 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="badge badge-outline">Hints</span>
+                <span className="text-xs text-gray-500">
+                  -{challengeData.settings.hintPenaltyPercent || 25}% each
+                </span>
+                <span className="text-xs text-gray-500">
+                  {(userChallenge?.hintsUsed?.[challengeIndex] || 0)}/{challengeData.settings.maxHintsPerChallenge ?? 2}
+                </span>
+                <div className="flex flex-col items-center gap-1">
+                  <button
+                    className="btn btn-xs btn-primary"
+                    disabled={
+                      unlockingHint[challengeId] || 
+                      ((userChallenge?.hintsUsed?.[challengeIndex] || 0) >= (challengeData.settings.maxHintsPerChallenge ?? 2))
+                    }
+                    onClick={handleUnlockHint}
+                  >
+                    {unlockingHint[challengeId] ? '...' : 'Unlock'}
+                  </button>
+                  {((userChallenge?.hintsUsed?.[challengeIndex] || 0) < (challengeData.settings.maxHintsPerChallenge ?? 2)) && (
+                    <span className="text-xs text-warning">
+                      -{Math.floor((challengeData?.settings?.challengeBits?.[challengeIndex] || 0) * (challengeData.settings.hintPenaltyPercent || 25) / 100)} bits
+                    </span>
+                  )}
+                </div>
+              </div>
+              {userChallenge?.hintsUnlocked?.[challengeIndex]?.length > 0 && (
+                <ul className="ml-2 list-disc text-xs text-gray-700">
+                  {userChallenge.hintsUnlocked[challengeIndex].map((h, i) => (
+                    <li key={i}>{h}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+          
+          {children}
         </div>
-      )}
+      </div>
     </div>
   );
 };

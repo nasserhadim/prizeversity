@@ -258,3 +258,27 @@ export const verifyChallenge2External = async (uniqueId, password) => {
     throw error;
   }
 };
+
+export const startChallenge = async (classroomId, challengeIndex) => {
+  try {
+    const response = await fetch(`${API_BASE}/api/challenges/${classroomId}/start`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ challengeIndex }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error starting challenge:', error);
+    throw error;
+  }
+};

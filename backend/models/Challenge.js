@@ -22,11 +22,15 @@ const UserChallengeSchema = new mongoose.Schema({
   uniqueId: { type: String, required: true },
   hashedPassword: { type: String, required: true },
   challenge2Password: { type: String }, 
+  challenge4Password: { type: String },
   progress: { type: Number, default: 0, min: 0, max: 5 }, 
   completedAt: { type: Date },
   bitsAwarded: { type: Number, default: 0 },
   hintsUsed: { type: [Number], default: [] },
   hintsUnlocked: { type: [[String]], default: [] },
+  startedAt: { type: Date },
+  currentChallenge: { type: Number, default: 0 },
+  completedChallenges: { type: [Boolean], default: [false, false, false, false, false] },
 
 }, { _id: true });
 
@@ -215,12 +219,19 @@ ChallengeSchema.methods.generateUserChallenge = function(userId) {
     const suffix = hash.substring(8, 14).toUpperCase();
     return `${prefix}_${suffix}`;
   }
+
+  // Generate Challenge 4 password
+  function generateChallenge4Password(userId, uniqueId) {
+    const studentHash = crypto.createHash('md5').update(userId.toString() + uniqueId).digest('hex');
+    return `FORENSICS_${studentHash.substring(0, 8).toUpperCase()}`;
+  }
   
   return {
     userId: userId,
     uniqueId: encryptedId,
     hashedPassword: plaintext,
     challenge2Password: generateChallenge2Password(encryptedId),
+    challenge4Password: generateChallenge4Password(userId, encryptedId),
     progress: 0,
     bitsAwarded: 0,
     hintsUsed: Array(totalChallenges).fill(0),

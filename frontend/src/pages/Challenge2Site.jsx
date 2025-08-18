@@ -64,14 +64,14 @@ const Challenge2Site = () => {
           <div className="border border-green-400 p-6 bg-gray-900">
             <h2 className="text-xl font-bold mb-4 text-green-300">CHALLENGE 2 COMPLETE</h2>
             <p className="mb-4">OSINT and Git skills verified.</p>
-            <p className="text-yellow-400">Challenge 3 now available.</p>
           </div>
           <button
             onClick={() => {
               localStorage.setItem('challengeCompleted', JSON.stringify({
                 challengeIndex: 1,
                 challengeName: "Check Me Out",
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                needsRewards: true
               }));
               window.close();
             }}

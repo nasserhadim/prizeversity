@@ -25,13 +25,7 @@ const TeacherView = ({
     }));
   };
 
-  // Add this helper function at the top of the component, outside the main component function
-  const generateForensicsPassword = (userId, uniqueId) => {
-    // This matches the logic from the backend
-    const crypto = require('crypto');
-    const studentHash = crypto.createHash('md5').update(userId.toString() + uniqueId).digest('hex');
-    return `FORENSICS_${studentHash.substring(0, 8).toUpperCase()}`;
-  };
+
 
   return (
     <div className="p-6 space-y-8">
@@ -137,12 +131,17 @@ const TeacherView = ({
                       <th>Current Challenge</th>
                       <th>Challenge Data</th>
                       <th>Solution</th>
+                      <th>Started At</th>
                       <th>Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     {challengeData.userChallenges.map((uc) => {
                       const currentChallenge = getCurrentChallenge(uc.progress);
+                      const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'Bug Smasher', 'I Always Sign My Work...', 'Secrets in the Clouds'];
+                      const workingOnChallenge = uc.currentChallenge !== undefined ? uc.currentChallenge : uc.progress;
+                      const workingOnTitle = challengeNames[workingOnChallenge] || currentChallenge.name;
+                      
                       return (
                         <tr key={uc._id}>
                           <td className="font-medium">
@@ -152,29 +151,32 @@ const TeacherView = ({
                           </td>
                           <td>
                             <div className="flex flex-col">
-                              <span className="font-semibold">Challenge {currentChallenge.number}</span>
-                              <span className="text-sm text-gray-600">{currentChallenge.name}</span>
+                              <span className="font-semibold">Challenge {workingOnChallenge + 1}</span>
+                              <span className="text-sm text-gray-600">{workingOnTitle}</span>
                               <span className="text-xs text-gray-500">{currentChallenge.method}</span>
                             </div>
                           </td>
                           <td>
-                            {currentChallenge.type === 'caesar' && (
+                            {workingOnChallenge === 0 && (
                               <code className="bg-red-100 px-2 py-1 rounded text-sm font-mono text-red-700">
                                 {uc.uniqueId}
                               </code>
                             )}
-                            {currentChallenge.type === 'github' && (
+                            {workingOnChallenge === 1 && (
                               <span className="text-sm text-blue-600 font-medium">GitHub Branch: {uc.uniqueId}</span>
                             )}
-                            {currentChallenge.type === 'network' && (
+                            {workingOnChallenge === 2 && (
                               <span className="text-sm text-purple-600 font-medium">C++ Coding Challenge</span>
                             )}
-                            {currentChallenge.type === 'crypto' && (
+                            {workingOnChallenge === 3 && (
                               <span className="text-sm text-indigo-600 font-medium">Forensics Evidence: campus_{uc.uniqueId}.jpg</span>
+                            )}
+                            {workingOnChallenge === 4 && (
+                              <span className="text-sm text-green-600 font-medium">WayneAWS Authentication</span>
                             )}
                           </td>
                           <td>
-                            {currentChallenge.type === 'caesar' && (
+                            {workingOnChallenge === 0 && (
                               <div className="flex items-center gap-2">
                                 <code className="bg-green-100 px-2 py-1 rounded text-sm font-mono text-green-700">
                                   {showPasswords[uc._id] ? uc.hashedPassword : '••••••••'}
@@ -188,7 +190,7 @@ const TeacherView = ({
                                 </button>
                               </div>
                             )}
-                            {currentChallenge.type === 'github' && (
+                            {workingOnChallenge === 1 && (
                               <div className="flex items-center gap-2">
                                 <code className="bg-green-100 px-2 py-1 rounded text-sm font-mono text-green-700">
                                   {showPasswords[uc._id] 
@@ -204,11 +206,11 @@ const TeacherView = ({
                                 </button>
                               </div>
                             )}
-                            {currentChallenge.type === 'crypto' && (
+                            {workingOnChallenge === 3 && (
                               <div className="flex items-center gap-2">
                                 <code className="bg-green-100 px-2 py-1 rounded text-sm font-mono text-green-700">
                                   {showPasswords[uc._id] 
-                                    ? (uc.challenge4Password || 'Complete Challenge 3 first')
+                                    ? (uc.challenge4Password || 'Loading...')
                                     : '••••••••••••••••••'}
                                 </code>
                                 <button
@@ -220,13 +222,33 @@ const TeacherView = ({
                                 </button>
                               </div>
                             )}
-                            {currentChallenge.type === 'network' && (
+                            {workingOnChallenge === 2 && (
                               <span className="text-sm text-gray-500">Interactive Challenge</span>
+                            )}
+                            {workingOnChallenge === 4 && (
+                              <span className="text-sm text-gray-500">WayneAWS Verification</span>
                             )}
                           </td>
                           <td>
-                            <div className={`badge ${uc.progress >= currentChallenge.number ? 'badge-success' : 'badge-warning'}`}>
-                              {uc.progress >= currentChallenge.number ? 'Completed' : 'In Progress'}
+                            {uc.startedAt ? (
+                              <div className="text-sm">
+                                <div>{new Date(uc.startedAt).toLocaleDateString()}</div>
+                                <div className="text-xs text-gray-500">
+                                  {new Date(uc.startedAt).toLocaleTimeString()}
+                                </div>
+                                {uc.currentChallenge !== undefined && (
+                                  <div className="badge badge-info badge-xs mt-1">
+                                    Working on #{uc.currentChallenge + 1}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-sm text-gray-400">Not started</span>
+                            )}
+                          </td>
+                          <td>
+                            <div className={`badge ${uc.completedChallenges?.[workingOnChallenge] ? 'badge-success' : 'badge-warning'}`}>
+                              {uc.completedChallenges?.[workingOnChallenge] ? 'Completed' : 'In Progress'}
                             </div>
                           </td>
                         </tr>
