@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { API_BASE } from '../config/api';
+import Footer from '../components/Footer';
 
 const ClassroomFeedbackPage = () => {
   const { classroomId } = useParams();
@@ -82,6 +83,7 @@ const ClassroomFeedbackPage = () => {
           </form>
         </div>
       </div>
+      <Footer />
     </div>
   );
 };
