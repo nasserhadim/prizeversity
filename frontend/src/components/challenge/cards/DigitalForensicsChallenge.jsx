@@ -35,12 +35,6 @@ const DigitalForensicsChallenge = ({ userChallenge, isDark }) => {
           Opens the forensics investigation environment with evidence generation and analysis tools
         </p>
       </div>
-      
-      <div className={themeClasses.infoAlert}>
-        <span className="text-sm">
-          <strong>Final Challenge:</strong> This investigation combines OSINT, digital forensics, and metadata analysis. Master all skills learned in the previous challenges!
-        </span>
-      </div>
     </>
   );
 };

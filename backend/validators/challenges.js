@@ -25,8 +25,16 @@ const generateExpectedAnswer = {
     return `${prefix}_${suffix}`;
   },
   
-  'network-analysis': () => {
-    return 'FLAG{network_security_master}';
+  'network-analysis': (uniqueId) => {
+    // New Challenge 3: Cryptographic Hash Detective
+    // Generate a deterministic hash function based on uniqueId
+    const hash = crypto.createHash('md5').update(uniqueId + 'forensics_salt_2024').digest('hex');
+    
+    // The target input that students need to find (this is the answer)
+    const targetInput = hash.substring(8, 12).toUpperCase(); // 4-character target
+    
+    // Return the original input that students should find
+    return targetInput;
   },
   
   'advanced-crypto': () => {
@@ -46,8 +54,8 @@ const validators = {
   },
 
   'network-analysis': (answer, metadata, uniqueId) => {
-    const expected = generateExpectedAnswer['network-analysis']();
-    return answer.trim() === expected;
+    const expected = generateExpectedAnswer['network-analysis'](uniqueId);
+    return answer.trim().toUpperCase() === expected;
   },
 
   'advanced-crypto': (answer, metadata, uniqueId) => {
@@ -65,3 +73,4 @@ const validators = {
 };
 
 module.exports = validators;
+module.exports.generateExpectedAnswer = generateExpectedAnswer;

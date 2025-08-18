@@ -118,7 +118,7 @@ const ChallengeCard = ({
           </p>
 
           <div className="flex items-center gap-3">
-            {!isCompleted && userChallenge?.currentChallenge !== challengeIndex && (
+            {!isCompleted && userChallenge?.currentChallenge !== challengeIndex && challengeIndex !== 2 && (
               <button
                 onClick={handleStartChallenge}
                 className="btn btn-primary btn-sm gap-2"

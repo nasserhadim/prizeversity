@@ -36,11 +36,6 @@ const WayneAWSChallenge = ({ userChallenge, isDark }) => {
         </p>
       </div>
       
-      <div className={themeClasses.infoAlert}>
-        <span className="text-sm">
-          <strong>Ultimate Challenge:</strong> This represents the pinnacle of the cyber challenge series - master cloud authentication and secure access protocols!
-        </span>
-      </div>
     </>
   );
 };

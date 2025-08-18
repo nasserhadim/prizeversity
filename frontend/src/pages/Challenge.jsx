@@ -468,9 +468,9 @@ const Challenge = () => {
 
             <ChallengeCard
               challengeIndex={2}
-              challengeName="Bug Smasher"
-              challengeIcon="🐛"
-              challengeDescription="Fix a simple security vulnerability in C++ code. Each student gets a unique bug to identify and correct."
+              challengeName="Code Breaker"
+              challengeIcon="🔓"
+              challengeDescription="Your mission: Reverse engineer an intercepted hash function to recover the original evidence. Each agent gets a unique cryptographic puzzle to solve."
               userChallenge={userChallenge}
               challengeData={challengeData}
               isDark={isDark}

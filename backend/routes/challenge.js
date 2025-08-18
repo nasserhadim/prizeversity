@@ -96,6 +96,48 @@ function generateChallenge2Password(uniqueId) {
   return `${prefix}_${suffix}`;
 }
 
+function generateCryptoHashChallenge(studentData, uniqueId) {
+  const crypto = require('crypto');
+  const hash = crypto.createHash('md5').update(uniqueId + 'forensics_salt_2024').digest('hex');
+  
+  const param1 = (parseInt(hash.substring(0, 2), 16) % 97) + 3;
+  const param2 = (parseInt(hash.substring(2, 4), 16) % 26) + 1;
+  const param3 = (parseInt(hash.substring(4, 6), 16) % 9) + 1;
+  
+  const targetInput = hash.substring(8, 12).toUpperCase();
+  
+  let hashOutput = '';
+  for (let i = 0; i < targetInput.length; i++) {
+    const char = targetInput[i];
+    if (char >= 'A' && char <= 'Z') {
+      const shifted = ((char.charCodeAt(0) - 65 + param2) % 26) + 65;
+      hashOutput += String.fromCharCode(shifted);
+    } else if (char >= '0' && char <= '9') {
+      const newDigit = ((parseInt(char) * param3) % 10);
+      hashOutput += newDigit.toString();
+    }
+  }
+  
+  const checksum = (hashOutput.split('').reduce((sum, c) => sum + c.charCodeAt(0), 0) * param1) % 1000;
+  const finalHash = `${hashOutput}${checksum.toString().padStart(3, '0')}`;
+  
+  const evidence = {
+    caseNumber: `CASE-${hash.substring(16, 20).toUpperCase()}`,
+    suspectId: `SUS-${hash.substring(20, 24).toUpperCase()}`,
+    hashFunction: {
+      letterShift: param2,
+      digitMultiplier: param3,
+      checksumPrime: param1
+    },
+    interceptedHash: finalHash,
+    targetInput: targetInput
+  };
+  
+  return evidence;
+}
+
+
+
 async function awardChallengeBits(userId, challengeLevel, challenge) {
   try {
     const user = await User.findById(userId);
@@ -1862,102 +1904,20 @@ router.get('/challenge3/:uniqueId', ensureAuthenticated, async (req, res) => {
       hashedId: studentHash,
       firstName: user.firstName,
       lastName: user.lastName,
-      studentId: `CS${(hashNum % 9000) + 1000}`,
-      semester: hashNum % 2 === 0 ? 'Fall' : 'Spring',
-      year: 2024 + (hashNum % 3),
-      gpa: (2.0 + (hashNum % 200) / 100).toFixed(2)
+      agentId: `AGENT-${studentHash.substring(0, 6).toUpperCase()}`,
+      badgeNumber: `${((hashNum % 9000) + 1000)}`,
+      clearanceLevel: ['CLASSIFIED', 'SECRET', 'TOP SECRET'][hashNum % 3],
+      department: ['CYBER CRIMES', 'DIGITAL FORENSICS', 'CRYPTO ANALYSIS'][hashNum % 3]
     };
 
-    const varNames = {
-      student: `student_${studentData.studentId.slice(-2)}`,
-      course: `course_${(hashNum % 900) + 100}`,
-      credit: `credits_${hashNum % 4 + 1}`,
-      grade: `grade_${String.fromCharCode(65 + (hashNum % 5))}` // A-E
-    };
-
-    function generateBuggyCode(studentData, varNames, hashNum) {
-      const bugs = [
-        { type: 'off_by_one', line: 'for (int i = 1; i <= size; i++)' },
-        { type: 'memory_leak', line: 'int* ptr = new int[10];' },
-        { type: 'null_pointer', line: 'if (ptr != nullptr)' },
-        { type: 'infinite_loop', line: 'while (i < 10)' },
-        { type: 'array_bounds', line: 'arr[size] = value;' }
-      ];
-
-      const selectedBugs = [];
-      for (let i = 0; i < 3; i++) {
-        selectedBugs.push(bugs[(hashNum + i) % bugs.length]);
-      }
-
-      const cppCode = `#include <iostream>
-#include <vector>
-#include <string>
-using namespace std;
-
-class Student {
-private:
-    string name;
-    int id;
-    double gpa;
-
-public:
-    Student(string n, int i, double g) : name(n), id(i), gpa(g) {}
-    
-    void calculateGrade() {
-        vector<int> scores = {85, 92, 78, 96, 89};
-        int total = 0;
-        
-        ${selectedBugs[0].line}
-            total += scores[i];
-        }
-        
-        double average = total / scores.size();
-        cout << "Average: " << average << endl;
-    }
-    
-    void processData() {
-        ${selectedBugs[1].line}
-        
-        ${selectedBugs[2].line} {
-            *ptr = 42;
-            cout << "Value: " << *ptr << endl;
-        }
-    }
-    
-    void runLoop() {
-        int i = 0;
-        ${selectedBugs[3].line} {
-            cout << "Processing " << i << endl;
-        }
-    }
-};
-
-int main() {
-    Student ${varNames.student}("${studentData.firstName} ${studentData.lastName}", ${studentData.studentId.slice(-4)}, ${studentData.gpa});
-    
-    int arr[5] = {1, 2, 3, 4, 5};
-    int size = 5;
-    int value = 10;
-    
-    ${selectedBugs[4].line}
-    
-    ${varNames.student}.calculateGrade();
-    ${varNames.student}.processData();
-    
-    return 0;
-}`;
-
-      return {
-        'main.cpp': cppCode,
-        bugs: selectedBugs
-      };
-    }
-
-    const codeFiles = generateBuggyCode(studentData, varNames, hashNum);
+    const challengeEvidence = generateCryptoHashChallenge(studentData, uniqueId);
     
     res.json({
       studentData,
-      codeFiles
+      evidence: challengeEvidence,
+      startTime: userChallenge.challenge3StartTime || null,
+      attempts: userChallenge.challenge3Attempts || 0,
+      maxAttempts: userChallenge.challenge3MaxAttempts || 5
     });
 
   } catch (error) {
@@ -1966,70 +1926,146 @@ int main() {
   }
 });
 
-router.post('/challenge3/:uniqueId/test', ensureAuthenticated, async (req, res) => {
+router.post('/challenge3/:uniqueId/start', ensureAuthenticated, async (req, res) => {
   try {
     const { uniqueId } = req.params;
-    const { codeFiles } = req.body;
     const userId = req.user._id;
 
-    const challenge = await Challenge.findOne({ 
+    const challenge = await Challenge.findOne({
       'userChallenges.uniqueId': uniqueId,
-      'userChallenges.userId': userId 
+      'userChallenges.userId': userId
     });
 
     if (!challenge) {
       return res.status(404).json({ message: 'Challenge not found' });
     }
 
-    const testResults = await runCodeTests(codeFiles, userId, uniqueId);
-    const passedTests = testResults.filter(t => t.passed).length;
-    const totalTests = testResults.length;
-    const success = passedTests === totalTests;
-
-    if (success) {
-      const userChallenge = challenge.userChallenges.find(uc => uc.uniqueId === uniqueId);
-      if (userChallenge) {
-        if (!userChallenge.completedChallenges) {
-          userChallenge.completedChallenges = [false, false, false, false, false];
-        }
-        if (!userChallenge.completedChallenges[2]) {
-          userChallenge.completedChallenges[2] = true;
-          userChallenge.progress = userChallenge.completedChallenges.filter(Boolean).length;
-        userChallenge.completedAt = new Date();
-
-        const User = require('../models/User');
-        const user = await User.findById(userId);
-        if (user) {
-          await awardChallengeRewards(user, challenge, 2);
-          try {
-            if (!userChallenge.forensicsImageUrl) {
-              const { filename } = await generateAndUploadForensicsImage(user, userChallenge.uniqueId);
-              const imageUrl = `https://raw.githubusercontent.com/cinnamonstic/wsu-transit-delay/main/assets/${filename}`;
-              userChallenge.forensicsImageUrl = imageUrl;
-            }
-          } catch (imageError) {
-            console.error('Failed to generate Challenge 4 forensics image:', imageError);
-          }
-        }
-
-        await challenge.save();
-        }
-      }
+    const userChallenge = challenge.userChallenges.find(uc => uc.uniqueId === uniqueId);
+    if (!userChallenge) {
+      return res.status(404).json({ message: 'User challenge not found' });
     }
 
-    const hints = success ? [] : generateDebugHints(testResults, codeFiles);
+    if (!userChallenge.challenge3StartTime) {
+      userChallenge.challenge3StartTime = new Date();
+      await challenge.save();
+    }
 
     res.json({
-      success,
-      testResults,
-      passedTests,
-      totalTests,
-      hints: hints.slice(0, 3)
+      success: true,
+      startTime: userChallenge.challenge3StartTime,
+      message: 'Challenge started successfully!'
     });
 
   } catch (error) {
-    console.error('Error testing Challenge 3 code:', error);
-    res.status(500).json({ message: 'Code testing failed' });
+    console.error('Error starting Challenge 3:', error);
+    res.status(500).json({ message: 'Failed to start challenge' });
+  }
+});
+
+router.post('/challenge3/:uniqueId/verify', ensureAuthenticated, async (req, res) => {
+  try {
+    const { uniqueId } = req.params;
+    const { password } = req.body;
+    const userId = req.user._id;
+
+    if (!uniqueId || !password) {
+      return res.status(400).json({ message: 'Unique ID and password are required' });
+    }
+
+    const challenge = await Challenge.findOne({
+      'userChallenges.uniqueId': uniqueId,
+      'userChallenges.userId': userId
+    });
+
+    if (!challenge) {
+      return res.status(404).json({ message: 'Challenge not found' });
+    }
+
+    const userChallenge = challenge.userChallenges.find(uc => uc.uniqueId === uniqueId);
+    if (!userChallenge) {
+      return res.status(404).json({ message: 'User challenge not found' });
+    }
+
+    if (challenge.isExpired()) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'This challenge series has expired and is no longer accepting submissions' 
+      });
+    }
+
+    const currentAttempts = userChallenge.challenge3Attempts || 0;
+    const maxAttempts = userChallenge.challenge3MaxAttempts || 5;
+    
+    if (currentAttempts >= maxAttempts) {
+      return res.status(429).json({
+        success: false,
+        message: 'Maximum attempts exceeded. Challenge locked.'
+      });
+    }
+
+    const startTime = userChallenge.challenge3StartTime;
+    const currentTime = new Date();
+    const timeElapsed = startTime ? (currentTime - startTime) / (1000 * 60) : 0; // minutes
+    
+    if (timeElapsed > 30) {
+      return res.status(408).json({
+        success: false,
+        message: 'Time limit exceeded. Challenge has expired.',
+        timeExpired: true
+      });
+    }
+    
+    userChallenge.challenge3Attempts = currentAttempts + 1;
+
+    const validators = require('../validators/challenges');
+    const isCorrect = validators['network-analysis'](password, {}, uniqueId);
+
+    if (!isCorrect) {
+      await challenge.save();
+      return res.status(401).json({ 
+        success: false,
+        message: `Incorrect evidence. ${maxAttempts - userChallenge.challenge3Attempts} attempts remaining.`,
+        attemptsLeft: maxAttempts - userChallenge.challenge3Attempts
+      });
+    }
+
+    if (!userChallenge.completedChallenges) {
+      userChallenge.completedChallenges = [false, false, false, false, false];
+    }
+
+    if (!userChallenge.completedChallenges[2]) {
+      userChallenge.completedChallenges[2] = true;
+      userChallenge.progress = userChallenge.completedChallenges.filter(Boolean).length;
+      userChallenge.completedAt = new Date();
+
+      const User = require('../models/User');
+      const user = await User.findById(userId);
+      if (user) {
+        await awardChallengeBits(userId, 3, challenge);
+        
+        try {
+          if (!userChallenge.forensicsImageUrl) {
+            const { filename } = await generateAndUploadForensicsImage(user, userChallenge.uniqueId);
+            const imageUrl = `https://raw.githubusercontent.com/cinnamonstic/wsu-transit-delay/main/assets/${filename}`;
+            userChallenge.forensicsImageUrl = imageUrl;
+          }
+        } catch (imageError) {
+          console.error('Failed to generate Challenge 4 forensics image:', imageError);
+        }
+      }
+
+      await challenge.save();
+    }
+
+    res.json({
+      success: true,
+      message: 'Investigation solved! Evidence recovered successfully!',
+      progress: userChallenge.progress
+    });
+
+  } catch (error) {
+    console.error('Error verifying Challenge 3 password:', error);
+    res.status(500).json({ message: 'Verification failed' });
   }
 });
 
