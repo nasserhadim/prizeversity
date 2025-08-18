@@ -65,7 +65,8 @@ const StudentStats = () => {
     );
   }
 
-  if (!stats) {
+  // Render message if no stats are available
+  if (!stats || !stats.student) {
     return (
       <div className="p-6 text-center">
         No stats available for this student
@@ -76,17 +77,8 @@ const StudentStats = () => {
   return (
     <>
       <div className="max-w-md mx-auto p-6 mt-10 bg-white rounded-xl shadow space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold">🎯 Student Stats</h2>
-          <button
-            onClick={fetchStats}
-            disabled={loading}
-            className="btn btn-sm btn-ghost"
-            title="Refresh stats"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
-        </div>
+        <h1 className="text-2xl font-bold text-center">{(stats.student.name || stats.student.email.split('@')[0])}'s Stats</h1>
+        {/* <p className="text-center text-gray-500">{stats.student.email}</p> */}
 
         <div className="stats stats-vertical shadow w-full">
           <div className="stat">
