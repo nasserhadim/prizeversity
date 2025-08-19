@@ -7,6 +7,7 @@ import { useCart } from '../context/CartContext';
 import { ShoppingCart, Menu, X } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import NotificationBell from './NotificationBell';
+import Logo from './Logo'; // Import the new Logo component
 import { API_BASE } from '../config/api';
 
 import {
@@ -99,9 +100,7 @@ const Navbar = () => {
     return (
       <nav className="fixed top-0 left-0 right-0 z-50 bg-base-100 text-base-content shadow-md px-4 lg:px-6 py-4 bg-opacity-20 backdrop-blur-md">
         <div className="container mx-auto flex items-center justify-between">
-          <div className="text-xl lg:text-2xl font-bold">
-            <Link to="/">Prizeversity</Link>
-          </div>
+          <Logo />
           <div className="flex items-center gap-2">
             <button
               className="btn btn-sm btn-outline"
@@ -128,9 +127,7 @@ const Navbar = () => {
     >
       <div className='container mx-auto flex items-center justify-between'>
         {/* Logo */}
-        <div className='text-xl lg:text-2xl font-bold'>
-          <Link to='/'>Prizeversity</Link>
-        </div>
+        <Logo />
 
         {/* Mobile Menu Button */}
         <div className="lg:hidden flex items-center gap-2">
