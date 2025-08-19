@@ -56,12 +56,18 @@ const Bazaar = () => {
   // Case: Bazaar not yet created
   if (!bazaar) {
     return user.role === 'teacher' ? (
-      <div className="p-6">
-        <CreateBazaar classroomId={classroomId} onCreate={setBazaar} />
+      <div className="flex flex-col min-h-screen bg-base-200">
+        <div className="flex-grow p-6">
+          <CreateBazaar classroomId={classroomId} onCreate={setBazaar} />
+        </div>
+        <Footer />
       </div>
     ) : (
-      <div className="p-6 text-center text-lg font-semibold text-gray-700">
-        The marketplace is not open yet.
+      <div className="flex flex-col min-h-screen bg-base-200">
+        <div className="flex-grow p-6 text-center text-lg font-semibold text-gray-700">
+          The marketplace is not open yet.
+        </div>
+        <Footer />
       </div>
     );
   }
