@@ -5,13 +5,11 @@ export const calculatePotentialBits = (challengeIndex, challengeData, userChalle
   if (challengeData.settings.rewardMode === 'individual') {
     baseBits = challengeData.settings.challengeBits?.[challengeIndex] || 0;
   } else {
-    // For total mode, only award bits on the final challenge (index 4)
     if (challengeIndex === 4) {
       baseBits = challengeData.settings.totalRewardBits || 0;
     }
   }
   
-  // Apply hint penalty if hints are enabled and used
   const hintsEnabled = challengeData.settings.challengeHintsEnabled?.[challengeIndex];
   if (hintsEnabled && baseBits > 0) {
     const penaltyPercent = challengeData.settings.hintPenaltyPercent ?? 25;
@@ -38,7 +36,6 @@ export const getRewardDataForChallenge = (challengeIndex, challengeData, userCha
     attackBonus: 0
   };
 
-  // Calculate bits reward
   if (challengeData.settings.rewardMode === 'individual') {
     let baseBits = challengeData.settings.challengeBits?.[challengeIndex] || 0;
     const hintsEnabled = challengeData.settings.challengeHintsEnabled?.[challengeIndex];
@@ -52,8 +49,7 @@ export const getRewardDataForChallenge = (challengeIndex, challengeData, userCha
       }
     }
     rewards.bits = baseBits;
-  } else {
-    // For total mode, only award bits on the final challenge (index 4)
+  } else {  
     if (challengeIndex === 4) {
       let baseBits = challengeData.settings.totalRewardBits || 0;
       const hintsEnabled = challengeData.settings.challengeHintsEnabled?.[challengeIndex];
@@ -70,16 +66,15 @@ export const getRewardDataForChallenge = (challengeIndex, challengeData, userCha
     }
   }
 
-  // Calculate other rewards
   if (challengeData.settings.multiplierMode === 'individual') {
     const multiplierReward = challengeData.settings.challengeMultipliers?.[challengeIndex] || 1.0;
     if (multiplierReward > 1.0) {
-      rewards.multiplier = multiplierReward - 1.0; // Store the increase amount
+      rewards.multiplier = multiplierReward - 1.0; 
     }
-  } else if (challengeIndex === 4) { // Total mode rewards only on final challenge
+  } else if (challengeIndex === 4) { 
     const totalMultiplier = challengeData.settings.totalMultiplier || 1.0;
     if (totalMultiplier > 1.0) {
-      rewards.multiplier = totalMultiplier - 1.0; // Store the increase amount
+      rewards.multiplier = totalMultiplier - 1.0; 
     }
   }
 
@@ -88,7 +83,7 @@ export const getRewardDataForChallenge = (challengeIndex, challengeData, userCha
     if (luckReward > 1.0) {
       rewards.luck = luckReward;
     }
-  } else if (challengeIndex === 4) { // Total mode rewards only on final challenge
+  } else if (challengeIndex === 4) { 
     const totalLuck = challengeData.settings.totalLuck || 1.0;
     if (totalLuck > 1.0) {
       rewards.luck = totalLuck;
@@ -100,7 +95,7 @@ export const getRewardDataForChallenge = (challengeIndex, challengeData, userCha
     if (discountReward > 0) {
       rewards.discount = discountReward;
     }
-  } else if (challengeIndex === 4) { // Total mode rewards only on final challenge
+  } else if (challengeIndex === 4) { 
     const totalDiscount = challengeData.settings.totalDiscount || 0;
     if (totalDiscount > 0) {
       rewards.discount = totalDiscount;
@@ -112,7 +107,7 @@ export const getRewardDataForChallenge = (challengeIndex, challengeData, userCha
     if (shieldReward) {
       rewards.shield = true;
     }
-  } else if (challengeIndex === 4) { // Total mode rewards only on final challenge
+  } else if (challengeIndex === 4) { 
     const totalShield = challengeData.settings.totalShield || false;
     if (totalShield) {
       rewards.shield = true;
@@ -124,7 +119,7 @@ export const getRewardDataForChallenge = (challengeIndex, challengeData, userCha
     if (attackReward > 0) {
       rewards.attackBonus = attackReward;
     }
-  } else if (challengeIndex === 4) { // Total mode rewards only on final challenge
+  } else if (challengeIndex === 4) { 
     const totalAttackBonus = challengeData.settings.totalAttackBonus || 0;
     if (totalAttackBonus > 0) {
       rewards.attackBonus = totalAttackBonus;
@@ -134,7 +129,7 @@ export const getRewardDataForChallenge = (challengeIndex, challengeData, userCha
   return {
     rewards,
     challengeName: challengeNames[challengeIndex],
-    allCompleted: challengeIndex === 4, // All completed when Challenge 5 is done
+    allCompleted: challengeIndex === 4, 
     nextChallenge: challengeIndex < 4 ? challengeNames[challengeIndex + 1] : null
   };
 };
@@ -159,29 +154,28 @@ export const getCurrentChallenge = (progress) => {
       number: 3,
       name: "Bug Smasher",
       method: "C++ Security Vulnerability", 
-      type: "network"
+      type: "hash-cracking"
     };
   } else if (progress === 3) {
     return {
       number: 4,
       name: "I Always Sign My Work...",
       method: "Image Metadata Analysis",
-      type: "crypto"
+      type: "image-forensics"
     };
   } else if (progress === 4) {
     return {
       number: 5,
       name: "Secrets in the Clouds",
       method: "Cloud Authentication",
-      type: "cloud"
+      type: "cloud-authentication"
     };
   } else {
-    // If progress is 5 or higher, they've completed all challenges
     return {
-      number: 5,
-      name: "Secrets in the Clouds  ",
-      method: "Cloud Authentication",
-      type: "completed"
+      number: 6,
+      name: "Needle in a Haystack",
+      method: "Needle in a Haystack",
+      type: "needle-in-a-haystack"
     };
   }
 };

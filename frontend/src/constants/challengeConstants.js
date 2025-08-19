@@ -1,9 +1,10 @@
 export const CHALLENGE_NAMES = [
   'Little Caesar\'s Secret',
   'Check Me Out',
-  'Bug Smasher',
+  'Code Breaker',
   'I Always Sign My Work...',
-  'Secrets in the Clouds'
+  'Secrets in the Clouds',
+  'Needle in a Haystack'
 ];
 
 export const DEFAULT_CHALLENGE_CONFIG = {
@@ -23,9 +24,6 @@ export const DEFAULT_CHALLENGE_CONFIG = {
   shieldMode: 'individual',
   challengeShields: [false, false, false, false, false],
   totalShield: false,
-  attackMode: 'individual',
-  challengeAttackBonuses: [0, 0, 0, 0, 0],
-  totalAttackBonus: 0,
   challengeHintsEnabled: [false, false, false, false, false],
   challengeHints: [[], [], [], [], []],
   hintPenaltyPercent: 25,
@@ -39,5 +37,6 @@ export const CHALLENGE_IDS = [
   'github-osint-002',
   'bug-smasher-003',
   'i-always-sign-my-work-004',
-  'secrets-in-the-clouds-005'
+  'secrets-in-the-clouds-005',
+  'needle-in-a-haystack-006'
 ];

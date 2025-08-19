@@ -36,7 +36,7 @@ const UserChallengeSchema = new mongoose.Schema({
   hintsUnlocked: { type: [[String]], default: [] },
   startedAt: { type: Date },
   currentChallenge: { type: Number, default: 0 },
-  completedChallenges: { type: [Boolean], default: [false, false, false, false, false] },
+  completedChallenges: { type: [Boolean], default: [false, false, false, false, false, false] },
 
 }, { _id: true });
 
@@ -84,6 +84,15 @@ const ChallengeSchema = new mongoose.Schema({
     dueDateEnabled: { type: Boolean, default: false },
     dueDate: { type: Date, default: null },
 
+    challengeValidation: [{
+      challengeIndex: { type: Number, required: true },
+      logicType: { type: String, required: true }, 
+      metadata: {
+        salt: String,
+        staticAnswerHash: String,
+        algorithmParams: mongoose.Schema.Types.Mixed
+      }
+    }],
     
     maxAttempts: { type: Number, default: null },
     penaltyPerAttempt: { type: Number, default: 0 },
@@ -131,7 +140,8 @@ ChallengeSchema.pre('save', function(next) {
       this.settings.challenge2Bits || 75,
       this.settings.challenge3Bits || 100,
       this.settings.challenge4Bits || 125,
-      this.settings.challenge5Bits || 150 
+      this.settings.challenge5Bits || 150,
+      this.settings.challenge6Bits || 175
     ];
   }
   
@@ -141,7 +151,8 @@ ChallengeSchema.pre('save', function(next) {
       this.settings.challenge2Multiplier || 1.0,
       this.settings.challenge3Multiplier || 1.0,
       this.settings.challenge4Multiplier || 1.0,
-      this.settings.challenge5Multiplier || 1.0 
+      this.settings.challenge5Multiplier || 1.0,
+      this.settings.challenge6Multiplier || 1.0
     ];
   }
   
@@ -151,7 +162,8 @@ ChallengeSchema.pre('save', function(next) {
       this.settings.challenge2Luck || 1.0,
       this.settings.challenge3Luck || 1.0,
       this.settings.challenge4Luck || 1.0,
-      this.settings.challenge5Luck || 1.0 
+      this.settings.challenge5Luck || 1.0,
+      this.settings.challenge6Luck || 1.0
     ];
   }
   
@@ -161,7 +173,8 @@ ChallengeSchema.pre('save', function(next) {
       this.settings.challenge2Discount || 0,
       this.settings.challenge3Discount || 0,
       this.settings.challenge4Discount || 0,
-      this.settings.challenge5Discount || 0 
+      this.settings.challenge5Discount || 0,
+      this.settings.challenge6Discount || 0
     ];
   }
   
@@ -171,17 +184,8 @@ ChallengeSchema.pre('save', function(next) {
       this.settings.challenge2Shield || false,
       this.settings.challenge3Shield || false,
       this.settings.challenge4Shield || false,
-      this.settings.challenge5Shield || false
-    ];
-  }
-  
-  if (!this.settings.challengeAttackBonuses || this.settings.challengeAttackBonuses.length === 0) {
-    this.settings.challengeAttackBonuses = [
-      this.settings.challenge1AttackBonus || 0,
-      this.settings.challenge2AttackBonus || 0,
-      this.settings.challenge3AttackBonus || 0,
-      this.settings.challenge4AttackBonus || 0,
-      this.settings.challenge5AttackBonus || 0
+      this.settings.challenge5Shield || false,
+      this.settings.challenge6Shield || false
     ];
   }
   
@@ -191,11 +195,12 @@ ChallengeSchema.pre('save', function(next) {
       false,
       false,
       false,
-      false 
+      false,
+      false
     ];
   }
   
-  const totalChallenges = this.settings.challengeBits?.length || 5; // Change from 4 to 5
+  const totalChallenges = this.settings.challengeBits?.length || 6;
   
   this.stats.totalParticipants = this.userChallenges.length;
   this.stats.completedChallenges = this.userChallenges.filter(uc => uc.progress >= totalChallenges).length;
@@ -216,7 +221,7 @@ ChallengeSchema.methods.generateUserChallenge = function(userId) {
   const hash = crypto.createHash('md5').update(plaintext + CAESAR_SALT).digest('hex');
   const shift = (parseInt(hash.substring(0, 2), 16) % CAESAR_RANGE) + CAESAR_BASE;
   const encryptedId = caesarCipher(plaintext, shift);
-  const totalChallenges = this.settings?.challengeBits?.length || 5; // Change from 4 to 5
+  const totalChallenges = this.settings?.challengeBits?.length || 6;
   
   // Generate Challenge 2 password
   function generateChallenge2Password(uniqueId) {
@@ -247,11 +252,11 @@ ChallengeSchema.methods.generateUserChallenge = function(userId) {
 
 ChallengeSchema.methods.calculateTotalBits = function() {
   if (this.settings.rewardMode === 'total') {
-    return this.settings.totalRewardBits || 500; // Update default to account for 5 challenges
+    return this.settings.totalRewardBits || 600;
   }
   
   if (!this.settings.challengeBits || this.settings.challengeBits.length === 0) {
-    return 500; 
+    return 600;
   }
   
   return this.settings.challengeBits.reduce((sum, bits) => sum + (bits || 0), 0);
@@ -259,7 +264,7 @@ ChallengeSchema.methods.calculateTotalBits = function() {
 
 ChallengeSchema.methods.getBitsForChallenge = function(challengeLevel) {
   if (this.settings.rewardMode === 'total') {
-    const totalChallenges = this.settings.challengeBits?.length || 5;
+    const totalChallenges = this.settings.challengeBits?.length || 6;
     return challengeLevel === totalChallenges ? (this.settings.totalRewardBits || 350) : 0;
   }
   
@@ -270,13 +275,12 @@ ChallengeSchema.methods.getBitsForChallenge = function(challengeLevel) {
   return this.settings.challengeBits[challengeLevel - 1] || 0;
 };
 
-ChallengeSchema.methods.addChallenge = function(bits = 50, multiplier = 1.0, luck = 1.0, discount = 0, shield = false, attackBonus = 0, hintsEnabled = false) {
+ChallengeSchema.methods.addChallenge = function(bits = 50, multiplier = 1.0, luck = 1.0, discount = 0, shield = false, hintsEnabled = false) {
   if (!this.settings.challengeBits) this.settings.challengeBits = [];
   if (!this.settings.challengeMultipliers) this.settings.challengeMultipliers = [];
   if (!this.settings.challengeLuck) this.settings.challengeLuck = [];
   if (!this.settings.challengeDiscounts) this.settings.challengeDiscounts = [];
   if (!this.settings.challengeShields) this.settings.challengeShields = [];
-  if (!this.settings.challengeAttackBonuses) this.settings.challengeAttackBonuses = [];
   if (!this.settings.challengeHintsEnabled) this.settings.challengeHintsEnabled = [];
   
   this.settings.challengeBits.push(bits);
@@ -284,14 +288,13 @@ ChallengeSchema.methods.addChallenge = function(bits = 50, multiplier = 1.0, luc
   this.settings.challengeLuck.push(luck);
   this.settings.challengeDiscounts.push(discount);
   this.settings.challengeShields.push(shield);
-  this.settings.challengeAttackBonuses.push(attackBonus);
   this.settings.challengeHintsEnabled.push(hintsEnabled);
   
   return this.settings.challengeBits.length; 
 };
 
 ChallengeSchema.methods.getTotalChallenges = function() {
-  return this.settings.challengeBits?.length || 5; // Change from 4 to 5
+  return this.settings.challengeBits?.length || 6;
 };
 
 ChallengeSchema.index({ classroomId: 1 }, { unique: true });

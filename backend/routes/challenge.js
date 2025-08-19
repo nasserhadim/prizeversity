@@ -280,17 +280,125 @@ router.post('/:classroomId/configure', ensureAuthenticated, ensureTeacher, async
       if (settings.dueDate !== undefined) mergedSettings.dueDate = settings.dueDate;
 
       
+      if (!mergedSettings.challengeValidation) {
+        const crypto = require('crypto');
+        mergedSettings.challengeValidation = [
+          {
+            challengeIndex: 0,
+            logicType: 'caesar-decrypt',
+            metadata: {
+              salt: process.env.CAESAR_SALT || 'default_salt_2024',
+              algorithmParams: { 
+                base: parseInt(process.env.CAESAR_BASE || '3'), 
+                range: parseInt(process.env.CAESAR_RANGE || '6') 
+              }
+            }
+          },
+          {
+            challengeIndex: 1,
+            logicType: 'github-osint',
+            metadata: {
+              salt: 'secret_salt_2024',
+              algorithmParams: { prefixes: ['ACCESS', 'TOKEN', 'KEY', 'SECRET', 'CODE'] }
+            }
+          },
+          {
+            challengeIndex: 2,
+            logicType: 'code-breaker',
+            metadata: {
+              salt: 'forensics_salt_2024',
+              algorithmParams: {}
+            }
+          },
+          {
+            challengeIndex: 3,
+            logicType: 'image-forensics',
+            metadata: {
+              salt: 'forensics_salt_2024',
+              algorithmParams: {}
+            }
+          },
+          {
+            challengeIndex: 4,
+            logicType: 'wayneaws-verification',
+            metadata: {
+              staticAnswerHash: crypto.createHash('sha256').update('WAYNEAWS_VERIFIED').digest('hex')
+            }
+          },
+          {
+            challengeIndex: 5,
+            logicType: 'needle-in-haystack',
+            metadata: {
+              salt: 'haystack_salt_2024',
+              algorithmParams: {}
+            }
+          }
+        ];
+      }
+      
       challenge.settings = mergedSettings;
       challenge.isConfigured = true;
     } else {
+      const crypto = require('crypto');
       const defaultSettings = {
-        challengeBits: [50, 75, 100, 125],
-        challengeMultipliers: [1.0, 1.0, 1.0, 1.0],
-        challengeLuck: [1.0, 1.0, 1.0, 1.0],
-        challengeDiscounts: [0, 0, 0, 0],
-        challengeShields: [false, false, false, false],
-        challengeAttackBonuses: [0, 0, 0, 0],
-        challengeHintsEnabled: [false, false, false, false],
+        challengeBits: [50, 75, 100, 125, 150, 175],
+        challengeMultipliers: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+        challengeLuck: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+        challengeDiscounts: [0, 0, 0, 0, 0, 0],
+        challengeShields: [false, false, false, false, false, false],
+        challengeHintsEnabled: [false, false, false, false, false, false],
+        challengeValidation: [
+          {
+            challengeIndex: 0,
+            logicType: 'caesar-decrypt',
+            metadata: {
+              salt: process.env.CAESAR_SALT || 'default_salt_2024',
+              algorithmParams: { 
+                base: parseInt(process.env.CAESAR_BASE || '3'), 
+                range: parseInt(process.env.CAESAR_RANGE || '6') 
+              }
+            }
+          },
+          {
+            challengeIndex: 1,
+            logicType: 'github-osint',
+            metadata: {
+              salt: 'secret_salt_2024',
+              algorithmParams: { prefixes: ['ACCESS', 'TOKEN', 'KEY', 'SECRET', 'CODE'] }
+            }
+          },
+          {
+            challengeIndex: 2,
+            logicType: 'code-breaker',
+            metadata: {
+              salt: 'forensics_salt_2024',
+              algorithmParams: {}
+            }
+          },
+          {
+            challengeIndex: 3,
+            logicType: 'image-forensics',
+            metadata: {
+              salt: 'forensics_salt_2024',
+              algorithmParams: {}
+            }
+          },
+          {
+            challengeIndex: 4,
+            logicType: 'wayneaws-verification',
+            metadata: {
+              staticAnswerHash: crypto.createHash('sha256').update('WAYNEAWS_VERIFIED').digest('hex')
+            }
+          },
+          {
+            challengeIndex: 5,
+            logicType: 'needle-in-haystack',
+            metadata: {
+              salt: 'haystack_salt_2024',
+              algorithmParams: {}
+            }
+          }
+        ],
         ...settings
       };
       
@@ -479,7 +587,7 @@ router.post('/verify-password', ensureAuthenticated, async (req, res) => {
     }
 
     if (!userChallenge.completedChallenges) {
-      userChallenge.completedChallenges = [false, false, false, false, false];
+      userChallenge.completedChallenges = [false, false, false, false, false, false];
     }
 
     if (!userChallenge.completedChallenges[0]) {
@@ -539,12 +647,7 @@ router.post('/verify-password', ensureAuthenticated, async (req, res) => {
           }
         }
 
-        if (challenge.settings.attackMode === 'individual') {
-          const attackReward = challenge.settings.challengeAttackBonuses[challengeIndex] || 0;
-          if (attackReward > 0) {
-            user.attackPower = (user.attackPower || 0) + attackReward;
-          }
-        }
+
 
         await user.save();
       }
@@ -655,33 +758,40 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
     let challengeIndex = 0;
     if (challengeId === 'caesar-secret-001') challengeIndex = 0;
     else if (challengeId === 'github-osint-002') challengeIndex = 1;
-    else if (challengeId === 'network-analysis-003') challengeIndex = 2;
-    else if (challengeId === 'advanced-crypto-004') challengeIndex = 3;
+    else if (challengeId === 'code-breaker-003') challengeIndex = 2;
+    else if (challengeId === 'i-always-sign-my-work-004') challengeIndex = 3;
+    else if (challengeId === 'secrets-in-the-clouds-005') challengeIndex = 4;
+    else if (challengeId === 'needle-in-a-haystack-006') challengeIndex = 5;
     else {
       return res.status(400).json({ success: false, message: 'Invalid challenge ID' });
     }
 
     if (!userChallenge.completedChallenges) {
-      userChallenge.completedChallenges = [false, false, false, false, false];
+      userChallenge.completedChallenges = [false, false, false, false, false, false];
     }
 
     if (userChallenge.completedChallenges[challengeIndex]) {
       return res.status(400).json({ success: false, message: 'Challenge already completed' });
     }
 
-    const challengeTypes = ['caesar-decrypt', 'github-osint', 'network-analysis', 'advanced-crypto'];
-    const challengeType = challengeTypes[challengeIndex];
-    
-    const validator = validators[challengeType];
+    const challengeValidation = challenge.settings.challengeValidation?.find(
+      cv => cv.challengeIndex === challengeIndex
+    );
+
+    if (!challengeValidation) {
+      return res.status(500).json({ success: false, message: 'Challenge validation not configured' });
+    }
+
+    const validator = validators[challengeValidation.logicType];
     if (!validator) {
       return res.status(500).json({ success: false, message: 'Unsupported challenge type' });
     }
 
-    const isCorrect = validator(answer, {}, userChallenge.uniqueId);
+    const isCorrect = validator(answer, challengeValidation.metadata, userChallenge.uniqueId);
 
     if (isCorrect) {
       if (!userChallenge.completedChallenges) {
-        userChallenge.completedChallenges = [false, false, false, false, false];
+        userChallenge.completedChallenges = [false, false, false, false, false, false];
       }
       userChallenge.completedChallenges[challengeIndex] = true;
       userChallenge.progress = userChallenge.completedChallenges.filter(Boolean).length;
@@ -696,13 +806,12 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
         luck: 1.0,
         discount: 0,
         shield: false,
-        attackBonus: 0
       };
 
       if (user) {
         if (challenge.settings.rewardMode === 'individual') {
           bitsAwarded = challenge.settings.challengeBits[challengeIndex] || 0;
-        } else if (challengeIndex === 4) {
+        } else if (challengeIndex === 5) {
           bitsAwarded = challenge.settings.totalRewardBits || 0;
         }
 
@@ -765,15 +874,8 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
           }
         }
 
-        if (challenge.settings.attackMode === 'individual') {
-          const attackReward = challenge.settings.challengeAttackBonuses[challengeIndex] || 0;
-          if (attackReward > 0) {
-            user.attackPower = (user.attackPower || 0) + attackReward;
-            rewardsEarned.attackBonus = attackReward;
-          }
-        }
 
-        if (challengeIndex === 4) {
+        if (challengeIndex === 5) {
           if (challenge.settings.multiplierMode === 'total') {
             const totalMultiplier = challenge.settings.totalMultiplier || 1.0;
             if (totalMultiplier > 1.0) {
@@ -822,13 +924,13 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
         await user.save();
       }
 
-      if (userChallenge.progress === 5) {
+      if (userChallenge.progress === 6) {
         userChallenge.completedAt = new Date();
       }
 
       await challenge.save();
 
-      const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'Bug Smasher', 'I Always Sign My Work...', 'Secrets in the Clouds'];
+      const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'Code Breaker', 'I Always Sign My Work...', 'Secrets in the Clouds', 'Needle in a Haystack'];
 
       res.json({
         success: true,
@@ -836,8 +938,8 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
         challengeName: challengeNames[challengeIndex],
         rewards: rewardsEarned,
         progress: userChallenge.progress,
-        allCompleted: userChallenge.progress >= 5,
-        nextChallenge: userChallenge.progress < 5 ? challengeNames[userChallenge.progress] : null
+        allCompleted: userChallenge.progress >= 6,
+        nextChallenge: userChallenge.progress < 6 ? challengeNames[userChallenge.progress] : null
       });
     } else {
       const enableHints = (challenge.settings.challengeHintsEnabled || [])[challengeIndex];
@@ -900,7 +1002,7 @@ router.post('/verify-challenge2-external', ensureAuthenticated, async (req, res)
     }
 
     if (!userChallenge.completedChallenges) {
-      userChallenge.completedChallenges = [false, false, false, false, false];
+      userChallenge.completedChallenges = [false, false, false, false, false, false];
     }
 
     if (!userChallenge.completedChallenges[1]) {
@@ -986,13 +1088,7 @@ router.post('/verify-challenge2-external', ensureAuthenticated, async (req, res)
           }
         }
 
-        if (challenge.settings.attackMode === 'individual') {
-          const attackReward = challenge.settings.challengeAttackBonuses[challengeIndex] || 0;
-          if (attackReward > 0) {
-            user.attackPower = (user.attackPower || 0) + attackReward;
-            rewardsEarned.attackBonus = attackReward;
-          }
-        }
+
 
         await user.save();
       }
@@ -1041,7 +1137,7 @@ router.post('/verify-challenge5-external', ensureAuthenticated, async (req, res)
       return res.status(400).json({ message: 'Must complete Challenge 4 first' });
     }
 
-    if (userChallenge.progress >= 5) {
+    if (userChallenge.progress >= 6) {
       return res.status(400).json({ message: 'Challenge already completed' });
     }
 
@@ -1112,13 +1208,6 @@ router.post('/verify-challenge5-external', ensureAuthenticated, async (req, res)
         }
       }
 
-      if (challenge.settings.attackMode === 'individual') {
-        const attackReward = challenge.settings.challengeAttackBonuses[challengeIndex] || 0;
-        if (attackReward > 0) {
-          user.attackPower = (user.attackPower || 0) + attackReward;
-        }
-      }
-
       await user.save();
     }
     
@@ -1182,9 +1271,9 @@ router.post('/complete-challenge/:level', ensureAuthenticated, async (req, res) 
 
     let isCorrect = false;
     if (challengeLevel === 3) {
-      isCorrect = solution.toUpperCase() === 'NETWORK_ANALYSIS_COMPLETE';
+      isCorrect = solution.toUpperCase() === 'CODE_BREAKER_COMPLETE';
     } else if (challengeLevel === 4) {
-      isCorrect = solution.toUpperCase() === 'CRYPTO_MASTER_ACHIEVED';
+      isCorrect = solution.toUpperCase() === 'I_ALWAYS_SIGN_MY_WORK_COMPLETE';
     }
 
     if (!isCorrect) {
@@ -1240,7 +1329,9 @@ router.get('/:classroomId/stats', ensureAuthenticated, ensureTeacher, async (req
         challenge1: challenge.userChallenges.filter(uc => uc.progress === 1).length,
         challenge2: challenge.userChallenges.filter(uc => uc.progress === 2).length,
         challenge3: challenge.userChallenges.filter(uc => uc.progress === 3).length,
-        completed: challenge.userChallenges.filter(uc => uc.progress === 4).length
+        challenge4: challenge.userChallenges.filter(uc => uc.progress === 4).length,
+        challenge5: challenge.userChallenges.filter(uc => uc.progress === 5).length,
+        completed: challenge.userChallenges.filter(uc => uc.progress === 6).length
       }
     };
 
@@ -1284,33 +1375,40 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
     let challengeIndex = 0;
     if (challengeId === 'caesar-secret-001') challengeIndex = 0;
     else if (challengeId === 'github-osint-002') challengeIndex = 1;
-    else if (challengeId === 'network-analysis-003') challengeIndex = 2;
-    else if (challengeId === 'advanced-crypto-004') challengeIndex = 3;
+    else if (challengeId === 'code-breaker-003') challengeIndex = 2;
+    else if (challengeId === 'i-always-sign-my-work-004') challengeIndex = 3;
+    else if (challengeId === 'secrets-in-the-clouds-005') challengeIndex = 4;
+    else if (challengeId === 'needle-in-a-haystack-006') challengeIndex = 5;
     else {
       return res.status(400).json({ success: false, message: 'Invalid challenge ID' });
     }
 
     if (!userChallenge.completedChallenges) {
-      userChallenge.completedChallenges = [false, false, false, false, false];
+      userChallenge.completedChallenges = [false, false, false, false, false, false];
     }
 
     if (userChallenge.completedChallenges[challengeIndex]) {
       return res.status(400).json({ success: false, message: 'Challenge already completed' });
     }
 
-    const challengeTypes = ['caesar-decrypt', 'github-osint', 'network-analysis', 'advanced-crypto'];
-    const challengeType = challengeTypes[challengeIndex];
-    
-    const validator = validators[challengeType];
+    const challengeValidation = challenge.settings.challengeValidation?.find(
+      cv => cv.challengeIndex === challengeIndex
+    );
+
+    if (!challengeValidation) {
+      return res.status(500).json({ success: false, message: 'Challenge validation not configured' });
+    }
+
+    const validator = validators[challengeValidation.logicType];
     if (!validator) {
       return res.status(500).json({ success: false, message: 'Unsupported challenge type' });
     }
 
-    const isCorrect = validator(answer, {}, userChallenge.uniqueId);
+    const isCorrect = validator(answer, challengeValidation.metadata, userChallenge.uniqueId);
 
     if (isCorrect) {
       if (!userChallenge.completedChallenges) {
-        userChallenge.completedChallenges = [false, false, false, false, false];
+        userChallenge.completedChallenges = [false, false, false, false, false, false];
       }
       userChallenge.completedChallenges[challengeIndex] = true;
       userChallenge.progress = userChallenge.completedChallenges.filter(Boolean).length;
@@ -1325,13 +1423,12 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
         luck: 1.0,
         discount: 0,
         shield: false,
-        attackBonus: 0
       };
 
       if (user) {
         if (challenge.settings.rewardMode === 'individual') {
           bitsAwarded = challenge.settings.challengeBits[challengeIndex] || 0;
-        } else if (challengeIndex === 4) {
+        } else if (challengeIndex === 5) {
           bitsAwarded = challenge.settings.totalRewardBits || 0;
         }
 
@@ -1394,15 +1491,7 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
           }
         }
 
-        if (challenge.settings.attackMode === 'individual') {
-          const attackReward = challenge.settings.challengeAttackBonuses[challengeIndex] || 0;
-          if (attackReward > 0) {
-            user.attackPower = (user.attackPower || 0) + attackReward;
-            rewardsEarned.attackBonus = attackReward;
-          }
-        }
-
-        if (challengeIndex === 4) {
+        if (challengeIndex === 5) {
           if (challenge.settings.multiplierMode === 'total') {
             const totalMultiplier = challenge.settings.totalMultiplier || 1.0;
             if (totalMultiplier > 1.0) {
@@ -1438,26 +1527,18 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
               rewardsEarned.shield = true;
             }
           }
-
-          if (challenge.settings.attackMode === 'total') {
-            const totalAttackBonus = challenge.settings.totalAttackBonus || 0;
-            if (totalAttackBonus > 0) {
-              user.attackPower = (user.attackPower || 0) + totalAttackBonus;
-              rewardsEarned.attackBonus = totalAttackBonus;
-            }
-          }
         }
 
         await user.save();
       }
 
-      if (userChallenge.progress === 5) {
+      if (userChallenge.progress === 6) {
         userChallenge.completedAt = new Date();
       }
 
       await challenge.save();
 
-      const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'Bug Smasher', 'I Always Sign My Work...', 'Secrets in the Clouds'];
+      const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'Code Breaker', 'I Always Sign My Work...', 'Secrets in the Clouds', 'Needle in a Haystack'];
 
       res.json({
         success: true,
@@ -1465,8 +1546,8 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
         challengeName: challengeNames[challengeIndex],
         rewards: rewardsEarned,
         progress: userChallenge.progress,
-        allCompleted: userChallenge.progress >= 5,
-        nextChallenge: userChallenge.progress < 5 ? challengeNames[userChallenge.progress] : null
+        allCompleted: userChallenge.progress >= 6,
+        nextChallenge: userChallenge.progress < 6 ? challengeNames[userChallenge.progress] : null
       });
     } else {
       const enableHints = (challenge.settings.challengeHintsEnabled || [])[challengeIndex];
@@ -1519,7 +1600,7 @@ router.post('/challenge4/:uniqueId/submit', ensureAuthenticated, async (req, res
       const userChallenge = challenge.userChallenges.find(uc => uc.uniqueId === uniqueId);
       if (userChallenge) {
         if (!userChallenge.completedChallenges) {
-          userChallenge.completedChallenges = [false, false, false, false, false];
+          userChallenge.completedChallenges = [false, false, false, false, false, false];
         }
         
         const rewardsEarned = {
@@ -1528,7 +1609,6 @@ router.post('/challenge4/:uniqueId/submit', ensureAuthenticated, async (req, res
           luck: 1.0,
           discount: 0,
           shield: false,
-          attackBonus: 0
         };
         
         if (!userChallenge.completedChallenges[3]) {
@@ -1591,15 +1671,7 @@ router.post('/challenge4/:uniqueId/submit', ensureAuthenticated, async (req, res
               user.shieldActive = true;
               rewardsEarned.shield = true;
             }
-          }
-
-          if (challenge.settings.attackMode === 'individual') {
-            const attackReward = challenge.settings.challengeAttackBonuses[challengeIndex] || 0;
-            if (attackReward > 0) {
-              user.attackPower = (user.attackPower || 0) + attackReward;
-              rewardsEarned.attackBonus = attackReward;
-            }
-          }
+          } 
 
           await user.save();
         }
@@ -1608,15 +1680,15 @@ router.post('/challenge4/:uniqueId/submit', ensureAuthenticated, async (req, res
         }
       }
 
-      const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'Memory Leak Detective', 'Digital Forensics Lab', 'WayneAWS Verification'];
+      const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'Code Breaker', 'I Always Sign My Work...', 'Secrets in the Clouds', 'Needle in a Haystack'];
       
       res.json({
         success: true,
         message: 'Digital forensics investigation complete!',
         challengeName: challengeNames[3],
         rewards: rewardsEarned,
-        allCompleted: userChallenge.progress >= 5,
-        nextChallenge: userChallenge.progress < 5 ? challengeNames[userChallenge.progress] : null
+        allCompleted: userChallenge.progress >= 6,
+        nextChallenge: userChallenge.progress < 6 ? challengeNames[userChallenge.progress] : null
       });
     } else {
       res.json({
@@ -1838,7 +1910,7 @@ router.post('/:classroomId/debug-progress', ensureAuthenticated, ensureTeacher, 
         userId,
         uniqueId,
         progress: parseInt(progress),
-        completedAt: progress >= 4 ? new Date() : null
+        completedAt: progress >= 6 ? new Date() : null
       };
       
       challenge.userChallenges.push(userChallenge);
@@ -2018,7 +2090,7 @@ router.post('/challenge3/:uniqueId/verify', ensureAuthenticated, async (req, res
     userChallenge.challenge3Attempts = currentAttempts + 1;
 
     const validators = require('../validators/challenges');
-    const isCorrect = validators['network-analysis'](password, {}, uniqueId);
+    const isCorrect = validators['code-breaker'](password, {}, uniqueId);
 
     if (!isCorrect) {
       await challenge.save();
@@ -2030,7 +2102,7 @@ router.post('/challenge3/:uniqueId/verify', ensureAuthenticated, async (req, res
     }
 
     if (!userChallenge.completedChallenges) {
-      userChallenge.completedChallenges = [false, false, false, false, false];
+      userChallenge.completedChallenges = [false, false, false, false, false, false];
     }
 
     if (!userChallenge.completedChallenges[2]) {
@@ -2164,7 +2236,7 @@ router.post('/:classroomId/start', ensureAuthenticated, async (req, res) => {
       });
     }
 
-    if (challengeIndex < 0 || challengeIndex > 4) {
+    if (challengeIndex < 0 || challengeIndex > 5) {
       return res.status(400).json({ success: false, message: 'Invalid challenge index' });
     }
 
@@ -2203,8 +2275,10 @@ router.post('/:classroomId/hints/unlock', ensureAuthenticated, async (req, res) 
         let challengeIndex = 0;
         if (challengeId === 'caesar-secret-001') challengeIndex = 0;
         else if (challengeId === 'github-osint-002') challengeIndex = 1;
-        else if (challengeId === 'network-analysis-003') challengeIndex = 2;
-        else if (challengeId === 'advanced-crypto-004') challengeIndex = 3;
+        else if (challengeId === 'code-breaker-003') challengeIndex = 2;
+        else if (challengeId === 'i-always-sign-my-work-004') challengeIndex = 3;
+        else if (challengeId === 'secrets-in-the-clouds-005') challengeIndex = 4;
+        else if (challengeId === 'needle-in-a-haystack-006') challengeIndex = 5;
         else {
           return res.status(400).json({ success: false, message: 'Invalid challenge ID' });
         }
