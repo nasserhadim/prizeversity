@@ -11,6 +11,7 @@ import Footer from '../components/Footer';
 
 const Groups = () => {
   const { id } = useParams();
+  const navigate = useNavigate(); // Add this line
   const { user } = useAuth();
   const [groupSets, setGroupSets] = useState([]);
   const [classroom, setClassroom] = useState(null);
@@ -37,7 +38,9 @@ const Groups = () => {
   const [confirmLeaveGroup, setConfirmLeaveGroup] = useState(null);
   const [editGroupModal, setEditGroupModal] = useState(null);
   const [newGroupName, setNewGroupName] = useState('');
-
+  const [newGroupMaxMembers, setNewGroupMaxMembers] = useState('');
+  const [selectedGroups, setSelectedGroups] = useState({});
+  const [confirmBulkDeleteGroups, setConfirmBulkDeleteGroups] = useState(null);
 
   // Fetch classroom details
   const fetchClassroom = async () => {
@@ -86,13 +89,12 @@ const Groups = () => {
     if (groupSetMaxMembers < 0) return toast.error('Max members cannot be negative');
 
     try {
-      // POST to create the groupset
       await axios.post('/api/group/groupset/create', {
         name: groupSetName,
         classroomId: id,
         selfSignup: groupSetSelfSignup,
         joinApproval: groupSetJoinApproval,
-        maxMembers: groupSetMaxMembers,
+        maxMembers: Math.max(0, groupSetMaxMembers || 0),
         image: groupSetImage,
       });
       toast.success('GroupSet created successfully');
@@ -129,20 +131,24 @@ const Groups = () => {
     if (groupSetMaxMembers < 0) return toast.error('Max members cannot be negative');
 
     try {
-      // PUT API call to update the new edits for the groupset
       await axios.put(`/api/group/groupset/${editingGroupSetId}`, {
         name: groupSetName,
         selfSignup: groupSetSelfSignup,
         joinApproval: groupSetJoinApproval,
-        maxMembers: groupSetMaxMembers,
+        maxMembers: Math.max(0, groupSetMaxMembers || 0),
         image: groupSetImage,
       });
 
       toast.success('GroupSet updated successfully');
       resetGroupSetForm();
       fetchGroupSets();
-    } catch {
-      toast.error('Failed to update group set');
+    } catch (err) {
+      // Check if it's the "no changes" message from backend
+      if (err.response?.data?.message === 'No changes were made') {
+        toast.error('No changes were made');
+      } else {
+        toast.error('Failed to update group set');
+      }
     }
   };
 
@@ -238,27 +244,56 @@ const Groups = () => {
   // };
 
   // Editing the group name 
-  const openEditGroupModal = (groupSetId, groupId, currentName) => {
+  const openEditGroupModal = (groupSetId, groupId, currentName, currentMaxMembers) => {
     setEditGroupModal({ groupSetId, groupId });
     setNewGroupName(currentName);
+    setNewGroupMaxMembers(currentMaxMembers || '');
   };
 
-  // Making sure that the group name cannot be epty and makes a PUT api call to update the new changes for the group
+  // Making sure that the group name cannot be empty and makes a PUT api call to update the new changes for the group
   const handleEditGroup = async () => {
     if (!editGroupModal || !newGroupName.trim()) {
       return toast.error('Group name cannot be empty');
     }
 
+    // Find the current group to compare values
+    const currentGroup = groupSets
+      .find(gs => gs._id === editGroupModal.groupSetId)
+      ?.groups.find(g => g._id === editGroupModal.groupId);
+    
+    if (!currentGroup) {
+      return toast.error('Group not found');
+    }
+
+    // Check if any changes were actually made
+    const nameChanged = currentGroup.name !== newGroupName.trim();
+    const maxMembersChanged = (currentGroup.maxMembers || '') !== (newGroupMaxMembers || '');
+    
+    if (!nameChanged && !maxMembersChanged) {
+      toast.error('No changes were made');
+      setEditGroupModal(null);
+      return;
+    }
+
     try {
       const { groupSetId, groupId } = editGroupModal;
+      
       await axios.put(`/api/group/groupset/${groupSetId}/group/${groupId}`, {
-        name: newGroupName.trim()
+        name: newGroupName.trim(),
+        maxMembers: newGroupMaxMembers
       });
+      
       toast.success('Group updated');
       setEditGroupModal(null);
       fetchGroupSets();
-    } catch {
-      toast.error('Failed to update group');
+    } catch (err) {
+      // Check if it's the "no changes" message from backend
+      if (err.response?.status === 400 && err.response?.data?.message === 'No changes were made') {
+        toast.error('No changes were made');
+      } else {
+        toast.error('Failed to update group');
+      }
+      setEditGroupModal(null);
     }
   };
 
@@ -470,489 +505,626 @@ const Groups = () => {
     });
   };
  
+  // Select/Deselect all groups in a GroupSet
+  const handleSelectAllGroups = (groupSetId, groups) => {
+    setSelectedGroups(prev => {
+      const currentSelected = prev[groupSetId] || [];
+      const allSelected = currentSelected.length === groups.length;
+      
+      if (allSelected) {
+        // Deselect all groups
+        return { ...prev, [groupSetId]: [] };
+      } else {
+        // Select all groups
+        return { ...prev, [groupSetId]: groups.map(g => g._id) };
+      }
+    });
+  };
+
+  // Select/Deselect a single group in a GroupSet
+  const handleSelectGroup = (groupSetId, groupId) => {
+    setSelectedGroups(prev => {
+      const currentSelected = prev[groupSetId] || [];
+      const isSelected = currentSelected.includes(groupId);
+      
+      if (isSelected) {
+        // Remove from selection
+        return { 
+          ...prev, 
+          [groupSetId]: currentSelected.filter(id => id !== groupId) 
+        };
+      } else {
+        // Add to selection
+        return { 
+          ...prev, 
+          [groupSetId]: [...currentSelected, groupId] 
+        };
+      }
+    });
+  };
+
+  const handleBulkDeleteGroups = async () => {
+    if (!confirmBulkDeleteGroups) return;
+
+    try {
+      const { groupSetId, groupIds } = confirmBulkDeleteGroups;
+      
+      await axios.delete(`/api/group/groupset/${groupSetId}/groups/bulk`, {
+        data: { groupIds }
+      });
+      
+      toast.success(`${groupIds.length} group(s) deleted successfully`);
+      setConfirmBulkDeleteGroups(null);
+      setSelectedGroups(prev => ({ ...prev, [groupSetId]: [] }));
+      fetchGroupSets();
+    } catch (err) {
+      toast.error('Failed to delete groups');
+    }
+  };
+
   // Create GroupSet
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6 text-center">
-        {classroom ? `${classroom.name} Groups` : 'Classroom Groups'}
-      </h1>
-      {(user.role === 'teacher' || user.role === 'admin') && (
-        <div className="card bg-base-200 p-4 space-y-2">
-          <input
-            className="input input-bordered w-full hover:ring hover:ring-primary"
-            type="text"
-            placeholder="Groupset Name"
-            value={groupSetName}
-            onChange={(e) => setGroupSetName(e.target.value)}
-          />
+    <div className="min-h-screen flex flex-col bg-base-200 p-6">
+      <div className="flex-grow">
+        <h1 className="text-3xl font-bold mb-6">{classroom?.name || 'Classroom'} Groups</h1>
 
-          <label className="label cursor-pointer">
-            <span className="label-text">Allow Self-Signup</span>
-            <input
-              type="checkbox"
-              className={`toggle transition-colors duration-300 ${groupSetSelfSignup ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'}`}
-              checked={groupSetSelfSignup}
-              onChange={(e) => setGroupSetSelfSignup(e.target.checked)}
-            />
-          </label>
-
-          <label className="label cursor-pointer">
-            <span className="label-text">Require Join Approval</span>
-            <input
-              type="checkbox"
-              className={`toggle transition-colors duration-300 ${groupSetJoinApproval ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'}`}
-              checked={groupSetJoinApproval}
-              onChange={(e) => setGroupSetJoinApproval(e.target.checked)}
-            />
-          </label>
-
-          <input
-            className="input input-bordered w-full hover:ring hover:ring-primary"
-            type="number"
-            placeholder="Max Members"
-            value={groupSetMaxMembers}
-            onChange={(e) => setGroupSetMaxMembers(Math.max(0, e.target.value))}
-          />
-
-          <input
-            className="input input-bordered w-full hover:ring hover:ring-primary"
-            type="text"
-            placeholder="Image URL"
-            value={groupSetImage}
-            onChange={(e) => setGroupSetImage(e.target.value)}
-          />
-
-          {editingGroupSetId ? (
-            <button
-              className="btn btn-warning hover:scale-105 transition-transform duration-200"
-              onClick={handleUpdateGroupSet}
-            >
-              Update Groupset
-            </button>
-          ) : (
-            <button
-              className="btn btn-success hover:scale-105 transition-transform duration-200"
-              onClick={handleCreateGroupSet}
-            >
-              Create Groupset
-            </button>
-          )}
-        </div>
-      )}
-      {groupSets.length === 0 && user.role === 'student' && (
-        <p className="text-lg font-medium text-gray-600">No groups available</p>
-      )}
-
-    {/* Group Sets */}
-    {groupSets.map((gs) => (
-      <div key={gs._id} className="card bg-base-100 shadow-md p-4 space-y-4">
-        <div className="flex justify-between items-center">
-          <div>
-            <h2 className="text-xl font-semibold">{gs.name}</h2>
-            <p>Self Signup: {gs.selfSignup ? 'Yes' : 'No'}</p>
-            <p>Join Approval: {gs.joinApproval ? 'Yes' : 'No'}</p>
-            <p>Max Members: {gs.maxMembers || 'No limit'}</p>
-          </div>
-          {gs.image && (
-            <img
-              src={gs.image}
-              alt={gs.name}
-              className="w-16 h-16 object-cover rounded"
-            />
-          )}
-        </div>
-
+        {/* Create Group Set */}
         {(user.role === 'teacher' || user.role === 'admin') && (
-          <div className="flex gap-2">
-            <button className="btn btn-sm btn-info" onClick={() => handleEditGroupSet(gs)}>Edit</button>
-            <button className="btn btn-sm btn-error" onClick={() => setConfirmDeleteGroupSet(gs)}>Delete</button>
-          </div>
-        )}
-
-        {/* Create Group */}
-        {(user.role === 'teacher' || user.role === 'admin') && (
-          <div>
-            <h4 className="text-md font-semibold">Create group</h4>
+          <div className="card bg-base-100 shadow-md p-4 space-y-4 mb-6">
+            <h2 className="text-xl font-semibold">Create Group Set</h2>
             <input
               type="text"
-              className="input input-bordered w-full mt-1 mb-3"
-              placeholder="Group Name"
-              value={groupName}
-              onChange={(e) => setGroupName(e.target.value)}
+              placeholder="Group Set Name"
+              className="input input-bordered w-full"
+              value={groupSetName}
+              onChange={(e) => setGroupSetName(e.target.value)}
             />
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  className="toggle toggle-primary"
+                  checked={groupSetSelfSignup}
+                  onChange={(e) => setGroupSetSelfSignup(e.target.checked)}
+                />
+                Self Signup
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  className="toggle toggle-primary"
+                  checked={groupSetJoinApproval}
+                  onChange={(e) => setGroupSetJoinApproval(e.target.checked)}
+                />
+                Join Approval Required
+              </label>
+            </div>
             <input
               type="number"
-              min="1"
+              placeholder="Max Members (optional)"
               className="input input-bordered w-full"
-              placeholder="Group Count"
-              value={groupCount}
-              onChange={(e) => setGroupCount(e.target.value)}
+              min="0"
+              value={groupSetMaxMembers}
+              onChange={(e) => setGroupSetMaxMembers(Math.max(0, e.target.value))}
             />
-            <button className="btn btn-success mt-2" onClick={() => handleCreateGroup(gs._id)}>
-              Create
+            <button className="btn btn-success" onClick={editingGroupSetId ? handleUpdateGroupSet : handleCreateGroupSet}>
+              {editingGroupSetId ? 'Update Group Set' : 'Create Group Set'}
             </button>
+            {editingGroupSetId && (
+              <button className="btn btn-ghost ml-2" onClick={resetGroupSetForm}>
+                Cancel
+              </button>
+            )}
           </div>
         )}
 
-        {/* Display Groups */}
-        {gs.groups.map((group) => (
-          <div key={group._id} className="border rounded p-4 bg-base-100">
-            <div className="flex justify-between items-start">
+        {groupSets.length === 0 && user.role === 'student' && (
+          <p className="text-lg font-medium text-gray-600">No groups available</p>
+        )}
+
+        {/* Group Sets */}
+        {groupSets.map((gs) => (
+          <div key={gs._id} className="card bg-base-100 shadow-md p-4 space-y-4 mb-8">
+            <div className="flex justify-between items-center">
               <div>
-                <h5 className="font-semibold">{group.name}</h5>
-                <p className="text-sm">
-                  Members: {group.members.length}/{group.maxMembers || 'No limit'} • 
-                  Multiplier: {group.groupMultiplier || 1}x
-                </p>
+                <h2 className="text-xl font-semibold">{gs.name}</h2>
+                <p>Self Signup: {gs.selfSignup ? 'Yes' : 'No'}</p>
+                <p>Join Approval: {gs.joinApproval ? 'Yes' : 'No'}</p>
+                <p>Max Members: {gs.maxMembers || 'No limit'}</p>
               </div>
-              
-              {(user.role === 'teacher' || user.role === 'admin') && (
-                <GroupMultiplierControl 
-                  group={group} 
-                  groupSetId={gs._id}
-                  classroomId={id}
-                  compact={true}
-                  refreshGroups={fetchGroupSets}
+              {gs.image && (
+                <img
+                  src={gs.image}
+                  alt={gs.name}
+                  className="w-16 h-16 object-cover rounded"
                 />
               )}
             </div>
 
-            <div className="flex gap-2 flex-wrap mt-2">
-              {user.role === 'student' && (() => {
-                const studentMembership = group.members.find(m => m._id._id === user._id);
-                const isApproved = studentMembership?.status === 'approved';
-                const isPending = studentMembership?.status === 'pending';
-
-                const alreadyJoinedApproved = gs.groups.some(g =>
-                  g.members.some(m => m._id._id === user._id && m.status === 'approved' || m.status === 'pending')
-                );
-
-                return (
-                  <>
-                    {!studentMembership && !alreadyJoinedApproved && (
-                      <button
-                        className="btn btn-xs btn-success"
-                        onClick={() => handleJoinGroup(gs._id, group._id)}
-                      >
-                        Join
-                      </button>
-                    )}
-
-                    {isPending && (
-                      <button
-                        className="btn btn-xs btn-error"
-                        onClick={() => handleLeaveGroup(gs._id, group._id)}
-                      >
-                        Cancel Request
-                      </button>
-                    )}
-
-                    {isApproved && (
-                      <>
-                        <button
-                          className="btn btn-xs btn-error"
-                          onClick={() => setConfirmLeaveGroup({
-                            groupSetId: gs._id,
-                            groupId: group._id,
-                            groupName: group.name
-                          })}
-                        >
-                          Leave
-                        </button>
-                        <button
-                          className="btn btn-xs btn-warning"
-                          onClick={() => setOpenSiphonModal(group)}
-                        >
-                          Siphon
-                        </button>
-                      </>
-                    )}
-                  </>
-                );
-              })()}
-
-              {(user.role === 'teacher' || user.role === 'admin') && (
-                <>
-                  <button className="btn btn-xs btn-info" onClick={() => openEditGroupModal(gs._id, group._id, group.name)}>Edit</button>
-                  <button className="btn btn-xs btn-error" onClick={() =>
-                    setConfirmDeleteGroup({
-                      groupId: group._id,
-                      groupSetId: gs._id,
-                      groupName: group.name,
-                    })
-                  }>Delete</button>
-                  <button className="btn btn-xs btn-warning" onClick={() => setOpenSiphonModal(group)}>Siphon</button>
-                  <button className="btn btn-xs btn-success" onClick={() => openAdjustModal(gs._id, group._id)}>Transfer</button>
-                </>
-              )}
-            </div>
-
-            {/* Siphon requests */}
-            {group.siphonRequests?.length > 0 && (
-              <div className="mt-4">
-                <h5 className="text-sm font-semibold">Active Siphon Requests</h5>
-                {group.siphonRequests
-                  .filter(r => r.status !== 'teacher_approved')
-                  .map(r => (
-                    <div key={r._id} className="border p-2 mt-2 rounded bg-base-200">
-                      <p>
-                        <strong>{r.amount} bits</strong> from {r.targetUser.email}
-                      </p>
-                      <div className="italic text-xs mb-1" dangerouslySetInnerHTML={{ __html: r.reasonHtml }} />
-
-                      {r.status === 'pending' && user.role !== 'teacher' &&
-                        !r.votes.some(v => v.user.toString() === user._id) && (
-                          <div className="flex gap-1">
-                            <button className="btn btn-xs btn-success" onClick={() => voteOnSiphon(r._id, 'yes')}>Yes</button>
-                            <button className="btn btn-xs btn-error" onClick={() => voteOnSiphon(r._id, 'no')}>No</button>
-                          </div>
-                        )}
-
-                      {r.status === 'group_approved' && user.role === 'teacher' && (
-                        <div className="flex gap-1 mt-1">
-                          <button className="btn btn-xs btn-success" onClick={() => teacherApprove(r._id)}>Approve</button>
-                          <button className="btn btn-xs btn-error" onClick={() => teacherReject(r._id)}>Reject</button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+            {(user.role === 'teacher' || user.role === 'admin') && (
+              <div className="flex gap-2">
+                <button className="btn btn-sm btn-info" onClick={() => handleEditGroupSet(gs)}>Edit</button>
+                <button className="btn btn-sm btn-error" onClick={() => setConfirmDeleteGroupSet(gs)}>Delete</button>
               </div>
             )}
 
-            {/* Member Table */}
-            <div className="mt-4">
-              <h5 className="text-sm font-semibold mb-2">Members</h5>
-              <div className="flex gap-2 mb-2">
+            {/* Create Group */}
+            {(user.role === 'teacher' || user.role === 'admin') && (
+              <div>
+                <h4 className="text-md font-semibold">Create group</h4>
                 <input
                   type="text"
-                  placeholder="Search..."
-                  value={memberSearches[group._id] || ''}
-                  onChange={(e) => setMemberSearches(prev => ({ ...prev, [group._id]: e.target.value }))}
-                  className="input input-bordered input-sm w-full"
+                  className="input input-bordered w-full mt-1 mb-3"
+                  placeholder="Group Name"
+                  value={groupName}
+                  onChange={(e) => setGroupName(e.target.value)}
                 />
-                <select
-                  value={memberFilters[group._id] || 'all'}
-                  onChange={(e) => setMemberFilters(prev => ({ ...prev, [group._id]: e.target.value }))}
-                  className="select select-bordered select-sm"
-                >
-                  <option value="all">All</option>
-                  <option value="pending">Pending</option>
-                  <option value="approved">Approved</option>
-                </select>
-                <select
-                  value={memberSorts[group._id] || 'email'}
-                  onChange={(e) => setMemberSorts(prev => ({ ...prev, [group._id]: e.target.value }))}
-                  className="select select-bordered select-sm"
-                >
-                  <option value="email">Name</option>
-                  <option value="status">Status</option>
-                  <option value="date">Join Date</option>
-                </select>
+                <input
+                  type="number"
+                  min="1"
+                  className="input input-bordered w-full"
+                  placeholder="Group Count"
+                  value={groupCount}
+                  onChange={(e) => setGroupCount(e.target.value)}
+                />
+                <button className="btn btn-success mt-2" onClick={() => handleCreateGroup(gs._id)}>
+                  Create
+                </button>
               </div>
+            )}
 
-              <div className="overflow-x-auto">
-                <table className="table table-zebra table-sm">
-                  <thead>
-                    <tr>
-                      <th><input type="checkbox"
-                        checked={(selectedMembers[group._id]?.length || 0) === group.members.length}
-                        onChange={() => handleSelectAllMembers(group._id, group)}
-                      /></th>
-                      <th>Name</th>
-                      <th>Status</th>
-                      <th>Join Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {getFilteredAndSortedMembers(group).map((member, idx) => (
-                      <tr key={`${group._id}-${member._id._id}-${idx}`}>
-                        <td>
-                          <input
-                            type="checkbox"
-                            checked={selectedMembers[group._id]?.includes(member._id._id) || false}
-                            onChange={() => handleSelectMember(group._id, member._id._id)}
-                          />
-                        </td>
-                        <td>
-                          {`${member._id.firstName || ''} ${member._id.lastName || ''}`.trim() || member._id.email}
-                          <button 
-                            className="btn btn-xs btn-ghost ml-2"
-                            onClick={() => navigate(`/profile/${member._id._id}`)}
-                          >
-                            View Profile
-                          </button>
-                          {member._id.isFrozen && (
-                            <Lock className="inline w-4 h-4 ml-1 text-red-500" title="Balance frozen" />
-                          )}
-                        </td>
-                        <td>
-                          <span className={`badge ${member.status === 'pending' ? 'badge-warning' : 'badge-success'}`}>
-                            {member.status || 'approved'}
-                          </span>
-                        </td>
-                        <td>{member.status === 'approved' ? new Date(member.joinDate).toLocaleString() : 'Pending'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {(user.role === 'teacher' || user.role === 'admin') && (
-                <div className="mt-2 flex gap-2">
-                  <button className="btn btn-xs btn-success" disabled={!selectedMembers[group._id]?.length} onClick={() => handleApproveMembers(gs._id, group._id)}>Approve</button>
-                  <button className="btn btn-xs btn-error" disabled={!selectedMembers[group._id]?.length} onClick={() => handleRejectMembers(gs._id, group._id)}>Reject</button>
-                  <button className="btn btn-xs btn-warning" disabled={!selectedMembers[group._id]?.length} onClick={() => handleSuspendMembers(gs._id, group._id)}>Suspend</button>
+            {/* Bulk Actions for Groups */}
+            {(user.role === 'teacher' || user.role === 'admin') && selectedGroups[gs._id]?.length > 0 && (
+              <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">
+                    {selectedGroups[gs._id].length} group(s) selected
+                  </span>
+                  <button
+                    className="btn btn-sm btn-error"
+                    onClick={() => setConfirmBulkDeleteGroups({
+                      groupSetId: gs._id,
+                      groupIds: selectedGroups[gs._id],
+                      groupNames: gs.groups
+                        .filter(g => selectedGroups[gs._id].includes(g._id))
+                        .map(g => g.name)
+                    })}
+                  >
+                    Delete Selected ({selectedGroups[gs._id].length})
+                  </button>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
+
+            {/* Select All Groups Checkbox */}
+            {(user.role === 'teacher' || user.role === 'admin') && gs.groups.length > 0 && (
+              <div className="mb-3">
+                <label className="flex items-center gap-2 text-sm font-medium">
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-sm"
+                    checked={gs.groups.length > 0 && (selectedGroups[gs._id]?.length || 0) === gs.groups.length}
+                    onChange={() => handleSelectAllGroups(gs._id, gs.groups)}
+                  />
+                  Select All Groups ({gs.groups.length})
+                </label>
+              </div>
+            )}
+
+            {/* Display Groups */}
+            {gs.groups.map((group) => (
+              <div key={group._id} className="border rounded p-4 bg-base-100">
+                <div className="flex justify-between items-start">
+                  <div className="flex items-start gap-3">
+                    {/* Group Selection Checkbox */}
+                    {(user.role === 'teacher' || user.role === 'admin') && (
+                      <input
+                        type="checkbox"
+                        className="checkbox checkbox-sm mt-1"
+                        checked={selectedGroups[gs._id]?.includes(group._id) || false}
+                        onChange={() => handleSelectGroup(gs._id, group._id)}
+                      />
+                    )}
+                    
+                    <div>
+                      <h5 className="font-semibold">{group.name}</h5>
+                      <p className="text-sm">
+                        Members: {group.members.length}/{group.maxMembers || 'No limit'} • 
+                        Multiplier: {group.groupMultiplier || 1}x
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {(user.role === 'teacher' || user.role === 'admin') && (
+                    <GroupMultiplierControl 
+                      group={group} 
+                      groupSetId={gs._id}
+                      classroomId={id}
+                      compact={true}
+                      refreshGroups={fetchGroupSets}
+                    />
+                  )}
+                </div>
+
+                <div className="flex gap-2 flex-wrap mt-2">
+                  {user.role === 'student' && (() => {
+                    const studentMembership = group.members.find(m => m._id._id === user._id);
+                    const isApproved = studentMembership?.status === 'approved';
+                    const isPending = studentMembership?.status === 'pending';
+
+                    const alreadyJoinedApproved = gs.groups.some(g =>
+                      g.members.some(m => m._id._id === user._id && m.status === 'approved' || m.status === 'pending')
+                    );
+
+                    return (
+                      <>
+                        {!studentMembership && !alreadyJoinedApproved && (
+                          <button
+                            className="btn btn-xs btn-success"
+                            onClick={() => handleJoinGroup(gs._id, group._id)}
+                          >
+                            Join
+                          </button>
+                        )}
+
+                        {isPending && (
+                          <button
+                            className="btn btn-xs btn-error"
+                            onClick={() => handleLeaveGroup(gs._id, group._id)}
+                          >
+                            Cancel Request
+                          </button>
+                        )}
+
+                        {isApproved && (
+                          <>
+                            <button
+                              className="btn btn-xs btn-error"
+                              onClick={() => setConfirmLeaveGroup({
+                                groupSetId: gs._id,
+                                groupId: group._id,
+                                groupName: group.name
+                              })}
+                            >
+                              Leave
+                            </button>
+                            <button
+                              className="btn btn-xs btn-warning"
+                              onClick={() => setOpenSiphonModal(group)}
+                            >
+                              Siphon
+                            </button>
+                          </>
+                        )}
+                      </>
+                    );
+                  })()}
+
+                  {(user.role === 'teacher' || user.role === 'admin') && (
+                    <>
+                      <button className="btn btn-xs btn-info" onClick={() => openEditGroupModal(gs._id, group._id, group.name, group.maxMembers)}>Edit</button>
+                      <button className="btn btn-xs btn-error" onClick={() =>
+                        setConfirmDeleteGroup({
+                          groupId: group._id,
+                          groupSetId: gs._id,
+                          groupName: group.name,
+                        })
+                      }>Delete</button>
+                      <button className="btn btn-xs btn-warning" onClick={() => setOpenSiphonModal(group)}>Siphon</button>
+                      <button className="btn btn-xs btn-success" onClick={() => openAdjustModal(gs._id, group._id)}>Transfer</button>
+                    </>
+                  )}
+                </div>
+
+                {/* Siphon requests */}
+                {group.siphonRequests?.length > 0 && (
+                  <div className="mt-4">
+                    <h5 className="text-sm font-semibold">Active Siphon Requests</h5>
+                    {group.siphonRequests
+                      .filter(r => r.status !== 'teacher_approved')
+                      .map(r => (
+                        <div key={r._id} className="border p-2 mt-2 rounded bg-base-200">
+                          <p>
+                            <strong>{r.amount} bits</strong> from {r.targetUser.email}
+                          </p>
+                          <div className="italic text-xs mb-1" dangerouslySetInnerHTML={{ __html: r.reasonHtml }} />
+
+                          {r.status === 'pending' && user.role !== 'teacher' &&
+                            !r.votes.some(v => v.user.toString() === user._id) && (
+                              <div className="flex gap-1">
+                                <button className="btn btn-xs btn-success" onClick={() => voteOnSiphon(r._id, 'yes')}>Yes</button>
+                                <button className="btn btn-xs btn-error" onClick={() => voteOnSiphon(r._id, 'no')}>No</button>
+                              </div>
+                            )}
+
+                          {r.status === 'group_approved' && user.role === 'teacher' && (
+                            <div className="flex gap-1 mt-1">
+                              <button className="btn btn-xs btn-success" onClick={() => teacherApprove(r._id)}>Approve</button>
+                              <button className="btn btn-xs btn-error" onClick={() => teacherReject(r._id)}>Reject</button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                )}
+
+                {/* Member Table */}
+                <div className="mt-4">
+                  <h5 className="text-sm font-semibold mb-2">Members</h5>
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      placeholder="Search..."
+                      value={memberSearches[group._id] || ''}
+                      onChange={(e) => setMemberSearches(prev => ({ ...prev, [group._id]: e.target.value }))}
+                      className="input input-bordered input-sm w-full"
+                    />
+                    <select
+                      value={memberFilters[group._id] || 'all'}
+                      onChange={(e) => setMemberFilters(prev => ({ ...prev, [group._id]: e.target.value }))}
+                      className="select select-bordered select-sm"
+                    >
+                      <option value="all">All</option>
+                      <option value="pending">Pending</option>
+                      <option value="approved">Approved</option>
+                    </select>
+                    <select
+                      value={memberSorts[group._id] || 'email'}
+                      onChange={(e) => setMemberSorts(prev => ({ ...prev, [group._id]: e.target.value }))}
+                      className="select select-bordered select-sm"
+                    >
+                      <option value="email">Name</option>
+                      <option value="status">Status</option>
+                      <option value="date">Join Date</option>
+                    </select>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="table table-zebra table-sm">
+                      <thead>
+                        <tr>
+                          <th><input type="checkbox"
+                            checked={(selectedMembers[group._id]?.length || 0) === group.members.length}
+                            onChange={() => handleSelectAllMembers(group._id, group)}
+                          /></th>
+                          <th>Name</th>
+                          <th>Status</th>
+                          <th>Join Date</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {getFilteredAndSortedMembers(group).map((member, idx) => (
+                          <tr key={`${group._id}-${member._id._id}-${idx}`}>
+                            <td>
+                              <input
+                                type="checkbox"
+                                checked={selectedMembers[group._id]?.includes(member._id._id) || false}
+                                onChange={() => handleSelectMember(group._id, member._id._id)}
+                              />
+                            </td>
+                            <td>
+                              {`${member._id.firstName || ''} ${member._id.lastName || ''}`.trim() || member._id.email}
+                              <button 
+                                className="btn btn-xs btn-ghost ml-2"
+                                onClick={() => navigate(`/profile/${member._id._id || member._id}`)}
+                              >
+                                View Profile
+                              </button>
+                              {member._id.isFrozen && (
+                                <Lock className="inline w-4 h-4 ml-1 text-red-500" title="Balance frozen" />
+                              )}
+                            </td>
+                            <td>
+                              <span className={`badge ${member.status === 'pending' ? 'badge-warning' : 'badge-success'}`}>
+                                {member.status || 'approved'}
+                              </span>
+                            </td>
+                            <td>{member.status === 'approved' ? new Date(member.joinDate).toLocaleString() : 'Pending'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {(user.role === 'teacher' || user.role === 'admin') && (
+                    <div className="mt-2 flex gap-2">
+                      <button className="btn btn-xs btn-success" disabled={!selectedMembers[group._id]?.length} onClick={() => handleApproveMembers(gs._id, group._id)}>Approve</button>
+                      <button className="btn btn-xs btn-error" disabled={!selectedMembers[group._id]?.length} onClick={() => handleRejectMembers(gs._id, group._id)}>Reject</button>
+                      <button className="btn btn-xs btn-warning" disabled={!selectedMembers[group._id]?.length} onClick={() => handleSuspendMembers(gs._id, group._id)}>Suspend</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         ))}
       </div>
-    ))}
 
-    {/* Modals */}
-    {openSiphonModal && (
-      <SiphonModal
-        group={openSiphonModal}
-        onClose={() => setOpenSiphonModal(null)}
-      />
-    )}
+      {/* All existing modals */}
+      {openSiphonModal && (
+        <SiphonModal
+          group={openSiphonModal}
+          onClose={() => setOpenSiphonModal(null)}
+        />
+      )}
 
-    {adjustModal && (
-      <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-        <div className="bg-white p-6 rounded shadow-lg w-80">
-          <h3 className="text-lg mb-4">Adjust balances for all students</h3>
-          <input
-            type="number"
-            placeholder="Amount (e.g. 50 or -20)"
-            className="input input-bordered w-full mb-2"
-            value={adjustAmount}
-            onChange={e => setAdjustAmount(e.target.value)}
-          />
-          <input
-            type="text"
-            placeholder="Description (optional)"
-            className="input input-bordered w-full mb-4"
-            value={adjustDesc}
-            onChange={e => setAdjustDesc(e.target.value)}
-          />
-          <div className="flex justify-end gap-2">
-            <button className="btn btn-sm" onClick={() => setAdjustModal(null)}>Cancel</button>
-            <button className="btn btn-sm btn-primary" onClick={submitAdjust}>Apply</button>
+      {adjustModal && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white p-6 rounded shadow-lg w-80">
+            <h3 className="text-lg mb-4">Adjust balances for all students</h3>
+            <input
+              type="number"
+              placeholder="Amount (e.g. 50 or -20)"
+              className="input input-bordered w-full mb-2"
+              value={adjustAmount}
+              onChange={e => setAdjustAmount(e.target.value)}
+            />
+            <input
+              type="text"
+              placeholder="Description (optional)"
+              className="input input-bordered w-full mb-4"
+              value={adjustDesc}
+              onChange={e => setAdjustDesc(e.target.value)}
+            />
+            <div className="flex justify-end gap-2">
+              <button className="btn btn-sm" onClick={() => setAdjustModal(null)}>Cancel</button>
+              <button className="btn btn-sm btn-primary" onClick={submitAdjust}>Apply</button>
+            </div>
           </div>
         </div>
-      </div>
-    )}
+      )}
 
-    {confirmDeleteGroup && (
-      <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-        <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
-          <h2 className="text-lg font-semibold mb-4 text-center">Confirm Deletion</h2>
-          <p className="text-sm text-center">
-            Are you sure you want to delete <strong>{confirmDeleteGroup.groupName}</strong>?
-          </p>
-          <div className="mt-6 flex justify-center gap-4">
-            <button
-              onClick={() => setConfirmDeleteGroup(null)}
-              className="btn btn-sm"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleDeleteGroup}
-              className="btn btn-sm btn-error"
-            >
-              Yes, Delete
-            </button>
+      {confirmDeleteGroup && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
+            <h2 className="text-lg font-semibold mb-4 text-center">Confirm Deletion</h2>
+            <p className="text-sm text-center">
+              Are you sure you want to delete <strong>{confirmDeleteGroup.groupName}</strong>?
+            </p>
+            <div className="mt-6 flex justify-center gap-4">
+              <button
+                onClick={() => setConfirmDeleteGroup(null)}
+                className="btn btn-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteGroup}
+                className="btn btn-sm btn-error"
+              >
+                Yes, Delete
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    )}
+      )}
 
-    {confirmDeleteGroupSet && (
-      <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-        <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
-          <h2 className="text-lg font-semibold mb-4 text-center">Delete GroupSet</h2>
-          <p className="text-sm text-center">
-            Are you sure you want to delete the GroupSet <strong>{confirmDeleteGroupSet.name}</strong>?
-            <br />
-            This will also delete all its groups.
-          </p>
-          <div className="mt-6 flex justify-center gap-4">
-            <button
-              onClick={() => setConfirmDeleteGroupSet(null)}
-              className="btn btn-sm"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleDeleteGroupSet}
-              className="btn btn-sm btn-error"
-            >
-              Yes, Delete
-            </button>
+      {confirmDeleteGroupSet && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
+            <h2 className="text-lg font-semibold mb-4 text-center">Delete GroupSet</h2>
+            <p className="text-sm text-center">
+              Are you sure you want to delete the GroupSet <strong>{confirmDeleteGroupSet.name}</strong>?
+              <br />
+              This will also delete all its groups.
+            </p>
+            <div className="mt-6 flex justify-center gap-4">
+              <button
+                onClick={() => setConfirmDeleteGroupSet(null)}
+                className="btn btn-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteGroupSet}
+                className="btn btn-sm btn-error"
+              >
+                Yes, Delete
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    )}
+      )}
 
-    {confirmLeaveGroup && (
-      <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-        <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
-          <h2 className="text-lg font-semibold mb-4 text-center">Leave Group</h2>
-          <p className="text-sm text-center">
-            Are you sure you want to leave <strong>{confirmLeaveGroup.groupName}</strong>?
-          </p>
-          <div className="mt-6 flex justify-center gap-4">
-            <button
-              onClick={() => setConfirmLeaveGroup(null)}
-              className="btn btn-sm"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleLeaveGroup}
-              className="btn btn-sm btn-error"
-            >
-              Yes, Leave
-            </button>
+      {confirmLeaveGroup && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
+            <h2 className="text-lg font-semibold mb-4 text-center">Leave Group</h2>
+            <p className="text-sm text-center">
+              Are you sure you want to leave <strong>{confirmLeaveGroup.groupName}</strong>?
+            </p>
+            <div className="mt-6 flex justify-center gap-4">
+              <button
+                onClick={() => setConfirmLeaveGroup(null)}
+                className="btn btn-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleLeaveGroup}
+                className="btn btn-sm btn-error"
+              >
+                Yes, Leave
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    )}
+      )}
 
-    {editGroupModal && (
-      <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-        <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
-          <h2 className="text-lg font-semibold mb-4 text-center">Edit Group Name</h2>
-          <input
-            type="text"
-            className="input input-bordered w-full mb-4"
-            placeholder="New group name"
-            value={newGroupName}
-            onChange={(e) => setNewGroupName(e.target.value)}
-          />
-          <div className="flex justify-center gap-4">
-            <button
-              className="btn btn-sm"
-              onClick={() => setEditGroupModal(null)}
-            >
-              Cancel
-            </button>
-            <button
-              className="btn btn-sm btn-primary"
-              onClick={handleEditGroup}
-            >
-              Save
-            </button>
+      {editGroupModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
+            <h2 className="text-lg font-semibold mb-4 text-center">Edit Group</h2>
+            <input
+              type="text"
+              className="input input-bordered w-full mb-4"
+              placeholder="Group name"
+              value={newGroupName}
+              onChange={(e) => setNewGroupName(e.target.value)}
+            />
+            <input
+              type="number"
+              className="input input-bordered w-full mb-4"
+              placeholder="Max Members (optional)"
+              min="0"
+              value={newGroupMaxMembers}
+              onChange={(e) => setNewGroupMaxMembers(e.target.value)}
+            />
+            <div className="flex justify-center gap-4">
+              <button
+                className="btn btn-sm"
+                onClick={() => setEditGroupModal(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-sm btn-primary"
+                onClick={handleEditGroup}
+              >
+                Save
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    )}
+      )}
 
-    <Footer />
-  </div>
-);
+      {/* Bulk Delete Groups Confirmation Modal */}
+      {confirmBulkDeleteGroups && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-md">
+            <h2 className="text-lg font-semibold mb-4 text-center">Delete Groups</h2>
+            <p className="text-sm text-center mb-4">
+              Are you sure you want to delete the following {confirmBulkDeleteGroups.groupIds.length} group(s)?
+            </p>
+            <div className="max-h-32 overflow-y-auto mb-4 p-2 bg-gray-50 dark:bg-gray-800 rounded">
+              {confirmBulkDeleteGroups.groupNames.map((name, index) => (
+                <div key={index} className="text-sm py-1">• {name}</div>
+              ))}
+            </div>
+            <p className="text-xs text-gray-500 text-center mb-4">
+              This action cannot be undone.
+            </p>
+            <div className="flex justify-center gap-4">
+              <button
+                onClick={() => setConfirmBulkDeleteGroups(null)}
+                className="btn btn-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkDeleteGroups}
+                className="btn btn-sm btn-error"
+              >
+                Delete {confirmBulkDeleteGroups.groupIds.length} Group(s)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <Footer />
+    </div>
+  );
 };
 
 export default Groups;

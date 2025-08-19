@@ -26,7 +26,7 @@ const FeedbackPage = () => {
 
   return (
     <div className="min-h-screen bg-base-200 flex flex-col">
-      <main className="flex-grow flex items-center justify-center p-4">
+      <main className="flex-grow flex items-center justify-center p-4 pt-24">
         <div className="card w-full max-w-md shadow-xl bg-base-100">
           <div className="card-body">
             <h2 className="card-title text-primary">Let us know about your experience using Prizeversity!</h2>
