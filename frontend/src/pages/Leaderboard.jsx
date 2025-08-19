@@ -124,96 +124,98 @@ const Leaderboard = () => {
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold text-center mb-6">
-        {classroom ? `${classroom.name} Leaderboard` : 'Classroom Leaderboard'}
-      </h1>
+    <div className="flex flex-col min-h-screen">
+      <div className="flex-grow p-6 max-w-4xl mx-auto w-full">
+        <h1 className="text-3xl font-bold text-center mb-6">
+          {classroom ? `${classroom.name} Leaderboard` : 'Classroom Leaderboard'}
+        </h1>
 
-      {/* Search and Controls */}
-      <div className="mb-6 flex flex-col sm:flex-row gap-4 items-center justify-between">
-        <div className="relative flex-1 max-w-md">
-          <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-base-content/50" />
-          <input
-            type="text"
-            placeholder="Search students..."
-            className="input input-bordered w-full pl-10"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        {/* Search and Controls */}
+        <div className="mb-6 flex flex-col sm:flex-row gap-4 items-center justify-between">
+          <div className="relative flex-1 max-w-md">
+            <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-base-content/50" />
+            <input
+              type="text"
+              placeholder="Search students..."
+              className="input input-bordered w-full pl-10"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          
+          <div className="text-sm text-base-content/70">
+            Showing {filteredStudents.length} of {students.length} students
+          </div>
         </div>
-        
-        <div className="text-sm text-base-content/70">
-          Showing {filteredStudents.length} of {students.length} students
-        </div>
-      </div>
 
-      {loading ? (
-        <div className="text-center">Loading...</div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="table w-full bg-base-100 shadow-md rounded-lg">
-            <thead>
-              <tr className="bg-base-200 text-base font-semibold">
-                <th>#</th>
-                <th>
-                  <button
-                    className="flex items-center gap-2 hover:text-primary transition-colors"
-                    onClick={() => handleSort('name')}
-                  >
-                    Name {getSortIcon('name')}
-                  </button>
-                </th>
-                <th>
-                  <button
-                    className="flex items-center gap-2 hover:text-primary transition-colors"
-                    onClick={() => handleSort('balance')}
-                  >
-                    <Coins size={16} /> Balance {getSortIcon('balance')}
-                  </button>
-                </th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredStudents.length === 0 ? (
-                <tr>
-                  <td colSpan="4" className="text-center py-8 text-base-content/50">
-                    {searchTerm ? 'No students found matching your search.' : 'No students in this classroom yet.'}
-                  </td>
+        {loading ? (
+          <div className="text-center">Loading...</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="table w-full bg-base-100 shadow-md rounded-lg">
+              <thead>
+                <tr className="bg-base-200 text-base font-semibold">
+                  <th>#</th>
+                  <th>
+                    <button
+                      className="flex items-center gap-2 hover:text-primary transition-colors"
+                      onClick={() => handleSort('name')}
+                    >
+                      Name {getSortIcon('name')}
+                    </button>
+                  </th>
+                  <th>
+                    <button
+                      className="flex items-center gap-2 hover:text-primary transition-colors"
+                      onClick={() => handleSort('balance')}
+                    >
+                      <Coins size={16} /> Balance {getSortIcon('balance')}
+                    </button>
+                  </th>
+                  <th>Actions</th>
                 </tr>
-              ) : (
-                filteredStudents.map((student, index) => (
-                  <tr key={student._id} className="hover">
-                    <td>
-                      <div className="flex items-center gap-2">
-                        {index + 1}
-                        {index === 0 && <span className="text-yellow-500">🥇</span>}
-                        {index === 1 && <span className="text-gray-400">🥈</span>}
-                        {index === 2 && <span className="text-orange-600">🥉</span>}
-                      </div>
-                    </td>
-                    <td className="font-medium">{getDisplayName(student)}</td>
-                    <td>
-                      <div className="flex items-center gap-1 font-semibold">
-                        <Coins size={14} className="text-yellow-500" />
-                        {student.balance}
-                      </div>
-                    </td>
-                    <td>
-                      <button
-                        className="btn btn-sm btn-outline"
-                        onClick={() => navigate(`/profile/${student._id}`)}
-                      >
-                        View Profile
-                      </button>
+              </thead>
+              <tbody>
+                {filteredStudents.length === 0 ? (
+                  <tr>
+                    <td colSpan="4" className="text-center py-8 text-base-content/50">
+                      {searchTerm ? 'No students found matching your search.' : 'No students in this classroom yet.'}
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
+                ) : (
+                  filteredStudents.map((student, index) => (
+                    <tr key={student._id} className="hover">
+                      <td>
+                        <div className="flex items-center gap-2">
+                          {index + 1}
+                          {index === 0 && <span className="text-yellow-500">🥇</span>}
+                          {index === 1 && <span className="text-gray-400">🥈</span>}
+                          {index === 2 && <span className="text-orange-600">🥉</span>}
+                        </div>
+                      </td>
+                      <td className="font-medium">{getDisplayName(student)}</td>
+                      <td>
+                        <div className="flex items-center gap-1 font-semibold">
+                          <Coins size={14} className="text-yellow-500" />
+                          {student.balance}
+                        </div>
+                      </td>
+                      <td>
+                        <button
+                          className="btn btn-sm btn-outline"
+                          onClick={() => navigate(`/profile/${student._id}`)}
+                        >
+                          View Profile
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
       <Footer />
     </div>
   );

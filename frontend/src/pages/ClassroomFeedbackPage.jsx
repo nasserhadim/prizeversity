@@ -29,7 +29,7 @@ const ClassroomFeedbackPage = () => {
 
   return (
     <div className="min-h-screen bg-base-200 flex items-center justify-center p-4">
-      <div className="card w-full max-w-md shadow-xl bg-base-100">
+      <div className="card w-full max-w-md shadow-xl bg-base-100 mt-20">
         <div className="card-body">
           <h2 className="card-title text-primary">
             Let us know how this classroom is doing!

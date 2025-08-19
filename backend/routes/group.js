@@ -326,9 +326,17 @@ router.put('/groupset/:groupSetId/group/:groupId', ensureAuthenticated, async (r
 
     const oldName = group.name; // Store old name before changes
     const changes = {};
-    if (group.name !== name) changes.name = name;
-    if (group.image !== image) changes.image = image;
-    if (group.maxMembers !== maxMembers) changes.maxMembers = maxMembers;
+    
+    // More robust comparison for name
+    if (name !== undefined && group.name !== name.trim()) changes.name = name.trim();
+    
+    // More robust comparison for image
+    if (image !== undefined && group.image !== image) changes.image = image;
+    
+    // More robust comparison for maxMembers (handle string/number conversion)
+    const newMaxMembers = maxMembers === '' || maxMembers === null || maxMembers === undefined ? null : Number(maxMembers);
+    const currentMaxMembers = group.maxMembers;
+    if (newMaxMembers !== currentMaxMembers) changes.maxMembers = newMaxMembers;
 
     if (Object.keys(changes).length === 0) {
       return res.status(400).json({ message: 'No changes were made' });
@@ -680,6 +688,58 @@ router.post('/join', ensureAuthenticated, async (req, res) => {
     res.status(200).json({ message: 'Joined classroom successfully', classroom });
   } catch (err) {
     res.status(500).json({ error: 'Failed to join classroom' });
+  }
+});
+
+// Bulk Delete Groups within GroupSet
+router.delete('/groupset/:groupSetId/groups/bulk', ensureAuthenticated, async (req, res) => {
+  const { groupIds } = req.body;
+
+  if (!groupIds || groupIds.length === 0) {
+    return res.status(400).json({ error: 'No groups selected for deletion' });
+  }
+
+  try {
+    const groupSet = await GroupSet.findById(req.params.groupSetId);
+    if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
+
+    // Get all groups to be deleted for notifications
+    const groups = await Group.find({ _id: { $in: groupIds } }).populate('members._id');
+    
+    // Create notifications for all members in all groups
+    for (const group of groups) {
+      for (const member of group.members) {
+        const notification = await Notification.create({
+          user: member._id._id,
+          type: 'group_deletion',
+          message: `Group "${group.name}" has been deleted`,
+          classroom: groupSet.classroom,
+          groupSet: groupSet._id,
+          actionBy: req.user._id
+        });
+        
+        const populatedNotification = await populateNotification(notification._id);
+        req.app.get('io').to(`user-${member._id._id}`).emit('notification', populatedNotification);
+      }
+    }
+
+    // Delete all groups
+    await Group.deleteMany({ _id: { $in: groupIds } });
+    
+    // Remove group references from groupSet
+    groupSet.groups = groupSet.groups.filter(groupId => !groupIds.includes(groupId.toString()));
+    await groupSet.save();
+
+    // Emit bulk group deletion event to all classroom members
+    req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('groups_bulk_delete', {
+      groupSetId: groupSet._id,
+      groupIds: groupIds
+    });
+
+    res.status(200).json({ message: `${groupIds.length} group(s) deleted successfully` });
+  } catch (err) {
+    console.error('Bulk delete error:', err);
+    res.status(500).json({ error: 'Failed to delete groups' });
   }
 });
 

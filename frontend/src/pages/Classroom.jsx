@@ -183,119 +183,109 @@ const Classroom = () => {
 
   // Main render
   return (
-    <>
-      {/* Classroom banner inside the classroom page */}
-      <ClassroomBanner
-        name={classroom.name}
-        bgColor={classroom.color}
-        backgroundImage={
-          classroom.backgroundImage
-            ? (
-              classroom.backgroundImage.startsWith('http')
-                ? classroom.backgroundImage
-                : `${BACKEND_URL}${classroom.backgroundImage}`
-            )
-            : undefined
-        }
-      />
+    <div className="flex flex-col min-h-screen bg-base-200">
+      <div className="flex-grow">
+        {/* Classroom banner inside the classroom page */}
+        <ClassroomBanner
+          name={classroom.name}
+          bgColor={classroom.color}
+          backgroundImage={
+            classroom.backgroundImage
+              ? (
+                classroom.backgroundImage.startsWith('http')
+                  ? classroom.backgroundImage
+                  : `${BACKEND_URL}${classroom.backgroundImage}`
+              )
+              : undefined
+          }
+        />
 
-      <div className="max-w-3xl mx-auto p-6 bg-green-50 rounded-lg space-y-6">
-        {/* Navigation */}
-        <Link to="/classrooms" className="link text-accent">
-          ← Back to Classroom Dashboard
-        </Link>
+        <div className="max-w-3xl mx-auto p-6 bg-green-50 rounded-lg space-y-6">
+          {/* Navigation */}
+          <Link to="/classrooms" className="link text-accent">
+            ← Back to Classroom Dashboard
+          </Link>
 
-        <nav className="flex space-x-4 mb-4">
-          {user.role === 'teacher' && (
-            <>
-              <Link
-                to={`/classroom/${id}/teacher-news`}
-                className="link text-accent hover:text-accent-focus font-semibold"
-              >
-                Manage Announcements
-              </Link>
-              <Link
-                to={`/classroom/${id}/settings`}
-                className="link text-accent hover:text-accent-focus font-semibold"
-              >
-                Class Settings
-              </Link>
-            </>
-          )}
-        </nav>
+          <nav className="flex space-x-4 mb-4">
+            {user.role === 'teacher' && (
+              <>
+                <Link
+                  to={`/classroom/${id}/teacher-news`}
+                  className="link text-accent hover:text-accent-focus font-semibold"
+                >
+                  Manage Announcements
+                </Link>
+                <Link
+                  to={`/classroom/${id}/settings`}
+                  className="link text-accent hover:text-accent-focus font-semibold"
+                >
+                  Class Settings
+                </Link>
+              </>
+            )}
+          </nav>
 
-        {/* Teacher/Admin Controls */}
-        {(user.role === 'teacher' || user.role === 'admin') && (
-          <div id="class-settings" className="space-y-4">
-            {/* settings UI goes here */}
-          </div>
-        )}
-
-        {/* Announcements List */}
-        <div className="space-y-6">
-          <h3 className="text-center text-green-500 text-4xl font-bold mb-4">
-            Announcements
-          </h3>
-          {announcements.slice(0, visibleCount).map((item) => (
-            <div key={item._id} className="bg-white p-4 border border-green-200 rounded-lg shadow-sm mx-auto">
-              {/* render formatted HTML */}
-              <div
-                className="text-gray-700 mb-2"
-                dangerouslySetInnerHTML={{ __html: item.content }}
-              />
-
-              {/* list attachments, if any */}
-              {item.attachments && item.attachments.length > 0 && (
-                <ul className="mt-1 space-y-1">
-                  {item.attachments.map(a => (
-                    <li key={a.url}>
-                      <a
-                        href={a.url}
-                        download
-                        className="text-blue-500 underline"
-                      >
-                        {a.originalName}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <p className="text-sm text-gray-500">
-                {new Date(item.createdAt).toLocaleString()}
-              </p>
+          {/* Teacher/Admin Controls */}
+          {(user.role === 'teacher' || user.role === 'admin') && (
+            <div id="class-settings" className="space-y-4">
+              {/* settings UI goes here */}
             </div>
-          ))}
-        </div>
-        <div className="flex justify-center space-x-4 mt-4">
-          {announcements.length > visibleCount && (
-            <button
-              className="btn bg-green-500 hover:bg-green-600 text-white px-4 py-2"
-              onClick={() => setVisibleCount(announcements.length)}
-            >
-              Show more announcements
-            </button>
           )}
-          {visibleCount > 10 && (
-            <button
-              className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg"
-              onClick={() => setVisibleCount(10)}
-            >
-              Show less announcements
-            </button>
-          )}
-        </div>
 
-        {/* Student View */}
-        {user.role === 'student' && (
+          {/* Announcements List */}
           <div className="space-y-6">
-            <button
-              className="btn btn-warning"
-              onClick={handleLeaveClassroomConfirm}
-            >
-              Leave Classroom
-            </button>
+            <h3 className="text-center text-green-500 text-4xl font-bold mb-4">
+              Announcements
+            </h3>
+            {announcements.slice(0, visibleCount).map((item) => (
+              <div key={item._id} className="bg-white p-4 border border-green-200 rounded-lg shadow-sm mx-auto">
+                {/* render formatted HTML */}
+                <div
+                  className="text-gray-700 mb-2"
+                  dangerouslySetInnerHTML={{ __html: item.content }}
+                />
+
+                {/* list attachments, if any */}
+                {item.attachments && item.attachments.length > 0 && (
+                  <ul className="mt-1 space-y-1">
+                    {item.attachments.map(a => (
+                      <li key={a.url}>
+                        <a
+                          href={a.url}
+                          download
+                          className="text-blue-500 underline"
+                        >
+                          {a.originalName}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <p className="text-sm text-gray-500">
+                  {new Date(item.createdAt).toLocaleString()}
+                </p>
+              </div>
+            ))}
           </div>
-        )}
+          <div className="flex justify-center space-x-4 mt-4">
+            {announcements.length > visibleCount && (
+              <button
+                className="btn bg-green-500 hover:bg-green-600 text-white px-4 py-2"
+                onClick={() => setVisibleCount(announcements.length)}
+              >
+                Show more announcements
+              </button>
+            )}
+            {visibleCount > 10 && (
+              <button
+                className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg"
+                onClick={() => setVisibleCount(10)}
+              >
+                Show less announcements
+              </button>
+            )}
+          </div>
+        </div>
       </div>
       <Footer />
 
@@ -307,8 +297,8 @@ const Classroom = () => {
         confirmText={confirmModal?.confirmText}
         onConfirm={confirmModal?.onConfirm}
       />
-    </>
-  )
+    </div>
+  );
 };
 
 export default Classroom;
