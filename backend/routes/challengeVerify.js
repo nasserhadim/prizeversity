@@ -15,7 +15,7 @@ router.post('/verify-wayneaws', async (req, res) => {
     }
 
     // Make request to WayneAWS API
-    const response = await fetch('http://localhost:5001/api/verify', {
+    const response = await fetch('http://wayneaws.dev/api/verify', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
