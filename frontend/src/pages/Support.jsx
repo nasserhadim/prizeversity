@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext'; // Import useAuth
 import { 
   ChevronDown, 
   ChevronUp, 
@@ -21,6 +22,7 @@ import {
 import Footer from '../components/Footer';
 
 const Support = () => {
+  const { user } = useAuth(); // Get user from AuthContext
   const [openFaq, setOpenFaq] = useState(null);
   const [selectedRole, setSelectedRole] = useState('all'); // 'all', 'teacher', 'student'
 
@@ -330,7 +332,7 @@ const Support = () => {
   const filteredFaqs = faqs.map(category => ({
     ...category,
     questions: category.questions.filter(q => 
-      selectedRole === 'all' || q.role === 'all' || q.role === selectedRole
+      selectedRole === 'all' || q.role === selectedRole || q.role === 'all'
     )
   })).filter(category => category.questions.length > 0);
 
@@ -431,24 +433,26 @@ const Support = () => {
           </div>
         </div>
 
-        {/* Quick Links */}
-        <div className="card bg-base-100 shadow-lg mb-12">
-          <div className="card-body">
-            <h2 className="card-title mb-4">Quick Links</h2>
-            <div className="grid md:grid-cols-3 gap-4">
-              {quickLinks.map((link, index) => (
-                <Link 
-                  key={index}
-                  to={link.path}
-                  className="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 transition-colors"
-                >
-                  {link.icon}
-                  <span>{link.name}</span>
-                </Link>
-              ))}
+        {/* Quick Links - Conditionally render if user is logged in */}
+        {user && (
+          <div className="card bg-base-100 shadow-lg mb-12">
+            <div className="card-body">
+              <h2 className="card-title mb-4">Quick Links</h2>
+              <div className="grid md:grid-cols-3 gap-4">
+                {quickLinks.map((link, index) => (
+                  <Link
+                    key={index}
+                    to={link.path}
+                    className="flex items-center gap-3 p-3 rounded-lg hover:bg-base-200 transition-colors"
+                  >
+                    {link.icon}
+                    <span>{link.name}</span>
+                  </Link>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Role Filter */}
         <div className="card bg-base-100 shadow-lg mb-8">

@@ -37,6 +37,7 @@ import Terms from './pages/Terms';
 const App = () => {
   const { user } = useContext(AuthContext);
   const location = useLocation();
+  const showStaticNavbar = ['/', '/support', '/privacy', '/terms', '/feedback'].includes(location.pathname);
 
   // When the user is set, join their notification room
   useEffect(() => {
@@ -45,50 +46,55 @@ const App = () => {
     }
   }, [user]);
 
-
   return (
     <Routes>
+      {/* Challenge pages */}
       <Route path="/challenge-site/:uniqueId" element={<ChallengeSite />} />
       <Route path="/challenge-2-site/:uniqueId" element={<Challenge2Site />} />
       <Route path="/challenge-3-site/:uniqueId" element={<Challenge3Site />} />
       <Route path="/challenge-4-site/:uniqueId" element={<Challenge4Site />} />
       <Route path="/challenge-5-site/:uniqueId" element={<Challenge5Site />} />
       <Route path="/challenge-6-site/:uniqueId" element={<Challenge6Site />} />
-      <Route path="/*" element={
-        <CartProvider>
-          <div style={{ paddingTop: '5rem' }}>
-            {user && <Navbar />}
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/classrooms" element={<ClassroomPage />} />
-              <Route path="/classrooms/archived" element={<ArchivedClassrooms />} />
-              <Route path="/classroom/:id" element={<Classroom />} />
-              <Route path="/classroom/:classroomId/bazaar" element={<Bazaar />} />
-              <Route path="/classroom/:id/news" element={<StudentNewsfeed />} />
-              <Route path="/classroom/:id/teacher-news" element={<TeacherNewsfeed />} />
-              <Route path="/classroom/:id/settings" element={<ClassroomSettings />} />
-              <Route path="/classroom/:id/wallet" element={<Wallet />} />
-              <Route path="/classroom/:id/groups" element={<Groups />} />
-              <Route path="/classroom/:id/people" element={<People />} />
-              <Route path="/classroom/:classId/leaderboard" element={<Leaderboard />} />
-              <Route path="/classroom/:classroomId/challenge" element={<Challenge />} />
-              <Route path="/profile/:id" element={<Profile />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/classroom/:classroomId/checkout" element={<Checkout />} />
-              <Route path="/checkout" element={<Checkout />} />
-              <Route path="/orders" element={<OrderHistory />} />
-              <Route path="/classroom/:classroomId/student/:id/stats" element={<StudentStats />} />
-              <Route path="/classroom/:classroomId/feedback" element={<ClassroomFeedbackPage />} />
-              <Route path="/feedback" element={<FeedbackPage />} />
-              <Route path="/support" element={<Support />} />
-              <Route path="/privacy" element={<Privacy />} />
-              <Route path="/terms" element={<Terms />} />
-            </Routes>
-          </div>
-        </CartProvider>
-      } />
+
+      {/* Main app */}
+      <Route
+        path="/*"
+        element={
+          <CartProvider>
+            <div style={{ paddingTop: user ? '5rem' : '4rem' }}>
+              {user ? <Navbar /> : showStaticNavbar && <Navbar />}
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/classrooms" element={<ClassroomPage />} />
+                <Route path="/classrooms/archived" element={<ArchivedClassrooms />} />
+                <Route path="/classroom/:id" element={<Classroom />} />
+                <Route path="/classroom/:classroomId/bazaar" element={<Bazaar />} />
+                <Route path="/classroom/:id/news" element={<StudentNewsfeed />} />
+                <Route path="/classroom/:id/teacher-news" element={<TeacherNewsfeed />} />
+                <Route path="/classroom/:id/settings" element={<ClassroomSettings />} />
+                <Route path="/classroom/:id/wallet" element={<Wallet />} />
+                <Route path="/classroom/:id/groups" element={<Groups />} />
+                <Route path="/classroom/:id/people" element={<People />} />
+                <Route path="/classroom/:classId/leaderboard" element={<Leaderboard />} />
+                <Route path="/classroom/:classroomId/challenge" element={<Challenge />} />
+                <Route path="/profile/:id" element={<Profile />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/classroom/:classroomId/checkout" element={<Checkout />} />
+                <Route path="/checkout" element={<Checkout />} />
+                <Route path="/orders" element={<OrderHistory />} />
+                <Route path="/classroom/:classroomId/student/:id/stats" element={<StudentStats />} />
+                <Route path="/classroom/:classroomId/feedback" element={<ClassroomFeedbackPage />} />
+                <Route path="/feedback" element={<FeedbackPage />} />
+                <Route path="/support" element={<Support />} />
+                <Route path="/privacy" element={<Privacy />} />
+                <Route path="/terms" element={<Terms />} />
+              </Routes>
+            </div>
+          </CartProvider>
+        }
+      />
     </Routes>
   );
-};
+
 
 export default App;

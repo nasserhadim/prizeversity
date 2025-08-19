@@ -182,72 +182,73 @@ const People = () => {
   };
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">
-          {classroom ? `${classroom.name} People` : 'People'}
-        </h1>
-      </div>
+    <div className="flex flex-col min-h-[calc(100vh-5rem)] p-6 max-w-5xl mx-auto">
+      <div className="flex-grow">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold">
+            {classroom ? `${classroom.name} People` : 'People'}
+          </h1>
+        </div>
 
-      <div className="flex space-x-4 mb-6">
-        <button
-          className={`btn ${tab === 'everyone' ? 'btn-success' : 'btn-outline'}`}
-          onClick={() => setTab('everyone')}
-        >
-          Everyone
-        </button>
-        <button
-          className={`btn ${tab === 'groups' ? 'btn-success' : 'btn-outline'}`}
-          onClick={() => setTab('groups')}
-        >
-          Groups
-        </button>
-        {user?.role?.toLowerCase() === 'teacher' && (                    
-         <button
-           className={`btn ${tab === 'settings' ? 'btn-success' : 'btn-outline'}`}
-           onClick={() => setTab('settings')}
-         >
-           Settings
-         </button>
-       )}
-      </div>
+        <div className="flex space-x-4 mb-6">
+          <button
+            className={`btn ${tab === 'everyone' ? 'btn-success' : 'btn-outline'}`}
+            onClick={() => setTab('everyone')}
+          >
+            Everyone
+          </button>
+          <button
+            className={`btn ${tab === 'groups' ? 'btn-success' : 'btn-outline'}`}
+            onClick={() => setTab('groups')}
+          >
+            Groups
+          </button>
+          {user?.role?.toLowerCase() === 'teacher' && (                    
+           <button
+             className={`btn ${tab === 'settings' ? 'btn-success' : 'btn-outline'}`}
+             onClick={() => setTab('settings')}
+           >
+             Settings
+           </button>
+         )}
+        </div>
 {/* ─────────────── Settings TAB ─────────────── */}
-      {tab === 'settings' && (user?.role || '').toLowerCase() === 'teacher' && (
-        <div className="max-w-md space-y-6">
-          <h2 className="text-2xl font-semibold">Classroom Settings</h2>
+        {tab === 'settings' && (user?.role || '').toLowerCase() === 'teacher' && (
+          <div className="max-w-md space-y-6">
+            <h2 className="text-2xl font-semibold">Classroom Settings</h2>
 
-          <label className="form-control w-full">
-            <span className="label-text mb-2 font-medium">
-              TA bit assignment
-            </span>
+            <label className="form-control w-full">
+              <span className="label-text mb-2 font-medium">
+                TA bit assignment
+              </span>
 
-            <select
-              className="select select-bordered w-full"
-              value={taBitPolicy ?? 'full'}
-              onChange={async (e) => {
-                const newPolicy = e.target.value;
-                try {
-                  await axios.patch(
-                    `/api/classroom/${classroomId}/ta-bit-policy`,
-                    { taBitPolicy: newPolicy },
-                    { withCredentials: true }
-                  );
-                  toast.success('Updated TA bit policy');
-                  setTaBitPolicy(newPolicy);
-                } catch (err) {
-                  toast.error(
-                    err.response?.data?.error || 'Failed to update policy'
-                  );
-                }
-              }}
-            >
-              <option value="full">① Full power (TAs can assign bits)</option>
-              <option value="approval">② Needs teacher approval</option>
-              <option value="none">③ Cannot assign bits</option>
-            </select>
-          </label>
+              <select
+                className="select select-bordered w-full"
+                value={taBitPolicy ?? 'full'}
+                onChange={async (e) => {
+                  const newPolicy = e.target.value;
+                  try {
+                    await axios.patch(
+                      `/api/classroom/${classroomId}/ta-bit-policy`,
+                      { taBitPolicy: newPolicy },
+                      { withCredentials: true }
+                    );
+                    toast.success('Updated TA bit policy');
+                    setTaBitPolicy(newPolicy);
+                  } catch (err) {
+                    toast.error(
+                      err.response?.data?.error || 'Failed to update policy'
+                    );
+                  }
+                }}
+              >
+                <option value="full">① Full power (TAs can assign bits)</option>
+                <option value="approval">② Needs teacher approval</option>
+                <option value="none">③ Cannot assign bits</option>
+              </select>
+            </label>
 
-           {/* render only after we know the value */}
+             {/* render only after we know the value */}
 
 
 
@@ -257,169 +258,170 @@ const People = () => {
     {taBitPolicy === 'approval' && (
       <PendingApprovals classroomId={classroomId} />
     )}
-        </div>
-      )}
-      {/* ───────────────────────────────────────────── */}
-      {tab === 'everyone' && (
-        <div>
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
-            <input
-              type="text"
-              placeholder="Search by name or email..."
-              className="input input-bordered w-full md:w-1/2"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+          </div>
+        )}
+        {/* ───────────────────────────────────────────── */}
+        {tab === 'everyone' && (
+          <div>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+              <input
+                type="text"
+                placeholder="Search by name or email..."
+                className="input input-bordered w-full md:w-1/2"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
 
-            <div className="flex flex-wrap gap-2 items-center">
-             {user?.role?.toLowerCase() === 'teacher' && (
-                <input
-                  type="file"
-                  accept=".xlsx, .xls"
-                  className="file-input file-input-sm"
-                  onChange={handleExcelUpload}
-                />
+              <div className="flex flex-wrap gap-2 items-center">
+               {user?.role?.toLowerCase() === 'teacher' && (
+                  <input
+                    type="file"
+                    accept=".xlsx, .xls"
+                    className="file-input file-input-sm"
+                    onChange={handleExcelUpload}
+                  />
+                )}
+
+                <button
+                  className="btn btn-sm btn-accent"
+                  onClick={handleExportToExcel}
+                >
+                  Export to Excel
+                </button>
+
+                <select
+                  className="select select-bordered"
+                  value={sortOption}
+                  onChange={(e) => setSortOption(e.target.value)}
+                >
+                  <option value="default">Sort By</option>
+                  <option value="balanceDesc">Balance (High → Low)</option>
+                  <option value="nameAsc">Name (A → Z)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {filteredStudents.length === 0 ? (
+                <p>No matching students found.</p>
+              ) : (
+                filteredStudents.map((student) => (
+                  <div
+                    key={student._id}
+                    className="border p-3 rounded shadow flex justify-between items-center"
+                  >
+                    <div>
+                      <div className="font-medium text-lg">
+                        {student.firstName || student.lastName
+                          ? `${student.firstName || ''} ${student.lastName || ''}`.trim()
+                          : student.name || student.email}
+                        <span className="ml-2 text-gray-600 text-sm">
+                          – Role: {ROLE_LABELS[student.role] || student.role}
+                        </span>
+                      </div>
+
+                      <div className="text-sm text-gray-500 mt-1">
+                        Balance: B{student.balance?.toFixed(2) || '0.00'}
+                      </div>
+
+                      <div className="flex gap-2 mt-2 flex-wrap">
+                        <button
+                          className="btn btn-sm btn-outline"
+                          onClick={() => navigate(`/profile/${student._id}`)}
+                        >
+                          View Profile
+                        </button>
+
+                        {(user?.role?.toLowerCase() === 'teacher' || 
+                          user?.role?.toLowerCase() === 'admin' ||
+                          (user?.role?.toLowerCase() === 'student' && String(student._id) === String(user._id))) && (
+                          <button
+                            className="btn btn-sm btn-success"
+                            onClick={() => navigate(`/classroom/${classroomId}/student/${student._id}/stats`)}
+                          >
+                            View Stats
+                          </button>
+                        )}
+
+                        {user?.role?.toLowerCase() === 'teacher'
+            && student.role !== 'teacher'
+          && String(student._id) !== String(user._id) && (
+                          <select
+                            className="select select-sm ml-2"
+                            value={student.role}
+                            onChange={async (e) => {
+                              const newRole = e.target.value;
+                              try {
+                                if (newRole === 'admin') {
+                                  await axios.post(`/api/users/${student._id}/make-admin`,{ classroomId });
+                                  console.log('Student promoted to Admin/TA in classroom:', classroomId);
+                                  toast.success('Student promoted to Admin/TA');
+                                } else {
+                                  await axios.post(`/api/users/${student._id}/demote-admin`, { classroomId });
+                                  console.log('Admin/TA demoted to Student in classroom:', classroomId);
+                                  toast.success('Admin/TA demoted to Student');
+                                }
+                                fetchStudents();
+                              } catch (err) {
+                                toast.error(err.response?.data?.error || 'Error changing role');
+                              }
+                            }}
+                          >
+                            <option value="student">{ROLE_LABELS.student}</option>
+                            <option value="admin">{ROLE_LABELS.admin}</option>
+                          </select>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
               )}
-
-              <button
-                className="btn btn-sm btn-accent"
-                onClick={handleExportToExcel}
-              >
-                Export to Excel
-              </button>
-
-              <select
-                className="select select-bordered"
-                value={sortOption}
-                onChange={(e) => setSortOption(e.target.value)}
-              >
-                <option value="default">Sort By</option>
-                <option value="balanceDesc">Balance (High → Low)</option>
-                <option value="nameAsc">Name (A → Z)</option>
-              </select>
             </div>
           </div>
+        )}
 
-          <div className="space-y-2">
-            {filteredStudents.length === 0 ? (
-              <p>No matching students found.</p>
+        {tab === 'groups' && (
+          <div className="space-y-6">
+            {groupSets.length === 0 ? (
+              <p>No groups available yet.</p>
             ) : (
-              filteredStudents.map((student) => (
-                <div
-                  key={student._id}
-                  className="border p-3 rounded shadow flex justify-between items-center"
-                >
-                  <div>
-                    <div className="font-medium text-lg">
-                      {student.firstName || student.lastName
-                        ? `${student.firstName || ''} ${student.lastName || ''}`.trim()
-                        : student.name || student.email}
-                      <span className="ml-2 text-gray-600 text-sm">
-                        – Role: {ROLE_LABELS[student.role] || student.role}
-                      </span>
-                    </div>
-
-                    <div className="text-sm text-gray-500 mt-1">
-                      Balance: B{student.balance?.toFixed(2) || '0.00'}
-                    </div>
-
-                    <div className="flex gap-2 mt-2 flex-wrap">
-                      <button
-                        className="btn btn-sm btn-outline"
-                        onClick={() => navigate(`/profile/${student._id}`)}
-                      >
-                        View Profile
-                      </button>
-
-                      {(user?.role?.toLowerCase() === 'teacher' || 
-                        user?.role?.toLowerCase() === 'admin' ||
-                        (user?.role?.toLowerCase() === 'student' && String(student._id) === String(user._id))) && (
-                        <button
-                          className="btn btn-sm btn-success"
-                          onClick={() => navigate(`/classroom/${classroomId}/student/${student._id}/stats`)}
-                        >
-                          View Stats
-                        </button>
-                      )}
-
-                      {user?.role?.toLowerCase() === 'teacher'
-          && student.role !== 'teacher'
-        && String(student._id) !== String(user._id) && (
-                        <select
-                          className="select select-sm ml-2"
-                          value={student.role}
-                          onChange={async (e) => {
-                            const newRole = e.target.value;
-                            try {
-                              if (newRole === 'admin') {
-                                await axios.post(`/api/users/${student._id}/make-admin`,{ classroomId });
-                                console.log('Student promoted to Admin/TA in classroom:', classroomId);
-                                toast.success('Student promoted to Admin/TA');
-                              } else {
-                                await axios.post(`/api/users/${student._id}/demote-admin`, { classroomId });
-                                console.log('Admin/TA demoted to Student in classroom:', classroomId);
-                                toast.success('Admin/TA demoted to Student');
-                              }
-                              fetchStudents();
-                            } catch (err) {
-                              toast.error(err.response?.data?.error || 'Error changing role');
-                            }
-                          }}
-                        >
-                          <option value="student">{ROLE_LABELS.student}</option>
-                          <option value="admin">{ROLE_LABELS.admin}</option>
-                        </select>
-                      )}
-                    </div>
+              groupSets.map((gs) => (
+                <div key={gs._id}>
+                  <h2 className="text-xl font-semibold">{gs.name}</h2>
+                  <div className="ml-4 mt-2 space-y-4">
+                    {gs.groups.map((group) => (
+                      <div key={group._id} className="border p-4 rounded">
+                        <h3 className="text-lg font-bold">{group.name}</h3>
+                        {group.members.length === 0 ? (
+                          <p className="text-gray-500">No members</p>
+                        ) : (
+                          <ul className="list-disc ml-5 space-y-1">
+                            {group.members.map((m) => (
+                              <li key={m._id._id} className="flex justify-between items-center">
+                                <span>
+                                  {m._id.firstName || m._id.lastName
+                                    ? `${m._id.firstName || ''} ${m._id.lastName || ''}`.trim()
+                                    : m._id.name || m._id.email}
+                                </span>
+                                <button
+                                  className="btn btn-sm btn-outline ml-4"
+                                  onClick={() => navigate(`/profile/${m._id._id}`)}
+                                >
+                                  View Profile
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))
             )}
           </div>
-        </div>
-      )}
-
-      {tab === 'groups' && (
-        <div className="space-y-6">
-          {groupSets.length === 0 ? (
-            <p>No groups available yet.</p>
-          ) : (
-            groupSets.map((gs) => (
-              <div key={gs._id}>
-                <h2 className="text-xl font-semibold">{gs.name}</h2>
-                <div className="ml-4 mt-2 space-y-4">
-                  {gs.groups.map((group) => (
-                    <div key={group._id} className="border p-4 rounded">
-                      <h3 className="text-lg font-bold">{group.name}</h3>
-                      {group.members.length === 0 ? (
-                        <p className="text-gray-500">No members</p>
-                      ) : (
-                        <ul className="list-disc ml-5 space-y-1">
-                          {group.members.map((m) => (
-                            <li key={m._id._id} className="flex justify-between items-center">
-                              <span>
-                                {m._id.firstName || m._id.lastName
-                                  ? `${m._id.firstName || ''} ${m._id.lastName || ''}`.trim()
-                                  : m._id.name || m._id.email}
-                              </span>
-                              <button
-                                className="btn btn-sm btn-outline ml-4"
-                                onClick={() => navigate(`/profile/${m._id._id}`)}
-                              >
-                                View Profile
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      )}
+        )}
+      </div>
       <Footer />
     </div>
   );
