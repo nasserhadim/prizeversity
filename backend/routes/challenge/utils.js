@@ -83,15 +83,16 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
   if (challenge.settings.multiplierMode === 'individual') {
     const multiplier = (challenge.settings.challengeMultipliers || [])[challengeIndex] || 1.0;
     if (multiplier > 1.0) {
-      user.multiplier = (user.multiplier || 1.0) + (multiplier - 1.0);
-      rewardsEarned.multiplier = multiplier - 1.0;
+      const multiplierIncrease = multiplier - 1.0;
+      user.passiveAttributes.multiplier = (user.passiveAttributes.multiplier || 1.0) + multiplierIncrease;
+      rewardsEarned.multiplier = multiplierIncrease;
     }
   }
 
   if (challenge.settings.luckMode === 'individual') {
     const luck = (challenge.settings.challengeLuck || [])[challengeIndex] || 1.0;
     if (luck > 1.0) {
-      user.luck = (user.luck || 1.0) + (luck - 1.0);
+      user.passiveAttributes.luck = (user.passiveAttributes.luck || 1.0) * luck;
       rewardsEarned.luck = luck;
     }
   }
@@ -99,7 +100,10 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
   if (challenge.settings.discountMode === 'individual') {
     const discount = (challenge.settings.challengeDiscounts || [])[challengeIndex] || 0;
     if (discount > 0) {
-      user.discount = (user.discount || 0) + discount;
+      if (typeof user.discountShop === 'boolean') {
+        user.discountShop = user.discountShop ? 100 : 0;
+      }
+      user.discountShop = Math.min(100, (user.discountShop || 0) + discount);
       rewardsEarned.discount = discount;
     }
   }
@@ -107,7 +111,7 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
   if (challenge.settings.shieldMode === 'individual') {
     const shield = (challenge.settings.challengeShields || [])[challengeIndex] || false;
     if (shield) {
-      user.shield = true;
+      user.shieldActive = true;
       rewardsEarned.shield = true;
     }
   }

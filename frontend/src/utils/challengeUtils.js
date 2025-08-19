@@ -5,7 +5,7 @@ export const calculatePotentialBits = (challengeIndex, challengeData, userChalle
   if (challengeData.settings.rewardMode === 'individual') {
     baseBits = challengeData.settings.challengeBits?.[challengeIndex] || 0;
   } else {
-    if (challengeIndex === 4) {
+    if (challengeIndex === 5) { 
       baseBits = challengeData.settings.totalRewardBits || 0;
     }
   }
@@ -50,7 +50,7 @@ export const getRewardDataForChallenge = (challengeIndex, challengeData, userCha
     }
     rewards.bits = baseBits;
   } else {  
-    if (challengeIndex === 4) {
+    if (challengeIndex === 5) { 
       let baseBits = challengeData.settings.totalRewardBits || 0;
       const hintsEnabled = challengeData.settings.challengeHintsEnabled?.[challengeIndex];
       if (hintsEnabled && baseBits > 0) {
@@ -69,9 +69,9 @@ export const getRewardDataForChallenge = (challengeIndex, challengeData, userCha
   if (challengeData.settings.multiplierMode === 'individual') {
     const multiplierReward = challengeData.settings.challengeMultipliers?.[challengeIndex] || 1.0;
     if (multiplierReward > 1.0) {
-      rewards.multiplier = multiplierReward - 1.0; 
+      rewards.multiplier = multiplierReward - 1.0;
     }
-  } else if (challengeIndex === 4) { 
+  } else if (challengeIndex === 5) { 
     const totalMultiplier = challengeData.settings.totalMultiplier || 1.0;
     if (totalMultiplier > 1.0) {
       rewards.multiplier = totalMultiplier - 1.0; 
@@ -83,7 +83,7 @@ export const getRewardDataForChallenge = (challengeIndex, challengeData, userCha
     if (luckReward > 1.0) {
       rewards.luck = luckReward;
     }
-  } else if (challengeIndex === 4) { 
+  } else if (challengeIndex === 5) { 
     const totalLuck = challengeData.settings.totalLuck || 1.0;
     if (totalLuck > 1.0) {
       rewards.luck = totalLuck;
@@ -95,7 +95,7 @@ export const getRewardDataForChallenge = (challengeIndex, challengeData, userCha
     if (discountReward > 0) {
       rewards.discount = discountReward;
     }
-  } else if (challengeIndex === 4) { 
+  } else if (challengeIndex === 5) { 
     const totalDiscount = challengeData.settings.totalDiscount || 0;
     if (totalDiscount > 0) {
       rewards.discount = totalDiscount;
@@ -107,7 +107,7 @@ export const getRewardDataForChallenge = (challengeIndex, challengeData, userCha
     if (shieldReward) {
       rewards.shield = true;
     }
-  } else if (challengeIndex === 4) { 
+  } else if (challengeIndex === 5) { 
     const totalShield = challengeData.settings.totalShield || false;
     if (totalShield) {
       rewards.shield = true;
@@ -119,7 +119,7 @@ export const getRewardDataForChallenge = (challengeIndex, challengeData, userCha
     if (attackReward > 0) {
       rewards.attackBonus = attackReward;
     }
-  } else if (challengeIndex === 4) { 
+  } else if (challengeIndex === 5) { 
     const totalAttackBonus = challengeData.settings.totalAttackBonus || 0;
     if (totalAttackBonus > 0) {
       rewards.attackBonus = totalAttackBonus;
@@ -129,8 +129,8 @@ export const getRewardDataForChallenge = (challengeIndex, challengeData, userCha
   return {
     rewards,
     challengeName: challengeNames[challengeIndex],
-    allCompleted: challengeIndex === 4, 
-    nextChallenge: challengeIndex < 4 ? challengeNames[challengeIndex + 1] : null
+    allCompleted: challengeIndex === 5, 
+    nextChallenge: challengeIndex < 5 ? challengeNames[challengeIndex + 1] : null
   };
 };
 

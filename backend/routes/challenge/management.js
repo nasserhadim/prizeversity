@@ -458,9 +458,9 @@ function createDefaultValidationSettings() {
     },
     {
       challengeIndex: 2,
-      logicType: 'cpp-debugging',
+      logicType: 'hash-breaking',
       metadata: {
-        salt: 'cpp_debug_salt_2024',
+        salt: 'hash_challenge_salt_2024',
         algorithmParams: {}
       }
     },

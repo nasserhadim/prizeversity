@@ -3,7 +3,7 @@ const router = express.Router();
 const Challenge = require('../../models/Challenge');
 const User = require('../../models/User');
 const { ensureAuthenticated } = require('../../middleware/auth');
-const { generateCppDebuggingChallenge, generateAndUploadForensicsImage, uploadLocks } = require('./generators');
+const { generateHashBreakingChallenge, generateCppDebuggingChallenge, generateAndUploadForensicsImage, uploadLocks } = require('./generators');
 
 router.get('/challenge3/:uniqueId', ensureAuthenticated, async (req, res) => {
   try {
@@ -40,7 +40,7 @@ router.get('/challenge3/:uniqueId', ensureAuthenticated, async (req, res) => {
       department: ['CYBER CRIMES', 'DIGITAL FORENSICS', 'CRYPTO ANALYSIS'][hashNum % 3]
     };
 
-    const challengeEvidence = generateCppDebuggingChallenge(studentData, uniqueId);
+    const challengeEvidence = generateHashBreakingChallenge(studentData, uniqueId);
     
     res.json({
       studentData,

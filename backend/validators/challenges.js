@@ -23,6 +23,21 @@ const validators = {
     return answer.trim().toUpperCase() === expected;
   },
 
+  'hash-breaking': (answer, metadata, uniqueId, studentData) => {
+    const crypto = require('crypto');
+    const hash = crypto.createHash('md5').update(uniqueId + 'hash_challenge_salt_2024').digest('hex');
+    
+    // Generate the same 4-character input that was used to create the hash
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let expectedAnswer = '';
+    for (let i = 0; i < 4; i++) {
+      const charIndex = parseInt(hash.substring(i * 2, i * 2 + 2), 16) % chars.length;
+      expectedAnswer += chars[charIndex];
+    }
+    
+    return answer.trim().toUpperCase() === expectedAnswer;
+  },
+
   'cpp-debugging': (answer, metadata, uniqueId, studentData) => {
     const hash = crypto.createHash('md5').update(uniqueId + metadata.salt).digest('hex');
     

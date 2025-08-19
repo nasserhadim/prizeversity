@@ -67,6 +67,54 @@ async function createGitHubBranch(uniqueId, userId) {
   }
 }
 
+function generateHashBreakingChallenge(studentData, uniqueId) {
+  const crypto = require('crypto');
+  const hash = crypto.createHash('md5').update(uniqueId + 'hash_challenge_salt_2024').digest('hex');
+  
+  // Generate a 4-character input to be hashed
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let originalInput = '';
+  for (let i = 0; i < 4; i++) {
+    const charIndex = parseInt(hash.substring(i * 2, i * 2 + 2), 16) % chars.length;
+    originalInput += chars[charIndex];
+  }
+  
+  // Generate hash function parameters based on student data
+  const nameHash = crypto.createHash('md5').update(studentData.firstName + studentData.lastName).digest('hex');
+  const letterShift = (parseInt(nameHash.substring(0, 2), 16) % 20) + 5; // 5-24
+  const digitMultiplier = (parseInt(nameHash.substring(2, 4), 16) % 7) + 2; // 2-8
+  const checksumPrime = (parseInt(nameHash.substring(4, 6), 16) % 500) + 500; // 500-999
+  
+  // Apply the hash function to the original input
+  let hashedResult = '';
+  for (const char of originalInput) {
+    if (char >= 'A' && char <= 'Z') {
+      const shifted = (char.charCodeAt(0) - 65 + letterShift) % 26;
+      hashedResult += String.fromCharCode(shifted + 65);
+    } else if (char >= '0' && char <= '9') {
+      const newDigit = (parseInt(char) * digitMultiplier) % 10;
+      hashedResult += newDigit.toString();
+    }
+  }
+  
+  // Add checksum
+  const checksum = (hashedResult.split('').reduce((sum, c) => sum + c.charCodeAt(0), 0) * checksumPrime) % 1000;
+  const interceptedHash = hashedResult + checksum.toString().padStart(3, '0');
+  
+  return {
+    caseNumber: `CASE-${hash.substring(0, 8).toUpperCase()}`,
+    suspectId: `SUSPECT-${hash.substring(8, 14).toUpperCase()}`,
+    interceptedHash: interceptedHash,
+    hashFunction: {
+      letterShift: letterShift,
+      digitMultiplier: digitMultiplier,
+      checksumPrime: checksumPrime
+    },
+    expectedAnswer: originalInput, // This is what the student needs to find
+    missionBrief: `Agent ${studentData.firstName} ${studentData.lastName}, we've intercepted a coded transmission. Your mission is to reverse-engineer the hash function and recover the original 4-character evidence.`
+  };
+}
+
 function generateCppDebuggingChallenge(studentData, uniqueId) {
   const crypto = require('crypto');
   const hash = crypto.createHash('md5').update(uniqueId + 'cpp_debug_salt_2024').digest('hex');
@@ -324,6 +372,7 @@ async function uploadToGitHub(filename, fileBuffer, githubToken) {
 
 module.exports = {
   createGitHubBranch,
+  generateHashBreakingChallenge,
   generateCppDebuggingChallenge,
   generateAndUploadForensicsImage,
   uploadLocks

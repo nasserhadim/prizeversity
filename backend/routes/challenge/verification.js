@@ -4,6 +4,7 @@ const Challenge = require('../../models/Challenge');
 const User = require('../../models/User');
 const { ensureAuthenticated } = require('../../middleware/auth');
 const { isChallengeExpired, generateChallenge2Password, calculateChallengeRewards } = require('./utils');
+const { CHALLENGE_NAMES } = require('./constants');
 
 router.post('/verify-password', ensureAuthenticated, async (req, res) => {
   try {
@@ -38,25 +39,37 @@ router.post('/verify-password', ensureAuthenticated, async (req, res) => {
       userChallenge.completedChallenges = [false, false, false, false, false, false];
     }
 
+    let rewardsEarned = {
+      bits: 0,
+      multiplier: 0,
+      luck: 1.0,
+      discount: 0,
+      shield: false,
+    };
+
     if (!userChallenge.completedChallenges[0]) {
       userChallenge.completedChallenges[0] = true;
       userChallenge.progress = userChallenge.completedChallenges.filter(Boolean).length;
       userChallenge.completedAt = Date.now();
       
       const user = await User.findById(userId);
-      let bitsAwarded = 0;
       if (user) {
-        const rewardsEarned = calculateChallengeRewards(user, challenge, 0, userChallenge);
-        bitsAwarded = rewardsEarned.bits;
+        rewardsEarned = calculateChallengeRewards(user, challenge, 0, userChallenge);
         await user.save();
       }
       
       await challenge.save();
     }
 
+    const { CHALLENGE_NAMES } = require('./constants');
     res.json({ 
-      message: 'Password verified successfully',
-      progress: userChallenge.progress 
+      success: true,
+      message: `Correct! ${CHALLENGE_NAMES[0]} completed!`,
+      challengeName: CHALLENGE_NAMES[0],
+      rewards: rewardsEarned,
+      progress: userChallenge.progress,
+      allCompleted: userChallenge.progress >= 6,
+      nextChallenge: userChallenge.progress < 6 ? CHALLENGE_NAMES[userChallenge.progress] : null
     });
 
   } catch (error) {
@@ -109,21 +122,21 @@ router.post('/verify-challenge2-external', ensureAuthenticated, async (req, res)
       userChallenge.completedChallenges = [false, false, false, false, false, false];
     }
 
+    let rewardsEarned = {
+      bits: 0,
+      multiplier: 0,
+      luck: 1.0,
+      discount: 0,
+      shield: false,
+      attackBonus: 0
+    };
+
     if (!userChallenge.completedChallenges[1]) {
       userChallenge.completedChallenges[1] = true;
       userChallenge.progress = userChallenge.completedChallenges.filter(Boolean).length;
       
       const user = await User.findById(userId);
       let bitsAwarded = 0;
-      
-      const rewardsEarned = {
-        bits: 0,
-        multiplier: 0,
-        luck: 1.0,
-        discount: 0,
-        shield: false,
-        attackBonus: 0
-      };
 
       if (user) {
         const rewards = calculateChallengeRewards(user, challenge, 1, userChallenge);
@@ -136,8 +149,13 @@ router.post('/verify-challenge2-external', ensureAuthenticated, async (req, res)
     }
 
     res.json({ 
-      message: 'Challenge 2 completed successfully!',
-      progress: userChallenge.progress
+      success: true,
+      message: `Correct! ${CHALLENGE_NAMES[1]} completed!`,
+      challengeName: CHALLENGE_NAMES[1],
+      rewards: rewardsEarned,
+      progress: userChallenge.progress,
+      allCompleted: userChallenge.progress >= 6,
+      nextChallenge: userChallenge.progress < 6 ? CHALLENGE_NAMES[userChallenge.progress] : null
     });
 
   } catch (error) {
@@ -202,7 +220,7 @@ router.post('/challenge3/:uniqueId/verify', ensureAuthenticated, async (req, res
     userChallenge.challenge3Attempts = currentAttempts + 1;
 
     const validators = require('../../validators/challenges');
-    const metadata = { salt: 'cpp_debug_salt_2024', algorithmParams: {} };
+    const metadata = { salt: 'hash_challenge_salt_2024', algorithmParams: {} };
     
     const user = await User.findById(userId);
     const studentData = {
@@ -212,7 +230,7 @@ router.post('/challenge3/:uniqueId/verify', ensureAuthenticated, async (req, res
       department: ['CYBER CRIMES', 'DIGITAL FORENSICS', 'CRYPTO ANALYSIS'][parseInt(crypto.createHash('md5').update(userId.toString() + uniqueId).digest('hex').substring(0, 8), 16) % 3]
     };
     
-    const isCorrect = validators['cpp-debugging'](password, metadata, uniqueId, studentData);
+    const isCorrect = validators['hash-breaking'](password, metadata, uniqueId, studentData);
 
     if (!isCorrect) {
       await challenge.save();
@@ -227,19 +245,31 @@ router.post('/challenge3/:uniqueId/verify', ensureAuthenticated, async (req, res
       userChallenge.completedChallenges = [false, false, false, false, false, false];
     }
 
+    let rewardsEarned = {
+      bits: 0,
+      multiplier: 0,
+      luck: 1.0,
+      discount: 0,
+      shield: false,
+    };
+
     if (!userChallenge.completedChallenges[2]) {
       userChallenge.completedChallenges[2] = true;
       userChallenge.progress = userChallenge.completedChallenges.filter(Boolean).length;
       
-      const rewards = calculateChallengeRewards(user, challenge, 2, userChallenge);
+      rewardsEarned = calculateChallengeRewards(user, challenge, 2, userChallenge);
       await user.save();
       await challenge.save();
     }
 
     res.json({
       success: true,
-      message: 'Investigation solved! Evidence recovered successfully!',
-      progress: userChallenge.progress
+      message: `Correct! ${CHALLENGE_NAMES[2]} completed!`,
+      challengeName: CHALLENGE_NAMES[2],
+      rewards: rewardsEarned,
+      progress: userChallenge.progress,
+      allCompleted: userChallenge.progress >= 6,
+      nextChallenge: userChallenge.progress < 6 ? CHALLENGE_NAMES[userChallenge.progress] : null
     });
 
   } catch (error) {
@@ -285,10 +315,16 @@ router.post('/verify-challenge5-external', ensureAuthenticated, async (req, res)
     userChallenge.completedAt = Date.now();
     
     const user = await User.findById(userId);
-    let bitsAwarded = 0;
+    let rewardsEarned = {
+      bits: 0,
+      multiplier: 0,
+      luck: 1.0,
+      discount: 0,
+      shield: false,
+    };
+    
     if (user) {
-      const rewards = calculateChallengeRewards(user, challenge, 4, userChallenge);
-      bitsAwarded = rewards.bits;
+      rewardsEarned = calculateChallengeRewards(user, challenge, 4, userChallenge);
       await user.save();
     }
     
@@ -301,7 +337,7 @@ router.post('/verify-challenge5-external', ensureAuthenticated, async (req, res)
       user: user._id,
       actionBy: challenge.createdBy,
       type: 'challenge_completed',
-      message: `You completed Challenge 5: "Secrets in the Cloud" and earned ${bitsAwarded} bits!`,
+      message: `You completed Challenge 5: "Secrets in the Cloud" and earned ${rewardsEarned.bits} bits!`,
       read: false,
       createdAt: new Date(),
     });
@@ -312,9 +348,13 @@ router.post('/verify-challenge5-external', ensureAuthenticated, async (req, res)
     }
 
     res.json({ 
-      message: 'WayneAWS verification completed successfully!',
+      success: true,
+      message: `Correct! ${CHALLENGE_NAMES[4]} completed!`,
+      challengeName: CHALLENGE_NAMES[4],
+      rewards: rewardsEarned,
       progress: userChallenge.progress,
-      bitsAwarded 
+      allCompleted: userChallenge.progress >= 6,
+      nextChallenge: userChallenge.progress < 6 ? CHALLENGE_NAMES[userChallenge.progress] : null
     });
 
   } catch (error) {

@@ -51,9 +51,9 @@ const RewardModal = ({ isOpen, onClose, rewards, challengeName, allCompleted, ne
                   <div className="flex items-center justify-between bg-blue-50 p-3 rounded-lg border border-blue-200">
                     <div className="flex items-center gap-3">
                       <Zap className="w-6 h-6 text-blue-600" />
-                      <span className="font-medium text-gray-800">Multiplier Bonus</span>
+                      <span className="font-medium text-gray-800">Multiplier Increase</span>
                     </div>
-                    <span className="text-xl font-bold text-blue-600">{(rewards.multiplier + 1).toFixed(1)}x</span>
+                    <span className="text-xl font-bold text-blue-600">+{rewards.multiplier.toFixed(1)}</span>
                   </div>
                 )}
 
@@ -63,7 +63,7 @@ const RewardModal = ({ isOpen, onClose, rewards, challengeName, allCompleted, ne
                       <Clover className="w-6 h-6 text-green-600" />
                       <span className="font-medium text-gray-800">Luck Multiplier</span>
                     </div>
-                    <span className="text-xl font-bold text-green-600">x{rewards.luck.toFixed(1)}</span>
+                    <span className="text-xl font-bold text-green-600">×{rewards.luck.toFixed(1)}</span>
                   </div>
                 )}
 
