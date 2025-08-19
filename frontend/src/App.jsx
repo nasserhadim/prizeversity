@@ -39,15 +39,11 @@ const App = () => {
   }, [user]);
 
 
-  const showStaticNavbar = ['/', '/support', '/privacy', '/terms'].includes(location.pathname);
+  const showStaticNavbar = ['/', '/support', '/privacy', '/terms', '/feedback'].includes(location.pathname);
 
   return (
-
-    // Added the navigation bar and notification bell in App.jsx 
-    // This way we removed redundancy to call it in each page.
-    // This method will prevent for navigation and the bell to show in the login page (meaning without a user being logged in)
     <CartProvider>
-      <div style={{ paddingTop: '5rem' }}>
+      <div style={{ paddingTop: user ? '5rem' : '4rem' }}>
         {user ? <Navbar /> : showStaticNavbar && <Navbar />}
         <Routes>
           <Route path="/" element={<Home />} />
