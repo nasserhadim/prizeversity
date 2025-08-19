@@ -9,11 +9,11 @@ const DigitalForensicsChallenge = ({ userChallenge, isDark }) => {
       <div className={`${colors.sectionBg} rounded-lg p-4`}>
         <h4 className={`font-semibold ${colors.textColor} mb-2`}>🕵️ Your Investigation</h4>
         <p className="text-sm text-gray-700 mb-3">
-          A suspicious image containing forensics evidence has been planted in a GitHub repository. Your task is to find it and extract the hidden metadata.
+          One of Wayne State's Alumni left some evidence in a GitHub repository. Your task is to find it and extract the hidden metadata.
         </p>
         <div className="space-y-2">
           <p className="text-xs text-gray-600">🔍 Use OSINT techniques to locate your evidence</p>
-          <p className="text-xs text-gray-600">🖼️ Analyze EXIF metadata to find hidden information</p>
+          <p className="text-xs text-gray-600">🖼️ Analyze the GitHub repository to extract the information you need</p>
           <p className="text-xs text-gray-600">📊 Each student has unique evidence with personalized data</p>
         </div>
       </div>

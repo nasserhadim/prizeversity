@@ -33,7 +33,7 @@ const GitHubOSINTChallenge = ({ userChallenge, isDark }) => {
       
       <div className={`${colors.sectionBg} rounded-lg p-4`}>
         <h4 className={`font-semibold ${colors.textColor} mb-2`}>Challenge Terminal</h4>
-        <p className={`text-sm ${themeClasses.mutedText} mb-3`}>Access the challenge terminal (your GitHub resources are already prepared):</p>
+        <p className={`text-sm ${themeClasses.mutedText} mb-3`}>Access the challenge terminal:</p>
         <code className={`${isDark ? 'text-blue-300' : 'text-blue-600'} font-mono text-sm block mb-3`}>
           <a 
             href={`/challenge-2-site/${userChallenge.uniqueId}`} 
@@ -45,7 +45,7 @@ const GitHubOSINTChallenge = ({ userChallenge, isDark }) => {
           </a>
         </code>
         <p className={`text-xs ${isDark ? 'text-base-content/60' : 'text-gray-500'}`}>
-          Your GitHub branch and Challenge 2 password are ready to discover
+          Look closely! You'll need to find the password in the repository.
         </p>
       </div>
       

@@ -29,6 +29,7 @@ import Challenge2Site from './pages/Challenge2Site';
 import Challenge3Site from './pages/Challenge3Site';
 import Challenge4Site from './pages/Challenge4Site';
 import Challenge5Site from './pages/Challenge5Site';
+import Challenge6Site from './pages/Challenge6Site';
 import Support from './pages/Support';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
@@ -52,6 +53,7 @@ const App = () => {
       <Route path="/challenge-3-site/:uniqueId" element={<Challenge3Site />} />
       <Route path="/challenge-4-site/:uniqueId" element={<Challenge4Site />} />
       <Route path="/challenge-5-site/:uniqueId" element={<Challenge5Site />} />
+      <Route path="/challenge-6-site/:uniqueId" element={<Challenge6Site />} />
       <Route path="/*" element={
         <CartProvider>
           <div style={{ paddingTop: '5rem' }}>

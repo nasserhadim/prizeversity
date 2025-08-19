@@ -9,12 +9,12 @@ const WayneAWSChallenge = ({ userChallenge, isDark }) => {
       <div className={`${colors.sectionBg} rounded-lg p-4`}>
         <h4 className={`font-semibold ${colors.textColor} mb-2`}>🔐 Your Mission</h4>
         <p className="text-sm text-gray-700 mb-3">
-          Access the WayneAWS cloud authentication portal and verify your credentials. You'll need to find the correct username and secret password to complete this challenge.
+          Access the WayneAWS cloud authentication portal, and use your given AWS credentials to locate the secret password to complete this challenge.
         </p>
         <div className="space-y-2">
           <p className="text-xs text-gray-600">🌐 Cloud-based authentication system</p>
           <p className="text-xs text-gray-600">🔑 Secure credential verification process</p>
-          <p className="text-xs text-gray-600">⚡ Real-time authentication with WayneAWS API</p>
+          <p className="text-xs text-gray-600">⚡ Make sure to correctly configure your AWS credentials in the terminal!</p>
         </div>
       </div>
       

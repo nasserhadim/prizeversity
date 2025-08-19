@@ -1,4 +1,4 @@
-import { Eye, EyeOff, Play } from 'lucide-react';
+import { Play } from 'lucide-react';
 import { getChallengeColors } from '../../../utils/themeUtils';
 import { calculatePotentialBits } from '../../../utils/challengeUtils';
 import { unlockHint, startChallenge } from '../../../API/apiChallenge';
@@ -21,10 +21,6 @@ const ChallengeCard = ({
 }) => {
   const colors = getChallengeColors(challengeIndex, isDark);
   const isCompleted = userChallenge?.completedChallenges?.[challengeIndex] || false;
-
-  // Remove progress-based locking - all challenges are now unlocked 
-  const isUnlocked = true; 
-  const isLocked = false; 
   
   const challengeId = CHALLENGE_IDS[challengeIndex];
   
@@ -62,14 +58,13 @@ const ChallengeCard = ({
     <div className={`collapse collapse-arrow ${
       isCompleted 
         ? colors.completedBg 
-        : colors.cardBg // Always use unlocked styling
+        : colors.cardBg 
     }`}>
-      {/* Always allow expansion since all challenges are unlocked */}
       <input type="checkbox" defaultChecked={false} className="peer" />
       
       <div className="collapse-title text-xl font-medium flex items-center gap-3">
         <div className={`badge badge-lg ${
-          isCompleted ? 'badge-success' : 'badge-primary' // Change from badge-error to badge-primary
+          isCompleted ? 'badge-success' : 'badge-primary' 
         }`}>
           Challenge {challengeIndex + 1}
         </div>
@@ -77,7 +72,7 @@ const ChallengeCard = ({
         <span className={
           isCompleted 
             ? colors.completedText 
-            : colors.textColor // Always use unlocked styling
+            : colors.textColor 
         }>
           {challengeIcon} {challengeName}
         </span>
@@ -96,12 +91,11 @@ const ChallengeCard = ({
         <div className={`ml-auto text-sm ${isDark ? 'text-base-content/50' : 'text-gray-400'}`}>
           {isCompleted 
             ? '✅ Completed' 
-            : '🔓 Available' // Change from 'Unlocked' to 'Available'
+            : '🔓 Available' 
           }
         </div>
       </div>
       
-      {/* Always show content since all challenges are unlocked */}
       <div className="collapse-content">
         <div className="pt-4 space-y-4">
           {challengeData?.settings?.challengeHintsEnabled?.[challengeIndex] && (

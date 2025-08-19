@@ -17,6 +17,7 @@ import DigitalForensicsChallenge from '../components/challenge/cards/DigitalFore
 import WayneAWSChallenge from '../components/challenge/cards/WayneAWSChallenge';
 import ChallengeConfigModal from '../components/challenge/modals/ChallengeConfigModal';
 import DebugPanel from '../components/challenge/modals/DebugPanel';
+import NeedleInAHaystackChallenge from '../components/challenge/cards/NeedleInAHaystack';
 
 // Hooks
 import { useChallengeData } from '../hooks/useChallengeData';
@@ -438,7 +439,7 @@ const Challenge = () => {
               challengeIndex={0}
               challengeName="Little Caesar's Secret"
               challengeIcon="🔓"
-              challengeDescription="Your mission: decrypt your unique ID to access a password-protected intelligence site."
+              challengeDescription="Your mission: decrypt your unique ID to complete this challenge."
               userChallenge={userChallenge}
               challengeData={challengeData}
               isDark={isDark}
@@ -486,7 +487,7 @@ const Challenge = () => {
               challengeIndex={3}
               challengeName="I Always Sign My Work..."
               challengeIcon="🕵️"
-              challengeDescription="Your mission: Conduct a digital forensics investigation to extract hidden information from image metadata."
+              challengeDescription="Your mission: Conduct a digital forensics investigation to extract hidden information from photographs within a GitHub repository."
               userChallenge={userChallenge}
               challengeData={challengeData}
               isDark={isDark}
@@ -502,7 +503,7 @@ const Challenge = () => {
               challengeIndex={4}
               challengeName="Secrets in the Clouds"
               challengeIcon="🔐"
-              challengeDescription="Your final mission: Authenticate with WayneAWS cloud services using advanced credential verification protocols."
+              challengeDescription="Your mission: Utilize your given AWS credentials to search for a hidden file and complete this challenge."
               userChallenge={userChallenge}
               challengeData={challengeData}
               isDark={isDark}
@@ -512,6 +513,22 @@ const Challenge = () => {
               classroomId={classroomId}
             >
               <WayneAWSChallenge userChallenge={userChallenge} isDark={isDark} />
+            </ChallengeCard>
+
+            <ChallengeCard
+              challengeIndex={5}
+              challengeName="Needle in a Haystack"
+              challengeIcon="🔍"
+              challengeDescription="Your mission: You're simply given a word. Find it's place in the haystack of the internet."
+              userChallenge={userChallenge}
+              challengeData={challengeData}
+              isDark={isDark}
+              unlockingHint={unlockingHint}
+              setUnlockingHint={setUnlockingHint}
+              fetchChallengeData={fetchChallengeData}
+              classroomId={classroomId}
+            >
+              <NeedleInAHaystackChallenge userChallenge={userChallenge} isDark={isDark} />
             </ChallengeCard>
           </div>
         </div>
