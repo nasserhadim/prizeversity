@@ -1597,19 +1597,19 @@ router.post('/challenge4/:uniqueId/submit', ensureAuthenticated, async (req, res
     const expectedAnswer = `FORENSICS_${studentHash.substring(0, 8).toUpperCase()}`;
 
     if (answer.trim() === expectedAnswer) {
+      const rewardsEarned = {
+        bits: 0,
+        multiplier: 0,
+        luck: 1.0,
+        discount: 0,
+        shield: false,
+      };
+      
       const userChallenge = challenge.userChallenges.find(uc => uc.uniqueId === uniqueId);
       if (userChallenge) {
         if (!userChallenge.completedChallenges) {
           userChallenge.completedChallenges = [false, false, false, false, false, false];
         }
-        
-        const rewardsEarned = {
-          bits: 0,
-          multiplier: 0,
-          luck: 1.0,
-          discount: 0,
-          shield: false,
-        };
         
         if (!userChallenge.completedChallenges[3]) {
           userChallenge.completedChallenges[3] = true;
