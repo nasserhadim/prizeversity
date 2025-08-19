@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Shield, Settings, Users, Eye, EyeOff } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Shield, Settings, Users, Eye, EyeOff, UserPlus } from 'lucide-react';
 import { getCurrentChallenge } from '../../utils/challengeUtils';
 import { getThemeClasses } from '../../utils/themeUtils';
 import { updateDueDate } from '../../API/apiChallenge';
@@ -11,10 +11,14 @@ const TeacherView = ({
   isDark,
   handleShowConfigModal,
   handleShowDeactivateModal,
-  initiating
+  initiating,
+  classroomStudents = []
 }) => {
   const [showPasswords, setShowPasswords] = useState({});
   const [showDueDateModal, setShowDueDateModal] = useState(false);
+  const [showAssignDropdown, setShowAssignDropdown] = useState(false);
+  const [studentNames, setStudentNames] = useState({});
+  const dropdownRef = useRef(null);
   const themeClasses = getThemeClasses(isDark);
 
   // Use the userChallenge _id (uc._id) as the toggle key so each row is stable
@@ -24,6 +28,94 @@ const TeacherView = ({
       [ucId]: !prev[ucId]
     }));
   };
+
+  // Find students not assigned to the challenge
+  // We've found that in cases where a student joins the class after the challenge is created, they are not automatically assigned to the challenge.
+  const assignedStudentIds = challengeData?.userChallenges
+    ?.filter(uc => uc.userId && uc.userId._id) // Filter out entries with undefined userId or _id
+    ?.map(uc => uc.userId._id) || [];
+  
+  const unassignedStudentIds = (classroomStudents || [])
+    .map(student => typeof student === 'string' ? student : student._id) // Extract ID regardless of structure
+    .filter(studentId => studentId && !assignedStudentIds.includes(studentId)); // Filter out assigned students
+
+  useEffect(() => {
+    const fetchStudentNames = async () => {
+      const newStudentNames = {};
+      for (const studentId of unassignedStudentIds) {
+        if (!studentNames[studentId]) {
+          try {
+            const response = await fetch(`/api/profile/student/${studentId}`, {
+              credentials: 'include'
+            });
+            if (response.ok) {
+              const student = await response.json();
+              newStudentNames[studentId] = `${student.firstName} ${student.lastName}`;
+            } else {
+              newStudentNames[studentId] = `Student ${studentId.substring(0, 8)}...`;
+            }
+          } catch (error) {
+            console.error('Error fetching student name:', error);
+            newStudentNames[studentId] = `Student ${studentId.substring(0, 8)}...`;
+          }
+        }
+      }
+      if (Object.keys(newStudentNames).length > 0) {
+        setStudentNames(prev => ({ ...prev, ...newStudentNames }));
+      }
+    };
+
+    if (unassignedStudentIds.length > 0) {
+      fetchStudentNames();
+    }
+  }, [unassignedStudentIds.join(',')]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowAssignDropdown(false);
+      }
+    };
+
+    if (showAssignDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [showAssignDropdown]);
+
+  const handleAssignStudent = async (studentId) => {
+    try {
+      const response = await fetch(`/api/challenges/${challengeData._id}/assign-student`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ studentId })
+      });
+      
+      if (response.ok) {
+        toast.success('Student assigned to challenge successfully');
+        setShowAssignDropdown(false);
+        window.location.reload();
+      } else {
+        toast.error('Failed to assign student');
+      }
+    } catch (error) {
+      toast.error('Error assigning student');
+    }
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showAssignDropdown && !event.target.closest('.relative')) {
+        setShowAssignDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showAssignDropdown]);
 
 
 
@@ -66,9 +158,47 @@ const TeacherView = ({
 
       {challengeData && challengeData.isActive !== undefined && (
         <div className="card bg-base-100 border border-base-200 shadow-md rounded-2xl p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <Users className="w-6 h-6 text-blue-500" />
-            <h2 className="text-2xl font-bold">Challenge Status</h2>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <Users className="w-6 h-6 text-blue-500" />
+              <h2 className="text-2xl font-bold">Challenge Status</h2>
+            </div>
+            
+            {challengeData.isActive && challengeData.userChallenges && unassignedStudentIds.length > 0 && (
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  className="btn btn-sm btn-primary gap-2"
+                  onClick={() => setShowAssignDropdown(!showAssignDropdown)}
+                >
+                  <UserPlus className="w-4 h-4" />
+                  Assign Students ({unassignedStudentIds.length})
+                </button>
+                
+                {showAssignDropdown && (
+                  <div className="absolute right-0 top-full mt-1 w-64 bg-base-100 border border-base-300 rounded-lg shadow-lg z-50">
+                    <div className="p-3">
+                      <div className="text-sm font-medium mb-2">Unassigned Students:</div>
+                      <div className="space-y-1 max-h-48 overflow-y-auto">
+                        {unassignedStudentIds.length > 0 ? (
+                          unassignedStudentIds.map((studentId, index) => (
+                            <button
+                              key={`unassigned-${studentId}-${index}`}
+                              onClick={() => handleAssignStudent(studentId)}
+                              className="w-full text-left p-2 text-sm hover:bg-base-200 rounded flex items-center justify-between"
+                            >
+                              <span>{studentNames[studentId] || 'Loading...'}</span>
+                              <UserPlus className="w-3 h-3" />
+                            </button>
+                          ))
+                        ) : (
+                          <div className="text-xs text-gray-500 p-2">All students are already assigned to this challenge</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -136,9 +266,17 @@ const TeacherView = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {challengeData.userChallenges.map((uc) => {
+                    {challengeData.userChallenges
+                      .filter(uc => uc.userId) // Filter out undefined userIds
+                      .filter(uc => { // Filter out students who left the classroom
+                        const studentInClassroom = classroomStudents.some(studentId => 
+                          (typeof studentId === 'string' ? studentId : studentId._id) === uc.userId._id
+                        );
+                        return studentInClassroom;
+                      })
+                      .map((uc) => {
                       const currentChallenge = getCurrentChallenge(uc.progress);
-                      const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'Bug Smasher', 'I Always Sign My Work...', 'Secrets in the Clouds'];
+                      const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'C++ Bug Hunt', 'I Always Sign My Work...', 'Secrets in the Clouds', 'Needle in a Haystack'];
                       const workingOnChallenge = uc.currentChallenge !== undefined ? uc.currentChallenge : uc.progress;
                       const workingOnTitle = challengeNames[workingOnChallenge] || currentChallenge.name;
                       

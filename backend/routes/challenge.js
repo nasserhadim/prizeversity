@@ -96,44 +96,144 @@ function generateChallenge2Password(uniqueId) {
   return `${prefix}_${suffix}`;
 }
 
-function generateCryptoHashChallenge(studentData, uniqueId) {
+function generateCppDebuggingChallenge(studentData, uniqueId) {
   const crypto = require('crypto');
-  const hash = crypto.createHash('md5').update(uniqueId + 'forensics_salt_2024').digest('hex');
+  const hash = crypto.createHash('md5').update(uniqueId + 'cpp_debug_salt_2024').digest('hex');
   
-  const param1 = (parseInt(hash.substring(0, 2), 16) % 97) + 3;
-  const param2 = (parseInt(hash.substring(2, 4), 16) % 26) + 1;
-  const param3 = (parseInt(hash.substring(4, 6), 16) % 9) + 1;
+  // Generate student-specific values from their actual data
+  const firstNameHash = crypto.createHash('md5').update(studentData.firstName).digest('hex');
+  const lastNameHash = crypto.createHash('md5').update(studentData.lastName).digest('hex');
   
-  const targetInput = hash.substring(8, 12).toUpperCase();
+  // Create multiple obfuscated values
+  const studentInitials = (studentData.firstName[0] + studentData.lastName[0]).toUpperCase();
+  const nameLength = studentData.firstName.length + studentData.lastName.length;
+  const agentNumeric = parseInt(studentData.agentId.replace(/\D/g, '')) % 1000;
   
-  let hashOutput = '';
-  for (let i = 0; i < targetInput.length; i++) {
-    const char = targetInput[i];
-    if (char >= 'A' && char <= 'Z') {
-      const shifted = ((char.charCodeAt(0) - 65 + param2) % 26) + 65;
-      hashOutput += String.fromCharCode(shifted);
-    } else if (char >= '0' && char <= '9') {
-      const newDigit = ((parseInt(char) * param3) % 10);
-      hashOutput += newDigit.toString();
+  // Generate complex, interconnected values
+  const baseA = parseInt(firstNameHash.substring(0, 3), 16) % 50 + 20; // 20-69
+  const baseB = parseInt(lastNameHash.substring(0, 3), 16) % 30 + 10; // 10-39
+  const baseC = parseInt(hash.substring(0, 3), 16) % 25 + 5; // 5-29
+  
+  const loopCount = (nameLength % 4) + 3; // 3-6 iterations
+  const multiplierA = (agentNumeric % 3) + 2; // 2-4
+  const multiplierB = (parseInt(hash.substring(6, 8), 16) % 3) + 2; // 2-4
+  
+  // Create obfuscated variable names using student data
+  const varPrefix = studentInitials;
+  const className = `Agent${studentData.agentId.replace(/\D/g, '')}`;
+  
+  // Calculate the correct result using complex nested logic
+  let result = baseA;
+  for (let i = 0; i < loopCount; i++) {
+    if (i % 2 === 0) {
+      result = (result * multiplierA + baseB) - i;
+    } else {
+      result = (result + baseC * multiplierB) + (i * 2);
     }
   }
   
-  const checksum = (hashOutput.split('').reduce((sum, c) => sum + c.charCodeAt(0), 0) * param1) % 1000;
-  const finalHash = `${hashOutput}${checksum.toString().padStart(3, '0')}`;
+  // Add a final transformation based on student name
+  const finalModifier = (nameLength * agentNumeric) % 100;
+  result = result + finalModifier;
   
-  const evidence = {
-    caseNumber: `CASE-${hash.substring(16, 20).toUpperCase()}`,
-    suspectId: `SUS-${hash.substring(20, 24).toUpperCase()}`,
-    hashFunction: {
-      letterShift: param2,
-      digitMultiplier: param3,
-      checksumPrime: param1
-    },
-    interceptedHash: finalHash,
-    targetInput: targetInput
+  // Generate heavily obfuscated C++ code that's hard to copy-paste to AI
+  const cppCode = `#include <iostream>
+#include <string>
+using namespace std;
+
+// Student: ${studentData.firstName} ${studentData.lastName}
+// Agent ID: ${studentData.agentId}
+// Department: ${studentData.department}
+
+class ${className} {
+private:
+    int ${varPrefix}_value_alpha;
+    int ${varPrefix}_value_beta; 
+    int ${varPrefix}_value_gamma;
+    string agent_name;
+    
+public:
+    ${className}() {
+        agent_name = "${studentData.firstName}${studentData.lastName}";
+        ${varPrefix}_value_alpha = ${baseA};  // From: ${studentData.firstName}
+        ${varPrefix}_value_beta = ${baseB};   // From: ${studentData.lastName}  
+        ${varPrefix}_value_gamma = ${baseC};  // From: ${uniqueId}
+    }
+    
+    int processSecretAlgorithm() {
+        int result = ${varPrefix}_value_alpha;
+        int loop_max = ${loopCount}; // Based on name length: ${nameLength}
+        
+        for (int iteration = 0; iteration < loop_max; iteration++) {
+            if (iteration % 2 == 0) {
+                // Even iterations: multiply and subtract
+                result = (result * ${multiplierA} + ${varPrefix}_value_beta) - iteration;
+            } else {
+                // Odd iterations: add and multiply
+                result = (result + ${varPrefix}_value_gamma * ${multiplierB}) + (iteration * 2);
+            }
+        }
+        
+        // Final agent-specific modifier
+        int agent_modifier = ${finalModifier}; // (${nameLength} * ${agentNumeric}) % 100
+        result = result + agent_modifier;
+        
+        return result;
+    }
+};
+
+int main() {
+    ${className} agent;
+    int final_output = agent.processSecretAlgorithm();
+    cout << final_output << endl;
+    return 0;
+}`;
+
+  // Create personalized scenario
+  const scenarios = [
+    `Agent ${studentData.firstName} ${studentData.lastName} submitted this classified algorithm, but the security team needs to verify the output.`,
+    `The ${studentData.department} received this encrypted code from Agent ${studentData.agentId}. What's the decryption result?`,
+    `This personalized security protocol was generated for ${studentData.firstName}. Trace through the execution manually.`,
+    `Agent ${studentData.lastName} reported anomalies in this code. Calculate the actual output to verify their findings.`,
+    `The cyber security division needs ${studentData.firstName} to manually verify this algorithm's output for security audit purposes.`
+  ];
+  
+  const scenarioIndex = parseInt(hash.substring(8, 10), 16) % scenarios.length;
+  
+  const challenge = {
+    missionId: `SECURE-${studentData.agentId}-${hash.substring(10, 14).toUpperCase()}`,
+    scenario: scenarios[scenarioIndex],
+    agentId: studentData.agentId,
+    studentName: `${studentData.firstName} ${studentData.lastName}`,
+    cppCode: cppCode,
+    actualOutput: result,
+    task: `Manually trace through this C++ program and determine what value it outputs. This is YOUR personalized code - it won't work for other students!`,
+    securityNote: `🔒 ANTI-CHEAT: This code is personalized with YOUR name and agent ID. AI tools will give wrong answers because they don't know your specific student data!`,
+    hint: "Work through each loop iteration step by step. Pay attention to the even/odd iteration logic and the final modifier calculation.",
+    difficulty: "Intermediate",
+    timeLimit: "30 minutes",
+    debugInfo: {
+      studentSpecificData: {
+        firstName: studentData.firstName,
+        lastName: studentData.lastName,
+        agentId: studentData.agentId,
+        nameLength: nameLength,
+        agentNumeric: agentNumeric,
+        initials: studentInitials
+      },
+      calculationParams: {
+        baseA: baseA,
+        baseB: baseB, 
+        baseC: baseC,
+        loopCount: loopCount,
+        multiplierA: multiplierA,
+        multiplierB: multiplierB,
+        finalModifier: finalModifier
+      }
+    }
   };
   
-  return evidence;
+  return challenge;
 }
 
 
@@ -304,9 +404,9 @@ router.post('/:classroomId/configure', ensureAuthenticated, ensureTeacher, async
           },
           {
             challengeIndex: 2,
-            logicType: 'code-breaker',
+            logicType: 'cpp-debugging',
             metadata: {
-              salt: 'forensics_salt_2024',
+              salt: 'cpp_debug_salt_2024',
               algorithmParams: {}
             }
           },
@@ -369,9 +469,9 @@ router.post('/:classroomId/configure', ensureAuthenticated, ensureTeacher, async
           },
           {
             challengeIndex: 2,
-            logicType: 'code-breaker',
+            logicType: 'cpp-debugging',
             metadata: {
-              salt: 'forensics_salt_2024',
+              salt: 'cpp_debug_salt_2024',
               algorithmParams: {}
             }
           },
@@ -758,7 +858,7 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
     let challengeIndex = 0;
     if (challengeId === 'caesar-secret-001') challengeIndex = 0;
     else if (challengeId === 'github-osint-002') challengeIndex = 1;
-    else if (challengeId === 'code-breaker-003') challengeIndex = 2;
+    else if (challengeId === 'cpp-bug-hunt-003') challengeIndex = 2;
     else if (challengeId === 'i-always-sign-my-work-004') challengeIndex = 3;
     else if (challengeId === 'secrets-in-the-clouds-005') challengeIndex = 4;
     else if (challengeId === 'needle-in-a-haystack-006') challengeIndex = 5;
@@ -930,7 +1030,7 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
 
       await challenge.save();
 
-      const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'Code Breaker', 'I Always Sign My Work...', 'Secrets in the Clouds', 'Needle in a Haystack'];
+      const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'C++ Bug Hunt', 'I Always Sign My Work...', 'Secrets in the Clouds', 'Needle in a Haystack'];
 
       res.json({
         success: true,
@@ -1375,7 +1475,7 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
     let challengeIndex = 0;
     if (challengeId === 'caesar-secret-001') challengeIndex = 0;
     else if (challengeId === 'github-osint-002') challengeIndex = 1;
-    else if (challengeId === 'code-breaker-003') challengeIndex = 2;
+    else if (challengeId === 'cpp-bug-hunt-003') challengeIndex = 2;
     else if (challengeId === 'i-always-sign-my-work-004') challengeIndex = 3;
     else if (challengeId === 'secrets-in-the-clouds-005') challengeIndex = 4;
     else if (challengeId === 'needle-in-a-haystack-006') challengeIndex = 5;
@@ -1538,7 +1638,7 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
 
       await challenge.save();
 
-      const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'Code Breaker', 'I Always Sign My Work...', 'Secrets in the Clouds', 'Needle in a Haystack'];
+      const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'C++ Bug Hunt', 'I Always Sign My Work...', 'Secrets in the Clouds', 'Needle in a Haystack'];
 
       res.json({
         success: true,
@@ -1680,7 +1780,7 @@ router.post('/challenge4/:uniqueId/submit', ensureAuthenticated, async (req, res
         }
       }
 
-      const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'Code Breaker', 'I Always Sign My Work...', 'Secrets in the Clouds', 'Needle in a Haystack'];
+      const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'C++ Bug Hunt', 'I Always Sign My Work...', 'Secrets in the Clouds', 'Needle in a Haystack'];
       
       res.json({
         success: true,
@@ -1982,7 +2082,7 @@ router.get('/challenge3/:uniqueId', ensureAuthenticated, async (req, res) => {
       department: ['CYBER CRIMES', 'DIGITAL FORENSICS', 'CRYPTO ANALYSIS'][hashNum % 3]
     };
 
-    const challengeEvidence = generateCryptoHashChallenge(studentData, uniqueId);
+    const challengeEvidence = generateCppDebuggingChallenge(studentData, uniqueId);
     
     res.json({
       studentData,
@@ -2090,7 +2190,19 @@ router.post('/challenge3/:uniqueId/verify', ensureAuthenticated, async (req, res
     userChallenge.challenge3Attempts = currentAttempts + 1;
 
     const validators = require('../validators/challenges');
-    const isCorrect = validators['code-breaker'](password, {}, uniqueId);
+    const metadata = { salt: 'cpp_debug_salt_2024', algorithmParams: {} };
+    
+    // Get student data for validation
+    const User = require('../models/User');
+    const user = await User.findById(userId);
+    const studentData = {
+      firstName: user.firstName,
+      lastName: user.lastName,
+      agentId: `AGENT-${crypto.createHash('md5').update(userId.toString() + uniqueId).digest('hex').substring(0, 6).toUpperCase()}`,
+      department: ['CYBER CRIMES', 'DIGITAL FORENSICS', 'CRYPTO ANALYSIS'][parseInt(crypto.createHash('md5').update(userId.toString() + uniqueId).digest('hex').substring(0, 8), 16) % 3]
+    };
+    
+    const isCorrect = validators['cpp-debugging'](password, metadata, uniqueId, studentData);
 
     if (!isCorrect) {
       await challenge.save();
@@ -2275,7 +2387,7 @@ router.post('/:classroomId/hints/unlock', ensureAuthenticated, async (req, res) 
         let challengeIndex = 0;
         if (challengeId === 'caesar-secret-001') challengeIndex = 0;
         else if (challengeId === 'github-osint-002') challengeIndex = 1;
-        else if (challengeId === 'code-breaker-003') challengeIndex = 2;
+        else if (challengeId === 'cpp-bug-hunt-003') challengeIndex = 2;
         else if (challengeId === 'i-always-sign-my-work-004') challengeIndex = 3;
         else if (challengeId === 'secrets-in-the-clouds-005') challengeIndex = 4;
         else if (challengeId === 'needle-in-a-haystack-006') challengeIndex = 5;
@@ -2319,5 +2431,52 @@ router.post('/:classroomId/hints/unlock', ensureAuthenticated, async (req, res) 
         res.status(500).json({ success: false, message: 'Server error' });
       }
     });
+
+router.post('/:challengeId/assign-student', ensureAuthenticated, ensureTeacher, async (req, res) => {
+  try {
+    const { challengeId } = req.params;
+    const { studentId } = req.body;
+    const teacherId = req.user._id;
+
+    const challenge = await Challenge.findById(challengeId);
+    if (!challenge) {
+      return res.status(404).json({ message: 'Challenge not found' });
+    }
+
+    const classroom = await Classroom.findById(challenge.classroomId);
+    if (!classroom || classroom.teacher.toString() !== teacherId.toString()) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const existingAssignment = challenge.userChallenges.find(
+      uc => uc.userId && uc.userId.toString() === studentId.toString()
+    );
     
-    module.exports = router;
+    if (existingAssignment) {
+      return res.status(400).json({ message: 'Student already assigned to this challenge' });
+    }
+
+    const newUserChallenge = challenge.generateUserChallenge(studentId);
+    challenge.userChallenges.push(newUserChallenge);
+    
+    await challenge.save();
+
+    try {
+      await createGitHubBranch(newUserChallenge.uniqueId, studentId);
+      console.log(`✅ Created GitHub branch for newly assigned student ${newUserChallenge.uniqueId}`);
+    } catch (error) {
+      console.error(`❌ Failed to create GitHub branch for ${newUserChallenge.uniqueId}:`, error.message);
+    }
+
+    res.json({ 
+      message: 'Student assigned to challenge successfully',
+      userChallenge: newUserChallenge
+    });
+
+  } catch (error) {
+    console.error('Error assigning student to challenge:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+module.exports = router;

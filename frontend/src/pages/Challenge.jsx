@@ -12,7 +12,7 @@ import TeacherView from '../components/challenge/TeacherView';
 import ChallengeCard from '../components/challenge/cards/ChallengeCard';
 import CaesarCipherChallenge from '../components/challenge/cards/CaesarCipherChallenge';
 import GitHubOSINTChallenge from '../components/challenge/cards/GitHubOSINTChallenge';
-import SecurityBugFixChallenge from '../components/challenge/cards/SecurityBugFixChallenge';
+import CppBugHuntChallenge from '../components/challenge/cards/SecurityBugFixChallenge';
 import DigitalForensicsChallenge from '../components/challenge/cards/DigitalForensicsChallenge';
 import WayneAWSChallenge from '../components/challenge/cards/WayneAWSChallenge';
 import ChallengeConfigModal from '../components/challenge/modals/ChallengeConfigModal';
@@ -140,6 +140,7 @@ const Challenge = () => {
           challengeData={challengeData}
           setChallengeData={setChallengeData}
           classroom={classroom}
+          classroomStudents={classroom?.students || []}
           isDark={isDark}
           handleShowConfigModal={handleShowConfigModal}
           handleShowDeactivateModal={handleShowDeactivateModal}
@@ -469,9 +470,9 @@ const Challenge = () => {
 
             <ChallengeCard
               challengeIndex={2}
-              challengeName="Code Breaker"
-              challengeIcon="🔓"
-              challengeDescription="Your mission: Reverse engineer an intercepted hash function to recover the original evidence. Each agent gets a unique cryptographic puzzle to solve."
+              challengeName="C++ Bug Hunt"
+              challengeIcon="🐛"
+              challengeDescription="Debug a personalized C++ program using YOUR name and student data. Manual calculation required - AI tools can't solve this unique challenge!"
               userChallenge={userChallenge}
               challengeData={challengeData}
               isDark={isDark}
@@ -480,7 +481,7 @@ const Challenge = () => {
               fetchChallengeData={fetchChallengeData}
               classroomId={classroomId}
             >
-              <SecurityBugFixChallenge userChallenge={userChallenge} isDark={isDark} />
+              <CppBugHuntChallenge userChallenge={userChallenge} isDark={isDark} />
             </ChallengeCard>
 
             <ChallengeCard
