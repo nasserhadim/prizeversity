@@ -691,4 +691,56 @@ router.post('/join', ensureAuthenticated, async (req, res) => {
   }
 });
 
+// Bulk Delete Groups within GroupSet
+router.delete('/groupset/:groupSetId/groups/bulk', ensureAuthenticated, async (req, res) => {
+  const { groupIds } = req.body;
+
+  if (!groupIds || groupIds.length === 0) {
+    return res.status(400).json({ error: 'No groups selected for deletion' });
+  }
+
+  try {
+    const groupSet = await GroupSet.findById(req.params.groupSetId);
+    if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
+
+    // Get all groups to be deleted for notifications
+    const groups = await Group.find({ _id: { $in: groupIds } }).populate('members._id');
+    
+    // Create notifications for all members in all groups
+    for (const group of groups) {
+      for (const member of group.members) {
+        const notification = await Notification.create({
+          user: member._id._id,
+          type: 'group_deletion',
+          message: `Group "${group.name}" has been deleted`,
+          classroom: groupSet.classroom,
+          groupSet: groupSet._id,
+          actionBy: req.user._id
+        });
+        
+        const populatedNotification = await populateNotification(notification._id);
+        req.app.get('io').to(`user-${member._id._id}`).emit('notification', populatedNotification);
+      }
+    }
+
+    // Delete all groups
+    await Group.deleteMany({ _id: { $in: groupIds } });
+    
+    // Remove group references from groupSet
+    groupSet.groups = groupSet.groups.filter(groupId => !groupIds.includes(groupId.toString()));
+    await groupSet.save();
+
+    // Emit bulk group deletion event to all classroom members
+    req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('groups_bulk_delete', {
+      groupSetId: groupSet._id,
+      groupIds: groupIds
+    });
+
+    res.status(200).json({ message: `${groupIds.length} group(s) deleted successfully` });
+  } catch (err) {
+    console.error('Bulk delete error:', err);
+    res.status(500).json({ error: 'Failed to delete groups' });
+  }
+});
+
 module.exports = router;

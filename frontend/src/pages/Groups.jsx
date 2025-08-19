@@ -39,6 +39,8 @@ const Groups = () => {
   const [editGroupModal, setEditGroupModal] = useState(null);
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupMaxMembers, setNewGroupMaxMembers] = useState('');
+  const [selectedGroups, setSelectedGroups] = useState({});
+  const [confirmBulkDeleteGroups, setConfirmBulkDeleteGroups] = useState(null);
 
   // Fetch classroom details
   const fetchClassroom = async () => {
@@ -503,6 +505,63 @@ const Groups = () => {
     });
   };
  
+  // Select/Deselect all groups in a GroupSet
+  const handleSelectAllGroups = (groupSetId, groups) => {
+    setSelectedGroups(prev => {
+      const currentSelected = prev[groupSetId] || [];
+      const allSelected = currentSelected.length === groups.length;
+      
+      if (allSelected) {
+        // Deselect all groups
+        return { ...prev, [groupSetId]: [] };
+      } else {
+        // Select all groups
+        return { ...prev, [groupSetId]: groups.map(g => g._id) };
+      }
+    });
+  };
+
+  // Select/Deselect a single group in a GroupSet
+  const handleSelectGroup = (groupSetId, groupId) => {
+    setSelectedGroups(prev => {
+      const currentSelected = prev[groupSetId] || [];
+      const isSelected = currentSelected.includes(groupId);
+      
+      if (isSelected) {
+        // Remove from selection
+        return { 
+          ...prev, 
+          [groupSetId]: currentSelected.filter(id => id !== groupId) 
+        };
+      } else {
+        // Add to selection
+        return { 
+          ...prev, 
+          [groupSetId]: [...currentSelected, groupId] 
+        };
+      }
+    });
+  };
+
+  const handleBulkDeleteGroups = async () => {
+    if (!confirmBulkDeleteGroups) return;
+
+    try {
+      const { groupSetId, groupIds } = confirmBulkDeleteGroups;
+      
+      await axios.delete(`/api/group/groupset/${groupSetId}/groups/bulk`, {
+        data: { groupIds }
+      });
+      
+      toast.success(`${groupIds.length} group(s) deleted successfully`);
+      setConfirmBulkDeleteGroups(null);
+      setSelectedGroups(prev => ({ ...prev, [groupSetId]: [] }));
+      fetchGroupSets();
+    } catch (err) {
+      toast.error('Failed to delete groups');
+    }
+  };
+
   // Create GroupSet
   return (
     <div className="min-h-screen flex flex-col bg-base-200 p-6">
@@ -565,7 +624,7 @@ const Groups = () => {
 
         {/* Group Sets */}
         {groupSets.map((gs) => (
-          <div key={gs._id} className="card bg-base-100 shadow-md p-4 space-y-4">
+          <div key={gs._id} className="card bg-base-100 shadow-md p-4 space-y-4 mb-8">
             <div className="flex justify-between items-center">
               <div>
                 <h2 className="text-xl font-semibold">{gs.name}</h2>
@@ -614,16 +673,66 @@ const Groups = () => {
               </div>
             )}
 
+            {/* Bulk Actions for Groups */}
+            {(user.role === 'teacher' || user.role === 'admin') && selectedGroups[gs._id]?.length > 0 && (
+              <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">
+                    {selectedGroups[gs._id].length} group(s) selected
+                  </span>
+                  <button
+                    className="btn btn-sm btn-error"
+                    onClick={() => setConfirmBulkDeleteGroups({
+                      groupSetId: gs._id,
+                      groupIds: selectedGroups[gs._id],
+                      groupNames: gs.groups
+                        .filter(g => selectedGroups[gs._id].includes(g._id))
+                        .map(g => g.name)
+                    })}
+                  >
+                    Delete Selected ({selectedGroups[gs._id].length})
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Select All Groups Checkbox */}
+            {(user.role === 'teacher' || user.role === 'admin') && gs.groups.length > 0 && (
+              <div className="mb-3">
+                <label className="flex items-center gap-2 text-sm font-medium">
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-sm"
+                    checked={gs.groups.length > 0 && (selectedGroups[gs._id]?.length || 0) === gs.groups.length}
+                    onChange={() => handleSelectAllGroups(gs._id, gs.groups)}
+                  />
+                  Select All Groups ({gs.groups.length})
+                </label>
+              </div>
+            )}
+
             {/* Display Groups */}
             {gs.groups.map((group) => (
               <div key={group._id} className="border rounded p-4 bg-base-100">
                 <div className="flex justify-between items-start">
-                  <div>
-                    <h5 className="font-semibold">{group.name}</h5>
-                    <p className="text-sm">
-                      Members: {group.members.length}/{group.maxMembers || 'No limit'} • 
-                      Multiplier: {group.groupMultiplier || 1}x
-                    </p>
+                  <div className="flex items-start gap-3">
+                    {/* Group Selection Checkbox */}
+                    {(user.role === 'teacher' || user.role === 'admin') && (
+                      <input
+                        type="checkbox"
+                        className="checkbox checkbox-sm mt-1"
+                        checked={selectedGroups[gs._id]?.includes(group._id) || false}
+                        onChange={() => handleSelectGroup(gs._id, group._id)}
+                      />
+                    )}
+                    
+                    <div>
+                      <h5 className="font-semibold">{group.name}</h5>
+                      <p className="text-sm">
+                        Members: {group.members.length}/{group.maxMembers || 'No limit'} • 
+                        Multiplier: {group.groupMultiplier || 1}x
+                      </p>
+                    </div>
                   </div>
                   
                   {(user.role === 'teacher' || user.role === 'admin') && (
@@ -973,6 +1082,40 @@ const Groups = () => {
                 onClick={handleEditGroup}
               >
                 Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Delete Groups Confirmation Modal */}
+      {confirmBulkDeleteGroups && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-md">
+            <h2 className="text-lg font-semibold mb-4 text-center">Delete Groups</h2>
+            <p className="text-sm text-center mb-4">
+              Are you sure you want to delete the following {confirmBulkDeleteGroups.groupIds.length} group(s)?
+            </p>
+            <div className="max-h-32 overflow-y-auto mb-4 p-2 bg-gray-50 dark:bg-gray-800 rounded">
+              {confirmBulkDeleteGroups.groupNames.map((name, index) => (
+                <div key={index} className="text-sm py-1">• {name}</div>
+              ))}
+            </div>
+            <p className="text-xs text-gray-500 text-center mb-4">
+              This action cannot be undone.
+            </p>
+            <div className="flex justify-center gap-4">
+              <button
+                onClick={() => setConfirmBulkDeleteGroups(null)}
+                className="btn btn-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkDeleteGroups}
+                className="btn btn-sm btn-error"
+              >
+                Delete {confirmBulkDeleteGroups.groupIds.length} Group(s)
               </button>
             </div>
           </div>
