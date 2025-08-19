@@ -254,33 +254,7 @@ const Home = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {!user && (
-        <nav className="fixed top-0 left-0 right-0 bg-white shadow z-50 w-full">
-          <div className="w-full flex flex-col sm:flex-row justify-between items-center px-4 sm:px-6 py-3 gap-2 sm:gap-0">
-            {/* Top Left: Brand */}
-            <div className="text-xl font-bold text-black">
-              Prizeversity
-            </div>
-
-            {/* Top Right: Sign In Buttons */}
-            <div className="flex gap-2 sm:gap-4 w-full sm:w-auto justify-center sm:justify-end">
-              <button 
-                className="px-3 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm rounded-full bg-black text-white hover:bg-gray-800 transition whitespace-nowrap"
-                onClick={() => window.location.href = '/api/auth/google'}
-              >
-                Sign in with Google
-              </button>
-              <button 
-                className="px-3 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm rounded-full bg-black text-white hover:bg-gray-800 transition whitespace-nowrap"
-                onClick={() => window.location.href = '/api/auth/microsoft'}
-              >
-                Sign in with Microsoft
-              </button>
-            </div>
-          </div>
-        </nav>
-      )}
-
+      {/* Navbar is rendered globally in App.jsx; remove the local nav to avoid duplication */}
 
       {/* Hero Section */}
       <div className="bg-black text-white pt-20 pb-32">

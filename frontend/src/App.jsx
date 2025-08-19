@@ -39,7 +39,7 @@ const App = () => {
   }, [user]);
 
 
-  const showStaticNavbar = ['/support', '/privacy', '/terms'].includes(location.pathname);
+  const showStaticNavbar = ['/', '/support', '/privacy', '/terms'].includes(location.pathname);
 
   return (
 
