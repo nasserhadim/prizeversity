@@ -11,6 +11,7 @@ import Footer from '../components/Footer';
 
 const Groups = () => {
   const { id } = useParams();
+  const navigate = useNavigate(); // Add this line
   const { user } = useAuth();
   const [groupSets, setGroupSets] = useState([]);
   const [classroom, setClassroom] = useState(null);
@@ -37,7 +38,7 @@ const Groups = () => {
   const [confirmLeaveGroup, setConfirmLeaveGroup] = useState(null);
   const [editGroupModal, setEditGroupModal] = useState(null);
   const [newGroupName, setNewGroupName] = useState('');
-
+  const [newGroupMaxMembers, setNewGroupMaxMembers] = useState('');
 
   // Fetch classroom details
   const fetchClassroom = async () => {
@@ -86,13 +87,12 @@ const Groups = () => {
     if (groupSetMaxMembers < 0) return toast.error('Max members cannot be negative');
 
     try {
-      // POST to create the groupset
       await axios.post('/api/group/groupset/create', {
         name: groupSetName,
         classroomId: id,
         selfSignup: groupSetSelfSignup,
         joinApproval: groupSetJoinApproval,
-        maxMembers: groupSetMaxMembers,
+        maxMembers: Math.max(0, groupSetMaxMembers || 0),
         image: groupSetImage,
       });
       toast.success('GroupSet created successfully');
@@ -129,20 +129,24 @@ const Groups = () => {
     if (groupSetMaxMembers < 0) return toast.error('Max members cannot be negative');
 
     try {
-      // PUT API call to update the new edits for the groupset
       await axios.put(`/api/group/groupset/${editingGroupSetId}`, {
         name: groupSetName,
         selfSignup: groupSetSelfSignup,
         joinApproval: groupSetJoinApproval,
-        maxMembers: groupSetMaxMembers,
+        maxMembers: Math.max(0, groupSetMaxMembers || 0),
         image: groupSetImage,
       });
 
       toast.success('GroupSet updated successfully');
       resetGroupSetForm();
       fetchGroupSets();
-    } catch {
-      toast.error('Failed to update group set');
+    } catch (err) {
+      // Check if it's the "no changes" message from backend
+      if (err.response?.data?.message === 'No changes were made') {
+        toast.error('No changes were made');
+      } else {
+        toast.error('Failed to update group set');
+      }
     }
   };
 
@@ -238,27 +242,56 @@ const Groups = () => {
   // };
 
   // Editing the group name 
-  const openEditGroupModal = (groupSetId, groupId, currentName) => {
+  const openEditGroupModal = (groupSetId, groupId, currentName, currentMaxMembers) => {
     setEditGroupModal({ groupSetId, groupId });
     setNewGroupName(currentName);
+    setNewGroupMaxMembers(currentMaxMembers || '');
   };
 
-  // Making sure that the group name cannot be epty and makes a PUT api call to update the new changes for the group
+  // Making sure that the group name cannot be empty and makes a PUT api call to update the new changes for the group
   const handleEditGroup = async () => {
     if (!editGroupModal || !newGroupName.trim()) {
       return toast.error('Group name cannot be empty');
     }
 
+    // Find the current group to compare values
+    const currentGroup = groupSets
+      .find(gs => gs._id === editGroupModal.groupSetId)
+      ?.groups.find(g => g._id === editGroupModal.groupId);
+    
+    if (!currentGroup) {
+      return toast.error('Group not found');
+    }
+
+    // Check if any changes were actually made
+    const nameChanged = currentGroup.name !== newGroupName.trim();
+    const maxMembersChanged = (currentGroup.maxMembers || '') !== (newGroupMaxMembers || '');
+    
+    if (!nameChanged && !maxMembersChanged) {
+      toast.error('No changes were made');
+      setEditGroupModal(null);
+      return;
+    }
+
     try {
       const { groupSetId, groupId } = editGroupModal;
+      
       await axios.put(`/api/group/groupset/${groupSetId}/group/${groupId}`, {
-        name: newGroupName.trim()
+        name: newGroupName.trim(),
+        maxMembers: newGroupMaxMembers
       });
+      
       toast.success('Group updated');
       setEditGroupModal(null);
       fetchGroupSets();
-    } catch {
-      toast.error('Failed to update group');
+    } catch (err) {
+      // Check if it's the "no changes" message from backend
+      if (err.response?.status === 400 && err.response?.data?.message === 'No changes were made') {
+        toast.error('No changes were made');
+      } else {
+        toast.error('Failed to update group');
+      }
+      setEditGroupModal(null);
     }
   };
 
@@ -491,6 +524,7 @@ const Groups = () => {
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
+                  className="toggle toggle-primary"
                   checked={groupSetSelfSignup}
                   onChange={(e) => setGroupSetSelfSignup(e.target.checked)}
                 />
@@ -499,6 +533,7 @@ const Groups = () => {
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
+                  className="toggle toggle-primary"
                   checked={groupSetJoinApproval}
                   onChange={(e) => setGroupSetJoinApproval(e.target.checked)}
                 />
@@ -509,12 +544,18 @@ const Groups = () => {
               type="number"
               placeholder="Max Members (optional)"
               className="input input-bordered w-full"
+              min="0"
               value={groupSetMaxMembers}
-              onChange={(e) => setGroupSetMaxMembers(e.target.value)}
+              onChange={(e) => setGroupSetMaxMembers(Math.max(0, e.target.value))}
             />
-            <button className="btn btn-success" onClick={handleCreateGroupSet}>
-              Create Group Set
+            <button className="btn btn-success" onClick={editingGroupSetId ? handleUpdateGroupSet : handleCreateGroupSet}>
+              {editingGroupSetId ? 'Update Group Set' : 'Create Group Set'}
             </button>
+            {editingGroupSetId && (
+              <button className="btn btn-ghost ml-2" onClick={resetGroupSetForm}>
+                Cancel
+              </button>
+            )}
           </div>
         )}
 
@@ -652,7 +693,7 @@ const Groups = () => {
 
                   {(user.role === 'teacher' || user.role === 'admin') && (
                     <>
-                      <button className="btn btn-xs btn-info" onClick={() => openEditGroupModal(gs._id, group._id, group.name)}>Edit</button>
+                      <button className="btn btn-xs btn-info" onClick={() => openEditGroupModal(gs._id, group._id, group.name, group.maxMembers)}>Edit</button>
                       <button className="btn btn-xs btn-error" onClick={() =>
                         setConfirmDeleteGroup({
                           groupId: group._id,
@@ -756,7 +797,7 @@ const Groups = () => {
                               {`${member._id.firstName || ''} ${member._id.lastName || ''}`.trim() || member._id.email}
                               <button 
                                 className="btn btn-xs btn-ghost ml-2"
-                                onClick={() => navigate(`/profile/${member._id._id}`)}
+                                onClick={() => navigate(`/profile/${member._id._id || member._id}`)}
                               >
                                 View Profile
                               </button>
@@ -904,13 +945,21 @@ const Groups = () => {
       {editGroupModal && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
-            <h2 className="text-lg font-semibold mb-4 text-center">Edit Group Name</h2>
+            <h2 className="text-lg font-semibold mb-4 text-center">Edit Group</h2>
             <input
               type="text"
               className="input input-bordered w-full mb-4"
-              placeholder="New group name"
+              placeholder="Group name"
               value={newGroupName}
               onChange={(e) => setNewGroupName(e.target.value)}
+            />
+            <input
+              type="number"
+              className="input input-bordered w-full mb-4"
+              placeholder="Max Members (optional)"
+              min="0"
+              value={newGroupMaxMembers}
+              onChange={(e) => setNewGroupMaxMembers(e.target.value)}
             />
             <div className="flex justify-center gap-4">
               <button

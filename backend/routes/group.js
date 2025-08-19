@@ -326,9 +326,17 @@ router.put('/groupset/:groupSetId/group/:groupId', ensureAuthenticated, async (r
 
     const oldName = group.name; // Store old name before changes
     const changes = {};
-    if (group.name !== name) changes.name = name;
-    if (group.image !== image) changes.image = image;
-    if (group.maxMembers !== maxMembers) changes.maxMembers = maxMembers;
+    
+    // More robust comparison for name
+    if (name !== undefined && group.name !== name.trim()) changes.name = name.trim();
+    
+    // More robust comparison for image
+    if (image !== undefined && group.image !== image) changes.image = image;
+    
+    // More robust comparison for maxMembers (handle string/number conversion)
+    const newMaxMembers = maxMembers === '' || maxMembers === null || maxMembers === undefined ? null : Number(maxMembers);
+    const currentMaxMembers = group.maxMembers;
+    if (newMaxMembers !== currentMaxMembers) changes.maxMembers = newMaxMembers;
 
     if (Object.keys(changes).length === 0) {
       return res.status(400).json({ message: 'No changes were made' });
