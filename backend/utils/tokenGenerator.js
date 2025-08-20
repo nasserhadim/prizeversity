@@ -1,4 +1,4 @@
-const { spawn } = require('child_process');
+const { get_encoding } = require('tiktoken');
 const crypto = require('crypto');
 
 const WORD_POOL = [
@@ -22,70 +22,25 @@ function generateUniqueWord(uniqueId, salt = 'haystack_challenge_2024') {
 }
 
 function getTokenId(word) {
-  return new Promise((resolve, reject) => {
-    const pythonCode = `
-import tiktoken
-import sys
-
-def get_token_id(word):
-    try:
-        enc = tiktoken.get_encoding("gpt2")
-        tokens = enc.encode(word)
-        if len(tokens) > 0:
-            return tokens[0]
-        else:
-            return None
-    except Exception as e:
-        return None
-
-if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        sys.exit(1)
+  try {
+    const enc = get_encoding("gpt2");
+    const tokens = enc.encode(word);
+    enc.free(); // Free the encoder memory
     
-    word = sys.argv[1]
-    token_id = get_token_id(word)
-    
-    if token_id is not None:
-        print(token_id)
-    else:
-        sys.exit(1)
-`;
-
-    const python = spawn('python3', ['-c', pythonCode, word]);
-    let output = '';
-    let error = '';
-
-    python.stdout.on('data', (data) => {
-      output += data.toString();
-    });
-
-    python.stderr.on('data', (data) => {
-      error += data.toString();
-    });
-
-    python.on('close', (code) => {
-      if (code === 0 && output.trim()) {
-        const tokenId = parseInt(output.trim());
-        if (!isNaN(tokenId)) {
-          resolve(tokenId);
-        } else {
-          reject(new Error('Invalid token ID returned'));
-        }
-      } else {
-        reject(new Error(`Python execution failed: ${error || 'Unknown error'}`));
-      }
-    });
-
-    python.on('error', (err) => {
-      reject(new Error(`Failed to spawn python process: ${err.message}`));
-    });
-  });
+    if (tokens.length > 0) {
+      return tokens[0];
+    } else {
+      throw new Error('No tokens generated for word');
+    }
+  } catch (error) {
+    throw new Error(`Token encoding failed: ${error.message}`);
+  }
 }
 
 async function generateChallengeData(uniqueId, salt = 'haystack_salt_2024') {
   try {
     const word = generateUniqueWord(uniqueId, salt);
-    const tokenId = await getTokenId(word);
+    const tokenId = getTokenId(word);
     
     return {
       generatedWord: word,

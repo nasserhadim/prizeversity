@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import { Coins, Zap, Shield, Sword, Percent, Clover } from 'lucide-react';
 
 const Challenge6Site = () => {
   const { uniqueId } = useParams();
@@ -220,12 +221,77 @@ const Challenge6Site = () => {
                   <div className="text-gray-400 font-mono text-xs">
                     Digital archaeology expertise confirmed
                   </div>
-                  {rewardData && rewardData.bits > 0 && (
-                    <div className="text-yellow-400 font-mono text-xs">
-                      +{rewardData.bits} bits earned
-                    </div>
-                  )}
                 </div>
+
+                {/* Rewards Display */}
+                {rewardData && (
+                  <div className="bg-gray-800 border border-gray-600 rounded-lg p-4 space-y-2">
+                    <div className="text-center text-yellow-400 font-mono text-sm mb-3">
+                      REWARDS ACQUIRED
+                    </div>
+                    
+                    {rewardData.bits > 0 && (
+                      <div className="flex items-center justify-between bg-gray-900 border border-yellow-600 rounded p-2">
+                        <div className="flex items-center gap-2">
+                          <Coins className="w-4 h-4 text-yellow-400" />
+                          <span className="text-yellow-400 font-mono text-sm">BITS</span>
+                        </div>
+                        <span className="text-yellow-400 font-mono text-sm font-bold">+{rewardData.bits}</span>
+                      </div>
+                    )}
+
+                    {rewardData.multiplier > 0 && (
+                      <div className="flex items-center justify-between bg-gray-900 border border-blue-600 rounded p-2">
+                        <div className="flex items-center gap-2">
+                          <Zap className="w-4 h-4 text-blue-400" />
+                          <span className="text-blue-400 font-mono text-sm">MULTIPLIER</span>
+                        </div>
+                        <span className="text-blue-400 font-mono text-sm font-bold">+{rewardData.multiplier.toFixed(1)}</span>
+                      </div>
+                    )}
+
+                    {rewardData.luck > 1.0 && (
+                      <div className="flex items-center justify-between bg-gray-900 border border-green-600 rounded p-2">
+                        <div className="flex items-center gap-2">
+                          <Clover className="w-4 h-4 text-green-400" />
+                          <span className="text-green-400 font-mono text-sm">LUCK</span>
+                        </div>
+                        <span className="text-green-400 font-mono text-sm font-bold">×{rewardData.luck.toFixed(1)}</span>
+                      </div>
+                    )}
+
+                    {rewardData.discount > 0 && (
+                      <div className="flex items-center justify-between bg-gray-900 border border-purple-600 rounded p-2">
+                        <div className="flex items-center gap-2">
+                          <Percent className="w-4 h-4 text-purple-400" />
+                          <span className="text-purple-400 font-mono text-sm">DISCOUNT</span>
+                        </div>
+                        <span className="text-purple-400 font-mono text-sm font-bold">+{rewardData.discount}%</span>
+                      </div>
+                    )}
+
+                    {rewardData.shield && (
+                      <div className="flex items-center justify-between bg-gray-900 border border-cyan-600 rounded p-2">
+                        <div className="flex items-center gap-2">
+                          <Shield className="w-4 h-4 text-cyan-400" />
+                          <span className="text-cyan-400 font-mono text-sm">SHIELD</span>
+                        </div>
+                        <span className="text-cyan-400 font-mono text-sm font-bold">ACTIVE</span>
+                      </div>
+                    )}
+
+                    {rewardData.attackBonus > 0 && (
+                      <div className="flex items-center justify-between bg-gray-900 border border-red-600 rounded p-2">
+                        <div className="flex items-center gap-2">
+                          <Sword className="w-4 h-4 text-red-400" />
+                          <span className="text-red-400 font-mono text-sm">ATTACK</span>
+                        </div>
+                        <span className="text-red-400 font-mono text-sm font-bold">+{rewardData.attackBonus}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <button
                   onClick={handleReturnToPrizeversity}
                   className="w-full bg-green-600 hover:bg-green-700 text-white font-mono py-3 px-4 rounded border border-green-500 transition-colors"
