@@ -18,6 +18,7 @@ const TeacherView = ({
   const [showDueDateModal, setShowDueDateModal] = useState(false);
   const [showAssignDropdown, setShowAssignDropdown] = useState(false);
   const [studentNames, setStudentNames] = useState({});
+  const [challenge6Data, setChallenge6Data] = useState({});
   const dropdownRef = useRef(null);
   const themeClasses = getThemeClasses(isDark);
 
@@ -116,6 +117,42 @@ const TeacherView = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showAssignDropdown]);
+
+  useEffect(() => {
+    const fetchChallenge6Data = async () => {
+      if (!challengeData?.userChallenges) return;
+      
+      const newChallenge6Data = {};
+      
+      for (const uc of challengeData.userChallenges) {
+        if (uc.progress === 5 || uc.currentChallenge === 5) {
+          try {
+            const response = await fetch(`/api/challenges/challenge6/${uc.uniqueId}`, {
+              credentials: 'include'
+            });
+            
+            if (response.ok) {
+              const data = await response.json();
+              newChallenge6Data[uc.uniqueId] = {
+                word: data.generatedWord,
+                tokenId: data.expectedTokenId || 'Loading...'
+              };
+            }
+          } catch (error) {
+            console.error('Error fetching Challenge 6 data:', error);
+            newChallenge6Data[uc.uniqueId] = {
+              word: 'Error loading',
+              tokenId: 'Error'
+            };
+          }
+        }
+      }
+      
+      setChallenge6Data(newChallenge6Data);
+    };
+
+    fetchChallenge6Data();
+  }, [challengeData?.userChallenges]);
 
 
 
@@ -267,18 +304,18 @@ const TeacherView = ({
                   </thead>
                   <tbody>
                     {challengeData.userChallenges
-                      .filter(uc => uc.userId) // Filter out undefined userIds
-                      .filter(uc => { // Filter out students who left the classroom
+                      .filter(uc => uc.userId)
+                      .filter(uc => {
                         const studentInClassroom = classroomStudents.some(studentId => 
                           (typeof studentId === 'string' ? studentId : studentId._id) === uc.userId._id
                         );
                         return studentInClassroom;
                       })
                       .map((uc) => {
-                      const currentChallenge = getCurrentChallenge(uc.progress);
                       const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'C++ Bug Hunt', 'I Always Sign My Work...', 'Secrets in the Clouds', 'Needle in a Haystack'];
                       const workingOnChallenge = uc.currentChallenge !== undefined ? uc.currentChallenge : uc.progress;
-                      const workingOnTitle = challengeNames[workingOnChallenge] || currentChallenge.name;
+                      const workingOnTitle = challengeNames[workingOnChallenge] || 'Unknown Challenge';
+                      const currentChallenge = getCurrentChallenge(workingOnChallenge);
                       
                       return (
                         <tr key={uc._id}>
@@ -311,6 +348,16 @@ const TeacherView = ({
                             )}
                             {workingOnChallenge === 4 && (
                               <span className="text-sm text-green-600 font-medium">WayneAWS Authentication</span>
+                            )}
+                            {workingOnChallenge === 5 && (
+                              <div className="space-y-1">
+                                <div className="text-sm text-orange-600 font-medium">
+                                  Word: "{challenge6Data[uc.uniqueId]?.word || 'Loading...'}"
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  Digital Archaeology Challenge
+                                </div>
+                              </div>
                             )}
                           </td>
                           <td>
@@ -365,6 +412,22 @@ const TeacherView = ({
                             )}
                             {workingOnChallenge === 4 && (
                               <span className="text-sm text-gray-500">WayneAWS Verification</span>
+                            )}
+                            {workingOnChallenge === 5 && (
+                              <div className="flex items-center gap-2">
+                                <code className="bg-green-100 px-2 py-1 rounded text-sm font-mono text-green-700">
+                                  {showPasswords[uc._id] 
+                                    ? (challenge6Data[uc.uniqueId]?.tokenId || 'Loading...')
+                                    : '••••••••'}
+                                </code>
+                                <button
+                                  onClick={() => togglePasswordVisibility(uc._id)}
+                                  className="btn btn-ghost btn-xs"
+                                  aria-label="Toggle password visibility"
+                                >
+                                  {showPasswords[uc._id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                              </div>
                             )}
                           </td>
                           <td>

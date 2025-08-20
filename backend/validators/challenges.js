@@ -85,10 +85,24 @@ const validators = {
     return answerHash === metadata.staticAnswerHash;
   },
 
-  'needle-in-haystack': (answer, metadata, uniqueId) => {
-    const hash = crypto.createHash('md5').update(uniqueId + metadata.salt).digest('hex');
-    const targetCode = hash.substring(0, 8).toUpperCase();
-    return answer.trim().toUpperCase() === targetCode;
+  'needle-in-haystack': async (answer, metadata, uniqueId) => {
+    try {
+      const { getTokenId, generateUniqueWord } = require('../utils/tokenGenerator');
+      
+      const generatedWord = generateUniqueWord(uniqueId, metadata.salt);
+      const expectedTokenId = await getTokenId(generatedWord);
+      
+      const submittedTokenId = parseInt(answer.trim());
+      
+      if (isNaN(submittedTokenId)) {
+        return false;
+      }
+      
+      return submittedTokenId === expectedTokenId;
+    } catch (error) {
+      console.error('Error validating needle-in-haystack challenge:', error);
+      return false;
+    }
   },
 
   'custom-challenge': (answer, metadata, uniqueId) => {

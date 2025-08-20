@@ -1,25 +1,226 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 
 const Challenge6Site = () => {
   const { uniqueId } = useParams();
   const [input, setInput] = useState('');
+  const [challengeData, setChallengeData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState('');
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [rewardData, setRewardData] = useState(null);
+
+  useEffect(() => {
+    const fetchChallengeData = async () => {
+      try {
+        const response = await fetch(`/api/challenges/challenge6/${uniqueId}`, {
+          credentials: 'include'
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setChallengeData(data);
+        } else {
+          setError('Failed to load challenge data');
+        }
+      } catch (err) {
+        setError('Connection error');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (uniqueId) {
+      fetchChallengeData();
+    }
+  }, [uniqueId]);
+
+  const handleSubmit = async () => {
+    if (!input.trim() || submitting) return;
+    
+    setSubmitting(true);
+    setSubmitMessage('');
+    
+    try {
+      const response = await fetch(`/api/challenges/submit-challenge6`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          uniqueId: uniqueId,
+          answer: input.trim()
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        setSubmitMessage('✅ CORRECT! Challenge completed successfully!');
+        setIsSuccess(true);
+        setRewardData(result.rewards);
+      } else {
+        setSubmitMessage('❌ INCORRECT. Try again...');
+      }
+    } catch (error) {
+      setSubmitMessage('⚠️ Connection error. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !isSuccess) {
+      handleSubmit();
+    }
+  };
+
+  const handleReturnToPrizeversity = () => {
+    localStorage.setItem('challengeCompleted', JSON.stringify({
+      challengeIndex: 5,
+      challengeName: 'Needle in a Haystack',
+      timestamp: Date.now(),
+      rewards: rewardData || {
+        bits: 0,
+        multiplier: 0,
+        luck: 1.0,
+        discount: 0,
+        shield: false,
+        attackBonus: 0
+      },
+      allCompleted: false,
+      nextChallenge: null
+    }));
+    window.close();
+    try {
+      window.close();
+      setTimeout(() => {
+        const classroomMatch = window.location.pathname.match(/\/challenge-6-site\/(.+)/);
+        if (classroomMatch) {
+          const challengeUrl = document.referrer || `/challenges`;
+          window.location.href = challengeUrl;
+        } else {
+          window.location.href = '/challenges';
+        }
+      }, 100);
+    } catch (error) {
+      const challengeUrl = document.referrer || '/challenges';
+      window.location.href = challengeUrl;
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-gray-400 font-mono">LOADING...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-red-400 font-mono">ERROR: {error}</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center">
-      <div className="text-center space-y-8 max-w-md w-full px-4">
-        <h1 className="text-2xl font-mono text-gray-400 tracking-widest">
-          SECTOR_{uniqueId?.substring(0, 8)?.toUpperCase()}
-        </h1>
+      <div className="text-center space-y-8 max-w-2xl w-full px-4">
+        <div className="space-y-4">
+          <h1 className="text-3xl font-mono text-green-400 tracking-widest animate-pulse">
+            SECTOR_{challengeData?.sectorCode}
+          </h1>
+          <div className="text-sm font-mono text-gray-500">
+            DIGITAL ARCHAEOLOGY DIVISION
+          </div>
+        </div>
+        
+        <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 space-y-4">
+          <div className="text-left font-mono text-sm text-gray-300 space-y-2">
+            <div className="text-red-400">{'>>>'} CLASSIFIED TRANSMISSION INTERCEPTED</div>
+            <div className="text-yellow-400">{'>>>'} DECRYPTION INITIATED...</div>
+            <div className="text-green-400">{'>>>'} TARGET WORD LOCATED:</div>
+          </div>
+          
+          <div className="bg-black border border-green-400 rounded p-4">
+            <div className="text-green-400 font-mono text-xl text-center tracking-wider">
+              "{challengeData?.generatedWord}"
+            </div>
+          </div>
+          
+          <div className="text-left font-mono text-xs text-gray-400 space-y-1">
+            <div>OBJECTIVE: Locate the numerical position of this word</div>
+            <div>TOOLS: Digital excavation required</div>
+            <div>WARNING: Traditional methods insufficient</div>
+            <div className="text-red-300">HINT: The machines speak in numbers...</div>
+          </div>
+        </div>
         
         <div className="space-y-4">
+          <div className="text-sm font-mono text-gray-500">
+            ENTER NUMERICAL LOCATION:
+          </div>
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            className="w-full bg-transparent border border-gray-600 text-gray-300 px-4 py-3 font-mono text-center focus:outline-none focus:border-gray-500 transition-colors"
-            placeholder="..."
+            onKeyPress={handleKeyPress}
+            disabled={submitting}
+            className={`w-full bg-transparent border px-4 py-3 font-mono text-center focus:outline-none transition-colors text-lg ${
+              submitting 
+                ? 'border-gray-700 text-gray-500' 
+                : 'border-gray-600 text-green-400 focus:border-green-400'
+            }`}
+            placeholder={submitting ? "PROCESSING..." : "TOKEN ID"}
           />
+          <div className="text-xs font-mono text-gray-500 space-y-1">
+            <div className="flex items-center justify-center gap-2">
+              <span className="text-green-400">⏎</span>
+              <span>Press ENTER to submit</span>
+            </div>
+            {submitMessage && (
+              <div className={`text-center ${
+                submitMessage.includes('✅') ? 'text-green-400' : 
+                submitMessage.includes('❌') ? 'text-red-400' : 'text-yellow-400'
+              }`}>
+                {submitMessage}
+              </div>
+            )}
+            {isSuccess && (
+              <div className="mt-4 space-y-3">
+                <div className="text-center space-y-2">
+                  <div className="text-green-400 font-mono text-sm">
+                    🎉 MISSION ACCOMPLISHED 🎉
+                  </div>
+                  <div className="text-gray-400 font-mono text-xs">
+                    Digital archaeology expertise confirmed
+                  </div>
+                  {rewardData && rewardData.bits > 0 && (
+                    <div className="text-yellow-400 font-mono text-xs">
+                      +{rewardData.bits} bits earned
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={handleReturnToPrizeversity}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white font-mono py-3 px-4 rounded border border-green-500 transition-colors"
+                >
+                  Return to Prizeversity HQ
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+        
+        <div className="text-xs font-mono text-gray-700 space-y-1">
+          <div>STATUS: ARCHAEOLOGICAL SITE ACTIVE</div>
+          <div>CLEARANCE: LEVEL 6 REQUIRED</div>
+          <div>AGENT: {uniqueId?.substring(0, 6).toUpperCase()}</div>
         </div>
       </div>
     </div>

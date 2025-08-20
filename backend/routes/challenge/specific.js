@@ -3,7 +3,7 @@ const router = express.Router();
 const Challenge = require('../../models/Challenge');
 const User = require('../../models/User');
 const { ensureAuthenticated } = require('../../middleware/auth');
-const { generateHashBreakingChallenge, generateCppDebuggingChallenge, generateAndUploadForensicsImage, uploadLocks } = require('./generators');
+const { generateHashBreakingChallenge, generateAndUploadForensicsImage, uploadLocks } = require('./generators');
 
 router.get('/challenge3/:uniqueId', ensureAuthenticated, async (req, res) => {
   try {
@@ -211,6 +211,85 @@ router.post('/challenge4/:uniqueId/generate', ensureAuthenticated, async (req, r
   } catch (error) {
     console.error('Error generating Challenge 4 evidence:', error);
     res.status(500).json({ message: 'Failed to generate forensics evidence' });
+  }
+});
+
+router.get('/challenge6/:uniqueId', ensureAuthenticated, async (req, res) => {
+  try {
+    const { uniqueId } = req.params;
+    const userId = req.user._id;
+
+    const challenge = await Challenge.findOne({
+      'userChallenges.uniqueId': uniqueId,
+      'userChallenges.userId': userId
+    });
+
+    if (!challenge) {
+      return res.status(404).json({ message: 'Challenge not found' });
+    }
+
+    const userChallenge = challenge.userChallenges.find(uc => uc.uniqueId === uniqueId);
+    if (!userChallenge) {
+      return res.status(404).json({ message: 'User challenge not found' });
+    }
+
+    if (userChallenge.completedChallenges && userChallenge.completedChallenges[5]) {
+      return res.json({
+        isCompleted: true,
+        message: 'Challenge 6 already completed'
+      });
+    }
+
+    const { generateChallengeData } = require('../../utils/tokenGenerator');
+    
+    try {
+      const challengeData = await generateChallengeData(uniqueId);
+      
+      res.json({
+        generatedWord: challengeData.generatedWord,
+        expectedTokenId: challengeData.expectedTokenId,
+        uniqueId: uniqueId,
+        sectorCode: uniqueId.substring(0, 8).toUpperCase(),
+        isCompleted: false
+      });
+    } catch (error) {
+      console.error('Error generating Challenge 6 data:', error);
+      res.status(500).json({ message: 'Failed to generate challenge data' });
+    }
+
+  } catch (error) {
+    console.error('Error fetching Challenge 6 data:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.get('/check-completion/:uniqueId/:challengeIndex', ensureAuthenticated, async (req, res) => {
+  try {
+    const { uniqueId, challengeIndex } = req.params;
+    const userId = req.user._id;
+    const index = parseInt(challengeIndex);
+
+    const challenge = await Challenge.findOne({
+      'userChallenges.uniqueId': uniqueId,
+      'userChallenges.userId': userId
+    });
+
+    if (!challenge) {
+      return res.status(404).json({ message: 'Challenge not found' });
+    }
+
+    const userChallenge = challenge.userChallenges.find(uc => uc.uniqueId === uniqueId);
+    if (!userChallenge) {
+      return res.status(404).json({ message: 'User challenge not found' });
+    }
+
+    const isCompleted = userChallenge.completedChallenges && userChallenge.completedChallenges[index];
+
+    res.json({ isCompleted: !!isCompleted });
+
+  } catch (error) {
+    console.error('Error checking challenge completion:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 

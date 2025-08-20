@@ -484,7 +484,9 @@ function createDefaultValidationSettings() {
       logicType: 'needle-in-haystack',
       metadata: {
         salt: 'haystack_salt_2024',
-        algorithmParams: {}
+        algorithmParams: {},
+        generatedWords: {},
+        expectedTokenIds: {}
       }
     }
   ];
