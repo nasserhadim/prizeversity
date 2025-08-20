@@ -111,7 +111,7 @@ const ChallengeCard = ({
             </div>
           )}
           
-          <p className={isDark ? 'text-base-content/70' : 'text-gray-600'}>
+          <p className={`${isDark ? 'text-gray-200' : 'text-gray-600'}`}>
             {challengeDescription}
           </p>
 
@@ -141,8 +141,8 @@ const ChallengeCard = ({
             <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="badge badge-outline">Hints Available</span>
-                  <span className="text-xs text-gray-500">
+                  <span className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>Hints Available</span>
+                  <span className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-500'}`}>
                     {(userChallenge?.hintsUsed?.[challengeIndex] || 0)}/{challengeData.settings.maxHintsPerChallenge ?? 2} used
                   </span>
                 </div>
@@ -162,7 +162,7 @@ const ChallengeCard = ({
                 </button>
               </div>
               
-              <div className="text-sm font-medium text-orange-600 dark:text-orange-400 flex items-center gap-2">
+              <div className={`text-sm font-medium ${isDark ? 'text-orange-300' : 'text-orange-600'} flex items-center gap-2`}>
                 <span>💰 Cost: -{challengeData.settings.hintPenaltyPercent || 25}% per hint</span>
                 <span className="text-xs bg-orange-100 dark:bg-orange-900/20 px-2 py-1 rounded">
                   -{Math.floor((challengeData?.settings?.challengeBits?.[challengeIndex] || 0) * (challengeData.settings.hintPenaltyPercent || 25) / 100)} bits each
@@ -172,14 +172,14 @@ const ChallengeCard = ({
               {userChallenge?.hintsUnlocked?.[challengeIndex]?.length > 0 && (
                 <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Your Hints:</span>
+                    <span className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>Your Hints:</span>
                     <Eye className="w-4 h-4 text-blue-500" />
                   </div>
                   <div className="space-y-3">
                     {userChallenge.hintsUnlocked[challengeIndex].map((hint, i) => (
-                      <div key={i} className="bg-white dark:bg-gray-800 border-2 border-blue-500 dark:border-blue-400 rounded-lg p-4 shadow-md" onClick={(e) => e.stopPropagation()}>
-                        <div className="text-sm font-bold text-blue-600 dark:text-blue-300 mb-3">💡 Hint #{i + 1}</div>
-                        <div className="text-lg text-black dark:text-white leading-relaxed whitespace-pre-wrap font-semibold">{hint}</div>
+                      <div key={i} className={`${isDark ? 'bg-gray-800 border-blue-400' : 'bg-white border-blue-500'} border-2 rounded-lg p-4 shadow-md`} onClick={(e) => e.stopPropagation()}>
+                        <div className={`text-sm font-bold ${isDark ? 'text-blue-300' : 'text-blue-600'} mb-3`}>💡 Hint #{i + 1}</div>
+                        <div className={`text-lg ${isDark ? 'text-gray-100' : 'text-black'} leading-relaxed whitespace-pre-wrap font-semibold`}>{hint}</div>
                       </div>
                     ))}
                   </div>

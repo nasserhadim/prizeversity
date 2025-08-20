@@ -10,14 +10,14 @@ const CppBugHuntChallenge = ({ userChallenge, isDark }) => {
     <>
       <div className={`${colors.sectionBg} rounded-lg p-4 border-l-4 border-blue-500`}>
         <h4 className={`font-semibold ${colors.textColor} mb-2 text-blue-600`}>🔐 PERSONALIZED C++ CHALLENGE</h4>
-        <p className="text-sm text-gray-700 mb-3">
+        <p className={`text-sm ${themeClasses.bodyText} mb-3`}>
           <strong>MISSION:</strong> Debug a C++ program that's personalized with YOUR student data. Trace through the execution manually to find the output.
         </p>
         <div className="space-y-2">
-          <p className="text-xs text-gray-600">⏱️ <strong>Time Limit:</strong> 30 minutes to solve</p>
-          <p className="text-xs text-gray-600">🎯 <strong>Objective:</strong> Calculate the final output step-by-step</p>
-          <p className="text-xs text-gray-600">🔄 <strong>Attempts:</strong> Maximum 5 tries</p>
-          <p className="text-xs text-gray-600">🔒 <strong>Anti-Cheat:</strong> Uses YOUR name and ID - AI can't solve it!</p>
+          <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>⏱️ <strong>Time Limit:</strong> 30 minutes to solve</p>
+          <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>🎯 <strong>Objective:</strong> Calculate the final output step-by-step</p>
+          <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>🔄 <strong>Attempts:</strong> Maximum 5 tries</p>
+          <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>🔒 <strong>Anti-Cheat:</strong> Uses YOUR name and ID - AI can't solve it!</p>
         </div>
       </div>
       
@@ -34,7 +34,7 @@ const CppBugHuntChallenge = ({ userChallenge, isDark }) => {
           </button>
         </div>
         
-        <p className={`text-xs ${isDark ? 'text-base-content/60' : 'text-gray-500'} mt-3 text-center`}>
+        <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-500'} mt-3 text-center`}>
           🎓 Opens the C++ debugging environment - perfect for practicing your programming skills!
         </p>
       </div>

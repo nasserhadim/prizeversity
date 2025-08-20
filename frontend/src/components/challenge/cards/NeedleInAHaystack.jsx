@@ -14,8 +14,8 @@ const NeedleInAHaystackChallenge = ({ userChallenge, isDark }) => {
       
       <div className={`${colors.sectionBg} rounded-lg p-4`}>
         <h4 className={`font-semibold ${colors.textColor} mb-2`}>🌐 Archaeological Site</h4>
-        <p className={`text-sm ${themeClasses.mutedText} mb-3`}>Access the digital excavation terminal:</p>
-        <code className={`${isDark ? 'text-blue-300' : 'text-blue-600'} font-mono text-sm block mb-3`}>
+        <p className={`text-sm ${themeClasses.bodyText} mb-3`}>Access the digital excavation terminal:</p>
+        <code className={`${themeClasses.linkText} font-mono text-sm block mb-3`}>
           <a 
             href={`/challenge-6-site/${userChallenge.uniqueId}`} 
             target="_blank" 
@@ -27,9 +27,9 @@ const NeedleInAHaystackChallenge = ({ userChallenge, isDark }) => {
         </code>
         
         <div className="space-y-2 mt-4">
-          <p className="text-xs text-gray-600">🎯 Locate your target word</p>
-          <p className="text-xs text-gray-600">🔢 Find its numerical token position</p>
-          <p className="text-xs text-gray-600">🛠️ Discover the tools for digital excavation</p>
+          <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>🎯 Locate your target word</p>
+          <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>🔢 Find its numerical token position</p>
+          <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>🛠️ Discover the tools for digital excavation</p>
         </div>
       </div>
       
@@ -40,8 +40,8 @@ const NeedleInAHaystackChallenge = ({ userChallenge, isDark }) => {
         </span>
       </div>
       
-      <div className={`${isDark ? 'bg-orange-900/20 border-orange-700' : 'bg-orange-100 border-orange-300'} border rounded-lg p-3`}>
-        <p className="text-xs text-orange-600">
+      <div className={`${isDark ? 'bg-orange-900/30 border-orange-600' : 'bg-orange-100 border-orange-300'} border rounded-lg p-3`}>
+        <p className={`text-xs ${isDark ? 'text-orange-300' : 'text-orange-600'}`}>
           <strong>Research Required:</strong> This challenge requires external research and tool discovery. 
           The answer lies in understanding how artificial intelligence processes language.
         </p>
@@ -51,4 +51,3 @@ const NeedleInAHaystackChallenge = ({ userChallenge, isDark }) => {
 };
 
 export default NeedleInAHaystackChallenge;
-      

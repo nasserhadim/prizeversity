@@ -16,7 +16,7 @@ const GitHubOSINTChallenge = ({ userChallenge, isDark }) => {
               href="https://www.linkedin.com/in/paul-glantz-1b3488378/" 
               target="_blank" 
               rel="noopener noreferrer"
-              className={`${isDark ? 'text-blue-300' : 'text-blue-600'} hover:underline`}
+              className={`${themeClasses.linkText} hover:underline`}
             >
               linkedin.com/in/paul-glantz-1b3488378/
             </a>
@@ -33,8 +33,8 @@ const GitHubOSINTChallenge = ({ userChallenge, isDark }) => {
       
       <div className={`${colors.sectionBg} rounded-lg p-4`}>
         <h4 className={`font-semibold ${colors.textColor} mb-2`}>Challenge Terminal</h4>
-        <p className={`text-sm ${themeClasses.mutedText} mb-3`}>Access the challenge terminal:</p>
-        <code className={`${isDark ? 'text-blue-300' : 'text-blue-600'} font-mono text-sm block mb-3`}>
+        <p className={`text-sm ${themeClasses.bodyText} mb-3`}>Access the challenge terminal:</p>
+        <code className={`${themeClasses.linkText} font-mono text-sm block mb-3`}>
           <a 
             href={`/challenge-2-site/${userChallenge.uniqueId}`} 
             target="_blank" 
@@ -44,7 +44,7 @@ const GitHubOSINTChallenge = ({ userChallenge, isDark }) => {
             /challenge-2-site/{userChallenge.uniqueId}
           </a>
         </code>
-        <p className={`text-xs ${isDark ? 'text-base-content/60' : 'text-gray-500'}`}>
+        <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-500'}`}>
           Look closely! You'll need to find the password in the repository.
         </p>
       </div>
@@ -59,4 +59,3 @@ const GitHubOSINTChallenge = ({ userChallenge, isDark }) => {
 };
 
 export default GitHubOSINTChallenge;
-      
