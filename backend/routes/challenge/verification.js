@@ -219,18 +219,27 @@ router.post('/challenge3/:uniqueId/verify', ensureAuthenticated, async (req, res
     
     userChallenge.challenge3Attempts = currentAttempts + 1;
 
-    const validators = require('../../validators/challenges');
-    const metadata = { salt: 'hash_challenge_salt_2024', algorithmParams: {} };
+    const { generateCppDebuggingChallenge } = require('./generators');
     
     const user = await User.findById(userId);
+    const studentHash = crypto.createHash('md5').update(userId.toString() + uniqueId).digest('hex');
+    const hashNum = parseInt(studentHash.substring(0, 8), 16);
+    
     const studentData = {
+      hashedId: studentHash,
       firstName: user.firstName,
       lastName: user.lastName,
-      agentId: `AGENT-${crypto.createHash('md5').update(userId.toString() + uniqueId).digest('hex').substring(0, 6).toUpperCase()}`,
-      department: ['CYBER CRIMES', 'DIGITAL FORENSICS', 'CRYPTO ANALYSIS'][parseInt(crypto.createHash('md5').update(userId.toString() + uniqueId).digest('hex').substring(0, 8), 16) % 3]
+      agentId: `AGENT-${studentHash.substring(0, 6).toUpperCase()}`,
+      badgeNumber: `${((hashNum % 9000) + 1000)}`,
+      clearanceLevel: ['CLASSIFIED', 'SECRET', 'TOP SECRET'][hashNum % 3],
+      department: ['CYBER CRIMES', 'DIGITAL FORENSICS', 'CRYPTO ANALYSIS'][hashNum % 3]
     };
     
-    const isCorrect = validators['hash-breaking'](password, metadata, uniqueId, studentData);
+    const cppChallenge = generateCppDebuggingChallenge(studentData, uniqueId);
+    const expectedAnswer = cppChallenge.actualOutput;
+    const submittedAnswer = parseInt(password);
+    
+    const isCorrect = submittedAnswer === expectedAnswer;
 
     if (!isCorrect) {
       await challenge.save();
