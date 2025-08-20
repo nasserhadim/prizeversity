@@ -172,21 +172,13 @@ const Privacy = () => {
       icon: <FileText size={20} />,
       content: [
         "**FERPA Compliance:**",
-        "• Educational records are protected according to federal law",
-        "• Schools/Teachers maintain control over student data",
-        "• Parents have rights to access and correct records",
+        "• We are a service provider to educational institutions. As such, we handle educational records in accordance with FERPA.",
+        "• Educational institutions and teachers act as the custodians of student data and are responsible for managing access and correction requests from parents.",
         "",
         "**COPPA Compliance:**",
-        "• Special protections for users under 13",
-        "• Parental consent mechanisms when required",
-        "",
-        "**State Privacy Laws:**",
-        "• Compliance with California Student Privacy Acts",
-        "• Adherence to state-specific educational privacy requirements",
-        "",
-        "**International Standards:**",
-        "• GDPR protections for European users",
-        "• Privacy by design principles throughout our platform"
+        "• We rely on the educational institution to obtain any necessary parental consent for students under 13 to use our platform for educational purposes.",
+        "• Our platform does not knowingly collect personal information from children under 13 without such consent.",
+        "• Account creation is handled via third-party OAuth providers (Google, Microsoft), which have their own age restrictions."
       ]
     },
     {

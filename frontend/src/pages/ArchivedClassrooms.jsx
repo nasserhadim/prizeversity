@@ -57,40 +57,42 @@ export default function ArchivedClassrooms() {
     }
 
     return (
-        <div className="p-6">
-            <h1 className="text-3xl font-bold mb-4">Archived Classrooms</h1>
+        <div className="min-h-screen flex flex-col bg-base-200">
+            <div className="flex-1 p-6">
+                <h1 className="text-3xl font-bold mb-4">Archived Classrooms</h1>
 
-            {archives.length === 0 ? (
-                <p className="text-gray-500">No archived classrooms.</p>
-            ) : (
-                <div className="space-y-4">
-                    {archives.map(cls => (
-                        <div
-                            key={cls._id}
-                            className="card bg-base-100 shadow-md p-4 flex justify-between items-center"
-                        >
-                            <div>
-                                <h2 className="text-xl font-semibold">{cls.name}</h2>
-                                <p className="text-sm text-gray-500">Code: {cls.code}</p>
-                            </div>
-                            <button
-                                className="btn btn-success"
-                                onClick={() => handleRestore(cls._id)}
+                {archives.length === 0 ? (
+                    <p className="text-gray-500">No archived classrooms.</p>
+                ) : (
+                    <div className="space-y-4">
+                        {archives.map(cls => (
+                            <div
+                                key={cls._id}
+                                className="card bg-base-100 shadow-md p-4 flex justify-between items-center"
                             >
-                                Restore
-                            </button>
-                        </div>
-                    ))}
-                </div>
-            )}
+                                <div>
+                                    <h2 className="text-xl font-semibold">{cls.name}</h2>
+                                    <p className="text-sm text-gray-500">Code: {cls.code}</p>
+                                </div>
+                                <button
+                                    className="btn btn-success"
+                                    onClick={() => handleRestore(cls._id)}
+                                >
+                                    Restore
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
 
-            <button
-                className="btn btn-ghost mt-6"
-                onClick={() => navigate('/classrooms')}
-            >
-                ← Back to My Classrooms
-            </button>
-            <Footer />
+                <button
+                    className="btn btn-ghost mt-6"
+                    onClick={() => navigate('/classrooms')}
+                >
+                    ← Back to My Classrooms
+                </button>
+            </div>
+            <Footer className="mt-auto" />
         </div>
     );
 }
