@@ -18,10 +18,36 @@ const Challenge3Site = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [challengeStarted, setChallengeStarted] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false);
+  const [checkingCompletion, setCheckingCompletion] = useState(true);
 
   useEffect(() => {
-    fetchChallengeData();
+    const checkCompletion = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/challenges/check-completion/${uniqueId}/2`, {
+          credentials: 'include'
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setIsCompleted(data.isCompleted);
+        }
+      } catch (error) {
+        console.error('Error checking completion:', error);
+      } finally {
+        setCheckingCompletion(false);
+      }
+    };
+
+    if (uniqueId) {
+      checkCompletion();
+    }
   }, [uniqueId]);
+
+  useEffect(() => {
+    if (!checkingCompletion && !isCompleted) {
+      fetchChallengeData();
+    }
+  }, [uniqueId, checkingCompletion, isCompleted]);
 
   // Timer for elapsed time
   useEffect(() => {
@@ -146,6 +172,31 @@ const Challenge3Site = () => {
             <p className="text-xl font-bold">Initializing Investigation...</p>
             <p className="text-gray-400">Preparing forensics case files</p>
             <p className="text-sm text-yellow-400">⚡ Starting timer in a moment</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (checkingCompletion) {
+    return (
+      <div className="min-h-screen bg-slate-900 text-green-400 font-mono flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-pulse">CHECKING ACCESS...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isCompleted) {
+    return (
+      <div className="min-h-screen bg-slate-900 text-red-400 font-mono flex flex-col items-center justify-center p-8">
+        <div className="max-w-md w-full space-y-6 text-center">
+          <Shield className="mx-auto text-red-400" size={48} />
+          <h1 className="text-2xl font-bold">ACCESS DENIED</h1>
+          <div className="border border-red-400 bg-slate-800 rounded-lg p-6">
+            <h2 className="text-lg font-semibold text-red-300 mb-2">CHALLENGE ALREADY COMPLETED</h2>
+            <p className="text-red-400">You have already successfully completed this C++ debugging challenge.</p>
           </div>
         </div>
       </div>

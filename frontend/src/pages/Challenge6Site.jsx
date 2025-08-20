@@ -21,6 +21,12 @@ const Challenge6Site = () => {
         
         if (response.ok) {
           const data = await response.json();
+          
+          if (data.isCompleted) {
+            setError('Challenge already completed');
+            return;
+          }
+          
           setChallengeData(data);
         } else {
           setError('Failed to load challenge data');
@@ -122,8 +128,23 @@ const Challenge6Site = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-red-400 font-mono">ERROR: {error}</div>
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center">
+        <div className="text-center space-y-4 max-w-md w-full px-4">
+          <h1 className="text-2xl font-mono text-gray-400 tracking-widest">
+            ACCESS DENIED
+          </h1>
+          <div className="text-red-400 font-mono text-sm">
+            {error.includes('already completed') ? 
+              'CHALLENGE ALREADY COMPLETED' : 
+              `ERROR: ${error}`
+            }
+          </div>
+          {error.includes('already completed') && (
+            <div className="text-gray-500 font-mono text-xs mt-4">
+              You have already successfully completed this challenge.
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -140,24 +161,23 @@ const Challenge6Site = () => {
           </div>
         </div>
         
-        <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 space-y-4">
-          <div className="text-left font-mono text-sm text-gray-300 space-y-2">
-            <div className="text-red-400">{'>>>'} CLASSIFIED TRANSMISSION INTERCEPTED</div>
-            <div className="text-yellow-400">{'>>>'} DECRYPTION INITIATED...</div>
-            <div className="text-green-400">{'>>>'} TARGET WORD LOCATED:</div>
-          </div>
-          
+        <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 space-y-6">
           <div className="bg-black border border-green-400 rounded p-4">
             <div className="text-green-400 font-mono text-xl text-center tracking-wider">
               "{challengeData?.generatedWord}"
             </div>
           </div>
           
-          <div className="text-left font-mono text-xs text-gray-400 space-y-1">
-            <div>OBJECTIVE: Locate the numerical position of this word</div>
-            <div>TOOLS: Digital excavation required</div>
-            <div>WARNING: Traditional methods insufficient</div>
-            <div className="text-red-300">HINT: The machines speak in numbers...</div>
+          <div className="bg-gray-800 border border-gray-600 rounded-lg p-4">
+            <div className="text-center">
+              <div className="text-orange-300 font-mono text-sm font-bold mb-2">MISSION OBJECTIVE</div>
+              <div className="text-gray-300 font-mono text-sm">
+                Determine the numerical index position of the target word
+              </div>
+              <div className="text-cyan-400 font-mono text-xs mt-2">
+                Think about how AI systems process language into numbers
+              </div>
+            </div>
           </div>
         </div>
         

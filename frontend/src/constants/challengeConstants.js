@@ -35,8 +35,8 @@ export const DEFAULT_CHALLENGE_CONFIG = {
 export const CHALLENGE_IDS = [
   'caesar-secret-001',
   'github-osint-002',
-  'cpp-bug-hunt-003',
-  'i-always-sign-my-work-004',
-  'secrets-in-the-clouds-005',
-  'needle-in-a-haystack-006'
+  'cpp-debug-003',
+  'forensics-004',
+  'wayneaws-005',
+  'haystack-006'
 ];

@@ -10,6 +10,7 @@ import toast from 'react-hot-toast';
 import RewardModal from '../components/RewardModal';
 import TeacherView from '../components/challenge/TeacherView';
 import ChallengeCard from '../components/challenge/cards/ChallengeCard';
+import HintModal from '../components/challenge/modals/HintModal';
 import CaesarCipherChallenge from '../components/challenge/cards/CaesarCipherChallenge';
 import GitHubOSINTChallenge from '../components/challenge/cards/GitHubOSINTChallenge';
 import CppBugHuntChallenge from '../components/challenge/cards/SecurityBugFixChallenge';
@@ -76,6 +77,10 @@ const Challenge = () => {
   const [showDeleteWarning, setShowDeleteWarning] = useState(false);
   const [dontShowDeleteWarning, setDontShowDeleteWarning] = useState(false);
   const [showDebugPanel, setShowDebugPanel] = useState(false);
+  const [showStudentHintModal, setShowStudentHintModal] = useState(false);
+  const [newHint, setNewHint] = useState(null);
+  const [hintChallengeName, setHintChallengeName] = useState('');
+  const [hintNumber, setHintNumber] = useState(0);
   const [showHintModal, setShowHintModal] = useState(false);
   const [editingHints, setEditingHints] = useState(null);
   const [confirmText, setConfirmText] = useState('');
@@ -83,6 +88,14 @@ const Challenge = () => {
   // Theme classes
   const themeClasses = getThemeClasses(isDark);
   const isTeacherInStudentView = originalUser?.role === 'teacher' && user.role === 'student';
+
+  // Handle hint modal from child cards
+  const handleHintUnlocked = (hint, challengeName, hintNum) => {
+    setNewHint(hint);
+    setHintChallengeName(challengeName);
+    setHintNumber(hintNum);
+    setShowStudentHintModal(true);
+  };
 
   // Event handlers
   const handleSwitchToTeacher = () => {
@@ -448,6 +461,7 @@ const Challenge = () => {
               setUnlockingHint={setUnlockingHint}
               fetchChallengeData={fetchChallengeData}
               classroomId={classroomId}
+              onHintUnlocked={handleHintUnlocked}
             >
               <CaesarCipherChallenge userChallenge={userChallenge} isDark={isDark} />
             </ChallengeCard>
@@ -464,6 +478,7 @@ const Challenge = () => {
               setUnlockingHint={setUnlockingHint}
               fetchChallengeData={fetchChallengeData}
               classroomId={classroomId}
+              onHintUnlocked={handleHintUnlocked}
             >
               <GitHubOSINTChallenge userChallenge={userChallenge} isDark={isDark} />
             </ChallengeCard>
@@ -480,6 +495,7 @@ const Challenge = () => {
               setUnlockingHint={setUnlockingHint}
               fetchChallengeData={fetchChallengeData}
               classroomId={classroomId}
+              onHintUnlocked={handleHintUnlocked}
             >
               <CppBugHuntChallenge userChallenge={userChallenge} isDark={isDark} />
             </ChallengeCard>
@@ -496,6 +512,7 @@ const Challenge = () => {
               setUnlockingHint={setUnlockingHint}
               fetchChallengeData={fetchChallengeData}
               classroomId={classroomId}
+              onHintUnlocked={handleHintUnlocked}
             >
               <DigitalForensicsChallenge userChallenge={userChallenge} isDark={isDark} />
             </ChallengeCard>
@@ -512,6 +529,7 @@ const Challenge = () => {
               setUnlockingHint={setUnlockingHint}
               fetchChallengeData={fetchChallengeData}
               classroomId={classroomId}
+              onHintUnlocked={handleHintUnlocked}
             >
               <WayneAWSChallenge userChallenge={userChallenge} isDark={isDark} />
             </ChallengeCard>
@@ -528,6 +546,7 @@ const Challenge = () => {
               setUnlockingHint={setUnlockingHint}
               fetchChallengeData={fetchChallengeData}
               classroomId={classroomId}
+              onHintUnlocked={handleHintUnlocked}
             >
               <NeedleInAHaystackChallenge userChallenge={userChallenge} isDark={isDark} />
             </ChallengeCard>
@@ -556,6 +575,19 @@ const Challenge = () => {
           nextChallenge={rewardData.nextChallenge}
         />
       )}
+
+      <HintModal
+        isOpen={showStudentHintModal}
+        onClose={() => {
+          setShowStudentHintModal(false);
+          setNewHint(null);
+          setHintChallengeName('');
+          setHintNumber(0);
+        }}
+        hint={newHint}
+        challengeName={hintChallengeName}
+        hintNumber={hintNumber}
+      />
 
       <DebugPanel
         showDebugPanel={showDebugPanel}

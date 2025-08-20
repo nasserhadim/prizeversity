@@ -6,7 +6,7 @@
 // If they're successful, they'll be able to access challenge 2.
 // Once again, we'll ensure we find a better way to do this than just naming them challenge 2, 3, etc.
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Lock } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -18,6 +18,30 @@ const Challenge2Site = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false);
+  const [checkingCompletion, setCheckingCompletion] = useState(true);
+
+  useEffect(() => {
+    const checkCompletion = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/challenges/check-completion/${uniqueId}/1`, {
+          credentials: 'include'
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setIsCompleted(data.isCompleted);
+        }
+      } catch (error) {
+        console.error('Error checking completion:', error);
+      } finally {
+        setCheckingCompletion(false);
+      }
+    };
+
+    if (uniqueId) {
+      checkCompletion();
+    }
+  }, [uniqueId]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -55,6 +79,30 @@ const Challenge2Site = () => {
       setLoading(false);
     }
   };
+
+  if (checkingCompletion) {
+    return (
+      <div className="min-h-screen bg-black text-green-400 font-mono flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-pulse">CHECKING ACCESS...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isCompleted) {
+    return (
+      <div className="min-h-screen bg-black text-red-400 font-mono flex flex-col items-center justify-center p-8">
+        <div className="max-w-md w-full space-y-4 text-center">
+          <h1 className="text-3xl font-bold">ACCESS DENIED</h1>
+          <div className="border border-red-400 p-6 bg-gray-900">
+            <h2 className="text-xl font-bold mb-4 text-red-300">CHALLENGE ALREADY COMPLETED</h2>
+            <p className="mb-4">You have already successfully completed this challenge.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (showSuccess) {
     return (

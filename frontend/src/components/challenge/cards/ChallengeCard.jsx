@@ -1,4 +1,4 @@
-import { Play } from 'lucide-react';
+import { Play, Eye } from 'lucide-react';
 import { getChallengeColors } from '../../../utils/themeUtils';
 import { calculatePotentialBits } from '../../../utils/challengeUtils';
 import { unlockHint, startChallenge } from '../../../API/apiChallenge';
@@ -17,6 +17,7 @@ const ChallengeCard = ({
   setUnlockingHint,
   fetchChallengeData,
   classroomId,
+  onHintUnlocked,
   children
 }) => {
   const colors = getChallengeColors(challengeIndex, isDark);
@@ -29,6 +30,9 @@ const ChallengeCard = ({
       setUnlockingHint(prev => ({ ...prev, [challengeId]: true }));
       const res = await unlockHint(classroomId, challengeId);
       if (res.success) {
+        if (res.hint && onHintUnlocked) {
+          onHintUnlocked(res.hint, challengeName, res.hintsUsed || 1);
+        }
         await fetchChallengeData();
       } else {
         toast.error(res.message || 'Unable to unlock hint');
@@ -96,7 +100,7 @@ const ChallengeCard = ({
         </div>
       </div>
       
-      <div className="collapse-content">
+      <div className="collapse-content" onClick={(e) => e.stopPropagation()}>
         <div className="pt-4 space-y-4">
           {challengeData?.settings?.challengeHintsEnabled?.[challengeIndex] && (
             <div className="flex items-center gap-3">
@@ -114,7 +118,11 @@ const ChallengeCard = ({
           <div className="flex items-center gap-3">
             {!isCompleted && userChallenge?.currentChallenge !== challengeIndex && challengeIndex !== 2 && (
               <button
-                onClick={handleStartChallenge}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  handleStartChallenge();
+                }}
                 className="btn btn-primary btn-sm gap-2"
               >
                 <Play className="w-4 h-4" />
@@ -130,44 +138,59 @@ const ChallengeCard = ({
           </div>
           
           {challengeData?.settings?.challengeHintsEnabled?.[challengeIndex] && (
-            <div className="flex items-start gap-3 text-sm">
-              <div className="flex items-center gap-2">
-                <span className="badge badge-outline">Hints</span>
-                <span className="text-xs text-gray-500">
-                  -{challengeData.settings.hintPenaltyPercent || 25}% each
-                </span>
-                <span className="text-xs text-gray-500">
-                  {(userChallenge?.hintsUsed?.[challengeIndex] || 0)}/{challengeData.settings.maxHintsPerChallenge ?? 2}
-                </span>
-                <div className="flex flex-col items-center gap-1">
-                  <button
-                    className="btn btn-xs btn-primary"
-                    disabled={
-                      unlockingHint[challengeId] || 
-                      ((userChallenge?.hintsUsed?.[challengeIndex] || 0) >= (challengeData.settings.maxHintsPerChallenge ?? 2))
-                    }
-                    onClick={handleUnlockHint}
-                  >
-                    {unlockingHint[challengeId] ? '...' : 'Unlock'}
-                  </button>
-                  {((userChallenge?.hintsUsed?.[challengeIndex] || 0) < (challengeData.settings.maxHintsPerChallenge ?? 2)) && (
-                    <span className="text-xs text-warning">
-                      -{Math.floor((challengeData?.settings?.challengeBits?.[challengeIndex] || 0) * (challengeData.settings.hintPenaltyPercent || 25) / 100)} bits
-                    </span>
-                  )}
+            <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="badge badge-outline">Hints Available</span>
+                  <span className="text-xs text-gray-500">
+                    {(userChallenge?.hintsUsed?.[challengeIndex] || 0)}/{challengeData.settings.maxHintsPerChallenge ?? 2} used
+                  </span>
                 </div>
+                <button
+                  className="btn btn-sm btn-primary"
+                  disabled={
+                    unlockingHint[challengeId] || 
+                    ((userChallenge?.hintsUsed?.[challengeIndex] || 0) >= (challengeData.settings.maxHintsPerChallenge ?? 2))
+                  }
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    handleUnlockHint();
+                  }}
+                >
+                  {unlockingHint[challengeId] ? 'Unlocking...' : '💡 Unlock Hint'}
+                </button>
               </div>
+              
+              <div className="text-sm font-medium text-orange-600 dark:text-orange-400 flex items-center gap-2">
+                <span>💰 Cost: -{challengeData.settings.hintPenaltyPercent || 25}% per hint</span>
+                <span className="text-xs bg-orange-100 dark:bg-orange-900/20 px-2 py-1 rounded">
+                  -{Math.floor((challengeData?.settings?.challengeBits?.[challengeIndex] || 0) * (challengeData.settings.hintPenaltyPercent || 25) / 100)} bits each
+                </span>
+              </div>
+
               {userChallenge?.hintsUnlocked?.[challengeIndex]?.length > 0 && (
-                <ul className="ml-2 list-disc text-xs text-gray-700">
-                  {userChallenge.hintsUnlocked[challengeIndex].map((h, i) => (
-                    <li key={i}>{h}</li>
-                  ))}
-                </ul>
+                <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Your Hints:</span>
+                    <Eye className="w-4 h-4 text-blue-500" />
+                  </div>
+                  <div className="space-y-3">
+                    {userChallenge.hintsUnlocked[challengeIndex].map((hint, i) => (
+                      <div key={i} className="bg-white dark:bg-gray-800 border-2 border-blue-500 dark:border-blue-400 rounded-lg p-4 shadow-md" onClick={(e) => e.stopPropagation()}>
+                        <div className="text-sm font-bold text-blue-600 dark:text-blue-300 mb-3">💡 Hint #{i + 1}</div>
+                        <div className="text-lg text-black dark:text-white leading-relaxed whitespace-pre-wrap font-semibold">{hint}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           )}
           
-          {children}
+          <div onClick={(e) => e.stopPropagation()}>
+            {children}
+          </div>
         </div>
       </div>
     </div>

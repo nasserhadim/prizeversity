@@ -9,6 +9,30 @@ const Challenge4Site = () => {
   const [answer, setAnswer] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false);
+  const [checkingCompletion, setCheckingCompletion] = useState(true);
+
+  useEffect(() => {
+    const checkCompletion = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/challenges/check-completion/${uniqueId}/3`, {
+          credentials: 'include'
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setIsCompleted(data.isCompleted);
+        }
+      } catch (error) {
+        console.error('Error checking completion:', error);
+      } finally {
+        setCheckingCompletion(false);
+      }
+    };
+
+    if (uniqueId) {
+      checkCompletion();
+    }
+  }, [uniqueId]);
 
   // Auto-generate evidence when component loads
   useEffect(() => {
@@ -73,6 +97,31 @@ const Challenge4Site = () => {
       setSubmitting(false);
     }
   };
+
+  if (checkingCompletion) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-slate-600">Checking access...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isCompleted) {
+    return (
+      <div className="min-h-screen bg-red-50 flex flex-col items-center justify-center p-8">
+        <div className="max-w-md w-full space-y-6 text-center">
+          <Shield className="mx-auto text-red-600" size={48} />
+          <h1 className="text-2xl font-bold text-red-800">ACCESS DENIED</h1>
+          <div className="bg-white border border-red-200 rounded-lg p-6">
+            <h2 className="text-lg font-semibold text-red-700 mb-2">Challenge Already Completed</h2>
+            <p className="text-red-600">You have already successfully completed this digital forensics challenge.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (showSuccess) {
     return (
