@@ -27,8 +27,10 @@
     "passport-google-oauth20": "^2.0.0",
     "passport-microsoft": "^2.1.0",
     "piexifjs": "^1.0.6",
+    "random-words": "^2.0.1",
     "sharp": "^0.33.4",
-    "socket.io": "^4.8.1"
+    "socket.io": "^4.8.1",
+    "tiktoken": "^1.0.22"
   },
   "devDependencies": {
     "jest": "^29.7.0",
