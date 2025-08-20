@@ -8,7 +8,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Lock } from 'lucide-react';
+import { Lock, Coins, Zap, Shield, Sword, Percent, Clover } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { API_BASE } from '../config/api';
 
@@ -20,6 +20,7 @@ const Challenge2Site = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
   const [checkingCompletion, setCheckingCompletion] = useState(true);
+  const [rewardData, setRewardData] = useState(null);
 
   useEffect(() => {
     const checkCompletion = async () => {
@@ -70,6 +71,7 @@ const Challenge2Site = () => {
         throw new Error(data.message || 'Invalid password');
       }
 
+      setRewardData(data.rewards);
       setShowSuccess(true);
       
     } catch (error) {
@@ -82,22 +84,20 @@ const Challenge2Site = () => {
 
   if (checkingCompletion) {
     return (
-      <div className="min-h-screen bg-black text-green-400 font-mono flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-pulse">CHECKING ACCESS...</div>
-        </div>
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-gray-400 font-mono">CHECKING ACCESS...</div>
       </div>
     );
   }
 
   if (isCompleted) {
     return (
-      <div className="min-h-screen bg-black text-red-400 font-mono flex flex-col items-center justify-center p-8">
-        <div className="max-w-md w-full space-y-4 text-center">
-          <h1 className="text-3xl font-bold">ACCESS DENIED</h1>
-          <div className="border border-red-400 p-6 bg-gray-900">
-            <h2 className="text-xl font-bold mb-4 text-red-300">CHALLENGE ALREADY COMPLETED</h2>
-            <p className="mb-4">You have already successfully completed this challenge.</p>
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center">
+        <div className="text-center space-y-4 max-w-md w-full px-4">
+          <h1 className="text-2xl font-mono text-gray-400 tracking-widest">ACCESS DENIED</h1>
+          <div className="bg-gray-900 border border-red-600 rounded-lg p-6">
+            <div className="text-red-400 font-mono text-sm font-bold mb-2">CHALLENGE ALREADY COMPLETED</div>
+            <div className="text-red-400 font-mono text-xs">You have already successfully completed this challenge.</div>
           </div>
         </div>
       </div>
@@ -106,24 +106,110 @@ const Challenge2Site = () => {
 
   if (showSuccess) {
     return (
-      <div className="min-h-screen bg-black text-green-400 font-mono flex flex-col items-center justify-center p-8">
-        <div className="max-w-md w-full space-y-8 text-center">
-          <h1 className="text-3xl font-bold">ACCESS GRANTED</h1>
-          <div className="border border-green-400 p-6 bg-gray-900">
-            <h2 className="text-xl font-bold mb-4 text-green-300">CHALLENGE 2 COMPLETE</h2>
-            <p className="mb-4">OSINT and Git skills verified.</p>
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center">
+        <div className="text-center space-y-8 max-w-2xl w-full px-4">
+          <div className="space-y-4">
+            <h1 className="text-3xl font-mono text-green-400 tracking-widest animate-pulse">
+              ACCESS GRANTED
+            </h1>
+            <div className="text-sm font-mono text-gray-500">GITHUB AUTHENTICATION COMPLETE</div>
           </div>
+          
+          <div className="bg-gray-900 border border-green-600 rounded-lg p-6 space-y-6">
+            <div className="bg-black border border-green-400 rounded p-4">
+              <div className="text-green-400 font-mono text-lg text-center tracking-wider">
+                CHALLENGE 2 COMPLETE
+              </div>
+            </div>
+            
+            <div className="bg-gray-800 border border-gray-600 rounded-lg p-4">
+              <div className="text-center">
+                <div className="text-green-300 font-mono text-sm font-bold mb-2">OSINT AND GIT SKILLS VERIFIED</div>
+              </div>
+            </div>
+
+            {/* Rewards Display */}
+            {rewardData && (
+              <div className="bg-gray-800 border border-gray-600 rounded-lg p-4 space-y-2">
+                <div className="text-center text-yellow-400 font-mono text-sm mb-3">
+                  REWARDS ACQUIRED
+                </div>
+                
+                {rewardData.bits > 0 && (
+                  <div className="flex items-center justify-between bg-gray-900 border border-yellow-600 rounded p-2">
+                    <div className="flex items-center gap-2">
+                      <Coins className="w-4 h-4 text-yellow-400" />
+                      <span className="text-yellow-400 font-mono text-sm">BITS</span>
+                    </div>
+                    <span className="text-yellow-400 font-mono text-sm font-bold">+{rewardData.bits}</span>
+                  </div>
+                )}
+
+                {rewardData.multiplier > 0 && (
+                  <div className="flex items-center justify-between bg-gray-900 border border-blue-600 rounded p-2">
+                    <div className="flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-blue-400" />
+                      <span className="text-blue-400 font-mono text-sm">MULTIPLIER</span>
+                    </div>
+                    <span className="text-blue-400 font-mono text-sm font-bold">+{rewardData.multiplier.toFixed(1)}</span>
+                  </div>
+                )}
+
+                {rewardData.luck > 1.0 && (
+                  <div className="flex items-center justify-between bg-gray-900 border border-green-600 rounded p-2">
+                    <div className="flex items-center gap-2">
+                      <Clover className="w-4 h-4 text-green-400" />
+                      <span className="text-green-400 font-mono text-sm">LUCK</span>
+                    </div>
+                    <span className="text-green-400 font-mono text-sm font-bold">×{rewardData.luck.toFixed(1)}</span>
+                  </div>
+                )}
+
+                {rewardData.discount > 0 && (
+                  <div className="flex items-center justify-between bg-gray-900 border border-purple-600 rounded p-2">
+                    <div className="flex items-center gap-2">
+                      <Percent className="w-4 h-4 text-purple-400" />
+                      <span className="text-purple-400 font-mono text-sm">DISCOUNT</span>
+                    </div>
+                    <span className="text-purple-400 font-mono text-sm font-bold">+{rewardData.discount}%</span>
+                  </div>
+                )}
+
+                {rewardData.shield && (
+                  <div className="flex items-center justify-between bg-gray-900 border border-cyan-600 rounded p-2">
+                    <div className="flex items-center gap-2">
+                      <Shield className="w-4 h-4 text-cyan-400" />
+                      <span className="text-cyan-400 font-mono text-sm">SHIELD</span>
+                    </div>
+                    <span className="text-cyan-400 font-mono text-sm font-bold">ACTIVE</span>
+                  </div>
+                )}
+
+                {rewardData.attackBonus > 0 && (
+                  <div className="flex items-center justify-between bg-gray-900 border border-red-600 rounded p-2">
+                    <div className="flex items-center gap-2">
+                      <Sword className="w-4 h-4 text-red-400" />
+                      <span className="text-red-400 font-mono text-sm">ATTACK</span>
+                    </div>
+                    <span className="text-red-400 font-mono text-sm font-bold">+{rewardData.attackBonus}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          
           <button
             onClick={() => {
               localStorage.setItem('challengeCompleted', JSON.stringify({
                 challengeIndex: 1,
                 challengeName: "Check Me Out",
                 timestamp: Date.now(),
+                rewards: rewardData,
                 needsRewards: true
               }));
               window.close();
             }}
-            className="px-6 py-2 border border-green-400 bg-transparent text-green-400 hover:bg-green-400 hover:text-black transition-colors"
+            className="w-full bg-green-600 hover:bg-green-700 text-white font-mono py-3 px-4 rounded border border-green-500 transition-colors"
           >
             RETURN TO BASE
           </button>
@@ -133,31 +219,34 @@ const Challenge2Site = () => {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white font-mono flex flex-col items-center justify-center p-8">
-      <div className="max-w-md w-full space-y-8">
-        <div className="text-center">
-          <h1 className="text-4xl font-bold mb-2">CHALLENGE 2 TERMINAL</h1>
-          <p className="text-gray-400">GITHUB AUTHENTICATION</p>
+    <div className="min-h-screen bg-black flex flex-col items-center justify-center">
+      <div className="text-center space-y-8 max-w-md w-full px-4">
+        <div className="space-y-4">
+          <h1 className="text-3xl font-mono text-green-400 tracking-widest animate-pulse">
+            CHALLENGE_2
+          </h1>
+          <div className="text-sm font-mono text-gray-500">GITHUB AUTHENTICATION</div>
         </div>
         
-        <div className="border border-white p-8 bg-gray-900">
-          <h2 className="text-xl font-bold mb-6 text-center">ENTER GITHUB CREDENTIALS</h2>
+        <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 space-y-6">
+          <div className="bg-gray-800 border border-gray-600 rounded-lg p-4">
+            <div className="text-center">
+              <div className="text-green-300 font-mono text-sm font-bold mb-2">ENTER GITHUB CREDENTIALS</div>
+            </div>
+          </div>
           
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label className="block text-sm font-bold mb-2" htmlFor="password">
-                PASSWORD
-              </label>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <div className="text-sm font-mono text-gray-500">PASSWORD:</div>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="password"
-                  id="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-black border border-white text-white font-mono focus:outline-none focus:border-green-400"
-                  placeholder="ENTER GITHUB PASSWORD"
                   disabled={loading}
+                  className="w-full bg-transparent border border-gray-600 pl-10 pr-4 py-3 font-mono text-center focus:outline-none transition-colors text-green-400 focus:border-green-400"
+                  placeholder="ENTER GITHUB PASSWORD"
                 />
               </div>
             </div>
@@ -165,16 +254,23 @@ const Challenge2Site = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 border border-white bg-transparent text-white hover:bg-white hover:text-black transition-colors disabled:opacity-50"
+              className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-mono py-3 px-4 rounded border border-green-500 transition-colors"
             >
-              {loading ? 'VERIFYING...' : 'ACCESS SYSTEM'}
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  VERIFYING...
+                </span>
+              ) : (
+                'ACCESS SYSTEM'
+              )}
             </button>
           </form>
-          
-          <div className="mt-6 text-xs text-gray-500 text-center">
-            <p>UNAUTHORIZED ACCESS IS PROHIBITED</p>
-            <p>BRANCH: {uniqueId}</p>
-          </div>
+        </div>
+        
+        <div className="text-xs font-mono text-gray-700 space-y-1">
+          <div>STATUS: UNAUTHORIZED ACCESS PROHIBITED</div>
+          <div>BRANCH: {uniqueId}</div>
         </div>
       </div>
     </div>

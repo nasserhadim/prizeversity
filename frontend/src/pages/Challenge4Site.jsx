@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Shield, Search, ExternalLink } from 'lucide-react';
+import { Shield, Search, ExternalLink, Coins, Zap, Clover, Percent, Sword } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { API_BASE } from '../config/api';
 
@@ -11,6 +11,7 @@ const Challenge4Site = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
   const [checkingCompletion, setCheckingCompletion] = useState(true);
+  const [rewardData, setRewardData] = useState(null);
 
   useEffect(() => {
     const checkCompletion = async () => {
@@ -85,6 +86,7 @@ const Challenge4Site = () => {
           nextChallenge: data.nextChallenge
         }));
         
+        setRewardData(data.rewards);
         setShowSuccess(true);
         toast.success(data.message);
       } else {
@@ -100,23 +102,20 @@ const Challenge4Site = () => {
 
   if (checkingCompletion) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-slate-600">Checking access...</div>
-        </div>
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-gray-400 font-mono">Checking access...</div>
       </div>
     );
   }
 
   if (isCompleted) {
     return (
-      <div className="min-h-screen bg-red-50 flex flex-col items-center justify-center p-8">
-        <div className="max-w-md w-full space-y-6 text-center">
-          <Shield className="mx-auto text-red-600" size={48} />
-          <h1 className="text-2xl font-bold text-red-800">ACCESS DENIED</h1>
-          <div className="bg-white border border-red-200 rounded-lg p-6">
-            <h2 className="text-lg font-semibold text-red-700 mb-2">Challenge Already Completed</h2>
-            <p className="text-red-600">You have already successfully completed this digital forensics challenge.</p>
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center">
+        <div className="text-center space-y-4 max-w-md w-full px-4">
+          <h1 className="text-2xl font-mono text-gray-400 tracking-widest">ACCESS DENIED</h1>
+          <div className="bg-gray-900 border border-red-600 rounded-lg p-6">
+            <div className="text-red-400 font-mono text-sm font-bold mb-2">CHALLENGE ALREADY COMPLETED</div>
+            <div className="text-red-400 font-mono text-xs">You have already successfully completed this digital forensics challenge.</div>
           </div>
         </div>
       </div>
@@ -125,28 +124,106 @@ const Challenge4Site = () => {
 
   if (showSuccess) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex flex-col items-center justify-center p-8">
-        <div className="max-w-2xl w-full space-y-8 text-center">
-          <Shield size={64} className="mx-auto text-green-600 animate-pulse" />
-          <h1 className="text-4xl font-bold text-slate-900">FORENSICS INVESTIGATION COMPLETE</h1>
-          <div className="bg-white border border-green-200 shadow-lg p-8 rounded-lg">
-            <h2 className="text-2xl font-bold mb-4 text-green-700">CHALLENGE 4 COMPLETE</h2>
-            <p className="mb-4 text-slate-700">Digital forensics and metadata analysis successful.</p>
-            <div className="bg-green-50 border border-green-200 p-4 rounded mb-4">
-              <p className="text-green-800 text-lg font-medium">
-                🕵️ EXIF metadata successfully extracted and analyzed
-              </p>
-            </div>
-            <div className="mt-4 text-sm text-slate-500 bg-slate-50 p-3 rounded">
-              <p>Evidence analyzed: Image metadata</p>
-              <p>Investigation ID: {uniqueId.substring(0, 8)}</p>
-            </div>
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center">
+        <div className="text-center space-y-8 max-w-2xl w-full px-4">
+          <div className="space-y-4">
+            <Shield size={64} className="mx-auto text-green-400 animate-pulse" />
+            <h1 className="text-3xl font-mono text-green-400 tracking-widest animate-pulse">
+              FORENSICS COMPLETE
+            </h1>
+            <div className="text-sm font-mono text-gray-500">INVESTIGATION COMPLETE</div>
           </div>
+          
+          <div className="bg-gray-900 border border-green-600 rounded-lg p-6 space-y-6">
+            <div className="bg-black border border-green-400 rounded p-4">
+              <div className="text-green-400 font-mono text-lg text-center tracking-wider">
+                DIGITAL FORENSICS LAB
+              </div>
+            </div>
+            
+            <div className="bg-gray-800 border border-gray-600 rounded-lg p-4 space-y-2">
+              <div className="text-green-300 font-mono text-sm">🕵️ EXIF metadata successfully extracted and analyzed</div>
+              <div className="text-gray-400 font-mono text-xs space-y-1">
+                <div>Evidence analyzed: Image metadata</div>
+                <div>Investigation ID: {uniqueId.substring(0, 8)}</div>
+              </div>
+            </div>
+
+            {/* Rewards Display */}
+            {rewardData && (
+              <div className="bg-gray-800 border border-gray-600 rounded-lg p-4 space-y-2">
+                <div className="text-center text-yellow-400 font-mono text-sm mb-3">
+                  REWARDS ACQUIRED
+                </div>
+                
+                {rewardData.bits > 0 && (
+                  <div className="flex items-center justify-between bg-gray-900 border border-yellow-600 rounded p-2">
+                    <div className="flex items-center gap-2">
+                      <Coins className="w-4 h-4 text-yellow-400" />
+                      <span className="text-yellow-400 font-mono text-sm">BITS</span>
+                    </div>
+                    <span className="text-yellow-400 font-mono text-sm font-bold">+{rewardData.bits}</span>
+                  </div>
+                )}
+
+                {rewardData.multiplier > 0 && (
+                  <div className="flex items-center justify-between bg-gray-900 border border-blue-600 rounded p-2">
+                    <div className="flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-blue-400" />
+                      <span className="text-blue-400 font-mono text-sm">MULTIPLIER</span>
+                    </div>
+                    <span className="text-blue-400 font-mono text-sm font-bold">+{rewardData.multiplier.toFixed(1)}</span>
+                  </div>
+                )}
+
+                {rewardData.luck > 1.0 && (
+                  <div className="flex items-center justify-between bg-gray-900 border border-green-600 rounded p-2">
+                    <div className="flex items-center gap-2">
+                      <Clover className="w-4 h-4 text-green-400" />
+                      <span className="text-green-400 font-mono text-sm">LUCK</span>
+                    </div>
+                    <span className="text-green-400 font-mono text-sm font-bold">×{rewardData.luck.toFixed(1)}</span>
+                  </div>
+                )}
+
+                {rewardData.discount > 0 && (
+                  <div className="flex items-center justify-between bg-gray-900 border border-purple-600 rounded p-2">
+                    <div className="flex items-center gap-2">
+                      <Percent className="w-4 h-4 text-purple-400" />
+                      <span className="text-purple-400 font-mono text-sm">DISCOUNT</span>
+                    </div>
+                    <span className="text-purple-400 font-mono text-sm font-bold">+{rewardData.discount}%</span>
+                  </div>
+                )}
+
+                {rewardData.shield && (
+                  <div className="flex items-center justify-between bg-gray-900 border border-cyan-600 rounded p-2">
+                    <div className="flex items-center gap-2">
+                      <Shield className="w-4 h-4 text-cyan-400" />
+                      <span className="text-cyan-400 font-mono text-sm">SHIELD</span>
+                    </div>
+                    <span className="text-cyan-400 font-mono text-sm font-bold">ACTIVE</span>
+                  </div>
+                )}
+
+                {rewardData.attackBonus > 0 && (
+                  <div className="flex items-center justify-between bg-gray-900 border border-red-600 rounded p-2">
+                    <div className="flex items-center gap-2">
+                      <Sword className="w-4 h-4 text-red-400" />
+                      <span className="text-red-400 font-mono text-sm">ATTACK</span>
+                    </div>
+                    <span className="text-red-400 font-mono text-sm font-bold">+{rewardData.attackBonus}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          
           <button
             onClick={() => {
               window.close();
             }}
-            className="px-8 py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors shadow-sm"
+            className="w-full bg-green-600 hover:bg-green-700 text-white font-mono py-3 px-4 rounded border border-green-500 transition-colors"
           >
             RETURN TO BASE
           </button>
@@ -156,18 +233,18 @@ const Challenge4Site = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-black text-green-400 font-mono">
       {/* Header */}
-      <div className="bg-white border-b border-slate-200 shadow-sm p-4">
+      <div className="bg-gray-900 border-b border-gray-700 p-4">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Shield className="text-blue-600" size={24} />
+            <Shield className="text-green-600" size={24} />
             <div>
-              <h1 className="text-xl font-bold text-slate-900">Challenge 4: Digital Forensics Lab</h1>
-              <p className="text-slate-600 text-sm">Image Metadata Analysis & OSINT Investigation</p>
+              <h1 className="text-xl font-bold text-green-400">Challenge 4: Digital Forensics Lab</h1>
+              <p className="text-gray-400 text-sm">Image Metadata Analysis & OSINT Investigation</p>
             </div>
           </div>
-          <div className="text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
+          <div className="text-sm text-gray-500 bg-gray-800 px-3 py-1 rounded-full border border-gray-600">
             Evidence ID: {uniqueId.substring(0, 8)}
           </div>
         </div>
@@ -175,19 +252,19 @@ const Challenge4Site = () => {
 
       <div className="max-w-4xl mx-auto p-6 space-y-8">
         {/* Mission Brief */}
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-          <h2 className="text-2xl font-bold mb-4 flex items-center gap-2 text-slate-900">
-            <Search className="text-blue-600" size={24} />
+        <div className="bg-gray-900 rounded-lg border border-gray-700 p-6">
+          <h2 className="text-2xl font-bold mb-4 flex items-center gap-2 text-green-400">
+            <Search className="text-green-600" size={24} />
             Intelligence Briefing
           </h2>
           <div className="space-y-4">
-            <p className="text-slate-700 leading-relaxed">
+            <p className="text-gray-300 leading-relaxed">
               Our sources have identified suspicious activity in a public repository related to WSU transit systems. 
               Intelligence suggests that evidence has been hidden in plain sight using steganographic techniques.
             </p>
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <h3 className="font-semibold text-red-800 mb-2">🎯 Mission Objectives:</h3>
-              <ul className="space-y-1 text-sm text-slate-700">
+            <div className="bg-red-900 border border-red-600 rounded-lg p-4">
+              <h3 className="font-semibold text-red-300 mb-2">🎯 Mission Objectives:</h3>
+              <ul className="space-y-1 text-sm text-gray-300">
                 <li>• Investigate the target repository</li>
                 <li>• Locate suspicious digital artifacts</li>
                 <li>• Perform forensic analysis on discovered evidence</li>
@@ -198,13 +275,13 @@ const Challenge4Site = () => {
         </div>
 
         {/* Repository Intelligence */}
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-          <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-slate-900">
+        <div className="bg-gray-900 rounded-lg border border-gray-700 p-6">
+          <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-green-400">
             <ExternalLink className="text-purple-600" size={20} />
             Target Repository
           </h3>
           <div className="space-y-4">
-            <p className="text-slate-700 leading-relaxed">
+            <p className="text-gray-300 leading-relaxed">
               Begin your investigation at the following location. Look for anything that seems out of place or recently added.
             </p>
             <div className="flex items-center gap-4">
@@ -218,8 +295,8 @@ const Challenge4Site = () => {
                 Investigate Repository
               </a>
             </div>
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <p className="text-yellow-800 text-sm">
+            <div className="bg-yellow-900 border border-yellow-600 rounded-lg p-4">
+              <p className="text-yellow-300 text-sm">
                 💡 <strong>OSINT Tip:</strong> Pay close attention to file modification dates and unexpected additions to the repository structure.
               </p>
             </div>
@@ -227,25 +304,25 @@ const Challenge4Site = () => {
         </div>
 
         {/* Answer Submission */}
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-          <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-slate-900">
+        <div className="bg-gray-900 rounded-lg border border-gray-700 p-6">
+          <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-green-400">
             <Search className="text-green-600" size={20} />
             Submit Intelligence
           </h3>
           <div className="space-y-4">
-            <p className="text-slate-700 leading-relaxed">
+            <p className="text-gray-300 leading-relaxed">
               Once you've located and analyzed the evidence, submit the extracted intelligence below.
             </p>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label className="block text-sm font-medium text-gray-400 mb-2">
                   Intelligence Report:
                 </label>
                 <div className="flex gap-3">
                   <input
                     type="text"
-                    className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                    className="flex-1 px-4 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none bg-gray-800 text-green-400"
                     placeholder="Enter extracted intelligence..."
                     value={answer}
                     onChange={(e) => setAnswer(e.target.value)}
@@ -254,7 +331,7 @@ const Challenge4Site = () => {
                   <button
                     onClick={submitAnswer}
                     disabled={submitting || !answer.trim()}
-                    className="bg-green-600 hover:bg-green-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg font-medium transition-colors"
+                    className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg font-medium transition-colors"
                   >
                     {submitting ? (
                       <span className="flex items-center gap-2">
@@ -272,37 +349,37 @@ const Challenge4Site = () => {
         </div>
 
         {/* Investigation Guidelines */}
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-          <h3 className="text-lg font-bold mb-4 text-slate-900">🔍 Investigation Guidelines</h3>
+        <div className="bg-gray-900 rounded-lg border border-gray-700 p-6">
+          <h3 className="text-lg font-bold mb-4 text-green-400">🔍 Investigation Guidelines</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <h4 className="font-semibold mb-3 text-slate-800">OSINT Methodology:</h4>
-              <ul className="space-y-2 text-sm text-slate-600">
+              <h4 className="font-semibold mb-3 text-green-300">OSINT Methodology:</h4>
+              <ul className="space-y-2 text-sm text-gray-400">
                 <li className="flex items-start gap-2">
-                  <span className="text-blue-500 font-bold">•</span>
+                  <span className="text-green-500 font-bold">•</span>
                   Systematic repository enumeration
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-blue-500 font-bold">•</span>
+                  <span className="text-green-500 font-bold">•</span>
                   File modification timeline analysis
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-blue-500 font-bold">•</span>
+                  <span className="text-green-500 font-bold">•</span>
                   Digital artifact identification
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-blue-500 font-bold">•</span>
+                  <span className="text-green-500 font-bold">•</span>
                   Metadata extraction techniques
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-blue-500 font-bold">•</span>
+                  <span className="text-green-500 font-bold">•</span>
                   Evidence correlation and analysis
                 </li>
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold mb-3 text-slate-800">Digital Forensics Tools:</h4>
-              <ul className="space-y-2 text-sm text-slate-600">
+              <h4 className="font-semibold mb-3 text-green-300">Digital Forensics Tools:</h4>
+              <ul className="space-y-2 text-sm text-gray-400">
                 <li className="flex items-start gap-2">
                   <span className="text-purple-500 font-bold">•</span>
                   Online metadata analyzers

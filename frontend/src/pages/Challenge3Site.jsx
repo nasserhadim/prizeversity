@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Search, Clock, Shield, CheckCircle, AlertTriangle, FileText } from 'lucide-react';
+import { Search, Clock, Shield, CheckCircle, AlertTriangle, FileText, Coins, Zap, Clover, Percent, Sword } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { API_BASE } from '../config/api';
 
@@ -20,6 +20,7 @@ const Challenge3Site = () => {
   const [dataLoaded, setDataLoaded] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
   const [checkingCompletion, setCheckingCompletion] = useState(true);
+  const [rewardData, setRewardData] = useState(null);
 
   useEffect(() => {
     const checkCompletion = async () => {
@@ -143,6 +144,7 @@ const Challenge3Site = () => {
       const data = await response.json();
       
       if (data.success) {
+        setRewardData(data.rewards);
         setShowSuccess(true);
         toast.success('Investigation solved! Evidence recovered!');
       } else {
@@ -164,10 +166,10 @@ const Challenge3Site = () => {
   // Show loading
   if (loading || !dataLoaded) {
     return (
-      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-black text-green-400 font-mono flex items-center justify-center">
         <div className="text-center space-y-4">
           <div className="text-6xl animate-pulse">🔍</div>
-          <div className="animate-spin h-8 w-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto"></div>
+          <div className="animate-spin h-8 w-8 border-2 border-green-500 border-t-transparent rounded-full mx-auto"></div>
           <div className="space-y-2">
             <p className="text-xl font-bold">Initializing Investigation...</p>
             <p className="text-gray-400">Preparing forensics case files</p>
@@ -180,23 +182,20 @@ const Challenge3Site = () => {
 
   if (checkingCompletion) {
     return (
-      <div className="min-h-screen bg-slate-900 text-green-400 font-mono flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-pulse">CHECKING ACCESS...</div>
-        </div>
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-gray-400 font-mono">CHECKING ACCESS...</div>
       </div>
     );
   }
 
   if (isCompleted) {
     return (
-      <div className="min-h-screen bg-slate-900 text-red-400 font-mono flex flex-col items-center justify-center p-8">
-        <div className="max-w-md w-full space-y-6 text-center">
-          <Shield className="mx-auto text-red-400" size={48} />
-          <h1 className="text-2xl font-bold">ACCESS DENIED</h1>
-          <div className="border border-red-400 bg-slate-800 rounded-lg p-6">
-            <h2 className="text-lg font-semibold text-red-300 mb-2">CHALLENGE ALREADY COMPLETED</h2>
-            <p className="text-red-400">You have already successfully completed this C++ debugging challenge.</p>
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center">
+        <div className="text-center space-y-4 max-w-md w-full px-4">
+          <h1 className="text-2xl font-mono text-gray-400 tracking-widest">ACCESS DENIED</h1>
+          <div className="bg-gray-900 border border-red-600 rounded-lg p-6">
+            <div className="text-red-400 font-mono text-sm font-bold mb-2">CHALLENGE ALREADY COMPLETED</div>
+            <div className="text-red-400 font-mono text-xs">You have already successfully completed this C++ debugging challenge.</div>
           </div>
         </div>
       </div>
@@ -205,30 +204,114 @@ const Challenge3Site = () => {
 
   if (showSuccess) {
     return (
-      <div className="min-h-screen bg-gray-900 text-green-400 font-mono flex flex-col items-center justify-center p-8">
-        <div className="max-w-2xl w-full space-y-8 text-center">
-          <CheckCircle size={64} className="mx-auto text-green-400 animate-pulse" />
-          <h1 className="text-4xl font-bold">CASE SOLVED!</h1>
-          <div className="border border-green-400 p-8 bg-gray-800 rounded-lg">
-            <h2 className="text-2xl font-bold mb-4 text-green-300">INVESTIGATION COMPLETE</h2>
-            <p className="mb-4">Evidence successfully recovered from intercepted hash!</p>
-            <p className="text-green-300">Challenge 4 is now unlocked - ready for digital forensics investigation!</p>
-            <div className="mt-4 text-sm text-gray-400">
-              <p>Investigation attempts: {attempts}</p>
-              <p>Agent ID: {studentData?.agentId}</p>
-              <p>Case: {evidence?.caseNumber}</p>
-            </div>
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center">
+        <div className="text-center space-y-8 max-w-2xl w-full px-4">
+          <div className="space-y-4">
+            <CheckCircle size={64} className="mx-auto text-green-400 animate-pulse" />
+            <h1 className="text-3xl font-mono text-green-400 tracking-widest animate-pulse">
+              CASE SOLVED!
+            </h1>
+            <div className="text-sm font-mono text-gray-500">INVESTIGATION COMPLETE</div>
           </div>
+          
+          <div className="bg-gray-900 border border-green-600 rounded-lg p-6 space-y-6">
+            <div className="bg-black border border-green-400 rounded p-4">
+              <div className="text-green-400 font-mono text-lg text-center tracking-wider">
+                CODE BREAKER
+              </div>
+            </div>
+            
+            <div className="bg-gray-800 border border-gray-600 rounded-lg p-4 space-y-2">
+              <div className="text-green-300 font-mono text-sm">Evidence successfully recovered from intercepted hash!</div>
+              <div className="text-green-300 font-mono text-sm">Challenge 4 is now unlocked - ready for digital forensics investigation!</div>
+              <div className="text-gray-400 font-mono text-xs space-y-1">
+                <div>Investigation attempts: {attempts}</div>
+                <div>Agent ID: {studentData?.agentId}</div>
+                <div>Case: {evidence?.caseNumber}</div>
+              </div>
+            </div>
+
+            {/* Rewards Display */}
+            {rewardData && (
+              <div className="bg-gray-800 border border-gray-600 rounded-lg p-4 space-y-2">
+                <div className="text-center text-yellow-400 font-mono text-sm mb-3">
+                  REWARDS ACQUIRED
+                </div>
+                
+                {rewardData.bits > 0 && (
+                  <div className="flex items-center justify-between bg-gray-900 border border-yellow-600 rounded p-2">
+                    <div className="flex items-center gap-2">
+                      <Coins className="w-4 h-4 text-yellow-400" />
+                      <span className="text-yellow-400 font-mono text-sm">BITS</span>
+                    </div>
+                    <span className="text-yellow-400 font-mono text-sm font-bold">+{rewardData.bits}</span>
+                  </div>
+                )}
+
+                {rewardData.multiplier > 0 && (
+                  <div className="flex items-center justify-between bg-gray-900 border border-blue-600 rounded p-2">
+                    <div className="flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-blue-400" />
+                      <span className="text-blue-400 font-mono text-sm">MULTIPLIER</span>
+                    </div>
+                    <span className="text-blue-400 font-mono text-sm font-bold">+{rewardData.multiplier.toFixed(1)}</span>
+                  </div>
+                )}
+
+                {rewardData.luck > 1.0 && (
+                  <div className="flex items-center justify-between bg-gray-900 border border-green-600 rounded p-2">
+                    <div className="flex items-center gap-2">
+                      <Clover className="w-4 h-4 text-green-400" />
+                      <span className="text-green-400 font-mono text-sm">LUCK</span>
+                    </div>
+                    <span className="text-green-400 font-mono text-sm font-bold">×{rewardData.luck.toFixed(1)}</span>
+                  </div>
+                )}
+
+                {rewardData.discount > 0 && (
+                  <div className="flex items-center justify-between bg-gray-900 border border-purple-600 rounded p-2">
+                    <div className="flex items-center gap-2">
+                      <Percent className="w-4 h-4 text-purple-400" />
+                      <span className="text-purple-400 font-mono text-sm">DISCOUNT</span>
+                    </div>
+                    <span className="text-purple-400 font-mono text-sm font-bold">+{rewardData.discount}%</span>
+                  </div>
+                )}
+
+                {rewardData.shield && (
+                  <div className="flex items-center justify-between bg-gray-900 border border-cyan-600 rounded p-2">
+                    <div className="flex items-center gap-2">
+                      <Shield className="w-4 h-4 text-cyan-400" />
+                      <span className="text-cyan-400 font-mono text-sm">SHIELD</span>
+                    </div>
+                    <span className="text-cyan-400 font-mono text-sm font-bold">ACTIVE</span>
+                  </div>
+                )}
+
+                {rewardData.attackBonus > 0 && (
+                  <div className="flex items-center justify-between bg-gray-900 border border-red-600 rounded p-2">
+                    <div className="flex items-center gap-2">
+                      <Sword className="w-4 h-4 text-red-400" />
+                      <span className="text-red-400 font-mono text-sm">ATTACK</span>
+                    </div>
+                    <span className="text-red-400 font-mono text-sm font-bold">+{rewardData.attackBonus}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          
           <button
             onClick={() => {
               localStorage.setItem('challengeCompleted', JSON.stringify({
                 challengeIndex: 2,
                 challengeName: "Code Breaker",
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                rewards: rewardData
               }));
               window.close();
             }}
-            className="px-8 py-3 border border-green-400 bg-transparent text-green-400 hover:bg-green-400 hover:text-black transition-colors rounded-lg"
+            className="w-full bg-green-600 hover:bg-green-700 text-white font-mono py-3 px-4 rounded border border-green-500 transition-colors"
           >
             RETURN TO BASE
           </button>
@@ -240,9 +323,9 @@ const Challenge3Site = () => {
   // Don't show main challenge if data is loaded but challenge hasn't started
   if (dataLoaded && !challengeStarted) {
     return (
-      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-black text-green-400 font-mono flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin h-8 w-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+          <div className="animate-spin h-8 w-8 border-2 border-green-500 border-t-transparent rounded-full mx-auto mb-4"></div>
           <p>Starting investigation timer...</p>
         </div>
       </div>
@@ -250,11 +333,11 @@ const Challenge3Site = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      <div className="bg-black border-b border-gray-700 p-4">
+    <div className="min-h-screen bg-black text-green-400 font-mono">
+      <div className="bg-gray-900 border-b border-gray-700 p-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Search className="text-blue-500" size={24} />
+            <Search className="text-green-500" size={24} />
             <div>
               <h1 className="text-xl font-bold">Challenge 3: Code Breaker</h1>
               <p className="text-gray-400 text-sm">🔍 Case: {evidence?.caseNumber} | Suspect: {evidence?.suspectId}</p>
@@ -280,7 +363,7 @@ const Challenge3Site = () => {
                 value={answer}
                 onChange={(e) => setAnswer(e.target.value)}
                 placeholder="Enter recovered evidence..."
-                className="px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-blue-500 focus:outline-none"
+                className="px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-green-400 placeholder-gray-400 focus:border-green-500 focus:outline-none"
                 onKeyPress={(e) => e.key === 'Enter' && submitAnswer()}
                 onPaste={(e) => {
                   e.preventDefault();
@@ -293,7 +376,7 @@ const Challenge3Site = () => {
               <button
                 onClick={submitAnswer}
                 disabled={isSubmitting || !answer.trim() || attempts >= maxAttempts}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 rounded-lg transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 rounded-lg transition-colors"
               >
                 <Shield size={16} />
                 {isSubmitting ? 'Verifying...' : attempts >= maxAttempts ? 'Locked' : 'Submit'}
@@ -305,7 +388,7 @@ const Challenge3Site = () => {
 
       <div className="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-          <div className="bg-gray-800 rounded-lg border border-gray-700">
+          <div className="bg-gray-900 rounded-lg border border-gray-700">
             <div className="p-4 border-b border-gray-700 flex items-center justify-between">
               <h3 className="font-bold flex items-center gap-2">
                 <FileText size={18} />
