@@ -1,8 +1,14 @@
 import { getChallengeColors, getThemeClasses } from '../../../utils/themeUtils';
 
-const WayneAWSChallenge = ({ userChallenge, isDark }) => {
+const WayneAWSChallenge = ({ userChallenge, isDark, onExternalLinkClick }) => {
   const colors = getChallengeColors(4, isDark);
   const themeClasses = getThemeClasses(isDark);
+
+  const handleLinkClick = (e) => {
+    if (onExternalLinkClick) {
+      onExternalLinkClick(e, true);
+    }
+  };
 
   return (
     <>
@@ -27,6 +33,7 @@ const WayneAWSChallenge = ({ userChallenge, isDark }) => {
             target="_blank" 
             rel="noopener noreferrer" 
             className="hover:underline"
+            onClick={handleLinkClick}
           >
             /challenge-5-site/{userChallenge.uniqueId}
           </a>

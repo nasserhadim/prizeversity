@@ -1,4 +1,5 @@
-import { Play, Eye } from 'lucide-react';
+import React, { useState } from 'react';
+import { Play, Eye, AlertTriangle } from 'lucide-react';
 import { getChallengeColors } from '../../../utils/themeUtils';
 import { calculatePotentialBits } from '../../../utils/challengeUtils';
 import { unlockHint, startChallenge } from '../../../API/apiChallenge';
@@ -20,8 +21,12 @@ const ChallengeCard = ({
   onHintUnlocked,
   children
 }) => {
+  const [showStartModal, setShowStartModal] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState(null);
+  
   const colors = getChallengeColors(challengeIndex, isDark);
   const isCompleted = userChallenge?.completedChallenges?.[challengeIndex] || false;
+  const isChallengeStarted = userChallenge?.currentChallenge === challengeIndex || isCompleted;
   
   const challengeId = CHALLENGE_IDS[challengeIndex];
   
@@ -58,12 +63,66 @@ const ChallengeCard = ({
     }
   };
 
+  // Enhanced click handler for challenge content
+  const handleChallengeContentClick = async (e, isExternalLink = false) => {
+    // If challenge is already started or completed, allow normal behavior
+    if (isChallengeStarted) {
+      return;
+    }
+
+    // If it's an external link and challenge hasn't started, show confirmation
+    if (isExternalLink) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // Store the navigation details for later
+      setPendingNavigation({
+        href: e.target.href,
+        target: e.target.target || '_blank'
+      });
+      setShowStartModal(true);
+    }
+  };
+
+  const handleConfirmStart = async () => {
+    try {
+      const res = await startChallenge(classroomId, challengeIndex);
+      if (res.success) {
+        toast.success('Challenge started!');
+        await fetchChallengeData();
+        
+        // Navigate to the pending URL
+        if (pendingNavigation) {
+          window.open(pendingNavigation.href, pendingNavigation.target);
+        }
+      } else {
+        toast.error(res.message || 'Unable to start challenge');
+      }
+    } catch (error) {
+      toast.error(error.message || 'Unable to start challenge');
+    } finally {
+      setShowStartModal(false);
+      setPendingNavigation(null);
+    }
+  };
+
+  const handleCancelStart = () => {
+    setShowStartModal(false);
+    setPendingNavigation(null);
+  };
+
+  // Wrap children with click handler
+  const enhancedChildren = children && React.cloneElement(children, {
+    onExternalLinkClick: handleChallengeContentClick
+  });
+
   return (
-    <div className={`collapse collapse-arrow ${
-      isCompleted 
-        ? colors.completedBg 
-        : colors.cardBg 
-    }`}>
+    <>
+      <div className={`collapse collapse-arrow ${
+        isCompleted 
+          ? colors.completedBg 
+          : colors.cardBg 
+      }`}>
       <input type="checkbox" defaultChecked={false} className="peer" />
       
       <div className="collapse-title text-xl font-medium flex items-center gap-3">
@@ -95,13 +154,23 @@ const ChallengeCard = ({
         <div className={`ml-auto text-sm ${isDark ? 'text-base-content/50' : 'text-gray-400'}`}>
           {isCompleted 
             ? '✅ Completed' 
-            : '🔓 Available' 
+            : isChallengeStarted 
+              ? '🔓 In Progress'
+              : '⏳ Not Started' 
           }
         </div>
       </div>
       
       <div className="collapse-content" onClick={(e) => e.stopPropagation()}>
         <div className="pt-4 space-y-4">
+          {!isChallengeStarted && (
+            <div className="alert alert-warning">
+              <div className="flex items-center gap-2">
+                <span className="text-sm">⚠️ You must start this challenge before accessing external resources</span>
+              </div>
+            </div>
+          )}
+
           {challengeData?.settings?.challengeHintsEnabled?.[challengeIndex] && (
             <div className="flex items-center gap-3">
               <span className="badge badge-outline">Hints enabled</span>
@@ -116,7 +185,7 @@ const ChallengeCard = ({
           </p>
 
           <div className="flex items-center gap-3">
-            {!isCompleted && userChallenge?.currentChallenge !== challengeIndex && challengeIndex !== 2 && (
+            {!isCompleted && !isChallengeStarted && challengeIndex !== 2 && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -129,7 +198,7 @@ const ChallengeCard = ({
                 Start Challenge
               </button>
             )}
-            {userChallenge?.currentChallenge === challengeIndex && !isCompleted && (
+            {isChallengeStarted && !isCompleted && (
               <div className="badge badge-success gap-2">
                 <Play className="w-3 h-3" />
                 Working on this challenge
@@ -189,11 +258,56 @@ const ChallengeCard = ({
           )}
           
           <div onClick={(e) => e.stopPropagation()}>
-            {children}
+            {enhancedChildren}
           </div>
         </div>
       </div>
     </div>
+
+    {/* Start Challenge Confirmation Modal */}
+    {showStartModal && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className={`card w-full max-w-md shadow-2xl ${isDark ? 'bg-base-200' : 'bg-white'}`}>
+          <div className="card-body text-center space-y-4">
+            <div className="flex justify-center">
+              <div className="w-16 h-16 rounded-full bg-warning/20 flex items-center justify-center">
+                <AlertTriangle className="w-8 h-8 text-warning" />
+              </div>
+            </div>
+            
+            <div>
+              <h3 className="text-xl font-bold mb-2">Start Challenge?</h3>
+              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                If you navigate to this site, it will mark <strong>Challenge {challengeIndex + 1}: {challengeName}</strong> as "In Progress".
+              </p>
+            </div>
+
+            <div className={`p-3 rounded-lg ${isDark ? 'bg-info/20 border border-info/40' : 'bg-blue-50 border border-blue-200'}`}>
+              <p className={`text-xs ${isDark ? 'text-info' : 'text-blue-700'}`}>
+                💡 This will officially start your challenge timer and track your progress.
+              </p>
+            </div>
+
+            <div className="flex gap-3 justify-center pt-2">
+              <button
+                onClick={handleCancelStart}
+                className="btn btn-ghost btn-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmStart}
+                className="btn btn-primary btn-sm gap-2"
+              >
+                <Play className="w-4 h-4" />
+                Start & Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 };
 

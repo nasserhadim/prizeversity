@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
-import { Shield, Settings, Users, Eye, EyeOff, UserPlus } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { getCurrentChallenge } from '../../utils/challengeUtils';
 import { getThemeClasses } from '../../utils/themeUtils';
 import { updateDueDate } from '../../API/apiChallenge';
 import toast from 'react-hot-toast';
+import ChallengeCard from './cards/ChallengeCard';
 
 const TeacherView = ({ 
   challengeData,
@@ -16,19 +17,9 @@ const TeacherView = ({
 }) => {
   const [showPasswords, setShowPasswords] = useState({});
   const [showDueDateModal, setShowDueDateModal] = useState(false);
-  const [showAssignDropdown, setShowAssignDropdown] = useState(false);
   const [studentNames, setStudentNames] = useState({});
   const [challenge6Data, setChallenge6Data] = useState({});
-  const dropdownRef = useRef(null);
   const themeClasses = getThemeClasses(isDark);
-
-  // Use the userChallenge _id (uc._id) as the toggle key so each row is stable
-  const togglePasswordVisibility = (ucId) => {
-    setShowPasswords(prev => ({
-      ...prev,
-      [ucId]: !prev[ucId]
-    }));
-  };
 
   // Find students not assigned to the challenge
   // We've found that in cases where a student joins the class after the challenge is created, they are not automatically assigned to the challenge.
@@ -71,20 +62,12 @@ const TeacherView = ({
     }
   }, [unassignedStudentIds.join(',')]);
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setShowAssignDropdown(false);
-      }
-    };
-
-    if (showAssignDropdown) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
-    }
-  }, [showAssignDropdown]);
+  const togglePasswordVisibility = (ucId) => {
+    setShowPasswords(prev => ({
+      ...prev,
+      [ucId]: !prev[ucId]
+    }));
+  };
 
   const handleAssignStudent = async (studentId) => {
     try {
@@ -97,7 +80,6 @@ const TeacherView = ({
       
       if (response.ok) {
         toast.success('Student assigned to challenge successfully');
-        setShowAssignDropdown(false);
         window.location.reload();
       } else {
         toast.error('Failed to assign student');
@@ -106,17 +88,6 @@ const TeacherView = ({
       toast.error('Error assigning student');
     }
   };
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (showAssignDropdown && !event.target.closest('.relative')) {
-        setShowAssignDropdown(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showAssignDropdown]);
 
   useEffect(() => {
     const fetchChallenge6Data = async () => {
@@ -160,7 +131,6 @@ const TeacherView = ({
     <div className="p-6 space-y-8">
       <div className={themeClasses.cardBase}>
         <div className="flex items-center gap-3 mb-4">
-          <Shield className="w-8 h-8 text-red-500" />
           <h1 className="text-3xl font-bold text-base-content">Cyber Challenge</h1>
         </div>
         <p className={`${themeClasses.mutedText} text-lg mb-6`}>
@@ -173,7 +143,6 @@ const TeacherView = ({
               onClick={handleShowConfigModal}
               className="btn btn-error btn-lg gap-2"
             >
-              <Settings className="w-5 h-5" />
               Configure & Launch Challenge Series
             </button>
           ) : (
@@ -197,45 +166,8 @@ const TeacherView = ({
         <div className="card bg-base-100 border border-base-200 shadow-md rounded-2xl p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <Users className="w-6 h-6 text-blue-500" />
               <h2 className="text-2xl font-bold">Challenge Status</h2>
             </div>
-            
-            {challengeData.isActive && challengeData.userChallenges && unassignedStudentIds.length > 0 && (
-              <div className="relative" ref={dropdownRef}>
-                <button
-                  className="btn btn-sm btn-primary gap-2"
-                  onClick={() => setShowAssignDropdown(!showAssignDropdown)}
-                >
-                  <UserPlus className="w-4 h-4" />
-                  Assign Students ({unassignedStudentIds.length})
-                </button>
-                
-                {showAssignDropdown && (
-                  <div className="absolute right-0 top-full mt-1 w-64 bg-base-100 border border-base-300 rounded-lg shadow-lg z-50">
-                    <div className="p-3">
-                      <div className="text-sm font-medium mb-2">Unassigned Students:</div>
-                      <div className="space-y-1 max-h-48 overflow-y-auto">
-                        {unassignedStudentIds.length > 0 ? (
-                          unassignedStudentIds.map((studentId, index) => (
-                            <button
-                              key={`unassigned-${studentId}-${index}`}
-                              onClick={() => handleAssignStudent(studentId)}
-                              className="w-full text-left p-2 text-sm hover:bg-base-200 rounded flex items-center justify-between"
-                            >
-                              <span>{studentNames[studentId] || 'Loading...'}</span>
-                              <UserPlus className="w-3 h-3" />
-                            </button>
-                          ))
-                        ) : (
-                          <div className="text-xs text-gray-500 p-2">All students are already assigned to this challenge</div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -574,3 +506,102 @@ const TeacherView = ({
 };
 
 export default TeacherView;
+
+export const Challenge1Card = ({ userChallenge, challengeData, isDark, classroomId, fetchChallengeData, onHintUnlocked }) => {
+  const [answer, setAnswer] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      // Submit answer logic here
+    } catch (error) {
+      toast.error('Error submitting answer');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleExternalLinkClick = (e) => {
+    // This will be called by the parent ChallengeCard component
+    if (props.onExternalLinkClick) {
+      props.onExternalLinkClick(e, true); // true indicates this is an external link
+    }
+  };
+
+  return (
+    <ChallengeCard
+      challengeIndex={0}
+      challengeName="Little Caesar's Secret"
+      challengeIcon="🔐"
+      challengeDescription="Caesar cipher encryption challenge with personalized data"
+      userChallenge={userChallenge}
+      challengeData={challengeData}
+      isDark={isDark}
+      classroomId={classroomId}
+      fetchChallengeData={fetchChallengeData}
+      onHintUnlocked={onHintUnlocked}
+    >
+      <div className="space-y-4">
+        {/* Challenge content */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="font-medium">🎯 Your Challenge:</span>
+            <code className="bg-red-100 px-2 py-1 rounded text-sm font-mono text-red-700">
+              {userChallenge?.uniqueId || 'Loading...'}
+            </code>
+          </div>
+          
+          <p className="text-sm text-gray-600">
+            Use this encrypted text to discover the hidden password using Caesar cipher techniques.
+          </p>
+          
+          <div className="flex items-center gap-3">
+            <a
+              href="https://cryptii.com/pipes/caesar-cipher"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-outline btn-sm gap-2"
+              onClick={handleExternalLinkClick}
+            >
+              🔧 Caesar Cipher Tool
+            </a>
+            <span className="text-xs text-gray-500">Recommended decryption tool</span>
+          </div>
+        </div>
+        
+        {/* Answer submission form */}
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="form-control">
+            <label className="label">
+              <span className="label-text font-medium">Enter the decrypted password:</span>
+            </label>
+            <input
+              type="text"
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              className="input input-bordered"
+              placeholder="Enter the password..."
+              disabled={!userChallenge?.currentChallenge === 0 && !isCompleted}
+            />
+          </div>
+          
+          <button
+            type="submit"
+            disabled={submitting || !answer.trim() || (!userChallenge?.currentChallenge === 0 && !isCompleted)}
+            className="btn btn-primary btn-sm"
+          >
+            {submitting ? 'Checking...' : 'Submit Answer'}
+          </button>
+        </form>
+        
+        {isCompleted && (
+          <div className="alert alert-success">
+            <span>✅ Challenge completed! You found the password.</span>
+          </div>
+        )}
+      </div>
+    </ChallengeCard>
+  );
+};

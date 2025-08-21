@@ -1,8 +1,14 @@
 import { getChallengeColors, getThemeClasses } from '../../../utils/themeUtils';
 
-const DigitalForensicsChallenge = ({ userChallenge, isDark }) => {
+const DigitalForensicsChallenge = ({ userChallenge, isDark, onExternalLinkClick }) => {
   const colors = getChallengeColors(3, isDark);
   const themeClasses = getThemeClasses(isDark);
+
+  const handleLinkClick = (e) => {
+    if (onExternalLinkClick) {
+      onExternalLinkClick(e, true);
+    }
+  };
 
   return (
     <>
@@ -27,6 +33,7 @@ const DigitalForensicsChallenge = ({ userChallenge, isDark }) => {
             target="_blank" 
             rel="noopener noreferrer" 
             className="hover:underline"
+            onClick={handleLinkClick}
           >
             /challenge-4-site/{userChallenge.uniqueId}
           </a>

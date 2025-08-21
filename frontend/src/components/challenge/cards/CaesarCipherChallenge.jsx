@@ -1,8 +1,14 @@
 import { getChallengeColors, getThemeClasses } from '../../../utils/themeUtils';
 
-const CaesarCipherChallenge = ({ userChallenge, isDark }) => {
+const CaesarCipherChallenge = ({ userChallenge, isDark, onExternalLinkClick }) => {
   const colors = getChallengeColors(0, isDark);
   const themeClasses = getThemeClasses(isDark);
+
+  const handleLinkClick = (e) => {
+    if (onExternalLinkClick) {
+      onExternalLinkClick(e, true);
+    }
+  };
 
   return (
     <>
@@ -31,6 +37,7 @@ const CaesarCipherChallenge = ({ userChallenge, isDark }) => {
             target="_blank" 
             rel="noopener noreferrer" 
             className="hover:underline"
+            onClick={handleLinkClick}
           >
             /challenge-site/{userChallenge.uniqueId}
           </a>

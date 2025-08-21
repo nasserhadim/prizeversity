@@ -1,8 +1,14 @@
 import { getChallengeColors, getThemeClasses } from '../../../utils/themeUtils';
 
-const GitHubOSINTChallenge = ({ userChallenge, isDark }) => {
+const GitHubOSINTChallenge = ({ userChallenge, isDark, onExternalLinkClick }) => {
   const colors = getChallengeColors(1, isDark);
   const themeClasses = getThemeClasses(isDark);
+
+  const handleLinkClick = (e) => {
+    if (onExternalLinkClick) {
+      onExternalLinkClick(e, true);
+    }
+  };
 
   return (
     <>
@@ -17,6 +23,7 @@ const GitHubOSINTChallenge = ({ userChallenge, isDark }) => {
               target="_blank" 
               rel="noopener noreferrer"
               className={`${themeClasses.linkText} hover:underline`}
+              onClick={handleLinkClick}
             >
               linkedin.com/in/paul-glantz-1b3488378/
             </a>
@@ -40,6 +47,7 @@ const GitHubOSINTChallenge = ({ userChallenge, isDark }) => {
             target="_blank" 
             rel="noopener noreferrer" 
             className="hover:underline"
+            onClick={handleLinkClick}
           >
             /challenge-2-site/{userChallenge.uniqueId}
           </a>

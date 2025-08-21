@@ -1,10 +1,32 @@
 import { useState } from 'react';
 import { getChallengeColors, getThemeClasses } from '../../../utils/themeUtils';
 
-const CppBugHuntChallenge = ({ userChallenge, isDark }) => {
+const CppBugHuntChallenge = ({ userChallenge, isDark, onExternalLinkClick }) => {
   const [showMissionModal, setShowMissionModal] = useState(false);
   const colors = getChallengeColors(2, isDark);
   const themeClasses = getThemeClasses(isDark);
+
+  const handleLinkClick = (e) => {
+    if (onExternalLinkClick) {
+      onExternalLinkClick(e, true);
+    }
+  };
+
+  const handleStartDebugging = (e) => {
+    setShowMissionModal(false);
+    // Create a synthetic link event for the external link handler
+    const syntheticEvent = {
+      preventDefault: () => {},
+      stopPropagation: () => {},
+      target: { tagName: 'A', href: `/challenge-3-site/${userChallenge.uniqueId}`, target: '_blank' }
+    };
+    
+    if (onExternalLinkClick) {
+      onExternalLinkClick(syntheticEvent, true);
+    } else {
+      window.open(`/challenge-3-site/${userChallenge.uniqueId}`, '_blank');
+    }
+  };
 
   return (
     <>
@@ -38,12 +60,6 @@ const CppBugHuntChallenge = ({ userChallenge, isDark }) => {
           🎓 Opens the C++ debugging environment - perfect for practicing your programming skills!
         </p>
       </div>
-      
-      <div className="bg-red-900 border border-red-600 rounded-lg p-3">
-        <span className="text-sm text-red-200">
-          <strong>🔒 ANTI-CHEAT WARNING:</strong> This code is personalized with your name and student ID. Copying it to AI tools will give wrong answers because they don't know YOUR specific data!
-        </span>
-      </div>
 
       {/* Mission Start Modal */}
       {showMissionModal && (
@@ -59,7 +75,6 @@ const CppBugHuntChallenge = ({ userChallenge, isDark }) => {
               </div>
 
               <div className="bg-gray-900 border border-yellow-500 rounded-lg p-6 space-y-3">
-                <h3 className="text-xl font-bold text-yellow-400">🔒 ANTI-CHEAT SYSTEM</h3>
                 <div className="space-y-2 text-left text-sm">
                   <p className="text-gray-300">🎯 <strong>Goal:</strong> Manually trace through YOUR personalized C++ code</p>
                   <p className="text-gray-300">⏳ <strong>Time Limit:</strong> 30 minutes for careful calculation</p>
@@ -82,10 +97,7 @@ const CppBugHuntChallenge = ({ userChallenge, isDark }) => {
                   Maybe Later
                 </button>
                 <button
-                  onClick={() => {
-                    setShowMissionModal(false);
-                    window.open(`/challenge-3-site/${userChallenge.uniqueId}`, '_blank');
-                  }}
+                  onClick={handleStartDebugging}
                   className="px-8 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors font-bold text-white"
                 >
                   🔍 START DEBUGGING

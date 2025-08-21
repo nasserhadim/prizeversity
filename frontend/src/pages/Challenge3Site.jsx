@@ -407,11 +407,6 @@ const Challenge3Site = () => {
                   </pre>
                 </div>
               </div>
-              
-              <div className="bg-red-900 border border-red-600 rounded-lg p-4">
-                <div className="text-red-300 font-mono text-sm font-bold mb-2">🔒 ANTI-CHEAT WARNING</div>
-                <p className="text-red-200 text-sm">{cppChallenge?.securityNote}</p>
-              </div>
             </div>
           </div>
           

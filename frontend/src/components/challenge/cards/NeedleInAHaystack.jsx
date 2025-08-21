@@ -1,8 +1,14 @@
 import { getChallengeColors, getThemeClasses } from '../../../utils/themeUtils';
 
-const NeedleInAHaystackChallenge = ({ userChallenge, isDark }) => {
+const NeedleInAHaystackChallenge = ({ userChallenge, isDark, onExternalLinkClick }) => {
   const colors = getChallengeColors(1, isDark);
   const themeClasses = getThemeClasses(isDark);
+
+  const handleLinkClick = (e) => {
+    if (onExternalLinkClick) {
+      onExternalLinkClick(e, true);
+    }
+  };
 
   return (
     <>
@@ -21,6 +27,7 @@ const NeedleInAHaystackChallenge = ({ userChallenge, isDark }) => {
             target="_blank" 
             rel="noopener noreferrer" 
             className="hover:underline"
+            onClick={handleLinkClick}
           >
             /challenge-6-site/{userChallenge.uniqueId}
           </a>
