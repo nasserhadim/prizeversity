@@ -3,7 +3,7 @@ const router = express.Router();
 const Challenge = require('../../models/Challenge');
 const User = require('../../models/User');
 const { ensureAuthenticated } = require('../../middleware/auth');
-const { generateHashBreakingChallenge, generateCppDebuggingChallenge, generateAndUploadForensicsImage, uploadLocks } = require('./generators');
+const { generateCppDebuggingChallenge, generateAndUploadForensicsImage, uploadLocks } = require('./generators');
 
 router.get('/challenge3/:uniqueId', ensureAuthenticated, async (req, res) => {
   try {
@@ -248,6 +248,8 @@ router.get('/challenge6/:uniqueId', ensureAuthenticated, async (req, res) => {
       res.json({
         generatedWord: challengeData.generatedWord,
         expectedTokenId: challengeData.expectedTokenId,
+        validTokens: challengeData.validTokens,
+        tokenData: challengeData.allTokenIds,
         uniqueId: uniqueId,
         sectorCode: uniqueId.substring(0, 8).toUpperCase(),
         isCompleted: false

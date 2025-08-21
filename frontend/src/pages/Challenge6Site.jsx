@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Coins, Zap, Shield, Sword, Percent, Clover } from 'lucide-react';
+import { Coins, Zap, Shield, Percent, Clover } from 'lucide-react';
 
 const Challenge6Site = () => {
   const { uniqueId } = useParams();
@@ -51,6 +51,21 @@ const Challenge6Site = () => {
     setSubmitMessage('');
     
     try {
+      // Parse user input - could be a single number or comma-separated values
+      const userTokens = input.trim()
+        .split(',')
+        .map(t => t.trim())
+        .filter(t => t)
+        .map(t => parseInt(t, 10))
+        .filter(t => !isNaN(t));
+      
+      // Validate at least one token provided
+      if (userTokens.length === 0) {
+        setSubmitMessage('❌ Please enter a valid token ID number');
+        setSubmitting(false);
+        return;
+      }
+      
       const response = await fetch(`/api/challenges/submit-challenge6`, {
         method: 'POST',
         headers: {
@@ -59,7 +74,7 @@ const Challenge6Site = () => {
         credentials: 'include',
         body: JSON.stringify({
           uniqueId: uniqueId,
-          answer: input.trim()
+          answer: userTokens 
         })
       });
       
@@ -95,8 +110,7 @@ const Challenge6Site = () => {
         multiplier: 0,
         luck: 1.0,
         discount: 0,
-        shield: false,
-        attackBonus: 0
+        shield: false
       },
       allCompleted: false,
       nextChallenge: null
@@ -177,6 +191,9 @@ const Challenge6Site = () => {
               </div>
               <div className="text-cyan-400 font-mono text-xs mt-2">
                 Think about how AI systems process language into numbers
+              </div>
+              <div className="text-cyan-300 font-mono text-xs mt-2">
+                You may enter a single token ID or multiple IDs separated by commas
               </div>
             </div>
           </div>
@@ -277,16 +294,6 @@ const Challenge6Site = () => {
                           <span className="text-cyan-400 font-mono text-sm">SHIELD</span>
                         </div>
                         <span className="text-cyan-400 font-mono text-sm font-bold">ACTIVE</span>
-                      </div>
-                    )}
-
-                    {rewardData.attackBonus > 0 && (
-                      <div className="flex items-center justify-between bg-gray-900 border border-red-600 rounded p-2">
-                        <div className="flex items-center gap-2">
-                          <Sword className="w-4 h-4 text-red-400" />
-                          <span className="text-red-400 font-mono text-sm">ATTACK</span>
-                        </div>
-                        <span className="text-red-400 font-mono text-sm font-bold">+{rewardData.attackBonus}</span>
                       </div>
                     )}
                   </div>

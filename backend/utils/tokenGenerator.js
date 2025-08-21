@@ -39,12 +39,42 @@ async function generateUniqueWord(uniqueId, salt = 'haystack_challenge_2024') {
   return word;
 }
 
+async function getTokenIdsAcrossModels(word) {
+  const models = [
+    "gpt2",         // Default GPT-2 encoding
+    "p50k_base",    // For most GPT-3 models
+    "cl100k_base",  // For newer models like GPT-3.5-turbo and GPT-4
+    "r50k_base"     // For older GPT-3 models
+  ];
+  
+  const results = {};
+  
+  for (const model of models) {
+    let enc;
+    try {
+      enc = get_encoding(model);
+      const tokens = enc.encode(word);
+      
+      if (tokens && tokens.length > 0) {
+        results[model] = tokens;
+      }
+      
+      if (enc) {
+        enc.free();
+      }
+    } catch (error) {
+      console.log(`Warning: Encoding with ${model} failed: ${error.message}`);
+      if (enc) {
+        try { enc.free(); } catch (e) { /* ignore */ }
+      }
+    }
+  }
+  
+  return results;
+}
+
 async function getTokenId(wordOrPromise) {
-  let enc;
   try {
-    // If it's a promise, await it; otherwise use it directly
-    // This package requires the use of async/await because 
-    // it relies on Promises for asynchronous operations (like tokenization)
     const word = typeof wordOrPromise === 'object' && wordOrPromise.then
       ? await wordOrPromise 
       : wordOrPromise;
@@ -53,25 +83,20 @@ async function getTokenId(wordOrPromise) {
       throw new Error(`Invalid word input: ${word}`);
     }
     
-    enc = get_encoding("gpt2");
-    const tokens = enc.encode(word);
-    
-    if (tokens && tokens.length > 0) {
-      const tokenId = tokens[0];
+    // For backward compatibility, still provide the single token
+    let enc;
+    try {
+      enc = get_encoding("gpt2");
+      const tokens = enc.encode(word);
+      const firstToken = tokens && tokens.length > 0 ? tokens[0] : null;
       enc.free();
-      return tokenId;
-    } else {
-      enc.free();
-      throw new Error('No tokens generated for word');
+      return firstToken;
+    } catch (error) {
+      if (enc) try { enc.free(); } catch (e) {}
+      console.log(`Warning: Default encoding failed: ${error.message}`);
+      return null;
     }
   } catch (error) {
-    if (enc) {
-      try {
-        enc.free(); // Free the encoding resources so they can be reused
-      } catch (freeError) {
-        // Ignore free errors
-      }
-    }
     throw new Error(`Token encoding failed: ${error.message}`);
   }
 }
@@ -80,10 +105,19 @@ async function generateChallengeData(uniqueId, salt = 'haystack_salt_2024') {
   try {
     const word = await generateUniqueWord(uniqueId, salt);
     const tokenId = await getTokenId(word);
+    const allTokenIds = await getTokenIdsAcrossModels(word);
+    
+    // Flatten all token IDs into a unique set
+    const allPossibleTokens = new Set();
+    Object.values(allTokenIds).forEach(tokens => {
+      tokens.forEach(token => allPossibleTokens.add(token));
+    });
     
     return {
       generatedWord: word,
-      expectedTokenId: tokenId
+      expectedTokenId: tokenId,
+      allTokenIds: allTokenIds,
+      validTokens: Array.from(allPossibleTokens)
     };
   } catch (error) {
     console.error('Error generating challenge data:', error);
@@ -94,5 +128,6 @@ async function generateChallengeData(uniqueId, salt = 'haystack_salt_2024') {
 module.exports = {
   generateUniqueWord,
   getTokenId,
+  getTokenIdsAcrossModels,
   generateChallengeData
 };
