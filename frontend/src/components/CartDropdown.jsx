@@ -55,11 +55,11 @@ const CartDropdown = () => {
                             <div className="flex items-center gap-2">
                                 {user?.discountShop ? (
                                     <span className="flex flex-col items-end">
-                                        <span className="text-xs line-through text-gray-400">{item.price} bits</span>
-                                        <span className="text-sm text-green-600">{calculatePrice(item.price)} bits</span>
+                                        <span className="text-xs line-through text-gray-400">Ƀ{item.price}</span>
+                                        <span className="text-sm text-green-600">Ƀ{calculatePrice(item.price)}</span>
                                     </span>
                                 ) : (
-                                    <span className="text-sm text-gray-600">{item.price} bits</span>
+                                    <span className="text-sm text-gray-600">Ƀ{item.price}</span>
                                 )}
                                 <button
                                     className="text-red-500 text-xs"
@@ -75,18 +75,18 @@ const CartDropdown = () => {
             {cartItems.length > 0 && (
                 <>
                     <div className="mt-3 text-right font-semibold">
-                        Total: {calculateTotal()} bits
+                        Total: Ƀ{calculateTotal()}
                         {user?.discountShop && (
                             <span className="block text-xs text-green-600">
-                                You saved {Math.floor(getTotal() * 0.2)} bits!
+                                You saved Ƀ{Math.floor(getTotal() * 0.2)}!
                             </span>
                         )}
                     </div>
-                    <Link to="/checkout">
-                        <button className="mt-2 w-full bg-green-500 text-white py-2 rounded hover:bg-blue-600">
-                            Go to Checkout
-                        </button>
-                    </Link>
+                    <button
+                        className="mt-2 w-full bg-green-500 text-white py-2 rounded hover:bg-blue-600"
+                    >
+                        Go to Checkout
+                    </button>
                 </>
             )}
         </div>

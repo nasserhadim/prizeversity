@@ -22,6 +22,8 @@ export function deleteNews(classId, itemId) {
     return api.delete(`/classroom/${classId}/newsfeed/${itemId}`);
 }
 
-export function editNews(classId, itemId, content) {
-    return api.put(`/classroom/${classId}/newsfeed/${itemId}`, { content });
+export function editNews(classId, itemId, formData) {
+    return api.put(`/classroom/${classId}/newsfeed/${itemId}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+    });
 }

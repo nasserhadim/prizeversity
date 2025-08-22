@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 
 
@@ -26,49 +25,55 @@ const inferType = (tx) => {
   return null;              
 };
 
-const TransactionList = ({ transactions, filterType = 'all' }) => {
-// Memoized list of transactions filtered by type (or all if filterType='all')
-  const visible = useMemo(() => (
-    filterType === 'all'
-      ? transactions
-      : transactions.filter(tx => inferType(tx) === filterType)
-  ), [transactions, filterType]);
+const TransactionList = ({ transactions }) => {
+
+  // Memoized list of transactions filtered by type (or all if filterType='all')
+  const visible = transactions;
 
 
    // Function returning CSS text color class based on positive/negative amount
   const colour = (amt) => (amt < 0 ? 'text-red-500' : 'text-green-600');
 
   return (
-    <div className="space-y-4">
-     
-
+    <ul className="space-y-4">
       {/* list body */}
       {visible.length === 0 && (
         <p className="italic text-gray-500 mt-4">No transactions found.</p>
       )}
 
-      {visible.map(tx => (
-        <div
-          key={tx._id || tx.createdAt}
-          className="border rounded-lg p-4 flex justify-between items-start shadow-sm bg-white"
+      {visible.map((tx) => (
+        <li
+          key={tx._id}
+          className="border p-4 rounded-lg flex justify-between items-center"
         >
           <div className="flex-1 min-w-0">
             <p className="font-medium truncate">{tx.description}</p>
             <p className="text-xs text-gray-500">
-              {(tx.studentName || tx.studentEmail) && (
+              {(tx.studentName || tx.studentEmail) && !tx.description.includes(tx.studentName) && (
               <>
                 {tx.studentName || tx.studentEmail} ·{' '}
               </>
             )}
               {new Date(tx.createdAt).toLocaleString()}
             </p>
+            {tx.calculation && (
+              <p className="text-xs text-gray-400 mt-1">
+                (Base: {tx.calculation.baseAmount}₿, 
+                Personal: {tx.calculation.personalMultiplier?.toFixed(2)}x, 
+                Group: {tx.calculation.groupMultiplier?.toFixed(2)}x, 
+                Total: {tx.calculation.totalMultiplier?.toFixed(2)}x)
+              </p>
+            )}
+            <p className="text-xs text-gray-400 font-mono mt-1">
+              ID: {tx._id}
+            </p>
           </div>
           <p className={`text-lg font-bold ${colour(tx.amount)}`}>
-            {tx.amount > 0 ? '+' : ''}{tx.amount} B
+            {tx.amount > 0 ? '+' : ''}{tx.amount} ₿
           </p>
-        </div>
+        </li>
       ))}
-    </div>
+    </ul>
   );
 };
 

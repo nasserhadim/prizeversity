@@ -124,13 +124,13 @@ const Checkout = () => {
                             <li key={item._id} className="flex justify-between items-center">
                                 <div>
                                     <span className="block font-medium">{item.name}</span>
-                                    {user?.discountShop ? (
-                                        <span className="text-sm text-gray-500">
-                                            <span className="line-through mr-2">{item.price} bits</span>
-                                            <span className="text-green-600">{calculatePrice(item.price)} bits</span>
+                                    {hasDiscount ? (
+                                        <span>
+                                            <span className="line-through text-gray-400 mr-2">{item.price} ₿</span>
+                                            <span className="text-green-600">{calculatePrice(item.price)} ₿</span>
                                         </span>
                                     ) : (
-                                        <span className="text-sm text-gray-500">{item.price} bits</span>
+                                        <span className="text-sm text-gray-500">{item.price} ₿</span>
                                     )}
                                 </div>
                                 <button
@@ -145,16 +145,16 @@ const Checkout = () => {
                     </ul>
 
                     <div className="mt-4 text-right font-semibold text-green-600">
-                        Bit Balance: {balance} bits
+                        Bit Balance: {balance} ₿
                     </div>
 
                     <div className="mt-4 text-right font-semibold">
                         <div className="text-lg">
-                            Total: {calculateTotal()} bits
+                            Total: {calculateTotal()} ₿
                         </div>
                         {user?.discountShop && (
                             <div className="text-sm text-green-600">
-                                You saved {Math.floor(getTotal() * 0.2)} bits!
+                                You saved {Math.floor(getTotal() * 0.2)} ₿!
                             </div>
                         )}
                     </div>

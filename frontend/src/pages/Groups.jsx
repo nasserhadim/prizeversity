@@ -457,7 +457,7 @@ const Groups = () => {
         `/api/groupset/${groupSetId}/group/${groupId}/adjust-balance`,
         { amount: amt, description: adjustDesc }
       );
-      toast.success(`All students ${amt >= 0 ? 'credited' : 'debited'} ${Math.abs(amt)} bits`);
+      toast.success(`All students ${amt >= 0 ? 'credited' : 'debited'} ${Math.abs(amt)} ₿`);
       fetchGroupSets();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Adjust failed');

@@ -8,11 +8,11 @@ const router = express.Router();
 router.get('/', ensureAuthenticated, async (req, res) => {
   try {
     const notifications = await Notification.find({ user: req.user._id })
-      .populate('user', 'email')         // Populate user email
-      .populate('actionBy', 'email')     // Populate actionBy email  
-      .populate('classroom', 'name')     // Populate classroom name
-      .populate('groupSet', 'name')      // Populate groupSet name
-      .populate('group', 'name')         // Populate group name
+      .populate('user', 'email')
+      .populate('actionBy', 'email firstName lastName')
+      .populate('classroom', 'name')
+      .populate('groupSet', 'name')
+      .populate('group', 'name')
       .sort('-createdAt');
       
     res.status(200).json(notifications);
