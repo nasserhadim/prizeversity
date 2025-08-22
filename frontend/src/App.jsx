@@ -51,7 +51,7 @@ const App = () => {
           <Route path="/classrooms/archived" element={<ArchivedClassrooms />} />
           <Route path="/classroom/:id" element={<Classroom />} />
           <Route path="/classroom/:classroomId/bazaar" element={<Bazaar />} />
-          <Route path="/classroom/:id/news" element={<StudentNewsfeed />} />
+          <Route path="/classroom/:id/news"  element={<StudentNewsfeed />} />
           <Route path="/classroom/:id/teacher-news" element={<TeacherNewsfeed />} />
           <Route path="/classroom/:id/settings" element={<ClassroomSettings />} />
           <Route path="/classroom/:id/wallet" element={<Wallet />} />

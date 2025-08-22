@@ -51,6 +51,11 @@ router.post(
         await item.save();
         await item.populate('authorId', 'firstName lastName');
 
+        // send the new announcement to everyone in the class instantly
+        req.app.get('io')
+            .to(`classroom-${req.params.id}`)
+            .emit('receive-announcement', item);
+        // Create notifications for teacher and all students in the class   
          const recipients = [classroom.teacher, ...classroom.students];
            for (const recipientId of recipients) {
              const notification = await Notification.create({

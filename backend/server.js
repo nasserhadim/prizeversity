@@ -138,6 +138,7 @@ io.on('connection', (socket) => {
 
     socket.join(room);
 
+
     // Extract user ID from room name (removes 'user-' prefix)
     if (room.startsWith('user-')) {
       const userId = room.replace('user-', '');
@@ -152,6 +153,19 @@ io.on('connection', (socket) => {
       console.log(`Socket joined room: ${room}`);
     }
   });
+
+      // NEW: classroom join
+  socket.on('join-classroom', (classId) => {
+    socket.join(`classroom-${classId}`);
+    console.log(`Socket joined classroom room: classroom-${classId}`);
+  });
+
+  // Optional: leave classroom
+  socket.on('leave-classroom', (classId) => {
+    socket.leave(`classroom-${classId}`);
+    console.log(`Socket left classroom room: classroom-${classId}`);
+  });
+
 
   socket.on('disconnect', () => {
     console.log('Client disconnected');
