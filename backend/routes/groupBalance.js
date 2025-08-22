@@ -1,4 +1,3 @@
-
 const express = require('express');
 const { ensureAuthenticated } = require('../config/auth');
 const Group = require('../models/Group');
@@ -63,6 +62,12 @@ router.post(
           amount: adjustedAmount, // Store the actual amount transferred
           description: description || `Group adjust (${group.name})`,
           assignedBy: req.user._id,
+          calculation: numericAmount > 0 ? {
+            baseAmount: numericAmount,
+            personalMultiplier: user.passiveAttributes?.multiplier || 1,
+            groupMultiplier: group.groupMultiplier || 1,
+            totalMultiplier: (group.groupMultiplier || 1) * (user.passiveAttributes?.multiplier || 1),
+          } : undefined,
         });
         await user.save();
 
@@ -82,7 +87,7 @@ router.post(
   const notification = await Notification.create({
     user: user._id, // specify the user this notification is for
     type: 'wallet_transaction',
-    message: `You were ${amount >= 0 ? 'credited' : 'debited'} ${Math.abs(amount)} bits in ${group.name}.`,
+    message: `You were ${amount >= 0 ? 'credited' : 'debited'} ${Math.abs(amount)} ₿ in ${group.name}.`,
     amount,
     description: description || `Group adjust (${group.name})`,
     group: group._id,

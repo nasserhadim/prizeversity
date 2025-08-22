@@ -336,7 +336,7 @@ const Profile = () => {
                                     <ul className="list-disc list-inside">
                                         {orders.map(o => (
                                             <li key={o._id}>
-                                                {formatDateTime(o.createdAt)}: {o.items.map(i => i.name).join(', ')} ({o.total} bits)
+                                                {formatDateTime(o.createdAt)}: {o.items.map(i => i.name).join(', ')} ({o.total} ₿)
                                             </li>
                                         ))}
                                     </ul>

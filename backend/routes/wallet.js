@@ -166,16 +166,22 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
       amount: adjustedAmount,
       description: description || `Balance adjustment`,
       assignedBy: req.user._id,
+      calculation: numericAmount >= 0 ? {
+        baseAmount: numericAmount,
+        personalMultiplier: 1, // Note: This route doesn't use personal multiplier
+        groupMultiplier: multiplier,
+        totalMultiplier: multiplier,
+      } : undefined,
     });
 
     await student.save();
-    console.log(`Assigned ${adjustedAmount} bits to ${student.email}`);
+    console.log(`Assigned ${adjustedAmount} ₿ to ${student.email}`);
   
       const notification = await Notification.create({
           user: student._id,
           actionBy: req.user._id,
           type: 'wallet_topup',                                     //creating a notification for assigning balance
-          message: `You were ${amount >= 0 ? 'credited' : 'debited'} ${Math.abs(amount)} bits.`,
+          message: `You were ${amount >= 0 ? 'credited' : 'debited'} ${Math.abs(amount)} ₿.`,
           read: false,
           classroom: classroomId, 
           createdAt: new Date(),
@@ -295,13 +301,19 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
    ? Math.round(numericAmount * totalMultiplier)
    : numericAmount;
 
-      // never let balance go negative
-      student.balance = Math.max(0, student.balance + adjustedAmount);
+ // never let balance go negative
+ student.balance = Math.max(0, student.balance + adjustedAmount);
       student.transactions.push({
         amount: adjustedAmount,
         description,
         assignedBy: req.user._id,
-        createdAt: new Date()
+        createdAt: new Date(),
+        calculation: numericAmount >= 0 ? {
+          baseAmount: numericAmount,
+          personalMultiplier: passiveMultiplier,
+          groupMultiplier: groupMultiplier,
+          totalMultiplier: totalMultiplier,
+        } : undefined,
       });
 
       await student.save();
@@ -310,7 +322,7 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
           user: student._id,
           actionBy: req.user._id,
           type: 'wallet_topup',                                     //creating a notification for assigning balance
-          message: `You were ${amount >= 0 ? 'credited' : 'debited'} ${Math.abs(amount)} bits`,
+          message: `You were ${amount >= 0 ? 'credited' : 'debited'} ${Math.abs(amount)} ₿.`,
           read: false,
           classroom: classroomId, 
           createdAt: new Date(),
@@ -364,7 +376,7 @@ router.post(
     if (senderLive.isFrozen) {
       return res.status(403).json({ error: 'Your account is frozen during a siphon request' });
     }
-    const { recipientId, amount } = req.body;
+    const { recipientShortId: recipientId, amount, classroomId } = req.body;
 
     const numericAmount = Number(amount);
     if (!Number.isInteger(numericAmount) || numericAmount < 1) {
@@ -418,6 +430,31 @@ router.post(
 
     await sender.save();
     await recipient.save();
+
+    const classroom = await Classroom.findById(classroomId);
+    const classroomName = classroom ? ` in "${classroom.name}"` : '';
+
+    // Notification for sender
+    const senderNotification = await Notification.create({
+      user: sender._id,
+      actionBy: sender._id,
+      type: 'wallet_transaction',
+      message: `You sent ${numericAmount} ₿ to ${label(recipient)}${classroomName}.`,
+      classroom: classroomId,
+    });
+    const populatedSenderNotification = await populateNotification(senderNotification._id);
+    req.app.get('io').to(`user-${sender._id}`).emit('notification', populatedSenderNotification);
+
+    // Notification for recipient
+    const recipientNotification = await Notification.create({
+      user: recipient._id,
+      actionBy: sender._id,
+      type: 'wallet_transaction',
+      message: `You received ${adjustedAmount} ₿ from ${label(sender)}${classroomName}.`,
+      classroom: classroomId,
+    });
+    const populatedRecipientNotification = await populateNotification(recipientNotification._id);
+    req.app.get('io').to(`user-${recipient._id}`).emit('notification', populatedRecipientNotification);
 
     req.app.get('io').to(`classroom-${recipient.classroom}`).emit('balance_update', {
       senderId: sender._id,

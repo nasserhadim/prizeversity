@@ -35,7 +35,7 @@ export default function OrderHistory() {
                     : orders.map(o => (
                         <div key={o._id} className="border rounded p-3 mb-3 bg-base-100 shadow">
                             <p><strong>Date:</strong> {new Date(o.createdAt).toLocaleString()}</p>
-                            <p><strong>Total:</strong> {o.total} bits</p>
+                            <p><strong>Total:</strong> {o.total} ₿</p>
                             {o.items.length > 0 && o.items[0].bazaar?.classroom && (
                                 <p><strong>Classroom:</strong> {o.items[0].bazaar.classroom.name} ({o.items[0].bazaar.classroom.code})</p>
                             )}

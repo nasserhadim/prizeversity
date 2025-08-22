@@ -35,20 +35,17 @@ const TransactionList = ({ transactions }) => {
   const colour = (amt) => (amt < 0 ? 'text-red-500' : 'text-green-600');
 
   return (
-    <div className="space-y-4">
-     
-
+    <ul className="space-y-4">
       {/* list body */}
       {visible.length === 0 && (
         <p className="italic text-gray-500 mt-4">No transactions found.</p>
       )}
 
-      {visible.map(tx => {
-        const title = tx.description;
-        const isCredit = tx.amount > 0;
-
-        return (
-          <div key={tx._id} className="border p-4 rounded-lg flex justify-between items-center">
+      {visible.map((tx) => (
+        <li
+          key={tx._id}
+          className="border p-4 rounded-lg flex justify-between items-center"
+        >
           <div className="flex-1 min-w-0">
             <p className="font-medium truncate">{tx.description}</p>
             <p className="text-xs text-gray-500">
@@ -59,17 +56,24 @@ const TransactionList = ({ transactions }) => {
             )}
               {new Date(tx.createdAt).toLocaleString()}
             </p>
+            {tx.calculation && (
+              <p className="text-xs text-gray-400 mt-1">
+                (Base: {tx.calculation.baseAmount}₿, 
+                Personal: {tx.calculation.personalMultiplier?.toFixed(2)}x, 
+                Group: {tx.calculation.groupMultiplier?.toFixed(2)}x, 
+                Total: {tx.calculation.totalMultiplier?.toFixed(2)}x)
+              </p>
+            )}
             <p className="text-xs text-gray-400 font-mono mt-1">
               ID: {tx._id}
             </p>
           </div>
           <p className={`text-lg font-bold ${colour(tx.amount)}`}>
-            {tx.amount > 0 ? '+' : ''}{tx.amount} B
+            {tx.amount > 0 ? '+' : ''}{tx.amount} ₿
           </p>
-          </div>
-        );
-      })}
-    </div>
+        </li>
+      ))}
+    </ul>
   );
 };
 

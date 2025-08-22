@@ -390,7 +390,7 @@ const Navbar = () => {
                     <li key={item._id} className="flex justify-between items-center">
                       <div>
                         <span className="block font-medium">{item.name}</span>
-                        <span className="text-sm text-gray-500">{item.price} bits</span>
+                        <span className="text-sm text-gray-500">{item.price} ₿</span>
                       </div>
                       <button
                         onClick={() => removeFromCart(item._id)}
@@ -403,7 +403,7 @@ const Navbar = () => {
                   ))}
                 </ul>
                 <div className="mt-3 text-right font-semibold">
-                  Total: {cartItems.reduce((sum, item) => sum + item.price, 0)} bits
+                  Total: {cartItems.reduce((sum, item) => sum + item.price, 0)} ₿
                 </div>
                 <Link to="/checkout">
                   <button className="mt-3 w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">
