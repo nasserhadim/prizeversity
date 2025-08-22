@@ -21,29 +21,42 @@ const Wallet = () => {
   const [allTx, setAllTx] = useState([]);
   const [studentFilter, setStudentFilter] = useState('');  
   const [studentList, setStudentList] = useState([]);
-  const [typeFilter, setTypeFilter]     = useState('all');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [directionFilter, setDirectionFilter] = useState('all');
+  const [assignerFilter, setAssignerFilter] = useState('');
 
   // Map role values to readable labels
-const ROLE_LABELS = {
-  student: 'Student',
-  admin:   'TA',
-  teacher: 'Teacher',
-};
+  const ROLE_LABELS = {
+    student: 'Student',
+    teacher: 'Teacher',
+    admin: 'Admin/TA'
+  };
 
-// Fetch students in classroom to populate dropdown/filter UI
-const fetchUsers = async () => {
-  if (!classroomId) return;
-  try {
-    const res = await axios.get(
-      `/api/classroom/${classroomId}/students`,
-      { withCredentials: true }
-    );
-    setStudentList(res.data);
-  } catch (err) {
-    console.error('Failed to load students:', err);
-    setStudentList([]);
-  }
-};
+  // Filter transactions based on selected role and direction
+  const filteredTx = useMemo(() => {
+    const sourceTx = user.role === 'student' ? transactions : allTx;
+    return sourceTx.filter(tx => {
+      const assignerMatch = !assignerFilter || (tx.assignedBy?._id === assignerFilter);
+      const roleMatch = roleFilter === 'all' || (tx.assignedBy?.role === roleFilter);
+      const directionMatch = directionFilter === 'all' || (directionFilter === 'credit' ? tx.amount > 0 : tx.amount < 0);
+      return assignerMatch && roleMatch && directionMatch;
+    });
+  }, [allTx, transactions, roleFilter, directionFilter, assignerFilter, user.role]);
+
+  // Fetch students in classroom to populate dropdown/filter UI
+  const fetchUsers = async () => {
+    if (!classroomId) return;
+    try {
+      const res = await axios.get(
+        `/api/classroom/${classroomId}/students`,
+        { withCredentials: true }
+      );
+      setStudentList(res.data);
+    } catch (err) {
+      console.error('Failed to load students:', err);
+      setStudentList([]);
+    }
+  };
   // On user or initial load, fetch wallet info and students
     useEffect(() => {
    if (!user) return;
@@ -115,39 +128,40 @@ const fetchUsers = async () => {
   };
 
   return (
-    <div className="p-4">
-      <h1 className="text-3xl font-bold mb-6 text-center">
-        {classroom ? `${classroom.name} Wallet` : 'Classroom Wallet'}
-      </h1>
-      
-       {/* ---- teacher/admin tabs ---- */}
-      {['teacher', 'admin'].includes(user.role) && (
-        <div className="tabs mb-6">
-          <a
-            className={`tab tab-bordered ${activeTab === 'edit' ? 'tab-active' : ''}`}
-            onClick={() => setActiveTab('edit')}
-          >
-            Bulk / Edit
-          </a>
-          <a
-            className={`tab tab-bordered ${activeTab === 'tx' ? 'tab-active' : ''}`}
-            onClick={() => setActiveTab('tx')}
-          >
-            Transactions
-          </a>
-        </div>
+    <div className="p-6 max-w-4xl mx-auto">
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-bold">
+          {classroom?.name ? `${classroom.name} Wallet` : 'Wallet'}
+        </h1>
+
+        {/* ▼ Tab buttons */}
+        {(user.role === 'teacher' || user.role === 'admin') && (
+          <div role="tablist" className="tabs tabs-boxed">
+            <a
+              role="tab"
+              className={`tab ${activeTab === 'edit' ? 'tab-active' : ''}`}
+              onClick={() => setActiveTab('edit')}
+            >
+              Bulk / Edit
+            </a>
+            <a
+              role="tab"
+              className={`tab ${activeTab === 'transactions' ? 'tab-active' : ''}`}
+              onClick={() => setActiveTab('transactions')}
+            >
+              Transactions
+            </a>
+          </div>
+        )}
+      </div>
+
+      {/* ▼ Edit/Bulk tab */}
+      {activeTab === 'edit' && (user.role === 'teacher' || user.role === 'admin') && (
+        <BulkBalanceEditor classroomId={classroomId} />
       )}
 
-      {['teacher', 'admin'].includes(user.role) && activeTab === 'edit' && (
-  <div className="mb-6">
-    <BulkBalanceEditor onSuccess={refreshTransactions} />
-  </div>
-)}
-
-
-
- {}
-      {['teacher', 'admin'].includes(user.role) && activeTab === 'tx' && (
+      {/* ▼ Transactions tab */}
+      {activeTab === 'transactions' && (user.role === 'teacher' || user.role === 'admin') && (
         <div className="space-y-4">
           <h2 className="font-bold">All Transactions</h2>
 
@@ -156,11 +170,18 @@ const fetchUsers = async () => {
             {/* user selector */}
             <select
               className="select select-bordered max-w-xs"
-              value={studentFilter}
+              value={assignerFilter}
               onChange={(e) => {
                 const id = e.target.value;
-                setStudentFilter(id);
-                fetchAllTx(id);
+                setAssignerFilter(id);
+                if (id) {
+                  const selectedUser = studentList.find(u => u._id === id);
+                  if (selectedUser) {
+                    setRoleFilter(selectedUser.role);
+                  }
+                } else {
+                  setRoleFilter('all');
+                }
               }}
             >
               <option value="">All users</option>
@@ -177,130 +198,125 @@ const fetchUsers = async () => {
             })}
             </select>
 
-            {/* sel*/}
+            {/* Role filter */}
             <select
               className="select select-bordered max-w-xs"
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              disabled={!!assignerFilter}
             >
-              {txTypeOptions.map((t) => (
-                <option key={t} value={t}>
-                  {t === 'all' ? 'All types' : TYPES[t] || t}
-                </option>
-              ))}
+              <option value="all">All Roles</option>
+              <option value="teacher">Adjustment by Teacher</option>
+              <option value="admin">Adjustment by Admin/TA</option>
+            </select>
+
+            {/* Direction filter */}
+            <select
+              className="select select-bordered max-w-xs"
+              value={directionFilter}
+              onChange={(e) => setDirectionFilter(e.target.value)}
+            >
+              <option value="all">All Directions</option>
+              <option value="credit">Credit</option>
+              <option value="debit">Debit</option>
             </select>
           </div>
 
           {}
-         <TransactionList transactions={allTx} filterType={typeFilter} />
+         <TransactionList transactions={filteredTx} />
         </div>
     )}
       {user.role === 'student' && (
-        <div className="mb-6 space-y-2">
-          <h2 className="font-bold mb-2">Wallet Transfer</h2>
+        <>
+          <div className="mb-6 space-y-2">
+            <h2 className="font-bold mb-2">Wallet Transfer</h2>
 
-{/* pick a classmate by name */}
-<select
-  className="select select-bordered w-full mb-3"
-  value={selectedRecipientId}
-  onChange={(e) => {
-    const uid = e.target.value;
-    setSelectedRecipientId(uid);
+            {/* pick a classmate by name */}
+            <select
+              className="select select-bordered w-full mb-3"
+              value={selectedRecipientId}
+              onChange={(e) => {
+                const uid = e.target.value;
+                setSelectedRecipientId(uid);
 
-   
-    const chosen = studentList.find(s => s._id === uid);
-    if (chosen) setRecipientId(chosen.shortId);  
-  }}
->
-  <option value="">Select Recipient by Name…</option>
-  {studentList
-    .filter(s => s._id !== user._id)            
-    .map(s => {
-      const name = (s.firstName || s.lastName)
-        ? `${s.firstName || ''} ${s.lastName || ''}`.trim()
-        : s.email;
-      return (
-        <option key={s._id} value={s._id}>
-          {name} – {s.shortId}
-        </option>
-      );
-    })}
-</select>
+                const chosen = studentList.find(s => s._id === uid);
+                if (chosen) setRecipientId(chosen.shortId);
+              }}
+            >
+              <option value="">Select Recipient by Name…</option>
+              {studentList
+                .filter(s => s._id !== user._id)
+                .map(s => {
+                  const name = (s.firstName || s.lastName)
+                    ? `${s.firstName || ''} ${s.lastName || ''}`.trim()
+                    : s.email;
+                  return (
+                    <option key={s._id} value={s._id}>
+                      {name} – {s.shortId}
+                    </option>
+                  );
+                })}
+            </select>
 
-          <input
-            type="text"
-            placeholder="Enter Recipient ID"
-            className="input input-bordered w-full tracking-wider [&:not(:placeholder-shown)]:uppercase"
-            value={recipientId}
-            onChange={(e) => setRecipientId(e.target.value)}
-          />
+            <input
+              type="text"
+              placeholder="Enter Recipient ID"
+              className="input input-bordered w-full tracking-wider [&:not(:placeholder-shown)]:uppercase"
+              value={recipientId}
+              onChange={(e) => setRecipientId(e.target.value)}
+            />
 
 
-          <input
-            type="number"
-            placeholder="Amount"
-            className="input input-bordered w-full"
-            value={transferAmount}
-            onChange={(e) => setTransferAmount(e.target.value)}
-          />
-          <button
-            className="btn btn-success w-full"
-            onClick={async () => {
-              const parsedAmount = parseInt(transferAmount, 10);
-
-              if (!parsedAmount || parsedAmount < 1) {
-                toast.error("Transfer amount must be at least 1 bit");
-                return;
-              }
-if (parsedAmount > balance) {
-                toast.error("You don't have enough bits for this transfer");
-                return;
-             }
-              try {
-               await axios.post(
-   '/api/wallet/transfer',
-   {
-   recipientId: selectedRecipientId || recipientId,  
-   amount: parsedAmount
-},
-   { withCredentials: true }
- );
-
- 
- await fetchWallet();
-
- 
- toast.success("Transfer successful");
- setSelectedRecipientId('');
- setTransferAmount('');
- setRecipientId('');
-              } catch (err) {
-                const serverError = err.response?.data?.error;
-                toast.error(serverError || err.message || "Transfer failed");
-                console.error("Transfer failed:", err);
-              }
-            }}
-          >
-            Transfer
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold">Wallet</h1>
-            <div className="mb-4 space-y-1">
-              <p className="font-medium">Base Balance: {balance} bits</p>
+            <input
+              type="number"
+              placeholder="Amount"
+              className="input input-bordered w-full"
+              value={transferAmount}
+              onChange={(e) => setTransferAmount(e.target.value)}
+            />
+            <button
+              className="btn btn-success w-full"
+              onClick={async () => {
+                const parsedAmount = parseInt(transferAmount, 10);
+                if (!recipientId || !parsedAmount || parsedAmount <= 0) {
+                  toast.error('Please enter a valid recipient and a positive amount.');
+                  return;
+                }
+                try {
+                  await axios.post('/api/wallet/transfer', {
+                    recipientShortId: recipientId,
+                    amount: parsedAmount
+                  }, { withCredentials: true });
+                  toast.success('Transfer successful!');
+                  fetchWallet(); // Refresh balance and transactions
+                } catch (err) {
+                  toast.error(err.response?.data?.error || 'Transfer failed.');
+                }
+              }}
+            >
+              Transfer
+            </button>
+          </div>
+          <div className="mt-6">
+            <div className="mb-4">
+              <p className="font-medium">Base Balance: {balance} ₿</p>
             </div>
             <h2 className="text-lg font-semibold">Transaction History</h2>
-            <ul className="list-disc ml-5">
-              {transactions.map((tx) => (
-                <li className="border p-4 rounded mb-2" key={tx._id}>
-                  <div><strong>{tx.amount}B</strong> - {tx.description}</div>
-                  <div className="text-sm text-gray-500">
-                    {new Date(tx.createdAt).toLocaleString()}
-                  </div>
-                </li>
-              ))}
-            </ul>
+            {/* Student's transaction list */}
+            <div className="flex flex-wrap gap-2 my-4">
+              <select
+                className="select select-bordered max-w-xs"
+                value={directionFilter}
+                onChange={(e) => setDirectionFilter(e.target.value)}
+              >
+                <option value="all">All Directions</option>
+                <option value="credit">Credit</option>
+                <option value="debit">Debit</option>
+              </select>
+            </div>
+            <TransactionList transactions={filteredTx} />
           </div>
-        </div>
+        </>
       )}
       <Footer />
     </div>

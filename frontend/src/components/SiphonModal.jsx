@@ -108,7 +108,7 @@ const BACKEND_URL = `${API_BASE}`;
         {targetBalance != null && !loadingBal && (
           <p className="text-sm mt-1">
             Current balance:&nbsp;
-            <strong>{targetBalance}</strong>&nbsp;bits
+            <strong>{targetBalance}</strong>&nbsp;₿
           </p>
         )}
 

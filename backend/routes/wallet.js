@@ -9,6 +9,7 @@ const blockIfFrozen = require('../middleware/blockIfFrozen');
 const PendingAssignment = require('../models/PendingAssignment');
 const Notification = require('../models/Notification');
 const { populateNotification } = require('../utils/notifications');
+const Classroom = require('../models/Classroom');
 
 // Utility to check if a Admin/TA can assign bits based on classroom policy
 async function canTAAssignBits({ taUser, classroomId }) {
@@ -24,7 +25,7 @@ async function canTAAssignBits({ taUser, classroomId }) {
     case 'full':
       return { ok: true };
     case 'none':
-      return { ok: false, status: 403, msg: 'Policy forbids TAs from assigning bits' };
+      return { ok: false, status: 403, msg: 'Policy forbids Admins/TAs from assigning bits' };
     case 'approval':
       return { ok: false, requiresApproval: true };
     default:
@@ -70,6 +71,7 @@ router.get('/transactions/all', ensureAuthenticated, async (req, res) => {
     const criteria = studentId ? { _id: studentId } : {};
     const users = await User
       .find(criteria)
+      .populate('transactions.assignedBy', 'role') // Populate assignedBy with role
       .select('_id email firstName lastName transactions')
       .lean();
     
@@ -105,13 +107,25 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
     const gate = await canTAAssignBits({ taUser: req.user, classroomId });
     if (!gate.ok) {
       if (gate.requiresApproval) {
-        await PendingAssignment.create({
+        const pa = await PendingAssignment.create({
           classroom: classroomId,
           student: studentId,
           amount: amount,
           description,
           requestedBy: req.user._id,
         });
+        // Notify teacher
+        const classroom = await Classroom.findById(classroomId).populate('teacher');
+        const notification = await Notification.create({
+          user: classroom.teacher._id,
+          type: 'bit_assignment_request',
+          message: `Admin/TA ${req.user.firstName || req.user.email} requested to assign ${pa.amount}Ƀ.`,
+          classroom: classroomId,
+          actionBy: req.user._id,
+        });
+        const populated = await populateNotification(notification._id);
+        req.app.get('io').to(`user-${classroom.teacher._id}`).emit('notification', populated);
+
         return res
           .status(202)
           .json({ message: 'Request queued for teacher approval' });
@@ -152,16 +166,22 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
       amount: adjustedAmount,
       description: description || `Balance adjustment`,
       assignedBy: req.user._id,
+      calculation: numericAmount >= 0 ? {
+        baseAmount: numericAmount,
+        personalMultiplier: 1, // Note: This route doesn't use personal multiplier
+        groupMultiplier: multiplier,
+        totalMultiplier: multiplier,
+      } : undefined,
     });
 
     await student.save();
-    console.log(`Assigned ${adjustedAmount} bits to ${student.email}`);
+    console.log(`Assigned ${adjustedAmount} ₿ to ${student.email}`);
   
       const notification = await Notification.create({
           user: student._id,
           actionBy: req.user._id,
           type: 'wallet_topup',                                     //creating a notification for assigning balance
-          message: `You were ${amount >= 0 ? 'credited' : 'debited'} ${Math.abs(amount)} bits.`,
+          message: `You were ${amount >= 0 ? 'credited' : 'debited'} ${Math.abs(amount)} ₿.`,
           read: false,
           classroom: classroomId, 
           createdAt: new Date(),
@@ -195,17 +215,26 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
     });
   }
 
-  const { classroomId, updates, description = 'Bulk adjustment by teacher' } = req.body;
+  const { classroomId, updates } = req.body;
+  const customDescription = req.body.description;
+
+  const roleLabel = req.user.role === 'admin' ? 'Admin/TA' : 'Teacher';
+  const userName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email;
+  const attribution = `Adjustment by ${roleLabel} (${userName})`;
+
+  const description = customDescription
+    ? `${customDescription} (${attribution})`
+    : attribution;
 
   if (!classroomId) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       success: false,
       error: 'classroomId is required'
     });
   }
 
   if (!Array.isArray(updates) || updates.length === 0) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       success: false,
       error: 'Updates array is required and must not be empty'
     });
@@ -218,6 +247,7 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
       const gate = await canTAAssignBits({ taUser: req.user, classroomId });
       if (!gate.ok) {
         if (gate.requiresApproval) {
+          const classroom = await Classroom.findById(classroomId).populate('teacher');
           for (const upd of updates) {
             await PendingAssignment.create({
               classroom: classroomId,
@@ -227,6 +257,17 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
               requestedBy: req.user._id,
             });
           }
+          // Notify teacher of bulk request
+          const notification = await Notification.create({
+            user: classroom.teacher._id,
+            type: 'bit_assignment_request',
+            message: `Admin/TA ${req.user.firstName || req.user.email} requested a bit balance assignment/adjustment for ${updates.length} student(s).`,
+            classroom: classroomId,
+            actionBy: req.user._id,
+          });
+          const populated = await populateNotification(notification._id);
+          req.app.get('io').to(`user-${classroom.teacher._id}`).emit('notification', populated);
+
           return res
             .status(202)
             .json({ message: 'Requests queued for teacher approval' });
@@ -266,7 +307,13 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
         amount: adjustedAmount,
         description,
         assignedBy: req.user._id,
-        createdAt: new Date()
+        createdAt: new Date(),
+        calculation: numericAmount >= 0 ? {
+          baseAmount: numericAmount,
+          personalMultiplier: passiveMultiplier,
+          groupMultiplier: groupMultiplier,
+          totalMultiplier: totalMultiplier,
+        } : undefined,
       });
 
       await student.save();
@@ -275,7 +322,7 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
           user: student._id,
           actionBy: req.user._id,
           type: 'wallet_topup',                                     //creating a notification for assigning balance
-          message: `You were ${amount >= 0 ? 'credited' : 'debited'} ${Math.abs(amount)} bits`,
+          message: `You were ${amount >= 0 ? 'credited' : 'debited'} ${Math.abs(amount)} ₿.`,
           read: false,
           classroom: classroomId, 
           createdAt: new Date(),
@@ -329,7 +376,7 @@ router.post(
     if (senderLive.isFrozen) {
       return res.status(403).json({ error: 'Your account is frozen during a siphon request' });
     }
-    const { recipientId, amount } = req.body;
+    const { recipientShortId: recipientId, amount, classroomId } = req.body;
 
     const numericAmount = Number(amount);
     if (!Number.isInteger(numericAmount) || numericAmount < 1) {
@@ -383,6 +430,31 @@ router.post(
 
     await sender.save();
     await recipient.save();
+
+    const classroom = await Classroom.findById(classroomId);
+    const classroomName = classroom ? ` in "${classroom.name}"` : '';
+
+    // Notification for sender
+    const senderNotification = await Notification.create({
+      user: sender._id,
+      actionBy: sender._id,
+      type: 'wallet_transaction',
+      message: `You sent ${numericAmount} ₿ to ${label(recipient)}${classroomName}.`,
+      classroom: classroomId,
+    });
+    const populatedSenderNotification = await populateNotification(senderNotification._id);
+    req.app.get('io').to(`user-${sender._id}`).emit('notification', populatedSenderNotification);
+
+    // Notification for recipient
+    const recipientNotification = await Notification.create({
+      user: recipient._id,
+      actionBy: sender._id,
+      type: 'wallet_transaction',
+      message: `You received ${adjustedAmount} ₿ from ${label(sender)}${classroomName}.`,
+      classroom: classroomId,
+    });
+    const populatedRecipientNotification = await populateNotification(recipientNotification._id);
+    req.app.get('io').to(`user-${recipient._id}`).emit('notification', populatedRecipientNotification);
 
     req.app.get('io').to(`classroom-${recipient.classroom}`).emit('balance_update', {
       senderId: sender._id,
