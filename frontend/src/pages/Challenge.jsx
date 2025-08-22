@@ -112,8 +112,14 @@ const Challenge = () => {
     if (skipWarning) {
       handleConfirmDeactivate();
     } else {
+      if (!challengeData && !classroom) {
+        toast.error('Challenge data not loaded yet. Please wait and try again.');
+        return;
+      }
+      
       setShowDeleteWarning(true);
       setDontShowDeleteWarning(false);
+      setConfirmText('');
     }
   };
 
@@ -241,15 +247,24 @@ const Challenge = () => {
                 </p>
                 <div className="form-control mb-4">
                   <label className="label">
-                    <span className="label-text text-sm">Type "<strong>{classroom?.name} delete</strong>" to confirm:</span>
+                    <span className="label-text text-sm">Type "<strong>{challengeData?.title || classroom?.name || 'Challenge Series'} delete</strong>" to confirm:</span>
                   </label>
                   <input
                     type="text"
                     className="input input-bordered input-sm"
                     value={confirmText}
                     onChange={(e) => setConfirmText(e.target.value)}
-                    placeholder={`${classroom?.name} delete`}
+                    placeholder={`${challengeData?.title || classroom?.name || 'Challenge Series'} delete`}
                   />
+                  {challengeData?.title ? (
+                    <div className="text-xs text-gray-500 mt-1">
+                      Challenge: {challengeData.title}
+                    </div>
+                  ) : classroom?.name ? (
+                    <div className="text-xs text-gray-500 mt-1">
+                      Classroom: {classroom.name}
+                    </div>
+                  ) : null}
                 </div>
                 <div className="form-control mb-4">
                   <label className="label cursor-pointer justify-start gap-2">
@@ -272,7 +287,7 @@ const Challenge = () => {
                   <button
                     className="btn btn-error btn-sm"
                     onClick={handleConfirmDeactivate}
-                    disabled={confirmText !== `${classroom?.name} delete` || initiating}
+                    disabled={confirmText !== `${challengeData?.title || classroom?.name || 'Challenge Series'} delete` || initiating}
                   >
                     {initiating ? <span className="loading loading-spinner loading-xs"></span> : 'Delete'}
                   </button>
