@@ -25,13 +25,10 @@ const inferType = (tx) => {
   return null;              
 };
 
-const TransactionList = ({ transactions, filterType = 'all' }) => {
-// Memoized list of transactions filtered by type (or all if filterType='all')
-  const visible = useMemo(() => (
-    filterType === 'all'
-      ? transactions
-      : transactions.filter(tx => inferType(tx) === filterType)
-  ), [transactions, filterType]);
+const TransactionList = ({ transactions }) => {
+
+  // Memoized list of transactions filtered by type (or all if filterType='all')
+  const visible = transactions;
 
 
    // Function returning CSS text color class based on positive/negative amount
@@ -52,16 +49,23 @@ const TransactionList = ({ transactions, filterType = 'all' }) => {
 
         return (
           <div key={tx._id} className="border p-4 rounded-lg flex justify-between items-center">
-            <div className="flex-1">
-              <p className="font-bold">{title}</p>
-              <p className="text-sm text-gray-500">
-                {tx.user?.firstName} {tx.user?.lastName} - {new Date(tx.createdAt).toLocaleString()}
-              </p>
-            </div>
-            <div className={`font-bold text-lg ${isCredit ? 'text-green-500' : 'text-red-500'}`}>
-              {isCredit ? '+' : ''}
-              {tx.amount} Ƀ
-            </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-medium truncate">{tx.description}</p>
+            <p className="text-xs text-gray-500">
+              {(tx.studentName || tx.studentEmail) && !tx.description.includes(tx.studentName) && (
+              <>
+                {tx.studentName || tx.studentEmail} ·{' '}
+              </>
+            )}
+              {new Date(tx.createdAt).toLocaleString()}
+            </p>
+            <p className="text-xs text-gray-400 font-mono mt-1">
+              ID: {tx._id}
+            </p>
+          </div>
+          <p className={`text-lg font-bold ${colour(tx.amount)}`}>
+            {tx.amount > 0 ? '+' : ''}{tx.amount} B
+          </p>
           </div>
         );
       })}

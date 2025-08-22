@@ -97,7 +97,7 @@ const Support = () => {
             "• Classroom participation and activities",
             "• Completing assignments",
             "• Participating in challenges (if configured)",
-            "• Manual awards from teachers/TAs",
+            "• Manual awards from teachers or Admins/TAs (if allowed by teacher)",
             "",
             "Check the wallet to see:",
             "• Current balance",

@@ -119,7 +119,7 @@ const BulkBalanceEditor = ({onSuccess}) => {
 )}
 
 
-      <h2 className="font-bold text-lg mb-2">Bulk Adjust Student Balances</h2>
+      <h2 className="font-bold text-lg mb-2">Adjust Balances</h2>
 
       {step === 'select' && (
         <>

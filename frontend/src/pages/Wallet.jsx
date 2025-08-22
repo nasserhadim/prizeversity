@@ -21,29 +21,41 @@ const Wallet = () => {
   const [allTx, setAllTx] = useState([]);
   const [studentFilter, setStudentFilter] = useState('');  
   const [studentList, setStudentList] = useState([]);
-  const [typeFilter, setTypeFilter]     = useState('all');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [directionFilter, setDirectionFilter] = useState('all');
+  const [assignerFilter, setAssignerFilter] = useState('');
 
   // Map role values to readable labels
-const ROLE_LABELS = {
-  student: 'Student',
-  admin:   'Admin/TA',
-  teacher: 'Teacher',
-};
+  const ROLE_LABELS = {
+    student: 'Student',
+    teacher: 'Teacher',
+    admin: 'Admin/TA'
+  };
 
-// Fetch students in classroom to populate dropdown/filter UI
-const fetchUsers = async () => {
-  if (!classroomId) return;
-  try {
-    const res = await axios.get(
-      `/api/classroom/${classroomId}/students`,
-      { withCredentials: true }
-    );
-    setStudentList(res.data);
-  } catch (err) {
-    console.error('Failed to load students:', err);
-    setStudentList([]);
-  }
-};
+  // Filter transactions based on selected role and direction
+  const filteredTx = useMemo(() => {
+    return allTx.filter(tx => {
+      const assignerMatch = !assignerFilter || (tx.assignedBy?._id === assignerFilter);
+      const roleMatch = roleFilter === 'all' || (tx.assignedBy?.role === roleFilter);
+      const directionMatch = directionFilter === 'all' || (directionFilter === 'credit' ? tx.amount > 0 : tx.amount < 0);
+      return assignerMatch && roleMatch && directionMatch;
+    });
+  }, [allTx, roleFilter, directionFilter, assignerFilter]);
+
+  // Fetch students in classroom to populate dropdown/filter UI
+  const fetchUsers = async () => {
+    if (!classroomId) return;
+    try {
+      const res = await axios.get(
+        `/api/classroom/${classroomId}/students`,
+        { withCredentials: true }
+      );
+      setStudentList(res.data);
+    } catch (err) {
+      console.error('Failed to load students:', err);
+      setStudentList([]);
+    }
+  };
   // On user or initial load, fetch wallet info and students
     useEffect(() => {
    if (!user) return;
@@ -156,11 +168,18 @@ const fetchUsers = async () => {
             {/* user selector */}
             <select
               className="select select-bordered max-w-xs"
-              value={studentFilter}
+              value={assignerFilter}
               onChange={(e) => {
                 const id = e.target.value;
-                setStudentFilter(id);
-                fetchAllTx(id);
+                setAssignerFilter(id);
+                if (id) {
+                  const selectedUser = studentList.find(u => u._id === id);
+                  if (selectedUser) {
+                    setRoleFilter(selectedUser.role);
+                  }
+                } else {
+                  setRoleFilter('all');
+                }
               }}
             >
               <option value="">All users</option>
@@ -177,22 +196,32 @@ const fetchUsers = async () => {
             })}
             </select>
 
-            {/* sel*/}
+            {/* Role filter */}
             <select
               className="select select-bordered max-w-xs"
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              disabled={!!assignerFilter}
             >
-              {txTypeOptions.map((t) => (
-                <option key={t} value={t}>
-                  {t === 'all' ? 'All types' : TYPES[t] || t}
-                </option>
-              ))}
+              <option value="all">All Roles</option>
+              <option value="teacher">Adjustment by Teacher</option>
+              <option value="admin">Adjustment by Admin/TA</option>
+            </select>
+
+            {/* Direction filter */}
+            <select
+              className="select select-bordered max-w-xs"
+              value={directionFilter}
+              onChange={(e) => setDirectionFilter(e.target.value)}
+            >
+              <option value="all">All Directions</option>
+              <option value="credit">Credit</option>
+              <option value="debit">Debit</option>
             </select>
           </div>
 
           {}
-         <TransactionList transactions={allTx} filterType={typeFilter} />
+         <TransactionList transactions={filteredTx} />
         </div>
     )}
       {user.role === 'student' && (

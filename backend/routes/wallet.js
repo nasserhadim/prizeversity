@@ -9,6 +9,7 @@ const blockIfFrozen = require('../middleware/blockIfFrozen');
 const PendingAssignment = require('../models/PendingAssignment');
 const Notification = require('../models/Notification');
 const { populateNotification } = require('../utils/notifications');
+const Classroom = require('../models/Classroom');
 
 // Utility to check if a Admin/TA can assign bits based on classroom policy
 async function canTAAssignBits({ taUser, classroomId }) {
@@ -24,7 +25,7 @@ async function canTAAssignBits({ taUser, classroomId }) {
     case 'full':
       return { ok: true };
     case 'none':
-      return { ok: false, status: 403, msg: 'Policy forbids TAs from assigning bits' };
+      return { ok: false, status: 403, msg: 'Policy forbids Admins/TAs from assigning bits' };
     case 'approval':
       return { ok: false, requiresApproval: true };
     default:
@@ -70,6 +71,7 @@ router.get('/transactions/all', ensureAuthenticated, async (req, res) => {
     const criteria = studentId ? { _id: studentId } : {};
     const users = await User
       .find(criteria)
+      .populate('transactions.assignedBy', 'role') // Populate assignedBy with role
       .select('_id email firstName lastName transactions')
       .lean();
     
@@ -105,13 +107,25 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
     const gate = await canTAAssignBits({ taUser: req.user, classroomId });
     if (!gate.ok) {
       if (gate.requiresApproval) {
-        await PendingAssignment.create({
+        const pa = await PendingAssignment.create({
           classroom: classroomId,
           student: studentId,
           amount: amount,
           description,
           requestedBy: req.user._id,
         });
+        // Notify teacher
+        const classroom = await Classroom.findById(classroomId).populate('teacher');
+        const notification = await Notification.create({
+          user: classroom.teacher._id,
+          type: 'bit_assignment_request',
+          message: `Admin/TA ${req.user.firstName || req.user.email} requested to assign ${pa.amount}Ƀ.`,
+          classroom: classroomId,
+          actionBy: req.user._id,
+        });
+        const populated = await populateNotification(notification._id);
+        req.app.get('io').to(`user-${classroom.teacher._id}`).emit('notification', populated);
+
         return res
           .status(202)
           .json({ message: 'Request queued for teacher approval' });
@@ -227,6 +241,7 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
       const gate = await canTAAssignBits({ taUser: req.user, classroomId });
       if (!gate.ok) {
         if (gate.requiresApproval) {
+          const classroom = await Classroom.findById(classroomId).populate('teacher');
           for (const upd of updates) {
             await PendingAssignment.create({
               classroom: classroomId,
@@ -236,6 +251,17 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
               requestedBy: req.user._id,
             });
           }
+          // Notify teacher of bulk request
+          const notification = await Notification.create({
+            user: classroom.teacher._id,
+            type: 'bit_assignment_request',
+            message: `Admin/TA ${req.user.firstName || req.user.email} requested a bit balance assignment/adjustment for ${updates.length} student(s).`,
+            classroom: classroomId,
+            actionBy: req.user._id,
+          });
+          const populated = await populateNotification(notification._id);
+          req.app.get('io').to(`user-${classroom.teacher._id}`).emit('notification', populated);
+
           return res
             .status(202)
             .json({ message: 'Requests queued for teacher approval' });

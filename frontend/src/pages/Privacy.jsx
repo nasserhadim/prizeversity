@@ -113,7 +113,7 @@ const Privacy = () => {
         "**Access Controls:**",
         "• Teachers can only access their own classroom data",
         "• Students can only view information relevant to their participation",
-        "• Administrative access is limited to essential personnel like TAs (Admins)",
+        "• Administrative access is limited to essential personnel like Admins/TAs",
         "",
         "**Data Backups:**",
         "• Regular encrypted backups ensure data protection",

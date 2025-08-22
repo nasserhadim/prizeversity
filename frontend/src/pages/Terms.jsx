@@ -325,7 +325,7 @@ const Terms = () => {
                 <ul className="text-sm space-y-1">
                   <li>• Use PrizeVersity for educational purposes</li>
                   <li>• Create and manage classrooms</li>
-                  <li>• Collaborate with students, teachers, and TAs (Admins)</li>
+                  <li>• Collaborate with students, teachers, and/or Admins/TAs</li>
                   <li>• Earn and spend virtual currency (bits)</li>
                 </ul>
               </div>
