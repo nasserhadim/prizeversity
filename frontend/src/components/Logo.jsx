@@ -29,7 +29,7 @@ const Logo = () => {
           opacity="0.8"
         />
       </svg>
-      <span className="text-xl lg:text-2xl font-bold text-base-content">
+      <span className="text-lg sm:text-xl lg:text-2xl font-bold text-base-content transition-all duration-200">
         Prizeversity
       </span>
     </Link>

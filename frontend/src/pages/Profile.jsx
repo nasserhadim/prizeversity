@@ -5,6 +5,12 @@ import axios from 'axios';
 import { API_BASE } from '../config/api';
 import Footer from '../components/Footer';
 
+const ROLE_LABELS = {
+    student: 'Student',
+    admin: 'Admin/TA',
+    teacher: 'Teacher',
+};
+
 const Profile = () => {
     const { user, updateUser } = useContext(AuthContext);
     const { id: profileId } = useParams();
@@ -313,7 +319,7 @@ const Profile = () => {
                             <InfoRow label="Email" value={profile?.email || 'N/A'} />
                             <InfoRow label="User ID" value={profile?.shortId || '—'} />
                             {profile?.role && (
-                                <InfoRow label="Role" value={profile.role.charAt(0).toUpperCase() + profile.role.slice(1)} />
+                                <InfoRow label="Role" value={ROLE_LABELS[profile.role] || profile.role.charAt(0).toUpperCase() + profile.role.slice(1)} />
                             )}
                         </div>
 
@@ -330,7 +336,7 @@ const Profile = () => {
                                     <ul className="list-disc list-inside">
                                         {orders.map(o => (
                                             <li key={o._id}>
-                                                {formatDateTime(o.createdAt)}: {o.items.map(i => i.name).join(', ')} ({o.total} bits)
+                                                {formatDateTime(o.createdAt)}: {o.items.map(i => i.name).join(', ')} ({o.total} ₿)
                                             </li>
                                         ))}
                                     </ul>

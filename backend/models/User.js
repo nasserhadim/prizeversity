@@ -13,7 +13,13 @@ const TransactionSchema = new mongoose.Schema({
   amount: { type: Number, required: true },
   description: { type: String, required: true },
   assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now },
+  calculation: {
+    baseAmount: Number,
+    personalMultiplier: Number,
+    groupMultiplier: Number,
+    totalMultiplier: Number,
+  }
 });
 
 const UserSchema = new mongoose.Schema({

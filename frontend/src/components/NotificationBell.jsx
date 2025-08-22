@@ -105,6 +105,14 @@ const NotificationBell = () => {
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
+  const getDisplayName = (user) => {
+    if (!user) return 'System';
+    if (user.firstName || user.lastName) {
+      return `${user.firstName || ''} ${user.lastName || ''}`.trim();
+    }
+    return user.email;
+  };
+
   return (
     <div className="relative" ref={dropdownRef}>
       <div
@@ -189,7 +197,7 @@ const NotificationBell = () => {
                     <div className="flex-1">
                       <p className="text-sm text-base-content">{notification.message}</p>
                       <small className="text-base-content/60 block mt-1">
-                        by {notification.actionBy.email} at{' '}
+                        by {getDisplayName(notification.actionBy)} at{' '}
                         {new Date(notification.createdAt).toLocaleString()}
                         {notification.classroom && ` in classroom "${notification.classroom.name}"`}
                       </small>

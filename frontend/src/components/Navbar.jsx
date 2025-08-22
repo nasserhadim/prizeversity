@@ -9,6 +9,8 @@ import { useState, useEffect, useRef } from 'react';
 import NotificationBell from './NotificationBell';
 import Logo from './Logo'; // Import the new Logo component
 import { API_BASE } from '../config/api';
+import socket from '../utils/socket';
+import axios from 'axios';
 
 import {
   Home,
@@ -40,7 +42,6 @@ const Navbar = () => {
   // Handle switching from teacher to student view
   const handleSwitchToStudent = () => {
     setPersona({ ...user, role: 'student' });
-    // If currently in a classroom route, stay in the classroom context
     const match = location.pathname.match(/^\/classroom\/([^\/]+)/);
     if (match) {
       navigate(`/classroom/${match[1]}/news`);
@@ -51,9 +52,7 @@ const Navbar = () => {
 
   // Handle switching from student back to original teacher
   const handleSwitchToTeacher = () => {
-    // Go back to the original teacher user
     setPersona(originalUser);
-
     const match = location.pathname.match(/^\/classroom\/([^\/]+)/);
     if (match) {
       navigate(`/classroom/${match[1]}/news`);
@@ -77,6 +76,36 @@ const Navbar = () => {
   const { cartItems, removeFromCart } = useCart();
   const [showCart, setShowCart] = useState(false);
   const cartRef = useRef(null);
+  const [balance, setBalance] = useState(0);
+
+  useEffect(() => {
+    const fetchBalance = async () => {
+      if (user?._id) {
+        try {
+          const { data } = await axios.get(`/api/wallet/${user._id}/balance`, { withCredentials: true });
+          setBalance(data.balance);
+        } catch (error) {
+          console.error("Failed to fetch balance for navbar", error);
+        }
+      }
+    };
+
+    fetchBalance();
+
+    if (user?._id) {
+      const balanceUpdateHandler = (data) => {
+        if (data.studentId === user._id) {
+          setBalance(data.newBalance);
+        }
+      };
+      
+      socket.on('balance_update', balanceUpdateHandler);
+
+      return () => {
+        socket.off('balance_update', balanceUpdateHandler);
+      };
+    }
+  }, [user]);
 
   // Close mobile menu when route changes
   useEffect(() => {
@@ -100,17 +129,17 @@ const Navbar = () => {
   if (!user) {
     return (
       <nav className="fixed top-0 left-0 right-0 z-50 bg-base-100 text-base-content shadow-md px-4 lg:px-6 py-4 bg-opacity-20 backdrop-blur-md">
-        <div className="container mx-auto flex items-center justify-between">
+        <div className="container mx-auto flex items-center justify-between gap-4">
           <Logo />
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink min-w-0">
             <button
-              className="btn btn-sm btn-outline"
+              className="btn btn-sm btn-outline flex-shrink min-w-0 whitespace-normal h-auto"
               onClick={() => (window.location.href = '/api/auth/google')}
             >
               Sign in with Google
             </button>
             <button
-              className="btn btn-sm btn-neutral"
+              className="btn btn-sm btn-neutral flex-shrink min-w-0 whitespace-normal h-auto"
               onClick={() => (window.location.href = '/api/auth/microsoft')}
             >
               Sign in with Microsoft
@@ -132,6 +161,13 @@ const Navbar = () => {
 
         {/* Mobile Menu Button */}
         <div className="lg:hidden flex items-center gap-2">
+          {/* Wallet Balance for Mobile */}
+          {insideClassroom && (
+            <Link to={`/classroom/${classroomId}/wallet`} className="flex items-center gap-1 text-sm p-1 rounded-md hover:bg-base-200">
+              <Wallet size={20} className="text-green-500" />
+              <span className="font-semibold">Ƀ{balance}</span>
+            </Link>
+          )}
           {/* Cart Icon for Mobile (if in classroom and not teacher) */}
           {user?.role !== 'teacher' && insideClassroom && (
             <button
@@ -221,15 +257,6 @@ const Navbar = () => {
               </li>
               <li>
                 <Link
-                  to={`/classroom/${classroomId}/wallet`}
-                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/wallet`) ? 'text-green-500' : ''}`}
-                >
-                  <Wallet size={18} />
-                  <span>Wallet</span>
-                </Link>
-              </li>
-              <li>
-                <Link
                   to={`/classroom/${classroomId}/people`}
                   className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/people`) ? 'text-green-500' : ''}`}
                 >
@@ -272,6 +299,14 @@ const Navbar = () => {
           >
             {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
+
+          {/* Wallet Balance */}
+          {insideClassroom && (
+            <Link to={`/classroom/${classroomId}/wallet`} className="flex items-center gap-2 hover:text-gray-300">
+              <Wallet size={24} className="text-green-500" />
+              <span className="font-semibold">Ƀ{balance}</span>
+            </Link>
+          )}
 
           {/* Desktop Cart Icon */}
           {user?.role !== 'teacher' && insideClassroom && (
@@ -374,7 +409,7 @@ const Navbar = () => {
                     <li key={item._id} className="flex justify-between items-center">
                       <div>
                         <span className="block font-medium">{item.name}</span>
-                        <span className="text-sm text-gray-500">{item.price} bits</span>
+                        <span className="text-sm text-gray-500">{item.price} ₿</span>
                       </div>
                       <button
                         onClick={() => removeFromCart(item._id)}
@@ -387,7 +422,7 @@ const Navbar = () => {
                   ))}
                 </ul>
                 <div className="mt-3 text-right font-semibold">
-                  Total: {cartItems.reduce((sum, item) => sum + item.price, 0)} bits
+                  Total: {cartItems.reduce((sum, item) => sum + item.price, 0)} ₿
                 </div>
                 <Link to="/checkout">
                   <button className="mt-3 w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">
@@ -468,14 +503,6 @@ const Navbar = () => {
                 >
                   <Users size={20} />
                   <span>Groups</span>
-                </Link>
-                <Link
-                  to={`/classroom/${classroomId}/wallet`}
-                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname.startsWith(`/classroom/${classroomId}/wallet`) ? 'bg-primary/10 text-primary' : 'hover:bg-base-200'}`}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  <Wallet size={20} />
-                  <span>Wallet</span>
                 </Link>
                 <Link
                   to={`/classroom/${classroomId}/people`}

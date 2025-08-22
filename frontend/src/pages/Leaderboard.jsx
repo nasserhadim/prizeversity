@@ -197,7 +197,7 @@ const Leaderboard = () => {
                       <td>
                         <div className="flex items-center gap-1 font-semibold">
                           <Coins size={14} className="text-yellow-500" />
-                          {student.balance}
+                          Ƀ{student.balance}
                         </div>
                       </td>
                       <td>

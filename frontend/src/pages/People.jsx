@@ -12,7 +12,7 @@ import Footer from '../components/Footer';
 
 const ROLE_LABELS = {
   student: 'Student',
-  admin: 'TA',
+  admin: 'Admin/TA',
   teacher: 'Teacher',
 };
 
@@ -219,7 +219,7 @@ const People = () => {
 
             <label className="form-control w-full">
               <span className="label-text mb-2 font-medium">
-                TA bit assignment
+                Admin/TA bit assignment
               </span>
 
               <select
@@ -233,7 +233,7 @@ const People = () => {
                       { taBitPolicy: newPolicy },
                       { withCredentials: true }
                     );
-                    toast.success('Updated TA bit policy');
+                    toast.success('Updated Admin/TA bit policy');
                     setTaBitPolicy(newPolicy);
                   } catch (err) {
                     toast.error(
@@ -242,7 +242,7 @@ const People = () => {
                   }
                 }}
               >
-                <option value="full">① Full power (TAs can assign bits)</option>
+                <option value="full">① Full power (Admins/TAs can assign bits)</option>
                 <option value="approval">② Needs teacher approval</option>
                 <option value="none">③ Cannot assign bits</option>
               </select>
