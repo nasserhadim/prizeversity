@@ -241,7 +241,7 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensur
     user.balance -= total;
     user.transactions.push({
       amount: -total,
-      description: `Checkout: ${items.length} item(s)`,
+      description: `Checkout: ${items.map(i => i.name).join(', ')}`,
       type: 'purchase'
     });
     await user.save();

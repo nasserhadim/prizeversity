@@ -24,7 +24,7 @@ import Footer from '../components/Footer';
 const Support = () => {
   const { user } = useAuth(); // Get user from AuthContext
   const [openFaq, setOpenFaq] = useState(null);
-  const [selectedRole, setSelectedRole] = useState('all'); // 'all', 'teacher', 'student'
+  const [selectedRole, setSelectedRole] = useState('all'); // 'all', 'teacher', 'student', 'admin'
 
   const toggleFaq = (index) => {
     setOpenFaq(openFaq === index ? null : index);
@@ -44,7 +44,7 @@ const Support = () => {
             "Optionally choose a color theme for your classroom or upload a background image",
             "Students can then join using the shared classroom code"
           ],
-          role: "teacher"
+          role: ["teacher"]
         },
         {
           question: "How do students join a classroom?",
@@ -58,10 +58,10 @@ const Support = () => {
             "• Wallet for managing currency",
             "• And more classroom features!"
           ],
-          role: "student"
+          role: ["student"]
         },
         {
-          question: "What's the difference between Teacher, Student, and TA roles?",
+          question: "What's the difference between Teacher, Student, and Admin/TA roles?",
           answer: [
             "**Teachers can:**",
             "• Create and manage classrooms",
@@ -69,7 +69,7 @@ const Support = () => {
             "• Create bazaar and custom reward items",
             "• Configure challenges and activities like announcements",
             "• Assign bits to students",
-            "• Promote students to TA status",
+            "• Promote students to Admin/TA status",
             "and more!",
             "",
             "**TAs (Assistant Admins) can:**",
@@ -81,7 +81,7 @@ const Support = () => {
             "• Collaborate in groups",
             "and more!",
           ],
-          role: "all"
+          role: ["all"]
         }
       ]
     },
@@ -90,7 +90,7 @@ const Support = () => {
       icon: <Wallet size={20} />,
       questions: [
         {
-          question: "What are Bits and how do I earn them?",
+          question: "What are Bits and how are they earned?",
           answer: [
             "Bits are PrizeVersity's virtual currency",
             "**Students earn bits through:**",
@@ -99,22 +99,21 @@ const Support = () => {
             "• Participating in challenges (if configured)",
             "• Manual awards from teachers/TAs",
             "",
-            "Check your wallet to see:",
+            "Check the wallet to see:",
             "• Current balance",
             "• Transaction history"
           ],
-          role: "student"
+          role: ["all"]
         },
         {
           question: "How do I award bits to students?",
           answer: [
-            "As a teacher, you can award bits by:",
+            "As a teacher or Admin/TA (if approved by teacher), you can award bits by:",
             "• Manually assigning bits to students through the Wallet feature within a classroom",
-            "• Enabling bit awards on challenges",
             "• Transferring bits to students at the group level",
-            "• Approving TA bit assignments within a classroom/wallet settings"
+            "• Teachers may also enable bit awards on challenges (if configured)"
           ],
-          role: "teacher"
+          role: ["teacher", "admin"]
         },
         {
           question: "Can I transfer bits to others?",
@@ -127,7 +126,7 @@ const Support = () => {
             "• Enter the amount to transfer",
             "• Confirm the transaction"
           ],
-          role: "student"
+          role: ["student"]
         },
         {
           question: "What happens if I spend all my bits?",
@@ -138,7 +137,7 @@ const Support = () => {
             "• Group activities and projects",
             "• Special bonus activities such as associated club events endorsed by the teacher"
           ],
-          role: "student"
+          role: ["student"]
         }
       ]
     },
@@ -159,7 +158,7 @@ const Support = () => {
             "  - Special abilities",
             "• Upload item images"
           ],
-          role: "teacher"
+          role: ["teacher"]
         },
         {
           question: "How does the Bazaar work for students?",
@@ -173,7 +172,7 @@ const Support = () => {
             "  - Fun rewards (extra credit, etc.)",
             "• View your inventory of purchased items"
           ],
-          role: "student"
+          role: ["student"]
         },
         {
           question: "What are item effects and stats?",
@@ -187,7 +186,7 @@ const Support = () => {
             "",
             "These gamification elements make learning more engaging!"
           ],
-          role: "all"
+          role: ["all"]
         },
         {
           question: "Can I return items I've purchased?",
@@ -196,7 +195,7 @@ const Support = () => {
             "• Check with your teacher about return policies",
             "• Some items may be non-refundable"
           ],
-          role: "student"
+          role: ["student"]
         }
       ]
     },
@@ -215,7 +214,7 @@ const Support = () => {
             "• Suspend group members (if necessary)",
             "• Transfer bits at the group level for bulk awards"
           ],
-          role: "teacher"
+          role: ["teacher"]
         },
         {
           question: "How do group sets/groups work for students?",
@@ -227,16 +226,16 @@ const Support = () => {
             "• Collaborate with teammates on projects",
             "• Share in the reward of group stats like multipliers"
           ],
-          role: "student"
+          role: ["student"]
         },
         {
           question: "Can I be in multiple groups?",
           answer: [
-            "Yes! You can participate in multiple collaborations:",
-            "• Join different groups within various group sets",
-            "• Each group set represents a different activity/project"
+            "Yes! You can participate in multiple collaborations (as long as it's a different GroupSet):",
+            "• Each group set represents a different activity/project",
+            "• Join different groups within various group sets"
           ],
-          role: "student"
+          role: ["student"]
         },
         {
           question: "What is 'siphoning' in groups?",
@@ -253,7 +252,7 @@ const Support = () => {
             "• Prevents abuse of the system",
             "• Encourages genuine collaboration"
           ],
-          role: "all"
+          role: ["all"]
         }
       ]
     },
@@ -272,7 +271,7 @@ const Support = () => {
             "",
             "**Coming soon:** Customizable notification preferences!"
           ],
-          role: "all"
+          role: ["all"]
         }
       ]
     },
@@ -294,7 +293,7 @@ const Support = () => {
             "4. Check your internet connection",
             "5. Try using an incognito/private browsing window"
           ],
-          role: "all"
+          role: ["all"]
         },
         {
           question: "I can't see my bits/items/groups updating.",
@@ -306,18 +305,18 @@ const Support = () => {
             "• If problems persist, there might be a temporary connection issue",
             "• Contact support if the issue continues"
           ],
-          role: "all"
+          role: ["all"]
         },
         {
           question: "How do I switch between light and dark mode?",
           answer: [
             "You can change themes in multiple ways:",
             "• Click the theme toggle icon in the navigation menu",
-            "• Go to \"Settings\" from your profile menu and click 'Toggle Theme' to switch between light and dark modes",
+            "• Alternatively, go to \"Settings\" from your profile menu and click 'Toggle Theme' to switch between light and dark modes",
             "",
             "Your theme preference is saved automatically!"
           ],
-          role: "all"
+          role: ["all"]
         }
       ]
     }
@@ -332,7 +331,7 @@ const Support = () => {
   const filteredFaqs = faqs.map(category => ({
     ...category,
     questions: category.questions.filter(q => 
-      selectedRole === 'all' || q.role === selectedRole || q.role === 'all'
+      selectedRole === 'all' || q.role.includes(selectedRole) || q.role.includes('all')
     )
   })).filter(category => category.questions.length > 0);
 
@@ -351,9 +350,17 @@ const Support = () => {
       }
       
       if (line.startsWith('• ')) {
+        const parts = line.slice(2).split('**');
         return (
           <div key={index} className="ml-4 mb-1">
-            {line}
+            •{' '}
+            {parts.map((part, i) =>
+              i % 2 === 1 ? (
+                <strong key={i}>{part}</strong>
+              ) : (
+                <span key={i}>{part}</span>
+              )
+            )}
           </div>
         );
       }
@@ -366,6 +373,22 @@ const Support = () => {
         );
       }
       
+      // Handle general in-line bolding
+      if (line.includes('**')) {
+        const parts = line.split('**');
+        return (
+          <div key={index} className="mb-1">
+            {parts.map((part, i) =>
+              i % 2 === 1 ? (
+                <strong key={i}>{part}</strong>
+              ) : (
+                <span key={i}>{part}</span>
+              )
+            )}
+          </div>
+        );
+      }
+
       return (
         <div key={index} className="mb-1">
           {line}
@@ -474,6 +497,13 @@ const Support = () => {
                 Teacher
               </button>
               <button
+                onClick={() => setSelectedRole('admin')}
+                className={`btn ${selectedRole === 'admin' ? 'btn-primary' : 'btn-outline'}`}
+              >
+                <Briefcase size={16} />
+                Admin/TA
+              </button>
+              <button
                 onClick={() => setSelectedRole('student')}
                 className={`btn ${selectedRole === 'student' ? 'btn-primary' : 'btn-outline'}`}
               >
@@ -516,13 +546,15 @@ const Support = () => {
                             <span className="font-medium text-base-content">
                               {faq.question}
                             </span>
-                            {faq.role !== 'all' && (
-                              <span className={`badge badge-sm ${
-                                faq.role === 'teacher' ? 'badge-primary' : 'badge-secondary'
+                            {!faq.role.includes('all') && faq.role.map(role => (
+                              <span key={role} className={`badge badge-sm ${
+                                role === 'teacher' ? 'badge-primary' :
+                                role === 'admin' ? 'badge-info' :
+                                'badge-secondary'
                               }`}>
-                                {faq.role}
+                                {role === 'admin' ? 'Admin/TA' : role}
                               </span>
-                            )}
+                            ))}
                           </div>
                           {openFaq === globalIndex ? (
                             <ChevronUp size={20} className="text-base-content/70 flex-shrink-0" />

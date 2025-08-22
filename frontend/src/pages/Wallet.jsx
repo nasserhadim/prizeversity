@@ -26,7 +26,7 @@ const Wallet = () => {
   // Map role values to readable labels
 const ROLE_LABELS = {
   student: 'Student',
-  admin:   'TA',
+  admin:   'Admin/TA',
   teacher: 'Teacher',
 };
 
@@ -292,7 +292,7 @@ if (parsedAmount > balance) {
             <ul className="list-disc ml-5">
               {transactions.map((tx) => (
                 <li className="border p-4 rounded mb-2" key={tx._id}>
-                  <div><strong>{tx.amount}B</strong> - {tx.description}</div>
+                  <div><strong>{tx.amount}Ƀ</strong> - {tx.description}</div>
                   <div className="text-sm text-gray-500">
                     {new Date(tx.createdAt).toLocaleString()}
                   </div>

@@ -51,14 +51,14 @@ const ItemCard = ({ item, role, classroomId }) => {
     if (role === 'student' && (discountApplied || groupBonus)) {
       return (
         <>
-          <span className="line-through text-gray-400 mr-2">{basePrice} Bits</span>
-          <span className="text-green-600">{finalPrice} Bits</span>
+          <span className="line-through text-gray-400 mr-2">Ƀ{basePrice}</span>
+          <span className="text-green-600">Ƀ{finalPrice}</span>
           {discountApplied && <span className="text-xs text-green-600 ml-1">(20% off)</span>}
           {groupBonus && <span className="text-xs text-blue-600 ml-1">(+{Math.round((user.groupMultiplier-1)*100)}% group bonus)</span>}
         </>
       );
     }
-    return `${finalPrice} Bits`;
+    return `Ƀ${finalPrice}`;
   };
 
   return (

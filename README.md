@@ -1,18 +1,19 @@
 # 🎓 About PrizeVersity
 
 - [PrizeVersity](https://www.prizeversity.com/) is a [gamified](https://teaching.uchicago.edu/news/pedagogy-corner/what-gamification) educational platform ("ed-tech") that transforms classrooms into dynamic, engaging ecosystems. 
-- Instructors can create custom classrooms, award virtual currency—**"Bits"**—and build in-class reward systems through a virtual shop—**"Bazaar"**—where students redeem their earnings for real or creative perks (e.g., extra credit, club merch, lab/exam passes, etc.)
+- Instructors (i.e. teachers) can create custom classrooms, award virtual currency—**"Bits"**—and build in-class reward systems through a virtual shop—**"Bazaar"**—where students redeem their earnings for real or creative perks (e.g., extra credit, club merch, lab/exam passes, etc.)
 - Whether through solo play or group collaboration, students are rewarded for participation, learning, and consistent engagement.
 
 ## Key features include:
 
-- Custom classroom creation and management (including **News/Announcements**, **GroupSets/sub-groups**, **role-based access control (RBAC)** between Teachers, Students ⇌ TAs (Admins), and more!)
+- Custom classroom creation and management (including **News/Announcements**, **GroupSets/sub-groups**, **role-based access control (RBAC)** between Teachers, Students ⇌ Admins/TAs, and more!)
 - Virtual currency economy (**Bits**)
 - Reward system with dynamic **Bazaar**
 - Gamified **stat-based mechanics** (such as **Discount**, **multiplier**, **luck**, **Shield**, and **Attack Bonus**)
 - User stats, profiles, leaderboard, and transaction history dashboards.
+- OSINT inspired Challenges
 
-...and much more!
+...and more!
 
 ## 🛠️ For Developers
 This repository hosts the full stack implementation of PrizeVersity, including the frontend, backend, and infrastructure setup.

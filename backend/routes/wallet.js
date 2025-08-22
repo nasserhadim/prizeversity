@@ -195,17 +195,26 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
     });
   }
 
-  const { classroomId, updates, description = 'Bulk adjustment by teacher' } = req.body;
+  const { classroomId, updates } = req.body;
+  const customDescription = req.body.description;
+
+  const roleLabel = req.user.role === 'admin' ? 'Admin/TA' : 'Teacher';
+  const userName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email;
+  const attribution = `Adjustment by ${roleLabel} (${userName})`;
+
+  const description = customDescription
+    ? `${customDescription} (${attribution})`
+    : attribution;
 
   if (!classroomId) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       success: false,
       error: 'classroomId is required'
     });
   }
 
   if (!Array.isArray(updates) || updates.length === 0) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       success: false,
       error: 'Updates array is required and must not be empty'
     });
@@ -260,8 +269,8 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
    ? Math.round(numericAmount * totalMultiplier)
    : numericAmount;
 
- // never let balance go negative
- student.balance = Math.max(0, student.balance + adjustedAmount);
+      // never let balance go negative
+      student.balance = Math.max(0, student.balance + adjustedAmount);
       student.transactions.push({
         amount: adjustedAmount,
         description,
