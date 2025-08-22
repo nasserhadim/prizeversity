@@ -164,7 +164,7 @@ export default function ClassroomSettings() {
             setUpdateBackgroundFile(null);
             setClassroom(res.data);
         } catch (err) {
-            const msg = err.response?.data?.message || 'Update failed';
+            const msg = err.response?.data?.error || 'Update failed';
             toast.error(msg);
         }
     };
