@@ -7,6 +7,7 @@ import { ImageOff } from 'lucide-react';
 import SwapModal from '../components/SwapModal';
 import NullifyModal from '../components/NullifyModal';
 import socket from '../utils/socket'; // Changed from '../API/socket' to '../utils/socket'
+import { getEffectDescription, splitDescriptionEffect } from '../utils/itemHelpers';
 
 // Inventory section for using, managing, and interacting with items
 const InventorySection = ({ userId, classroomId }) => {
@@ -145,54 +146,6 @@ const InventorySection = ({ userId, classroomId }) => {
     }
   };
 
-  // Returns a readable description of what an item does
-  const getEffectDescription = (item) => {
-    if (item.category === 'Passive') {
-      const effects = (item.secondaryEffects || []).map(effect => {
-        switch(effect.effectType) {
-          case 'grantsLuck': return `+${effect.value} Luck`;
-          case 'grantsMultiplier': return `+${effect.value}x Multiplier`;
-          case 'grantsGroupMultiplier': return `+${effect.value}x Group Multiplier`;
-          default: return '';
-        }
-      }).filter(Boolean);
-      
-      return effects.length > 0 
-        ? `Passive: ${effects.join(', ')}` 
-        : 'No passive effects';
-    }
-
-    if (item.category === 'Attack') {
-      if (item.primaryEffect === 'swapper') {
-        return 'Swaps attributes with target (bits, multiplier, or luck)';
-      }
-      
-      const primary = item.primaryEffect === 'halveBits' 
-        ? 'Halves target bits' 
-        : `Steals ${item.primaryEffectValue || 10}% of target bits`;
-      
-      const secondary = (item.secondaryEffects || []).map(effect => {
-        switch(effect.effectType) {
-          case 'attackLuck': return `-${effect.value} Luck`;
-          case 'attackMultiplier': return `-${effect.value}x Multiplier`;
-          case 'attackGroupMultiplier': return `-${effect.value}x Group Multiplier`;
-          default: return '';
-        }
-      }).filter(Boolean);
-      
-      return [primary, ...secondary].join(' • ');
-    }
-
-    // Default effects for other categories
-    const effects = {
-      shield: 'Blocks one attack',
-      doubleEarnings: '2x earnings multiplier',
-      discountShop: '20% shop discount'
-    };
-    
-    return effects[item.primaryEffect] || 'No effect';
-  };
-
   // Get full name of target user
   const getTargetName = (targetId) => {
     const target = students.find(s => s._id === targetId);
@@ -231,7 +184,7 @@ const InventorySection = ({ userId, classroomId }) => {
       </h2>
 
       {items.length === 0 && (
-        <p className="text-gray-500 italic">You don't own any items yet.</p>
+        <p className="italic text-base-content/60">You don't own any items yet.</p>
       )}
 
       {items.map((item) => (
@@ -247,20 +200,34 @@ const InventorySection = ({ userId, classroomId }) => {
                 className="object-cover w-full h-full"
               />
             ) : (
-              <ImageOff className="w-8 h-8 text-gray-400" />
+              <ImageOff className="w-8 h-8 text-base-content/50" />
             )}
           </div>
 
           <div className="flex-1 space-y-1">
             <h4 className="text-lg font-semibold">{item.name}</h4>
-            <p className="text-sm text-gray-600">{item.description}</p>
-            <p className="text-sm text-gray-500">
-              Effect: {getEffectDescription(item)}
-            </p>
-            {item.active && (
-              <p className="text-green-600 font-semibold">🛡 Active</p>
-            )}
-          </div>
+            {(() => {
+              const { main, effect } = splitDescriptionEffect(item.description || '');
+              return (
+                <>
+                  <p className="text-sm text-base-content/70 whitespace-pre-wrap">{main}</p>
+                  {effect && (
+                    <div className="text-sm text-base-content/60 mt-1">
+                      <strong>Effect:</strong> {effect}
+                    </div>
+                  )}
+                  {!effect && getEffectDescription(item) && (
+                    <div className="text-sm text-base-content/60 mt-1">
+                      <strong>Effect:</strong> {getEffectDescription(item)}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+             {item.active && (
+               <p className="text-green-600 font-semibold">🛡 Active</p>
+             )}
+           </div>
 
           <div className="flex flex-col gap-2 md:w-1/3">
             {item.category === 'Attack' && (

@@ -21,13 +21,19 @@ import {
   Coins,
   Store,
   Zap,
+  Search,
+  Puzzle,
+  Award,
+  Compass
 } from 'lucide-react';
 
 // Importing images, credits: https://unsplash.com/
 import interactiveLearning from '../assets/Education/interactive-learning.jpg'
 import academicExcellence from '../assets/Education/academic-excellence.jpg'
 import stayInformed from '../assets/Education/notifications.jpg'
+import rpgSchoolChars from '../assets/Education/rpg-school-chars.svg';
 
+import './Home.css';
 
 const Home = () => {
   const { user, logout, setUser } = useAuth();
@@ -369,6 +375,104 @@ const Home = () => {
         </div>
         </section>
 
+        {/* MMORPG Character Stats Section */}
+        <section className="mb-20 py-16 bg-white">
+          <div className="max-w-6xl mx-auto px-6">
+            <div className="text-center mb-12">
+              <h2 className="text-4xl font-bold text-gray-900 mb-4">Gamification Reimagined</h2>
+              <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+                PrizeVersity transforms learning into an MMORPG-like experience where students develop their academic character with real stats that impact their classroom journey.
+              </p>
+            </div>
+
+            <div className="flex flex-col lg:flex-row items-center justify-center gap-12">
+              {/* Character Diagram */}
+              <div className="relative flex flex-col items-center justify-center min-h-[400px] w-full md:w-[420px]">
+                {/* SVG Character Silhouette */}
+                <img
+                  src={rpgSchoolChars}
+                  alt="Student MMORPG Character"
+                  className="w-[260px] md:w-[320px] mx-auto drop-shadow-xl"
+                  style={{ zIndex: 1 }}
+                  draggable={false}
+                />
+
+                {/* Stat Lines (SVG overlay for crisp lines) */}
+                {/* Floating stat labels (no lines) */}
+                <div className="absolute left-0 top-0 w-full h-full pointer-events-none" style={{ zIndex: 2 }}>
+                  <div className="stat-label stat-label-level stat-badge level">
+                    <div className="stat-label-title">Level</div>
+                    <div className="stat-label-sub">Overall progress &amp; XP</div>
+                  </div>
+
+                  <div className="stat-label stat-label-multiplier stat-badge multiplier">
+                    <div className="stat-label-title">Multiplier</div>
+                    <div className="stat-label-sub">Boosts bits earned</div>
+                  </div>
+
+                  <div className="stat-label stat-label-luck stat-badge luck">
+                    <div className="stat-label-title">Luck</div>
+                    <div className="stat-label-sub">Improves reward odds</div>
+                  </div>
+
+                  <div className="stat-label stat-label-discount stat-badge discount">
+                    <div className="stat-label-title">Discount</div>
+                    <div className="stat-label-sub">Reduces bazaar prices</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Description */}
+              <div className="max-w-lg">
+                <h3 className="text-2xl font-bold mb-6">The Academic MMORPG Character</h3>
+                <div className="space-y-4">
+
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <span className="text-yellow-600 text-sm">⭐</span>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold">Level</h4>
+                      <p className="text-gray-600 text-sm">Visual representation of overall progress and experience. <span className="text-purple-600 font-medium">(Coming Soon)</span></p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <span className="text-green-600 text-sm">✖️</span>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold">Multiplier</h4>
+                      <p className="text-gray-600 text-sm">Amplifies the bits earned from participation and achievements.</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <span className="text-purple-600 text-sm">🍀</span>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold">Luck</h4>
+                      <p className="text-gray-600 text-sm">Increases chances of better rewards in classroom activities like Mystery Box.</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <span className="text-blue-600 text-sm">🏷️</span>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold">Discount</h4>
+                      <p className="text-gray-600 text-sm">Reduces prices in the classroom bazaar, stretching bits further.</p>
+                    </div>
+                  </div>
+                  
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Value Proposition */}
         <section className="mb-20 py-16">
           <div className="text-center mb-4">
@@ -502,6 +606,98 @@ const Home = () => {
             </div>
           </div>
         </section>
+
+        {/* OSINT-inspired Challenges Section (stylized with gradients + micro animations) */}
+        <section className="mb-20 py-16 bg-gradient-to-b from-white to-gray-50 osint-section">
+          <div className="max-w-6xl mx-auto px-6 relative">
+            {/* Decorative top SVG */}
+            <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-10 pointer-events-none">
+              <svg width="360" height="36" viewBox="0 0 360 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M0 18C60 6 120 30 180 18C240 6 300 30 360 18" stroke="#10B981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+
+            <div className="text-center mb-8 relative z-20">
+              <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-3">OSINT‑inspired Challenges</h2>
+              <p className="text-lg text-gray-600 max-w-3xl mx-auto">
+                Puzzle-style activities inspired by OSINT that teachers can configure as additional exercises.
+                <br />
+                Challenges award Bits and/or stat boosts—Multiplier, Luck, Discount—so students level up, earn more, and sharpen critical thinking.
+              </p>
+            </div>
+
+            {/* Triangle layout: cards at triangle vertices + compass center */}
+            <div className="triangle-wrap relative z-10 mx-auto w-full max-w-4xl h-[420px]">
+             {/* SVG connector triangle (behind) */}
+             <svg className="triangle-lines absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 400 400" preserveAspectRatio="none" aria-hidden>
+               <polyline points="200,40 60,340 340,340 200,40" fill="none" stroke="#e6eef6" strokeWidth="2" strokeDasharray="6 8" strokeLinecap="round" strokeLinejoin="round" />
+             </svg>
+ 
+             {/* Center Compass */}
+             <div className="triangle-center absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-full w-28 h-28 flex items-center justify-center shadow-md z-30">
+               <Compass className="text-green-500" size={36} />
+             </div>
+ 
+             {/* Top Card */}
+             <article className="osint-card triangle-card top-card osint-indigo">
+               <div className="flex items-start gap-4">
+                 <div className="icon-badge" aria-hidden>
+                   <Award size={28} />
+                 </div>
+                 <div>
+                   <h3 className="font-semibold mb-1 text-gray-900">Flexible Rewards</h3>
+                   <p className="text-sm text-gray-600">
+                     Teachers assign Bits and/or stat boosts (Multiplier, Luck, Discount) per challenge — fully composable rewards to shape classroom behavior.
+                   </p>
+                 </div>
+               </div>
+               <div className="card-footer">
+                 <span className="micro-meta">Customizable per-challenge</span>
+                 <span className="pill">Rewards</span>
+               </div>
+             </article>
+ 
+             {/* Bottom-left Card */}
+             <article className="osint-card triangle-card left-card osint-amber">
+               <div className="flex items-start gap-4">
+                 <div className="icon-badge" aria-hidden>
+                   <Puzzle size={28} />
+                 </div>
+                 <div>
+                   <h3 className="font-semibold mb-1 text-gray-900">Customizable Difficulty</h3>
+                   <p className="text-sm text-gray-600">
+                     From quick one-off riddles to multi-step investigations — determine difficulty, time limits, hints, and retries.
+                   </p>
+                 </div>
+               </div>
+               <div className="card-footer">
+                 <span className="micro-meta">Hints & retries</span>
+                 <span className="pill">Difficulty</span>
+               </div>
+             </article>
+ 
+             {/* Bottom-right Card */}
+             <article className="osint-card triangle-card right-card osint-emerald">
+               <div className="flex items-start gap-4">
+                 <div className="icon-badge" aria-hidden>
+                   <School size={28} />
+                 </div>
+                 <div>
+                   <h3 className="font-semibold mb-1 text-gray-900">Classroom‑First</h3>
+                   <p className="text-sm text-gray-600">
+                     Built for teachers: moderate, review outcomes, map challenges to curriculum goals, and tie rewards directly into the classroom economy.
+                   </p>
+                 </div>
+               </div>
+               <div className="card-footer">
+                 <span className="micro-meta">Teacher moderated</span>
+                 <span className="pill">Classroom</span>
+               </div>
+             </article>
+           </div>
+            {/* end triangle-wrap */}
+           </div>
+         </section>
 
         {/* Call to Action */}
         <section className="bg-gradient-to-r from-green-500 to-green-600 rounded-2xl p-12 text-center text-white mb-20">

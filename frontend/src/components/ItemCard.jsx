@@ -75,22 +75,22 @@ const ItemCard = ({ item, role, classroomId }) => {
             sizes="(max-width: 768px) 100vw, 50vw"
           />
         ) : (
-          <div className="flex flex-col items-center justify-center text-gray-400">
+          <div className="flex flex-col items-center justify-center text-base-content/50">
             <ImageIcon className="w-12 h-12" />
             <span className="text-sm mt-2">No image</span>
           </div>
         )}
       </figure>
-
-      {/* Content - unchanged from original */}
-      <div className="card-body space-y-2">
-        <h3 className="card-title text-lg md:text-xl font-semibold">
-          {item.name}
-        </h3>
-        <p className="text-gray-600 text-sm line-clamp-2">{item.description}</p>
-        <p className="text-black font-bold text-base">
-          {calculatePrice()}
-        </p>
+ 
+       {/* Content - unchanged from original */}
+       <div className="card-body space-y-2">
+         <h3 className="card-title text-lg md:text-xl font-semibold">
+           {item.name}
+         </h3>
+        <p className="text-base-content opacity-70 text-sm mt-2">{item.description}</p>
+        <p className="text-base-content font-bold text-base">
+           {calculatePrice()}
+         </p>
 
         {role === 'student' && (
           <button

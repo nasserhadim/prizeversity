@@ -239,46 +239,40 @@ req.app.get('io').to(`classroom-${classroomId}`).emit('user_role_update', {
 
 // update the profile with a firstname and a last name
 router.post('/update-profile', ensureAuthenticated, async (req, res) => {
-  const { role, firstName, lastName } = req.body;
+  const { role } = req.body;
+  const firstNameRaw = req.body.firstName;
+  const lastNameRaw = req.body.lastName;
   const userId = req.user._id;
 
-  try {
-    const updateData = { role, firstName, lastName };
-    
-    // Clear OAuth names once user sets their own names
-    if (firstName && firstName.trim()) {
-      updateData.oauthFirstName = undefined;
+  // Normalize / trim input
+  const firstName = firstNameRaw !== undefined ? String(firstNameRaw).trim() : undefined;
+  const lastName = lastNameRaw !== undefined ? String(lastNameRaw).trim() : undefined;
+
+  // If client attempted to update name fields, require at least one non-empty name.
+  if (firstNameRaw !== undefined || lastNameRaw !== undefined) {
+    if (!firstName && !lastName) {
+      return res.status(400).json({ error: 'At least one of firstName or lastName must be provided' });
     }
-    if (lastName && lastName.trim()) {
+  }
+
+  try {
+    const updateData = {};
+    if (role) updateData.role = role;
+    if (firstNameRaw !== undefined) {
+      updateData.firstName = firstName;
+      updateData.oauthFirstName = undefined; // clear oauth fallback
+    }
+    if (lastNameRaw !== undefined) {
+      updateData.lastName = lastName;
       updateData.oauthLastName = undefined;
     }
 
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      updateData,
-      { new: true }
-    );
+    const updatedUser = await User.findByIdAndUpdate(userId, updateData, { new: true });
     res.json({ user: updatedUser });
   } catch (error) {
     console.error('Failed to update profile:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
-
-  // After successful profile update
-const classrooms = await Classroom.find({ 
-  $or: [
-    { teacher: userId },
-    { students: userId }
-  ]
-});
-
-for (const classroom of classrooms) {
-  req.app.get('io').to(`classroom-${classroom._id}`).emit('user_profile_update', {
-    userId,
-    firstName: updatedUser.firstName,
-    lastName: updatedUser.lastName
-  });
-}
 });
 
 // POST route to upload users in bulk to a classroom
