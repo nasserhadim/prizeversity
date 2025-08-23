@@ -4,7 +4,7 @@
 - Instructors (i.e. teachers) can create custom classrooms, award virtual currency—**"Bits"**—and build in-class reward systems through a virtual shop—**"Bazaar"**—where students redeem their earnings for real or creative perks (e.g., extra credit, club merch, lab/exam passes, etc.)
 - Whether through solo play or group collaboration, students are rewarded for participation, learning, and consistent engagement.
 
-## Key features include:
+## Key Features:
 
 - Custom classroom creation and management (including **News/Announcements**, **GroupSets/sub-groups**, **role-based access control (RBAC)** between Teachers, Students ⇌ Admins/TAs, and more!)
 - Virtual currency economy (**Bits**)
@@ -26,9 +26,10 @@ This repository hosts the full stack implementation of PrizeVersity, including t
    - **PM2** (Process Manager for Node.js)
    - **SSL (Encryption in transit)**
    - **Persistent MongoDB storage** with replica set compatibility
+
 # Table of Contents
 1. [🎓 About PrizeVersity](#-about-prizeversity)  
-   - [Key features include:](#key-features-include)  
+   - [Key Features](#key-features-include)  
    - [🛠️ For Developers](#️-for-developers)
 
 2. [How to Setup (Developers)](#how-to-setup-developers)  
