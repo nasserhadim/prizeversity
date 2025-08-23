@@ -137,6 +137,7 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
   if (challenge.settings.shieldMode === 'individual') {
     const shield = (challenge.settings.challengeShields || [])[challengeIndex] || false;
     if (shield) {
+      user.shieldCount = (user.shieldCount || 0) + 1;
       user.shieldActive = true;
       rewardsEarned.shield = true;
     }

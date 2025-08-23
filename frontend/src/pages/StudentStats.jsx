@@ -95,7 +95,7 @@ const StudentStats = () => {
             </div>
             <div className="stat-title">Shield</div>
             <div className="stat-value">
-              {stats.shieldActive ? 'Active' : 'Inactive'}
+              {stats.shieldActive ? `Active x${stats.shieldCount}` : 'Inactive'}
             </div>
           </div>
           

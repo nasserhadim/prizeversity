@@ -32,6 +32,7 @@ router.get('/student/:id', ensureAuthenticated, async (req, res) => {
         email: user.email,
       },
       shieldActive: user.shieldActive,
+      shieldCount: user.shieldCount || 0,
       discountShop: user.discountShop ? 20 : 0, // Return as number
       attackPower: attackItemCount,
       luck: user.passiveAttributes?.luck || 1,
