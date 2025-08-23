@@ -4,7 +4,7 @@
 - Instructors (i.e. teachers) can create custom classrooms, award virtual currency—**"Bits"**—and build in-class reward systems through a virtual shop—**"Bazaar"**—where students redeem their earnings for real or creative perks (e.g., extra credit, club merch, lab/exam passes, etc.)
 - Whether through solo play or group collaboration, students are rewarded for participation, learning, and consistent engagement.
 
-## Key Features:
+## Key Features
 
 - Custom classroom creation and management (including **News/Announcements**, **GroupSets/sub-groups**, **role-based access control (RBAC)** between Teachers, Students ⇌ Admins/TAs, and more!)
 - Virtual currency economy (**Bits**)
