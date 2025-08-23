@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Hammer } from 'lucide-react';
 import toast from 'react-hot-toast';
 import apiBazaar from '../API/apiBazaar';
+import { describeEffectFromForm } from '../utils/itemHelpers';
 
 // Will define the primary effect options by item category
 const CATEGORY_OPTIONS = {
@@ -156,10 +157,14 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
     setLoading(true);
 
     try {
+      // build effect summary and append to description so teachers don't have to type it
+      const effectText = describeEffectFromForm(form);
+      const combinedDescription = `${form.description?.trim() || ''}${effectText ? `\n\nEffect: ${effectText}` : ''}`.trim();
+
       // Prepare payload with cleaned and converted values
       const payload = {
         name: form.name.trim(),
-        description: form.description.trim(),
+        description: combinedDescription,
         price: Number(form.price),
         image: form.image.trim(),
         category: form.category,

@@ -5,6 +5,7 @@ import apiBazaar from '../API/apiBazaar';
 import { useEffect, useState } from 'react';
 import socket from '../utils/socket.js';
 import { Image as ImageIcon } from 'lucide-react'; // added for image fallback
+import { getEffectDescription } from '../utils/itemHelpers';
 import toast from 'react-hot-toast'
 import Footer from '../components/Footer';
 
@@ -152,6 +153,11 @@ const Checkout = () => {
                                     <p className="text-sm text-base-content/70 mt-1 line-clamp-2">
                                         {item.description || 'No description provided.'}
                                     </p>
+                                    {getEffectDescription(item) && (
+                                        <div className="text-sm text-base-content/60 mt-1">
+                                            Effect: {getEffectDescription(item)}
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Price */}
