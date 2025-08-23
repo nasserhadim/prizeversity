@@ -29,7 +29,7 @@ This repository hosts the full stack implementation of PrizeVersity, including t
 
 # Table of Contents
 1. [🎓 About PrizeVersity](#-about-prizeversity)  
-   - [Key Features](#key-features-include)  
+   - [Key Features](#key-Features)  
    - [🛠️ For Developers](#️-for-developers)
 
 2. [How to Setup (Developers)](#how-to-setup-developers)  
