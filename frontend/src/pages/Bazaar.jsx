@@ -104,7 +104,7 @@ const Bazaar = () => {
             <Store />
             {bazaar.name}
           </h2>
-          <p className="text-gray-600 text-base sm:text-lg">
+          <p className="text-base-content opacity-70 text-base sm:text-lg">
             {bazaar.description}
           </p>
         </div>
