@@ -70,3 +70,28 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 } */
+
+html, body, #root {
+  /* Prevent horizontal scrolling and ensure root can't grow past viewport */
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Replace any centering that forces overflow with safe defaults */
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-width: 0;       /* allows flex children to shrink */
+  background: inherit;
+  /* remove display:flex / place-items center which can cause odd centering/overflow */
+  display: block;
+}
+
+/* Ensure media never push layout wider than viewport */
+img, svg, picture, video {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  box-sizing: border-box;
+}

@@ -272,7 +272,27 @@ const Wallet = () => {
               placeholder="Amount"
               className="input input-bordered w-full"
               value={transferAmount}
-              onChange={(e) => setTransferAmount(e.target.value)}
+              min={1}
+              step={1}
+              // Prevent typing '-' and scientific notation, strip any minus signs
+              onChange={(e) => {
+                const raw = e.target.value;
+                const cleaned = raw.replace(/-/g, '').replace(/[eE+]/g, '');
+                setTransferAmount(cleaned);
+              }}
+              // Ensure empty or positive integer on blur
+              onBlur={() => {
+                if (!transferAmount) return;
+                const n = parseInt(transferAmount, 10);
+                if (isNaN(n) || n < 1) setTransferAmount('');
+                else setTransferAmount(String(n));
+              }}
+              // Prevent scroll from changing the value when focused
+              onWheel={(e) => e.currentTarget.blur()}
+              // Prevent non-numeric keys like 'e', '+', '-'
+              onKeyDown={(e) => {
+                if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault();
+              }}
             />
             <button
               className="btn btn-success w-full"
@@ -283,9 +303,11 @@ const Wallet = () => {
                   return;
                 }
                 try {
+                  // include classroomId so backend notifications reference the classroom
                   await axios.post('/api/wallet/transfer', {
                     recipientShortId: recipientId,
-                    amount: parsedAmount
+                    amount: parsedAmount,
+                    classroomId
                   }, { withCredentials: true });
                   toast.success('Transfer successful!');
                   fetchWallet(); // Refresh balance and transactions

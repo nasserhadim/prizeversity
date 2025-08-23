@@ -3,17 +3,24 @@ import React, { createContext, useState, useEffect } from 'react';
 export const ThemeContext = createContext();
 
 export const ThemeProvider = ({ children }) => {
-  // Initialize theme from localStorage or default to 'light'
-  const [theme, setTheme] = useState('light');
+  // Initialize theme from localStorage or default to 'light' (synchronous)
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem('theme') || 'light';
+    } catch (e) {
+      return 'light';
+    }
+  });
 
-  useEffect(() => {
-    const saved = localStorage.getItem('theme');
-    if (saved) setTheme(saved);
-  }, []);
-
+  // Remove initial-useEffect that read localStorage on mount
+  // Keep effect that applies the theme and persists changes
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('theme', theme);
+    try {
+      localStorage.setItem('theme', theme);
+    } catch (e) {
+      // ignore storage errors
+    }
   }, [theme]);
 
   // Toggle helper

@@ -155,7 +155,7 @@ const Navbar = () => {
   return (
     <nav
       data-theme={theme}
-      className='fixed top-0 left-0 right-0 z-50 bg-base-100 text-base-content shadow-md px-4 lg:px-6 py-4 bg-opacity-20 backdrop-blur-md'
+      className='fixed inset-x-0 top-0 w-screen z-50 bg-base-100 text-base-content shadow-md px-4 lg:px-6 py-4 bg-opacity-20 backdrop-blur-md'
     >
       <div className='container mx-auto flex items-center justify-between'>
         {/* Logo */}
@@ -379,10 +379,10 @@ const Navbar = () => {
 
         {/* Cart Dropdown */}
         {showCart && (
-          <div ref={cartRef} className="fixed top-20 right-4 bg-white border shadow-lg w-80 max-w-[calc(100vw-2rem)] z-[9999] p-4 rounded text-black">
+          <div ref={cartRef} className="fixed top-20 right-4 bg-base-100 border border-base-300 shadow-lg w-80 max-w-[calc(100vw-2rem)] z-[9999] p-4 rounded text-base-content">
             <h3 className="text-lg font-bold mb-2">Your Cart</h3>
             {cartItems.length === 0 ? (
-              <p className="text-sm text-gray-500">Cart is empty</p>
+              <p className="text-sm text-base-content/60">Cart is empty</p>
             ) : (
               <>
                 <ul className="space-y-2">
@@ -390,15 +390,9 @@ const Navbar = () => {
                     <li key={item._id} className="flex justify-between items-center">
                       <div>
                         <span className="block font-medium">{item.name}</span>
-                        <span className="text-sm text-gray-500">{item.price} ₿</span>
+                        <span className="text-sm text-base-content/80">{item.price} ₿</span>
                       </div>
-                      <button
-                        onClick={() => removeFromCart(item._id)}
-                        className="text-red-500 text-sm ml-4"
-                        title="Remove item"
-                      >
-                        ✕
-                      </button>
+                      <button onClick={() => removeFromCart(item._id)} className="text-red-500 text-sm">✕</button>
                     </li>
                   ))}
                 </ul>
@@ -406,9 +400,7 @@ const Navbar = () => {
                   Total: {cartItems.reduce((sum, item) => sum + item.price, 0)} ₿
                 </div>
                 <Link to="/checkout">
-                  <button className="mt-3 w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">
-                    Go to Checkout
-                  </button>
+                  <button className="mt-3 w-full btn btn-success">Go to Checkout</button>
                 </Link>
               </>
             )}

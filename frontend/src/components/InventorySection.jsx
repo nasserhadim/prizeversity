@@ -231,7 +231,7 @@ const InventorySection = ({ userId, classroomId }) => {
       </h2>
 
       {items.length === 0 && (
-        <p className="text-gray-500 italic">You don't own any items yet.</p>
+        <p className="italic text-base-content/60">You don't own any items yet.</p>
       )}
 
       {items.map((item) => (
@@ -247,20 +247,20 @@ const InventorySection = ({ userId, classroomId }) => {
                 className="object-cover w-full h-full"
               />
             ) : (
-              <ImageOff className="w-8 h-8 text-gray-400" />
+              <ImageOff className="w-8 h-8 text-base-content/50" />
             )}
           </div>
 
           <div className="flex-1 space-y-1">
             <h4 className="text-lg font-semibold">{item.name}</h4>
-            <p className="text-sm text-gray-600">{item.description}</p>
-            <p className="text-sm text-gray-500">
-              Effect: {getEffectDescription(item)}
-            </p>
-            {item.active && (
-              <p className="text-green-600 font-semibold">🛡 Active</p>
-            )}
-          </div>
+            <p className="text-sm text-base-content/70">{item.description}</p>
+            <p className="text-sm text-base-content/60">
+               Effect: {getEffectDescription(item)}
+             </p>
+             {item.active && (
+               <p className="text-green-600 font-semibold">🛡 Active</p>
+             )}
+           </div>
 
           <div className="flex flex-col gap-2 md:w-1/3">
             {item.category === 'Attack' && (

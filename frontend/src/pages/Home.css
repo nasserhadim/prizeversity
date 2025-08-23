@@ -27,3 +27,405 @@
   margin: 8px 0 0;
   color: #666;
 }
+
+/* MMORPG Character Styles */
+.rpg-character-container {
+  position: relative;
+  width: 300px;
+  height: 400px;
+  margin: 0 auto;
+}
+
+.character-head {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 50%;
+  border: 4px solid #4a5568;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.character-head::before {
+  content: '👤';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 40px;
+  filter: brightness(1.2);
+}
+
+.character-body {
+  position: absolute;
+  top: 110px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 120px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 30px 30px 10px 10px;
+  border: 4px solid #4a5568;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+/* Stat Lines */
+.stat-line {
+  display: none;
+}
+
+/* Stat Labels */
+.stat-label {
+  position: absolute;
+  animation: float 3s ease-in-out infinite;
+  z-index: 20;
+  pointer-events: auto;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 6px 10px;            /* reduced padding */
+  border-radius: 8px;           /* slightly smaller radius */
+  box-shadow: 0 6px 12px rgba(0,0,0,0.10); /* lighter shadow */
+  font-weight: 600;
+  min-width: 100px;            /* smaller min width */
+  max-width: 160px;           /* constrain width so text wraps */
+  text-align: left;
+  line-height: 1.1;
+  transform: translate(-50%, -50%); /* keep consistent positioning baseline */
+}
+
+/* Title / main text */
+.stat-label-title {
+  font-size: 13px;   /* smaller title */
+  line-height: 1;
+  font-weight: 700;
+}
+
+/* Subtitle / small summary */
+.stat-label-sub {
+  font-size: 11px;   /* smaller subtitle */
+  line-height: 1.1;
+  font-weight: 500;
+  opacity: 0.9;
+  margin-top: 2px;
+  color: rgba(0,0,0,0.65);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Right-side (girl) */
+.stat-label-level {
+  top: 36%;
+  left: 68%;
+  transform: translate(-50%, -50%);
+}
+
+.stat-label-multiplier {
+  top: 46%;
+  left: 74%;
+  transform: translate(-50%, -50%);
+}
+
+/* Left-side (boy) */
+.stat-label-luck {
+  top: 28%;
+  left: 22%;
+  transform: translate(-50%, -50%);
+}
+
+.stat-label-discount {
+  top: 62%;
+  left: 20%;
+  transform: translate(-50%, -50%);
+}
+
+/* Stat Badges */
+.stat-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 12px;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.10);
+  min-width: 100px;
+  text-align: center;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+}
+
+.stat-badge.level {
+  background: linear-gradient(135deg, #ffd700, #ffed4e);
+  color: #744210;
+}
+
+.stat-badge.luck {
+  background: linear-gradient(135deg, #a78bfa, #c084fc);
+  color: white;
+}
+
+.stat-badge.multiplier {
+  background: linear-gradient(135deg, #34d399, #10b981);
+  color: white;
+}
+
+.stat-badge.discount {
+  background: linear-gradient(135deg, #60a5fa, #3b82f6);
+  color: white;
+}
+
+/* Floating Animation */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.stat-label-level { animation-delay: 0s; }
+.stat-label-luck { animation-delay: 0.5s; }
+.stat-label-multiplier { animation-delay: 1s; }
+.stat-label-discount { animation-delay: 1.5s; }
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .rpg-character-container {
+    width: 250px;
+    height: 350px;
+    transform: scale(0.8);
+  }
+  
+  .stat-label {
+    padding: 5px 8px;
+    min-width: 90px;
+    max-width: 140px;
+  }
+  .stat-label-title { font-size: 12px; }
+  .stat-label-sub { font-size: 10px; }
+}
+
+/* OSINT section: subtle gradients and micro-animations */
+.osint-section { position: relative; overflow: visible; }
+
+.osint-card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(250,250,250,0.95));
+  border-radius: 14px;
+  padding: 1.25rem;
+  box-shadow: 0 6px 20px rgba(14,20,30,0.06);
+  transition: transform .22s cubic-bezier(.2,.9,.28,1), box-shadow .22s;
+  border-left: 6px solid transparent;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 140px;
+  position: relative;
+  overflow: hidden;
+}
+
+.osint-card:hover {
+  transform: translateY(-6px) scale(1.006);
+  box-shadow: 0 12px 30px rgba(14,20,30,0.10);
+}
+
+/* colored accents */
+.osint-indigo { border-left-color: rgba(99,102,241,0.18); }
+.osint-amber  { border-left-color: rgba(245,158,11,0.18); }
+.osint-emerald { border-left-color: rgba(16,185,129,0.12); }
+
+/* icon badge */
+.icon-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(255,255,255,0.8), rgba(255,255,255,0.6));
+  box-shadow: 0 6px 16px rgba(12,18,30,0.06);
+  color: inherit;
+  transition: transform .26s cubic-bezier(.2,.9,.28,1), box-shadow .26s;
+}
+
+/* colorize badges per card */
+.osint-indigo .icon-badge { background: linear-gradient(135deg, #eef2ff, #eef9ff); color: #4f46e5; }
+.osint-amber  .icon-badge { background: linear-gradient(135deg, #fffbeb, #fff7ed); color: #c2410c; }
+.osint-emerald .icon-badge { background: linear-gradient(135deg, #ecfdf5, #f0fdfa); color: #059669; }
+
+.osint-card:hover .icon-badge { transform: translateY(-4px) rotate(-6deg); box-shadow: 0 14px 30px rgba(12,18,30,0.10); }
+
+/* micro-meta and pill */
+.card-footer {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-top: 12px;
+}
+.micro-meta { font-size: 12px; color: #6b7280; }
+.pill {
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.04);
+  color: #111827;
+}
+
+/* subtle background shimmer */
+.osint-card::after {
+  content: "";
+  position: absolute;
+  top: -40%;
+  left: -20%;
+  width: 160%;
+  height: 160%;
+  background: radial-gradient(800px 200px at 10% 20%, rgba(255,255,255,0.35), transparent 20%),
+              radial-gradient(600px 200px at 90% 80%, rgba(255,255,255,0.18), transparent 18%);
+  transform: rotate(10deg);
+  opacity: 0;
+  transition: opacity .35s ease;
+  pointer-events: none;
+}
+.osint-card:hover::after { opacity: 1; }
+
+/* small floating animation on section title */
+.osint-section .text-center h2 { display: inline-block; animation: floatTitle 6s ease-in-out infinite; }
+@keyframes floatTitle {
+  0%,100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+/* responsive tweaks */
+@media (max-width: 768px) {
+  .osint-card { padding: 1rem; }
+  .icon-badge { width: 40px; height: 40px; }
+}
+
+/* ...existing code... */
+
+.triangle-wrap {
+  position: relative;
+  /* tweak this value to nudge the compass up/down (negative = up, positive = down) */
+  --compass-nudge: 30px;
+}
+
+/* central compass circle */
+.triangle-center {
+  border: 6px solid rgba(16,185,129,0.08);
+  backdrop-filter: blur(2px);
+  z-index: 50;
+  box-shadow: 0 10px 30px rgba(16,185,129,0.06);
+
+  width: 96px !important;
+  height: 96px !important;
+  border-radius: 9999px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  /* ensure it's centered in the wrapper, then apply a small nudge */
+  left: 50% !important;
+  top: calc(50% + var(--compass-nudge)) !important;
+  transform: translate(-50%, -50%) !important;
+
+  /* pop animation on load */
+  transform-origin: center;
+  animation: popCompass 700ms cubic-bezier(.2,.9,.2,1) both;
+  pointer-events: none;
+}
+
+/* pop keyframe: quick scale up then settle */
+@keyframes popCompass {
+  0%   { transform: scale(.6); opacity: 0; }
+  60%  { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* shared triangle card positioning - slightly smaller and pushed out more */
+.triangle-card {
+  position: absolute;
+  /* smaller so cards don't intrude on the center */
+  width: 280px;
+  max-width: 30%;
+  min-width: 200px;
+  padding: 1rem;
+  z-index: 30;
+  transform-origin: center;
+  transition: transform .18s ease, left .18s ease, right .18s ease, top .18s ease, bottom .18s ease;
+}
+
+/* Top: move farther up so it doesn't overlap center (bigger gap) */
+.triangle-card.top-card {
+  left: 50%;
+  top: 0.8%;
+  transform: translateX(-50%) translateY(-12%);
+}
+
+/* Bottom-left: push further left and down */
+.triangle-card.left-card {
+  left: 1.5%;
+  bottom: 6%;
+  transform: translateX(-10%);
+}
+
+/* Bottom-right: push further right and down */
+.triangle-card.right-card {
+  right: 1.5%;
+  bottom: 6%;
+  transform: translateX(10%);
+}
+
+/* keep the subtle hover lift */
+.triangle-card:hover .icon-badge {
+  transform: translateY(-6px) rotate(-6deg);
+}
+
+/* Responsive fallback: stack as grid on small screens */
+@media (max-width: 900px) {
+  .triangle-wrap {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    height: auto;
+  }
+  .triangle-card, .triangle-center, .triangle-lines {
+    position: static !important;
+    transform: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .triangle-center {
+    margin: 0 auto 0.75rem;
+    z-index: 30; /* keep consistent on mobile */
+    width: 72px !important;
+    height: 72px !important;
+  }
+  .triangle-lines { display: none; }
+}
+
+.osint-card .icon-badge {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* force SVG size (lucide renders inline SVGs) */
+.osint-card .icon-badge svg {
+  width: 28px !important;
+  height: 28px !important;
+  display: block;
+}
+
+/* optional: increase for center/hero cards if you want them larger */
+.osint-card.top-card .icon-badge svg {
+  width: 32px !important;
+  height: 32px !important;
+}
