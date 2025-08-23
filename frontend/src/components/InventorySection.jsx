@@ -207,7 +207,8 @@ const InventorySection = ({ userId, classroomId }) => {
           <div className="flex-1 space-y-1">
             <h4 className="text-lg font-semibold">{item.name}</h4>
             <p className="text-sm text-base-content/70">{item.description}</p>
-            {getEffectDescription(item) && (
+            {/* Only show auto-generated effect if the description doesn't already include it */}
+            {!/Effect\s*:/i.test(item.description || '') && getEffectDescription(item) && (
               <p className="text-sm text-base-content/60">Effect: {getEffectDescription(item)}</p>
             )}
              {item.active && (

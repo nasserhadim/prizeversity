@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Hammer } from 'lucide-react';
 import toast from 'react-hot-toast';
 import apiBazaar from '../API/apiBazaar';
@@ -36,6 +36,14 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
     swapOptions: []
   });
   const [loading, setLoading] = useState(false);
+  const [effectPreview, setEffectPreview] = useState('');
+ 
+  // keep an auto-generated preview in sync with form, teachers can edit it before submit
+  useEffect(() => {
+    const gen = describeEffectFromForm(form);
+    // only set when there's no manual edit yet, or regenerate on category/effect changes
+    setEffectPreview(gen);
+  }, [form.category, form.primaryEffect, form.primaryEffectValue, JSON.stringify(form.secondaryEffects), JSON.stringify(form.swapOptions)]);
 
   // Reset form to initial state
   const resetForm = () => {
@@ -158,27 +166,28 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
 
     try {
       // build effect summary and append to description so teachers don't have to type it
-      const effectText = describeEffectFromForm(form);
-      const combinedDescription = `${form.description?.trim() || ''}${effectText ? `\n\nEffect: ${effectText}` : ''}`.trim();
-
-      // Prepare payload with cleaned and converted values
-      const payload = {
-        name: form.name.trim(),
-        description: combinedDescription,
-        price: Number(form.price),
-        image: form.image.trim(),
-        category: form.category,
-        primaryEffect: form.category !== 'Passive' ? form.primaryEffect : undefined,
-        primaryEffectValue: form.category !== 'Passive' ? Number(form.primaryEffectValue) : undefined,
-        secondaryEffects: form.secondaryEffects
-          .filter(effect => effect.effectType)
-          .map(effect => ({
-            effectType: effect.effectType,
-            value: Number(effect.value)
-          })),
-        swapOptions: form.primaryEffect === 'swapper' ? form.swapOptions : undefined,
-        bazaar: bazaarId
-      };
+      // use the editable preview (teachers may have tweaked wording)
+      const cleanedEffect = (effectPreview || '').trim();
+      const combinedDescription = `${form.description?.trim() || ''}${cleanedEffect ? `\n\nEffect: ${cleanedEffect}` : ''}`.trim();
+ 
+       // Prepare payload with cleaned and converted values
+       const payload = {
+         name: form.name.trim(),
+         description: combinedDescription,
+         price: Number(form.price),
+         image: form.image.trim(),
+         category: form.category,
+         primaryEffect: form.category !== 'Passive' ? form.primaryEffect : undefined,
+         primaryEffectValue: form.category !== 'Passive' ? Number(form.primaryEffectValue) : undefined,
+         secondaryEffects: form.secondaryEffects
+           .filter(effect => effect.effectType)
+           .map(effect => ({
+             effectType: effect.effectType,
+             value: Number(effect.value)
+           })),
+         swapOptions: form.primaryEffect === 'swapper' ? form.swapOptions : undefined,
+         bazaar: bazaarId
+       };
 
       // Make POST request to API
       const res = await apiBazaar.post(
@@ -433,6 +442,28 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
           )}
         </div>
       )}
+
+      {/* Auto-generated Effect Preview */}
+      <div className="form-control">
+        <label className="label">
+          <span className="label-text font-medium">Auto-generated Effect (editable)</span>
+          <button
+            type="button"
+            className="btn btn-ghost btn-xs"
+            onClick={() => setEffectPreview(describeEffectFromForm(form))}
+            title="Regenerate"
+          >
+            Regenerate
+          </button>
+        </label>
+        <textarea
+          className="textarea textarea-bordered w-full min-h-[80px] resize-none"
+          value={effectPreview}
+          onChange={(e) => setEffectPreview(e.target.value)}
+          placeholder="Effect preview will appear here (auto-generated from selected effects). You can edit this before submitting."
+        />
+        <p className="text-xs text-base-content/60 mt-1">This text will be appended to the item description as "Effect: ...".</p>
+      </div>
 
       <button
         className="btn btn-success w-full mt-2"

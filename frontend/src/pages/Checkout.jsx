@@ -153,7 +153,8 @@ const Checkout = () => {
                                     <p className="text-sm text-base-content/70 mt-1 line-clamp-2">
                                         {item.description || 'No description provided.'}
                                     </p>
-                                    {getEffectDescription(item) && (
+                                    {/* Avoid duplicate: skip auto-effect if description already contains Effect: */}
+                                    {!/Effect\s*:/i.test(item.description || '') && getEffectDescription(item) && (
                                         <div className="text-sm text-base-content/60 mt-1">
                                             Effect: {getEffectDescription(item)}
                                         </div>

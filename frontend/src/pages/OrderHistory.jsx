@@ -3,6 +3,7 @@ import { AuthContext } from '../context/AuthContext';
 import axios from 'axios';
 import Footer from '../components/Footer';
 import toast from 'react-hot-toast';
+import { getEffectDescription } from '../utils/itemHelpers';
 
 export default function OrderHistory() {
     const { user } = useContext(AuthContext);
@@ -297,7 +298,7 @@ export default function OrderHistory() {
                                             >
                                                 {/* larger clipboard icon */}
                                                 <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
-                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2m-6 4h6m-6 4h6M8 7h8a2 2 0 012 2v8a2 2 0 01-2 2H8a2 2 0 01-2-2V9a2 2 0 012-2z" />
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V5a2 2 0 0 0-2-2H2a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2m6-4h6m-6 4h6M8 7h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z" />
                                                 </svg>
                                             </button>
                                         </div>
@@ -305,8 +306,16 @@ export default function OrderHistory() {
                                 </div>
 
                                 {o.items && o.items.length > 0 && (
-                                    <ul className="list-disc list-inside mt-2">
-                                        {o.items.map(i => <li key={i._id}>{i.name}</li>)}
+                                    <ul className="list-disc list-inside mt-2 space-y-2">
+                                        {o.items.map(i => (
+                                            <li key={i._id || i.id}>
+                                                <div className="font-medium">{i.name} {i.price ? `(${i.price} ₿)` : ''}</div>
+                                                {i.description && <div className="text-sm text-base-content/70">{i.description}</div>}
+                                                {!/Effect\s*:/i.test(i.description || '') && getEffectDescription(i) && (
+                                                    <div className="text-sm text-base-content/60">Effect: {getEffectDescription(i)}</div>
+                                                )}
+                                            </li>
+                                        ))}
                                     </ul>
                                 )}
                             </div>
