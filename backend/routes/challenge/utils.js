@@ -23,6 +23,7 @@ function getChallengeIndex(challengeId) {
   else if (challengeId === CHALLENGE_IDS.FORENSICS) return 3;
   else if (challengeId === CHALLENGE_IDS.WAYNEAWS) return 4;
   else if (challengeId === CHALLENGE_IDS.HAYSTACK) return 5;
+  else if (challengeId === CHALLENGE_IDS.HANGMAN) return 6;
   else return 0;
 }
 
@@ -52,7 +53,7 @@ async function awardChallengeBits(userId, challengeLevel, challenge) {
   }
 }
 
-function calculateChallengeRewards(user, challenge, challengeIndex, userChallenge) {
+function calculateChallengeRewards(user, challenge, challengeIndex, userChallenge, options = {}) {
   const rewardsEarned = {
     bits: 0,
     multiplier: 0,
@@ -78,6 +79,31 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
   if (bitsAwarded > 0) {
     user.balance = (user.balance || 0) + bitsAwarded;
     rewardsEarned.bits = bitsAwarded;
+    
+    if (options.addTransactionEntry !== false) {
+      const { CHALLENGE_NAMES } = require('./constants');
+      const challengeName = CHALLENGE_NAMES[challengeIndex] || `Challenge ${challengeIndex + 1}`;
+      
+      const transactionDescription = usedHints > 0 
+        ? `Completed ${challengeName} (${baseBits} - ${baseBits - bitsAwarded} hint penalty)`
+        : `Completed ${challengeName}`;
+        
+      user.transactions = user.transactions || [];
+      user.transactions.push({
+        amount: bitsAwarded,
+        description: transactionDescription,
+        type: 'challenge_completion',
+        challengeIndex: challengeIndex,
+        challengeName: challengeName,
+        calculation: hintsEnabled && usedHints > 0 ? {
+          baseAmount: baseBits,
+          hintsUsed: usedHints,
+          penaltyPercent: penaltyPercent,
+          finalAmount: bitsAwarded
+        } : undefined,
+        createdAt: new Date()
+      });
+    }
   }
 
   if (challenge.settings.multiplierMode === 'individual') {

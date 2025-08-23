@@ -37,6 +37,10 @@ const UserChallengeSchema = new mongoose.Schema({
   startedAt: { type: Date },
   currentChallenge: { type: Number, default: 0 },
   completedChallenges: { type: [Boolean], default: [false, false, false, false, false, false] },
+  challenge7Progress: {
+    revealedWords: { type: [String], default: [] },
+    totalWords: { type: Number, default: 0 }
+  },
 
 }, { _id: true });
 
@@ -115,7 +119,6 @@ const ChallengeSchema = new mongoose.Schema({
   deactivatedAt: { type: Date }
 });
 
-// Helper method to check if challenge is expired
 ChallengeSchema.methods.isExpired = function() {
   if (!this.settings.dueDateEnabled || !this.settings.dueDate) {
     return false;
@@ -200,7 +203,7 @@ ChallengeSchema.pre('save', function(next) {
     ];
   }
   
-  const totalChallenges = this.settings.challengeBits?.length || 6;
+  const totalChallenges = this.settings.challengeBits?.length || 7;
   
   this.stats.totalParticipants = this.userChallenges.length;
   this.stats.completedChallenges = this.userChallenges.filter(uc => uc.progress >= totalChallenges).length;
@@ -221,9 +224,8 @@ ChallengeSchema.methods.generateUserChallenge = function(userId) {
   const hash = crypto.createHash('md5').update(plaintext + CAESAR_SALT).digest('hex');
   const shift = (parseInt(hash.substring(0, 2), 16) % CAESAR_RANGE) + CAESAR_BASE;
   const encryptedId = caesarCipher(plaintext, shift);
-  const totalChallenges = this.settings?.challengeBits?.length || 6;
+  const totalChallenges = this.settings?.challengeBits?.length || 7;
   
-  // Generate Challenge 2 password
   function generateChallenge2Password(uniqueId) {
     const hash = crypto.createHash('md5').update(uniqueId + 'secret_salt_2024').digest('hex');
     const prefix = ['ACCESS', 'TOKEN', 'KEY', 'SECRET', 'CODE'][parseInt(hash.substring(0, 1), 16) % 5];
@@ -231,7 +233,6 @@ ChallengeSchema.methods.generateUserChallenge = function(userId) {
     return `${prefix}_${suffix}`;
   }
 
-  // Generate Challenge 4 password
   function generateChallenge4Password(userId, uniqueId) {
     const studentHash = crypto.createHash('md5').update(userId.toString() + uniqueId).digest('hex');
     return `FORENSICS_${studentHash.substring(0, 8).toUpperCase()}`;
@@ -264,7 +265,7 @@ ChallengeSchema.methods.calculateTotalBits = function() {
 
 ChallengeSchema.methods.getBitsForChallenge = function(challengeLevel) {
   if (this.settings.rewardMode === 'total') {
-    const totalChallenges = this.settings.challengeBits?.length || 6;
+    const totalChallenges = this.settings.challengeBits?.length || 7;
     return challengeLevel === totalChallenges ? (this.settings.totalRewardBits || 350) : 0;
   }
   
@@ -294,7 +295,7 @@ ChallengeSchema.methods.addChallenge = function(bits = 50, multiplier = 1.0, luc
 };
 
 ChallengeSchema.methods.getTotalChallenges = function() {
-  return this.settings.challengeBits?.length || 6;
+  return this.settings.challengeBits?.length || 7;
 };
 
 ChallengeSchema.index({ classroomId: 1 }, { unique: true });

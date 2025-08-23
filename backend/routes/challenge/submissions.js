@@ -40,7 +40,7 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
     const challengeIndex = getChallengeIndex(challengeId);
 
     if (!userChallenge.completedChallenges) {
-      userChallenge.completedChallenges = [false, false, false, false, false, false];
+      userChallenge.completedChallenges = [false, false, false, false, false, false, false];
     }
 
     if (userChallenge.completedChallenges[challengeIndex]) {
@@ -80,7 +80,7 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
         await user.save();
       }
 
-      if (userChallenge.progress === 6) {
+      if (userChallenge.progress === 7) {
         userChallenge.completedAt = new Date();
         const Notification = require('../../models/Notification');
         const { populateNotification } = require('../../utils/notifications');
@@ -89,7 +89,7 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
           user: user._id,
           actionBy: challenge.createdBy,
           type: 'challenge_series_completed',
-          message: `Congratulations! You completed all 6 challenges and earned the Cyber Champion badge!`,
+          message: `Congratulations! You completed all 7 challenges and earned the Cyber Champion badge!`,
           read: false,
           createdAt: new Date(),
         });
@@ -108,7 +108,7 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
         challengeName: CHALLENGE_NAMES[challengeIndex],
         rewards: rewardsEarned,
         progress: userChallenge.progress,
-        allCompleted: userChallenge.progress >= 6,
+        allCompleted: userChallenge.progress >= 7,
         nextChallenge: userChallenge.progress < 6 ? CHALLENGE_NAMES[userChallenge.progress] : null
       });
     } else {
@@ -161,7 +161,7 @@ router.post('/challenge4/:uniqueId/submit', ensureAuthenticated, async (req, res
       const userChallenge = challenge.userChallenges.find(uc => uc.uniqueId === uniqueId);
       if (userChallenge && !userChallenge.completedChallenges?.[3]) {
         if (!userChallenge.completedChallenges) {
-          userChallenge.completedChallenges = [false, false, false, false, false, false];
+          userChallenge.completedChallenges = [false, false, false, false, false, false, false];
         }
         userChallenge.completedChallenges[3] = true;
         userChallenge.progress = userChallenge.completedChallenges.filter(Boolean).length;
@@ -177,7 +177,7 @@ router.post('/challenge4/:uniqueId/submit', ensureAuthenticated, async (req, res
           challengeName: CHALLENGE_NAMES[3],
           rewards: rewardsEarned,
           progress: userChallenge.progress,
-          allCompleted: userChallenge.progress >= 6,
+          allCompleted: userChallenge.progress >= 7,
           nextChallenge: userChallenge.progress < 6 ? CHALLENGE_NAMES[userChallenge.progress] : null
         });
       } else {
@@ -283,7 +283,7 @@ router.post('/:classroomId/start', ensureAuthenticated, async (req, res) => {
       });
     }
 
-    if (challengeIndex < 0 || challengeIndex > 5) {
+    if (challengeIndex < 0 || challengeIndex > 6) {
       return res.status(400).json({ success: false, message: 'Invalid challenge index' });
     }
 
@@ -428,7 +428,6 @@ router.post('/submit-challenge6', ensureAuthenticated, async (req, res) => {
       
       await challenge.save();
       
-      // Update user stats
       await User.findByIdAndUpdate(userId, {
         $inc: { bits: rewards.bits, multiplier: rewards.multiplier }
       });
@@ -451,90 +450,178 @@ router.post('/submit-challenge6', ensureAuthenticated, async (req, res) => {
   }
 });
 
-function generateRewards(userId, uniqueId, challenge) {
-  const seed = userId.toString() + uniqueId;
-  const crypto = require('crypto');
-  const hash = crypto.createHash('md5').update(seed).digest('hex');
-  const seedNum = parseInt(hash.substring(0, 8), 16);
+router.post('/submit-challenge7', ensureAuthenticated, async (req, res) => {
+  try {
+    const { uniqueId, word, tokenIds } = req.body;
+    const userId = req.user._id;
 
-  const settings = challenge.settings || {};
-  const CHALLENGE_INDEX = 5; // Challenge 6 (index 5)
-  
-  const rewards = {
-    bits: 0,
-    multiplier: 0,
-    luck: 1.0,
-    discount: 0,
-    shield: false
-  };
+    if (!uniqueId || !word || !tokenIds) {
+      return res.status(400).json({ message: 'Missing required fields' });
+    }
 
-  if (settings.rewardMode === 'individual') {
-    rewards.bits = settings.challengeBits?.[CHALLENGE_INDEX] || 0;
-  } else {
-    const totalCompleted = challenge.userChallenges.find(uc => 
-      uc.uniqueId === uniqueId
-    )?.completedChallenges?.filter(Boolean).length || 0;
+    const userTokens = Array.isArray(tokenIds) ? tokenIds : [parseInt(tokenIds, 10)];
     
-    if (totalCompleted === 5) { 
-      rewards.bits = settings.totalRewardBits || 0;
-    }
-  }
-  
-  const variationPercent = 10;
-  const variation = rewards.bits * (variationPercent / 100);
-  rewards.bits = Math.round(rewards.bits + ((seedNum % variation) - (variation / 2)));
-  rewards.bits = Math.max(0, rewards.bits); // Ensure non-negative
+    const challenge = await Challenge.findOne({
+      'userChallenges.uniqueId': uniqueId,
+      'userChallenges.userId': userId
+    });
 
-  if (settings.multiplierMode === 'individual') {
-    rewards.multiplier = (settings.challengeMultipliers?.[CHALLENGE_INDEX] || 1.0) - 1.0;
-  } else if (settings.multiplierMode === 'total' && settings.totalMultiplier) {
-    const totalCompleted = challenge.userChallenges.find(uc => 
-      uc.uniqueId === uniqueId
-    )?.completedChallenges?.filter(Boolean).length || 0;
-    
-    if (totalCompleted === 5) {
-      rewards.multiplier = settings.totalMultiplier - 1.0;
+    if (!challenge) {
+      return res.status(404).json({ message: 'Challenge not found' });
     }
-  }
-  
-  if (settings.luckMode === 'individual') {
-    rewards.luck = settings.challengeLuck?.[CHALLENGE_INDEX] || 1.0;
-  } else if (settings.luckMode === 'total' && settings.totalLuck) {
-    const totalCompleted = challenge.userChallenges.find(uc => 
-      uc.uniqueId === uniqueId
-    )?.completedChallenges?.filter(Boolean).length || 0;
-    
-    if (totalCompleted === 5) {
-      rewards.luck = settings.totalLuck;
-    }
-  }
-  
-  if (settings.discountMode === 'individual') {
-    rewards.discount = settings.challengeDiscounts?.[CHALLENGE_INDEX] || 0;
-  } else if (settings.discountMode === 'total' && settings.totalDiscount) {
-    const totalCompleted = challenge.userChallenges.find(uc => 
-      uc.uniqueId === uniqueId
-    )?.completedChallenges?.filter(Boolean).length || 0;
-    
-    if (totalCompleted === 5) {
-      rewards.discount = settings.totalDiscount;
-    }
-  }
-  
-  if (settings.shieldMode === 'individual') {
-    rewards.shield = settings.challengeShields?.[CHALLENGE_INDEX] || false;
-  } else if (settings.shieldMode === 'total') {
 
-    const totalCompleted = challenge.userChallenges.find(uc => 
-      uc.uniqueId === uniqueId
-    )?.completedChallenges?.filter(Boolean).length || 0;
+    const userChallenge = challenge.userChallenges.find(
+      uc => uc.uniqueId === uniqueId && uc.userId.toString() === userId.toString()
+    );
     
-    if (totalCompleted === 5) {
-      rewards.shield = settings.totalShield || false;
+    console.log('🔍 Found userChallenge for submission:', {
+      uniqueId: userChallenge?.uniqueId,
+      userId: userChallenge?.userId?.toString(),
+      hasExistingProgress: !!userChallenge?.challenge7Progress,
+      existingProgress: userChallenge?.challenge7Progress
+    });
+
+    if (!userChallenge) {
+      return res.status(403).json({ message: 'Access denied' });
     }
+
+    if (userChallenge.completedChallenges && userChallenge.completedChallenges[6]) {
+      return res.json({
+        success: true,
+        message: 'Challenge already completed',
+        rewards: userChallenge.challengeRewards?.[6] || {}
+      });
+    }
+
+    const { generateHangmanData } = require('../../utils/quoteGenerator');
+    const hangmanData = await generateHangmanData(uniqueId);
+    const validTokens = hangmanData.wordTokens[word.toLowerCase()] || [];
+
+    const isCorrect = userTokens.some(token => validTokens.includes(token));
+    
+    if (isCorrect) {
+      console.log('✅ Correct submission for Challenge 7:', { word, uniqueId, userId });
+      
+      if (!userChallenge.challenge7Progress) {
+        console.log('🆕 Creating new Challenge 7 progress object');
+        userChallenge.challenge7Progress = {
+          revealedWords: [],
+          totalWords: hangmanData.words.length
+        };
+      }
+      
+      if (!userChallenge.challenge7Progress.revealedWords) {
+        userChallenge.challenge7Progress.revealedWords = [];
+      }
+      
+      userChallenge.challenge7Progress.totalWords = hangmanData.words.length;
+      
+      const wordLower = word.toLowerCase();
+      if (!userChallenge.challenge7Progress.revealedWords.includes(wordLower)) {
+        console.log('📝 Adding new word to progress:', wordLower);
+        userChallenge.challenge7Progress.revealedWords.push(wordLower);
+      } else {
+        console.log('⚠️ Word already revealed:', wordLower);
+      }
+      
+      console.log('📊 Current progress after update:', {
+        revealedWords: userChallenge.challenge7Progress.revealedWords,
+        totalWords: userChallenge.challenge7Progress.totalWords
+      });
+      
+      const revealedCount = userChallenge.challenge7Progress.revealedWords.length;
+      const totalCount = userChallenge.challenge7Progress.totalWords;
+      const progressPercentage = (revealedCount / totalCount * 100).toFixed(1);
+      const isCompletelyFinished = revealedCount >= totalCount;
+      
+      let rewards = null;
+      if (isCompletelyFinished) {
+        const challengeIndex = 6;
+        const user = await User.findById(userId);
+        
+        if (user) {
+          rewards = calculateChallengeRewards(user, challenge, challengeIndex, userChallenge);
+          await user.save();
+        }
+        
+        if (!userChallenge.completedChallenges) {
+          userChallenge.completedChallenges = {};
+        }
+        if (!userChallenge.challengeRewards) {
+          userChallenge.challengeRewards = {};
+        }
+        
+        userChallenge.completedChallenges[6] = true;
+        userChallenge.challengeRewards[6] = rewards;
+        userChallenge.lastCompletedAt = new Date();
+        userChallenge.progress = userChallenge.completedChallenges.filter(Boolean).length;
+        
+        console.log('💰 Challenge 7 rewards calculated:', rewards);
+      }
+      
+      challenge.markModified('userChallenges');
+      const challengeIndex = challenge.userChallenges.findIndex(
+        uc => uc.uniqueId === uniqueId && uc.userId.toString() === userId.toString()
+      );
+      if (challengeIndex !== -1) {
+        challenge.markModified(`userChallenges.${challengeIndex}.challenge7Progress`);
+      }
+      await challenge.save();
+      console.log('💾 Challenge 7 progress saved to database');
+      
+      const verifyChallenge = await Challenge.findOne({
+        'userChallenges.uniqueId': uniqueId,
+        'userChallenges.userId': userId
+      });
+      const verifyUserChallenge = verifyChallenge?.userChallenges.find(
+        uc => uc.uniqueId === uniqueId && uc.userId.toString() === userId.toString()
+      );
+      console.log('✅ Verified save - progress in DB:', verifyUserChallenge?.challenge7Progress);
+      
+      const socketData = {
+        userId: userId.toString(),
+        uniqueId: uniqueId,
+        word: word,
+        revealedWordsCount: revealedCount,
+        totalWordsCount: totalCount,
+        progressPercentage: progressPercentage,
+        isCompletelyFinished: isCompletelyFinished,
+        revealedWords: userChallenge.challenge7Progress.revealedWords
+      };
+      
+      console.log('📡 Emitting Challenge 7 progress to classroom:', `classroom-${challenge.classroomId}`, socketData);
+      req.app.get('io').to(`classroom-${challenge.classroomId}`).emit('challenge7_progress', socketData);
+      
+      return res.json({
+        success: true,
+        message: isCompletelyFinished 
+          ? 'Challenge completed successfully!' 
+          : `Word "${word}" revealed! Progress: ${progressPercentage}%`,
+        rewards: rewards,
+        correctWord: word,
+        isCompletelyFinished: isCompletelyFinished,
+        progressPercentage: progressPercentage,
+        revealedWordsCount: userChallenge.challenge7Progress.revealedWords.length,
+        totalWordsCount: userChallenge.challenge7Progress.totalWords
+      });
+    }
+    
+    const currentProgress = userChallenge.challenge7Progress || { revealedWords: [], totalWords: hangmanData.words.length };
+    
+    return res.json({
+      success: false,
+      message: 'Incorrect token for this word. Try again.',
+      revealedWordsCount: currentProgress.revealedWords.length,
+      totalWordsCount: currentProgress.totalWords,
+      progressPercentage: (currentProgress.revealedWords.length / currentProgress.totalWords * 100).toFixed(1)
+    });
+
+  } catch (error) {
+    console.error('Error processing Challenge 7 submission:', error);
+    res.status(500).json({ message: 'Server error' });
   }
-  
-  return rewards;
-}
+});
+
+
 
 module.exports = router;

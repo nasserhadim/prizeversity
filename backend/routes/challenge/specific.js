@@ -265,6 +265,64 @@ router.get('/challenge6/:uniqueId', ensureAuthenticated, async (req, res) => {
   }
 });
 
+router.get('/challenge7/:uniqueId', ensureAuthenticated, async (req, res) => {
+  try {
+    const { uniqueId } = req.params;
+    const userId = req.user._id;
+
+    const challenge = await Challenge.findOne({
+      'userChallenges.uniqueId': uniqueId,
+      'userChallenges.userId': userId
+    });
+
+    if (!challenge) {
+      return res.status(404).json({ message: 'Challenge not found' });
+    }
+
+    const userChallenge = challenge.userChallenges.find(uc => uc.uniqueId === uniqueId);
+    if (!userChallenge) {
+      return res.status(404).json({ message: 'User challenge not found' });
+    }
+
+    if (userChallenge.completedChallenges && userChallenge.completedChallenges[6]) {
+      return res.json({
+        isCompleted: true,
+        message: 'Challenge 7 already completed'
+      });
+    }
+
+    const { generateHangmanData } = require('../../utils/quoteGenerator');
+    
+    try {
+      const hangmanData = await generateHangmanData(uniqueId);
+      
+      console.log('📤 Sending Challenge 7 data for:', uniqueId, {
+        hasProgress: !!userChallenge.challenge7Progress,
+        progressData: userChallenge.challenge7Progress,
+        wordsCount: hangmanData.words.length
+      });
+      
+      res.json({
+        quote: hangmanData.quote,
+        author: hangmanData.author,
+        words: hangmanData.words,
+        wordTokens: hangmanData.wordTokens,
+        maskedQuote: hangmanData.maskedQuote,
+        uniqueId: uniqueId,
+        isCompleted: false,
+        challenge7Progress: userChallenge.challenge7Progress || null
+      });
+    } catch (error) {
+      console.error('Error generating Challenge 7 data:', error);
+      res.status(500).json({ message: 'Failed to generate challenge data' });
+    }
+
+  } catch (error) {
+    console.error('Error fetching Challenge 7 data:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 router.get('/check-completion/:uniqueId/:challengeIndex', ensureAuthenticated, async (req, res) => {
   try {
     const { uniqueId, challengeIndex } = req.params;

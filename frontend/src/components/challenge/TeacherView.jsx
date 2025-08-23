@@ -4,6 +4,7 @@ import { getCurrentChallenge } from '../../utils/challengeUtils';
 import { getThemeClasses } from '../../utils/themeUtils';
 import { updateDueDate } from '../../API/apiChallenge';
 import toast from 'react-hot-toast';
+import socket from '../../utils/socket';
 
 const TeacherView = ({ 
   challengeData,
@@ -19,6 +20,7 @@ const TeacherView = ({
   const [showAssignDropdown, setShowAssignDropdown] = useState(false);
   const [studentNames, setStudentNames] = useState({});
   const [challenge6Data, setChallenge6Data] = useState({});
+  const [challenge7Data, setChallenge7Data] = useState({});
   const dropdownRef = useRef(null);
   const themeClasses = getThemeClasses(isDark);
 
@@ -152,6 +154,111 @@ const TeacherView = ({
     };
 
     fetchChallenge6Data();
+  }, [challengeData?.userChallenges]);
+
+  // Socket listener for real-time Challenge 7 updates
+  useEffect(() => {
+    const handleChallenge7Progress = (progressData) => {
+      console.log('🔄 Real-time Challenge 7 update received:', {
+        userId: progressData.userId,
+        uniqueId: progressData.uniqueId,
+        word: progressData.word,
+        revealedCount: progressData.revealedWordsCount,
+        totalCount: progressData.totalWordsCount,
+        isFinished: progressData.isCompletelyFinished
+      });
+      
+      setChallengeData(prevData => {
+        if (!prevData || !prevData.userChallenges) {
+          console.log('⚠️ No challenge data available for update');
+          return prevData;
+        }
+        
+        const matchingStudent = prevData.userChallenges.find(uc => 
+          uc.uniqueId === progressData.uniqueId && uc.userId._id === progressData.userId
+        );
+        
+        if (!matchingStudent) {
+          console.log('⚠️ No matching student found for progress update:', {
+            searchingFor: { uniqueId: progressData.uniqueId, userId: progressData.userId },
+            availableStudents: prevData.userChallenges.map(uc => ({ uniqueId: uc.uniqueId, userId: uc.userId._id }))
+          });
+          return prevData;
+        }
+        
+        console.log('✅ Updating progress for student:', matchingStudent.userId.username || matchingStudent.userId.email);
+        
+        return {
+          ...prevData,
+          userChallenges: prevData.userChallenges.map(uc => {
+            if (uc.uniqueId === progressData.uniqueId && uc.userId._id === progressData.userId) {
+              return {
+                ...uc,
+                challenge7Progress: {
+                  revealedWords: progressData.revealedWords,
+                  totalWords: progressData.totalWordsCount
+                },
+                ...(progressData.isCompletelyFinished && {
+                  completedChallenges: {
+                    ...uc.completedChallenges,
+                    6: true
+                  }
+                })
+              };
+            }
+            return uc;
+          })
+        };
+      });
+    };
+
+    console.log('🔌 Setting up Challenge 7 socket listener');
+    socket.on('challenge7_progress', handleChallenge7Progress);
+    
+    return () => {
+      console.log('🔌 Cleaning up Challenge 7 socket listener');
+      socket.off('challenge7_progress', handleChallenge7Progress);
+    };
+  }, [setChallengeData]);
+
+  useEffect(() => {
+    const fetchChallenge7Data = async () => {
+      if (!challengeData?.userChallenges) return;
+      
+      const newChallenge7Data = {};
+      
+      for (const uc of challengeData.userChallenges) {
+        if (uc.progress === 6 || uc.currentChallenge === 6) {
+          try {
+            const response = await fetch(`/api/challenges/challenge7/${uc.uniqueId}`, {
+              credentials: 'include'
+            });
+            
+            if (response.ok) {
+              const data = await response.json();
+              newChallenge7Data[uc.uniqueId] = {
+                quote: data.quote,
+                author: data.author,
+                words: data.words,
+                wordTokens: data.wordTokens
+              };
+            }
+          } catch (error) {
+            console.error('Error fetching Challenge 7 data:', error);
+            newChallenge7Data[uc.uniqueId] = {
+              quote: 'Error loading',
+              author: 'Error',
+              words: [],
+              wordTokens: {}
+            };
+          }
+        }
+      }
+      
+      setChallenge7Data(newChallenge7Data);
+    };
+
+    fetchChallenge7Data();
   }, [challengeData?.userChallenges]);
 
 
@@ -312,7 +419,7 @@ const TeacherView = ({
                         return studentInClassroom;
                       })
                       .map((uc) => {
-                      const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'C++ Bug Hunt', 'I Always Sign My Work...', 'Secrets in the Clouds', 'Needle in a Haystack'];
+                      const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'C++ Bug Hunt', 'I Always Sign My Work...', 'Secrets in the Clouds', 'Needle in a Haystack', 'Hangman'];
                       const workingOnChallenge = uc.currentChallenge !== undefined ? uc.currentChallenge : uc.progress;
                       const workingOnTitle = challengeNames[workingOnChallenge] || 'Unknown Challenge';
                       const currentChallenge = getCurrentChallenge(workingOnChallenge);
@@ -392,6 +499,32 @@ const TeacherView = ({
                                 )}
                               </div>
                             )}
+                            {workingOnChallenge === 6 && (
+                              <div className="space-y-1">
+                                {uc.completedChallenges?.[6] ? (
+                                  <div className="text-sm text-green-600 font-semibold">
+                                    ✅ Hangman Complete
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div className="text-sm text-red-600 font-medium">
+                                      Quote: "{challenge7Data[uc.uniqueId]?.quote || 'Loading...'}"
+                                    </div>
+                                    <div className="text-xs text-gray-500">
+                                      By: {challenge7Data[uc.uniqueId]?.author || 'Loading...'}
+                                    </div>
+                                    {uc.challenge7Progress && (
+                                      <div className="text-xs text-blue-600 font-medium">
+                                        Progress: {uc.challenge7Progress.revealedWords?.length || 0}/{uc.challenge7Progress.totalWords || challenge7Data[uc.uniqueId]?.words?.length || '?'} words revealed ({((uc.challenge7Progress.revealedWords?.length || 0) / (uc.challenge7Progress.totalWords || challenge7Data[uc.uniqueId]?.words?.length || 1) * 100).toFixed(1)}%)
+                                      </div>
+                                    )}
+                                    <div className="text-xs text-gray-500">
+                                      Hangman Challenge
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            )}
                           </td>
                           <td>
                             {workingOnChallenge === 0 && (
@@ -460,6 +593,88 @@ const TeacherView = ({
                                 >
                                   {showPasswords[uc._id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                 </button>
+                              </div>
+                            )}
+                            {workingOnChallenge === 6 && (
+                              <div className="space-y-2">
+                                {uc.completedChallenges?.[6] ? (
+                                  <div className="text-sm text-green-600 font-semibold">
+                                    ✅ Hangman Complete - All words revealed
+                                  </div>
+                                ) : (
+                                  <div className="space-y-2">
+                                    <div className="bg-gray-50 border border-gray-200 rounded p-2">
+                                      <div className="text-xs font-semibold text-gray-700 mb-1">
+                                        Progress: {uc.challenge7Progress?.revealedWords?.length || 0}/{challenge7Data[uc.uniqueId]?.words?.length || '?'} words 
+                                        ({((uc.challenge7Progress?.revealedWords?.length || 0) / (challenge7Data[uc.uniqueId]?.words?.length || 1) * 100).toFixed(0)}%)
+                                      </div>
+                                      <div className="w-full bg-gray-200 rounded-full h-2">
+                                        <div 
+                                          className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                                          style={{
+                                            width: `${((uc.challenge7Progress?.revealedWords?.length || 0) / (challenge7Data[uc.uniqueId]?.words?.length || 1) * 100)}%`
+                                          }}
+                                        ></div>
+                                      </div>
+                                    </div>
+                                    
+                                    <details className="bg-gray-50 border border-gray-200 rounded">
+                                      <summary className="cursor-pointer p-2 text-xs font-medium text-gray-700 hover:bg-gray-100">
+                                        📝 View Word Details & Tokens
+                                      </summary>
+                                      <div className="p-2 border-t border-gray-200 max-h-40 overflow-y-auto">
+                                        <div className="grid grid-cols-1 gap-1">
+                                          {challenge7Data[uc.uniqueId]?.words?.map((word, idx) => {
+                                            const isRevealed = uc.challenge7Progress?.revealedWords?.includes(word.toLowerCase());
+                                            const teacherRevealKey = `${uc._id}-${word.toLowerCase()}`;
+                                            const isTeacherRevealed = showPasswords[teacherRevealKey];
+                                            const shouldShowTokens = isRevealed || isTeacherRevealed;
+                                            
+                                            return (
+                                              <div key={idx} className={`flex items-center justify-between p-2 rounded text-xs ${isRevealed ? 'bg-green-50 border border-green-200' : shouldShowTokens ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50 border border-gray-200'}`}>
+                                                <div className="flex items-center gap-2">
+                                                  <span className={`font-mono ${isRevealed ? 'text-green-700 font-semibold' : shouldShowTokens ? 'text-blue-700 font-semibold' : 'text-gray-500'}`}>
+                                                    {isRevealed ? '✅' : shouldShowTokens ? '👁️' : '⬜'} "{word}"
+                                                  </span>
+                                                  {isRevealed && (
+                                                    <span className="text-xs text-green-600 bg-green-100 px-1 py-0.5 rounded">Student solved</span>
+                                                  )}
+                                                </div>
+                                                <div className="flex items-center gap-1">
+                                                  {shouldShowTokens ? (
+                                                    <code className={`px-2 py-1 rounded text-xs font-mono border ${isRevealed ? 'bg-green-100 text-green-700 border-green-200' : 'bg-blue-100 text-blue-700 border-blue-200'}`}>
+                                                      {challenge7Data[uc.uniqueId]?.wordTokens?.[word.toLowerCase()]?.join(', ') || 'Loading...'}
+                                                    </code>
+                                                  ) : (
+                                                    <button
+                                                      onClick={() => togglePasswordVisibility(teacherRevealKey)}
+                                                      className="btn btn-xs btn-outline btn-primary gap-1 hover:btn-primary"
+                                                      title="Reveal token for this word"
+                                                    >
+                                                      <Eye className="w-3 h-3" />
+                                                      Reveal
+                                                    </button>
+                                                  )}
+                                                  {shouldShowTokens && (
+                                                    <button
+                                                      onClick={() => togglePasswordVisibility(teacherRevealKey)}
+                                                      className="btn btn-xs btn-ghost gap-1"
+                                                      title="Hide token"
+                                                    >
+                                                      <EyeOff className="w-3 h-3" />
+                                                    </button>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            );
+                                          }) || (
+                                            <div className="text-xs text-gray-500 p-2">Loading word data...</div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </details>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </td>

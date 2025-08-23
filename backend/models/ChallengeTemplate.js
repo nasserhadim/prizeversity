@@ -31,19 +31,19 @@ ChallengeTemplateSchema.index({ teacherId: 1, name: 1 }, { unique: true });
 
 ChallengeTemplateSchema.pre('save', function(next) {
   if (!this.settings.challengeBits) {
-    this.settings.challengeBits = [50, 75, 100, 125, 150, 175];
+    this.settings.challengeBits = [50, 75, 100, 125, 150, 175, 200];
   }
   if (!this.settings.challengeMultipliers) {
-    this.settings.challengeMultipliers = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
+    this.settings.challengeMultipliers = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
   }
   if (!this.settings.challengeLuck) {
-    this.settings.challengeLuck = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
+    this.settings.challengeLuck = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
   }
   if (!this.settings.challengeDiscounts) {
-    this.settings.challengeDiscounts = [0, 0, 0, 0, 0, 0];
+    this.settings.challengeDiscounts = [0, 0, 0, 0, 0, 0, 0];
   }
   if (!this.settings.challengeShields) {
-    this.settings.challengeShields = [false, false, false, false, false, false];
+    this.settings.challengeShields = [false, false, false, false, false, false, false];
   }
   if (!this.settings.rewardMode) {
     this.settings.rewardMode = 'individual';

@@ -72,7 +72,7 @@ const ChallengeConfigModal = ({
       }
 
       settings.challengeHintsEnabled = (challengeConfig.challengeHintsEnabled || []).map(Boolean);
-      settings.challengeHints = challengeConfig.challengeHints || [[], [], [], []];
+      settings.challengeHints = challengeConfig.challengeHints || [[], [], [], [], [], [], []];
       settings.hintPenaltyPercent = Number.isFinite(challengeConfig.hintPenaltyPercent) ? challengeConfig.hintPenaltyPercent : 25;
       settings.maxHintsPerChallenge = Number.isFinite(challengeConfig.maxHintsPerChallenge) ? challengeConfig.maxHintsPerChallenge : 2;
 

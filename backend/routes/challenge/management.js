@@ -401,7 +401,7 @@ router.post('/:classroomId/debug-progress', ensureAuthenticated, ensureTeacher, 
         userId,
         uniqueId,
         progress: parseInt(progress),
-        completedAt: progress >= 6 ? new Date() : null
+        completedAt: progress >= 7 ? new Date() : null
       };
       
       challenge.userChallenges.push(userChallenge);

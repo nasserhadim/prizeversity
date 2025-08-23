@@ -1,10 +1,11 @@
-import { useState, useContext } from 'react';
+import { useState, useContext, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Shield, Lock, ArrowLeft } from 'lucide-react';
 import { ThemeContext } from '../context/ThemeContext';
 import { deactivateChallenge } from '../API/apiChallenge';
 import toast from 'react-hot-toast';
+import socket from '../utils/socket';
 
 // Components
 import RewardModal from '../components/RewardModal';
@@ -19,6 +20,7 @@ import WayneAWSChallenge from '../components/challenge/cards/WayneAWSChallenge';
 import ChallengeConfigModal from '../components/challenge/modals/ChallengeConfigModal';
 import DebugPanel from '../components/challenge/modals/DebugPanel';
 import NeedleInAHaystackChallenge from '../components/challenge/cards/NeedleInAHaystack';
+import QuoteHangmanChallenge from '../components/challenge/cards/QuoteHangmanChallenge';
 
 // Hooks
 import { useChallengeData } from '../hooks/useChallengeData';
@@ -33,6 +35,21 @@ const Challenge = () => {
   const { user, originalUser, setPersona } = useAuth();
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
+
+  // Join classroom socket room for real-time updates
+  useEffect(() => {
+    if (classroomId) {
+      socket.emit('join', `classroom-${classroomId}`);
+      console.log(`Joined classroom socket room: classroom-${classroomId}`);
+    }
+    
+    return () => {
+      // Clean up when leaving the page
+      if (classroomId) {
+        socket.emit('leave', `classroom-${classroomId}`);
+      }
+    };
+  }, [classroomId]);
   
   // Custom hooks
   const {
@@ -452,7 +469,7 @@ const Challenge = () => {
               {userChallenge.progress > 0 && (
                 <div className={`mt-4 p-4 ${isDark ? 'bg-blue-900/20 border border-blue-700/50' : 'bg-blue-50 border border-blue-200'} rounded-lg`}>
                   <p className={`${isDark ? 'text-blue-200' : 'text-blue-800'} font-medium`}>
-                    Your Progress: Completed {userChallenge.completedChallenges?.filter(Boolean).length || 0} out of 5 challenges
+                    Your Progress: Completed {userChallenge.completedChallenges?.filter(Boolean).length || 0} out of 7 challenges
                   </p>
                 </div>
               )}
@@ -564,6 +581,23 @@ const Challenge = () => {
               onHintUnlocked={handleHintUnlocked}
             >
               <NeedleInAHaystackChallenge userChallenge={userChallenge} isDark={isDark} />
+            </ChallengeCard>
+
+            <ChallengeCard
+              challengeIndex={6}
+              challengeName="Hangman"
+              challengeIcon="🎯"
+              challengeDescription="Your mission: Reveal the complete quote by finding the correct token ID for each word."
+              userChallenge={userChallenge}
+              challengeData={challengeData}
+              isDark={isDark}
+              unlockingHint={unlockingHint}
+              setUnlockingHint={setUnlockingHint}
+              fetchChallengeData={fetchChallengeData}
+              classroomId={classroomId}
+              onHintUnlocked={handleHintUnlocked}
+            >
+              <QuoteHangmanChallenge userChallenge={userChallenge} isDark={isDark} />
             </ChallengeCard>
           </div>
         </div>

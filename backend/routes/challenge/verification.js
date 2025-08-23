@@ -36,7 +36,7 @@ router.post('/verify-password', ensureAuthenticated, async (req, res) => {
     }
 
     if (!userChallenge.completedChallenges) {
-      userChallenge.completedChallenges = [false, false, false, false, false, false];
+      userChallenge.completedChallenges = [false, false, false, false, false, false, false];
     }
 
     let rewardsEarned = {
@@ -68,7 +68,7 @@ router.post('/verify-password', ensureAuthenticated, async (req, res) => {
       challengeName: CHALLENGE_NAMES[0],
       rewards: rewardsEarned,
       progress: userChallenge.progress,
-      allCompleted: userChallenge.progress >= 6,
+      allCompleted: userChallenge.progress >= 7,
       nextChallenge: userChallenge.progress < 6 ? CHALLENGE_NAMES[userChallenge.progress] : null
     });
 
@@ -119,7 +119,7 @@ router.post('/verify-challenge2-external', ensureAuthenticated, async (req, res)
     }
 
     if (!userChallenge.completedChallenges) {
-      userChallenge.completedChallenges = [false, false, false, false, false, false];
+      userChallenge.completedChallenges = [false, false, false, false, false, false, false];
     }
 
     let rewardsEarned = {
@@ -154,7 +154,7 @@ router.post('/verify-challenge2-external', ensureAuthenticated, async (req, res)
       challengeName: CHALLENGE_NAMES[1],
       rewards: rewardsEarned,
       progress: userChallenge.progress,
-      allCompleted: userChallenge.progress >= 6,
+      allCompleted: userChallenge.progress >= 7,
       nextChallenge: userChallenge.progress < 6 ? CHALLENGE_NAMES[userChallenge.progress] : null
     });
 
@@ -251,7 +251,7 @@ router.post('/challenge3/:uniqueId/verify', ensureAuthenticated, async (req, res
     }
 
     if (!userChallenge.completedChallenges) {
-      userChallenge.completedChallenges = [false, false, false, false, false, false];
+      userChallenge.completedChallenges = [false, false, false, false, false, false, false];
     }
 
     let rewardsEarned = {
@@ -277,7 +277,7 @@ router.post('/challenge3/:uniqueId/verify', ensureAuthenticated, async (req, res
       challengeName: CHALLENGE_NAMES[2],
       rewards: rewardsEarned,
       progress: userChallenge.progress,
-      allCompleted: userChallenge.progress >= 6,
+      allCompleted: userChallenge.progress >= 7,
       nextChallenge: userChallenge.progress < 6 ? CHALLENGE_NAMES[userChallenge.progress] : null
     });
 
@@ -316,7 +316,7 @@ router.post('/verify-challenge5-external', ensureAuthenticated, async (req, res)
       return res.status(400).json({ message: 'Must complete Challenge 4 first' });
     }
 
-    if (userChallenge.progress >= 6) {
+    if (userChallenge.progress >= 7) {
       return res.status(400).json({ message: 'Challenge already completed' });
     }
 
@@ -362,7 +362,7 @@ router.post('/verify-challenge5-external', ensureAuthenticated, async (req, res)
       challengeName: CHALLENGE_NAMES[4],
       rewards: rewardsEarned,
       progress: userChallenge.progress,
-      allCompleted: userChallenge.progress >= 6,
+      allCompleted: userChallenge.progress >= 7,
       nextChallenge: userChallenge.progress < 6 ? CHALLENGE_NAMES[userChallenge.progress] : null
     });
 
