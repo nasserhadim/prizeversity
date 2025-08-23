@@ -5,6 +5,22 @@ import Footer from '../components/Footer';
 import toast from 'react-hot-toast';
 import { Image as ImageIcon, Copy as CopyIcon } from 'lucide-react';
 import { getEffectDescription, splitDescriptionEffect } from '../utils/itemHelpers';
+import OrderCard from '../components/OrderCard';
+import usePaginatedList from '../hooks/usePaginatedList';
+import OrderFilterBar from '../components/OrderFilterBar';
+import ExportButtons from '../components/ExportButtons';
+import { exportOrdersToCSV, exportOrdersToJSON } from '../utils/exportOrders';
+import formatExportFilename from '../utils/formatExportFilename';
+
+// helper: compute classroom label for an order (moved to module scope to avoid TDZ)
+function classroomLabel(o) {
+  if (!o) return '—';
+  // prefer an explicit classroom on the order, otherwise fall back to the first item's bazaar classroom
+  const c = o.classroom || o.items?.[0]?.bazaar?.classroom;
+  if (!c) return '—';
+  // include code if present
+  return c.name ? `${c.name}${c.code ? ` (${c.code})` : ''}` : '—';
+}
 
 export default function OrderHistory() {
     const { user } = useContext(AuthContext);
@@ -18,41 +34,7 @@ export default function OrderHistory() {
     const [sortField, setSortField] = useState('date');
     const [sortDirection, setSortDirection] = useState('desc'); // 'asc' | 'desc'
 
-    // lazy load state
-    const [displayCount, setDisplayCount] = useState(10);
-    const sentinelRef = useRef(null);
-
-    useEffect(() => {
-        axios
-            .get(`/api/bazaar/orders/user/${user._id}`)
-            .then(res => {
-                setOrders(res.data || []);
-                setLoading(false);
-            })
-            .catch(err => {
-                setError(err.response?.data?.error || 'Failed to load orders');
-                setLoading(false);
-            });
-    }, [user._id]);
-
-    // helper to extract classroom label from an order
-    const classroomLabel = (o) => {
-        const c = o.items?.[0]?.bazaar?.classroom;
-        if (!c) return '—';
-        return `${c.name} (${c.code || ''})`.trim();
-    };
-
-    // build distinct classroom list for filter dropdown
-    const classroomOptions = useMemo(() => {
-        const set = new Map();
-        orders.forEach(o => {
-            const c = o.items?.[0]?.bazaar?.classroom;
-            if (c && c._id) set.set(c._id, `${c.name} (${c.code || ''})`);
-        });
-        return Array.from(set.entries()).map(([id, label]) => ({ id, label }));
-    }, [orders]);
-
-    // combined filter + sort
+    // compute filtered + sorted list (visibleOrders)
     const visibleOrders = useMemo(() => {
         const q = search.trim().toLowerCase();
         let list = orders.slice();
@@ -93,103 +75,93 @@ export default function OrderHistory() {
         return list;
     }, [orders, search, classroomFilter, sortField, sortDirection]);
 
+    // use shared pagination hook (consumes the filtered list)
+    const {
+      displayed: displayedOrders,
+      visible,
+      page,
+      setPage,
+      displayCount,
+      setDisplayCount,
+      sentinelRef,
+      perPage,
+      totalPages
+    } = usePaginatedList(visibleOrders, {
+      perPage: 10,
+      resetDeps: [search, classroomFilter, sortField, sortDirection, visibleOrders.length]
+    });
+
+    useEffect(() => {
+        axios
+            .get(`/api/bazaar/orders/user/${user._id}`)
+            .then(res => {
+                setOrders(res.data || []);
+                setLoading(false);
+            })
+            .catch(err => {
+                setError(err.response?.data?.error || 'Failed to load orders');
+                setLoading(false);
+            });
+    }, [user._id]);
+
+    // build distinct classroom list for filter dropdown
+    const classroomOptions = useMemo(() => {
+        const set = new Map();
+        orders.forEach(o => {
+            const c = o.items?.[0]?.bazaar?.classroom;
+            if (c && c._id) set.set(c._id, `${c.name} (${c.code || ''})`);
+        });
+        return Array.from(set.entries()).map(([id, label]) => ({ id, label }));
+    }, [orders]);
+
     // Reset displayCount when filters change
-    useEffect(() => setDisplayCount(10), [search, classroomFilter, sortField, sortDirection, orders.length]);
+    useEffect(() => {
+        setDisplayCount(perPage);
+        setPage(1);
+    }, [search, classroomFilter, sortField, sortDirection, orders.length]);
 
     // Infinite-scroll via IntersectionObserver
     useEffect(() => {
-        if (!sentinelRef.current) return;
+        const el = sentinelRef.current;
+        if (!el) return;
         const observer = new IntersectionObserver(entries => {
-            if (entries[0].isIntersecting && displayCount < visibleOrders.length) {
-                setDisplayCount(prev => Math.min(prev + 10, visibleOrders.length));
+            if (entries[0].isIntersecting && displayCount < visible.length) {
+                setDisplayCount(prev => {
+                    const next = Math.min(prev + perPage, visible.length);
+                    setPage(Math.min(Math.ceil(next / perPage), Math.max(1, Math.ceil(visible.length / perPage))));
+                    return next;
+                });
             }
         }, { rootMargin: '200px' });
-        observer.observe(sentinelRef.current);
+        observer.observe(el);
         return () => observer.disconnect();
-    }, [sentinelRef, visibleOrders.length, displayCount]);
+    }, [sentinelRef, visible.length, displayCount]);
 
-    // slice for lazy rendering
-    const displayedOrders = useMemo(() => visibleOrders.slice(0, displayCount), [visibleOrders, displayCount]);
-
-    // helpers: short id and copy
-    // show first 6 + last 6 with ellipsis in the middle; hover shows full id via title
-    const shortId = (id) => {
-        if (!id) return '';
-        if (id.length <= 14) return id;
-        return `${id.slice(0, 6)}...${id.slice(-6)}`;
+    // Export wrapper that builds a descriptive filename and returns it (ExportButtons will show toast)
+    const buildBaseFilename = (displayName, label) => {
+        const name = (displayName || 'user').replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-]/g, '');
+        const ts = new Date().toISOString().replace(/[:.]/g, '-');
+        return `${name}_${label}_${ts}`;
     };
 
-    const copyToClipboard = async (text) => {
-        try {
-            if (navigator.clipboard?.writeText) {
-                await navigator.clipboard.writeText(text);
-            } else {
-                const ta = document.createElement('textarea');
-                ta.value = text;
-                document.body.appendChild(ta);
-                ta.select();
-                document.execCommand('copy');
-                ta.remove();
-            }
-            toast.success('Order ID copied');
-        } catch (err) {
-            toast.error('Copy failed');
-        }
-    };
-
-    // Export visibleOrders (not just displayed) to CSV / JSON
-    const exportCSV = () => {
+    const exportCSV = async () => {
         if (!visibleOrders.length) {
-            toast('No orders to export');
-            return;
+            throw new Error('No orders to export');
         }
-        const header = ['orderId', 'date', 'total', 'classroom', 'items'];
-        const rows = visibleOrders.map(o => {
-            const items = (o.items || []).map(i => i.name).join('|');
-            return [
-                `"${o._id}"`,
-                `"${new Date(o.createdAt).toISOString()}"`,
-                o.total,
-                `"${classroomLabel(o).replace(/"/g, '""')}"`,
-                `"${items.replace(/"/g, '""')}"`
-            ].join(',');
-        });
-        const csv = [header.join(','), ...rows].join('\n');
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `orders_${new Date().toISOString().slice(0,10)}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
+        const displayName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.email || 'user';
+        const base = formatExportFilename(displayName, 'order_history');
+        exportOrdersToCSV(visibleOrders, base);
+        return `${base}.csv`;
     };
 
-    const exportJSON = () => {
+    const exportJSON = async () => {
         if (!visibleOrders.length) {
-            toast('No orders to export');
-            return;
+            throw new Error('No orders to export');
         }
-        const data = visibleOrders.map(o => ({
-            _id: o._id,
-            createdAt: o.createdAt,
-            total: o.total,
-            classroom: (() => {
-                const c = o.items?.[0]?.bazaar?.classroom;
-                return c ? { _id: c._id, name: c.name, code: c.code } : null;
-            })(),
-            items: (o.items || []).map(i => ({ _id: i._id, name: i.name }))
-        }));
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `orders_${new Date().toISOString().slice(0,10)}.json`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
+        const displayName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.email || 'user';
+        const base = formatExportFilename(displayName, 'order_history');
+        exportOrdersToJSON(visibleOrders, base);
+        return `${base}.json`;
     };
 
     if (loading) return <p>Loading your purchase history…</p>;
@@ -200,158 +172,56 @@ export default function OrderHistory() {
             <main className="flex-grow p-4 container mx-auto">
                 <h1 className="text-2xl mb-4">Your Order History</h1>
 
-                {/* Filter / Sort bar */}
-                <div className="flex flex-wrap gap-2 items-center mb-4">
-                    <input
-                        type="search"
-                        placeholder="Search by order id, item, classroom or total..."
-                        className="input input-bordered flex-1 min-w-[220px]"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                    />
-
-                    <select
-                        className="select select-bordered"
-                        value={classroomFilter}
-                        onChange={(e) => setClassroomFilter(e.target.value)}
-                    >
-                        <option value="all">All Classrooms</option>
-                        {classroomOptions.map(c => (
-                            <option key={c.id} value={c.id}>{c.label}</option>
-                        ))}
-                    </select>
-
-                    <select
-                        className="select select-bordered"
-                        value={sortField}
-                        onChange={(e) => setSortField(e.target.value)}
-                    >
-                        <option value="date">Sort: Date</option>
-                        <option value="total">Sort: Total</option>
-                    </select>
-
-                    <button
-                        className="btn btn-outline btn-sm"
-                        onClick={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
-                    >
-                        {sortDirection === 'asc' ? 'Asc' : 'Desc'}
-                    </button>
-
-                    {/* Export buttons with icons */}
-                    <div className="ml-auto flex gap-2">
-                        <button
-                            className="btn btn-sm btn-ghost flex items-center"
-                            onClick={exportCSV}
-                            title="Export CSV"
-                            aria-label="Export CSV"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M14 2v6h6" />
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 11h6M9 14h6M9 17h6" />
-                            </svg>
-                            Export to CSV
-                        </button>
-
-                        <button
-                            className="btn btn-sm btn-ghost flex items-center"
-                            onClick={exportJSON}
-                            title="Export JSON"
-                            aria-label="Export JSON"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M7 8c-2 1.5-2 6 0 7" />
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M17 8c2 1.5 2 6 0 7" />
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M10 4h4M10 20h4" />
-                            </svg>
-                            Export to JSON
-                        </button>
-                    </div>
-                </div>
+                <OrderFilterBar
+                  search={search}
+                  setSearch={setSearch}
+                  classroomFilter={classroomFilter}
+                  setClassroomFilter={setClassroomFilter}
+                  classroomOptions={classroomOptions}
+                  sortField={sortField}
+                  setSortField={setSortField}
+                  sortDirection={sortDirection}
+                  setSortDirection={setSortDirection}
+                  onExportCSV={exportCSV}
+                  onExportJSON={exportJSON}
+                  userName={`${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.email}
+                  exportLabel="order_history"
+                />
 
                 {visibleOrders.length === 0 ? (
                     <p>No orders match your filters.</p>
                 ) : (
                     <>
                         {displayedOrders.map(o => (
-                            <div key={o._id} className="border rounded p-4 mb-4 bg-base-100 shadow">
-                                <div className="flex items-start justify-between">
-                                    <div>
-                                        <p><strong>Date:</strong> {new Date(o.createdAt).toLocaleString()}</p>
-                                        <p><strong>Total:</strong> {o.total} ₿</p>
-                                        <p><strong>Classroom:</strong> {classroomLabel(o)}</p>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="mt-2 flex gap-2 justify-end items-center">
-                                            <span
-                                                className="text-xs font-mono"
-                                                title={o._id}
-                                                aria-label="Full order id"
-                                            >
-                                                {shortId(o._id)}
-                                            </span>
-
-                                            <button
-                                                className="btn btn-xs btn-ghost p-1"
-                                                onClick={() => copyToClipboard(o._id)}
-                                                title="Copy order ID"
-                                                aria-label="Copy order ID"
-                                            >
-                                                <CopyIcon className="w-5 h-5" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {o.items && o.items.length > 0 && (
-                                    <div className="mt-2 space-y-3">
-                                        {o.items.map(i => {
-                                            const priceLabel = Number.isFinite(Number(i.price)) ? `(${Number(i.price)} ₿)` : '';
-                                            const { main, effect } = splitDescriptionEffect(i.description || '');
-                                            return (
-                                                <div key={i._id || i.id} className="flex items-start gap-3 border-t pt-3">
-                                                    <div className="w-12 h-12 bg-base-200 rounded overflow-hidden flex items-center justify-center flex-shrink-0">
-                                                        {i.image ? (
-                                                            <img src={i.image} alt={i.name} className="object-cover w-full h-full" loading="lazy" />
-                                                        ) : (
-                                                            <ImageIcon className="w-6 h-6 text-base-content/50" />
-                                                        )}
-                                                    </div>
-
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center justify-between">
-                                                            <div className="font-medium truncate">{i.name} {priceLabel}</div>
-                                                        </div>
-                                                        {main && (
-                                                            <div className="text-sm text-base-content/70 whitespace-pre-wrap mt-1">{main}</div>
-                                                        )}
-                                                        {effect && (
-                                                            <div className="text-sm text-base-content/60 mt-1">
-                                                                <strong>Effect:</strong> {effect}
-                                                            </div>
-                                                        )}
-                                                        {!effect && getEffectDescription(i) && (
-                                                            <div className="text-sm text-base-content/60 mt-1">
-                                                                <strong>Effect:</strong> {getEffectDescription(i)}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
+                            <OrderCard key={o._id} order={o} />
                         ))}
 
-                        {/* Sentinel div for lazy loading */}
-                        {displayCount < visibleOrders.length && (
+                        {/* Sentinel + simple Prev/More pagination */}
+                        {displayCount < visible.length && (
                             <div ref={sentinelRef} className="h-10" />
                         )}
-                    </>
-                )}
-            </main>
-            <Footer />
-        </div>
-    );
-}
+
+                        <div className="flex justify-center items-center gap-3 mt-4">
+                            <button
+                                className="btn btn-sm"
+                                onClick={() => setDisplayCount(prev => Math.max(perPage, prev - perPage))}
+                                disabled={displayCount <= perPage}
+                            >
+                                Prev
+                            </button>
+                            <div>Showing {Math.min(displayCount, visible.length)} of {visible.length}</div>
+                            <button
+                                className="btn btn-sm"
+                                onClick={() => setDisplayCount(prev => Math.min(prev + perPage, visible.length))}
+                                disabled={displayCount >= visible.length}
+                            >
+                                More
+                            </button>
+                        </div>
+                     </>
+                 )}
+             </main>
+             <Footer />
+         </div>
+     );
+ }
