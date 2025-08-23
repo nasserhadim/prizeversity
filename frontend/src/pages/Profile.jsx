@@ -2,6 +2,7 @@ import { useEffect, useState, useContext } from 'react';
 import { useParams } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import axios from 'axios';
+import ConfirmModal from '../components/ConfirmModal';
 import toast from 'react-hot-toast';
 import { API_BASE } from '../config/api';
 import Footer from '../components/Footer';
@@ -30,7 +31,7 @@ function classroomLabel(o) {
 }
 
 export default function Profile() {
-  const { user } = useContext(AuthContext);
+  const { user, updateUser } = useContext(AuthContext);
   const [profile, setProfile] = useState(null);
   const [orders, setOrders] = useState([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
@@ -41,6 +42,23 @@ export default function Profile() {
   const [sortField, setSortField] = useState('date');
   const [sortDirection, setSortDirection] = useState('desc');
   const [stats, setStats] = useState({});
+
+  // Edit profile state (restore edit/avatar functionality)
+  const [editing, setEditing] = useState(false);
+  const [editFirstName, setEditFirstName] = useState('');
+  const [editLastName, setEditLastName] = useState('');
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [removeAvatar, setRemoveAvatar] = useState(false);
+  const [confirmRemoveAvatar, setConfirmRemoveAvatar] = useState(false);
+  const [confirmDiscardEdit, setConfirmDiscardEdit] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  // New states for undo/restore and URL upload support
+  const [prevAvatar, setPrevAvatar] = useState(null); // holds previous avatar value for undo restore
+  const [removedOnServer, setRemovedOnServer] = useState(false); // indicates server-side deletion happened
+  const [imageSource, setImageSource] = useState('file'); // 'file' | 'url'
+  const [imageUrl, setImageUrl] = useState(''); // for URL uploads
+  const MAX_AVATAR_BYTES = 5 * 1024 * 1024; // 5 MB
 
   const { id: profileId } = useParams();
 
@@ -66,7 +84,15 @@ export default function Profile() {
               const res = await axios.get(`/api/profile/student/${profileId}`, {
                   withCredentials: true
               });
-
+              // initialize edit fields when loading profile
+              setEditFirstName(res.data.firstName || '');
+              setEditLastName(res.data.lastName || '');
+              setAvatarFile(null);
+              setRemoveAvatar(false);
+              setPrevAvatar(null);
+              setRemovedOnServer(false);
+              setImageUrl('');
+              setImageSource('file');
               setProfile(res.data);
           } catch (err) {
               console.error('Profile fetch error:', err);
@@ -183,6 +209,231 @@ export default function Profile() {
     return `${base}.json`;
   };
 
+  // Avatar file select with validation (images only + size limit)
+  const handleAvatarChange = (e) => {
+    const f = e?.target?.files?.[0] || null;
+    if (!f) return;
+    // Validate type
+    if (!f.type || !f.type.startsWith('image/')) {
+      toast.error('Please choose an image file (jpg/png/webp/gif).');
+      return;
+    }
+    if (f.size > MAX_AVATAR_BYTES) {
+      toast.error('Image too large — max 5 MB.');
+      return;
+    }
+    setAvatarFile(f);
+    // If user selects a new file, clear remove flag and URL
+    setRemoveAvatar(false);
+    setRemovedOnServer(false);
+    setImageSource('file');
+    setImageUrl('');
+  };
+
+  // Wrapper used by the "X" overlay button to start the remove flow.
+  // Kept as a tiny wrapper so JSX references a stable name.
+  const handleRemoveAvatarToggle = () => {
+    setConfirmRemoveAvatar(true);
+  };
+
+  // Upload avatar (if any) and return server response (user or avatar info)
+  const uploadAvatarIfNeeded = async () => {
+    if (!avatarFile) return null;
+    const fd = new FormData();
+    fd.append('avatar', avatarFile);
+    const r = await axios.post('/api/profile/upload-avatar', fd, {
+      withCredentials: true,
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return r.data;
+  };
+
+  // Ask for confirmation before removing avatar; on confirm perform server delete and offer undo
+  const confirmRemoveAvatarAction = async () => {
+    try {
+      setConfirmRemoveAvatar(false);
+      const currentAvatar = profile?.avatar || null;
+      setPrevAvatar(currentAvatar);
+
+      const del = await axios.delete('/api/profile/remove-avatar', { withCredentials: true });
+
+      // reflect removal immediately in UI
+      setProfile(prev => ({ ...(prev || {}), avatar: undefined }));
+      setAvatarFile(null);
+      setRemoveAvatar(true);
+      setRemovedOnServer(true);
+
+      // Undo toast: use restore endpoint for local files, PUT for URLs/data
+      toast((t) => (
+        <div className="flex items-center gap-4">
+          <span>Photo removed</span>
+          <div className="ml-2">
+            <button
+              className="btn btn-xs btn-ghost"
+              onClick={async () => {
+                try {
+                  if (!currentAvatar) {
+                    toast.error('No previous photo to restore');
+                    return;
+                  }
+
+                  if (!/^(https?:|data:)/.test(currentAvatar)) {
+                    // restore local file from trash
+                    const r = await axios.post('/api/profile/restore-avatar', { filename: currentAvatar }, { withCredentials: true });
+                    if (r?.data) {
+                      setProfile(r.data);
+                      setRemoveAvatar(false);
+                      setRemovedOnServer(false);
+                      setPrevAvatar(null);
+                      toast.success('Photo restored');
+                      toast.dismiss(t.id);
+                      return;
+                    }
+                    toast.error('Failed to restore photo');
+                    return;
+                  }
+
+                  // remote/data URL: PUT it back
+                  const r2 = await axios.put(`/api/profile/student/${profileId}`, { avatar: currentAvatar }, { withCredentials: true });
+                  if (r2?.data) {
+                    setProfile(r2.data);
+                    setRemoveAvatar(false);
+                    setRemovedOnServer(false);
+                    setPrevAvatar(null);
+                    toast.success('Photo restored');
+                    toast.dismiss(t.id);
+                  } else {
+                    toast.error('Failed to restore photo');
+                  }
+                } catch (err) {
+                  console.error('Restore avatar failed:', err);
+                  toast.error('Failed to restore photo');
+                }
+              }}
+            >
+              Undo
+            </button>
+          </div>
+        </div>
+      ), { duration: 8000 });
+
+    } catch (err) {
+      console.error('Server-side remove avatar failed', err);
+      toast.error('Failed to remove photo');
+      setConfirmRemoveAvatar(false);
+    }
+  };
+
+  const cancelRemoveAvatarAction = () => {
+    setConfirmRemoveAvatar(false);
+  };
+
+  // Check for unsaved changes
+  const hasUnsavedChanges = () => {
+    if (!profile) return false;
+    const nameChanged =
+      (String(editFirstName || '') !== String(profile.firstName || '')) ||
+      (String(editLastName || '') !== String(profile.lastName || ''));
+    const avatarChanged = !!avatarFile || removeAvatar || (imageSource === 'url' && imageUrl.trim() !== '');
+    return nameChanged || avatarChanged;
+  };
+
+  // Save profile edits (names + avatar file/url/remove)
+  const handleSaveProfile = async () => {
+    // Basic validation: at least one name required
+    if (!(editFirstName || editLastName)) {
+      toast.error('Please provide a first name or last name');
+      return;
+    }
+
+    // Collect changed fields
+    const payload = {};
+    if (editFirstName !== (profile?.firstName || '')) payload.firstName = editFirstName;
+    if (editLastName !== (profile?.lastName || '')) payload.lastName = editLastName;
+
+    const hasUrlToSave = imageSource === 'url' && imageUrl.trim() !== '';
+    if (!avatarFile && !removeAvatar && !hasUrlToSave && Object.keys(payload).length === 0) {
+      toast('No changes made');
+      setEditing(false);
+      return;
+    }
+
+    setSavingProfile(true);
+    try {
+      let updated = { ...(profile || {}) };
+
+      // If user marked removal but removal wasn't already applied on server, delete now
+      if (removeAvatar && !removedOnServer) {
+        const r = await axios.delete('/api/profile/remove-avatar', { withCredentials: true });
+        if (r?.data) updated = { ...updated, ...(r.data || {}) };
+      }
+
+      // Upload file if provided (overrides removal)
+      if (avatarFile) {
+        const av = await uploadAvatarIfNeeded();
+        if (av && av.avatar) {
+          updated.avatar = av.avatar;
+        } else if (av && av._id) {
+          updated = { ...updated, ...(av || {}) };
+        }
+        setRemovedOnServer(false);
+        setPrevAvatar(null);
+      } else if (imageSource === 'url' && imageUrl.trim()) {
+        const r = await axios.put(`/api/profile/student/${profileId}`, { avatar: imageUrl.trim() }, { withCredentials: true });
+        if (r?.data) updated = { ...updated, ...(r.data || {}) };
+        setRemovedOnServer(false);
+        setPrevAvatar(null);
+      }
+
+      // Persist name changes
+      if (Object.keys(payload).length > 0) {
+        const res = await axios.put(`/api/profile/student/${profileId}`, payload, { withCredentials: true });
+        if (res?.data) updated = { ...updated, ...(res.data || {}) };
+      }
+
+      setProfile(updated);
+
+      // Update global auth if editing own profile
+      if (String(user?._id) === String(profileId) && updateUser) {
+        updateUser(updated);
+      }
+
+      toast.success('Profile updated');
+      setEditing(false);
+      setAvatarFile(null);
+      setRemoveAvatar(false);
+      setImageUrl('');
+      setImageSource('file');
+      setRemovedOnServer(false);
+      setPrevAvatar(null);
+    } catch (err) {
+      console.error('Failed to save profile', err);
+      toast.error(err.response?.data?.error || 'Failed to save profile');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    // reset fields to profile values
+    setEditing(false);
+    setEditFirstName(profile?.firstName || '');
+    setEditLastName(profile?.lastName || '');
+    setAvatarFile(null);
+    setRemoveAvatar(false);
+    setConfirmRemoveAvatar(false);
+    setConfirmDiscardEdit(false);
+  };
+
+  // Cancel button handler that shows confirm modal when there are unsaved changes
+  const handleCancelClick = () => {
+    if (hasUnsavedChanges()) {
+      setConfirmDiscardEdit(true);
+    } else {
+      handleCancelEdit();
+    }
+  };
+
   // Show loading spinner while profile data is loading
   if (loadingOrders) {
       return (
@@ -212,52 +463,157 @@ export default function Profile() {
               </h2>
 
               <div className="space-y-4">
-                  <div className="flex justify-center">
-                      {profile?.avatar ? (
-                          <img
-                              src={profile.avatar.startsWith('data:') ? profile.avatar : (profile.avatar.startsWith('http') ? profile.avatar : `${BACKEND_URL}/uploads/${profile.avatar}`)}
-                              alt="Profile"
-                              className="w-24 h-24 rounded-full object-cover border-4 border-success"
-                              onError={(e) => {
-                                  e.target.onerror = null;
-                                  if (profile?.profileImage) {
-                                      e.target.src = profile.profileImage;
-                                  } else {
-                                      e.target.style.display = 'none';
-                                      if (e.target.nextElementSibling) {
-                                          e.target.nextElementSibling.style.display = 'flex';
-                                      }
-                                  }
-                              }}
-                          />
+                  <div className="flex justify-center relative">
+                    <div className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center border-4 border-success relative">
+                      {avatarFile ? (
+                        <img src={URL.createObjectURL(avatarFile)} alt="Preview" className="w-full h-full object-cover" />
+                      ) : removeAvatar ? (
+                        <div className="w-full h-full bg-gray-200 flex items-center justify-center text-3xl font-bold text-gray-500">
+                          {`${(profile?.firstName?.[0] || profile?.email?.[0] || 'U')}${(profile?.lastName?.[0] || '')}`.toUpperCase()}
+                        </div>
+                      ) : profile?.avatar ? (
+                        <img
+                          src={typeof profile.avatar === 'string' && (profile.avatar.startsWith('data:') || profile.avatar.startsWith('http')) ? profile.avatar : `${BACKEND_URL}/uploads/${profile.avatar}`}
+                          alt="Profile"
+                          className="w-full h-full object-cover"
+                        />
                       ) : profile?.profileImage ? (
-                          <img
-                              src={profile.profileImage}
-                              alt="OAuth Profile"
-                              className="w-24 h-24 rounded-full object-cover border-4 border-success"
-                              onError={(e) => {
-                                  e.target.style.display = 'none';
-                                  if (e.target.nextElementSibling) {
-                                      e.target.nextElementSibling.style.display = 'flex';
-                                  }
-                              }}
-                          />
+                        <img src={profile.profileImage} alt="OAuth" className="w-full h-full object-cover" />
                       ) : (
-                          <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center text-4xl font-bold text-gray-500">
-                              {`${(profile?.firstName?.[0] || profile?.email?.[0] || 'U')}${(profile?.lastName?.[0] || '')}`.toUpperCase()}
-                          </div>
+                        <div className="w-full h-full bg-gray-200 flex items-center justify-center text-3xl font-bold text-gray-500">
+                          {`${(profile?.firstName?.[0] || profile?.email?.[0] || 'U')}${(profile?.lastName?.[0] || '')}`.toUpperCase()}
+                        </div>
                       )}
-                  </div>
 
+                      {/* show X overlay only when editing and there is a photo/preview to remove (hide after removal) */}
+                      {editing && !removeAvatar && (avatarFile || profile?.avatar || (imageSource === 'url' && imageUrl.trim())) && (
+                        <button
+                          type="button"
+                          onClick={handleRemoveAvatarToggle}
+                          aria-label="Remove photo"
+                          title="Remove photo"
+                          className="absolute top-1 right-1 z-20 bg-white border border-gray-200 text-gray-700 hover:bg-red-600 hover:text-white rounded-full p-1 shadow transition"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+
+                    {editing && (
+                      <div className="ml-4 flex flex-col gap-2">
+                        <div className="flex gap-2 items-center">
+                          <label className="cursor-pointer flex items-center gap-2">
+                            <input
+                              type="radio"
+                              name="imageSource"
+                              value="file"
+                              checked={imageSource === 'file'}
+                              onChange={() => setImageSource('file')}
+                            />
+                            <span className="text-sm">Upload</span>
+                          </label>
+
+                          <label className="cursor-pointer flex items-center gap-2">
+                            <input
+                              type="radio"
+                              name="imageSource"
+                              value="url"
+                              checked={imageSource === 'url'}
+                              onChange={() => setImageSource('url')}
+                            />
+                            <span className="text-sm">Use image URL</span>
+                          </label>
+                        </div>
+
+                        {imageSource === 'file' ? (
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp,image/gif"
+                            onChange={handleAvatarChange}
+                            className="file-input file-input-bordered w-full max-w-xs"
+                          />
+                        ) : (
+                          <input
+                            type="url"
+                            placeholder="https://example.com/avatar.jpg"
+                            value={imageUrl}
+                            onChange={(e) => setImageUrl(e.target.value)}
+                            className="input input-bordered w-full max-w-xs"
+                          />
+                        )}
+
+                        <p className="text-xs text-gray-500">Allowed types: jpg, png, webp, gif. Max size: 5 MB.</p>
+                      </div>
+                    )}
+                  </div>
+ 
                   <div className="space-y-2">
-                      <InfoRow label="Name" value={[profile?.firstName, profile?.lastName].filter(Boolean).join(' ') || 'Not set (Complete your profile)'} />
-                      <InfoRow label="Email" value={profile?.email || 'N/A'} />
-                      <InfoRow label="User ID" value={profile?.shortId || '—'} />
-                      {profile?.role && (
-                          <InfoRow label="Role" value={ROLE_LABELS[profile.role] || profile.role.charAt(0).toUpperCase() + profile.role.slice(1)} />
-                      )}
-                  </div>
+                    <InfoRow label="Name" value={editing ? (
+                      <div className="flex flex-col md:flex-row gap-2">
+                        <input className="input input-bordered w-full" value={editFirstName} onChange={(e) => setEditFirstName(e.target.value)} placeholder="First name" />
+                        <input className="input input-bordered w-full" value={editLastName} onChange={(e) => setEditLastName(e.target.value)} placeholder="Last name" />
+                      </div>
+                    ) : ([profile?.firstName, profile?.lastName].filter(Boolean).join(' ') || 'Not set (Complete your profile)')} />
+                    <InfoRow label="Email" value={profile?.email || 'N/A'} />
+                    <InfoRow label="User ID" value={profile?.shortId || '—'} />
+                    {profile?.role && <InfoRow label="Role" value={ROLE_LABELS[profile.role] || profile.role} />}
 
+                    {/* Edit / Save controls */}
+                    {String(user?._id) === String(profileId || profile?._id) && (
+                      <div className="mt-4 flex justify-center gap-2">
+                        {editing ? (
+                          <>
+                            <button
+                              className="btn btn-primary"
+                              onClick={handleSaveProfile}
+                              disabled={savingProfile}
+                            >
+                              {savingProfile ? 'Saving…' : 'Save'}
+                            </button>
+                            <button
+                              className="btn btn-ghost"
+                              onClick={handleCancelClick}
+                              disabled={savingProfile}
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            className="btn btn-outline btn-info"
+                            onClick={() => setEditing(true)}
+                          >
+                            Edit Profile
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Discard changes confirmation modal */}
+                    <ConfirmModal
+                      isOpen={confirmDiscardEdit}
+                      onClose={() => setConfirmDiscardEdit(false)}
+                      onConfirm={() => { handleCancelEdit(); }}
+                      title="Discard changes?"
+                      message="You have unsaved changes. Are you sure you want to discard them?"
+                      confirmText="Discard"
+                      cancelText="Keep editing"
+                      confirmButtonClass="btn-error"
+                    />
+
+                   {/* Confirm remove avatar modal (triggered by X button) */}
+                   <ConfirmModal
+                     isOpen={confirmRemoveAvatar}
+                     onClose={cancelRemoveAvatarAction}
+                     onConfirm={confirmRemoveAvatarAction}
+                     title="Remove profile photo?"
+                     message="This will remove your current profile photo. You can undo shortly after removal."
+                     confirmText="Remove"
+                     cancelText="Keep photo"
+                     confirmButtonClass="btn-error"
+                   />
+                  </div>
+ 
                   {user.role === 'teacher' && profile.role === 'student' && (
                       <div className="mt-6">
                           <h2 className="text-xl mb-2">Purchase History</h2>
@@ -308,7 +664,7 @@ export default function Profile() {
           <Footer />
       </div>
   );
-};
+}
 
 const InfoRow = ({ label, value }) => (
   <div className="flex justify-between border-b border-base-300 pb-2">

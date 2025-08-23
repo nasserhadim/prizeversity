@@ -312,41 +312,46 @@ const Navbar = () => {
           <div className="dropdown dropdown-end">
             <div tabIndex={0} role="button" className="btn btn-ghost btn-circle avatar">
               <div className="w-10 h-10 rounded-full ring ring-success ring-offset-base-100 ring-offset-2 overflow-hidden">
-                {user.avatar ? (
-                  <img
-                    alt="User Avatar"
-                    src={user.avatar.startsWith('data:') ? user.avatar : (user.avatar.startsWith('http') ? user.avatar : `${BACKEND_URL}/uploads/${user.avatar}`)}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      if (user.profileImage) {
-                        e.target.src = user.profileImage;
-                      } else {
-                        const initialsDiv = document.createElement('div');
-                        initialsDiv.className = 'w-full h-full bg-gray-200 flex items-center justify-center text-lg font-bold text-gray-600';
-                        initialsDiv.textContent = `${(user.firstName?.[0] || user.email?.[0] || 'U')}${(user.lastName?.[0] || '')}`.toUpperCase();
-                        e.target.parentNode.replaceChild(initialsDiv, e.target);
-                      }
-                    }}
-                  />
-                ) : user.profileImage ? (
-                  <img
-                    alt="Profile Image"
-                    src={user.profileImage}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      const initialsDiv = document.createElement('div');
-                      initialsDiv.className = 'w-full h-full bg-gray-200 flex items-center justify-center text-lg font-bold text-gray-600';
-                      initialsDiv.textContent = `${(user.firstName?.[0] || user.email?.[0] || 'U')}${(user.lastName?.[0] || '')}`.toUpperCase();
-                      e.target.parentNode.replaceChild(initialsDiv, e.target);
-                    }}
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gray-200 flex items-center justify-center text-lg font-bold text-gray-600">
-                    {`${(user.firstName?.[0] || user.email?.[0] || 'U')}${(user.lastName?.[0] || '')}`.toUpperCase()}
-                  </div>
-                )}
+                {(() => {
+                  // build avatar src safely and avoid calling .startsWith on null/undefined
+                  const getAvatarSrc = (u) => {
+                    if (!u) return null;
+                    if (u.avatar) {
+                      if (typeof u.avatar === 'string' && (u.avatar.startsWith('data:') || u.avatar.startsWith('http'))) return u.avatar;
+                      return `${BACKEND_URL}/uploads/${u.avatar}`;
+                    }
+                    if (u.profileImage) return u.profileImage;
+                    return null;
+                  };
+
+                  const avatarSrc = getAvatarSrc(user);
+                  if (avatarSrc) {
+                    return (
+                      <img
+                        alt="User Avatar"
+                        src={avatarSrc}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          if (user.profileImage) {
+                            e.target.src = user.profileImage;
+                          } else {
+                            const initialsDiv = document.createElement('div');
+                            initialsDiv.className = 'w-full h-full bg-gray-200 flex items-center justify-center text-lg font-bold text-gray-600';
+                            initialsDiv.textContent = `${(user.firstName?.[0] || user.email?.[0] || 'U')}${(user.lastName?.[0] || '')}`.toUpperCase();
+                            e.target.parentNode.replaceChild(initialsDiv, e.target);
+                          }
+                        }}
+                      />
+                    );
+                  }
+
+                  return (
+                    <div className="w-full h-full bg-base-300 flex items-center justify-center text-sm font-bold text-base-content/70">
+                      {`${(user.firstName?.[0] || user.email?.[0] || 'U')}${(user.lastName?.[0] || '')}`.toUpperCase()}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
             <ul tabIndex={0} className="mt-3 z-[1] p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-52">
@@ -500,23 +505,46 @@ const Navbar = () => {
             <div className="border-t border-base-300 pt-4 mt-4">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 rounded-full ring ring-success ring-offset-2 overflow-hidden">
-                  {user.avatar ? (
-                    <img
-                      alt="User Avatar"
-                      src={user.avatar.startsWith('data:') ? user.avatar : (user.avatar.startsWith('http') ? user.avatar : `${BACKEND_URL}/uploads/${user.avatar}`)}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : user.profileImage ? (
-                    <img
-                      alt="Profile Image"
-                      src={user.profileImage}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-base-300 flex items-center justify-center text-sm font-bold text-base-content/70">
-                      {`${(user.firstName?.[0] || user.email?.[0] || 'U')}${(user.lastName?.[0] || '')}`.toUpperCase()}
-                    </div>
-                  )}
+                  {(() => {
+                    // build avatar src safely and avoid calling .startsWith on null/undefined
+                    const getAvatarSrc = (u) => {
+                      if (!u) return null;
+                      if (u.avatar) {
+                        if (typeof u.avatar === 'string' && (u.avatar.startsWith('data:') || u.avatar.startsWith('http'))) return u.avatar;
+                        return `${BACKEND_URL}/uploads/${u.avatar}`;
+                      }
+                      if (u.profileImage) return u.profileImage;
+                      return null;
+                    };
+
+                    const avatarSrc = getAvatarSrc(user);
+                    if (avatarSrc) {
+                      return (
+                        <img
+                          alt="User Avatar"
+                          src={avatarSrc}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            if (user.profileImage) {
+                              e.target.src = user.profileImage;
+                            } else {
+                              const initialsDiv = document.createElement('div');
+                              initialsDiv.className = 'w-full h-full bg-gray-200 flex items-center justify-center text-lg font-bold text-gray-600';
+                              initialsDiv.textContent = `${(user.firstName?.[0] || user.email?.[0] || 'U')}${(user.lastName?.[0] || '')}`.toUpperCase();
+                              e.target.parentNode.replaceChild(initialsDiv, e.target);
+                            }
+                          }}
+                        />
+                      );
+                    }
+
+                    return (
+                      <div className="w-full h-full bg-base-300 flex items-center justify-center text-sm font-bold text-base-content/70">
+                        {`${(user.firstName?.[0] || user.email?.[0] || 'U')}${(user.lastName?.[0] || '')}`.toUpperCase()}
+                      </div>
+                    );
+                  })()}
                 </div>
                 <div>
                   <p className="font-medium text-base-content">{user.firstName} {user.lastName}</p>
