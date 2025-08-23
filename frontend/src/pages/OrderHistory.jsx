@@ -3,7 +3,8 @@ import { AuthContext } from '../context/AuthContext';
 import axios from 'axios';
 import Footer from '../components/Footer';
 import toast from 'react-hot-toast';
-import { getEffectDescription } from '../utils/itemHelpers';
+import { Image as ImageIcon, Copy as CopyIcon } from 'lucide-react';
+import { getEffectDescription, splitDescriptionEffect } from '../utils/itemHelpers';
 
 export default function OrderHistory() {
     const { user } = useContext(AuthContext);
@@ -296,27 +297,49 @@ export default function OrderHistory() {
                                                 title="Copy order ID"
                                                 aria-label="Copy order ID"
                                             >
-                                                {/* larger clipboard icon */}
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
-                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V5a2 2 0 0 0-2-2H2a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2m6-4h6m-6 4h6M8 7h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z" />
-                                                </svg>
+                                                <CopyIcon className="w-5 h-5" />
                                             </button>
                                         </div>
                                     </div>
                                 </div>
 
                                 {o.items && o.items.length > 0 && (
-                                    <ul className="list-disc list-inside mt-2 space-y-2">
-                                        {o.items.map(i => (
-                                            <li key={i._id || i.id}>
-                                                <div className="font-medium">{i.name} {i.price ? `(${i.price} ₿)` : ''}</div>
-                                                {i.description && <div className="text-sm text-base-content/70">{i.description}</div>}
-                                                {!/Effect\s*:/i.test(i.description || '') && getEffectDescription(i) && (
-                                                    <div className="text-sm text-base-content/60">Effect: {getEffectDescription(i)}</div>
-                                                )}
-                                            </li>
-                                        ))}
-                                    </ul>
+                                    <div className="mt-2 space-y-3">
+                                        {o.items.map(i => {
+                                            const priceLabel = Number.isFinite(Number(i.price)) ? `(${Number(i.price)} ₿)` : '';
+                                            const { main, effect } = splitDescriptionEffect(i.description || '');
+                                            return (
+                                                <div key={i._id || i.id} className="flex items-start gap-3 border-t pt-3">
+                                                    <div className="w-12 h-12 bg-base-200 rounded overflow-hidden flex items-center justify-center flex-shrink-0">
+                                                        {i.image ? (
+                                                            <img src={i.image} alt={i.name} className="object-cover w-full h-full" loading="lazy" />
+                                                        ) : (
+                                                            <ImageIcon className="w-6 h-6 text-base-content/50" />
+                                                        )}
+                                                    </div>
+
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="font-medium truncate">{i.name} {priceLabel}</div>
+                                                        </div>
+                                                        {main && (
+                                                            <div className="text-sm text-base-content/70 whitespace-pre-wrap mt-1">{main}</div>
+                                                        )}
+                                                        {effect && (
+                                                            <div className="text-sm text-base-content/60 mt-1">
+                                                                <strong>Effect:</strong> {effect}
+                                                            </div>
+                                                        )}
+                                                        {!effect && getEffectDescription(i) && (
+                                                            <div className="text-sm text-base-content/60 mt-1">
+                                                                <strong>Effect:</strong> {getEffectDescription(i)}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
                                 )}
                             </div>
                         ))}

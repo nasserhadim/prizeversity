@@ -7,7 +7,7 @@ import { ImageOff } from 'lucide-react';
 import SwapModal from '../components/SwapModal';
 import NullifyModal from '../components/NullifyModal';
 import socket from '../utils/socket'; // Changed from '../API/socket' to '../utils/socket'
-import { getEffectDescription } from '../utils/itemHelpers';
+import { getEffectDescription, splitDescriptionEffect } from '../utils/itemHelpers';
 
 // Inventory section for using, managing, and interacting with items
 const InventorySection = ({ userId, classroomId }) => {
@@ -206,11 +206,24 @@ const InventorySection = ({ userId, classroomId }) => {
 
           <div className="flex-1 space-y-1">
             <h4 className="text-lg font-semibold">{item.name}</h4>
-            <p className="text-sm text-base-content/70">{item.description}</p>
-            {/* Only show auto-generated effect if the description doesn't already include it */}
-            {!/Effect\s*:/i.test(item.description || '') && getEffectDescription(item) && (
-              <p className="text-sm text-base-content/60">Effect: {getEffectDescription(item)}</p>
-            )}
+            {(() => {
+              const { main, effect } = splitDescriptionEffect(item.description || '');
+              return (
+                <>
+                  <p className="text-sm text-base-content/70 whitespace-pre-wrap">{main}</p>
+                  {effect && (
+                    <div className="text-sm text-base-content/60 mt-1">
+                      <strong>Effect:</strong> {effect}
+                    </div>
+                  )}
+                  {!effect && getEffectDescription(item) && (
+                    <div className="text-sm text-base-content/60 mt-1">
+                      <strong>Effect:</strong> {getEffectDescription(item)}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
              {item.active && (
                <p className="text-green-600 font-semibold">🛡 Active</p>
              )}

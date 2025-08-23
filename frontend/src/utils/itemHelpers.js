@@ -70,3 +70,14 @@ export const describeEffectFromForm = (form) => {
 
   return '';
 };
+
+// New helper: split description into main text + Effect text (if present)
+export const splitDescriptionEffect = (description) => {
+  if (!description) return { main: '', effect: null };
+  // Look for "Effect:" (case-insensitive) possibly preceded by newline(s)
+  const m = description.match(/([\s\S]*?)\n*\s*Effect\s*:\s*([\s\S]*)/i);
+  if (m) {
+    return { main: (m[1] || '').trim(), effect: (m[2] || '').trim() };
+  }
+  return { main: description.trim(), effect: null };
+};

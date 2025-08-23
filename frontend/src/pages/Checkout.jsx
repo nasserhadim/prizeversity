@@ -5,7 +5,7 @@ import apiBazaar from '../API/apiBazaar';
 import { useEffect, useState } from 'react';
 import socket from '../utils/socket.js';
 import { Image as ImageIcon } from 'lucide-react'; // added for image fallback
-import { getEffectDescription } from '../utils/itemHelpers';
+import { getEffectDescription, splitDescriptionEffect } from '../utils/itemHelpers';
 import toast from 'react-hot-toast'
 import Footer from '../components/Footer';
 
@@ -150,15 +150,30 @@ const Checkout = () => {
                                             ✕
                                         </button>
                                     </div>
-                                    <p className="text-sm text-base-content/70 mt-1 line-clamp-2">
-                                        {item.description || 'No description provided.'}
-                                    </p>
-                                    {/* Avoid duplicate: skip auto-effect if description already contains Effect: */}
-                                    {!/Effect\s*:/i.test(item.description || '') && getEffectDescription(item) && (
-                                        <div className="text-sm text-base-content/60 mt-1">
-                                            Effect: {getEffectDescription(item)}
-                                        </div>
-                                    )}
+                                    {(() => {
+                                      const { main, effect } = splitDescriptionEffect(item.description || '');
+                                      return (
+                                        <>
+                                          <p className="text-sm text-base-content/70 mt-1 line-clamp-2 whitespace-pre-wrap">
+                                            {main || 'No description provided.'}
+                                          </p>
+
+                                          {/* If the description already contained an Effect: line, render it below indented */}
+                                          {effect && (
+                                            <div className="text-sm text-base-content/60 mt-1">
+                                              <strong>Effect:</strong> {effect}
+                                            </div>
+                                          )}
+
+                                          {/* If no Effect: in description, show auto-generated effect (if available) */}
+                                          {!effect && getEffectDescription(item) && (
+                                            <div className="text-sm text-base-content/60 mt-1">
+                                              <strong>Effect:</strong> {getEffectDescription(item)}
+                                            </div>
+                                          )}
+                                        </>
+                                      );
+                                    })()}
                                 </div>
 
                                 {/* Price */}
