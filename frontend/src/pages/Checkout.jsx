@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import apiBazaar from '../API/apiBazaar';
 import { useEffect, useState } from 'react';
 import socket from '../utils/socket.js';
+import { Image as ImageIcon } from 'lucide-react'; // added for image fallback
+import { getEffectDescription, splitDescriptionEffect } from '../utils/itemHelpers';
 import toast from 'react-hot-toast'
 import Footer from '../components/Footer';
 
@@ -106,54 +108,99 @@ const Checkout = () => {
     };
 
     return (
-        <div className="max-w-xl mx-auto mt-12 p-6 bg-white rounded shadow">
-            <h2 className="text-2xl font-bold mb-4">Checkout</h2>
+        <div className="max-w-xl mx-auto mt-12 p-6 bg-base-100 rounded-xl shadow-lg border border-base-300">
+            <h2 className="text-2xl font-bold mb-4 text-base-content">Checkout</h2>
 
             {user?.discountShop && (
-                <div className="bg-green-100 text-green-800 p-3 rounded mb-4 text-sm">
+                <div className="bg-success/10 text-success p-3 rounded mb-4 text-sm">
                     🎉 20% discount applied to all items!
                 </div>
             )}
 
             {cartItems.length === 0 ? (
-                <p>Your cart is empty.</p>
+                <p className="text-base-content/70">Your cart is empty.</p>
             ) : (
                 <>
-                    <ul className="space-y-2">
+                    <ul className="space-y-4">
                         {cartItems.map(item => (
-                            <li key={item._id} className="flex justify-between items-center">
-                                <div>
-                                    <span className="block font-medium">{item.name}</span>
-                                    {hasDiscount ? (
-                                        <span>
-                                            <span className="line-through text-gray-400 mr-2">{item.price} ₿</span>
-                                            <span className="text-green-600">{calculatePrice(item.price)} ₿</span>
-                                        </span>
+                            <li key={item._id} className="flex items-start gap-4">
+                                {/* Thumbnail */}
+                                <div className="w-16 h-16 bg-base-200 rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0">
+                                    {item.image ? (
+                                        <img
+                                            src={item.image}
+                                            alt={item.name}
+                                            className="object-cover w-full h-full"
+                                            loading="lazy"
+                                        />
                                     ) : (
-                                        <span className="text-sm text-gray-500">{item.price} ₿</span>
+                                        <ImageIcon className="w-8 h-8 text-base-content/50" />
                                     )}
                                 </div>
-                                <button
-                                    onClick={() => removeFromCart(item._id)}
-                                    className="text-red-500 text-sm ml-4"
-                                    title="Remove item"
-                                >
-                                    ✕
-                                </button>
+
+                                {/* Name + Description */}
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between">
+                                        <span className="block font-medium text-base-content truncate">{item.name}</span>
+                                        <button
+                                            onClick={() => removeFromCart(item._id)}
+                                            className="text-error text-sm ml-4"
+                                            title="Remove item"
+                                        >
+                                            ✕
+                                        </button>
+                                    </div>
+                                    {(() => {
+                                      const { main, effect } = splitDescriptionEffect(item.description || '');
+                                      return (
+                                        <>
+                                          <p className="text-sm text-base-content/70 mt-1 line-clamp-2 whitespace-pre-wrap">
+                                            {main || 'No description provided.'}
+                                          </p>
+
+                                          {/* If the description already contained an Effect: line, render it below indented */}
+                                          {effect && (
+                                            <div className="text-sm text-base-content/60 mt-1">
+                                              <strong>Effect:</strong> {effect}
+                                            </div>
+                                          )}
+
+                                          {/* If no Effect: in description, show auto-generated effect (if available) */}
+                                          {!effect && getEffectDescription(item) && (
+                                            <div className="text-sm text-base-content/60 mt-1">
+                                              <strong>Effect:</strong> {getEffectDescription(item)}
+                                            </div>
+                                          )}
+                                        </>
+                                      );
+                                    })()}
+                                </div>
+
+                                {/* Price */}
+                                <div className="ml-4 text-right flex-shrink-0">
+                                    {hasDiscount ? (
+                                        <>
+                                            <div className="text-xs line-through text-base-content/50">{item.price} ₿</div>
+                                            <div className="text-success font-semibold">{calculatePrice(item.price)} ₿</div>
+                                        </>
+                                    ) : (
+                                        <div className="text-base-content font-semibold">{item.price} ₿</div>
+                                    )}
+                                </div>
                             </li>
                         ))}
                     </ul>
 
-                    <div className="mt-4 text-right font-semibold text-green-600">
-                        Bit Balance: {balance} ₿
+                    <div className="mt-4 text-right font-semibold text-success">
+                        Balance: {balance} ₿
                     </div>
 
                     <div className="mt-4 text-right font-semibold">
-                        <div className="text-lg">
+                        <div className="text-lg text-base-content">
                             Total: {calculateTotal()} ₿
                         </div>
                         {user?.discountShop && (
-                            <div className="text-sm text-green-600">
+                            <div className="text-sm text-success">
                                 You saved {Math.floor(getTotal() * 0.2)} ₿!
                             </div>
                         )}

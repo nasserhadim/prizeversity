@@ -34,6 +34,7 @@ const challengeRoutes = require('./routes/challenge');
 const challengeTemplateRoutes = require('./routes/challengeTemplate');
 const challengeVerifyRoutes = require('./routes/challengeVerify');
 const { redirectBase, isProd } = require('./config/domain');
+const { cleanTrash } = require('./utils/cleanupTrash');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -96,6 +97,44 @@ mongoose.connect(process.env.MONGO_URI, {})
 
   })
   .catch(err => console.log(err));
+
+// Schedule uploads/trash cleanup
+const TRASH_RETENTION_DAYS = Number(process.env.TRASH_RETENTION_DAYS || 30); // delete files older than X days
+const TRASH_CLEAN_INTERVAL_HOURS = Number(process.env.TRASH_CLEAN_INTERVAL_HOURS || 24); // run every N hours
+
+const uploadsDir = path.join(__dirname, 'uploads');
+const trashDir = path.join(uploadsDir, 'trash');
+
+(async () => {
+  try {
+    // Run once at startup (don't block server startup for long)
+    cleanTrash({ trashDir, maxAgeDays: TRASH_RETENTION_DAYS })
+      .then(result => {
+        console.log(`uploads/trash cleanup at startup: deleted=${result.deleted.length}, errors=${result.errors.length}`);
+      })
+      .catch(err => {
+        console.error('uploads/trash cleanup (startup) failed:', err);
+      });
+
+    // Schedule recurring cleanup
+    const intervalMs = Math.max(1, TRASH_CLEAN_INTERVAL_HOURS) * 60 * 60 * 1000;
+    setInterval(() => {
+      cleanTrash({ trashDir, maxAgeDays: TRASH_RETENTION_DAYS })
+        .then(result => {
+          if (result.deleted.length || result.errors.length) {
+            console.log(`uploads/trash cleanup: deleted=${result.deleted.length}, errors=${result.errors.length}`);
+          } else {
+            console.log('uploads/trash cleanup: nothing to delete');
+          }
+        })
+        .catch(err => {
+          console.error('uploads/trash cleanup failed:', err);
+        });
+    }, intervalMs);
+  } catch (err) {
+    console.error('Failed to schedule uploads/trash cleanup:', err);
+  }
+})();
 
 // Routes
 

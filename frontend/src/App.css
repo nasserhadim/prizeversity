@@ -1,8 +1,24 @@
+html, body, #root {
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow-x: hidden; /* prevent horizontal scrolling on mobile */
+}
+
+/* Keep the centered app container but avoid padding causing overflow */
 #root {
+  width: 100%;
   max-width: 1280px;
   margin: 0 auto;
   padding: 2rem;
   text-align: center;
+  overflow-x: hidden;
+}
+
+/* Guard against oversized absolute elements and media */
+img, svg, .triangle-wrap, .triangle-center, .triangle-lines {
+  max-width: 100%;
+  height: auto;
+  box-sizing: border-box;
 }
 
 .logo {
