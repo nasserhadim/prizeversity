@@ -6,15 +6,12 @@ const { ensureAuthenticated } = require('../config/auth');
 const router = express.Router();
 const io = require('socket.io')();
 const { populateNotification } = require('../utils/notifications');
+const upload = require('../middleware/upload'); // ADD: reuse existing upload middleware
 
 // Create GroupSet
-router.post('/groupset/create', ensureAuthenticated, async (req, res) => {
-  const { name, classroomId, selfSignup, joinApproval, maxMembers, image } = req.body;
-  
-  if (!name || !name.trim()) {
-    return res.status(400).json({ error: 'GroupSet name is required' });
-  }
-
+router.post('/groupset/create', ensureAuthenticated, upload.single('image'), async (req, res) => {
+  const { name, classroomId, selfSignup, joinApproval, maxMembers } = req.body;
+  const image = req.file ? `/uploads/${req.file.filename}` : (req.body.image || undefined);
   try {
     // Check if groupset with same name exists in the classroom
     const existingGroupSet = await GroupSet.findOne({ 
@@ -59,21 +56,21 @@ router.post('/groupset/create', ensureAuthenticated, async (req, res) => {
 });
 
 // Update GroupSet
-router.put('/groupset/:id', ensureAuthenticated, async (req, res) => {
-  const { name, selfSignup, joinApproval, maxMembers, image } = req.body;
+router.put('/groupset/:id', ensureAuthenticated, upload.single('image'), async (req, res) => {
+  const { name, selfSignup, joinApproval, maxMembers } = req.body;
+  const image = req.file ? `/uploads/${req.file.filename}` : (req.body.image !== undefined ? req.body.image : undefined);
   try {
     const groupSet = await GroupSet.findById(req.params.id)
       .populate('groups')
       .populate('classroom');
     if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
 
-    const oldName = groupSet.name; // Store old name before changes
     const changes = {};
-    if (groupSet.name !== name) changes.name = name;
-    if (groupSet.selfSignup !== selfSignup) changes.selfSignup = selfSignup;
-    if (groupSet.joinApproval !== joinApproval) changes.joinApproval = joinApproval;
-    if (groupSet.maxMembers !== maxMembers) changes.maxMembers = maxMembers;
-    if (groupSet.image !== image) changes.image = image;
+    if (name !== undefined && groupSet.name !== name) changes.name = name;
+    if (selfSignup !== undefined && groupSet.selfSignup !== selfSignup) changes.selfSignup = selfSignup;
+    if (joinApproval !== undefined && groupSet.joinApproval !== joinApproval) changes.joinApproval = joinApproval;
+    if (maxMembers !== undefined && groupSet.maxMembers !== maxMembers) changes.maxMembers = maxMembers;
+    if (image !== undefined && groupSet.image !== image) changes.image = image;
 
     if (Object.keys(changes).length === 0) {
       return res.status(400).json({ message: 'No changes were made' });
@@ -122,6 +119,19 @@ router.put('/groupset/:id', ensureAuthenticated, async (req, res) => {
     res.status(200).json(groupSet);
   } catch (err) {
     res.status(500).json({ error: 'Failed to update group set' });
+  }
+});
+
+// Remove GroupSet image
+router.delete('/groupset/:id/remove-image', ensureAuthenticated, async (req, res) => {
+  try {
+    const groupSet = await GroupSet.findById(req.params.id);
+    if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
+    groupSet.image = 'placeholder.jpg';
+    await groupSet.save();
+    res.json({ groupSet });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to remove image' });
   }
 });
 
@@ -187,8 +197,9 @@ const groupSets = await GroupSet.find({ classroom: req.params.classroomId })
 });
 
 // Create Group within GroupSet
-router.post('/groupset/:groupSetId/group/create', ensureAuthenticated, async (req, res) => {
+router.post('/groupset/:groupSetId/group/create', ensureAuthenticated, upload.single('image'), async (req, res) => {
   const { name, count } = req.body;
+  const image = req.file ? `/uploads/${req.file.filename}` : (req.body.image || undefined);
 
   if (!name.trim()) {
     return res.status(400).json({ error: 'Group name is required' });
@@ -214,6 +225,7 @@ router.post('/groupset/:groupSetId/group/create', ensureAuthenticated, async (re
       const newGroup = new Group({
         name: newName,
         maxMembers: groupSet.maxMembers,
+        image
       });
 
       await newGroup.save();
@@ -314,9 +326,10 @@ router.post('/groupset/:groupSetId/group/:groupId/join', ensureAuthenticated, as
   }
 });
 
-// Update Group
-router.put('/groupset/:groupSetId/group/:groupId', ensureAuthenticated, async (req, res) => {
-  const { name, image, maxMembers } = req.body;
+// Update Group (accept image file)
+router.put('/groupset/:groupSetId/group/:groupId', ensureAuthenticated, upload.single('image'), async (req, res) => {
+  const { name, maxMembers } = req.body;
+  const image = req.file ? `/uploads/${req.file.filename}` : (req.body.image !== undefined ? req.body.image : undefined);
   try {
     const group = await Group.findById(req.params.groupId);
     if (!group) return res.status(404).json({ error: 'Group not found' });
@@ -375,6 +388,19 @@ router.put('/groupset/:groupSetId/group/:groupId', ensureAuthenticated, async (r
     res.status(200).json(group);
   } catch (err) {
     res.status(500).json({ error: 'Failed to update group' });
+  }
+});
+
+// Remove Group image
+router.delete('/groupset/:groupSetId/group/:groupId/remove-image', ensureAuthenticated, async (req, res) => {
+  try {
+    const group = await Group.findById(req.params.groupId);
+    if (!group) return res.status(404).json({ error: 'Group not found' });
+    group.image = 'placeholder.jpg';
+    await group.save();
+    res.json({ group });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to remove image' });
   }
 });
 

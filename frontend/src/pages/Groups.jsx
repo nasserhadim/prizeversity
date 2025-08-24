@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -21,6 +21,9 @@ const Groups = () => {
   const [groupSetJoinApproval, setGroupSetJoinApproval] = useState(false);
   const [groupSetMaxMembers, setGroupSetMaxMembers] = useState('');
   const [groupSetImage, setGroupSetImage] = useState('');
+  const [groupSetImageFile, setGroupSetImageFile] = useState(null); // ADD
+  const [groupSetImageSource, setGroupSetImageSource] = useState('url'); // ADD
+  const [groupSetImageUrl, setGroupSetImageUrl] = useState(''); // ADD
   const [groupName, setGroupName] = useState('');
   const [groupCount, setGroupCount] = useState(1);
   const [memberSearches, setMemberSearches] = useState({});
@@ -41,6 +44,7 @@ const Groups = () => {
   const [newGroupMaxMembers, setNewGroupMaxMembers] = useState('');
   const [selectedGroups, setSelectedGroups] = useState({});
   const [confirmBulkDeleteGroups, setConfirmBulkDeleteGroups] = useState(null);
+  const groupSetFileInputRef = useRef(null); // ADD: clear native file input after submit
 
   // Fetch classroom details
   const fetchClassroom = async () => {
@@ -87,16 +91,26 @@ const Groups = () => {
   const handleCreateGroupSet = async () => {
     if (!groupSetName.trim()) return toast.error('GroupSet name is required');
     if (groupSetMaxMembers < 0) return toast.error('Max members cannot be negative');
-
     try {
-      await axios.post('/api/group/groupset/create', {
-        name: groupSetName,
-        classroomId: id,
-        selfSignup: groupSetSelfSignup,
-        joinApproval: groupSetJoinApproval,
-        maxMembers: Math.max(0, groupSetMaxMembers || 0),
-        image: groupSetImage,
-      });
+      if (groupSetImageSource === 'file' && groupSetImageFile) {
+        const fd = new FormData();
+        fd.append('name', groupSetName);
+        fd.append('classroomId', id);
+        fd.append('selfSignup', groupSetSelfSignup);
+        fd.append('joinApproval', groupSetJoinApproval);
+        fd.append('maxMembers', Math.max(0, groupSetMaxMembers || 0));
+        fd.append('image', groupSetImageFile);
+        await axios.post('/api/group/groupset/create', fd, { headers: { 'Content-Type': 'multipart/form-data' }});
+      } else {
+        await axios.post('/api/group/groupset/create', {
+          name: groupSetName,
+          classroomId: id,
+          selfSignup: groupSetSelfSignup,
+          joinApproval: groupSetJoinApproval,
+          maxMembers: Math.max(0, groupSetMaxMembers || 0),
+          image: groupSetImageSource === 'url' ? groupSetImageUrl : undefined,
+        });
+      }
       toast.success('GroupSet created successfully');
       resetGroupSetForm();
       fetchGroupSets();
@@ -113,6 +127,10 @@ const Groups = () => {
     setGroupSetJoinApproval(false);
     setGroupSetMaxMembers('');
     setGroupSetImage('');
+    setGroupSetImageFile(null); // ADD
+    setGroupSetImageSource('url'); // ADD
+    setGroupSetImageUrl(''); // ADD
+    if (groupSetFileInputRef.current) groupSetFileInputRef.current.value = ''; // clear native file input on reset
   };
 
   // iT will edit the Group set
@@ -123,6 +141,10 @@ const Groups = () => {
     setGroupSetJoinApproval(gs.joinApproval);
     setGroupSetMaxMembers(gs.maxMembers);
     setGroupSetImage(gs.image);
+    setGroupSetImageFile(null); // ADD
+    setGroupSetImageSource('url'); // ADD
+    setGroupSetImageUrl(''); // ADD
+    if (groupSetFileInputRef.current) groupSetFileInputRef.current.value = ''; // clear native file input when editing
   };
 
   // After editing will update the group set
@@ -607,6 +629,34 @@ const Groups = () => {
               value={groupSetMaxMembers}
               onChange={(e) => setGroupSetMaxMembers(Math.max(0, e.target.value))}
             />
+            <div className="flex items-center gap-2">
+              <div className="inline-flex rounded-full bg-gray-200 p-1">
+                <button onClick={() => setGroupSetImageSource('file')} className={groupSetImageSource === 'file' ? 'bg-white px-3 py-1 rounded' : 'px-3 py-1 rounded text-gray-600'}>Upload</button>
+                <button onClick={() => setGroupSetImageSource('url')} className={groupSetImageSource === 'url' ? 'bg-white px-3 py-1 rounded ml-1' : 'px-3 py-1 rounded ml-1 text-gray-600'}>Use image URL</button>
+              </div>
+            </div>
+
+            {groupSetImageSource === 'file' ? (
+              <>
+                <input ref={groupSetFileInputRef} type="file" accept="image/*" onChange={e => setGroupSetImageFile(e.target.files[0])} />
+                <p className="text-xs text-gray-500">Allowed: jpg, png, webp, gif. Max: 5 MB.</p>
+              </>
+            ) : (
+              <input type="url" placeholder="https://..." value={groupSetImageUrl} onChange={e => setGroupSetImageUrl(e.target.value)} />
+            )}
+
+            {editingGroupSetId && (
+              <button className="btn btn-ghost btn-sm mt-2" onClick={async () => {
+                try {
+                  await axios.delete(`/api/group/groupset/${editingGroupSetId}/remove-image`);
+                  toast.success('GroupSet image removed');
+                  fetchGroupSets();
+                } catch {
+                  toast.error('Failed to remove image');
+                }
+              }}>Remove image</button>
+            )}
+
             <button className="btn btn-success" onClick={editingGroupSetId ? handleUpdateGroupSet : handleCreateGroupSet}>
               {editingGroupSetId ? 'Update Group Set' : 'Create Group Set'}
             </button>

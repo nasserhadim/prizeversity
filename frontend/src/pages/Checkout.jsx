@@ -2,11 +2,12 @@ import { useCart } from '../context/CartContext';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import apiBazaar from '../API/apiBazaar';
-import { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import socket from '../utils/socket.js';
 import { Image as ImageIcon } from 'lucide-react'; // added for image fallback
+import { resolveImageSrc } from '../utils/image';
 import { getEffectDescription, splitDescriptionEffect } from '../utils/itemHelpers';
-import toast from 'react-hot-toast'
 import Footer from '../components/Footer';
 
 const Checkout = () => {
@@ -64,28 +65,32 @@ const Checkout = () => {
                 toast.error('Your cart is empty');
                 return;
             }
-
-            // Prepare items with discounted prices if applicable
-            const checkoutItems = cartItems.map(item => ({
-                _id: item._id,
-                name: item.name,
-                price: user?.discountShop ? Math.floor(item.price * 0.8) : item.price,
-                // Include all necessary item properties
-                category: item.category,
-                primaryEffect: item.primaryEffect,
-                secondaryEffects: item.secondaryEffects
-            }));
-
+ 
+            // Prepare items with discounted prices if applicable and ensure _id / price shape
+            const checkoutItems = cartItems.map(item => {
+                const id = item._id || item.id || item._id?.toString();
+                return {
+                    _id: id,
+                    id: id,
+                    name: item.name,
+                    price: Number(user?.discountShop ? Math.floor(item.price * 0.8) : item.price) || 0,
+                    category: item.category,
+                    primaryEffect: item.primaryEffect,
+                    secondaryEffects: item.secondaryEffects,
+                    image: item.image
+                };
+            });
+ 
             console.log("Sending checkout request:", {
                 userId: user._id,
                 items: checkoutItems
             });
-
+ 
             const response = await apiBazaar.post('/checkout', {
                 userId: user._id,
                 items: checkoutItems
             });
-
+ 
             if (response.status === 200) {
                 await fetchBalance();
                 clearCart();
@@ -98,12 +103,9 @@ const Checkout = () => {
                 response: err.response?.data,
                 stack: err.stack
             });
-
-            toast.error(
-                err.response?.data?.error ||
-                err.response?.data?.message ||
-                'Checkout failed. Please try again.'
-            );
+            // Show backend error message when available
+            const msg = err.response?.data?.error || err.response?.data?.message || 'Checkout failed. Please try again.';
+            toast.error(msg);
         }
     };
 
@@ -128,16 +130,16 @@ const Checkout = () => {
                           <li key={item._id} className="flex items-start gap-4">
                               {/* Thumbnail */}
                               <div className="w-16 h-16 bg-base-200 rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0">
-                                  {item.image ? (
-                                      <img
-                                          src={item.image}
-                                          alt={item.name}
-                                          className="object-cover w-full h-full"
-                                          loading="lazy"
-                                      />
-                                  ) : (
-                                      <ImageIcon className="w-8 h-8 text-base-content/50" />
-                                  )}
+                                  <img
+                                      src={resolveImageSrc(item.image)}
+                                      alt={item.name}
+                                      className="object-cover w-full h-full"
+                                      loading="lazy"
+                                      onError={(e) => {
+                                        e.currentTarget.onerror = null;
+                                        e.currentTarget.src = '/images/item-placeholder.svg';
+                                      }}
+                                  />
                               </div>
 
                               {/* Name + Description */}

@@ -86,21 +86,36 @@ const Wallet = () => {
   // Fetch the wallet data for current user (student) or transactions for teacher/admin
     const fetchWallet = async () => {
       try {
-    const { data } = await axios.get('/api/wallet/transactions', { withCredentials: true });
-   
-     const sorted = data
-       .slice()
-       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-     setTransactions(sorted);
+        const { data } = await axios.get('/api/wallet/transactions', { withCredentials: true });
 
-        if (user.role === 'student') {
-          const userRes = await axios.get(`/api/users/${user._id}`, { withCredentials: true });
-          setBalance(userRes.data.balance);
-        }
-      } catch (err) {
-        console.error('Failed to fetch wallet', err);
-      }
-    };
+        // DEBUG: print transactions returned by backend to browser console for inspection
+        console.log('wallet transactions response:', data);
+
+        const sorted = data
+          .slice()
+          .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+       // Deduplicate transactions by a stable key:
+       // prefer the transaction _id (if present), otherwise fallback to orderId,
+       // otherwise use description+amount+timestamp (stable enough for de-duping).
+       const unique = (() => {
+         const seen = new Map();
+         for (const tx of sorted) {
+           const ts = tx._id || tx.orderId || `${tx.description || ''}::${tx.amount}::${new Date(tx.date || tx.createdAt || Date.now()).toISOString()}`;
+           if (!seen.has(ts)) seen.set(ts, tx);
+         }
+         return Array.from(seen.values());
+       })();
+
+      setTransactions(unique); 
+      if (user.role === 'student') {
+        const userRes = await axios.get(`/api/users/${user._id}`, { withCredentials: true });
+        setBalance(userRes.data.balance);
+      }
+    } catch (err) {
+      console.error('Failed to fetch wallet', err);
+    }
+  };
     // Calculate effective balance considering multiplier passive attribute
     const getEffectiveBalance = (user) => {
       const baseBalance = user.balance || 0;

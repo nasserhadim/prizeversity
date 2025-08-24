@@ -13,6 +13,7 @@ import apiClassroom from '../API/apiClassroom';
 import InventorySection from '../components/InventorySection';
 import toast from 'react-hot-toast';
 import Footer from '../components/Footer';
+import { resolveBannerSrc } from '../utils/image';
 
 const Bazaar = () => {
   const { classroomId } = useParams();
@@ -85,17 +86,20 @@ const Bazaar = () => {
       <div className="card bg-base-100 border border-base-200 shadow-md rounded-2xl p-6 flex flex-col md:flex-row items-start md:items-center gap-6">
         {/* Image Section */}
         <div className="w-full md:w-1/3">
-          {bazaar.image ? (
-            <img
-              src={bazaar.image}
-              alt="Bazaar Banner"
-              className="w-full h-48 object-cover rounded-xl shadow-sm"
-            />
-          ) : (
-            <div className="w-full h-48 flex items-center justify-center bg-base-200 rounded-xl text-gray-400 italic">
-              <ImageIcon className="w-12 h-12" />
-            </div>
-          )}
+          {(() => {
+            const imgSrc = resolveBannerSrc(bazaar?.image);
+            return (
+              <img
+                src={resolveBannerSrc(bazaar?.image)}
+                alt="Bazaar Banner"
+                className="w-full h-48 object-cover rounded-xl shadow-sm"
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = '/images/bazaar-placeholder.svg';
+                }}
+              />
+            );
+          })()}
         </div>
 
         {/* Text Section */}
