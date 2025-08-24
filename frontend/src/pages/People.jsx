@@ -182,8 +182,8 @@ const People = () => {
   };
 
   return (
-    <div className="flex flex-col min-h-[calc(100vh-5rem)] p-6 max-w-5xl mx-auto">
-      <div className="flex-grow">
+    <div className="flex flex-col min-h-screen">
+      <main className="flex-grow p-6 max-w-5xl mx-auto">
         <div className="mb-6">
           <h1 className="text-3xl font-bold">
             {classroom ? `${classroom.name} People` : 'People'}
@@ -421,7 +421,7 @@ const People = () => {
             )}
           </div>
         )}
-      </div>
+      </main>
       <Footer />
     </div>
   );
