@@ -146,6 +146,14 @@ const Support = () => {
       icon: <Briefcase size={20} />,
       questions: [
         {
+          question: "What are the different types of Bazaar items?",
+          answer: [
+            "• **Passive items**: Rewards (extra credit, passes, etc.) that can be redeemed using Bits. Passive items can also be configured by the teacher to include secondary effects.",
+            "• **Effect items**: Power‑ups (attacks, swappers, nullifiers, shields, stat boosts) that change outcomes and are typically consumed when used."
+          ],
+          role: ["all"]
+        },
+        {
           question: "How do I create items for the Bazaar?",
           answer: [
             "As a teacher, assuming you've already setup a bazaar within a classroom, you can create custom items:",
@@ -163,7 +171,7 @@ const Support = () => {
         {
           question: "How does the Bazaar work for students?",
           answer: [
-            "The Bazaar is your classroom's virtual shop where you can:",
+            "The Bazaar is a classroom's virtual shop where you can:",
             "• Browse items created by your teacher",
             "• Spend bits on rewards and power-ups",
             "• Purchase items with special effects like:",

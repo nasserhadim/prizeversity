@@ -13,6 +13,21 @@ const TransactionSchema = new mongoose.Schema({
   amount: { type: Number, required: true },
   description: { type: String, required: true },
   assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  // Embedded item summaries for purchase transactions (so wallet can render thumbnails/effects)
+  items: [{
+    id: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' },
+    name: String,
+    description: String,
+    price: Number,
+    image: String,
+    category: String,
+    primaryEffect: String,
+    primaryEffectValue: Number,
+    secondaryEffects: [{ effectType: String, value: Number }]
+  }],
+  // Reference to Order when a checkout created an Order document
+  orderId: { type: mongoose.Schema.Types.ObjectId, ref: 'Order' },
+  type: { type: String }, // e.g. 'purchase', 'transfer', etc.
   createdAt: { type: Date, default: Date.now },
   calculation: {
     baseAmount: Number,

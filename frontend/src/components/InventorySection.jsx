@@ -8,6 +8,7 @@ import SwapModal from '../components/SwapModal';
 import NullifyModal from '../components/NullifyModal';
 import socket from '../utils/socket'; // Changed from '../API/socket' to '../utils/socket'
 import { getEffectDescription, splitDescriptionEffect } from '../utils/itemHelpers';
+import { resolveImageSrc } from '../utils/image';
 
 // Inventory section for using, managing, and interacting with items
 const InventorySection = ({ userId, classroomId }) => {
@@ -193,15 +194,15 @@ const InventorySection = ({ userId, classroomId }) => {
           className="card bg-base-100 shadow-md border border-base-200 rounded-xl p-4 flex flex-col md:flex-row md:items-center gap-4"
         >
           <div className="w-24 h-24 bg-base-200 rounded-lg overflow-hidden flex items-center justify-center border">
-            {item.image ? (
-              <img
-                src={item.image}
-                alt={item.name}
-                className="object-cover w-full h-full"
-              />
-            ) : (
-              <ImageOff className="w-8 h-8 text-base-content/50" />
-            )}
+            <img
+              src={resolveImageSrc(item.image)}
+              alt={item.name}
+              className="object-cover w-full h-full"
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = '/images/item-placeholder.svg';
+              }}
+            />
           </div>
 
           <div className="flex-1 space-y-1">
