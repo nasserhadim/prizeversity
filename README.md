@@ -881,7 +881,7 @@ server {
     }
 }
 
-# Redirect HTTP to HTTPS for the  domain
+# Redirect HTTP to HTTPS for the domain
 server {
     listen 123.45.67.123:80;
     server_name prizeversity.com www.prizeversity.com;
@@ -913,7 +913,7 @@ server {
 
     # Enable gzip compression
     gzip on;
-    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+    gzip_types text/plain text/css application/json application/javascript text_xml application/xml application/xml+rss text/javascript;
     gzip_min_length 256;
     gzip_comp_level 5;
     gzip_vary on;
@@ -939,6 +939,19 @@ server {
         proxy_set_header Connection "upgrade";
         proxy_set_header Host $host;
         proxy_cache_bypass $http_upgrade;
+    }
+
+    # Proxy uploaded files to the backend Express app (important: placed before the generic "location /")
+    location /uploads/ {
+        proxy_pass http://localhost:5000/uploads/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        client_max_body_size 10M;
+        expires max;
+        add_header Cache-Control "public";
     }
 
     # Serve static frontend files
