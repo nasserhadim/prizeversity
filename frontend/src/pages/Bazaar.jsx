@@ -64,7 +64,7 @@ const Bazaar = () => {
       </div>
     ) : (
       <div className="flex flex-col min-h-screen bg-base-200">
-        <div className="flex-grow p-6 text-center text-lg font-semibold text-gray-700">
+        <div className="flex-grow p-6 text-center text-lg font-semibold text-base-content/70">
           The marketplace is not open yet.
         </div>
         <Footer />
