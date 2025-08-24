@@ -23,7 +23,8 @@ import {
   HelpCircle,
   Replace,
   LogOut,
-  History
+  History,
+  Star
 } from 'lucide-react';
 
 const BACKEND_URL = `${API_BASE}`;
@@ -243,6 +244,15 @@ const Navbar = () => {
                 >
                   <Trophy size={18} />
                   <span>Leaderboard</span>
+                </Link>
+              </li>
+              <li>
+                <Link 
+                to={`/classroom/${classroomId}/feedback`}
+                className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname === `/classroom/${classroomId}/feedback` ? 'text-green-500' : ''}`}
+                >
+                  <Star size={18} />
+                  <span>Feedback</span>
                 </Link>
               </li>
             </>

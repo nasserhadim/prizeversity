@@ -12,7 +12,7 @@ const FeedbackPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!rating) {
-      alert("Please select a star rating before submitting.");
+      toast.error("Please select a star rating before submitting.");
       return;
     }
     try {

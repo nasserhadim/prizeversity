@@ -20,7 +20,17 @@ const FeedbackSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now
+  },
+  userId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: "User", 
+    required: false 
+  },
+  anonymous: {
+    type: Boolean,
+    default: false
   }
+
 });
 
 module.exports = mongoose.model('Feedback', FeedbackSchema);
