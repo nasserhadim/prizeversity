@@ -26,9 +26,9 @@ router.post(
   async (req, res) => {
     const { classroomId } = req.params;
     // prefer uploaded file, fall back to image URL from body (if any)
-    // build absolute URL so frontend can fetch regardless of dev server origin
+    // build relative path so frontend decides full URL via API_BASE
     const image = req.file
-      ? `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`
+      ? `/uploads/${req.file.filename}`
       : (req.body.image || undefined);
 
     try {
@@ -75,7 +75,7 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticate
   const { name, description, price, category, primaryEffect, primaryEffectValue } = req.body;
   // Prefer uploaded file, fallback to image URL
   const image = req.file
-    ? `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`
+    ? `/uploads/${req.file.filename}`
     : (req.body.image || undefined);
 
   // Parse JSON fields that may arrive as strings when using multipart/form-data
