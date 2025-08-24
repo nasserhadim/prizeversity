@@ -26,12 +26,32 @@ img, svg, .triangle-wrap, .triangle-center, .triangle-lines {
   padding: 1.5em;
   will-change: filter;
   transition: filter 300ms;
+  flex-shrink: 0; /* ensure flex containers don't compress the whole logo link */
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 .logo:hover {
   filter: drop-shadow(0 0 2em #646cffaa);
 }
 .logo.react:hover {
   filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+/* Prevent the logo from shrinking and force a readable mobile size */
+
+/* Explicit SVG size to avoid tiny render on small screens */
+.logo-svg {
+  width: 40px !important;
+  height: 40px !important;
+  min-width: 40px;
+  min-height: 40px;
+}
+
+/* Optional: slightly smaller on very small screens */
+@media (max-width: 420px) {
+  .logo-svg { width: 34px !important; height: 34px !important; }
+  .logo span { font-size: 0.95rem; }
 }
 
 @keyframes logo-spin {
