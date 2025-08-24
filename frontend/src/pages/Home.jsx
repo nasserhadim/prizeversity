@@ -258,6 +258,35 @@ const Home = () => {
     navigate(`/classrooms`);
   };
 
+  // How it works steps
+  const howSteps = [
+    {
+      title: 'Sign up',
+      desc: 'Choose Student or Teacher role at signup.',
+      icon: <UserPlus size={28} className="text-green-500" />
+    },
+    {
+      title: 'Join a Classroom',
+      desc: "Teachers create classrooms and share a join code; students enter the code to join.",
+      icon: <School size={28} className="text-indigo-500" />
+    },
+    {
+      title: 'Set up Bazaar & Groups',
+      desc: "Teachers configure group sets and stock the classroom Bazaar with items.",
+      icon: <Store size={28} className="text-purple-500" />
+    },
+    {
+      title: 'Participate & Earn',
+      desc: "Students engage in groups, challenges and activities to earn Bits and stat boosts. Stat boosts increase earnings.",
+      icon: <Coins size={28} className="text-yellow-500" />
+    },
+    {
+      title: 'Spend & Redeem',
+      desc: "Students can spend their earned Bits in the classroom Bazaar; transactions are logged and teachers can manage redemptions.",
+      icon: <Zap size={28} className="text-green-600" />
+    }
+  ];
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Navbar is rendered globally in App.jsx; remove the local nav to avoid duplication */}
@@ -381,7 +410,7 @@ const Home = () => {
             <div className="text-center mb-12">
               <h2 className="text-4xl font-bold text-gray-900 mb-4">Gamification Reimagined</h2>
               <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-                PrizeVersity transforms learning into an MMORPG-like experience where students develop their academic character with real stats that impact their classroom journey.
+                PrizeVersity transforms learning into an MMORPG-like experience where students develop their academic character with real stats that impact their classroom journey. It’s a cyclical economy — students boost stats or buy power‑ups to earn bits faster, spend bits to buy advantages or protection, and use shields/attacks strategically to manage risk and reward.
               </p>
             </div>
 
@@ -400,25 +429,40 @@ const Home = () => {
                 {/* Stat Lines (SVG overlay for crisp lines) */}
                 {/* Floating stat labels (no lines) */}
                 <div className="absolute left-0 top-0 w-full h-full pointer-events-none" style={{ zIndex: 2 }}>
-                  <div className="stat-label stat-label-level stat-badge level">
-                    <div className="stat-label-title">Level</div>
-                    <div className="stat-label-sub">Overall progress &amp; XP</div>
+                  <div className="stat-label stat-label-bits stat-badge bits">
+                    <div className="stat-label-title">Bits</div>
+                    <div className="stat-label-sub">Powers the Bazaar</div>
                   </div>
 
-                  <div className="stat-label stat-label-multiplier stat-badge multiplier">
-                    <div className="stat-label-title">Multiplier</div>
-                    <div className="stat-label-sub">Boosts bits earned</div>
-                  </div>
+                   <div className="stat-label stat-label-level stat-badge level">
+                     <div className="stat-label-title">Level</div>
+                     <div className="stat-label-sub">Overall progress &amp; XP</div>
+                   </div>
+                   
+                   <div className="stat-label stat-label-multiplier stat-badge multiplier">
+                     <div className="stat-label-title">Multiplier</div>
+                     <div className="stat-label-sub">Boosts earnings</div>
+                   </div>
+                   
+                   <div className="stat-label stat-label-luck stat-badge luck">
+                     <div className="stat-label-title">Luck</div>
+                     <div className="stat-label-sub">Improves reward odds</div>
+                   </div>
 
-                  <div className="stat-label stat-label-luck stat-badge luck">
-                    <div className="stat-label-title">Luck</div>
-                    <div className="stat-label-sub">Improves reward odds</div>
-                  </div>
+                   <div className="stat-label stat-label-discount stat-badge discount">
+                     <div className="stat-label-title">Discount</div>
+                     <div className="stat-label-sub">Reduces bazaar prices</div>
+                   </div>
 
-                  <div className="stat-label stat-label-discount stat-badge discount">
-                    <div className="stat-label-title">Discount</div>
-                    <div className="stat-label-sub">Reduces bazaar prices</div>
-                  </div>
+                   <div className="stat-label stat-label-attack stat-badge attack">
+                     <div className="stat-label-title">Attack Bonus</div>
+                     <div className="stat-label-sub">Manipulation items</div>
+                   </div>
+
+                   <div className="stat-label stat-label-shield stat-badge shield">
+                     <div className="stat-label-title">Shield</div>
+                     <div className="stat-label-sub">Protects against attacks</div>
+                   </div>
                 </div>
               </div>
 
@@ -427,6 +471,22 @@ const Home = () => {
                 <h3 className="text-2xl font-bold mb-6">The Academic MMORPG Character</h3>
                 <div className="space-y-4">
 
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <span className="text-amber-600 text-sm">Ƀ</span>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold">Bits</h4>
+                      <p className="text-gray-600 text-sm">
+                        The virtual currency that powers the Bazaar — used to redeem rewards or buy gameplay effects.
+                      </p>
+                      <ul className="list-disc list-inside text-gray-600 text-sm mt-2">
+                        <li><strong>Passive</strong>: Redeemable rewards (extra credit, passes, etc.)</li>
+                        <li><strong>Effect</strong>: Power‑ups (attacks, swappers, nullifiers, shields, stat boosts)</li>
+                      </ul>
+                    </div>
+                  </div>
+                  
                   <div className="flex items-start gap-3">
                     <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center flex-shrink-0">
                       <span className="text-yellow-600 text-sm">⭐</span>
@@ -467,8 +527,76 @@ const Home = () => {
                     </div>
                   </div>
                   
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 bg-rose-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <span className="text-rose-600 text-sm">⚔️</span>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold">Attack Bonus</h4>
+                      <p className="text-gray-600 text-sm">Bazaar items that let students target others' stats (e.g. swap, nullify) to gain advantage.</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 bg-sky-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <span className="text-sky-600 text-sm">🛡️</span>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold">Shield</h4>
+                      <p className="text-gray-600 text-sm">Protects against attack effects; shields are stackable and consumed when triggered.</p>
+                    </div>
+                  </div>
+                  
                 </div>
               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* How it works */}
+        <section className="mb-20 py-16 bg-white">
+          <div className="max-w-6xl mx-auto px-6">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">How it works</h2>
+              <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                A simple loop for teachers and students — create, join, participate, and redeem.
+              </p>
+            </div>
+
+            <div className="hidden md:flex items-start justify-between gap-6">
+              {howSteps.map((s, i) => (
+                <div key={s.title} className="relative flex-1 bg-white p-6 rounded-xl shadow-sm border border-gray-100 text-center">
+                  <div className="mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-4 bg-green-50">
+                    {s.icon}
+                  </div>
+                  <h3 className="font-semibold mb-2">{s.title}</h3>
+                  <p className="text-sm text-gray-600">{s.desc}</p>
+
+                  {i < howSteps.length - 1 && (
+                    <div className="absolute right-[-48px] top-1/2 -translate-y-1/2 hidden md:block">
+                      <svg width="48" height="24" viewBox="0 0 48 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M0 12h36" stroke="#E5E7EB" strokeWidth="2" strokeLinecap="round" />
+                        <path d="M30 6l6 6-6 6" fill="none" stroke="#E5E7EB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Mobile / stacked */}
+            <div className="md:hidden space-y-4">
+              {howSteps.map((s) => (
+                <div key={s.title} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex gap-4 items-start">
+                  <div className="w-12 h-12 rounded-full flex items-center justify-center bg-green-50">
+                    {s.icon}
+                  </div>
+                  <div>
+                    <h4 className="font-semibold">{s.title}</h4>
+                    <p className="text-sm text-gray-600">{s.desc}</p>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </section>

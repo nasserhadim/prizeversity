@@ -138,7 +138,7 @@
 }
 
 .stat-label-discount {
-  top: 62%;
+  top: 56%;
   left: 20%;
   transform: translate(-50%, -50%);
 }
@@ -177,6 +177,97 @@
   color: white;
 }
 
+/* Attack & Shield stat badges + positioning */
+.stat-badge.attack {
+  background: linear-gradient(135deg, #ffd6a5 0%, #ffc078 100%);
+  color: #5a3300;
+  border: 2px solid rgba(255, 200, 120, 0.12);
+}
+
+.stat-badge.shield {
+  background: linear-gradient(135deg, #bfdbfe 0%, #93c5fd 100%);
+  color: #0f172a;
+  border: 2px solid rgba(99, 102, 241, 0.08);
+}
+
+/* Bits stat badge (visual + position) */
+.stat-badge.bits {
+  background: linear-gradient(135deg, #fff7ed 0%, #ffefc2 100%);
+  color: #92400e;
+  border: 2px solid rgba(245, 158, 11, 0.10);
+  box-shadow: 0 8px 18px rgba(249, 115, 22, 0.08);
+}
+
+/* Support both class combos used in JSX:
+   <div class="stat-label stat-label-attack stat-badge attack">... */
+.stat-label.attack,
+.stat-label-attack {
+  /* moved further down to avoid overlapping .stat-label-multiplier */
+  top: 58%;
+  left: 72%;
+  transform: translate(-50%, -50%);
+  animation-delay: 2s;
+  min-width: 120px;
+  z-index: 19; /* keep behind multiplier so multiplier stays visually on top */
+}
+
+.stat-label.shield,
+.stat-label-shield {
+  /* shifted slightly right to be more centered between characters */
+  top: 72%;
+  left: 28%;
+  transform: translate(-50%, -50%);
+  animation-delay: 2.5s;
+  min-width: 120px;
+  z-index: 21;
+}
+
+.stat-label.bits,
+.stat-label-bits {
+  /* moved further up on desktop, centered between characters */
+  top: 3%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation-delay: 0.3s;
+  min-width: 120px;
+  z-index: 35;
+}
+
+/* Mobile fallback: center bits badge under character on small screens */
+@media (max-width: 768px) {
+  .stat-label.bits,
+  .stat-label-bits {
+    left: 50% !important;
+    top: 6% !important;
+    z-index: 35 !important;
+    animation: float 3s ease-in-out infinite !important;
+    animation-delay: 0.3s !important;
+    animation-fill-mode: both !important;
+  }
+
+  /* force Attack and Shield lower on mobile so they stack under Bits */
+  .stat-label.attack,
+  .stat-label-attack {
+    left: 50% !important;
+    top: 70% !important;
+    z-index: 20 !important;
+    animation: float 3s ease-in-out infinite !important;
+    animation-delay: 2s !important;
+    animation-fill-mode: both !important;
+  }
+
+  .stat-label.shield,
+  .stat-label-shield {
+    /* nudged left on mobile to sit better between characters */
+    left: 42% !important;
+    top: 78% !important;
+    z-index: 21 !important;
+    animation: float 3s ease-in-out infinite !important;
+    animation-delay: 2.5s !important;
+    animation-fill-mode: both !important;
+  }
+}
+
 /* Floating Animation */
 @keyframes float {
   0%, 100% {
@@ -191,6 +282,7 @@
 .stat-label-luck { animation-delay: 0.5s; }
 .stat-label-multiplier { animation-delay: 1s; }
 .stat-label-discount { animation-delay: 1.5s; }
+.stat-label-bits { animation-delay: 0.3s; }
 
 /* Responsive Design */
 @media (max-width: 768px) {

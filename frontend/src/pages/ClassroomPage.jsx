@@ -135,154 +135,157 @@ export default function ClassroomPage() {
   }, []);
 
   return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold text-center">Classroom Dashboard</h1>
+    <div className="min-h-screen flex flex-col p-6">
+      <div className="flex-1 space-y-6">
+        <h1 className="text-2xl font-bold text-center">Classroom Dashboard</h1>
 
-      {role === 'teacher' && (
-        <div className="text-center my-4">
-          <button
-            className="btn btn-neutral"
-            onClick={() => navigate('/classrooms/archived')}
-          >
-            Archived Classrooms
-          </button>
-        </div>
-      )}
-
-      {role === 'teacher' && (
-        <div className="space-y-4 bg-base-100 p-4 rounded shadow">
-          <div>
-            <label htmlFor="name" className="block text-sm font-medium mb-1">
-              Classroom Name
-            </label>
-            <input
-              id="name"
-              type="text"
-              placeholder="Enter classroom name"
-              className="input input-bordered w-full"
-              value={classroomName}
-              onChange={e => setClassroomName(e.target.value)}
-            />
+        {role === 'teacher' && (
+          <div className="text-center my-4">
+            <button
+              className="btn btn-neutral"
+              onClick={() => navigate('/classrooms/archived')}
+            >
+              Archived Classrooms
+            </button>
           </div>
+        )}
 
-          <div>
-            <label htmlFor="code" className="block text-sm font-medium mb-1">
-              Classroom Code
-            </label>
-            <input
-              id="code"
-              type="text"
-              placeholder="Enter classroom code"
-              className="input input-bordered w-full"
-              value={classroomCode}
-              onChange={e => setClassroomCode(e.target.value)}
-            />
-          </div>
-
-          <div className="flex flex-col md:flex-row md:items-center gap-4">
-            <input
-              type="color"
-              value={color}
-              onChange={e => setColor(e.target.value)}
-              className="w-16 h-12 p-0 border rounded self-start"
-            />
-            <div className="flex-1 space-y-2">
-              <div className="flex items-center space-x-4">
-                <input
-                  type="file"
-                  name="backgroundImage"
-                  accept="image/*"
-                  onChange={e => setBackgroundFile(e.target.files[0])}
-                  className="file-input file-input-bordered w-full max-w-xs"
-                />
-                {backgroundFile && (
-                  <img
-                    src={URL.createObjectURL(backgroundFile)}
-                    alt="Preview"
-                    className="w-16 h-16 object-cover rounded border"
-                  />
-                )}
-              </div>
-              <p className="text-sm text-gray-500">
-                Valid image formats: .jpg, .jpeg, .png, .gif, .bmp, .webp, .svg; max size: 10 MB.
-              </p>
+        {role === 'teacher' && (
+          <div className="space-y-4 bg-base-100 p-4 rounded shadow">
+            <div>
+              <label htmlFor="name" className="block text-sm font-medium mb-1">
+                Classroom Name
+              </label>
+              <input
+                id="name"
+                type="text"
+                placeholder="Enter classroom name"
+                className="input input-bordered w-full"
+                value={classroomName}
+                onChange={e => setClassroomName(e.target.value)}
+              />
             </div>
-          </div>
 
-          <button
-            className="btn btn-success w-full"
-            onClick={handleCreateClassroom}
-          >
-            Create Classroom
-          </button>
-        </div>
-      )}
+            <div>
+              <label htmlFor="code" className="block text-sm font-medium mb-1">
+                Classroom Code
+              </label>
+              <input
+                id="code"
+                type="text"
+                placeholder="Enter classroom code"
+                className="input input-bordered w-full"
+                value={classroomCode}
+                onChange={e => setClassroomCode(e.target.value)}
+              />
+            </div>
 
-      {(role === 'student' || role === 'admin') && (
-        <div className="space-y-2">
-          <input
-            type="text"
-            placeholder="Classroom Code"
-            className="input input-bordered w-full"
-            value={joinClassroomCode}
-            onChange={e => setJoinClassroomCode(e.target.value)}
-          />
-          <button
-            className="btn btn-success w-full"
-            onClick={handleJoinClassroom}
-          >
-            Join Classroom
-          </button>
-        </div>
-      )}
-
-      <div>
-        <h2 className="text-xl font-semibold mt-6">Classrooms</h2>
-        <div className="grid gap-4 md:grid-cols-2 mt-2">
-          {loading ? (
-            Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="card bg-base-200 shadow">
-                <div className="card-body">
-                  <div className="skeleton h-6 w-1/2 mb-2"></div>
-                  <div className="skeleton h-4 w-1/3"></div>
+            <div className="flex flex-col md:flex-row md:items-center gap-4">
+              <input
+                type="color"
+                value={color}
+                onChange={e => setColor(e.target.value)}
+                className="w-16 h-12 p-0 border rounded self-start"
+              />
+              <div className="flex-1 space-y-2">
+                <div className="flex items-center space-x-4">
+                  <input
+                    type="file"
+                    name="backgroundImage"
+                    accept="image/*"
+                    onChange={e => setBackgroundFile(e.target.files[0])}
+                    className="file-input file-input-bordered w-full max-w-xs"
+                  />
+                  {backgroundFile && (
+                    <img
+                      src={URL.createObjectURL(backgroundFile)}
+                      alt="Preview"
+                      className="w-16 h-16 object-cover rounded border"
+                    />
+                  )}
                 </div>
+                <p className="text-sm text-gray-500">
+                  Valid image formats: .jpg, .jpeg, .png, .gif, .bmp, .webp, .svg; max size: 10 MB.
+                </p>
               </div>
-            ))
-          ) : (
-            classrooms.map(c => {
-              const style = {};
-              let textClass = 'text-black';
-              if (c.color && c.color.toLowerCase() !== '#ffffff') {
-                style.backgroundColor = c.color;
-                textClass = 'text-white';
-              }
-              if (c.backgroundImage) {
-                const imageUrl = c.backgroundImage.startsWith('http')
-                  ? c.backgroundImage
-                  : `${BACKEND_URL}${c.backgroundImage}`;
-                style.backgroundImage = `url(${imageUrl})`;
-                style.backgroundSize = 'cover';
-                style.backgroundPosition = 'center';
-                textClass = 'text-white';
-              }
-              return (
-                <div
-                  key={c._id}
-                  className="card bg-base-200 shadow hover:shadow-lg cursor-pointer transition"
-                  style={style}
-                  onClick={() => handleCardClick(c._id)}
-                >
+            </div>
+
+            <button
+              className="btn btn-success w-full"
+              onClick={handleCreateClassroom}
+            >
+              Create Classroom
+            </button>
+          </div>
+        )}
+
+        {(role === 'student' || role === 'admin') && (
+          <div className="space-y-2">
+            <input
+              type="text"
+              placeholder="Classroom Code"
+              className="input input-bordered w-full"
+              value={joinClassroomCode}
+              onChange={e => setJoinClassroomCode(e.target.value)}
+            />
+            <button
+              className="btn btn-success w-full"
+              onClick={handleJoinClassroom}
+            >
+              Join Classroom
+            </button>
+          </div>
+        )}
+
+        <div>
+          <h2 className="text-xl font-semibold mt-6">Classrooms</h2>
+          <div className="grid gap-4 md:grid-cols-2 mt-2">
+            {loading ? (
+              Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="card bg-base-200 shadow">
                   <div className="card-body">
-                    <h3 className={`card-title ${textClass}`}>{c.name}</h3>
-                    <p className={textClass}>Code: {c.code}</p>
+                    <div className="skeleton h-6 w-1/2 mb-2"></div>
+                    <div className="skeleton h-4 w-1/3"></div>
                   </div>
                 </div>
-              );
-            })
-          )}
+              ))
+            ) : (
+              classrooms.map(c => {
+                const style = {};
+                let textClass = 'text-black';
+                if (c.color && c.color.toLowerCase() !== '#ffffff') {
+                  style.backgroundColor = c.color;
+                  textClass = 'text-white';
+                }
+                if (c.backgroundImage) {
+                  const imageUrl = c.backgroundImage.startsWith('http')
+                    ? c.backgroundImage
+                    : `${BACKEND_URL}${c.backgroundImage}`;
+                  style.backgroundImage = `url(${imageUrl})`;
+                  style.backgroundSize = 'cover';
+                  style.backgroundPosition = 'center';
+                  textClass = 'text-white';
+                }
+                return (
+                  <div
+                    key={c._id}
+                    className="card bg-base-200 shadow hover:shadow-lg cursor-pointer transition"
+                    style={style}
+                    onClick={() => handleCardClick(c._id)}
+                  >
+                    <div className="card-body">
+                      <h3 className={`card-title ${textClass}`}>{c.name}</h3>
+                      <p className={textClass}>Code: {c.code}</p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
       </div>
+
       <Footer />
     </div>
-  )
+  );
 };

@@ -486,7 +486,7 @@ export default function Profile() {
                       )}
 
                       {/* show X overlay only when editing and there is a photo/preview to remove (hide after removal) */}
-                      {editing && !removeAvatar && (avatarFile || profile?.avatar || (imageSource === 'url' && imageUrl.trim())) && (
+                      {editing && !removeAvatar && (avatarFile || profile?.avatar || profile?.profileImage || (imageSource === 'url' && imageUrl.trim())) && (
                         <button
                           type="button"
                           onClick={handleRemoveAvatarToggle}
@@ -501,28 +501,39 @@ export default function Profile() {
 
                     {editing && (
                       <div className="ml-4 flex flex-col gap-2">
-                        <div className="flex gap-2 items-center">
-                          <label className="cursor-pointer flex items-center gap-2">
-                            <input
-                              type="radio"
-                              name="imageSource"
-                              value="file"
-                              checked={imageSource === 'file'}
-                              onChange={() => setImageSource('file')}
-                            />
-                            <span className="text-sm">Upload</span>
-                          </label>
-
-                          <label className="cursor-pointer flex items-center gap-2">
-                            <input
-                              type="radio"
-                              name="imageSource"
-                              value="url"
-                              checked={imageSource === 'url'}
-                              onChange={() => setImageSource('url')}
-                            />
-                            <span className="text-sm">Use image URL</span>
-                          </label>
+                        <div className="flex items-center">
+                          <div
+                            role="tablist"
+                            aria-label="Avatar source"
+                            className="inline-flex rounded-full bg-gray-200 p-1"
+                          >
+                            <button
+                              type="button"
+                              role="tab"
+                              aria-pressed={imageSource === 'file'}
+                              onClick={() => setImageSource('file')}
+                              className={`px-3 py-1 rounded-full text-sm transition ${
+                                imageSource === 'file'
+                                  ? 'bg-white shadow text-gray-900'
+                                  : 'text-gray-600 hover:bg-gray-100'
+                              }`}
+                            >
+                              Upload
+                            </button>
+                            <button
+                              type="button"
+                              role="tab"
+                              aria-pressed={imageSource === 'url'}
+                              onClick={() => setImageSource('url')}
+                              className={`ml-1 px-3 py-1 rounded-full text-sm transition ${
+                                imageSource === 'url'
+                                  ? 'bg-white shadow text-gray-900'
+                                  : 'text-gray-600 hover:bg-gray-100'
+                              }`}
+                            >
+                              Use image URL
+                            </button>
+                          </div>
                         </div>
 
                         {imageSource === 'file' ? (
