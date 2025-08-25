@@ -19,21 +19,22 @@ router.get('/student/:id', ensureAuthenticated, async (req, res) => {
 
     const items = await Item.find({ owner: userId });
 
-    const attackCount = items.filter((item) =>
+    const attackItemCount = items.filter((item) =>
       ['halveBits', 'stealBits'].includes(item.primaryEffect)
     ).length;
 
     const passiveItems = items.filter((item) => item.category === 'Passive');
 
-    // Format stats with 'x' prefix for multipliers
+    // Return actual user stats (updated by challenges and items)
     return res.json({
       student: {
         name: `${user.firstName} ${user.lastName}`,
         email: user.email,
       },
       shieldActive: user.shieldActive,
+      shieldCount: user.shieldCount || 0,
       discountShop: user.discountShop ? 20 : 0, // Return as number
-      attackPower: attackCount,
+      attackPower: attackItemCount,
       luck: user.passiveAttributes?.luck || 1,
       multiplier: user.passiveAttributes?.multiplier || 1,
       groupMultiplier: user.passiveAttributes?.groupMultiplier || 1,

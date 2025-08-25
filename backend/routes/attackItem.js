@@ -22,8 +22,11 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
 
     // Check if target has active shield
     if (targetUser.shieldActive) {
-      // Deactivate the shield on user
-      targetUser.shieldActive = false;
+      // Consume one shield
+      targetUser.shieldCount = Math.max(0, (targetUser.shieldCount || 0) - 1);
+      if (targetUser.shieldCount === 0) {
+        targetUser.shieldActive = false;
+      }
       await targetUser.save();
 
       // Find and DELETE the shield item (not just deactivate)
