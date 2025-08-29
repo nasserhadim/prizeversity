@@ -14,10 +14,7 @@ router.post('/activate/:itemId', ensureAuthenticated, async (req, res) => {
       return res.status(404).json({ error: 'Item not found' });
     }
 
-    // Check if user already has an active shield
-    if (req.user.shieldActive) {
-      return res.status(400).json({ error: 'You already have an active shield' });
-    }
+    // Allow stacking shields
 
     // Deactivate any other active defense items (just in case)
     await Item.updateMany(
@@ -30,6 +27,7 @@ router.post('/activate/:itemId', ensureAuthenticated, async (req, res) => {
     await item.save();
     
     // Update user's shield status
+    req.user.shieldCount = (req.user.shieldCount || 0) + 1;
     req.user.shieldActive = true;
     await req.user.save();
 

@@ -4,7 +4,7 @@ import { useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { ThemeContext } from '../context/ThemeContext';
 import { useCart } from '../context/CartContext';
-import { ShoppingCart, Menu, X } from 'lucide-react';
+import { ShoppingCart, Menu, X, Sun, Moon } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import NotificationBell from './NotificationBell';
 import Logo from './Logo'; // Import the new Logo component
@@ -21,6 +21,7 @@ import {
   Wallet,
   UserRound,
   Trophy,
+  Shield,
   Settings,
   HelpCircle,
   Replace,
@@ -41,7 +42,6 @@ const Navbar = () => {
   // Handle switching from teacher to student view
   const handleSwitchToStudent = () => {
     setPersona({ ...user, role: 'student' });
-    // If currently in a classroom route, stay in the classroom context
     const match = location.pathname.match(/^\/classroom\/([^\/]+)/);
     if (match) {
       navigate(`/classroom/${match[1]}/news`);
@@ -52,9 +52,7 @@ const Navbar = () => {
 
   // Handle switching from student back to original teacher
   const handleSwitchToTeacher = () => {
-    // Go back to the original teacher user
     setPersona(originalUser);
-
     const match = location.pathname.match(/^\/classroom\/([^\/]+)/);
     if (match) {
       navigate(`/classroom/${match[1]}/news`);
@@ -275,12 +273,33 @@ const Navbar = () => {
                   <span>Leaderboard</span>
                 </Link>
               </li>
+              <li>
+                <div className="tooltip tooltip-bottom" data-tip="Challenge">
+                  <Link
+                    to={`/classroom/${classroomId}/challenge`}
+                    className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/challenge`) ? 'text-green-500' : ''}`}
+                  >
+                    <Shield size={18} />
+                    <span className="hidden lg:inline">Challenge</span>
+                  </Link>
+                </div>
+              </li>
             </>
           )}
         </ul>
 
         {/* Desktop Right Side */}
         <div className="hidden lg:flex items-center gap-4">
+          {/* Theme toggle (desktop) */}
+          <button
+            onClick={toggleTheme}
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            aria-label="Toggle theme"
+            className="btn btn-ghost btn-circle"
+          >
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+
           {/* Wallet Balance */}
           {insideClassroom && (
             <Link to={`/classroom/${classroomId}/wallet`} className="flex items-center gap-2 hover:text-gray-300">
@@ -611,6 +630,18 @@ const Navbar = () => {
                     <span>Switch to Teacher Profile</span>
                   </button>
                 )}
+                {/* Theme toggle (mobile) */}
+                <button
+                  onClick={() => {
+                    toggleTheme();
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="flex items-center gap-3 p-3 rounded-lg text-base-content hover:bg-base-200 w-full text-left"
+                  title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                >
+                  {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+                  <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+                </button>
                 <button
                   onClick={() => {
                     logout();
