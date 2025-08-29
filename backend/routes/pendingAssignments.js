@@ -41,10 +41,13 @@ router.patch('/:id/approve', ensureAuthenticated, async (req, res) => {
   const User = require('../models/User');
   const student = await User.findById(pa.student);
   student.balance += pa.amount;
+  // When approving a pending assignment, record the classroom on the student's transaction
   student.transactions.push({
     amount: pa.amount,
     description: pa.description,
-    assignedBy: pa.requestedBy
+    assignedBy: pa.requestedBy,
+    classroom: pa.classroom || null, // <- ensure classroom included
+    createdAt: new Date()
   });
   await student.save();
 

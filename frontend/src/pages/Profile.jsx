@@ -60,7 +60,7 @@ export default function Profile() {
   const [imageUrl, setImageUrl] = useState(''); // for URL uploads
   const MAX_AVATAR_BYTES = 5 * 1024 * 1024; // 5 MB
 
-  const { id: profileId } = useParams();
+  const { id: profileId, classroomId } = useParams(); // classroomId may be undefined outside classroom routes
 
   // Backend URL base
   const BACKEND_URL = `${API_BASE}`;
@@ -126,7 +126,10 @@ export default function Profile() {
   useEffect(() => {
       const fetchStats = async () => {
           try {
-              const res = await axios.get(`/api/profile/student/${profileId}/stats`, {
+              const url = classroomId
+                ? `/api/profile/student/${profileId}/stats?classroomId=${classroomId}`
+                : `/api/profile/student/${profileId}/stats`;
+              const res = await axios.get(url, {
                   withCredentials: true
               });
               setStats(res.data);
@@ -135,7 +138,7 @@ export default function Profile() {
           }
       };
       if (profileId) fetchStats();
-  }, [profileId]);
+  }, [profileId, classroomId]);
 
   // compute filtered + sorted list for purchase history (same rules as OrderHistory)
   // classroom options for filter dropdown (derived from orders)

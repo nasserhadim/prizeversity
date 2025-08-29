@@ -26,6 +26,4 @@ const ClassroomSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-ClassroomSchema.index({ code: 1 }, { unique: true });
-
 module.exports = mongoose.model('Classroom', ClassroomSchema);
