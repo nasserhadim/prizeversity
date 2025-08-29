@@ -13,6 +13,8 @@ const TransactionSchema = new mongoose.Schema({
   amount: { type: Number, required: true },
   description: { type: String, required: true },
   assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  // <-- add classroom reference so transactions can be scoped per classroom
+  classroom: { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom', default: null },
   // Embedded item summaries for purchase transactions (so wallet can render thumbnails/effects)
   items: [{
     id: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' },
@@ -50,8 +52,11 @@ const UserSchema = new mongoose.Schema({
   oauthLastName: { type: String },  // Temporary storage for OAuth last name
   role: { type: String, enum: ['admin', 'teacher', 'student']/*, default: 'student' */ },
   balance: { type: Number, default: 0, min: 0 },
-  isFrozen: { type: Boolean, default: false },
-  classrooms: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Classroom' }],
+  // Per-classroom balances (new)
+  classroomBalances: [{
+    classroom: { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom' },
+    balance: { type: Number, default: 0, min: 0 }
+  }],
   groups: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Group' }],
   transactions: [TransactionSchema],
   isBanned: { type: Boolean, default: false },

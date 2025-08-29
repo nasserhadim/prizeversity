@@ -55,6 +55,10 @@ export default function ClassroomPage() {
       toast.error('Please enter both Classroom Name and Code!');
       return;
     }
+    if (classroomCode.length < 5 || classroomCode.length > 6) {
+      toast.error('Classroom code must be 5-6 characters long!');
+      return;
+    }
 
     // Build multipart form data for upload (including optional background image)
     const formData = new FormData();

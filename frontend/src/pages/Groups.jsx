@@ -168,8 +168,13 @@ const Groups = () => {
       toast.success('GroupSet created successfully');
       resetGroupSetForm();
       fetchGroupSets();
-    } catch {
-      toast.error('Failed to create group set');
+    } catch (err) {
+      const msg = err.response?.data?.error;
+      if (msg === 'A GroupSet with this name already exists in this classroom') {
+        toast.error('GroupSet name already exists, choose a new one');
+      } else {
+        toast.error('Failed to create group set');
+      }
     }
   };
 
