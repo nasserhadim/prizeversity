@@ -36,13 +36,12 @@ router.post(
     if (!name || !code) {
       return res.status(400).json({ error: 'Classroom name and code are required' });
     }
+    if (code.length < 5) {
+      return res.status(400).json({ error: 'Classroom code must be at least 5 characters long' });
+    }
 
     try {
-      const existing = await Classroom.findOne({
-        code,
-        archived: false,
-        teacher: req.user._id
-      });
+      const existing = await Classroom.findOne({ code, archived: false });
       if (existing) {
         return res.status(400).json({ error: 'A classroom with this code already exists' });
       }
@@ -55,10 +54,22 @@ router.post(
         color: color || undefined,
         backgroundImage: backgroundImage || undefined
       });
-      await classroom.save();
-      res.status(201).json(classroom);
+      try {
+        await classroom.save();
+        res.status(201).json(classroom);
+      } catch (err) {
+        console.error('[Create Classroom] save error:', err);
+        // Add this improved error handling:
+        if (err.code === 11000) {
+          return res.status(400).json({ error: 'A classroom with this code already exists. Please use a different code.' });
+        }
+        if (err.name === 'ValidationError') {
+          return res.status(400).json({ error: err.message });
+        }
+        res.status(500).json({ error: 'Server error creating classroom' });
+      }
     } catch (err) {
-      console.error('[Create Classroom] save error:', err);
+      console.error('[Create Classroom] error:', err);
       res.status(500).json({ error: 'Server error creating classroom' });
     }
   }
