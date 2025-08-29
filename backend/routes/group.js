@@ -165,6 +165,11 @@ router.delete('/groupset/:id', ensureAuthenticated, async (req, res) => {
       req.app.get('io').to(`user-${memberId}`).emit('notification', populatedNotification);
     }
 
+    // Delete all associated groups first
+    if (groupSet.groups.length > 0) {
+      await Group.deleteMany({ _id: { $in: groupSet.groups } });
+    }
+
     await GroupSet.deleteOne({ _id: req.params.id });
 
     // Emit deletion event to all classroom members
@@ -1389,9 +1394,10 @@ router.delete('/classroom/:classroomId/groupsets/bulk', ensureAuthenticated, asy
     const allGroupIds = [];
     const memberIds = new Set();
     for (const gs of groupSets) {
-      gs.groups.forEach(gid => allGroupIds.push(gid.toString()));
+      // gs.groups is populated as objects, so use gid._id
+      gs.groups.forEach(gid => allGroupIds.push(gid._id.toString()));
       // load each group members to collect user ids
-      const groups = await Group.find({ _id: { $in: gs.groups } }).populate('members._id');
+      const groups = await Group.find({ _id: { $in: gs.groups.map(g => g._id) } }).populate('members._id');
       groups.forEach(g => {
         g.members.forEach(m => memberIds.add(m._id._id.toString()));
       });
