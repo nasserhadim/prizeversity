@@ -182,8 +182,8 @@ const People = () => {
   };
 
   return (
-    <div className="flex flex-col min-h-[calc(100vh-5rem)] p-6 max-w-5xl mx-auto">
-      <div className="flex-grow">
+    <div className="flex flex-col min-h-screen">
+      <main className="flex-grow p-6 w-full max-w-5xl mx-auto">
         <div className="mb-6">
           <h1 className="text-3xl font-bold">
             {classroom ? `${classroom.name} People` : 'People'}
@@ -214,8 +214,8 @@ const People = () => {
         </div>
 {/* ─────────────── Settings TAB ─────────────── */}
         {tab === 'settings' && (user?.role || '').toLowerCase() === 'teacher' && (
-          <div className="max-w-md space-y-6">
-            <h2 className="text-2xl font-semibold">Classroom Settings</h2>
+          <div className="w-full space-y-6 min-w-0">
+             <h2 className="text-2xl font-semibold">Classroom Settings</h2>
 
             <label className="form-control w-full">
               <span className="label-text mb-2 font-medium">
@@ -381,24 +381,24 @@ const People = () => {
         )}
 
         {tab === 'groups' && (
-          <div className="space-y-6">
+          <div className="space-y-6 w-full min-w-0">
             {groupSets.length === 0 ? (
               <p>No groups available yet.</p>
             ) : (
               groupSets.map((gs) => (
-                <div key={gs._id}>
+                <div key={gs._id} className="w-full min-w-0">
                   <h2 className="text-xl font-semibold">{gs.name}</h2>
-                  <div className="ml-4 mt-2 space-y-4">
+                  <div className="mt-2 grid grid-cols-1 gap-4 w-full">
                     {gs.groups.map((group) => (
-                      <div key={group._id} className="border p-4 rounded">
-                        <h3 className="text-lg font-bold">{group.name}</h3>
-                        {group.members.length === 0 ? (
-                          <p className="text-gray-500">No members</p>
+                      <div key={group._id} className="border p-4 rounded w-full min-w-0 bg-base-100">
+                         <h3 className="text-lg font-bold">{group.name}</h3>
+                         {group.members.length === 0 ? (
+                           <p className="text-gray-500">No members</p>
                         ) : (
                           <ul className="list-disc ml-5 space-y-1">
                             {group.members.map((m) => (
-                              <li key={m._id._id} className="flex justify-between items-center">
-                                <span>
+                              <li key={m._id._id} className="flex justify-between items-center w-full">
+                                 <span>
                                   {m._id.firstName || m._id.lastName
                                     ? `${m._id.firstName || ''} ${m._id.lastName || ''}`.trim()
                                     : m._id.name || m._id.email}
@@ -414,17 +414,17 @@ const People = () => {
                           </ul>
                         )}
                       </div>
-                    ))}
+                     ))}
                   </div>
                 </div>
               ))
-            )}
+             )}
           </div>
         )}
-      </div>
-      <Footer />
-    </div>
-  );
-};
-
-export default People;
+      </main>
+       <Footer />
+     </div>
+   );
+ };
+ 
+ export default People;

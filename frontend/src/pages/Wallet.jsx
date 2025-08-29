@@ -1,15 +1,19 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
+import { useParams } from 'react-router-dom'; // <-- add this
 import { useAuth } from '../context/AuthContext'; 
 import BulkBalanceEditor from '../components/BulkBalanceEditor';
 import TransactionList, { inferType, TYPES } from '../components/TransactionList';
-import { useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import Footer from '../components/Footer';
 
 const Wallet = () => {
   const { user } = useAuth();
-  const { id: classroomId } = useParams();
+  const { id: classroomId } = useParams(); // ensure we read the classroom id from the route
+
+  // Default tab: teachers/admins should land on Transactions so they see classroom txs immediately
+  const defaultTab = (user && ['teacher','admin'].includes(user.role)) ? 'transactions' : 'edit';
+  const [activeTab, setActiveTab] = useState(defaultTab);
   const [transactions, setTransactions] = useState([]);
   const [classroom, setClassroom] = useState(null);
   const [balance, setBalance] = useState(0);
@@ -17,7 +21,6 @@ const Wallet = () => {
   const [selectedRecipientId, setSelectedRecipientId] = useState(''); 
   const [transferAmount, setTransferAmount] = useState('');
   const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState('edit');    
   const [allTx, setAllTx] = useState([]);
   const [studentFilter, setStudentFilter] = useState('');  
   const [studentList, setStudentList] = useState([]);
@@ -60,47 +63,83 @@ const Wallet = () => {
   // On user or initial load, fetch wallet info and students
     useEffect(() => {
    if (!user) return;
+    // always fetch classroom info & own wallet
     fetchClassroom();
     fetchWallet();
-    fetchUsers();                   
-    // If teacher or admin, fetch all transactions for the classroom
-  if (['teacher', 'admin'].includes(user.role)) {
-    fetchAllTx();
-  }
+    fetchUsers();
+
+    const role = (user.role || '').toString().toLowerCase();
+    if ((role === 'teacher' || role === 'admin') && classroomId) {
+      // explicit call so teachers see classroom transactions reliably
+      fetchAllTx();
+    }
   }, [user, classroomId]);
 
-  
-// Fetch all transactions optionally filtered by student ID
+  // Fetch transactions whenever teacher/admin switches to Transactions tab (or on initial load)
+  useEffect(() => {
+    if (!user) return;
+    const role = (user.role || '').toString().toLowerCase();
+    if ((role === 'teacher' || role === 'admin') && activeTab === 'transactions' && classroomId) {
+      fetchAllTx(studentFilter);
+    }
+  }, [activeTab, user, classroomId, studentFilter]);
+
+  // ensure fetchAllTx includes classroomId
   const fetchAllTx = async (studentId = '') => {
-    const url = studentId ? `/api/wallet/transactions/all?studentId=${studentId}` : '/api/wallet/transactions/all';
-    const res = await axios.get(url, { withCredentials: true });
-    setAllTx(res.data);          
+    try {
+      const params = new URLSearchParams();
+      if (classroomId) params.append('classroomId', classroomId);
+      if (studentId) params.append('studentId', studentId);
+      const url = params.toString() ? `/api/wallet/transactions/all?${params.toString()}` : '/api/wallet/transactions/all';
+      const res = await axios.get(url, { withCredentials: true });
+      console.debug('fetchAllTx url:', url, 'status:', res.status, 'count:', Array.isArray(res.data) ? res.data.length : 0);
+      setAllTx(res.data);
+    } catch (err) {
+      console.error('fetchAllTx error:', err.response?.status, err.response?.data || err.message);
+      setAllTx([]);
+    }
   };
 
-// Compute all distinct transaction types present in allTx, memoized
+  // Compute all distinct transaction types present in allTx, memoized
   const txTypeOptions = useMemo(() => {
     const set = new Set(allTx.map(inferType).filter(Boolean));
     return ['all', ...Array.from(set)];    
   }, [allTx]);
 
   // Fetch the wallet data for current user (student) or transactions for teacher/admin
-    const fetchWallet = async () => {
-      try {
-    const { data } = await axios.get('/api/wallet/transactions', { withCredentials: true });
-   
-     const sorted = data
-       .slice()
-       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-     setTransactions(sorted);
+const fetchWallet = async () => {
+  try {
+    const url = classroomId ? `/api/wallet/transactions?classroomId=${classroomId}` : '/api/wallet/transactions';
+    const { data } = await axios.get(url, { withCredentials: true });
 
-        if (user.role === 'student') {
-          const userRes = await axios.get(`/api/users/${user._id}`, { withCredentials: true });
-          setBalance(userRes.data.balance);
-        }
-      } catch (err) {
-        console.error('Failed to fetch wallet', err);
-      }
-    };
+    // DEBUG: print transactions returned by backend to browser console for inspection
+    console.log('wallet transactions response:', data);
+
+    const sorted = data
+      .slice()
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+   // Deduplicate transactions by a stable key:
+   // prefer the transaction _id (if present), otherwise fallback to orderId,
+   // otherwise use description+amount+timestamp (stable enough for de-duping).
+   const unique = (() => {
+     const seen = new Map();
+     for (const tx of sorted) {
+       const ts = tx._id || tx.orderId || `${tx.description || ''}::${tx.amount}::${new Date(tx.date || tx.createdAt || Date.now()).toISOString()}`;
+       if (!seen.has(ts)) seen.set(ts, tx);
+     }
+     return Array.from(seen.values());
+   })();
+
+  setTransactions(unique); 
+  if (user.role === 'student') {
+    const userRes = await axios.get(`/api/users/${user._id}`, { withCredentials: true });
+    setBalance(userRes.data.balance);
+  }
+} catch (err) {
+  console.error('Failed to fetch wallet', err);
+}
+};
     // Calculate effective balance considering multiplier passive attribute
     const getEffectiveBalance = (user) => {
       const baseBalance = user.balance || 0;

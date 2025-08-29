@@ -2,6 +2,7 @@ import React from 'react';
 import toast from 'react-hot-toast';
 import { Image as ImageIcon, Copy as CopyIcon } from 'lucide-react';
 import { getEffectDescription, splitDescriptionEffect } from '../utils/itemHelpers';
+import { resolveImageSrc } from '../utils/image';
 
 export default function OrderCard({ order }) {
   if (!order) return null;
@@ -71,11 +72,15 @@ export default function OrderCard({ order }) {
             return (
               <div key={i._id || i.id} className="flex items-start gap-3 border-t pt-3">
                 <div className="w-12 h-12 bg-base-200 rounded overflow-hidden flex items-center justify-center flex-shrink-0">
-                  {i.image ? (
-                    <img src={i.image} alt={i.name} className="object-cover w-full h-full" loading="lazy" />
-                  ) : (
-                    <ImageIcon className="w-6 h-6 text-base-content/50" />
-                  )}
+                  <img
+                    src={resolveImageSrc(i.image)}
+                    alt={i.name}
+                    className="object-cover w-full h-full"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = '/images/item-placeholder.svg';
+                    }}
+                  />
                 </div>
 
                 <div className="flex-1 min-w-0">

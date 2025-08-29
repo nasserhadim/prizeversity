@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -8,6 +8,8 @@ import SiphonModal from '../components/SiphonModal';
 import GroupMultiplierControl from '../components/GroupMultiplierControl';
 import { Lock } from 'lucide-react';
 import Footer from '../components/Footer';
+import { API_BASE } from '../config/api'; // add
+import { resolveImageSrc, resolveGroupSetSrc, isPlaceholderGroupSetImage } from '../utils/image'; // OR import the helper
 
 const Groups = () => {
   const { id } = useParams();
@@ -21,6 +23,10 @@ const Groups = () => {
   const [groupSetJoinApproval, setGroupSetJoinApproval] = useState(false);
   const [groupSetMaxMembers, setGroupSetMaxMembers] = useState('');
   const [groupSetImage, setGroupSetImage] = useState('');
+  const [groupSetImageFile, setGroupSetImageFile] = useState(null); // ADD (already present)
+  const [groupSetImageSource, setGroupSetImageSource] = useState('url'); // ADD (already present)
+  const [groupSetImageUrl, setGroupSetImageUrl] = useState(''); // ADD (already present)
+  const [groupSetImageRemoved, setGroupSetImageRemoved] = useState(false); // ADD
   const [groupName, setGroupName] = useState('');
   const [groupCount, setGroupCount] = useState(1);
   const [memberSearches, setMemberSearches] = useState({});
@@ -41,6 +47,58 @@ const Groups = () => {
   const [newGroupMaxMembers, setNewGroupMaxMembers] = useState('');
   const [selectedGroups, setSelectedGroups] = useState({});
   const [confirmBulkDeleteGroups, setConfirmBulkDeleteGroups] = useState(null);
+  const [showEditGroupSetModal, setShowEditGroupSetModal] = useState(false); // NEW
+  const [confirmDeleteAllGroupSets, setConfirmDeleteAllGroupSets] = useState(null); // modal payload
+  const groupSetFileInputRef = useRef(null); // ADD: clear native file input after submit
+  const [selectedGroupSets, setSelectedGroupSets] = useState([]); // track selected GroupSet ids
+
+  // helper to toggle selection for a single GroupSet id
+  const toggleGroupSetSelection = (groupSetId) => {
+    setSelectedGroupSets(prev =>
+      prev.includes(groupSetId) ? prev.filter(id => id !== groupSetId) : [...prev, groupSetId]
+    );
+  };
+
+  // optional helper to select/deselect all (call where needed)
+  // Toggle select/deselect all GroupSets (uses current groupSets)
+  const handleSelectAllGroupSets = () => {
+    if (!groupSets || groupSets.length === 0) {
+      setSelectedGroupSets([]);
+      return;
+    }
+    if (selectedGroupSets.length === groupSets.length) {
+      setSelectedGroupSets([]);
+    } else {
+      setSelectedGroupSets(groupSets.map(gs => gs._id));
+    }
+  };
+
+  // Open confirm modal for currently selected GroupSets
+  const openConfirmDeleteSelectedGroupSets = () => {
+    if (!selectedGroupSets || selectedGroupSets.length === 0) {
+      return toast.error('No GroupSets selected');
+    }
+    const names = (groupSets || [])
+      .filter(gs => selectedGroupSets.includes(gs._id))
+      .map(gs => gs.name);
+    setConfirmDeleteAllGroupSets({ ids: [...selectedGroupSets], names });
+  };
+
+  // Execute bulk delete of GroupSets (called from confirm modal)
+  const handleDeleteAllGroupSets = async () => {
+    if (!confirmDeleteAllGroupSets) return;
+    try {
+      await axios.delete(`/api/group/classroom/${id}/groupsets/bulk`, {
+        data: { groupSetIds: confirmDeleteAllGroupSets.ids.map(String) }
+      });
+      toast.success(`${confirmDeleteAllGroupSets.ids.length} GroupSet(s) deleted`);
+      setConfirmDeleteAllGroupSets(null);
+      setSelectedGroupSets([]);
+      fetchGroupSets();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to delete GroupSets');
+    }
+  };
 
   // Fetch classroom details
   const fetchClassroom = async () => {
@@ -87,21 +145,36 @@ const Groups = () => {
   const handleCreateGroupSet = async () => {
     if (!groupSetName.trim()) return toast.error('GroupSet name is required');
     if (groupSetMaxMembers < 0) return toast.error('Max members cannot be negative');
-
     try {
-      await axios.post('/api/group/groupset/create', {
-        name: groupSetName,
-        classroomId: id,
-        selfSignup: groupSetSelfSignup,
-        joinApproval: groupSetJoinApproval,
-        maxMembers: Math.max(0, groupSetMaxMembers || 0),
-        image: groupSetImage,
-      });
+      if (groupSetImageSource === 'file' && groupSetImageFile) {
+        const fd = new FormData();
+        fd.append('name', groupSetName);
+        fd.append('classroomId', id);
+        fd.append('selfSignup', groupSetSelfSignup);
+        fd.append('joinApproval', groupSetJoinApproval);
+        fd.append('maxMembers', Math.max(0, groupSetMaxMembers || 0));
+        fd.append('image', groupSetImageFile);
+        await axios.post('/api/group/groupset/create', fd, { headers: { 'Content-Type': 'multipart/form-data' }});
+      } else {
+        await axios.post('/api/group/groupset/create', {
+          name: groupSetName,
+          classroomId: id,
+          selfSignup: groupSetSelfSignup,
+          joinApproval: groupSetJoinApproval,
+          maxMembers: Math.max(0, groupSetMaxMembers || 0),
+          image: groupSetImageSource === 'url' ? groupSetImageUrl : undefined,
+        });
+      }
       toast.success('GroupSet created successfully');
       resetGroupSetForm();
       fetchGroupSets();
-    } catch {
-      toast.error('Failed to create group set');
+    } catch (err) {
+      const msg = err.response?.data?.error;
+      if (msg === 'A GroupSet with this name already exists in this classroom') {
+        toast.error('GroupSet name already exists, choose a new one');
+      } else {
+        toast.error('Failed to create group set');
+      }
     }
   };
 
@@ -113,6 +186,10 @@ const Groups = () => {
     setGroupSetJoinApproval(false);
     setGroupSetMaxMembers('');
     setGroupSetImage('');
+    setGroupSetImageFile(null); // ADD
+    setGroupSetImageSource('url'); // ADD
+    setGroupSetImageUrl(''); // ADD
+    if (groupSetFileInputRef.current) groupSetFileInputRef.current.value = ''; // clear native file input on reset
   };
 
   // iT will edit the Group set
@@ -123,27 +200,55 @@ const Groups = () => {
     setGroupSetJoinApproval(gs.joinApproval);
     setGroupSetMaxMembers(gs.maxMembers);
     setGroupSetImage(gs.image);
+    setGroupSetImageFile(null);
+    setGroupSetImageSource('url');
+    setGroupSetImageUrl('');
+    // Open the centered edit modal so user doesn't need to scroll up
+    setShowEditGroupSetModal(true);
   };
 
-  // After editing will update the group set
+  // Update GroupSet (modified to handle file uploads + remove flag)
   const handleUpdateGroupSet = async () => {
     if (!groupSetName.trim()) return toast.error('GroupSet name is required');
     if (groupSetMaxMembers < 0) return toast.error('Max members cannot be negative');
 
     try {
-      await axios.put(`/api/group/groupset/${editingGroupSetId}`, {
-        name: groupSetName,
-        selfSignup: groupSetSelfSignup,
-        joinApproval: groupSetJoinApproval,
-        maxMembers: Math.max(0, groupSetMaxMembers || 0),
-        image: groupSetImage,
-      });
+      // If a new file was chosen, send multipart/form-data with the file
+      if (groupSetImageSource === 'file' && groupSetImageFile) {
+        const fd = new FormData();
+        fd.append('name', groupSetName);
+        fd.append('selfSignup', groupSetSelfSignup);
+        fd.append('joinApproval', groupSetJoinApproval);
+        fd.append('maxMembers', Math.max(0, groupSetMaxMembers || 0));
+        fd.append('image', groupSetImageFile);
+        await axios.put(`/api/group/groupset/${editingGroupSetId}`, fd, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+      } else {
+        // JSON path: include image only when user provided a URL or requested removal
+        const payload = {
+          name: groupSetName,
+          selfSignup: groupSetSelfSignup,
+          joinApproval: groupSetJoinApproval,
+          maxMembers: Math.max(0, groupSetMaxMembers || 0),
+        };
+
+        if (groupSetImageRemoved) {
+          // explicitly request reset to placeholder on server
+          payload.image = 'placeholder.jpg';
+        } else if (groupSetImageSource === 'url' && groupSetImageUrl) {
+          payload.image = groupSetImageUrl;
+        }
+
+        await axios.put(`/api/group/groupset/${editingGroupSetId}`, payload);
+      }
 
       toast.success('GroupSet updated successfully');
+      // reset remove flag after successful update
+      setGroupSetImageRemoved(false);
       resetGroupSetForm();
       fetchGroupSets();
     } catch (err) {
-      // Check if it's the "no changes" message from backend
       if (err.response?.data?.message === 'No changes were made') {
         toast.error('No changes were made');
       } else {
@@ -568,8 +673,46 @@ const Groups = () => {
       <div className="flex-grow">
         <h1 className="text-3xl font-bold mb-6">{classroom?.name || 'Classroom'} Groups</h1>
 
-        {/* Create Group Set */}
-        {(user.role === 'teacher' || user.role === 'admin') && (
+        {/* Teacher controls */}
+        {(user.role === 'teacher' || user.role === 'admin') && groupSets.length > 0 && (
+          <div className="flex flex-wrap items-center gap-3 mb-4">
+            <label className="flex items-center gap-2 w-full sm:w-auto">
+              <input
+                type="checkbox"
+                className="checkbox checkbox-sm"
+                checked={selectedGroupSets.length === groupSets.length && groupSets.length > 0}
+                onChange={handleSelectAllGroupSets}
+              />
+              <span className="text-sm">Select all GroupSets ({groupSets.length})</span>
+            </label>
+
+            <div className="flex gap-2 w-full sm:w-auto">
+              <button
+                className={`btn btn-sm btn-error w-full sm:w-auto ${selectedGroupSets.length === 0 ? 'opacity-50 pointer-events-none' : ''}`}
+                onClick={openConfirmDeleteSelectedGroupSets}
+              >
+                Delete Selected ({selectedGroupSets.length})
+              </button>
+            </div>
+
+            <div className="w-full sm:w-auto sm:ml-auto">
+              <button
+                className="btn btn-sm btn-outline w-full sm:w-auto"
+                onClick={() => {
+                  setConfirmDeleteAllGroupSets({
+                    ids: groupSets.map(gs => String(gs._id || gs.id)), // ensure plain strings
+                    names: groupSets.map(gs => gs.name)
+                  });
+                }}
+              >
+                Delete All GroupSets ({groupSets.length})
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Create Group Set - hidden while edit modal is open */}
+        {(user.role === 'teacher' || user.role === 'admin') && !showEditGroupSetModal && (
           <div className="card bg-base-100 shadow-md p-4 space-y-4 mb-6">
             <h2 className="text-xl font-semibold">Create Group Set</h2>
             <input
@@ -607,6 +750,69 @@ const Groups = () => {
               value={groupSetMaxMembers}
               onChange={(e) => setGroupSetMaxMembers(Math.max(0, e.target.value))}
             />
+            <div className="flex items-center gap-2">
+                <div className="inline-flex rounded-full bg-gray-200 p-1">
+                <button
+                  type="button"
+                  onClick={() => setGroupSetImageSource('file')}
+                  className={`px-3 py-1 rounded-full text-sm transition ${groupSetImageSource === 'file' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
+                >
+                  Upload
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGroupSetImageSource('url')}
+                  className={`ml-1 px-3 py-1 rounded-full text-sm transition ${groupSetImageSource === 'url' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
+                >
+                  Use image URL
+                </button>
+                </div>
+              </div>
+  
+            {groupSetImageSource === 'file' ? (
+              <>
+                <input
+                  ref={groupSetFileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  onChange={e => setGroupSetImageFile(e.target.files[0])}
+                  className="file-input file-input-bordered w-full max-w-xs"
+                />
+                <p className="text-xs text-gray-500">Allowed: jpg, png, webp, gif. Max: 5 MB.</p>
+              </>
+            ) : (
+              <input
+                type="url"
+                placeholder="https://..."
+                className="input input-bordered w-full max-w-xs"
+                value={groupSetImageUrl}
+                onChange={e => setGroupSetImageUrl(e.target.value)}
+              />
+            )}
+
+            {editingGroupSetId && (
+              <>
+                {/* Only show remove button when current image is NOT a placeholder */}
+                {!isPlaceholderGroupSetImage(groupSetImage) && (
+                  <button
+                    className="btn btn-ghost btn-sm mt-2"
+                    onClick={() => {
+                      // mark removal locally — actual deletion will be performed when user clicks Update
+                      setGroupSetImage('placeholder.jpg');
+                      setGroupSetImageFile(null);
+                      setGroupSetImageSource('url');
+                      setGroupSetImageUrl('');
+                      if (groupSetFileInputRef.current) groupSetFileInputRef.current.value = '';
+                      setGroupSetImageRemoved(true);
+                      toast('Image marked for removal; click Update to save');
+                    }}
+                  >
+                    Remove image
+                  </button>
+                )}
+              </>
+            )}
+
             <button className="btn btn-success" onClick={editingGroupSetId ? handleUpdateGroupSet : handleCreateGroupSet}>
               {editingGroupSetId ? 'Update Group Set' : 'Create Group Set'}
             </button>
@@ -626,27 +832,39 @@ const Groups = () => {
         {groupSets.map((gs) => (
           <div key={gs._id} className="card bg-base-100 shadow-md p-4 space-y-4 mb-8">
             <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-xl font-semibold">{gs.name}</h2>
-                <p>Self Signup: {gs.selfSignup ? 'Yes' : 'No'}</p>
-                <p>Join Approval: {gs.joinApproval ? 'Yes' : 'No'}</p>
-                <p>Max Members: {gs.maxMembers || 'No limit'}</p>
+              <div className="flex items-center gap-3">
+                {/* groupset image + checkbox overlay */}
+                <div className="relative flex-shrink-0">
+                  <img
+                    src={resolveGroupSetSrc(gs.image)}
+                    alt={gs.name}
+                    className="w-16 h-16 object-cover rounded border"
+                  />
+                  {(user.role === 'teacher' || user.role === 'admin') && (
+                    <input
+                      type="checkbox"
+                      className="checkbox checkbox-sm absolute -top-2 -left-2 bg-white"
+                      checked={selectedGroupSets.includes(gs._id)}
+                      onChange={() => toggleGroupSetSelection(gs._id)}
+                    />
+                  )}
+                </div>
+ 
+                <div>
+                  <h4 className="text-md font-semibold">{gs.name}</h4>
+                  <p>Self Signup: {gs.selfSignup ? 'Yes' : 'No'}</p>
+                  <p>Join Approval: {gs.joinApproval ? 'Yes' : 'No'}</p>
+                  <p>Max Members: {gs.maxMembers || 'No limit'}</p>
+                </div>
               </div>
-              {gs.image && (
-                <img
-                  src={gs.image}
-                  alt={gs.name}
-                  className="w-16 h-16 object-cover rounded"
-                />
+              
+              {(user.role === 'teacher' || user.role === 'admin') && (
+                <div className="flex gap-2">
+                  <button className="btn btn-sm btn-info" onClick={() => handleEditGroupSet(gs)}>Edit</button>
+                  <button className="btn btn-sm btn-error" onClick={() => setConfirmDeleteGroupSet(gs)}>Delete</button>
+                </div>
               )}
             </div>
-
-            {(user.role === 'teacher' || user.role === 'admin') && (
-              <div className="flex gap-2">
-                <button className="btn btn-sm btn-info" onClick={() => handleEditGroupSet(gs)}>Edit</button>
-                <button className="btn btn-sm btn-error" onClick={() => setConfirmDeleteGroupSet(gs)}>Delete</button>
-              </div>
-            )}
 
             {/* Create Group */}
             {(user.role === 'teacher' || user.role === 'admin') && (
@@ -941,6 +1159,150 @@ const Groups = () => {
       </div>
 
       {/* All existing modals */}
+      {showEditGroupSetModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-lg">
+            <h2 className="text-lg font-semibold mb-4 text-center">Edit Group Set</h2>
+
+            <input
+              type="text"
+              placeholder="Group Set Name"
+              className="input input-bordered w-full mb-3"
+              value={groupSetName}
+              onChange={(e) => setGroupSetName(e.target.value)}
+            />
+
+            <div className="flex items-center gap-4 mb-3">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  className="toggle toggle-primary"
+                  checked={groupSetSelfSignup}
+                  onChange={(e) => setGroupSetSelfSignup(e.target.checked)}
+                />
+                Self Signup
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  className="toggle toggle-primary"
+                  checked={groupSetJoinApproval}
+                  onChange={(e) => setGroupSetJoinApproval(e.target.checked)}
+                />
+                Join Approval Required
+              </label>
+            </div>
+
+            {/* Image controls moved into modal so edit UI mirrors create form */}
+            <div className="mb-4">
+              <label className="label">
+                <span className="label-text">Image</span>
+                <span className="label-text-alt">Optional</span>
+              </label>
+
+              <div className="inline-flex rounded-full bg-gray-200 p-1">
+                <button
+                  type="button"
+                  onClick={() => setGroupSetImageSource('file')}
+                  className={`px-3 py-1 rounded-full text-sm transition ${groupSetImageSource === 'file' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
+                >
+                  Upload
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGroupSetImageSource('url')}
+                  className={`ml-1 px-3 py-1 rounded-full text-sm transition ${groupSetImageSource === 'url' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
+                >
+                  Use image URL
+                </button>
+              </div>
+
+              {groupSetImageSource === 'file' ? (
+                <>
+                  <input
+                    ref={groupSetFileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    onChange={e => setGroupSetImageFile(e.target.files[0])}
+                    className="file-input file-input-bordered w-full max-w-xs mt-3"
+                  />
+                  <p className="text-xs text-gray-500">Allowed: jpg, png, webp, gif. Max: 5 MB.</p>
+                </>
+              ) : (
+                <input
+                  type="url"
+                  placeholder="https://..."
+                  className="input input-bordered w-full mt-3 max-w-xs"
+                  value={groupSetImageUrl}
+                  onChange={(e) => setGroupSetImageUrl(e.target.value)}
+                />
+              )}
+
+              {/* Preview */}
+              <div className="mt-3">
+                {groupSetImageFile ? (
+                  <img src={URL.createObjectURL(groupSetImageFile)} alt="Preview" className="w-28 h-28 object-cover rounded border" />
+                ) : groupSetImage ? (
+                  <img src={resolveGroupSetSrc(groupSetImage)} alt="Preview" className="w-28 h-28 object-cover rounded border" />
+                ) : (
+                  <img src="/images/groupset-placeholder.svg" alt="Preview" className="w-28 h-28 object-cover rounded border" />
+                )}
+              </div>
+
+              {/* Remove button only when current image is not placeholder */}
+              {editingGroupSetId && !isPlaceholderGroupSetImage(groupSetImage) && (
+                <div>
+                  <button
+                    className="btn btn-ghost btn-sm mt-2"
+                    onClick={() => {
+                      setGroupSetImage('placeholder.jpg');
+                      setGroupSetImageFile(null);
+                      setGroupSetImageSource('url');
+                      setGroupSetImageUrl('');
+                      if (groupSetFileInputRef.current) groupSetFileInputRef.current.value = '';
+                      setGroupSetImageRemoved(true);
+                      toast('Image marked for removal; click Update to save');
+                    }}
+                  >
+                    Remove image
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <input
+              type="number"
+              placeholder="Max Members (optional)"
+              className="input input-bordered w-full mb-4"
+              min="0"
+              value={groupSetMaxMembers}
+              onChange={(e) => setGroupSetMaxMembers(Math.max(0, e.target.value))}
+            />
+
+            <div className="flex justify-center gap-4 mt-4">
+              <button
+                className="btn btn-success"
+                onClick={async () => {
+                  await handleUpdateGroupSet();
+                  setShowEditGroupSetModal(false);
+                }}
+              >
+                Update Group Set
+              </button>
+              <button
+                className="btn btn-ghost"
+                onClick={() => {
+                  setShowEditGroupSetModal(false);
+                  // reset editing state like the existing reset logic
+                  setEditingGroupSetId(null);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {openSiphonModal && (
         <SiphonModal
           group={openSiphonModal}
@@ -1117,6 +1479,26 @@ const Groups = () => {
               >
                 Delete {confirmBulkDeleteGroups.groupIds.length} Group(s)
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmDeleteAllGroupSets && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-md">
+            <h2 className="text-lg font-semibold mb-4 text-center">Delete All GroupSets</h2>
+            <p className="text-sm text-center mb-3">
+              Are you sure you want to delete all GroupSets in this classroom? This will delete all groups within them.
+            </p>
+            <div className="max-h-36 overflow-y-auto mb-4 p-2 bg-gray-50 rounded">
+              {confirmDeleteAllGroupSets.names.map((n, i) => (
+                <div key={i} className="text-sm py-1">• {n}</div>
+              ))}
+            </div>
+            <div className="flex justify-center gap-4">
+              <button onClick={() => setConfirmDeleteAllGroupSets(null)} className="btn btn-sm">Cancel</button>
+              <button onClick={handleDeleteAllGroupSets} className="btn btn-sm btn-error">Delete {confirmDeleteAllGroupSets.ids.length} GroupSet(s)</button>
             </div>
           </div>
         </div>

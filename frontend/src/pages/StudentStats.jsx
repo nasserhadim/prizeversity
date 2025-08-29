@@ -11,23 +11,24 @@ const StudentStats = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const fetchStats = async () => {
-    try {
-      setLoading(true);
-      const res = await axios.get(`/api/stats/student/${studentId}`, {
-        withCredentials: true
-      });
-      setStats(res.data);
-      setError('');
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to load stats');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchStats();
+    // Async function to fetch student stats from backend
+    const fetchStats = async () => {
+      try {
+        const url = classroomId
+          ? `/api/stats/student/${studentId}?classroomId=${classroomId}`
+          : `/api/stats/student/${studentId}`;
+        const res = await axios.get(url, { withCredentials: true });
+        setStats(res.data);
+        setError('');
+      } catch (err) {
+        setError(err.response?.data?.error || 'Failed to load stats');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (studentId) fetchStats();
 
     const handleDiscountExpired = () => {
       setStats(prev => ({
@@ -47,7 +48,7 @@ const StudentStats = () => {
       socket.off('discount_expired', handleDiscountExpired);
       window.removeEventListener('focus', handleFocus);
     }
-  }, [studentId]);
+  }, [studentId, classroomId]);
 
   if (loading) {
     return (

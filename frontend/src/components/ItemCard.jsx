@@ -6,12 +6,15 @@ import apiBazaar from '../API/apiBazaar.js'
 import { ShoppingCart } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext.jsx';
+import { resolveImageSrc } from '../utils/image';
 
 const ItemCard = ({ item, role, classroomId }) => {
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(false);
   const { addToCart } = useCart();
   const { user } = useAuth();
+
+  const imgSrc = resolveImageSrc(item?.image);
 
   // The buy option is not included here
   const handleBuy = async () => {
@@ -65,21 +68,17 @@ const ItemCard = ({ item, role, classroomId }) => {
     <div className="card bg-base-100 shadow-md border border-base-200 hover:shadow-lg transition duration-200 rounded-2xl overflow-hidden">
       {/* Image */}
       <figure className="relative h-40 sm:h-48 md:h-52 bg-base-200 flex items-center justify-center">
-        {item.image ? (
-          <img
-            src={item.image}
-            alt={item.name}
-            className="object-cover w-full h-full"
-            loading="lazy"
-            srcSet={`${item.image}?w=400 1x, ${item.image}?w=800 2x`}
-            sizes="(max-width: 768px) 100vw, 50vw"
-          />
-        ) : (
-          <div className="flex flex-col items-center justify-center text-base-content/50">
-            <ImageIcon className="w-12 h-12" />
-            <span className="text-sm mt-2">No image</span>
-          </div>
-        )}
+        <img
+          src={imgSrc}
+          alt={item.name || 'Item'}
+          className="w-full h-full object-cover"
+          sizes="(max-width: 768px) 100vw, 50vw"
+          onError={(e) => {
+            // swap to placeholder if image fails to load
+            e.currentTarget.onerror = null;
+            e.currentTarget.src = '/images/item-placeholder.svg';
+          }}
+        />
       </figure>
  
        {/* Content - unchanged from original */}
