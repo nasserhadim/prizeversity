@@ -6,9 +6,12 @@ import { getNews } from '../API/apiNewsfeed';
 import ClassroomBanner from '../components/ClassroomBanner';
 import { getClassroom } from '../API/apiClassroom';
 import Footer from '../components/Footer';
+import socket from '../utils/socket';
+
 
 export default function StudentNewsfeed() {
     const { id: classId } = useParams();
+    
     const [items, setItems] = useState([]);
     const [classroomName, setClassroomName] = useState('');
     const [visibleCount, setVisibleCount] = useState(10);
@@ -28,6 +31,8 @@ export default function StudentNewsfeed() {
         }
         fetchData();
     }, [classId]);
+
+   
 
     return (
         <div className="flex flex-col min-h-screen bg-base-200">

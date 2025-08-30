@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { API_BASE } from '../config/api';
 import Footer from '../components/Footer';
+import { toast } from 'react-hot-toast';
 
 const FeedbackPage = () => {
   const [rating, setRating] = useState(null);
@@ -10,18 +11,33 @@ const FeedbackPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!rating) {
+      toast.error("Please select a star rating before submitting.");
+      return;
+    }
     try {
-      await axios.post(`${API_BASE}/api/feedback`, {
+      const res = await axios.post(`${API_BASE}/api/feedback`, {
         rating,
         comment,
       });
+
       setRating(null);
       setComment('');
       setSubmitted(true);
       setTimeout(() => setSubmitted(false), 3000); // Reset submitted state after 3 seconds
+      toast.success("Thank you for your feedback!"); 
     } catch (err) {
-      console.error('Error submitting feedback:', err);
-    }
+  if (err.response) {
+    // The server responded but with an error code
+    console.error("Error response:", err.response.status, err.response.data);
+  } else if (err.request) {
+    // The request was made but no response
+    console.error("No response from server:", err.request);
+  } else {
+    // Something else
+    console.error("Error setting up request:", err.message);
+  }
+}
   };
 
   return (
@@ -31,11 +47,6 @@ const FeedbackPage = () => {
           <div className="card-body">
             <h2 className="card-title text-primary">Let us know about your experience using Prizeversity!</h2>
 
-            {submitted && (
-              <div className="alert alert-success shadow-lg my-2">
-                <span>Thank you for your feedback!</span>
-              </div>
-            )}
             <form onSubmit={handleSubmit} key={submitted} className="space-y-4">
               <div>
                 <label className="label">
