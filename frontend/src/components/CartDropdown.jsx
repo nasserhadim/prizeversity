@@ -1,10 +1,19 @@
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import socket from '../utils/socket.js'; 
 
-const CartDropdown = () => {
-    const { cartItems, getTotal, removeFromCart } = useCart();
+function getClassroomFromPath(pathname) {
+  const m = pathname.match(/^\/classroom\/([^\/]+)/);
+  return m ? m[1] : null;
+}
+
+const CartDropdown = (props) => {
+    const location = useLocation();
+    const classroomId = getClassroomFromPath(location.pathname);
+    const { cartItems, getTotal, removeFromCart, getCart } = useCart();
     const { user } = useAuth();
     const [hasDiscount, setHasDiscount] = useState(user?.discountShop || false);
 
@@ -34,11 +43,14 @@ const CartDropdown = () => {
         return user?.discountShop ? Math.floor(subtotal * 0.8) : subtotal;
     }
 
+    // use classroom-scoped cart
+    const cartItems = getCart(classroomId);
+
     return (
-        <div className="fixed top-20 right-4 bg-white border shadow-lg w-80 z-[9999] p-4 rounded text-black">
+        <div className="fixed top-20 right-4 bg-base-100 border border-base-300 shadow-lg w-80 z-[9999] p-4 rounded text-base-content">
             <h3 className="text-lg font-bold mb-2">Your Cart</h3>
             {hasDiscount && (
-                <div className='text xs text-green-600 mb-2'>
+                <div className='text-xs text-green-600 mb-2'>
                     20% discount applied (expires soon)
                 </div>
             )}
@@ -46,20 +58,20 @@ const CartDropdown = () => {
                 <div className="text-xs text-green-600 mb-2">20% discount applied!</div>
             )}
             {cartItems.length === 0 ? (
-                <p className="text-sm text-gray-500">Cart is empty</p>
+                <p className="text-sm text-base-content/60">Cart is empty</p>
             ) : (
                 <ul className="space-y-2">
-                    {cartItems.map(item => (
-                        <li key={item._id} className="flex justify-between items-center">
+                    {cartItems.map((item, idx) => (
+                        <li key={item._entryId || `${item._id}-${idx}`} className="flex justify-between items-center">
                             <span>{item.name}</span>
                             <div className="flex items-center gap-2">
                                 {user?.discountShop ? (
                                     <span className="flex flex-col items-end">
-                                        <span className="text-xs line-through text-gray-400">{item.price} bits</span>
-                                        <span className="text-sm text-green-600">{calculatePrice(item.price)} bits</span>
+                                        <span className="text-xs line-through text-base-content/60">Ƀ{item.price}</span>
+                                        <span className="text-sm text-green-600">Ƀ{Math.floor(item.price * 0.8)}</span>
                                     </span>
                                 ) : (
-                                    <span className="text-sm text-gray-600">{item.price} bits</span>
+                                    <span className="text-sm text-base-content/80">Ƀ{item.price}</span>
                                 )}
                                 <button
                                     className="text-red-500 text-xs"
@@ -75,18 +87,18 @@ const CartDropdown = () => {
             {cartItems.length > 0 && (
                 <>
                     <div className="mt-3 text-right font-semibold">
-                        Total: {calculateTotal()} bits
+                        Total: Ƀ{getTotal()}
                         {user?.discountShop && (
                             <span className="block text-xs text-green-600">
-                                You saved {Math.floor(getTotal() * 0.2)} bits!
+                                You saved Ƀ{Math.floor(getTotal() * 0.2)}!
                             </span>
                         )}
                     </div>
-                    <Link to="/checkout">
-                        <button className="mt-2 w-full bg-green-500 text-white py-2 rounded hover:bg-blue-600">
-                            Go to Checkout
-                        </button>
-                    </Link>
+                    <div className="mt-2">
+                        <Link to="/checkout">
+                            <button className="mt-2 w-full btn btn-success">Go to Checkout</button>
+                        </Link>
+                    </div>
                 </>
             )}
         </div>

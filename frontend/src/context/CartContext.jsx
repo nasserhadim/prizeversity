@@ -1,41 +1,89 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 
 const CartContext = createContext();
 
-export const useCart = () => useContext(CartContext);
+function getClassroomFromPath(pathname) {
+  const m = pathname.match(/^\/classroom\/([^\/]+)/);
+  return m ? m[1] : 'global';
+}
 
 export const CartProvider = ({ children }) => {
-    const [cartItems, setCartItems] = useState(() => {
-        const storedCart = localStorage.getItem('cart');
-        return storedCart ? JSON.parse(storedCart) : [];
+  const location = useLocation();
+  const currentClassroomFromPath = getClassroomFromPath(location.pathname);
+
+  // carts is an object keyed by classroomId -> array of items
+  const [carts, setCarts] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('pv:carts') || '{}');
+    } catch (e) {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('pv:carts', JSON.stringify(carts));
+    } catch (e) {
+      console.error('Failed to persist carts', e);
+    }
+  }, [carts]);
+
+  const resolveId = (classroomId) => classroomId || currentClassroomFromPath || 'global';
+
+  const getCart = (classroomId = null) => {
+    const id = resolveId(classroomId);
+    return carts[id] || [];
+  };
+
+  const getTotal = (classroomId = null) => {
+    return getCart(classroomId).reduce((s, it) => s + (Number(it.price) || 0), 0);
+  };
+
+  const getCount = (classroomId = null) => getCart(classroomId).length;
+
+  const addToCart = (item, classroomId = null) => {
+    const id = resolveId(classroomId);
+    // attach a small stable entry id per cart entry so duplicate product ids don't collide as React keys
+    const entry = { ...item, _entryId: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}` };
+    setCarts(prev => ({ ...prev, [id]: [...(prev[id] || []), entry] }));
+  };
+
+  // remove by index (component should pass index) for predictable behaviour
+  const removeFromCart = (index, classroomId = null) => {
+    const id = resolveId(classroomId);
+    setCarts(prev => {
+      const arr = [...(prev[id] || [])];
+      if (typeof index === 'number' && index >= 0 && index < arr.length) {
+        arr.splice(index, 1);
+      }
+      return { ...prev, [id]: arr };
     });
+  };
 
-    const addToCart = (item) => {
-        const existingItem = cartItems.find(i => i._id === item._id);
-        if (existingItem) return;
-        setCartItems([...cartItems, item]);
-    };
+  const clearCart = (classroomId = null) => {
+    const id = resolveId(classroomId);
+    setCarts(prev => {
+      const copy = { ...prev };
+      delete copy[id];
+      return copy;
+    });
+  };
 
-    const removeFromCart = (id) => {
-        setCartItems(cartItems.filter(item => item._id !== id));
-    };
+  const context = {
+    // classroom-aware helpers
+    getCart,         // function: getCart(classroomId?)
+    cartItems: getCart(), // convenience: current path's cart
+    getTotal,        // function: getTotal(classroomId?)
+    getCount,        // function: getCount(classroomId?)
+    addToCart,       // function: addToCart(item, classroomId?)
+    removeFromCart,  // function: removeFromCart(index, classroomId?)
+    clearCart,       // function: clearCart(classroomId?)
+    // raw state if needed
+    _allCarts: carts
+  };
 
-    const clearCart = () => {
-        setCartItems([]);
-        localStorage.removeItem('cart');
-    };
-
-    useEffect(() => {
-        localStorage.setItem('cart', JSON.stringify(cartItems));
-    }, [cartItems]);
-
-    const getTotal = () => {
-        return cartItems.reduce((total, item) => total + item.price, 0);
-    };
-
-    return (
-        <CartContext.Provider value={{ cartItems, addToCart, removeFromCart, clearCart, getTotal }}>
-            {children}
-        </CartContext.Provider>
-    );
+  return <CartContext.Provider value={context}>{children}</CartContext.Provider>;
 };
+
+export const useCart = () => useContext(CartContext);

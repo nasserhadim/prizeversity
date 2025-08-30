@@ -29,6 +29,9 @@ const NotificationSchema = new mongoose.Schema({
       'announcement', // New type for announcements
       'attack', // New type for attack notification
       'defend', // New type for defense notification
+      'bit_assignment_request',
+      'bit_assignment_approved',
+      'bit_assignment_rejected',
     ],
     required: true 
   },

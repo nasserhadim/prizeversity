@@ -7,6 +7,7 @@ const { ensureAuthenticated } = require('../config/auth');
 const router = express.Router();
 const Order = require('../models/Order');
 const blockIfFrozen = require('../middleware/blockIfFrozen');
+const upload = require('../middleware/upload'); // reuse existing upload middleware
 
 // Middleware: Only teachers allowed for certain actions
 function ensureTeacher(req, res, next) {
@@ -16,31 +17,41 @@ function ensureTeacher(req, res, next) {
   next();
 }
 
-// Create Bazaar for a classroom (only 1 allowed)
-router.post('/classroom/:classroomId/bazaar/create', ensureAuthenticated, ensureTeacher, async (req, res) => {
-  const { classroomId } = req.params;
-  const { name, description, image } = req.body;
+// Create Bazaar for a classroom (only 1 allowed) — accept optional uploaded "image"
+router.post(
+  '/classroom/:classroomId/bazaar/create',
+  ensureAuthenticated,
+  ensureTeacher,
+  upload.single('image'),
+  async (req, res) => {
+    const { classroomId } = req.params;
+    // prefer uploaded file, fall back to image URL from body (if any)
+    // build relative path so frontend decides full URL via API_BASE
+    const image = req.file
+      ? `/uploads/${req.file.filename}`
+      : (req.body.image || undefined);
 
-  try {
-    const existing = await Bazaar.findOne({ classroom: classroomId });
-    if (existing) {
-      return res.status(400).json({ error: 'Bazaar already exists for this classroom' });
+    try {
+      const existing = await Bazaar.findOne({ classroom: classroomId });
+      if (existing) {
+        return res.status(400).json({ error: 'Bazaar already exists for this classroom' });
+      }
+
+      const bazaar = new Bazaar({
+        name: (req.body.name || '').trim(),
+        description: req.body.description,
+        image,
+        classroom: classroomId
+      });
+
+      await bazaar.save();
+      res.status(201).json({ message: 'Bazaar created', bazaar });
+    } catch (err) {
+      console.error('[Create Bazaar] error:', err);
+      res.status(500).json({ error: 'Failed to create bazaar', message: err.message });
     }
-
-    const bazaar = new Bazaar({
-      name,
-      description,
-      image,
-      classroom: classroomId
-    });
-
-    await bazaar.save();
-    res.status(201).json({ message: 'Bazaar created', bazaar });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to create bazaar' });
   }
-});
+);
 
 // Get Bazaar for a classroom (if any)
 router.get('/classroom/:classroomId/bazaar', ensureAuthenticated, async (req, res) => {
@@ -58,10 +69,36 @@ router.get('/classroom/:classroomId/bazaar', ensureAuthenticated, async (req, re
   }
 });
 
-// Add Item to Bazaar (teacher only)
-router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticated, ensureTeacher, async (req, res) => {
+// Add Item to Bazaar (teacher only) — accept file upload "image"
+router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticated, ensureTeacher, upload.single('image'), async (req, res) => {
   const { bazaarId } = req.params;
-  const { name, description, price, image, category, primaryEffect, primaryEffectValue, secondaryEffects } = req.body;
+  const { name, description, price, category, primaryEffect, primaryEffectValue } = req.body;
+  // Prefer uploaded file, fallback to image URL
+  const image = req.file
+    ? `/uploads/${req.file.filename}`
+    : (req.body.image || undefined);
+
+  // Parse JSON fields that may arrive as strings when using multipart/form-data
+  let parsedSecondaryEffects = [];
+  let parsedSwapOptions = [];
+  try {
+    if (Array.isArray(req.body.secondaryEffects)) {
+      parsedSecondaryEffects = req.body.secondaryEffects;
+    } else if (req.body.secondaryEffects) {
+      parsedSecondaryEffects = JSON.parse(req.body.secondaryEffects);
+    }
+  } catch (err) {
+    parsedSecondaryEffects = [];
+  }
+  try {
+    if (Array.isArray(req.body.swapOptions)) {
+      parsedSwapOptions = req.body.swapOptions;
+    } else if (req.body.swapOptions) {
+      parsedSwapOptions = JSON.parse(req.body.swapOptions);
+    }
+  } catch (err) {
+    parsedSwapOptions = [];
+  }
 
   // Basic validation
   if (!name || !price || !category) {
@@ -69,12 +106,6 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticate
   }
 
   try {
-    // Verify bazaar exists
-    const bazaarExists = await Bazaar.exists({ _id: bazaarId });
-    if (!bazaarExists) {
-      return res.status(404).json({ error: 'Bazaar not found' });
-    }
-
     // Create item
     const item = new Item({
       name: name.trim(),
@@ -84,10 +115,11 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticate
       category,
       primaryEffect: category !== 'Passive' ? primaryEffect : undefined,
       primaryEffectValue: category !== 'Passive' ? Number(primaryEffectValue) : undefined,
-      secondaryEffects: secondaryEffects?.map(se => ({
+      secondaryEffects: (parsedSecondaryEffects || []).map(se => ({
         effectType: se.effectType,
         value: Number(se.value)
       })),
+      swapOptions: parsedSwapOptions && parsedSwapOptions.length ? parsedSwapOptions : undefined,
       bazaar: bazaarId
     });
 
@@ -106,24 +138,31 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticate
       newItem: item
     });
 
-    res.status(201).json({ 
-      message: 'Item added successfully',
-      item: await Item.findById(item._id)
-    });
-
+    res.status(201).json({ item });
   } catch (err) {
-    console.error('Item creation failed:', err);
-    res.status(500).json({ 
-      error: 'Failed to create item',
-      message: err.message,
-      ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
-    });
+    console.error('[Add Bazaar Item] error:', err);
+    res.status(500).json({ error: 'Failed to add item', details: err.message });
   }
 });
 
-// Buy Item (any authenticated user)
-router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensureAuthenticated, blockIfFrozen, async (req, res) => { 
-  const { itemId } = req.params;
+// Helper functions (add these at the top of the file, after imports)
+const getClassroomBalance = (user, classroomId) => {
+  const classroomBalance = user.classroomBalances.find(cb => cb.classroom.toString() === classroomId.toString());
+  return classroomBalance ? classroomBalance.balance : 0;
+};
+
+const updateClassroomBalance = (user, classroomId, newBalance) => {
+  const index = user.classroomBalances.findIndex(cb => cb.classroom.toString() === classroomId.toString());
+  if (index >= 0) {
+    user.classroomBalances[index].balance = Math.max(0, newBalance);
+  } else {
+    user.classroomBalances.push({ classroom: classroomId, balance: Math.max(0, newBalance) });
+  }
+};
+
+// Buy Item (updated for per-classroom balances)
+router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensureAuthenticated, blockIfFrozen, async (req, res) => {
+  const { classroomId, itemId } = req.params;
   const { quantity } = req.body;
 
   try {
@@ -133,24 +172,13 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensur
     const user = await User.findById(req.user._id);
     const totalCost = item.price * quantity;
 
-    // Checking if the user has enough balance
-    if (user.balance < totalCost) {
+    // Use per-classroom balance for check and deduction
+    const userBalance = getClassroomBalance(user, classroomId);
+    if (userBalance < totalCost) {
       return res.status(400).json({ error: 'Insufficient balance' });
     }
 
-
-    // Deducting balance and log transaction
-    user.balance -= totalCost;
-
-    user.transactions.push({
-      amount: -totalCost,
-      description: `Purchased ${quantity} x ${item.name}`,
-      assignedBy: req.user._id
-    });
-
-    await user.save();
-
-    // Create owned copies of the item
+    // Create owned copies for quantity and collect summaries (unchanged, but now with per-classroom context)
     const ownedItems = [];
     for (let i = 0; i < quantity; i++) {
       const ownedItem = await Item.create({
@@ -160,14 +188,41 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensur
         image: item.image,
         bazaar: item.bazaar,
         category: item.category,
-        effect: item.effect,
+        primaryEffect: item.primaryEffect,
+        primaryEffectValue: item.primaryEffectValue,
+        secondaryEffects: item.secondaryEffects,
         owner: user._id
       });
       ownedItems.push(ownedItem);
     }
 
-    // Notify classroom about the purchase
-    req.app.get('io').to(`classroom-${req.params.classroomId}`).emit('bazaar_purchase', {
+    // Deduct from per-classroom balance and record detailed transaction
+    updateClassroomBalance(user, classroomId, userBalance - totalCost);
+    user.transactions.push({
+      amount: -totalCost,
+      description: `Purchased ${quantity} x ${item.name}`,
+      assignedBy: req.user._id,
+      classroom: classroomId,  // Add classroom reference
+      type: 'purchase',
+      date: new Date(),
+      // Include item summaries so frontend can render thumbnails/descriptions/effects
+      items: ownedItems.map(i => ({
+        id: i._id,
+        name: i.name,
+        description: i.description,
+        price: i.price,
+        category: i.category,
+        primaryEffect: i.primaryEffect,
+        primaryEffectValue: i.primaryEffectValue,
+        secondaryEffects: i.secondaryEffects,
+        image: i.image || null
+      }))
+    });
+
+    await user.save();
+
+    // Notify classroom about the purchase (unchanged)
+    req.app.get('io').to(`classroom-${classroomId}`).emit('bazaar_purchase', {
       itemId,
       buyerId: req.user._id,
       newStock: item.stock
@@ -175,7 +230,7 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensur
 
     res.status(200).json({
       message: 'Purchase successful',
-      balance: user.balance,
+      balance: getClassroomBalance(user, classroomId),  // Return per-classroom balance
       items: ownedItems
     });
   } catch (err) {
@@ -184,17 +239,16 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensur
   }
 });
 
-
-// Checkout multiple items
-  router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) => {
+// Checkout multiple items (updated for per-classroom balances)
+router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) => {
   console.log("Received checkout request:", req.body);
-  
+
   try {
-    const { userId, items } = req.body;
-    
-    if (!userId || !items || !Array.isArray(items) || items.length === 0) {
-      console.error("Invalid checkout data:", { userId, items });
-      return res.status(400).json({ error: 'Invalid checkout data' });
+    const { userId, items, classroomId } = req.body;  // Add classroomId to request body
+
+    if (!userId || !items || !Array.isArray(items) || items.length === 0 || !classroomId) {
+      console.error("Invalid checkout data:", { userId, items, classroomId });
+      return res.status(400).json({ error: 'Invalid checkout data or missing classroomId' });
     }
 
     const user = await User.findById(userId);
@@ -204,15 +258,16 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensur
     }
 
     const total = items.reduce((sum, item) => sum + item.price, 0);
-    console.log(`Calculated total: ${total}, User balance: ${user.balance}`);
+    console.log(`Calculated total: ${total}, User per-classroom balance: ${getClassroomBalance(user, classroomId)}`);
 
-    // Ensuring user has enough balance
-    if (user.balance < total) {
-      console.error("Insufficient balance:", { balance: user.balance, total });
+    // Use per-classroom balance for check
+    const userBalance = getClassroomBalance(user, classroomId);
+    if (userBalance < total) {
+      console.error("Insufficient balance:", { balance: userBalance, total });
       return res.status(400).json({ error: 'Insufficient balance' });
     }
 
-    // Process each item
+    // Process each item (unchanged, but now with per-classroom context)
     const ownedItems = [];
     for (const itemData of items) {
       const item = await Item.findById(itemData._id || itemData.id);
@@ -237,16 +292,9 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensur
       ownedItems.push(ownedItem);
     }
 
-    // Deduct balance
-    user.balance -= total;
-    user.transactions.push({
-      amount: -total,
-      description: `Checkout: ${items.length} item(s)`,
-      type: 'purchase'
-    });
-    await user.save();
+    // Deduct from per-classroom balance and create order/transaction
+    updateClassroomBalance(user, classroomId, userBalance - total);
 
-    // Create order and save 
     const order = new Order({
       user: userId,
       items: ownedItems.map(i => i._id),
@@ -254,11 +302,36 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensur
     });
     await order.save();
 
-    console.log("Checkout successful for user:", userId);
+    // Push a single detailed purchase transaction
+    user.transactions.push({
+      amount: -total,
+      description: `Checkout: ${items.map(i => i.name).join(', ')}`,
+      assignedBy: req.user._id,
+      classroom: classroomId,  // Add classroom reference
+      type: 'purchase',
+      date: new Date(),
+      items: ownedItems.map(i => ({
+        id: i._id,
+        name: i.name,
+        description: i.description,
+        price: i.price,
+        category: i.category,
+        primaryEffect: i.primaryEffect,
+        primaryEffectValue: i.primaryEffectValue,
+        secondaryEffects: i.secondaryEffects,
+        image: i.image || null
+      })),
+      orderId: order._id
+    });
+
+    await user.save();
+
+    console.log("Checkout successful for user:", userId, "order:", order._id);
     res.status(200).json({
       message: 'Purchase successful',
       items: ownedItems,
-      balance: user.balance
+      balance: getClassroomBalance(user, classroomId),  // Return per-classroom balance
+      orderId: order._id
     });
 
   } catch (err) {
@@ -271,14 +344,18 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensur
   }
 });
 
-
-// Get the balance for a user
+// Get the balance for a user (updated for per-classroom)
 router.get('/user/:userId/balance', async (req, res) => {
   try {
+    const { classroomId } = req.query;
     const user = await User.findById(req.params.userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    res.json({ balance: user.balance });
+    let balance = user.balance; // Default to global
+    if (classroomId) {
+      balance = getClassroomBalance(user, classroomId);
+    }
+    res.json({ balance });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch balance' });
@@ -316,6 +393,20 @@ router.get(
     }
   }
 );
+
+// Allow frontend to fetch a saved order (populated items) by id
+router.get('/orders/:orderId', async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    if (!orderId) return res.status(400).json({ error: 'Missing orderId' });
+    const order = await Order.findById(orderId).populate('items');
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    res.status(200).json({ order });
+  } catch (err) {
+    console.error('Failed to fetch order:', err);
+    res.status(500).json({ error: 'Failed to fetch order' });
+  }
+});
 
 // Get the inventory page for the user to see what items they have
 router.get('/inventory/:userId', async (req, res) => {

@@ -2,6 +2,15 @@ import { useState } from 'react';
 import toast from 'react-hot-toast';
 // import axios from 'axios'
 import apiBazaar from '../API/apiBazaar.js'
+import { Image as ImageIcon, Copy as CopyIcon } from 'lucide-react';
+import { API_BASE } from '../config/api';
+
+const resolveImageSrc = (src) => {
+  if (!src) return null;
+  // backend stores absolute URL now; but keep backwards-compatibility for "/uploads/..." paths
+  if (src.startsWith('/uploads/')) return `${API_BASE}${src}`;
+  return src;
+};
 
 const CreateBazaar = ({ classroomId, onCreate }) => {
   console.log('classroomId:', classroomId);
@@ -13,6 +22,10 @@ const CreateBazaar = ({ classroomId, onCreate }) => {
 
   // loading state for submit button
   const [loading, setLoading] = useState(false);
+  const [imageSource, setImageSource] = useState('url'); // ADD - default was text
+  const [imageFile, setImageFile] = useState(null); // ADD
+  const [imageUrlLocal, setImageUrlLocal] = useState(''); // ADD
+  const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
   const handleChange = (e) => {
     // handle input changes for form fields
@@ -22,21 +35,28 @@ const CreateBazaar = ({ classroomId, onCreate }) => {
     }));
   };
 
+  // handle submit: send multipart if file selected
   const handleSubmit = async (e) => {
     // prevent default form submission
     e.preventDefault();
     // set loading to true while submitting
     setLoading(true);
     try {
-      // send POST request to create a new bazaar under the given classroom
-      const res = await apiBazaar.post(
-        `classroom/${classroomId}/bazaar/create`,
-        {
+      let res;
+      if (imageSource === 'file' && imageFile) {
+        const fd = new FormData();
+        fd.append('name', form.name);
+        fd.append('description', form.description);
+        fd.append('image', imageFile);
+        fd.append('classroomId', classroomId);
+        res = await apiBazaar.post(`classroom/${classroomId}/bazaar/create`, fd, { headers: { 'Content-Type': 'multipart/form-data' }});
+      } else {
+        res = await apiBazaar.post(`classroom/${classroomId}/bazaar/create`, {
           name: form.name,
           description: form.description,
-          image: form.image,
-        }
-      );
+          image: imageSource === 'url' ? imageUrlLocal : form.image,
+        });
+      }
       toast.success('Bazaar created!');
       // callback to notify parent about new bazaar
       onCreate(res.data.bazaar);
@@ -87,18 +107,22 @@ const CreateBazaar = ({ classroomId, onCreate }) => {
       </div>
 
       <div className="form-control">
-        <label className="label">
-          <span className="label-text font-medium">Image URL</span>
-          <span className="label-text-alt">Optional</span>
-        </label>
-        <input
-          type="text"
-          name="image"
-          placeholder="https://example.com/image.jpg"
-          className="input input-bordered w-full"
-          value={form.image}
-          onChange={handleChange}
-        />
+        <label className="label"><span className="label-text">Image</span><span className="label-text-alt">Optional</span></label>
+        <div className="flex items-center gap-2 mb-2">
+          <div className="inline-flex rounded-full bg-gray-200 p-1">
+            <button type="button" onClick={() => setImageSource('url')} className={`px-3 py-1 rounded-full ${imageSource === 'url' ? 'bg-white shadow' : 'text-gray-600'}`}>URL</button>
+            <button type="button" onClick={() => setImageSource('file')} className={`ml-1 px-3 py-1 rounded-full ${imageSource === 'file' ? 'bg-white shadow' : 'text-gray-600'}`}>Upload</button>
+          </div>
+        </div>
+
+        {imageSource === 'file' ? (
+          <>
+            <input type="file" accept="image/*" onChange={e => setImageFile(e.target.files[0])} />
+            <p className="text-xs text-gray-500">Allowed: jpg, png, webp, gif. Max: 5 MB.</p>
+          </>
+        ) : (
+          <input type="url" placeholder="https://example.com/image.jpg" value={imageUrlLocal} onChange={e => setImageUrlLocal(e.target.value)} className="input input-bordered" />
+        )}
       </div>
 
       <div>

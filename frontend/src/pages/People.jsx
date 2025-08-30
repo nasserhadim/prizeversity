@@ -12,7 +12,7 @@ import Footer from '../components/Footer';
 
 const ROLE_LABELS = {
   student: 'Student',
-  admin: 'TA',
+  admin: 'Admin/TA',
   teacher: 'Teacher',
 };
 
@@ -93,11 +93,11 @@ const People = () => {
   }, [classroomId]);
 
 
-// Fetch students list
+// Fetch students with per-classroom balances
   const fetchStudents = async () => {
     try {
-      const res = await axios.get(`/api/classroom/${classroomId}/students`);
-      setStudents(res.data);
+      const res = await axios.get(`/api/classroom/${classroomId}/students`, { withCredentials: true });
+      setStudents(res.data); // Should include per-classroom balance
     } catch (err) {
       console.error('Failed to fetch students', err);
     }
@@ -182,8 +182,8 @@ const People = () => {
   };
 
   return (
-    <div className="flex flex-col min-h-[calc(100vh-5rem)] p-6 max-w-5xl mx-auto">
-      <div className="flex-grow">
+    <div className="flex flex-col min-h-screen">
+      <main className="flex-grow p-6 w-full max-w-5xl mx-auto">
         <div className="mb-6">
           <h1 className="text-3xl font-bold">
             {classroom ? `${classroom.name} People` : 'People'}
@@ -214,12 +214,12 @@ const People = () => {
         </div>
 {/* ─────────────── Settings TAB ─────────────── */}
         {tab === 'settings' && (user?.role || '').toLowerCase() === 'teacher' && (
-          <div className="max-w-md space-y-6">
-            <h2 className="text-2xl font-semibold">Classroom Settings</h2>
+          <div className="w-full space-y-6 min-w-0">
+             <h2 className="text-2xl font-semibold">Classroom Settings</h2>
 
             <label className="form-control w-full">
               <span className="label-text mb-2 font-medium">
-                TA bit assignment
+                Admin/TA bit assignment
               </span>
 
               <select
@@ -233,7 +233,7 @@ const People = () => {
                       { taBitPolicy: newPolicy },
                       { withCredentials: true }
                     );
-                    toast.success('Updated TA bit policy');
+                    toast.success('Updated Admin/TA bit policy');
                     setTaBitPolicy(newPolicy);
                   } catch (err) {
                     toast.error(
@@ -242,7 +242,7 @@ const People = () => {
                   }
                 }}
               >
-                <option value="full">① Full power (TAs can assign bits)</option>
+                <option value="full">① Full power (Admins/TAs can assign bits)</option>
                 <option value="approval">② Needs teacher approval</option>
                 <option value="none">③ Cannot assign bits</option>
               </select>
@@ -327,7 +327,7 @@ const People = () => {
                       <div className="flex gap-2 mt-2 flex-wrap">
                         <button
                           className="btn btn-sm btn-outline"
-                          onClick={() => navigate(`/profile/${student._id}`)}
+                          onClick={() => navigate(`/classroom/${classroomId}/profile/${student._id}`)}
                         >
                           View Profile
                         </button>
@@ -381,31 +381,31 @@ const People = () => {
         )}
 
         {tab === 'groups' && (
-          <div className="space-y-6">
+          <div className="space-y-6 w-full min-w-0">
             {groupSets.length === 0 ? (
               <p>No groups available yet.</p>
             ) : (
               groupSets.map((gs) => (
-                <div key={gs._id}>
+                <div key={gs._id} className="w-full min-w-0">
                   <h2 className="text-xl font-semibold">{gs.name}</h2>
-                  <div className="ml-4 mt-2 space-y-4">
+                  <div className="mt-2 grid grid-cols-1 gap-4 w-full">
                     {gs.groups.map((group) => (
-                      <div key={group._id} className="border p-4 rounded">
-                        <h3 className="text-lg font-bold">{group.name}</h3>
-                        {group.members.length === 0 ? (
-                          <p className="text-gray-500">No members</p>
+                      <div key={group._id} className="border p-4 rounded w-full min-w-0 bg-base-100">
+                         <h3 className="text-lg font-bold">{group.name}</h3>
+                         {group.members.length === 0 ? (
+                           <p className="text-gray-500">No members</p>
                         ) : (
                           <ul className="list-disc ml-5 space-y-1">
                             {group.members.map((m) => (
-                              <li key={m._id._id} className="flex justify-between items-center">
-                                <span>
+                              <li key={m._id._id} className="flex justify-between items-center w-full">
+                                 <span>
                                   {m._id.firstName || m._id.lastName
                                     ? `${m._id.firstName || ''} ${m._id.lastName || ''}`.trim()
                                     : m._id.name || m._id.email}
                                 </span>
                                 <button
                                   className="btn btn-sm btn-outline ml-4"
-                                  onClick={() => navigate(`/profile/${m._id._id}`)}
+                                  onClick={() => navigate(`/classroom/${classroomId}/profile/${m._id._id}`)}
                                 >
                                   View Profile
                                 </button>
@@ -414,17 +414,17 @@ const People = () => {
                           </ul>
                         )}
                       </div>
-                    ))}
+                     ))}
                   </div>
                 </div>
               ))
-            )}
+             )}
           </div>
         )}
-      </div>
-      <Footer />
-    </div>
-  );
-};
-
-export default People;
+      </main>
+       <Footer />
+     </div>
+   );
+ };
+ 
+ export default People;

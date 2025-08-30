@@ -12,6 +12,7 @@ const BulkBalanceEditor = ({onSuccess}) => {
   const [selectedIds, setSelected] = useState(new Set());
   const [step, setStep] = useState('select'); 
   const [amount, setAmount] = useState('');
+  const [description, setDescription] = useState('');
   const [taBitPolicy, setTaBitPolicy] = useState('full');
   const [search, setSearch] = useState('');
   const userIsTeacher = (user?.role || '').toLowerCase() === 'teacher';
@@ -34,12 +35,11 @@ const BulkBalanceEditor = ({onSuccess}) => {
 
   useEffect(() => {
     const url = classroomId
-      ? `/api/classroom/${classroomId}/students` // Classroom-specific list
-      : `/api/users/students`; // Global student list
-
+      ? `/api/classroom/${classroomId}/students`
+      : `/api/users/students`;
     axios
       .get(url, { withCredentials: true })
-      .then(r => setStudents(r.data)) // This will set the studnet list
+      .then(r => setStudents(r.data)) // Now includes per-classroom balance
       .catch(() => setStudents([]));
 
       
@@ -76,9 +76,10 @@ const BulkBalanceEditor = ({onSuccess}) => {
     try {
     // send the bulk-assign or queue request
     const res = await axios.post('/api/wallet/assign/bulk', {
-  classroomId,                     
-  updates
-}, { withCredentials: true });
+      classroomId,                     
+      updates,
+      description
+    }, { withCredentials: true });
 
     // if Admin/TA policy = approval, server responds 202
     if (res.status === 202) {
@@ -98,6 +99,7 @@ const BulkBalanceEditor = ({onSuccess}) => {
     setStudents(r.data);
     setSelected(new Set());
     setAmount('');
+    setDescription('');
     setStep('select');
   } catch (err) {
     console.error(err);
@@ -116,7 +118,7 @@ const BulkBalanceEditor = ({onSuccess}) => {
 )}
 
 
-      <h2 className="font-bold text-lg mb-2">Bulk Adjust Student Balances</h2>
+      <h2 className="font-bold text-lg mb-2">Adjust Balances</h2>
 
       {step === 'select' && (
         <>
@@ -160,7 +162,7 @@ const BulkBalanceEditor = ({onSuccess}) => {
                   onChange={() => toggle(s._id)}
                 />
                 <span className="flex-1 truncate">{fullName(s)}</span>
-                <span className="w-16 text-right">{s.balance} B</span>
+                <span className="w-16 text-right">{s.balance} Ƀ</span>
               </div>
             ))}
             {visibleStudents.length === 0 && <p className="text-gray-500">No matching students.</p>}
@@ -188,6 +190,13 @@ const BulkBalanceEditor = ({onSuccess}) => {
             placeholder="+ / –"
             value={amount}
             onChange={e => setAmount(e.target.value)}
+          />
+          <input
+            type="text"
+            className="input input-bordered w-full mb-4"
+            placeholder="Optional: Description (e.g. 'Bonus for participation')"
+            value={description}
+            onChange={e => setDescription(e.target.value)}
           />
           <div className="flex gap-2">
             <button className="btn btn-outline flex-1" onClick={back}>Back</button>

@@ -4,14 +4,14 @@ import { Link } from 'react-router-dom';
 
 const Logo = () => {
   return (
-    <Link to="/" className="flex items-center gap-2" title="Prizeversity Home">
+    <Link to="/" className="flex items-center gap-2 logo flex-shrink-0" title="Prizeversity Home">
       <svg
-        width="32"
-        height="32"
+        width="40"
+        height="40"
         viewBox="0 0 24 24"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
-        className="text-success" // Use DaisyUI success color
+        className="logo-svg text-success" // Use a dedicated class so CSS can target it
       >
         {/* Shield Outline */}
         <path
@@ -29,7 +29,7 @@ const Logo = () => {
           opacity="0.8"
         />
       </svg>
-      <span className="text-xl lg:text-2xl font-bold text-base-content">
+      <span className="text-lg sm:text-xl lg:text-2xl font-bold text-base-content transition-all duration-200">
         Prizeversity
       </span>
     </Link>

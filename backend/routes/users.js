@@ -101,22 +101,32 @@ console.log(`Student ${student._id}: oldBalance=${student.balance - adjustedAmou
 });
 
 
-// Get all studetns in a classroom
- router.get('/students', ensureAuthenticated, async (req, res) => {
+// Get Students in Classroom (updated for per-classroom balances)
+router.get('/students', ensureAuthenticated, async (req, res) => {
   const { classroomId } = req.query;
-  
-  // Ensure classroom access
   if (!classroomId || !req.user.classrooms.includes(classroomId)) {
     return res.status(403).json({ error: 'Forbidden' });
   }
 
-  // Find students by classroom
   const students = await User.find({
     role: 'student',
     classrooms: classroomId
-  }).select('_id email balance firstName lastName');
-   res.status(200).json(students);
- });
+  }).select('_id email firstName lastName');
+
+  // Add per-classroom balances
+  const studentsWithBalances = await Promise.all(
+    students.map(async (student) => {
+      const user = await User.findById(student._id).select('classroomBalances');
+      const classroomBalance = user.classroomBalances.find(cb => cb.classroom.toString() === classroomId);
+      return {
+        ...student.toObject(),
+        balance: classroomBalance ? classroomBalance.balance : 0
+      };
+    })
+  );
+
+  res.status(200).json(studentsWithBalances);
+});
 
 // GET all users (not just students) in a classroom
  router.get('/all', ensureAuthenticated, async (req, res) => {
@@ -140,18 +150,23 @@ console.log(`Student ${student._id}: oldBalance=${student.balance - adjustedAmou
    res.json(everyone);
  });
 
-// Get user balance
+// Get user balance (updated for per-classroom)
 router.get('/:id', ensureAuthenticated, async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select('balance email');
+    const { classroomId } = req.query;
+    const user = await User.findById(req.params.id).select('balance classroomBalances email');
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    res.status(200).json({ balance: user.balance, email: user.email });
+    let balance = user.balance; // Default to global
+    if (classroomId) {
+      balance = getClassroomBalance(user, classroomId);
+    }
+    res.json({ balance, email: user.email });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch user balance' });
-  }
+    console.error('Balance lookup failed:', err);
+    res.status(500).json({ error: 'Failed to fetch balance' });
+  }
 });
-
 
 
 
@@ -239,46 +254,40 @@ req.app.get('io').to(`classroom-${classroomId}`).emit('user_role_update', {
 
 // update the profile with a firstname and a last name
 router.post('/update-profile', ensureAuthenticated, async (req, res) => {
-  const { role, firstName, lastName } = req.body;
+  const { role } = req.body;
+  const firstNameRaw = req.body.firstName;
+  const lastNameRaw = req.body.lastName;
   const userId = req.user._id;
 
-  try {
-    const updateData = { role, firstName, lastName };
-    
-    // Clear OAuth names once user sets their own names
-    if (firstName && firstName.trim()) {
-      updateData.oauthFirstName = undefined;
+  // Normalize / trim input
+  const firstName = firstNameRaw !== undefined ? String(firstNameRaw).trim() : undefined;
+  const lastName = lastNameRaw !== undefined ? String(lastNameRaw).trim() : undefined;
+
+  // If client attempted to update name fields, require at least one non-empty name.
+  if (firstNameRaw !== undefined || lastNameRaw !== undefined) {
+    if (!firstName && !lastName) {
+      return res.status(400).json({ error: 'At least one of firstName or lastName must be provided' });
     }
-    if (lastName && lastName.trim()) {
+  }
+
+  try {
+    const updateData = {};
+    if (role) updateData.role = role;
+    if (firstNameRaw !== undefined) {
+      updateData.firstName = firstName;
+      updateData.oauthFirstName = undefined; // clear oauth fallback
+    }
+    if (lastNameRaw !== undefined) {
+      updateData.lastName = lastName;
       updateData.oauthLastName = undefined;
     }
 
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      updateData,
-      { new: true }
-    );
+    const updatedUser = await User.findByIdAndUpdate(userId, updateData, { new: true });
     res.json({ user: updatedUser });
   } catch (error) {
     console.error('Failed to update profile:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
-
-  // After successful profile update
-const classrooms = await Classroom.find({ 
-  $or: [
-    { teacher: userId },
-    { students: userId }
-  ]
-});
-
-for (const classroom of classrooms) {
-  req.app.get('io').to(`classroom-${classroom._id}`).emit('user_profile_update', {
-    userId,
-    firstName: updatedUser.firstName,
-    lastName: updatedUser.lastName
-  });
-}
 });
 
 // POST route to upload users in bulk to a classroom
@@ -360,5 +369,21 @@ router.post('/bulk-upload', ensureAuthenticated, async (req, res) => {
   }
 });
 
+// Helper to get or initialize per-classroom balance (same logic as in wallet.js)
+const getClassroomBalance = (user, classroomId) => {
+  if (!Array.isArray(user.classroomBalances)) return 0;
+  const cb = user.classroomBalances.find(cb => String(cb.classroom) === String(classroomId));
+  return cb ? cb.balance : 0;
+};
+
+const updateClassroomBalance = (user, classroomId, newBalance) => {
+  if (!Array.isArray(user.classroomBalances)) user.classroomBalances = [];
+  const idx = user.classroomBalances.findIndex(cb => String(cb.classroom) === String(classroomId));
+  if (idx >= 0) {
+    user.classroomBalances[idx].balance = Math.max(0, newBalance);
+  } else {
+    user.classroomBalances.push({ classroom: classroomId, balance: Math.max(0, newBalance) });
+  }
+};
 
 module.exports = router;

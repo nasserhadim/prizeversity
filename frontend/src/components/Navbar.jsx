@@ -9,6 +9,8 @@ import { useState, useEffect, useRef } from 'react';
 import NotificationBell from './NotificationBell';
 import Logo from './Logo'; // Import the new Logo component
 import { API_BASE } from '../config/api';
+import socket from '../utils/socket';
+import axios from 'axios';
 
 import {
   Home,
@@ -74,9 +76,45 @@ const Navbar = () => {
   const classroomMatch = location.pathname.match(/^\/classroom\/([^\/]+)/);
   const classroomId = classroomMatch ? classroomMatch[1] : null;
   const insideClassroom = Boolean(classroomId);
-  const { cartItems, removeFromCart } = useCart();
+
+  // Use classroom-scoped cart API
+  const { getCart, getCount, removeFromCart } = useCart();
+  const cartItems = getCart(classroomId);
+  const cartCount = getCount(classroomId) || 0;
+
   const [showCart, setShowCart] = useState(false);
   const cartRef = useRef(null);
+  const [balance, setBalance] = useState(0);
+
+  useEffect(() => {
+    const fetchBalance = async () => {
+      if (user?._id && classroomId) {
+        try {
+          const { data } = await axios.get(`/api/wallet/${user._id}/balance?classroomId=${classroomId}`, { withCredentials: true });
+          setBalance(data.balance);
+        } catch (error) {
+          console.error("Failed to fetch balance for navbar", error);
+        }
+      }
+    };
+    fetchBalance();
+  }, [user, classroomId]);
+
+  useEffect(() => {
+    if (user?._id) {
+      const balanceUpdateHandler = (data) => {
+        if (data.studentId === user._id) {
+          setBalance(data.newBalance);
+        }
+      };
+      
+      socket.on('balance_update', balanceUpdateHandler);
+
+      return () => {
+        socket.off('balance_update', balanceUpdateHandler);
+      };
+    }
+  }, [user]);
 
   // Close mobile menu when route changes
   useEffect(() => {
@@ -100,17 +138,17 @@ const Navbar = () => {
   if (!user) {
     return (
       <nav className="fixed top-0 left-0 right-0 z-50 bg-base-100 text-base-content shadow-md px-4 lg:px-6 py-4 bg-opacity-20 backdrop-blur-md">
-        <div className="container mx-auto flex items-center justify-between">
+        <div className="container mx-auto flex items-center justify-between gap-4">
           <Logo />
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink min-w-0">
             <button
-              className="btn btn-sm btn-outline"
+              className="btn btn-sm btn-outline flex-shrink min-w-0 whitespace-normal h-auto"
               onClick={() => (window.location.href = '/api/auth/google')}
             >
               Sign in with Google
             </button>
             <button
-              className="btn btn-sm btn-neutral"
+              className="btn btn-sm btn-neutral flex-shrink min-w-0 whitespace-normal h-auto"
               onClick={() => (window.location.href = '/api/auth/microsoft')}
             >
               Sign in with Microsoft
@@ -124,7 +162,7 @@ const Navbar = () => {
   return (
     <nav
       data-theme={theme}
-      className='fixed top-0 left-0 right-0 z-50 bg-base-100 text-base-content shadow-md px-4 lg:px-6 py-4 bg-opacity-20 backdrop-blur-md'
+      className='fixed inset-x-0 top-0 w-screen z-50 bg-base-100 text-base-content shadow-md px-4 lg:px-6 py-4 bg-opacity-20 backdrop-blur-md'
     >
       <div className='container mx-auto flex items-center justify-between'>
         {/* Logo */}
@@ -132,6 +170,13 @@ const Navbar = () => {
 
         {/* Mobile Menu Button */}
         <div className="lg:hidden flex items-center gap-2">
+          {/* Wallet Balance for Mobile */}
+          {insideClassroom && (
+            <Link to={`/classroom/${classroomId}/wallet`} className="flex items-center gap-1 text-sm p-1 rounded-md hover:bg-base-200">
+              <Wallet size={20} className="text-green-500" />
+              <span className="font-semibold">Ƀ{balance}</span>
+            </Link>
+          )}
           {/* Cart Icon for Mobile (if in classroom and not teacher) */}
           {user?.role !== 'teacher' && insideClassroom && (
             <button
@@ -140,9 +185,9 @@ const Navbar = () => {
               title="Cart"
             >
               <ShoppingCart size={20} className="text-green-500" />
-              {cartItems.length > 0 && (
+              {cartCount > 0 && (
                 <span className="absolute -top-1 -right-2 bg-red-500 text-white rounded-full text-xs w-4 h-4 flex items-center justify-center">
-                  {cartItems.length}
+                  {cartCount}
                 </span>
               )}
             </button>
@@ -221,15 +266,6 @@ const Navbar = () => {
               </li>
               <li>
                 <Link
-                  to={`/classroom/${classroomId}/wallet`}
-                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/wallet`) ? 'text-green-500' : ''}`}
-                >
-                  <Wallet size={18} />
-                  <span>Wallet</span>
-                </Link>
-              </li>
-              <li>
-                <Link
                   to={`/classroom/${classroomId}/people`}
                   className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/people`) ? 'text-green-500' : ''}`}
                 >
@@ -261,6 +297,14 @@ const Navbar = () => {
 
         {/* Desktop Right Side */}
         <div className="hidden lg:flex items-center gap-4">
+          {/* Wallet Balance */}
+          {insideClassroom && (
+            <Link to={`/classroom/${classroomId}/wallet`} className="flex items-center gap-2 hover:text-gray-300">
+              <Wallet size={24} className="text-green-500" />
+              <span className="font-semibold">Ƀ{balance}</span>
+            </Link>
+          )}
+
           {/* Desktop Cart Icon */}
           {user?.role !== 'teacher' && insideClassroom && (
             <button
@@ -269,9 +313,9 @@ const Navbar = () => {
               title="Cart"
             >
               <ShoppingCart size={24} className="text-green-500" />
-              {cartItems.length > 0 && (
+              {cartCount > 0 && (
                 <span className="absolute -top-1 -right-2 bg-red-500 text-white rounded-full text-xs w-5 h-5 flex items-center justify-center">
-                  {cartItems.length}
+                  {cartCount}
                 </span>
               )}
             </button>
@@ -284,41 +328,46 @@ const Navbar = () => {
           <div className="dropdown dropdown-end">
             <div tabIndex={0} role="button" className="btn btn-ghost btn-circle avatar">
               <div className="w-10 h-10 rounded-full ring ring-success ring-offset-base-100 ring-offset-2 overflow-hidden">
-                {user.avatar ? (
-                  <img
-                    alt="User Avatar"
-                    src={user.avatar.startsWith('data:') ? user.avatar : (user.avatar.startsWith('http') ? user.avatar : `${BACKEND_URL}/uploads/${user.avatar}`)}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      if (user.profileImage) {
-                        e.target.src = user.profileImage;
-                      } else {
-                        const initialsDiv = document.createElement('div');
-                        initialsDiv.className = 'w-full h-full bg-gray-200 flex items-center justify-center text-lg font-bold text-gray-600';
-                        initialsDiv.textContent = `${(user.firstName?.[0] || user.email?.[0] || 'U')}${(user.lastName?.[0] || '')}`.toUpperCase();
-                        e.target.parentNode.replaceChild(initialsDiv, e.target);
-                      }
-                    }}
-                  />
-                ) : user.profileImage ? (
-                  <img
-                    alt="Profile Image"
-                    src={user.profileImage}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      const initialsDiv = document.createElement('div');
-                      initialsDiv.className = 'w-full h-full bg-gray-200 flex items-center justify-center text-lg font-bold text-gray-600';
-                      initialsDiv.textContent = `${(user.firstName?.[0] || user.email?.[0] || 'U')}${(user.lastName?.[0] || '')}`.toUpperCase();
-                      e.target.parentNode.replaceChild(initialsDiv, e.target);
-                    }}
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gray-200 flex items-center justify-center text-lg font-bold text-gray-600">
-                    {`${(user.firstName?.[0] || user.email?.[0] || 'U')}${(user.lastName?.[0] || '')}`.toUpperCase()}
-                  </div>
-                )}
+                {(() => {
+                  // build avatar src safely and avoid calling .startsWith on null/undefined
+                  const getAvatarSrc = (u) => {
+                    if (!u) return null;
+                    if (u.avatar) {
+                      if (typeof u.avatar === 'string' && (u.avatar.startsWith('data:') || u.avatar.startsWith('http'))) return u.avatar;
+                      return `${BACKEND_URL}/uploads/${u.avatar}`;
+                    }
+                    if (u.profileImage) return u.profileImage;
+                    return null;
+                  };
+
+                  const avatarSrc = getAvatarSrc(user);
+                  if (avatarSrc) {
+                    return (
+                      <img
+                        alt="User Avatar"
+                        src={avatarSrc}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          if (user.profileImage) {
+                            e.target.src = user.profileImage;
+                          } else {
+                            const initialsDiv = document.createElement('div');
+                            initialsDiv.className = 'w-full h-full bg-gray-200 flex items-center justify-center text-lg font-bold text-gray-600';
+                            initialsDiv.textContent = `${(user.firstName?.[0] || user.email?.[0] || 'U')}${(user.lastName?.[0] || '')}`.toUpperCase();
+                            e.target.parentNode.replaceChild(initialsDiv, e.target);
+                          }
+                        }}
+                      />
+                    );
+                  }
+
+                  return (
+                    <div className="w-full h-full bg-base-300 flex items-center justify-center text-sm font-bold text-base-content/70">
+                      {`${(user.firstName?.[0] || user.email?.[0] || 'U')}${(user.lastName?.[0] || '')}`.toUpperCase()}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
             <ul tabIndex={0} className="mt-3 z-[1] p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-52">
@@ -351,36 +400,28 @@ const Navbar = () => {
 
         {/* Cart Dropdown */}
         {showCart && (
-          <div ref={cartRef} className="fixed top-20 right-4 bg-white border shadow-lg w-80 max-w-[calc(100vw-2rem)] z-[9999] p-4 rounded text-black">
+          <div ref={cartRef} className="fixed top-20 right-4 bg-base-100 border border-base-300 shadow-lg w-80 max-w-[calc(100vw-2rem)] z-[9999] p-4 rounded text-base-content">
             <h3 className="text-lg font-bold mb-2">Your Cart</h3>
             {cartItems.length === 0 ? (
-              <p className="text-sm text-gray-500">Cart is empty</p>
+              <p className="text-sm text-base-content/60">Cart is empty</p>
             ) : (
               <>
                 <ul className="space-y-2">
-                  {cartItems.map(item => (
-                    <li key={item._id} className="flex justify-between items-center">
+                  {cartItems.map((item, idx) => (
+                    <li key={idx} className="flex justify-between items-center">
                       <div>
                         <span className="block font-medium">{item.name}</span>
-                        <span className="text-sm text-gray-500">{item.price} bits</span>
+                        <span className="text-sm text-base-content/80">{item.price} ₿</span>
                       </div>
-                      <button
-                        onClick={() => removeFromCart(item._id)}
-                        className="text-red-500 text-sm ml-4"
-                        title="Remove item"
-                      >
-                        ✕
-                      </button>
+                      <button onClick={() => removeFromCart(idx, classroomId)} className="text-red-500 text-sm">✕</button>
                     </li>
                   ))}
                 </ul>
                 <div className="mt-3 text-right font-semibold">
-                  Total: {cartItems.reduce((sum, item) => sum + item.price, 0)} bits
+                  Total: {cartItems.reduce((sum, item) => sum + (Number(item.price) || 0), 0)} ₿
                 </div>
-                <Link to="/checkout">
-                  <button className="mt-3 w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">
-                    Go to Checkout
-                  </button>
+                <Link to={classroomId ? `/classroom/${classroomId}/checkout` : '/checkout'}>
+                  <button className="mt-3 w-full btn btn-success">Go to Checkout</button>
                 </Link>
               </>
             )}
@@ -458,14 +499,6 @@ const Navbar = () => {
                   <span>Groups</span>
                 </Link>
                 <Link
-                  to={`/classroom/${classroomId}/wallet`}
-                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname.startsWith(`/classroom/${classroomId}/wallet`) ? 'bg-primary/10 text-primary' : 'hover:bg-base-200'}`}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  <Wallet size={20} />
-                  <span>Wallet</span>
-                </Link>
-                <Link
                   to={`/classroom/${classroomId}/people`}
                   className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname.startsWith(`/classroom/${classroomId}/people`) ? 'bg-primary/10 text-primary' : 'hover:bg-base-200'}`}
                   onClick={() => setIsMobileMenuOpen(false)}
@@ -488,23 +521,46 @@ const Navbar = () => {
             <div className="border-t border-base-300 pt-4 mt-4">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 rounded-full ring ring-success ring-offset-2 overflow-hidden">
-                  {user.avatar ? (
-                    <img
-                      alt="User Avatar"
-                      src={user.avatar.startsWith('data:') ? user.avatar : (user.avatar.startsWith('http') ? user.avatar : `${BACKEND_URL}/uploads/${user.avatar}`)}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : user.profileImage ? (
-                    <img
-                      alt="Profile Image"
-                      src={user.profileImage}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-base-300 flex items-center justify-center text-sm font-bold text-base-content/70">
-                      {`${(user.firstName?.[0] || user.email?.[0] || 'U')}${(user.lastName?.[0] || '')}`.toUpperCase()}
-                    </div>
-                  )}
+                  {(() => {
+                    // build avatar src safely and avoid calling .startsWith on null/undefined
+                    const getAvatarSrc = (u) => {
+                      if (!u) return null;
+                      if (u.avatar) {
+                        if (typeof u.avatar === 'string' && (u.avatar.startsWith('data:') || u.avatar.startsWith('http'))) return u.avatar;
+                        return `${BACKEND_URL}/uploads/${u.avatar}`;
+                      }
+                      if (u.profileImage) return u.profileImage;
+                      return null;
+                    };
+
+                    const avatarSrc = getAvatarSrc(user);
+                    if (avatarSrc) {
+                      return (
+                        <img
+                          alt="User Avatar"
+                          src={avatarSrc}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            if (user.profileImage) {
+                              e.target.src = user.profileImage;
+                            } else {
+                              const initialsDiv = document.createElement('div');
+                              initialsDiv.className = 'w-full h-full bg-gray-200 flex items-center justify-center text-lg font-bold text-gray-600';
+                              initialsDiv.textContent = `${(user.firstName?.[0] || user.email?.[0] || 'U')}${(user.lastName?.[0] || '')}`.toUpperCase();
+                              e.target.parentNode.replaceChild(initialsDiv, e.target);
+                            }
+                          }}
+                        />
+                      );
+                    }
+
+                    return (
+                      <div className="w-full h-full bg-base-300 flex items-center justify-center text-sm font-bold text-base-content/70">
+                        {`${(user.firstName?.[0] || user.email?.[0] || 'U')}${(user.lastName?.[0] || '')}`.toUpperCase()}
+                      </div>
+                    );
+                  })()}
                 </div>
                 <div>
                   <p className="font-medium text-base-content">{user.firstName} {user.lastName}</p>

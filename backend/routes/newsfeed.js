@@ -86,19 +86,74 @@ router.delete('/:itemId', ensureTeacher, async (req, res) => {
     res.json({ message: 'News (announcement) item deleted successfully' });
 });
 
-router.put('/:itemId', ensureTeacher, async (req, res) => {
-    const { id, itemId } = req.params;
-    const { content } = req.body;
-    const updated = await NewsItem.findOneAndUpdate(
-        { _id: itemId, classroomId: id },
-        { content },
-        { new: true }
-    )
-        .populate('authorId', 'firstName lastName');
-    if (!updated) {
-        return res.status(404).json({ error: 'News (announcement) item not found' });
+router.put(
+    '/:itemId', 
+    ensureTeacher, 
+    upload.array('attachments'), 
+    async (req, res) => {
+        const { id, itemId } = req.params;
+        const { content, existingAttachments } = req.body;
+        const files = req.files || [];
+
+        try {
+            const item = await NewsItem.findOne({ _id: itemId, classroomId: id });
+            if (!item) {
+                return res.status(404).json({ error: 'News (announcement) item not found' });
+            }
+
+            // Parse existing attachments to keep
+            let attachmentsToKeep = [];
+            if (existingAttachments) {
+                try {
+                    // It might be a stringified JSON array
+                    attachmentsToKeep = Array.isArray(existingAttachments)
+                        ? existingAttachments.map(a => typeof a === 'string' ? JSON.parse(a) : a)
+                        : [JSON.parse(existingAttachments)];
+                } catch (e) {
+                    // Fallback for single stringified object
+                    if (typeof existingAttachments === 'string') {
+                        try {
+                            attachmentsToKeep = [JSON.parse(existingAttachments)];
+                        } catch (parseErr) {
+                            attachmentsToKeep = []; // handle malformed JSON
+                        }
+                    } else {
+                        attachmentsToKeep = existingAttachments || [];
+                    }
+                }
+            }
+
+
+            // Add new attachments
+            const newAttachments = files.map(f => ({
+                filename: f.filename,
+                originalName: f.originalname,
+                url: `/uploads/${f.filename}`
+            }));
+
+            const finalAttachments = [...attachmentsToKeep, ...newAttachments];
+
+            // Deep comparison for attachments
+            const attachmentsChanged = item.attachments.length !== finalAttachments.length ||
+                JSON.stringify(item.attachments.map(a => a.url).sort()) !== JSON.stringify(finalAttachments.map(a => a.url).sort());
+
+            if (item.content === content && !attachmentsChanged) {
+                return res.status(400).json({ message: 'No changes were made' });
+            }
+
+            // Update content
+            item.content = content;
+            item.attachments = finalAttachments;
+
+            const updated = await item.save();
+            await updated.populate('authorId', 'firstName lastName');
+            
+            res.json(updated);
+        } catch (err) {
+            console.error('Update announcement error:', err);
+            res.status(500).json({ error: 'Failed to update announcement' });
+        }
     }
-    res.json(updated);
-});
+);
 
 module.exports = router;

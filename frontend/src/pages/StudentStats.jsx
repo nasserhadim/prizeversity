@@ -15,9 +15,10 @@ const StudentStats = () => {
     // Async function to fetch student stats from backend
     const fetchStats = async () => {
       try {
-        const res = await axios.get(`/api/stats/student/${studentId}`, {
-          withCredentials: true
-        });
+        const url = classroomId
+          ? `/api/stats/student/${studentId}?classroomId=${classroomId}`
+          : `/api/stats/student/${studentId}`;
+        const res = await axios.get(url, { withCredentials: true });
         setStats(res.data);
       } catch (err) {
         setError(err.response?.data?.error || 'Failed to load stats');
@@ -26,7 +27,7 @@ const StudentStats = () => {
       }
     };
 
-    fetchStats();
+    if (studentId) fetchStats();
 
     // Listen for discount expiration
     const handleDiscountExpired = () => {
@@ -41,7 +42,7 @@ const StudentStats = () => {
     return () => {
       socket.off('discount_expired', handleDiscountExpired);
     }
-  }, [studentId]);
+  }, [studentId, classroomId]);
 
   // Render loading spinner while loading
   if (loading) {

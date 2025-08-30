@@ -26,6 +26,8 @@ export default function TeacherNewsfeed() {
     const [visibleCount, setVisibleCount] = useState(10);
     const [editingId, setEditingId] = useState(null);
     const [editingContent, setEditingContent] = useState('');
+    const [editingAttachments, setEditingAttachments] = useState([]);
+    const [newAttachments, setNewAttachments] = useState([]);
 
     useEffect(() => {
         async function fetchData() {
@@ -94,15 +96,32 @@ export default function TeacherNewsfeed() {
     };
 
     // Handle updating an existing announcement's content
-    const handleEdit = async (itemId, newContent) => {
+    const handleEdit = async (itemId) => {
         try {
-            await editNews(classId, itemId, newContent);
-            setItems(items.map(i =>
-                i._id === itemId ? { ...i, content: newContent } : i
-            ));
+            const formData = new FormData();
+            formData.append('content', editingContent);
+
+            // Append existing attachments that are being kept
+            editingAttachments.forEach(att => {
+                formData.append('existingAttachments', JSON.stringify(att));
+            });
+
+            // Append new files
+            newAttachments.forEach(file => {
+                formData.append('attachments', file);
+            });
+
+            const res = await editNews(classId, itemId, formData);
+            setItems(items.map(i => (i._id === itemId ? res.data : i)));
             toast.success('Announcement updated');
+            setEditingId(null); // Exit editing mode
         } catch (err) {
-            toast.error('Failed to update announcement');
+            if (err.response?.data?.message === 'No changes were made') {
+                toast.error('No changes were made');
+                setEditingId(null); // Exit editing mode
+            } else {
+                toast.error('Failed to update announcement');
+            }
         }
     };
 
@@ -203,12 +222,31 @@ export default function TeacherNewsfeed() {
                                         }}
                                         className="mb-2 mt-2"
                                     />
+
+                                    {/* Attachment management */}
+                                    <div className="my-2 space-y-2">
+                                        <h4 className="font-semibold">Attachments:</h4>
+                                        {editingAttachments.map((att, index) => (
+                                            <div key={index} className="flex items-center justify-between bg-gray-100 p-1 rounded">
+                                                <span>{att.originalName}</span>
+                                                <button 
+                                                    className="btn btn-xs btn-error"
+                                                    onClick={() => setEditingAttachments(prev => prev.filter((_, idx) => idx !== index))}>
+                                                    Remove
+                                                </button>
+                                            </div>
+                                        ))}
+                                        <input 
+                                            type="file" 
+                                            multiple
+                                            className="file-input file-input-bordered file-input-sm w-full"
+                                            onChange={(e) => setNewAttachments(Array.from(e.target.files))}
+                                        />
+                                    </div>
+
                                     <button
                                         className="btn btn-sm btn-success mr-2"
-                                        onClick={() => {
-                                            handleEdit(i._id, editingContent.trim());
-                                            setEditingId(null);
-                                        }}
+                                        onClick={() => handleEdit(i._id)}
                                         disabled={!editingContent.trim()}
                                     >
                                         Save
@@ -226,6 +264,8 @@ export default function TeacherNewsfeed() {
                                     onClick={() => {
                                         setEditingId(i._id);
                                         setEditingContent(i.content);
+                                        setEditingAttachments(i.attachments || []);
+                                        setNewAttachments([]);
                                     }}
                                 >
                                     Edit

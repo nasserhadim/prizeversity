@@ -58,6 +58,9 @@ const App = () => {
           <Route path="/classroom/:id/groups" element={<Groups />} />
           <Route path="/classroom/:id/people" element={<People />} />
           <Route path="/classroom/:classId/leaderboard" element={<Leaderboard />} />
+          {/* Add this route for classroom-specific profiles */}
+          <Route path="/classroom/:classroomId/profile/:id" element={<Profile />} />
+          {/* Keep the existing general profile route */}
           <Route path="/profile/:id" element={<Profile />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/classroom/:classroomId/checkout" element={<Checkout />} />

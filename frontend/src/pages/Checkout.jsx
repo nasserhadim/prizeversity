@@ -1,174 +1,229 @@
 import { useCart } from '../context/CartContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import apiBazaar from '../API/apiBazaar';
-import { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import socket from '../utils/socket.js';
-import toast from 'react-hot-toast'
+import { Image as ImageIcon } from 'lucide-react'; // added for image fallback
+import { resolveImageSrc } from '../utils/image';
+import { getEffectDescription, splitDescriptionEffect } from '../utils/itemHelpers';
 import Footer from '../components/Footer';
 
 const Checkout = () => {
-    const { cartItems, getTotal, clearCart, removeFromCart } = useCart();
-    const navigate = useNavigate();
-    const { user } = useAuth();
-    const [balance, setBalance] = useState(0);
-    const [hasDiscount, setHasDiscount] = useState(user?.discountShop || false);
+  const { classroomId } = useParams();
+  const { user } = useAuth();
+  const navigate = useNavigate(); // <-- add this so navigate(...) is defined
 
-    useEffect(() => {
-        setHasDiscount(user?.discountShop || false);
+  // Use classroom-aware cart helpers
+  const { getCart, getTotal, clearCart, removeFromCart, addToCart } = useCart();
+  const cartItems = getCart(classroomId);
 
-        // Listen for discount expiration
-        const handleDiscountExpired = () => {
-            setHasDiscount(false);
-        };
+  const [balance, setBalance] = useState(0);
+  const [hasDiscount, setHasDiscount] = useState(user?.discountShop || false);
 
-        socket.on('discount_expired', handleDiscountExpired);
+  useEffect(() => {
+    setHasDiscount(user?.discountShop || false);
 
-        return () => {
-            socket.off('discount_expired', handleDiscountExpired);
-        };
-    }, [user]);
-
-    const fetchBalance = async () => {
-        try {
-            const response = await apiBazaar.get(`/user/${user._id}/balance`);
-            setBalance(response.data.balance);
-        } catch (err) {
-            console.error('Failed to fetch balance:', err);
-        }
+    // Listen for discount expiration
+    const handleDiscountExpired = () => {
+      setHasDiscount(false);
     };
 
-    useEffect(() => {
-        if (user?._id) {
-            fetchBalance();
-        }
-    }, [user]);
+    socket.on('discount_expired', handleDiscountExpired);
 
-    // Calculating the discuonted price (only if discount is active)
-    const calculatePrice = (price) => {
-        return user?.discountShop ? Math.floor(price * 0.8) : price;
+    return () => {
+      socket.off('discount_expired', handleDiscountExpired);
     };
+  }, [user]);
 
-    // Calculating the total with discount
-    const calculateTotal = () => {
-        const subtotal = cartItems.reduce((sum, item) => sum + item.price, 0);
-        return user?.discountShop ? Math.floor(subtotal * 0.8) : subtotal;
+  const fetchBalance = async () => {
+    try {
+      const params = classroomId ? `?classroomId=${classroomId}` : '';
+      const response = await apiBazaar.get(`/user/${user._id}/balance${params}`);
+      setBalance(response.data.balance);
+    } catch (err) {
+      console.error('Failed to fetch balance:', err);
     }
+  };
 
-    const handleCheckout = async () => {
-        try {
-            // Validate cart
-            if (cartItems.length === 0) {
-                toast.error('Your cart is empty');
-                return;
-            }
+  useEffect(() => {
+    if (user?._id) {
+      fetchBalance();
+    }
+  }, [user, classroomId]);
 
-            // Prepare items with discounted prices if applicable
-            const checkoutItems = cartItems.map(item => ({
-                _id: item._id,
-                name: item.name,
-                price: user?.discountShop ? Math.floor(item.price * 0.8) : item.price,
-                // Include all necessary item properties
-                category: item.category,
-                primaryEffect: item.primaryEffect,
-                secondaryEffects: item.secondaryEffects
-            }));
+  // Calculating the discuonted price (only if discount is active)
+  const calculatePrice = (price) => {
+    return user?.discountShop ? Math.floor(price * 0.8) : price;
+  };
 
-            console.log("Sending checkout request:", {
-                userId: user._id,
-                items: checkoutItems
-            });
+  // Calculating the total with discount
+  const calculateTotal = () => {
+    const subtotal = cartItems.reduce((sum, item) => sum + item.price, 0);
+    return user?.discountShop ? Math.floor(subtotal * 0.8) : subtotal;
+  }
 
-            const response = await apiBazaar.post('/checkout', {
-                userId: user._id,
-                items: checkoutItems
-            });
+  const handleCheckout = async () => {
+    try {
+      if (cartItems.length === 0) {
+        toast.error('Your cart is empty');
+        return;
+      }
 
-            if (response.status === 200) {
-                await fetchBalance();
-                clearCart();
-                toast.success('Purchase complete!');
-                navigate(-1);
-            }
-        } catch (err) {
-            console.error("Checkout error:", {
-                message: err.message,
-                response: err.response?.data,
-                stack: err.stack
-            });
+      const checkoutItems = cartItems.map(item => {
+        const id = item._id || item.id || item._id?.toString();
+        return {
+          _id: id,
+          id: id,
+          name: item.name,
+          price: Number(user?.discountShop ? Math.floor(item.price * 0.8) : item.price) || 0,
+          category: item.category,
+          primaryEffect: item.primaryEffect,
+          secondaryEffects: item.secondaryEffects,
+          image: item.image
+        };
+      });
 
-            toast.error(
-                err.response?.data?.error ||
-                err.response?.data?.message ||
-                'Checkout failed. Please try again.'
-            );
-        }
-    };
+      const response = await apiBazaar.post('/checkout', {
+        userId: user._id,
+        items: checkoutItems,
+        classroomId // ensure backend gets classroom context
+      });
 
-    return (
-        <div className="max-w-xl mx-auto mt-12 p-6 bg-white rounded shadow">
-            <h2 className="text-2xl font-bold mb-4">Checkout</h2>
+      if (response.status === 200) {
+        await fetchBalance();
+        // clear only this classroom's cart
+        clearCart(classroomId);
+        toast.success('Purchase complete!');
+        navigate(-1);
+      }
+    } catch (err) {
+      console.error("Checkout error:", {
+        message: err.message,
+        response: err.response?.data,
+        stack: err.stack
+      });
+      // Show backend error message when available
+      const msg = err.response?.data?.error || err.response?.data?.message || 'Checkout failed. Please try again.';
+      toast.error(msg);
+    }
+  };
 
-            {user?.discountShop && (
-                <div className="bg-green-100 text-green-800 p-3 rounded mb-4 text-sm">
-                    🎉 20% discount applied to all items!
-                </div>
-            )}
+  return (
+    <div className="flex flex-col min-h-screen bg-base-200">
+      <main className="flex-grow flex items-start justify-center p-6 pt-24 pb-12">
+        <div className="w-full max-w-4xl mx-auto p-8 bg-base-100 rounded-2xl shadow-lg border border-base-300 min-h-[50vh]">
+          <h2 className="text-2xl md:text-3xl font-bold mb-4 text-base-content text-center">Checkout</h2>
 
-            {cartItems.length === 0 ? (
-                <p>Your cart is empty.</p>
-            ) : (
-                <>
-                    <ul className="space-y-2">
-                        {cartItems.map(item => (
-                            <li key={item._id} className="flex justify-between items-center">
-                                <div>
-                                    <span className="block font-medium">{item.name}</span>
-                                    {user?.discountShop ? (
-                                        <span className="text-sm text-gray-500">
-                                            <span className="line-through mr-2">{item.price} bits</span>
-                                            <span className="text-green-600">{calculatePrice(item.price)} bits</span>
-                                        </span>
-                                    ) : (
-                                        <span className="text-sm text-gray-500">{item.price} bits</span>
-                                    )}
-                                </div>
-                                <button
-                                    onClick={() => removeFromCart(item._id)}
-                                    className="text-red-500 text-sm ml-4"
-                                    title="Remove item"
-                                >
-                                    ✕
-                                </button>
-                            </li>
-                        ))}
-                    </ul>
+          {user?.discountShop && (
+              <div className="bg-success/10 text-success p-3 rounded mb-4 text-sm">
+                  🎉 20% discount applied to all items!
+              </div>
+          )}
 
-                    <div className="mt-4 text-right font-semibold text-green-600">
-                        Bit Balance: {balance} bits
-                    </div>
+          {cartItems.length === 0 ? (
+              <p className="text-base-content/70 text-center">Your cart is empty.</p>
+          ) : (
+              <>
+                  <ul className="space-y-4">
+                      {cartItems.map((item, idx) => (
+                          <li key={item._entryId || `${item._id}-${idx}`} className="flex items-start gap-4">
+                              {/* Thumbnail */}
+                              <div className="w-16 h-16 bg-base-200 rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0">
+                                  <img
+                                      src={resolveImageSrc(item.image)}
+                                      alt={item.name}
+                                      className="object-cover w-full h-full"
+                                      loading="lazy"
+                                      onError={(e) => {
+                                        e.currentTarget.onerror = null;
+                                        e.currentTarget.src = '/images/item-placeholder.svg';
+                                      }}
+                                  />
+                              </div>
 
-                    <div className="mt-4 text-right font-semibold">
-                        <div className="text-lg">
-                            Total: {calculateTotal()} bits
-                        </div>
-                        {user?.discountShop && (
-                            <div className="text-sm text-green-600">
-                                You saved {Math.floor(getTotal() * 0.2)} bits!
-                            </div>
-                        )}
-                    </div>
+                              {/* Name + Description */}
+                              <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between">
+                                      <span className="block font-medium text-base-content truncate">{item.name}</span>
+                                      <button
+                                          onClick={() => removeFromCart(item._id)}
+                                          className="text-error text-sm ml-4"
+                                          title="Remove item"
+                                      >
+                                          ✕
+                                      </button>
+                                  </div>
+                                  {(() => {
+                                    const { main, effect } = splitDescriptionEffect(item.description || '');
+                                    return (
+                                      <>
+                                        <p className="text-sm text-base-content/70 mt-1 line-clamp-2 whitespace-pre-wrap">
+                                          {main || 'No description provided.'}
+                                        </p>
 
-                    <button
-                        onClick={handleCheckout}
-                        className="btn btn-success w-full mt-6"
-                    >
-                        Confirm Purchase
-                    </button>
-                </>
-            )}
-            <Footer />
+                                        {/* If the description already contained an Effect: line, render it below indented */}
+                                        {effect && (
+                                          <div className="text-sm text-base-content/60 mt-1">
+                                            <strong>Effect:</strong> {effect}
+                                          </div>
+                                        )}
+
+                                        {/* If no Effect: in description, show auto-generated effect (if available) */}
+                                        {!effect && getEffectDescription(item) && (
+                                          <div className="text-sm text-base-content/60 mt-1">
+                                            <strong>Effect:</strong> {getEffectDescription(item)}
+                                          </div>
+                                        )}
+                                      </>
+                                    );
+                                  })()}
+                              </div>
+
+                              {/* Price */}
+                              <div className="ml-4 text-right flex-shrink-0">
+                                  {hasDiscount ? (
+                                      <>
+                                          <div className="text-xs line-through text-base-content/50">{item.price} ₿</div>
+                                          <div className="text-success font-semibold">{calculatePrice(item.price)} ₿</div>
+                                      </>
+                                  ) : (
+                                      <div className="text-base-content font-semibold">{item.price} ₿</div>
+                                  )}
+                              </div>
+                          </li>
+                      ))}
+                  </ul>
+
+                  <div className="mt-4 text-right font-semibold text-success">
+                      Balance: {balance} ₿
+                  </div>
+
+                  <div className="mt-4 text-right font-semibold">
+                      <div className="text-lg text-base-content">
+                          Total: {calculateTotal()} ₿
+                      </div>
+                      {user?.discountShop && (
+                          <div className="text-sm text-success">
+                              You saved {Math.floor(getTotal() * 0.2)} ₿!
+                          </div>
+                      )}
+                  </div>
+
+                  <button
+                      onClick={handleCheckout}
+                      className="btn btn-success w-full mt-6"
+                  >
+                      Confirm Purchase
+                  </button>
+              </>
+          )}
         </div>
+      </main>
+
+      <Footer />
+    </div>
     );
 };
 
