@@ -10,15 +10,36 @@ const path = require('path');
 // Will get the profile for a student by ID
 router.get('/student/:id', ensureAuthenticated, async (req, res) => {
   try {
-    const user = await User.findById(req.params.id)
-      .populate('classrooms') // Will include the classrooms the user belongs to
-      .populate('groups') // Will include the groups the user belongs to
-      .populate('transactions.assignedBy', 'firstName lastName email'); // just enough info
+    console.log('[Profile fetch] params:', req.params, 'query:', req.query, 'user:', req.user && req.user._id);
+    const { classroomId } = req.query;
+
+    // Build query only populating fields that exist on the User schema
+    let q = User.findById(req.params.id);
+    if (User.schema.path('classrooms')) q = q.populate('classrooms');
+    if (User.schema.path('groups')) q = q.populate('groups');
+    q = q.populate({ path: 'transactions.assignedBy', select: 'firstName lastName email' });
+    const user = await q.exec();
+    
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    res.json(user);
+    // Convert to plain object so we can safely modify/override fields for response
+    const userObj = user.toObject();
+
+    // Guard classroomBalances (may be undefined)
+    if (classroomId && Array.isArray(userObj.classroomBalances)) {
+      const classroomBalance = userObj.classroomBalances.find(
+        cb => String(cb.classroom) === String(classroomId)
+      );
+      userObj.balance = classroomBalance ? classroomBalance.balance : 0;
+    } else if (classroomId) {
+      // no classroomBalances array — treat as zero for requested classroom
+      userObj.balance = 0;
+    }
+
+    return res.json(userObj);
   } catch (err) {
-    res.status(500).json({ error: 'Server error' });
+    console.error('Profile fetch error:', err && err.stack ? err.stack : err);
+    return res.status(500).json({ error: 'Server error' });
   }
 });
 

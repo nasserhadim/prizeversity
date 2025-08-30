@@ -175,7 +175,9 @@ router.post('/:id/teacher-approve', ensureAuthenticated, async (req, res) => {
       await transferBits({
         fromUserId: siphon.targetUser,
         recipients,
-        amount: siphon.amount
+        amount: siphon.amount,
+        session,
+        classroomId: siphon.classroom || group.classroom || null
       });
 
     

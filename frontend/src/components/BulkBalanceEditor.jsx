@@ -35,12 +35,11 @@ const BulkBalanceEditor = ({onSuccess}) => {
 
   useEffect(() => {
     const url = classroomId
-      ? `/api/classroom/${classroomId}/students` // Classroom-specific list
-      : `/api/users/students`; // Global student list
-
+      ? `/api/classroom/${classroomId}/students`
+      : `/api/users/students`;
     axios
       .get(url, { withCredentials: true })
-      .then(r => setStudents(r.data)) // This will set the studnet list
+      .then(r => setStudents(r.data)) // Now includes per-classroom balance
       .catch(() => setStudents([]));
 
       
