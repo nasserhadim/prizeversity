@@ -44,8 +44,13 @@ router.post(
       
       // Will loop through each group member and apply balance adjustmen
       for (const member of group.members) {
-        const user = member._id;
-        if (user.role !== 'student') continue;
+        // Ensure we have a full user doc. member._id may be populated or may be an ObjectId.
+        let user = member._id;
+        if (!user || !user._id) {
+          // fallback: fetch user document
+          user = await User.findById(member._id).select('balance passiveAttributes transactions role classroomBalances');
+        }
+        if (!user || user.role !== 'student') continue;
 
         // Apply multipliers only for positive amounts
         // Calculate the adjusted amount
@@ -99,22 +104,31 @@ router.post(
       req.app.get('io').to(`user-${user._id}`).emit('notification', populated);
 
       }
-// Notify the group about the balance adjustment
+// compute classroomId (from groupSet or group)
+const classroomId = groupSet?.classroom ? groupSet.classroom._id || groupSet.classroom : group.classroom;
 
-      req.app.get('io').to(`group-${group._id}`).emit('balance_adjust', {
-        groupId: group._id,
-        amount: numericAmount,
-        description,
-        results,
-      });
+// results array: populate per-user classroom balance
+results.push({
+  id: user._id,
+  newBalance: getClassroomBalance(user, classroomId)
+});
 
-      // Respond with success and detailed result
-      res.json({ 
-        success: true,
-        message: `${results.length} students updated`,
-        results,
-        groupMultiplier: group.groupMultiplier || 1
-      });
+// Emit classroom-aware event including classroomId
+req.app.get('io').to(`group-${group._id}`).emit('balance_adjust', {
+  groupId: group._id,
+  classroomId,
+  amount,
+  description,
+  results
+});
+
+// Respond with success and detailed result
+res.json({ 
+  success: true,
+  message: `${results.length} students updated`,
+  results,
+  groupMultiplier: group.groupMultiplier || 1
+});
     } catch (err) {
       console.error('Group balance adjust error:', err);
       res.status(500).json({ 

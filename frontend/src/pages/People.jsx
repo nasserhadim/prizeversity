@@ -93,11 +93,11 @@ const People = () => {
   }, [classroomId]);
 
 
-// Fetch students list
+// Fetch students with per-classroom balances
   const fetchStudents = async () => {
     try {
-      const res = await axios.get(`/api/classroom/${classroomId}/students`);
-      setStudents(res.data);
+      const res = await axios.get(`/api/classroom/${classroomId}/students`, { withCredentials: true });
+      setStudents(res.data); // Should include per-classroom balance
     } catch (err) {
       console.error('Failed to fetch students', err);
     }
@@ -327,7 +327,7 @@ const People = () => {
                       <div className="flex gap-2 mt-2 flex-wrap">
                         <button
                           className="btn btn-sm btn-outline"
-                          onClick={() => navigate(`/profile/${student._id}`)}
+                          onClick={() => navigate(`/classroom/${classroomId}/profile/${student._id}`)}
                         >
                           View Profile
                         </button>
@@ -405,7 +405,7 @@ const People = () => {
                                 </span>
                                 <button
                                   className="btn btn-sm btn-outline ml-4"
-                                  onClick={() => navigate(`/profile/${m._id._id}`)}
+                                  onClick={() => navigate(`/classroom/${classroomId}/profile/${m._id._id}`)}
                                 >
                                   View Profile
                                 </button>

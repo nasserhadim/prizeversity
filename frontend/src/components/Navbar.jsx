@@ -75,25 +75,31 @@ const Navbar = () => {
   const classroomMatch = location.pathname.match(/^\/classroom\/([^\/]+)/);
   const classroomId = classroomMatch ? classroomMatch[1] : null;
   const insideClassroom = Boolean(classroomId);
-  const { cartItems, removeFromCart } = useCart();
+
+  // Use classroom-scoped cart API
+  const { getCart, getCount, removeFromCart } = useCart();
+  const cartItems = getCart(classroomId);
+  const cartCount = getCount(classroomId) || 0;
+
   const [showCart, setShowCart] = useState(false);
   const cartRef = useRef(null);
   const [balance, setBalance] = useState(0);
 
   useEffect(() => {
     const fetchBalance = async () => {
-      if (user?._id) {
+      if (user?._id && classroomId) {
         try {
-          const { data } = await axios.get(`/api/wallet/${user._id}/balance`, { withCredentials: true });
+          const { data } = await axios.get(`/api/wallet/${user._id}/balance?classroomId=${classroomId}`, { withCredentials: true });
           setBalance(data.balance);
         } catch (error) {
           console.error("Failed to fetch balance for navbar", error);
         }
       }
     };
-
     fetchBalance();
+  }, [user, classroomId]);
 
+  useEffect(() => {
     if (user?._id) {
       const balanceUpdateHandler = (data) => {
         if (data.studentId === user._id) {
@@ -178,9 +184,9 @@ const Navbar = () => {
               title="Cart"
             >
               <ShoppingCart size={20} className="text-green-500" />
-              {cartItems.length > 0 && (
+              {cartCount > 0 && (
                 <span className="absolute -top-1 -right-2 bg-red-500 text-white rounded-full text-xs w-4 h-4 flex items-center justify-center">
-                  {cartItems.length}
+                  {cartCount}
                 </span>
               )}
             </button>
@@ -297,9 +303,9 @@ const Navbar = () => {
               title="Cart"
             >
               <ShoppingCart size={24} className="text-green-500" />
-              {cartItems.length > 0 && (
+              {cartCount > 0 && (
                 <span className="absolute -top-1 -right-2 bg-red-500 text-white rounded-full text-xs w-5 h-5 flex items-center justify-center">
-                  {cartItems.length}
+                  {cartCount}
                 </span>
               )}
             </button>
@@ -391,20 +397,20 @@ const Navbar = () => {
             ) : (
               <>
                 <ul className="space-y-2">
-                  {cartItems.map(item => (
-                    <li key={item._id} className="flex justify-between items-center">
+                  {cartItems.map((item, idx) => (
+                    <li key={idx} className="flex justify-between items-center">
                       <div>
                         <span className="block font-medium">{item.name}</span>
                         <span className="text-sm text-base-content/80">{item.price} ₿</span>
                       </div>
-                      <button onClick={() => removeFromCart(item._id)} className="text-red-500 text-sm">✕</button>
+                      <button onClick={() => removeFromCart(idx, classroomId)} className="text-red-500 text-sm">✕</button>
                     </li>
                   ))}
                 </ul>
                 <div className="mt-3 text-right font-semibold">
-                  Total: {cartItems.reduce((sum, item) => sum + item.price, 0)} ₿
+                  Total: {cartItems.reduce((sum, item) => sum + (Number(item.price) || 0), 0)} ₿
                 </div>
-                <Link to="/checkout">
+                <Link to={classroomId ? `/classroom/${classroomId}/checkout` : '/checkout'}>
                   <button className="mt-3 w-full btn btn-success">Go to Checkout</button>
                 </Link>
               </>

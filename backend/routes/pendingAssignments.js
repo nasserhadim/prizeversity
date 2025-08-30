@@ -40,15 +40,31 @@ router.patch('/:id/approve', ensureAuthenticated, async (req, res) => {
   // Update the student's balance and add a transaction
   const User = require('../models/User');
   const student = await User.findById(pa.student);
-  student.balance += pa.amount;
-  // When approving a pending assignment, record the classroom on the student's transaction
+
+  // Use per-classroom balance when approving pending assignment
+  const current = Array.isArray(student.classroomBalances)
+    ? (student.classroomBalances.find(cb => String(cb.classroom) === String(pa.classroom))?.balance || 0)
+    : 0;
+  const newBalance = Math.max(0, current + pa.amount);
+
+  // update per-classroom balance
+  if (!Array.isArray(student.classroomBalances)) student.classroomBalances = [];
+  const idx = student.classroomBalances.findIndex(cb => String(cb.classroom) === String(pa.classroom));
+  if (idx >= 0) {
+    student.classroomBalances[idx].balance = newBalance;
+  } else {
+    student.classroomBalances.push({ classroom: pa.classroom, balance: newBalance });
+  }
+
+  // push transaction (include classroom)
   student.transactions.push({
     amount: pa.amount,
     description: pa.description,
     assignedBy: pa.requestedBy,
-    classroom: pa.classroom || null, // <- ensure classroom included
+    classroom: pa.classroom || null,
     createdAt: new Date()
   });
+
   await student.save();
 
   // Mark the pending asignment as approved
