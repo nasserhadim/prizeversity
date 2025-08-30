@@ -60,7 +60,8 @@ export default function Profile() {
   const [imageUrl, setImageUrl] = useState(''); // for URL uploads
   const MAX_AVATAR_BYTES = 5 * 1024 * 1024; // 5 MB
 
-  const { id: profileId, classroomId } = useParams(); // classroomId may be undefined outside classroom routes
+  // Update useParams to get classroomId
+  const { id: profileId, classroomId } = useParams();
 
   // Backend URL base
   const BACKEND_URL = `${API_BASE}`;
@@ -79,30 +80,34 @@ export default function Profile() {
 
   // Fetch the profile data when component mounts or profileId changes
   useEffect(() => {
-      const fetchProfile = async () => {
-          try {
-              const res = await axios.get(`/api/profile/student/${profileId}`, {
-                  withCredentials: true
-              });
-              // initialize edit fields when loading profile
-              setEditFirstName(res.data.firstName || '');
-              setEditLastName(res.data.lastName || '');
-              setAvatarFile(null);
-              setRemoveAvatar(false);
-              setPrevAvatar(null);
-              setRemovedOnServer(false);
-              setImageUrl('');
-              setImageSource('file');
-              setProfile(res.data);
-          } catch (err) {
-              console.error('Profile fetch error:', err);
-          } finally {
-              setLoadingOrders(false);
-          }
-      };
+  const fetchProfile = async () => {
+    try {
+      const url = classroomId
+        ? `/api/profile/student/${profileId}?classroomId=${classroomId}`
+        : `/api/profile/student/${profileId}`;
+      const res = await axios.get(url, {
+        withCredentials: true
+      });
+      // initialize edit fields when loading profile
+      setEditFirstName(res.data.firstName || '');
+      setEditLastName(res.data.lastName || '');
+      setAvatarFile(null);
+      setRemoveAvatar(false);
+      setPrevAvatar(null);
+      setRemovedOnServer(false);
+      setImageUrl('');
+      setImageSource('file');
+      setProfile(res.data);
+    } catch (err) {
+      console.error('Profile fetch error:', err);
+      setProfile(null); // Ensure profile is set to null on error
+    } finally {
+      setLoadingOrders(false);
+    }
+  };
 
-      if (profileId) fetchProfile();
-  }, [profileId]);
+  if (profileId) fetchProfile();
+}, [profileId, classroomId]);
 
   // Added new useEffect to fetch the stats into a table.
   useEffect(() => {
@@ -628,51 +633,51 @@ export default function Profile() {
                    />
                   </div>
  
-                  {user.role === 'teacher' && profile.role === 'student' && (
-                      <div className="mt-6">
-                          <h2 className="text-xl mb-2">Purchase History</h2>
-                          {loadingOrders ? (
-                              <p>Loading…</p>
-                          ) : ordersError ? (
-                              <p className="text-red-500">{ordersError}</p>
-                          ) : orders.length === 0 ? (
-                              <p>No purchases by this student.</p>
-                          ) : (
-                              <div>
-                                  {/* Filter / sort bar (same controls as OrderHistory) */}
-                                  <OrderFilterBar
-                                    search={searchOrders}
-                                    setSearch={setSearchOrders}
-                                    classroomFilter={classroomFilter}
-                                    setClassroomFilter={setClassroomFilter}
-                                    classroomOptions={classroomOptions}
-                                    sortField={sortField}
-                                    setSortField={setSortField}
-                                    sortDirection={sortDirection}
-                                    setSortDirection={setSortDirection}
-                                    onExportCSV={exportCSVProfile}
-                                    onExportJSON={exportJSONProfile}
-                                    userName={`${profile?.firstName || ''} ${profile?.lastName || ''}`.trim() || profile?.email}
-                                    exportLabel="purchase_history"
-                                  />
+                  {user?.role === 'teacher' && profile?.role === 'student' && (
+                        <div className="mt-6">
+                            <h2 className="text-xl mb-2">Purchase History</h2>
+                            {loadingOrders ? (
+                                <p>Loading…</p>
+                            ) : ordersError ? (
+                                <p className="text-red-500">{ordersError}</p>
+                            ) : orders.length === 0 ? (
+                                <p>No purchases by this student.</p>
+                            ) : (
+                                <div>
+                                    {/* Filter / sort bar (same controls as OrderHistory) */}
+                                    <OrderFilterBar
+                                      search={searchOrders}
+                                      setSearch={setSearchOrders}
+                                      classroomFilter={classroomFilter}
+                                      setClassroomFilter={setClassroomFilter}
+                                      classroomOptions={classroomOptions}
+                                      sortField={sortField}
+                                      setSortField={setSortField}
+                                      sortDirection={sortDirection}
+                                      setSortDirection={setSortDirection}
+                                      onExportCSV={exportCSVProfile}
+                                      onExportJSON={exportJSONProfile}
+                                      userName={`${profile?.firstName || ''} ${profile?.lastName || ''}`.trim() || profile?.email}
+                                      exportLabel="purchase_history"
+                                    />
 
-                                  <div className="space-y-4">
-                                      {displayed.map(o => (
-                                          <OrderCard key={o._id} order={o} />
-                                      ))}
-                                  </div>
+                                    <div className="space-y-4">
+                                        {displayed.map(o => (
+                                            <OrderCard key={o._id} order={o} />
+                                        ))}
+                                    </div>
 
-                                  {displayCount < visible.length && <div ref={sentinelRef} className="h-10" />}
+                                    {displayCount < visible.length && <div ref={sentinelRef} className="h-10" />}
 
-                                  <div className="flex justify-center items-center gap-3 mt-4">
-                                      <button className="btn btn-sm" onClick={() => setDisplayCount(prev => Math.max(perPage, prev - perPage))} disabled={displayCount <= perPage}>Prev</button>
-                                      <div>Showing {Math.min(displayCount, visible.length)} of {visible.length}</div>
-                                      <button className="btn btn-sm" onClick={() => setDisplayCount(prev => Math.min(prev + perPage, visible.length))} disabled={displayCount >= visible.length}>More</button>
-                                  </div>
-                              </div>
-                          )}
-                      </div>
-                  )}
+                                    <div className="flex justify-center items-center gap-3 mt-4">
+                                        <button className="btn btn-sm" onClick={() => setDisplayCount(prev => Math.max(perPage, prev - perPage))} disabled={displayCount <= perPage}>Prev</button>
+                                        <div>Showing {Math.min(displayCount, visible.length)} of {visible.length}</div>
+                                        <button className="btn btn-sm" onClick={() => setDisplayCount(prev => Math.min(prev + perPage, visible.length))} disabled={displayCount >= visible.length}>More</button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
               </div>
           </div>
           <Footer />

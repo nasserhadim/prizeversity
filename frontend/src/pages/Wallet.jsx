@@ -67,6 +67,7 @@ const Wallet = () => {
     fetchClassroom();
     fetchWallet();
     fetchUsers();
+    fetchBalance(); // Add this to fetch per-classroom balance
 
     const role = (user.role || '').toString().toLowerCase();
     if ((role === 'teacher' || role === 'admin') && classroomId) {
@@ -133,7 +134,9 @@ const fetchWallet = async () => {
 
   setTransactions(unique); 
   if (user.role === 'student') {
-    const userRes = await axios.get(`/api/users/${user._id}`, { withCredentials: true });
+    // Use per-classroom balance
+    const params = classroomId ? `?classroomId=${classroomId}` : '';
+    const userRes = await axios.get(`/api/users/${user._id}${params}`, { withCredentials: true });
     setBalance(userRes.data.balance);
   }
 } catch (err) {
@@ -165,6 +168,18 @@ const fetchWallet = async () => {
       console.error('Failed to fetch classroom:', err);
     }
   };
+
+  // Fetch balance (updated for per-classroom)
+const fetchBalance = async () => {
+  if (!user?._id) return;
+  try {
+    const params = classroomId ? `?classroomId=${classroomId}` : '';
+    const { data } = await axios.get(`/api/wallet/${user._id}/balance${params}`, { withCredentials: true });
+    setBalance(data.balance);
+  } catch (error) {
+    console.error("Failed to fetch balance for wallet", error);
+  }
+};
 
   return (
     <div className="p-6 max-w-4xl mx-auto">

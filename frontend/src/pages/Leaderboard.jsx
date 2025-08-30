@@ -36,11 +36,11 @@ const Leaderboard = () => {
     }
   };
 
-  // Fetching all the students to load them in the leaderboard 
+  // Fetch leaderboard with per-classroom balances
   const fetchLeaderboard = async () => {
     try {
       const response = await apiLeaderboard.get(`/${classId}/leaderboard`);
-      setStudents(response.data);
+      setStudents(response.data); // Now includes per-classroom balance
     } catch (err) {
       console.error(err);
       toast.error('Failed to load leaderboard');
@@ -203,7 +203,7 @@ const Leaderboard = () => {
                       <td>
                         <button
                           className="btn btn-sm btn-outline"
-                          onClick={() => navigate(`/profile/${student._id}`)}
+                          onClick={() => navigate(`/classroom/${classId}/profile/${student._id}`)}
                         >
                           View Profile
                         </button>

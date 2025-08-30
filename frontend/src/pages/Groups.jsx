@@ -462,17 +462,21 @@ const Groups = () => {
   //   }
   // };
   // Handles a student leaving a group
-  const handleLeaveGroup = async () => {
-    if (!confirmLeaveGroup) return;
+  const handleLeaveGroup = async (groupSetIdParam, groupIdParam) => {
+    // Accept optional parameters (from direct button click) or fall back to confirm modal state
+    const groupSetId = groupSetIdParam || confirmLeaveGroup?.groupSetId;
+    const groupId = groupIdParam || confirmLeaveGroup?.groupId;
+    if (!groupSetId || !groupId) {
+      return; // nothing to do
+    }
 
     try {
-      const { groupSetId, groupId } = confirmLeaveGroup;
       await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/leave`);
       toast.success('Left group');
       setConfirmLeaveGroup(null);
       fetchGroupSets();
-    } catch {
-      toast.error('Failed to leave group');
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to leave group');
     }
   };
 

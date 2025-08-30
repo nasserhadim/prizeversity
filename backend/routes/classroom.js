@@ -85,12 +85,19 @@ router.post('/join', ensureAuthenticated, async (req, res) => {
   try {
     const classroom = await Classroom.findOne({ code: code.trim(), archived: false });
     if (!classroom) {
-      console.log('No classroom found with code: ', code);
       return res.status(404).json({ error: 'Invalid classroom code' });
     }
 
     if (classroom.students.includes(req.user._id)) {
       return res.status(400).json({ error: 'You have already joined this classroom' });
+    }
+
+    // Initialize per-classroom balance if not present
+    const user = await User.findById(req.user._id);
+    const existingBalance = user.classroomBalances.find(cb => cb.classroom.toString() === classroom._id.toString());
+    if (!existingBalance) {
+      user.classroomBalances.push({ classroom: classroom._id, balance: 0 });
+      await user.save();
     }
 
     classroom.students.push(req.user._id);
@@ -396,18 +403,28 @@ router.post('/:id/leave', ensureAuthenticated, async (req, res) => {
 });
 
 
-// Fetch & Remove Students
+// Fetch Students in Classroom (updated for per-classroom balances)
 router.get('/:id/students', ensureAuthenticated, async (req, res) => {
   try {
     const classroom = await Classroom.findById(req.params.id)
-      .populate(
-        'students',
-        'email role firstName lastName balance shortId'
-      );
+      .populate('students', 'email role firstName lastName shortId');
     if (!classroom) {
       return res.status(404).json({ error: 'Classroom not found' });
     }
-    res.status(200).json(classroom.students);
+
+    // Fetch per-classroom balances for each student
+    const studentsWithBalances = await Promise.all(
+      classroom.students.map(async (student) => {
+        const user = await User.findById(student._id).select('classroomBalances');
+        const classroomBalance = user.classroomBalances.find(cb => cb.classroom.toString() === req.params.id);
+        return {
+          ...student.toObject(),
+          balance: classroomBalance ? classroomBalance.balance : 0
+        };
+      })
+    );
+
+    res.status(200).json(studentsWithBalances);
   } catch (err) {
     console.error('[Fetch Students] error:', err);
     res.status(500).json({ error: 'Failed to fetch students' });

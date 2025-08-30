@@ -1,11 +1,19 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import socket from '../utils/socket.js'; 
 
-const CartDropdown = () => {
-    const { cartItems, getTotal, removeFromCart } = useCart();
+function getClassroomFromPath(pathname) {
+  const m = pathname.match(/^\/classroom\/([^\/]+)/);
+  return m ? m[1] : null;
+}
+
+const CartDropdown = (props) => {
+    const location = useLocation();
+    const classroomId = getClassroomFromPath(location.pathname);
+    const { cartItems, getTotal, removeFromCart, getCart } = useCart();
     const { user } = useAuth();
     const [hasDiscount, setHasDiscount] = useState(user?.discountShop || false);
 
@@ -35,6 +43,9 @@ const CartDropdown = () => {
         return user?.discountShop ? Math.floor(subtotal * 0.8) : subtotal;
     }
 
+    // use classroom-scoped cart
+    const cartItems = getCart(classroomId);
+
     return (
         <div className="fixed top-20 right-4 bg-base-100 border border-base-300 shadow-lg w-80 z-[9999] p-4 rounded text-base-content">
             <h3 className="text-lg font-bold mb-2">Your Cart</h3>
@@ -50,8 +61,8 @@ const CartDropdown = () => {
                 <p className="text-sm text-base-content/60">Cart is empty</p>
             ) : (
                 <ul className="space-y-2">
-                    {cartItems.map(item => (
-                        <li key={item._id} className="flex justify-between items-center">
+                    {cartItems.map((item, idx) => (
+                        <li key={item._entryId || `${item._id}-${idx}`} className="flex justify-between items-center">
                             <span>{item.name}</span>
                             <div className="flex items-center gap-2">
                                 {user?.discountShop ? (

@@ -145,9 +145,24 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticate
   }
 });
 
-// Buy Item (any authenticated user)
-router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensureAuthenticated, blockIfFrozen, async (req, res) => { 
-  const { itemId } = req.params;
+// Helper functions (add these at the top of the file, after imports)
+const getClassroomBalance = (user, classroomId) => {
+  const classroomBalance = user.classroomBalances.find(cb => cb.classroom.toString() === classroomId.toString());
+  return classroomBalance ? classroomBalance.balance : 0;
+};
+
+const updateClassroomBalance = (user, classroomId, newBalance) => {
+  const index = user.classroomBalances.findIndex(cb => cb.classroom.toString() === classroomId.toString());
+  if (index >= 0) {
+    user.classroomBalances[index].balance = Math.max(0, newBalance);
+  } else {
+    user.classroomBalances.push({ classroom: classroomId, balance: Math.max(0, newBalance) });
+  }
+};
+
+// Buy Item (updated for per-classroom balances)
+router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensureAuthenticated, blockIfFrozen, async (req, res) => {
+  const { classroomId, itemId } = req.params;
   const { quantity } = req.body;
 
   try {
@@ -157,12 +172,13 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensur
     const user = await User.findById(req.user._id);
     const totalCost = item.price * quantity;
 
-    // Checking if the user has enough balance
-    if (user.balance < totalCost) {
+    // Use per-classroom balance for check and deduction
+    const userBalance = getClassroomBalance(user, classroomId);
+    if (userBalance < totalCost) {
       return res.status(400).json({ error: 'Insufficient balance' });
     }
 
-    // Create owned copies for quantity and collect summaries
+    // Create owned copies for quantity and collect summaries (unchanged, but now with per-classroom context)
     const ownedItems = [];
     for (let i = 0; i < quantity; i++) {
       const ownedItem = await Item.create({
@@ -180,14 +196,16 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensur
       ownedItems.push(ownedItem);
     }
 
-    // Deduct balance and record detailed transaction (include item summaries)
-    user.balance -= totalCost;
+    // Deduct from per-classroom balance and record detailed transaction
+    updateClassroomBalance(user, classroomId, userBalance - totalCost);
     user.transactions.push({
       amount: -totalCost,
       description: `Purchased ${quantity} x ${item.name}`,
+      assignedBy: req.user._id,
+      classroom: classroomId,  // Add classroom reference
       type: 'purchase',
       date: new Date(),
-      // include item summaries so frontend can render thumbnails/descriptions/effects
+      // Include item summaries so frontend can render thumbnails/descriptions/effects
       items: ownedItems.map(i => ({
         id: i._id,
         name: i.name,
@@ -203,8 +221,8 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensur
 
     await user.save();
 
-    // Notify classroom about the purchase
-    req.app.get('io').to(`classroom-${req.params.classroomId}`).emit('bazaar_purchase', {
+    // Notify classroom about the purchase (unchanged)
+    req.app.get('io').to(`classroom-${classroomId}`).emit('bazaar_purchase', {
       itemId,
       buyerId: req.user._id,
       newStock: item.stock
@@ -212,7 +230,7 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensur
 
     res.status(200).json({
       message: 'Purchase successful',
-      balance: user.balance,
+      balance: getClassroomBalance(user, classroomId),  // Return per-classroom balance
       items: ownedItems
     });
   } catch (err) {
@@ -221,17 +239,16 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensur
   }
 });
 
-
-// Checkout multiple items
-  router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) => {
+// Checkout multiple items (updated for per-classroom balances)
+router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) => {
   console.log("Received checkout request:", req.body);
-  
+
   try {
-    const { userId, items } = req.body;
-    
-    if (!userId || !items || !Array.isArray(items) || items.length === 0) {
-      console.error("Invalid checkout data:", { userId, items });
-      return res.status(400).json({ error: 'Invalid checkout data' });
+    const { userId, items, classroomId } = req.body;  // Add classroomId to request body
+
+    if (!userId || !items || !Array.isArray(items) || items.length === 0 || !classroomId) {
+      console.error("Invalid checkout data:", { userId, items, classroomId });
+      return res.status(400).json({ error: 'Invalid checkout data or missing classroomId' });
     }
 
     const user = await User.findById(userId);
@@ -241,15 +258,16 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensur
     }
 
     const total = items.reduce((sum, item) => sum + item.price, 0);
-    console.log(`Calculated total: ${total}, User balance: ${user.balance}`);
+    console.log(`Calculated total: ${total}, User per-classroom balance: ${getClassroomBalance(user, classroomId)}`);
 
-    // Ensuring user has enough balance
-    if (user.balance < total) {
-      console.error("Insufficient balance:", { balance: user.balance, total });
+    // Use per-classroom balance for check
+    const userBalance = getClassroomBalance(user, classroomId);
+    if (userBalance < total) {
+      console.error("Insufficient balance:", { balance: userBalance, total });
       return res.status(400).json({ error: 'Insufficient balance' });
     }
 
-    // Process each item
+    // Process each item (unchanged, but now with per-classroom context)
     const ownedItems = [];
     for (const itemData of items) {
       const item = await Item.findById(itemData._id || itemData.id);
@@ -274,8 +292,8 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensur
       ownedItems.push(ownedItem);
     }
 
-    // Deduct balance once and create the order
-    user.balance -= total;
+    // Deduct from per-classroom balance and create order/transaction
+    updateClassroomBalance(user, classroomId, userBalance - total);
 
     const order = new Order({
       user: userId,
@@ -284,10 +302,12 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensur
     });
     await order.save();
 
-    // Push a single detailed purchase transaction (items + orderId) so Wallet can render item thumbnails/descriptions/effects
+    // Push a single detailed purchase transaction
     user.transactions.push({
       amount: -total,
       description: `Checkout: ${items.map(i => i.name).join(', ')}`,
+      assignedBy: req.user._id,
+      classroom: classroomId,  // Add classroom reference
       type: 'purchase',
       date: new Date(),
       items: ownedItems.map(i => ({
@@ -303,21 +323,14 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensur
       })),
       orderId: order._id
     });
+
     await user.save();
 
-    // DEBUG: log the transaction we just saved so you can inspect its shape in server logs
-    try {
-      const savedTx = user.transactions[user.transactions.length - 1];
-      console.log('Saved checkout transaction for user %s: %o', user._id, savedTx);
-    } catch (err) {
-      console.error('Failed to log saved transaction:', err);
-    }
-    
     console.log("Checkout successful for user:", userId, "order:", order._id);
     res.status(200).json({
       message: 'Purchase successful',
       items: ownedItems,
-      balance: user.balance,
+      balance: getClassroomBalance(user, classroomId),  // Return per-classroom balance
       orderId: order._id
     });
 
@@ -331,14 +344,18 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy',  ensur
   }
 });
 
-
-// Get the balance for a user
+// Get the balance for a user (updated for per-classroom)
 router.get('/user/:userId/balance', async (req, res) => {
   try {
+    const { classroomId } = req.query;
     const user = await User.findById(req.params.userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    res.json({ balance: user.balance });
+    let balance = user.balance; // Default to global
+    if (classroomId) {
+      balance = getClassroomBalance(user, classroomId);
+    }
+    res.json({ balance });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch balance' });

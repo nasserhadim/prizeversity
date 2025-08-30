@@ -1,5 +1,5 @@
 import { useCart } from '../context/CartContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import apiBazaar from '../API/apiBazaar';
 import React, { useState, useEffect } from 'react';
@@ -11,105 +11,106 @@ import { getEffectDescription, splitDescriptionEffect } from '../utils/itemHelpe
 import Footer from '../components/Footer';
 
 const Checkout = () => {
-    const { cartItems, getTotal, clearCart, removeFromCart } = useCart();
-    const navigate = useNavigate();
-    const { user } = useAuth();
-    const [balance, setBalance] = useState(0);
-    const [hasDiscount, setHasDiscount] = useState(user?.discountShop || false);
+  const { classroomId } = useParams();
+  const { user } = useAuth();
+  const navigate = useNavigate(); // <-- add this so navigate(...) is defined
 
-    useEffect(() => {
-        setHasDiscount(user?.discountShop || false);
+  // Use classroom-aware cart helpers
+  const { getCart, getTotal, clearCart, removeFromCart, addToCart } = useCart();
+  const cartItems = getCart(classroomId);
 
-        // Listen for discount expiration
-        const handleDiscountExpired = () => {
-            setHasDiscount(false);
-        };
+  const [balance, setBalance] = useState(0);
+  const [hasDiscount, setHasDiscount] = useState(user?.discountShop || false);
 
-        socket.on('discount_expired', handleDiscountExpired);
+  useEffect(() => {
+    setHasDiscount(user?.discountShop || false);
 
-        return () => {
-            socket.off('discount_expired', handleDiscountExpired);
-        };
-    }, [user]);
-
-    const fetchBalance = async () => {
-        try {
-            const response = await apiBazaar.get(`/user/${user._id}/balance`);
-            setBalance(response.data.balance);
-        } catch (err) {
-            console.error('Failed to fetch balance:', err);
-        }
+    // Listen for discount expiration
+    const handleDiscountExpired = () => {
+      setHasDiscount(false);
     };
 
-    useEffect(() => {
-        if (user?._id) {
-            fetchBalance();
-        }
-    }, [user]);
+    socket.on('discount_expired', handleDiscountExpired);
 
-    // Calculating the discuonted price (only if discount is active)
-    const calculatePrice = (price) => {
-        return user?.discountShop ? Math.floor(price * 0.8) : price;
+    return () => {
+      socket.off('discount_expired', handleDiscountExpired);
     };
+  }, [user]);
 
-    // Calculating the total with discount
-    const calculateTotal = () => {
-        const subtotal = cartItems.reduce((sum, item) => sum + item.price, 0);
-        return user?.discountShop ? Math.floor(subtotal * 0.8) : subtotal;
+  const fetchBalance = async () => {
+    try {
+      const params = classroomId ? `?classroomId=${classroomId}` : '';
+      const response = await apiBazaar.get(`/user/${user._id}/balance${params}`);
+      setBalance(response.data.balance);
+    } catch (err) {
+      console.error('Failed to fetch balance:', err);
     }
+  };
 
-    const handleCheckout = async () => {
-        try {
-            // Validate cart
-            if (cartItems.length === 0) {
-                toast.error('Your cart is empty');
-                return;
-            }
- 
-            // Prepare items with discounted prices if applicable and ensure _id / price shape
-            const checkoutItems = cartItems.map(item => {
-                const id = item._id || item.id || item._id?.toString();
-                return {
-                    _id: id,
-                    id: id,
-                    name: item.name,
-                    price: Number(user?.discountShop ? Math.floor(item.price * 0.8) : item.price) || 0,
-                    category: item.category,
-                    primaryEffect: item.primaryEffect,
-                    secondaryEffects: item.secondaryEffects,
-                    image: item.image
-                };
-            });
- 
-            console.log("Sending checkout request:", {
-                userId: user._id,
-                items: checkoutItems
-            });
- 
-            const response = await apiBazaar.post('/checkout', {
-                userId: user._id,
-                items: checkoutItems
-            });
- 
-            if (response.status === 200) {
-                await fetchBalance();
-                clearCart();
-                toast.success('Purchase complete!');
-                navigate(-1);
-            }
-        } catch (err) {
-            console.error("Checkout error:", {
-                message: err.message,
-                response: err.response?.data,
-                stack: err.stack
-            });
-            // Show backend error message when available
-            const msg = err.response?.data?.error || err.response?.data?.message || 'Checkout failed. Please try again.';
-            toast.error(msg);
-        }
-    };
+  useEffect(() => {
+    if (user?._id) {
+      fetchBalance();
+    }
+  }, [user, classroomId]);
 
-    return (
+  // Calculating the discuonted price (only if discount is active)
+  const calculatePrice = (price) => {
+    return user?.discountShop ? Math.floor(price * 0.8) : price;
+  };
+
+  // Calculating the total with discount
+  const calculateTotal = () => {
+    const subtotal = cartItems.reduce((sum, item) => sum + item.price, 0);
+    return user?.discountShop ? Math.floor(subtotal * 0.8) : subtotal;
+  }
+
+  const handleCheckout = async () => {
+    try {
+      if (cartItems.length === 0) {
+        toast.error('Your cart is empty');
+        return;
+      }
+
+      const checkoutItems = cartItems.map(item => {
+        const id = item._id || item.id || item._id?.toString();
+        return {
+          _id: id,
+          id: id,
+          name: item.name,
+          price: Number(user?.discountShop ? Math.floor(item.price * 0.8) : item.price) || 0,
+          category: item.category,
+          primaryEffect: item.primaryEffect,
+          secondaryEffects: item.secondaryEffects,
+          image: item.image
+        };
+      });
+
+      const response = await apiBazaar.post('/checkout', {
+        userId: user._id,
+        items: checkoutItems,
+        classroomId // ensure backend gets classroom context
+      });
+
+      if (response.status === 200) {
+        await fetchBalance();
+        // clear only this classroom's cart
+        clearCart(classroomId);
+        toast.success('Purchase complete!');
+        navigate(-1);
+      }
+    } catch (err) {
+      console.error("Checkout error:", {
+        message: err.message,
+        response: err.response?.data,
+        stack: err.stack
+      });
+      // Show backend error message when available
+      const msg = err.response?.data?.error || err.response?.data?.message || 'Checkout failed. Please try again.';
+      toast.error(msg);
+    }
+  };
+
+  return (
     <div className="flex flex-col min-h-screen bg-base-200">
       <main className="flex-grow flex items-start justify-center p-6 pt-24 pb-12">
         <div className="w-full max-w-4xl mx-auto p-8 bg-base-100 rounded-2xl shadow-lg border border-base-300 min-h-[50vh]">
@@ -126,8 +127,8 @@ const Checkout = () => {
           ) : (
               <>
                   <ul className="space-y-4">
-                      {cartItems.map(item => (
-                          <li key={item._id} className="flex items-start gap-4">
+                      {cartItems.map((item, idx) => (
+                          <li key={item._entryId || `${item._id}-${idx}`} className="flex items-start gap-4">
                               {/* Thumbnail */}
                               <div className="w-16 h-16 bg-base-200 rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0">
                                   <img
