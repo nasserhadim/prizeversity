@@ -186,11 +186,12 @@ const fetchBalance = async () => {
 };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold">
-          {classroom?.name ? `${classroom.name} Wallet` : 'Wallet'}
-        </h1>
+    <div className="min-h-screen flex flex-col overflow-x-hidden">
+      <div className="w-full max-w-4xl mx-auto flex-grow py-6 px-4 sm:px-6 box-border">
+         <div className="flex justify-between items-center mb-4">
+           <h1 className="text-2xl font-bold">
+             {classroom?.name ? `${classroom.name} Wallet` : 'Wallet'}
+           </h1>
 
         {/* ▼ Tab buttons */}
         {(user.role === 'teacher' || user.role === 'admin') && (
@@ -425,10 +426,10 @@ const fetchBalance = async () => {
           )}
         </>
       )}
+      </div>
       <Footer />
     </div>
-  );
-};
-
-
-export default Wallet;
+   );
+ };
+ 
+ export default Wallet;
