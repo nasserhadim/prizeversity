@@ -481,7 +481,7 @@ const Navbar = () => {
               <>
                 <Link
                   to={`/classroom/${classroomId}`}
-                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname === `/classroom/${classroomId}` ? 'bg-primary/10 text-primary' : 'hover:bg-base-200'}`}
+                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname === `/classroom/${classroomId}` ? 'text-green-500' : ''}`}
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   <School size={20} />
@@ -489,7 +489,7 @@ const Navbar = () => {
                 </Link>
                 <Link
                   to={`/classroom/${classroomId}/bazaar`}
-                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname.startsWith(`/classroom/${classroomId}/bazaar`) ? 'bg-primary/10 text-primary' : 'hover:bg-base-200'}`}
+                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname.startsWith(`/classroom/${classroomId}/bazaar`) ? 'text-green-500' : ''}`}
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   <Briefcase size={20} />
@@ -497,7 +497,7 @@ const Navbar = () => {
                 </Link>
                 <Link
                   to={`/classroom/${classroomId}/groups`}
-                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname.startsWith(`/classroom/${classroomId}/groups`) ? 'bg-primary/10 text-primary' : 'hover:bg-base-200'}`}
+                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname.startsWith(`/classroom/${classroomId}/groups`) ? 'text-green-500' : ''}`}
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   <Users size={20} />
@@ -505,7 +505,7 @@ const Navbar = () => {
                 </Link>
                 <Link
                   to={`/classroom/${classroomId}/people`}
-                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname.startsWith(`/classroom/${classroomId}/people`) ? 'bg-primary/10 text-primary' : 'hover:bg-base-200'}`}
+                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname.startsWith(`/classroom/${classroomId}/people`) ? 'text-green-500' : ''}`}
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   <UserRound size={20} />
@@ -513,11 +513,21 @@ const Navbar = () => {
                 </Link>
                 <Link
                   to={`/classroom/${classroomId}/leaderboard`}
-                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname === '/leaderboard' ? 'bg-primary/10 text-primary' : 'hover:bg-base-200'}`}
+                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname === '/leaderboard' ? 'text-green-500' : ''}`}
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   <Trophy size={20} />
                   <span>Leaderboard</span>
+                </Link>
+
+                {/* ADDED: Feedback link for mobile/hamburger menu */}
+                <Link
+                  to={`/classroom/${classroomId}/feedback`}
+                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname === `/classroom/${classroomId}/feedback` ? 'text-green-500' : ''}`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <Star size={20} />
+                  <span>Feedback</span>
                 </Link>
               </>
             )}
