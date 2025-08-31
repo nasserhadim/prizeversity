@@ -6,11 +6,15 @@ import { getNews } from '../API/apiNewsfeed';
 import ClassroomBanner from '../components/ClassroomBanner';
 import { getClassroom } from '../API/apiClassroom';
 import Footer from '../components/Footer';
+import socket from '../utils/socket';
+
 
 export default function StudentNewsfeed() {
     const { id: classId } = useParams();
+    
     const [items, setItems] = useState([]);
     const [classroomName, setClassroomName] = useState('');
+    const [classroomCode, setClassroomCode] = useState('');
     const [visibleCount, setVisibleCount] = useState(10);
     const [bgColor, setBgColor] = useState('');
     const [backgroundImage, setBackgroundImage] = useState('');
@@ -23,6 +27,7 @@ export default function StudentNewsfeed() {
             // fetch classroom info
             const classRes = await getClassroom(classId);
             setClassroomName(classRes.data.name);
+            setClassroomCode(classRes.data.code);
             setBgColor(classRes.data.color);
             setBackgroundImage(classRes.data.backgroundImage);
         }
@@ -34,6 +39,7 @@ export default function StudentNewsfeed() {
             <div className="flex-grow">
                 <ClassroomBanner
                     name={classroomName}
+                    code={classroomCode}
                     bgColor={bgColor}
                     backgroundImage={backgroundImage}
                 />

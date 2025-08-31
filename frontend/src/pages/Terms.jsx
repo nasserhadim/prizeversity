@@ -413,7 +413,7 @@ const Terms = () => {
           <div className="flex flex-col sm:flex-row justify-center gap-4 mb-4">
             <Link to="/privacy" className="link text-primary">Privacy Policy</Link>
             <Link to="/support" className="link text-primary">Help & Support</Link>
-            <Link to="/feedback" className="link text-primary">Send Feedback</Link>
+            <Link to="/feedback" className="link text-primary">Site Feedback</Link>
           </div>
           <p className="text-base-content/60">
             © 2025 Prizeversity. All rights reserved.

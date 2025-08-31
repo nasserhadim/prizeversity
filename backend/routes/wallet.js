@@ -523,27 +523,28 @@ recipient.transactions.push({
     // Resolve classroom name for message context (if classroomId provided)
     let classroomName = '';
     if (classroomId) {
-      const Classroom = require('../models/Classroom'); // ...existing code...
-      const classroom = await Classroom.findById(classroomId).select('name');
-      if (classroom) classroomName = ` in "${classroom.name}"`;
+      const Classroom = require('../models/Classroom');
+      // include the classroom code so messages show "Class Name (CODE)"
+      const classroom = await Classroom.findById(classroomId).select('name code');
+      if (classroom) classroomName = ` in "${classroom.name}${classroom.code ? ` (${classroom.code})` : ''}"`;
     }
-
+    
     const senderNotification = await Notification.create({
       user: sender._id,
       actionBy: sender._id,
       type: 'wallet_transaction',
-      message: `You sent ${numericAmount} ₿ to ${label(recipient)}${classroomName}.`,
+      message: `You sent ${numericAmount} ₿ to ${label(recipient)}.`,
       classroom: classroomId,
       createdAt: new Date()
     });
     const populatedSenderNotification = await populateNotification(senderNotification._id);
     req.app.get('io').to(`user-${sender._id}`).emit('notification', populatedSenderNotification);
-
+    
     const recipientNotification = await Notification.create({
       user: recipient._id,
       actionBy: sender._id,
       type: 'wallet_transaction',
-      message: `You received ${adjustedAmount} ₿ from ${label(sender)}${classroomName}.`,
+      message: `You received ${adjustedAmount} ₿ from ${label(sender)}.`,
       classroom: classroomId,
       createdAt: new Date()
     });

@@ -8,6 +8,10 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:5000', // Your backend server
         changeOrigin: true,
+      }, '/socket.io': {
+        target: 'http://localhost:5000', // backend WS
+        changeOrigin: true,
+        ws: true, // << important for websockets
       },
     },
   },

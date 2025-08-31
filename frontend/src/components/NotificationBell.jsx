@@ -6,6 +6,15 @@ import { subscribeToNotifications } from '../utils/socket';
 
 import { Bell } from 'lucide-react';
 
+// helper: stable classroom label used across notifications
+function getClassLabel(notification) {
+  if (!notification || !notification.classroom) return null;
+  const c = notification.classroom;
+  if (c.name) return `${c.name}${c.code ? ` (${c.code})` : ''}`;
+  if (c.code) return c.code;
+  return null;
+}
+
 const NotificationBell = () => {
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -25,7 +34,8 @@ const NotificationBell = () => {
 
       // Handle classroom removal notification
       if (notification.type === 'classroom_removal') {
-        alert(`You have been removed from classroom "${notification.classroom.name}"`);
+        const classLabel = getClassLabel(notification) || 'this classroom';
+        alert(`You have been removed from classroom "${classLabel}"`);
         // If currently in that classroom, redirect to home
         const currentPath = window.location.pathname;
         if (currentPath.includes(`/classroom/${notification.classroom._id}`)) {
@@ -199,7 +209,7 @@ const NotificationBell = () => {
                       <small className="text-base-content/60 block mt-1">
                         by {getDisplayName(notification.actionBy)} at{' '}
                         {new Date(notification.createdAt).toLocaleString()}
-                        {notification.classroom && ` in classroom "${notification.classroom.name}"`}
+                        {getClassLabel(notification) && ` in classroom "${getClassLabel(notification)}"`}
                       </small>
                     </div>
                     {!notification.read && (

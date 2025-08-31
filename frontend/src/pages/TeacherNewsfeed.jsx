@@ -20,6 +20,7 @@ export default function TeacherNewsfeed() {
     const [draft, setDraft] = useState('');
     const [attachments, setAttachments] = useState([]);
     const [classroomName, setClassroomName] = useState('');
+    const [classroomCode, setClassroomCode] = useState('');
     // banner color & image
     const [bgColor, setBgColor] = useState('');
     const [backgroundImage, setBackgroundImage] = useState('');
@@ -37,6 +38,7 @@ export default function TeacherNewsfeed() {
             // load classroom info
             const classRes = await getClassroom(classId);
             setClassroomName(classRes.data.name);
+            setClassroomCode(classRes.data.code);
             setBgColor(classRes.data.color);
             setBackgroundImage(classRes.data.backgroundImage);
         }
@@ -129,6 +131,7 @@ export default function TeacherNewsfeed() {
         <>
             <ClassroomBanner
                 name={classroomName}
+                code={classroomCode}
                 bgColor={bgColor}
                 backgroundImage={backgroundImage}
             />

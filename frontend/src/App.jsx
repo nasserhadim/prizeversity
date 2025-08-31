@@ -26,6 +26,7 @@ import ArchivedClassrooms from './pages/ArchivedClassrooms';
 import Support from './pages/Support';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
+import AdminModeration from './pages/AdminModeration';
 
 const App = () => {
   const { user } = useContext(AuthContext);
@@ -47,11 +48,12 @@ const App = () => {
         {user ? <Navbar /> : showStaticNavbar && <Navbar />}
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/admin/moderation" element={<AdminModeration />} />
           <Route path="/classrooms" element={<ClassroomPage />} />
           <Route path="/classrooms/archived" element={<ArchivedClassrooms />} />
           <Route path="/classroom/:id" element={<Classroom />} />
           <Route path="/classroom/:classroomId/bazaar" element={<Bazaar />} />
-          <Route path="/classroom/:id/news" element={<StudentNewsfeed />} />
+          <Route path="/classroom/:id/news"  element={<StudentNewsfeed />} />
           <Route path="/classroom/:id/teacher-news" element={<TeacherNewsfeed />} />
           <Route path="/classroom/:id/settings" element={<ClassroomSettings />} />
           <Route path="/classroom/:id/wallet" element={<Wallet />} />

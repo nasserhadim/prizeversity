@@ -191,7 +191,9 @@ export default function ClassroomSettings() {
                 <Link to={`/classroom/${id}`} className="link text-accent self-start">
                     ← Back to Classroom
                 </Link>
-                <h1 className="text-3xl font-bold text-center">{classroom.name}</h1>
+                <h1 className="text-3xl font-bold text-center">
+                    {classroom.name}{classroom.code ? ` (${classroom.code})` : ''}
+                </h1>
                 <p className="text-sm text-gray-500 text-center">Class Code: {classroom.code}</p>
 
                 {editingClassroom ? (

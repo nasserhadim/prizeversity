@@ -675,7 +675,11 @@ const Groups = () => {
   return (
     <div className="min-h-screen flex flex-col bg-base-200 p-6">
       <div className="flex-grow">
-        <h1 className="text-3xl font-bold mb-6">{classroom?.name || 'Classroom'} Groups</h1>
+        <h1 className="text-3xl font-bold mb-6">
+          {classroom
+            ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''} Groups`
+            : 'Classroom Groups'}
+        </h1>
 
         {/* Teacher controls */}
         {(user.role === 'teacher' || user.role === 'admin') && groupSets.length > 0 && (
@@ -1128,10 +1132,13 @@ const Groups = () => {
                               {`${member._id.firstName || ''} ${member._id.lastName || ''}`.trim() || member._id.email}
                               <button 
                                 className="btn btn-xs btn-ghost ml-2"
-                                onClick={() => navigate(`/profile/${member._id._id || member._id}`)}
-                              >
-                                View Profile
-                              </button>
+                                onClick={() => navigate(
+                                  `/profile/${member._id._id || member._id}`,
+                                  { state: { from: 'groups', classroomId: id } }
+                                )}
+                               >
+                                 View Profile
+                               </button>
                               {member._id.isFrozen && (
                                 <Lock className="inline w-4 h-4 ml-1 text-red-500" title="Balance frozen" />
                               )}

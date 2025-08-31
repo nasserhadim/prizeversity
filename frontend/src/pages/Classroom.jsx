@@ -64,6 +64,29 @@ const Classroom = () => {
     fetchAnnouncements();
   }, [id]);
 
+  useEffect(() => {
+  if (!id) return;
+  socket.emit('join-classroom', id);
+  socket.emit('join-user', user._id);
+  console.log(`Joined user room: user-${user._id}`);
+
+  const handleNewAnnouncement = (announcement) => {
+    setAnnouncements(prev => [announcement, ...prev]);
+  };
+
+  socket.on('receive-announcement', handleNewAnnouncement);
+
+   // listen for personal notifications
+  const handleNotification = (notification) => {
+    console.log('Realtime notification:', notification);
+  };
+  socket.on('notification', handleNotification);
+
+  return () => {
+    socket.off('receive-announcement', handleNewAnnouncement);
+  };
+}, [id]);
+
   // Fetch classroom info and ensure user has access
   const fetchClassroomDetails = async () => {
     setLoading(true);
@@ -188,17 +211,18 @@ const Classroom = () => {
         {/* Classroom banner inside the classroom page */}
         <ClassroomBanner
           name={classroom.name}
-          bgColor={classroom.color}
-          backgroundImage={
-            classroom.backgroundImage
-              ? (
-                classroom.backgroundImage.startsWith('http')
-                  ? classroom.backgroundImage
-                  : `${BACKEND_URL}${classroom.backgroundImage}`
-              )
-              : undefined
-          }
-        />
+          code={classroom.code}
+           bgColor={classroom.color}
+           backgroundImage={
+             classroom.backgroundImage
+               ? (
+                 classroom.backgroundImage.startsWith('http')
+                   ? classroom.backgroundImage
+                   : `${BACKEND_URL}${classroom.backgroundImage}`
+               )
+               : undefined
+           }
+         />
 
         <div className="max-w-3xl mx-auto p-6 bg-green-50 rounded-lg space-y-6">
           {/* Navigation */}

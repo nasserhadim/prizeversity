@@ -25,7 +25,8 @@ import {
   HelpCircle,
   Replace,
   LogOut,
-  History
+  History,
+  Star
 } from 'lucide-react';
 
 const BACKEND_URL = `${API_BASE}`;
@@ -123,6 +124,9 @@ const Navbar = () => {
   // Hook to close cart dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
+      // Ignore clicks on the cart toggle(s)
+      if (event.target.closest && event.target.closest('[data-cart-toggle]')) return;
+
       if (cartRef.current && !cartRef.current.contains(event.target)) {
         setShowCart(false);
       }
@@ -182,6 +186,7 @@ const Navbar = () => {
               className="relative"
               onClick={() => setShowCart(!showCart)}
               title="Cart"
+              data-cart-toggle
             >
               <ShoppingCart size={20} className="text-green-500" />
               {cartCount > 0 && (
@@ -275,10 +280,20 @@ const Navbar = () => {
               <li>
                 <Link
                   to={`/classroom/${classroomId}/leaderboard`}
-                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname === '/leaderboard' ? 'text-green-500' : ''}`}
+                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/leaderboard`) ? 'text-green-500' : ''}`}
+                  title="Leaderboard"
                 >
                   <Trophy size={18} />
                   <span>Leaderboard</span>
+                </Link>
+              </li>
+              <li>
+                <Link 
+                to={`/classroom/${classroomId}/feedback`}
+                className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname === `/classroom/${classroomId}/feedback` ? 'text-green-500' : ''}`}
+                >
+                  <Star size={18} />
+                  <span>Feedback</span>
                 </Link>
               </li>
             </>
@@ -301,6 +316,7 @@ const Navbar = () => {
               className="relative"
               onClick={() => setShowCart(!showCart)}
               title="Cart"
+              data-cart-toggle
             >
               <ShoppingCart size={24} className="text-green-500" />
               {cartCount > 0 && (
@@ -466,7 +482,7 @@ const Navbar = () => {
               <>
                 <Link
                   to={`/classroom/${classroomId}`}
-                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname === `/classroom/${classroomId}` ? 'bg-primary/10 text-primary' : 'hover:bg-base-200'}`}
+                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname === `/classroom/${classroomId}` ? 'text-green-500' : ''}`}
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   <School size={20} />
@@ -474,7 +490,7 @@ const Navbar = () => {
                 </Link>
                 <Link
                   to={`/classroom/${classroomId}/bazaar`}
-                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname.startsWith(`/classroom/${classroomId}/bazaar`) ? 'bg-primary/10 text-primary' : 'hover:bg-base-200'}`}
+                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname.startsWith(`/classroom/${classroomId}/bazaar`) ? 'text-green-500' : ''}`}
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   <Briefcase size={20} />
@@ -482,7 +498,7 @@ const Navbar = () => {
                 </Link>
                 <Link
                   to={`/classroom/${classroomId}/groups`}
-                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname.startsWith(`/classroom/${classroomId}/groups`) ? 'bg-primary/10 text-primary' : 'hover:bg-base-200'}`}
+                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname.startsWith(`/classroom/${classroomId}/groups`) ? 'text-green-500' : ''}`}
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   <Users size={20} />
@@ -490,7 +506,7 @@ const Navbar = () => {
                 </Link>
                 <Link
                   to={`/classroom/${classroomId}/people`}
-                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname.startsWith(`/classroom/${classroomId}/people`) ? 'bg-primary/10 text-primary' : 'hover:bg-base-200'}`}
+                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname.startsWith(`/classroom/${classroomId}/people`) ? 'text-green-500' : ''}`}
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   <UserRound size={20} />
@@ -498,12 +514,33 @@ const Navbar = () => {
                 </Link>
                 <Link
                   to={`/classroom/${classroomId}/leaderboard`}
-                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname === '/leaderboard' ? 'bg-primary/10 text-primary' : 'hover:bg-base-200'}`}
+                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname.startsWith(`/classroom/${classroomId}/leaderboard`) ? 'text-green-500' : ''}`}
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   <Trophy size={20} />
                   <span>Leaderboard</span>
                 </Link>
+
+                {/* ADDED: Feedback link for mobile/hamburger menu */}
+                <Link
+                  to={`/classroom/${classroomId}/feedback`}
+                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname === `/classroom/${classroomId}/feedback` ? 'text-green-500' : ''}`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <Star size={20} />
+                  <span>Feedback</span>
+                </Link>
+                {/* ADMIN: link visible only to admins */}
+                {user?.role === 'admin' && (
+                  <Link
+                    to="/admin/moderation"
+                    className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname === '/admin/moderation' ? 'text-green-500' : ''}`}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <Settings size={18} />
+                    <span>Admin</span>
+                  </Link>
+                )}
               </>
             )}
 
