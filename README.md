@@ -574,6 +574,10 @@ JWT_SECRET=
 NODE_ENV=development # Set to 'production' in production environment
 
 DOMAIN=https://www.prizeversity.com
+
+# per-user (or per-IP for anonymous/unsigned users) cooldown that prevents submitting site-wide or classroom feedback more than once within X days. 
+# Cooldown resets per classroom (site feedback is separate).
+FEEDBACK_COOLDOWN_DAYS=30
 ```
 
 ## 3. Install dependencies
