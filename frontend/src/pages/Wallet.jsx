@@ -196,7 +196,7 @@ const fetchBalance = async () => {
               className={`tab ${activeTab === 'edit' ? 'tab-active' : ''}`}
               onClick={() => setActiveTab('edit')}
             >
-              Bulk / Edit
+              Adjust
             </a>
             <a
               role="tab"
