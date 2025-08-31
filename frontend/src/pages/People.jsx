@@ -186,7 +186,9 @@ const People = () => {
       <main className="flex-grow p-6 w-full max-w-5xl mx-auto">
         <div className="mb-6">
           <h1 className="text-3xl font-bold">
-            {classroom ? `${classroom.name} People` : 'People'}
+            {classroom
+              ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''} People`
+              : 'People'}
           </h1>
         </div>
 

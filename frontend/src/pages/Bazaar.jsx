@@ -79,7 +79,9 @@ const Bazaar = () => {
       <div className="text-center space-y-2">
         <h1 className="text-4xl font-bold text-success flex items-center justify-center gap-3">
           <Store />
-          {classroom ? `${classroom.name} Bazaar` : 'Classroom Bazaar'}
+          {classroom
+            ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''} Bazaar`
+            : 'Classroom Bazaar'}
         </h1>
       </div>
 

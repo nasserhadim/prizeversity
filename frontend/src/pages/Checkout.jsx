@@ -134,7 +134,9 @@ const Checkout = () => {
       <main className="flex-grow flex items-start justify-center p-6 pt-24 pb-12">
         <div className="w-full max-w-4xl mx-auto p-8 bg-base-100 rounded-2xl shadow-lg border border-base-300 min-h-[50vh]">
           <h2 className="text-2xl md:text-3xl font-bold mb-4 text-base-content text-center">
-            {classroom?.name ? `${classroom.name} Checkout` : 'Checkout'}
+            {classroom?.name
+              ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''} Checkout`
+              : 'Checkout'}
           </h2>
 
           {user?.discountShop && (

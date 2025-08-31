@@ -675,7 +675,11 @@ const Groups = () => {
   return (
     <div className="min-h-screen flex flex-col bg-base-200 p-6">
       <div className="flex-grow">
-        <h1 className="text-3xl font-bold mb-6">{classroom?.name || 'Classroom'} Groups</h1>
+        <h1 className="text-3xl font-bold mb-6">
+          {classroom
+            ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''} Groups`
+            : 'Classroom Groups'}
+        </h1>
 
         {/* Teacher controls */}
         {(user.role === 'teacher' || user.role === 'admin') && groupSets.length > 0 && (

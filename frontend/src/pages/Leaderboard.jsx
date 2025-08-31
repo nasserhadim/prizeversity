@@ -127,7 +127,9 @@ const Leaderboard = () => {
     <div className="flex flex-col min-h-screen">
       <div className="flex-grow p-6 max-w-4xl mx-auto w-full">
         <h1 className="text-3xl font-bold text-center mb-6">
-          {classroom ? `${classroom.name} Leaderboard` : 'Classroom Leaderboard'}
+          {classroom
+            ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''} Leaderboard`
+            : 'Classroom Leaderboard'}
         </h1>
 
         {/* Search and Controls */}
