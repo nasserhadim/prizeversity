@@ -148,7 +148,7 @@ const Checkout = () => {
                                   <div className="flex items-center justify-between">
                                       <span className="block font-medium text-base-content truncate">{item.name}</span>
                                       <button
-                                          onClick={() => removeFromCart(item._id)}
+                                          onClick={() => removeFromCart(/* was item._id */ idx, classroomId)}
                                           className="text-error text-sm ml-4"
                                           title="Remove item"
                                       >
