@@ -43,12 +43,37 @@ const Wallet = () => {
   const filteredTx = useMemo(() => {
     const sourceTx = user.role === 'student' ? transactions : allTx;
     return sourceTx.filter(tx => {
-      const assignerMatch = !assignerFilter || (tx.assignedBy?._id === assignerFilter);
-      const roleMatch = roleFilter === 'all' || (tx.assignedBy?.role === roleFilter);
-      const directionMatch = directionFilter === 'all' || (directionFilter === 'credit' ? tx.amount > 0 : tx.amount < 0);
+      // normalize assigner id (could be populated object or raw ObjectId/string)
+      const rawAssigner = tx.assignedBy;
+      const assignerId = rawAssigner ? (rawAssigner._id || rawAssigner).toString() : '';
+
+      // allow match when no assigner filter is selected
+      const assignerMatch = !assignerFilter || (assignerId === assignerFilter);
+
+      // try to determine assigner role:
+      let assignerRole = rawAssigner?.role;
+      if (!assignerRole && classroom) {
+        // teacher may be stored separately on classroom
+        const teacherId = (classroom.teacher && (classroom.teacher._id || classroom.teacher)).toString();
+        if (assignerId && teacherId && assignerId === teacherId) assignerRole = 'teacher';
+      }
+      if (!assignerRole && studentList && studentList.length) {
+        const found = studentList.find(u => String(u._id) === assignerId);
+        if (found) assignerRole = found.role;
+      }
+
+      const roleMatch = roleFilter === 'all' || (assignerRole === roleFilter);
+
+      const directionMatch =
+        directionFilter === 'all'
+          ? true
+          : directionFilter === 'credit'
+            ? Number(tx.amount) > 0
+            : Number(tx.amount) < 0;
+
       return assignerMatch && roleMatch && directionMatch;
     });
-  }, [allTx, transactions, roleFilter, directionFilter, assignerFilter, user.role]);
+  }, [allTx, transactions, roleFilter, directionFilter, assignerFilter, user.role, classroom, studentList]);
 
   // Fetch students in classroom to populate dropdown/filter UI
   const fetchUsers = async () => {
@@ -222,7 +247,7 @@ const fetchBalance = async () => {
             className={`tab ${studentTab === 'transfer' ? 'tab-active' : ''}`}
             onClick={() => setStudentTab('transfer')}
           >
-            Wallet Transfer
+            Transfer
           </a>
           <a
             role="tab"
@@ -391,7 +416,12 @@ const fetchBalance = async () => {
                       classroomId
                     }, { withCredentials: true });
                     toast.success('Transfer successful!');
-                    fetchWallet(); // Refresh balance and transactions
+                    await fetchWallet(); // Refresh balance and transactions
+
+                    // Reset transfer form fields after successful transfer
+                    setRecipientId('');
+                    setSelectedRecipientId('');
+                    setTransferAmount('');
                   } catch (err) {
                     toast.error(err.response?.data?.error || 'Transfer failed.');
                   }
@@ -411,6 +441,47 @@ const fetchBalance = async () => {
               <h2 className="text-lg font-semibold">Transaction History</h2>
               {/* Student's transaction list */}
               <div className="flex flex-wrap gap-2 my-4">
+                {/* User selector (All users) */}
+                <select
+                  className="select select-bordered max-w-xs"
+                  value={assignerFilter}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setAssignerFilter(id);
+                    if (id) {
+                      const selectedUser = studentList.find(u => u._id === id);
+                      if (selectedUser) setRoleFilter(selectedUser.role);
+                    } else {
+                      setRoleFilter('all');
+                    }
+                  }}
+                >
+                  <option value="">All users</option>
+                  {studentList.map((u) => {
+                    const displayName = (u.firstName || u.lastName)
+                      ? `${u.firstName || ''} ${u.lastName || ''}`.trim()
+                      : u.name || u.email;
+                    return (
+                      <option key={u._id} value={u._id}>
+                        {displayName} – {ROLE_LABELS[u.role] || u.role}
+                      </option>
+                    );
+                  })}
+                </select>
+
+                {/* Role filter (All roles) */}
+                <select
+                  className="select select-bordered max-w-xs"
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value)}
+                  disabled={!!assignerFilter}
+                >
+                  <option value="all">All Roles</option>
+                  <option value="teacher">Adjustment by Teacher</option>
+                  <option value="admin">Adjustment by Admin/TA</option>
+                </select>
+
+                {/* Direction filter (All directions) */}
                 <select
                   className="select select-bordered max-w-xs"
                   value={directionFilter}
