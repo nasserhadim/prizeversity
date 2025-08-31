@@ -78,7 +78,7 @@ const Bazaar = () => {
     <div className="p-6 space-y-8">
       <div className="text-center space-y-2">
         <h1 className="text-4xl font-bold text-success flex items-center justify-center gap-3">
-          <Store />
+          {/* <Store /> */}
           {classroom
             ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''} Bazaar`
             : 'Classroom Bazaar'}
