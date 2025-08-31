@@ -205,7 +205,10 @@ const Leaderboard = () => {
                       <td>
                         <button
                           className="btn btn-sm btn-outline"
-                          onClick={() => navigate(`/classroom/${classId}/profile/${student._id}`)}
+                          onClick={() => navigate(
+                            `/classroom/${classId}/profile/${student._id}`,
+                            { state: { from: 'leaderboard', classroomId: classId } }
+                          )}
                         >
                           View Profile
                         </button>

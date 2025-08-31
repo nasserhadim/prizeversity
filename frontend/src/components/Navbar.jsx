@@ -280,7 +280,8 @@ const Navbar = () => {
               <li>
                 <Link
                   to={`/classroom/${classroomId}/leaderboard`}
-                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname === '/leaderboard' ? 'text-green-500' : ''}`}
+                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/leaderboard`) ? 'text-green-500' : ''}`}
+                  title="Leaderboard"
                 >
                   <Trophy size={18} />
                   <span>Leaderboard</span>
@@ -513,7 +514,7 @@ const Navbar = () => {
                 </Link>
                 <Link
                   to={`/classroom/${classroomId}/leaderboard`}
-                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname === '/leaderboard' ? 'text-green-500' : ''}`}
+                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname.startsWith(`/classroom/${classroomId}/leaderboard`) ? 'text-green-500' : ''}`}
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   <Trophy size={20} />
@@ -529,6 +530,17 @@ const Navbar = () => {
                   <Star size={20} />
                   <span>Feedback</span>
                 </Link>
+                {/* ADMIN: link visible only to admins */}
+                {user?.role === 'admin' && (
+                  <Link
+                    to="/admin/moderation"
+                    className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname === '/admin/moderation' ? 'text-green-500' : ''}`}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <Settings size={18} />
+                    <span>Admin</span>
+                  </Link>
+                )}
               </>
             )}
 

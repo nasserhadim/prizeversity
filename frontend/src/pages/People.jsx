@@ -329,7 +329,10 @@ const People = () => {
                       <div className="flex gap-2 mt-2 flex-wrap">
                         <button
                           className="btn btn-sm btn-outline"
-                          onClick={() => navigate(`/classroom/${classroomId}/profile/${student._id}`)}
+                          onClick={() => navigate(
+                            `/classroom/${classroomId}/profile/${student._id}`,
+                            { state: { from: 'people', classroomId } }
+                          )}
                         >
                           View Profile
                         </button>

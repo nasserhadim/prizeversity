@@ -17,6 +17,20 @@ const FeedbackSchema = new mongoose.Schema({
     ref: 'Classroom',
     required: false
   },
+  hidden: {
+    type: Boolean,
+    default: false
+  },
+  hiddenBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: false
+  },
+  // IP address captured for anonymous / unauthenticated rate-limiting
+  ip: {
+    type: String,
+    required: false
+  },
   createdAt: {
     type: Date,
     default: Date.now
@@ -30,7 +44,6 @@ const FeedbackSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   }
-
 });
 
 module.exports = mongoose.model('Feedback', FeedbackSchema);

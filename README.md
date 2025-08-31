@@ -154,6 +154,12 @@ prizeversity/
 >
 > - See the `.gitignore` file for other artifacts to ignore such as `node_modules` 
 
+## Install the Google API dependency (for sending emails) at project root.
+
+```
+\prizeversity> npm install googleapis
+```
+
 ## Initialize Backend and Frontend (IF CLONING/FORKING, ONLY RUN THE INSTALL STEPS, or `npm ci`):
 
 ### Scaffold `backend`:

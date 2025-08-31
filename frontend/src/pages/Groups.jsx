@@ -1132,10 +1132,13 @@ const Groups = () => {
                               {`${member._id.firstName || ''} ${member._id.lastName || ''}`.trim() || member._id.email}
                               <button 
                                 className="btn btn-xs btn-ghost ml-2"
-                                onClick={() => navigate(`/profile/${member._id._id || member._id}`)}
-                              >
-                                View Profile
-                              </button>
+                                onClick={() => navigate(
+                                  `/profile/${member._id._id || member._id}`,
+                                  { state: { from: 'groups', classroomId: id } }
+                                )}
+                               >
+                                 View Profile
+                               </button>
                               {member._id.isFrozen && (
                                 <Lock className="inline w-4 h-4 ml-1 text-red-500" title="Balance frozen" />
                               )}
