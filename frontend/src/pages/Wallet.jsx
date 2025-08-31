@@ -9,7 +9,11 @@ import Footer from '../components/Footer';
 
 const Wallet = () => {
   const { user } = useAuth();
-  const { id: classroomId } = useParams(); // ensure we read the classroom id from the route
+  const { id: classroomId } = useParams();
+
+  // Default tab logic for students
+  const isStudent = user && user.role === 'student';
+  const [studentTab, setStudentTab] = useState('transfer'); // 'transfer' or 'transactions'
 
   // Default tab: teachers/admins should land on Transactions so they see classroom txs immediately
   const defaultTab = (user && ['teacher','admin'].includes(user.role)) ? 'transactions' : 'edit';
@@ -209,6 +213,26 @@ const fetchBalance = async () => {
         )}
       </div>
 
+      {/* ▼ Student tab switcher */}
+      {isStudent && (
+        <div role="tablist" className="tabs tabs-boxed mb-6">
+          <a
+            role="tab"
+            className={`tab ${studentTab === 'transfer' ? 'tab-active' : ''}`}
+            onClick={() => setStudentTab('transfer')}
+          >
+            Wallet Transfer
+          </a>
+          <a
+            role="tab"
+            className={`tab ${studentTab === 'transactions' ? 'tab-active' : ''}`}
+            onClick={() => setStudentTab('transactions')}
+          >
+            Transactions
+          </a>
+        </div>
+      )}
+
       {/* ▼ Edit/Bulk tab */}
       {activeTab === 'edit' && (user.role === 'teacher' || user.role === 'admin') && (
         <BulkBalanceEditor classroomId={classroomId} />
@@ -282,116 +306,123 @@ const fetchBalance = async () => {
     )}
       {user.role === 'student' && (
         <>
-          <div className="mb-6 space-y-2">
-            <h2 className="font-bold mb-2">Wallet Transfer</h2>
+          {/* ▼ Student: Wallet Transfer */}
+          {isStudent && studentTab === 'transfer' && (
+            <div className="mb-6 space-y-2">
+              <h2 className="font-bold mb-2">Wallet Transfer</h2>
 
-            {/* pick a classmate by name */}
-            <select
-              className="select select-bordered w-full mb-3"
-              value={selectedRecipientId}
-              onChange={(e) => {
-                const uid = e.target.value;
-                setSelectedRecipientId(uid);
-
-                const chosen = studentList.find(s => s._id === uid);
-                if (chosen) setRecipientId(chosen.shortId);
-              }}
-            >
-              <option value="">Select Recipient by Name…</option>
-              {studentList
-                .filter(s => s._id !== user._id)
-                .map(s => {
-                  const name = (s.firstName || s.lastName)
-                    ? `${s.firstName || ''} ${s.lastName || ''}`.trim()
-                    : s.email;
-                  return (
-                    <option key={s._id} value={s._id}>
-                      {name} – {s.shortId}
-                    </option>
-                  );
-                })}
-            </select>
-
-            <input
-              type="text"
-              placeholder="Enter Recipient ID"
-              className="input input-bordered w-full tracking-wider [&:not(:placeholder-shown)]:uppercase"
-              value={recipientId}
-              onChange={(e) => setRecipientId(e.target.value)}
-            />
-
-
-            <input
-              type="number"
-              placeholder="Amount"
-              className="input input-bordered w-full"
-              value={transferAmount}
-              min={1}
-              step={1}
-              // Prevent typing '-' and scientific notation, strip any minus signs
-              onChange={(e) => {
-                const raw = e.target.value;
-                const cleaned = raw.replace(/-/g, '').replace(/[eE+]/g, '');
-                setTransferAmount(cleaned);
-              }}
-              // Ensure empty or positive integer on blur
-              onBlur={() => {
-                if (!transferAmount) return;
-                const n = parseInt(transferAmount, 10);
-                if (isNaN(n) || n < 1) setTransferAmount('');
-                else setTransferAmount(String(n));
-              }}
-              // Prevent scroll from changing the value when focused
-              onWheel={(e) => e.currentTarget.blur()}
-              // Prevent non-numeric keys like 'e', '+', '-'
-              onKeyDown={(e) => {
-                if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault();
-              }}
-            />
-            <button
-              className="btn btn-success w-full"
-              onClick={async () => {
-                const parsedAmount = parseInt(transferAmount, 10);
-                if (!recipientId || !parsedAmount || parsedAmount <= 0) {
-                  toast.error('Please enter a valid recipient and a positive amount.');
-                  return;
-                }
-                try {
-                  // include classroomId so backend notifications reference the classroom
-                  await axios.post('/api/wallet/transfer', {
-                    recipientShortId: recipientId,
-                    amount: parsedAmount,
-                    classroomId
-                  }, { withCredentials: true });
-                  toast.success('Transfer successful!');
-                  fetchWallet(); // Refresh balance and transactions
-                } catch (err) {
-                  toast.error(err.response?.data?.error || 'Transfer failed.');
-                }
-              }}
-            >
-              Transfer
-            </button>
-          </div>
-          <div className="mt-6">
-            <div className="mb-4">
-              <p className="font-medium">Base Balance: {balance} ₿</p>
-            </div>
-            <h2 className="text-lg font-semibold">Transaction History</h2>
-            {/* Student's transaction list */}
-            <div className="flex flex-wrap gap-2 my-4">
+              {/* pick a classmate by name */}
               <select
-                className="select select-bordered max-w-xs"
-                value={directionFilter}
-                onChange={(e) => setDirectionFilter(e.target.value)}
+                className="select select-bordered w-full mb-3"
+                value={selectedRecipientId}
+                onChange={(e) => {
+                  const uid = e.target.value;
+                  setSelectedRecipientId(uid);
+
+                  const chosen = studentList.find(s => s._id === uid);
+                  if (chosen) setRecipientId(chosen.shortId);
+                }}
               >
-                <option value="all">All Directions</option>
-                <option value="credit">Credit</option>
-                <option value="debit">Debit</option>
+                <option value="">Select Recipient by Name…</option>
+                {studentList
+                  .filter(s => s._id !== user._id)
+                  .map(s => {
+                    const name = (s.firstName || s.lastName)
+                      ? `${s.firstName || ''} ${s.lastName || ''}`.trim()
+                      : s.email;
+                    return (
+                      <option key={s._id} value={s._id}>
+                        {name} – {s.shortId}
+                      </option>
+                    );
+                  })}
               </select>
+
+              <input
+                type="text"
+                placeholder="Enter Recipient ID"
+                className="input input-bordered w-full tracking-wider [&:not(:placeholder-shown)]:uppercase"
+                value={recipientId}
+                onChange={(e) => setRecipientId(e.target.value)}
+              />
+
+
+              <input
+                type="number"
+                placeholder="Amount"
+                className="input input-bordered w-full"
+                value={transferAmount}
+                min={1}
+                step={1}
+                // Prevent typing '-' and scientific notation, strip any minus signs
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  const cleaned = raw.replace(/-/g, '').replace(/[eE+]/g, '');
+                  setTransferAmount(cleaned);
+                }}
+                // Ensure empty or positive integer on blur
+                onBlur={() => {
+                  if (!transferAmount) return;
+                  const n = parseInt(transferAmount, 10);
+                  if (isNaN(n) || n < 1) setTransferAmount('');
+                  else setTransferAmount(String(n));
+                }}
+                // Prevent scroll from changing the value when focused
+                onWheel={(e) => e.currentTarget.blur()}
+                // Prevent non-numeric keys like 'e', '+', '-'
+                onKeyDown={(e) => {
+                  if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault();
+                }}
+              />
+              <button
+                className="btn btn-success w-full"
+                onClick={async () => {
+                  const parsedAmount = parseInt(transferAmount, 10);
+                  if (!recipientId || !parsedAmount || parsedAmount <= 0) {
+                    toast.error('Please enter a valid recipient and a positive amount.');
+                    return;
+                  }
+                  try {
+                    // include classroomId so backend notifications reference the classroom
+                    await axios.post('/api/wallet/transfer', {
+                      recipientShortId: recipientId,
+                      amount: parsedAmount,
+                      classroomId
+                    }, { withCredentials: true });
+                    toast.success('Transfer successful!');
+                    fetchWallet(); // Refresh balance and transactions
+                  } catch (err) {
+                    toast.error(err.response?.data?.error || 'Transfer failed.');
+                  }
+                }}
+              >
+                Transfer
+              </button>
             </div>
-            <TransactionList transactions={filteredTx} />
-          </div>
+          )}
+
+          {/* ▼ Student: Transaction History */}
+          {isStudent && studentTab === 'transactions' && (
+            <div className="mt-6">
+              <div className="mb-4">
+                <p className="font-medium">Base Balance: {balance} ₿</p>
+              </div>
+              <h2 className="text-lg font-semibold">Transaction History</h2>
+              {/* Student's transaction list */}
+              <div className="flex flex-wrap gap-2 my-4">
+                <select
+                  className="select select-bordered max-w-xs"
+                  value={directionFilter}
+                  onChange={(e) => setDirectionFilter(e.target.value)}
+                >
+                  <option value="all">All Directions</option>
+                  <option value="credit">Credit</option>
+                  <option value="debit">Debit</option>
+                </select>
+              </div>
+              <TransactionList transactions={filteredTx} />
+            </div>
+          )}
         </>
       )}
       <Footer />
