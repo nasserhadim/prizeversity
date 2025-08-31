@@ -9,7 +9,11 @@ import Footer from '../components/Footer';
 
 const Wallet = () => {
   const { user } = useAuth();
-  const { id: classroomId } = useParams(); // ensure we read the classroom id from the route
+  const { id: classroomId } = useParams();
+
+  // Default tab logic for students
+  const isStudent = user && user.role === 'student';
+  const [studentTab, setStudentTab] = useState('transfer'); // 'transfer' or 'transactions'
 
   // Default tab: teachers/admins should land on Transactions so they see classroom txs immediately
   const defaultTab = (user && ['teacher','admin'].includes(user.role)) ? 'transactions' : 'edit';
@@ -39,12 +43,37 @@ const Wallet = () => {
   const filteredTx = useMemo(() => {
     const sourceTx = user.role === 'student' ? transactions : allTx;
     return sourceTx.filter(tx => {
-      const assignerMatch = !assignerFilter || (tx.assignedBy?._id === assignerFilter);
-      const roleMatch = roleFilter === 'all' || (tx.assignedBy?.role === roleFilter);
-      const directionMatch = directionFilter === 'all' || (directionFilter === 'credit' ? tx.amount > 0 : tx.amount < 0);
+      // normalize assigner id (could be populated object or raw ObjectId/string)
+      const rawAssigner = tx.assignedBy;
+      const assignerId = rawAssigner ? (rawAssigner._id || rawAssigner).toString() : '';
+
+      // allow match when no assigner filter is selected
+      const assignerMatch = !assignerFilter || (assignerId === assignerFilter);
+
+      // try to determine assigner role:
+      let assignerRole = rawAssigner?.role;
+      if (!assignerRole && classroom) {
+        // teacher may be stored separately on classroom
+        const teacherId = (classroom.teacher && (classroom.teacher._id || classroom.teacher)).toString();
+        if (assignerId && teacherId && assignerId === teacherId) assignerRole = 'teacher';
+      }
+      if (!assignerRole && studentList && studentList.length) {
+        const found = studentList.find(u => String(u._id) === assignerId);
+        if (found) assignerRole = found.role;
+      }
+
+      const roleMatch = roleFilter === 'all' || (assignerRole === roleFilter);
+
+      const directionMatch =
+        directionFilter === 'all'
+          ? true
+          : directionFilter === 'credit'
+            ? Number(tx.amount) > 0
+            : Number(tx.amount) < 0;
+
       return assignerMatch && roleMatch && directionMatch;
     });
-  }, [allTx, transactions, roleFilter, directionFilter, assignerFilter, user.role]);
+  }, [allTx, transactions, roleFilter, directionFilter, assignerFilter, user.role, classroom, studentList]);
 
   // Fetch students in classroom to populate dropdown/filter UI
   const fetchUsers = async () => {
@@ -182,11 +211,12 @@ const fetchBalance = async () => {
 };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold">
-          {classroom?.name ? `${classroom.name} Wallet` : 'Wallet'}
-        </h1>
+    <div className="min-h-screen flex flex-col overflow-x-hidden">
+      <div className="w-full max-w-4xl mx-auto flex-grow py-6 px-4 sm:px-6 box-border">
+         <div className="flex justify-between items-center mb-4">
+           <h1 className="text-2xl font-bold">
+             {classroom?.name ? `${classroom.name} Wallet` : 'Wallet'}
+           </h1>
 
         {/* ▼ Tab buttons */}
         {(user.role === 'teacher' || user.role === 'admin') && (
@@ -196,7 +226,7 @@ const fetchBalance = async () => {
               className={`tab ${activeTab === 'edit' ? 'tab-active' : ''}`}
               onClick={() => setActiveTab('edit')}
             >
-              Bulk / Edit
+              Adjust
             </a>
             <a
               role="tab"
@@ -208,6 +238,26 @@ const fetchBalance = async () => {
           </div>
         )}
       </div>
+
+      {/* ▼ Student tab switcher */}
+      {isStudent && (
+        <div role="tablist" className="tabs tabs-boxed mb-6">
+          <a
+            role="tab"
+            className={`tab ${studentTab === 'transfer' ? 'tab-active' : ''}`}
+            onClick={() => setStudentTab('transfer')}
+          >
+            Transfer
+          </a>
+          <a
+            role="tab"
+            className={`tab ${studentTab === 'transactions' ? 'tab-active' : ''}`}
+            onClick={() => setStudentTab('transactions')}
+          >
+            Transactions
+          </a>
+        </div>
+      )}
 
       {/* ▼ Edit/Bulk tab */}
       {activeTab === 'edit' && (user.role === 'teacher' || user.role === 'admin') && (
@@ -282,122 +332,175 @@ const fetchBalance = async () => {
     )}
       {user.role === 'student' && (
         <>
-          <div className="mb-6 space-y-2">
-            <h2 className="font-bold mb-2">Wallet Transfer</h2>
+          {/* ▼ Student: Wallet Transfer */}
+          {isStudent && studentTab === 'transfer' && (
+            <div className="mb-6 space-y-2">
+              <h2 className="font-bold mb-2">Wallet Transfer</h2>
 
-            {/* pick a classmate by name */}
-            <select
-              className="select select-bordered w-full mb-3"
-              value={selectedRecipientId}
-              onChange={(e) => {
-                const uid = e.target.value;
-                setSelectedRecipientId(uid);
-
-                const chosen = studentList.find(s => s._id === uid);
-                if (chosen) setRecipientId(chosen.shortId);
-              }}
-            >
-              <option value="">Select Recipient by Name…</option>
-              {studentList
-                .filter(s => s._id !== user._id)
-                .map(s => {
-                  const name = (s.firstName || s.lastName)
-                    ? `${s.firstName || ''} ${s.lastName || ''}`.trim()
-                    : s.email;
-                  return (
-                    <option key={s._id} value={s._id}>
-                      {name} – {s.shortId}
-                    </option>
-                  );
-                })}
-            </select>
-
-            <input
-              type="text"
-              placeholder="Enter Recipient ID"
-              className="input input-bordered w-full tracking-wider [&:not(:placeholder-shown)]:uppercase"
-              value={recipientId}
-              onChange={(e) => setRecipientId(e.target.value)}
-            />
-
-
-            <input
-              type="number"
-              placeholder="Amount"
-              className="input input-bordered w-full"
-              value={transferAmount}
-              min={1}
-              step={1}
-              // Prevent typing '-' and scientific notation, strip any minus signs
-              onChange={(e) => {
-                const raw = e.target.value;
-                const cleaned = raw.replace(/-/g, '').replace(/[eE+]/g, '');
-                setTransferAmount(cleaned);
-              }}
-              // Ensure empty or positive integer on blur
-              onBlur={() => {
-                if (!transferAmount) return;
-                const n = parseInt(transferAmount, 10);
-                if (isNaN(n) || n < 1) setTransferAmount('');
-                else setTransferAmount(String(n));
-              }}
-              // Prevent scroll from changing the value when focused
-              onWheel={(e) => e.currentTarget.blur()}
-              // Prevent non-numeric keys like 'e', '+', '-'
-              onKeyDown={(e) => {
-                if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault();
-              }}
-            />
-            <button
-              className="btn btn-success w-full"
-              onClick={async () => {
-                const parsedAmount = parseInt(transferAmount, 10);
-                if (!recipientId || !parsedAmount || parsedAmount <= 0) {
-                  toast.error('Please enter a valid recipient and a positive amount.');
-                  return;
-                }
-                try {
-                  // include classroomId so backend notifications reference the classroom
-                  await axios.post('/api/wallet/transfer', {
-                    recipientShortId: recipientId,
-                    amount: parsedAmount,
-                    classroomId
-                  }, { withCredentials: true });
-                  toast.success('Transfer successful!');
-                  fetchWallet(); // Refresh balance and transactions
-                } catch (err) {
-                  toast.error(err.response?.data?.error || 'Transfer failed.');
-                }
-              }}
-            >
-              Transfer
-            </button>
-          </div>
-          <div className="mt-6">
-            <div className="mb-4">
-              <p className="font-medium">Base Balance: {balance} ₿</p>
-            </div>
-            <h2 className="text-lg font-semibold">Transaction History</h2>
-            {/* Student's transaction list */}
-            <div className="flex flex-wrap gap-2 my-4">
+              {/* pick a classmate by name */}
               <select
-                className="select select-bordered max-w-xs"
-                value={directionFilter}
-                onChange={(e) => setDirectionFilter(e.target.value)}
+                className="select select-bordered w-full mb-3"
+                value={selectedRecipientId}
+                onChange={(e) => {
+                  const uid = e.target.value;
+                  setSelectedRecipientId(uid);
+
+                  const chosen = studentList.find(s => s._id === uid);
+                  if (chosen) setRecipientId(chosen.shortId);
+                }}
               >
-                <option value="all">All Directions</option>
-                <option value="credit">Credit</option>
-                <option value="debit">Debit</option>
+                <option value="">Select Recipient by Name…</option>
+                {studentList
+                  .filter(s => s._id !== user._id)
+                  .map(s => {
+                    const name = (s.firstName || s.lastName)
+                      ? `${s.firstName || ''} ${s.lastName || ''}`.trim()
+                      : s.email;
+                    return (
+                      <option key={s._id} value={s._id}>
+                        {name} – {s.shortId}
+                      </option>
+                    );
+                  })}
               </select>
+
+              <input
+                type="text"
+                placeholder="Enter Recipient ID"
+                className="input input-bordered w-full tracking-wider [&:not(:placeholder-shown)]:uppercase"
+                value={recipientId}
+                onChange={(e) => setRecipientId(e.target.value)}
+              />
+
+
+              <input
+                type="number"
+                placeholder="Amount"
+                className="input input-bordered w-full"
+                value={transferAmount}
+                min={1}
+                step={1}
+                // Prevent typing '-' and scientific notation, strip any minus signs
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  const cleaned = raw.replace(/-/g, '').replace(/[eE+]/g, '');
+                  setTransferAmount(cleaned);
+                }}
+                // Ensure empty or positive integer on blur
+                onBlur={() => {
+                  if (!transferAmount) return;
+                  const n = parseInt(transferAmount, 10);
+                  if (isNaN(n) || n < 1) setTransferAmount('');
+                  else setTransferAmount(String(n));
+                }}
+                // Prevent scroll from changing the value when focused
+                onWheel={(e) => e.currentTarget.blur()}
+                // Prevent non-numeric keys like 'e', '+', '-'
+                onKeyDown={(e) => {
+                  if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault();
+                }}
+              />
+              <button
+                className="btn btn-success w-full"
+                onClick={async () => {
+                  const parsedAmount = parseInt(transferAmount, 10);
+                  if (!recipientId || !parsedAmount || parsedAmount <= 0) {
+                    toast.error('Please enter a valid recipient and a positive amount.');
+                    return;
+                  }
+                  try {
+                    // include classroomId so backend notifications reference the classroom
+                    await axios.post('/api/wallet/transfer', {
+                      recipientShortId: recipientId,
+                      amount: parsedAmount,
+                      classroomId
+                    }, { withCredentials: true });
+                    toast.success('Transfer successful!');
+                    await fetchWallet(); // Refresh balance and transactions
+
+                    // Reset transfer form fields after successful transfer
+                    setRecipientId('');
+                    setSelectedRecipientId('');
+                    setTransferAmount('');
+                  } catch (err) {
+                    toast.error(err.response?.data?.error || 'Transfer failed.');
+                  }
+                }}
+              >
+                Transfer
+              </button>
             </div>
-            <TransactionList transactions={filteredTx} />
-          </div>
+          )}
+
+          {/* ▼ Student: Transaction History */}
+          {isStudent && studentTab === 'transactions' && (
+            <div className="mt-6">
+              <div className="mb-4">
+                <p className="font-medium">Base Balance: {balance} ₿</p>
+              </div>
+              <h2 className="text-lg font-semibold">Transaction History</h2>
+              {/* Student's transaction list */}
+              <div className="flex flex-wrap gap-2 my-4">
+                {/* User selector (All users) */}
+                <select
+                  className="select select-bordered max-w-xs"
+                  value={assignerFilter}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setAssignerFilter(id);
+                    if (id) {
+                      const selectedUser = studentList.find(u => u._id === id);
+                      if (selectedUser) setRoleFilter(selectedUser.role);
+                    } else {
+                      setRoleFilter('all');
+                    }
+                  }}
+                >
+                  <option value="">All users</option>
+                  {studentList.map((u) => {
+                    const displayName = (u.firstName || u.lastName)
+                      ? `${u.firstName || ''} ${u.lastName || ''}`.trim()
+                      : u.name || u.email;
+                    return (
+                      <option key={u._id} value={u._id}>
+                        {displayName} – {ROLE_LABELS[u.role] || u.role}
+                      </option>
+                    );
+                  })}
+                </select>
+
+                {/* Role filter (All roles) */}
+                <select
+                  className="select select-bordered max-w-xs"
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value)}
+                  disabled={!!assignerFilter}
+                >
+                  <option value="all">All Roles</option>
+                  <option value="teacher">Adjustment by Teacher</option>
+                  <option value="admin">Adjustment by Admin/TA</option>
+                </select>
+
+                {/* Direction filter (All directions) */}
+                <select
+                  className="select select-bordered max-w-xs"
+                  value={directionFilter}
+                  onChange={(e) => setDirectionFilter(e.target.value)}
+                >
+                  <option value="all">All Directions</option>
+                  <option value="credit">Credit</option>
+                  <option value="debit">Debit</option>
+                </select>
+              </div>
+              <TransactionList transactions={filteredTx} />
+            </div>
+          )}
         </>
       )}
+      </div>
       <Footer />
     </div>
-  );
-};
-
-
-export default Wallet;
+   );
+ };
+ 
+ export default Wallet;

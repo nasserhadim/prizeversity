@@ -15,6 +15,7 @@ import OrderFilterBar from '../components/OrderFilterBar';
 import ExportButtons from '../components/ExportButtons';
 import { exportOrdersToCSV, exportOrdersToJSON } from '../utils/exportOrders';
 import formatExportFilename from '../utils/formatExportFilename';
+import { useLocation, Link } from 'react-router-dom';
 
 const ROLE_LABELS = {
     student: 'Student',
@@ -62,6 +63,17 @@ export default function Profile() {
 
   // Update useParams to get classroomId
   const { id: profileId, classroomId } = useParams();
+  const location = useLocation();
+  const navFrom = location.state?.from || null;
+  const navClassroomId = location.state?.classroomId || classroomId;
+  // helper: build a back link target based on where we came from
+  const backLink = (() => {
+    if (navFrom === 'leaderboard' && navClassroomId) return { to: `/classroom/${navClassroomId}/leaderboard`, label: 'Leaderboard' };
+    if (navFrom === 'people' && navClassroomId) return { to: `/classroom/${navClassroomId}/people`, label: 'People' };
+    if (navFrom === 'groups' && navClassroomId) return { to: `/classroom/${navClassroomId}/groups`, label: 'Groups' };
+    if (navClassroomId) return { to: `/classroom/${navClassroomId}`, label: 'Classroom' };
+    return { to: '/classrooms', label: 'My Classrooms' };
+  })();
 
   // Backend URL base
   const BACKEND_URL = `${API_BASE}`;
@@ -466,6 +478,9 @@ export default function Profile() {
   return (
       <div className="min-h-screen flex flex-col">
           <div className="flex-grow w-full max-w-2xl mx-auto p-6 mt-10 bg-base-100 rounded-xl shadow space-y-6">
+              <p>
+                <Link to={backLink.to} className="link text-accent">← Back to {backLink.label}</Link>
+              </p>
               <h2 className="text-2xl font-bold text-center text-base-content">
                   Profile
               </h2>

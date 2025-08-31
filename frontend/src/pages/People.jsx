@@ -186,7 +186,9 @@ const People = () => {
       <main className="flex-grow p-6 w-full max-w-5xl mx-auto">
         <div className="mb-6">
           <h1 className="text-3xl font-bold">
-            {classroom ? `${classroom.name} People` : 'People'}
+            {classroom
+              ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''} People`
+              : 'People'}
           </h1>
         </div>
 
@@ -327,7 +329,10 @@ const People = () => {
                       <div className="flex gap-2 mt-2 flex-wrap">
                         <button
                           className="btn btn-sm btn-outline"
-                          onClick={() => navigate(`/classroom/${classroomId}/profile/${student._id}`)}
+                          onClick={() => navigate(
+                            `/classroom/${classroomId}/profile/${student._id}`,
+                            { state: { from: 'people', classroomId } }
+                          )}
                         >
                           View Profile
                         </button>

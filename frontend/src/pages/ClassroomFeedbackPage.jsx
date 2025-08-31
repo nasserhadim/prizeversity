@@ -1,197 +1,226 @@
-// import React, { useState } from 'react';
-// import { useParams } from 'react-router-dom';
-// import axios from 'axios';
-// import { API_BASE } from '../config/api';
-// import Footer from '../components/Footer';
-// import { toast } from 'react-hot-toast';
-// const ClassroomFeedbackPage = () => {
-//   const { classroomId } = useParams();
-//   const [rating, setRating] = useState(null);
-//   const [comment, setComment] = useState('');
-//   const [submitted, setSubmitted] = useState(false);
-
-//   const handleSubmit = async (e) => {
-//     e.preventDefault();
-//     try {
-//       await axios.post(`${API_BASE}/api/feedback`, {
-//         classroomId,
-//         rating,
-//         comment,
-//       });
-//       setRating(null);
-//       setComment('');
-//       setSubmitted(true);
-//       setTimeout(() => setSubmitted(false), 3000);
-//       toast.success('Thank you for your feedback!');
-//     } catch (err) {
-//       console.error('Error submitting feedback:', err);
-//     }
-//   };
-
-//   return (
-//     <div className="min-h-screen bg-base-200 flex flex-col justify-between">
-//       {/* Centered content */}
-//       <div className="flex-grow flex items-center justify-center p-4">
-//         <div className="card w-full max-w-md shadow-xl bg-base-100">
-//           <div className="card-body">
-//             <h2 className="card-title text-primary">
-//               Let us know how this classroom is doing!
-//             </h2>
-
-//             <form onSubmit={handleSubmit} key={submitted} className="space-y-4">
-//               <div>
-//                 <label className="label">
-//                   <span className="label-text">Star Rating</span>
-//                 </label>
-//                 <div className="rating">
-//                   {[1, 2, 3, 4, 5].map((star) => (
-//                     <input
-//                       key={star}
-//                       type="radio"
-//                       name="rating"
-//                       className="mask mask-star-2 bg-yellow-400"
-//                       checked={rating === star}
-//                       onChange={() => setRating(star)}
-//                     />
-//                   ))}
-//                 </div>
-//               </div>
-
-//               <div>
-//                 <label className="label">
-//                   <span className="label-text">Your Comment</span>
-//                 </label>
-//                 <textarea
-//                   className="textarea textarea-bordered w-full"
-//                   value={comment}
-//                   onChange={(e) => setComment(e.target.value)}
-//                   placeholder="Type your feedback here..."
-//                   rows={4}
-//                 />
-//               </div>
-
-//               <button
-//                 type="submit"
-//                 className="btn btn-success w-full"
-//                 disabled={!rating || comment.trim() === ''}
-//               >
-//                 Submit
-//               </button>
-//             </form>
-//           </div>
-//         </div>
-//       </div>
-
-//       {/* Footer pinned at bottom */}
-//       <Footer />
-//     </div>
-//   );
-// };
-
-// export default ClassroomFeedbackPage;
-
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import axios from "axios";
 import { API_BASE } from "../config/api";
 import Footer from "../components/Footer";
 import { toast } from "react-hot-toast";
-
+import { getClassroom } from "../API/apiClassroom";
+import FeedbackList from '../components/FeedbackList';
+import '../styles/Feedback.css';
+import { useAuth } from '../context/AuthContext';
+import ModerationLog from '../components/ModerationLog';
+ 
 const ClassroomFeedbackPage = ({ userId }) => {
   const { classroomId } = useParams();
+  const { user } = useAuth();
+  const [tab, setTab] = useState('submit'); // 'submit' | 'recent'
+  const [classroom, setClassroom] = useState(null);
   const [rating, setRating] = useState(null);
   const [comment, setComment] = useState("");
-  const [anonymous, setAnonymous] = useState(false); // ✅ new state
+  const [anonymous, setAnonymous] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-
+  const [feedbacks, setFeedbacks] = useState([]);
+  const [page, setPage] = useState(1);
+  const perPage = 6;
+  const [hasMore, setHasMore] = useState(false);
+  const [reportingId, setReportingId] = useState(null);
+  const [reportReason, setReportReason] = useState('');
+  const [reporterEmail, setReporterEmail] = useState('');
+  const [total, setTotal] = useState(null);
+ 
+  useEffect(() => {
+    const fetchClass = async () => {
+      try {
+        const res = await getClassroom(classroomId);
+        setClassroom(res.data);
+      } catch (err) {
+        console.error("Failed to load classroom info:", err);
+      }
+    };
+    if (classroomId) fetchClass();
+  }, [classroomId]);
+ 
+  const fetchClassroomFeedback = async (nextPage = 1, append = false) => {
+    if (!classroomId) return;
+    try {
+      const includeHidden = user && (user.role === 'teacher' || user.role === 'admin') ? '&includeHidden=true' : '';
+      const res = await axios.get(`${API_BASE}/api/feedback/classroom/${classroomId}?page=${nextPage}&perPage=${perPage}${includeHidden}`, { withCredentials: true });
+      const data = res.data || {};
+      const items = Array.isArray(data) ? data : (data.feedbacks || []);
+      if (append) setFeedbacks(prev => [...prev, ...items]); else setFeedbacks(items);
+      setTotal(typeof data.total === 'number' ? data.total : null);
+      const totalCount = typeof data.total === 'number' ? data.total : null;
+      setHasMore(totalCount ? (nextPage * perPage < totalCount) : (items.length === perPage));
+    } catch (err) {
+      console.error('Failed to load classroom feedback', err);
+    }
+  };
+ 
+  useEffect(() => {
+    fetchClassroomFeedback(1, false);
+  }, [classroomId, user]);
+ 
+  const loadMore = async () => {
+    const next = page + 1;
+    await fetchClassroomFeedback(next, true);
+    setPage(next);
+  };
+ 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // client-side validation so button can stay enabled but user gets clear feedback
+    if (!rating) {
+      toast.error('Please select a star rating before submitting.');
+      return;
+    }
+    if (!comment || comment.trim() === '') {
+      toast.error('Please enter a comment before submitting.');
+      return;
+    }
     try {
       await axios.post(`${API_BASE}/api/feedback`, {
         classroomId,
         rating,
         comment,
         anonymous,
-        userId: anonymous ? null : userId, // ✅ pass null if anonymous
-      });
+        userId: anonymous ? null : userId,
+      }, { withCredentials: true });
       setRating(null);
       setComment("");
       setAnonymous(false);
       setSubmitted(true);
       toast.success("Thank you for your feedback!");
+      setPage(1);
+      await fetchClassroomFeedback(1, false);
+      // switch to recent tab so user sees their submitted feedback
+      setTab('recent');
     } catch (err) {
       console.error("Error submitting feedback:", err);
+      toast.error(err.response?.data?.error || 'Failed to submit feedback');
     }
   };
-
+ 
+  const handleToggleHide = async (id, hide) => {
+    try {
+      // backend expects /:id/hide (no underscore)
+      await axios.patch(`${API_BASE}/api/feedback/${id}/hide`, { hide }, { withCredentials: true });
+      setFeedbacks(prev => prev.map(f => f._id === id ? { ...f, hidden: hide } : f));
+      toast.success(hide ? 'Feedback hidden' : 'Feedback unhidden');
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to update feedback visibility');
+    }
+  };
+ 
+  const handleReport = (feedbackId) => {
+    setReportingId(feedbackId);
+    setReportReason('');
+    setReporterEmail(user?.email || '');
+  };
+ 
+  const submitReport = async () => {
+    try {
+      await axios.post(`${API_BASE}/api/feedback/${reportingId}/report`, { reason: reportReason, reporterEmail }, { withCredentials: true });
+      toast.success('Report submitted. The classroom teacher/admin will be notified for review.');
+      setReportingId(null);
+      setReportReason('');
+      await fetchClassroomFeedback(1, false);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to submit report');
+    }
+  };
+ 
   return (
     <div className="min-h-screen bg-base-200 flex flex-col justify-between">
-      <div className="flex-grow flex items-center justify-center p-4">
-        <div className="card w-full max-w-md shadow-xl bg-base-100 mt-20">
+      <div className="flex-grow p-4">
+        <div className="card w-full max-w-3xl mx-auto shadow-xl bg-base-100 mt-8">
           <div className="card-body">
-            <h2 className="card-title text-primary">
-              Let us know how this classroom is doing!
-            </h2>
-
-
-            <form onSubmit={handleSubmit} key={submitted} className="space-y-4">
+            <h2 className="card-title text-primary mb-4">{classroom ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ""} Feedback` : "Let us know how this classroom is doing!"}</h2>
+ 
+            {/* Tabs */}
+            <div role="tablist" className="tabs tabs-boxed mb-4">
+              <a role="tab" className={`tab ${tab === 'submit' ? 'tab-active' : ''}`} onClick={() => setTab('submit')}>Submit</a>
+              <a role="tab" className={`tab ${tab === 'recent' ? 'tab-active' : ''}`} onClick={() => setTab('recent')}>Recent</a>
+            </div>
+ 
+            {/* Tab panes */}
+            {tab === 'submit' && (
               <div>
-                <label className="label">
-                  <span className="label-text">Star Rating</span>
-                </label>
-                <div className="rating">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <input
-                      key={star}
-                      type="radio"
-                      name="rating"
-                      className="mask mask-star-2 bg-yellow-400"
-                      checked={rating === star}
-                      onChange={() => setRating(star)}
-                    />
-                  ))}
+                <form onSubmit={handleSubmit} key={submitted} className="space-y-4">
+                  <div>
+                    <label className="label"><span className="label-text">Star Rating</span></label>
+                    <div className="rating">
+                      {[1,2,3,4,5].map(star => (
+                        <input
+                          key={star}
+                          type="radio"
+                          name="rating"
+                          className="mask mask-star-2 bg-yellow-400 feedback-star-input"
+                          checked={rating === star}
+                          onChange={() => setRating(star)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+ 
+                  <div>
+                    <label className="label"><span className="label-text">Your Comment</span></label>
+                    <textarea className="textarea textarea-bordered w-full" value={comment} onChange={(e)=>setComment(e.target.value)} placeholder="Type your feedback here..." rows={4} />
+                  </div>
+ 
+                  <div className="form-control">
+                    <label className="cursor-pointer label">
+                      <span className="label-text">Submit as Anonymous</span>
+                      <input type="checkbox" className="toggle toggle-primary" checked={anonymous} onChange={(e)=>setAnonymous(e.target.checked)} />
+                    </label>
+                  </div>
+ 
+                  <button type="submit" className="btn btn-success w-full">Submit</button>
+                </form>
+              </div>
+            )}
+ 
+            {tab === 'recent' && (
+              <div>
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Recent Classroom Feedback</h3>
+                  {hasMore && <button className="btn btn-outline btn-sm" onClick={loadMore}>Load more</button>}
                 </div>
-              </div>
-
-              <div>
-                <label className="label">
-                  <span className="label-text">Your Comment</span>
-                </label>
-                <textarea
-                  className="textarea textarea-bordered w-full"
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  placeholder="Type your feedback here..."
-                  rows={4}
+                <FeedbackList
+                  feedbacks={feedbacks}
+                  total={total}
+                  showModeration={user && (user.role === 'teacher' || user.role === 'admin')}
+                  onToggleHide={handleToggleHide}
+                  onReport={handleReport}
                 />
+                {user && (user.role === 'teacher' || user.role === 'admin') && (
+                  <ModerationLog classroomId={classroomId} />
+                )}
               </div>
-
-              <div className="form-control">
-                <label className="cursor-pointer label">
-                  <span className="label-text">Submit as Anonymous</span>
-                  <input
-                    type="checkbox"
-                    className="toggle toggle-primary"
-                    checked={anonymous}
-                    onChange={(e) => setAnonymous(e.target.checked)}
-                  />
-                </label>
-              </div>
-
-              <button
-                type="submit"
-                className="btn btn-success w-full"
-                disabled={!rating || comment.trim() === ""}
-              >
-                Submit
-              </button>
-            </form>
+            )}
+ 
           </div>
         </div>
       </div>
+ 
       <Footer />
+ 
+      {/* Report Modal */}
+      {reportingId && (
+        <div className="modal modal-open">
+          <div className="modal-box">
+            <h3 className="font-bold text-lg">Report Feedback</h3>
+            <p className="py-2">Tell us why you're reporting this feedback. The classroom teacher/admin will be notified.</p>
+            <textarea className="textarea textarea-bordered w-full" rows={4} value={reportReason} onChange={(e)=>setReportReason(e.target.value)} placeholder="Reason for reporting..." />
+            <input className="input input-bordered w-full mt-2" placeholder="Your email (optional)" value={reporterEmail} onChange={(e)=>setReporterEmail(e.target.value)} />
+            <div className="modal-action">
+              <button className="btn" onClick={() => setReportingId(null)}>Cancel</button>
+              <button className="btn btn-primary" onClick={submitReport} disabled={!reportReason.trim()}>Submit Report</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
-
+ 
 export default ClassroomFeedbackPage;

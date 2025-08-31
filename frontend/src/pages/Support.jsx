@@ -437,7 +437,7 @@ const Support = () => {
           <div className="card bg-base-100 shadow-lg">
             <div className="card-body text-center">
               <MessageCircle size={40} className="mx-auto text-secondary mb-4" />
-              <h3 className="card-title justify-center mb-2">Send Feedback</h3>
+              <h3 className="card-title justify-center mb-2">Site Feedback</h3>
               <p className="text-base-content/70 mb-4">
                 Help us improve PrizeVersity with your suggestions.
               </p>

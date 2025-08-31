@@ -13,7 +13,7 @@ function getClassroomFromPath(pathname) {
 const CartDropdown = (props) => {
     const location = useLocation();
     const classroomId = getClassroomFromPath(location.pathname);
-    const { cartItems, getTotal, removeFromCart, getCart } = useCart();
+    const { getTotal, removeFromCart, getCart } = useCart();
     const { user } = useAuth();
     const [hasDiscount, setHasDiscount] = useState(user?.discountShop || false);
 
@@ -36,12 +36,6 @@ const CartDropdown = (props) => {
     const calculatePrice = (price) => {
         return user?.discountShop ? Math.floor(price * 0.8) : price;
     };
-
-    // Calculating the total with discount
-    const calculateTotal = () => {
-        const subtotal = cartItems.reduce((sum, item) => sum + item.price, 0);
-        return user?.discountShop ? Math.floor(subtotal * 0.8) : subtotal;
-    }
 
     // use classroom-scoped cart
     const cartItems = getCart(classroomId);
@@ -68,41 +62,41 @@ const CartDropdown = (props) => {
                                 {user?.discountShop ? (
                                     <span className="flex flex-col items-end">
                                         <span className="text-xs line-through text-base-content/60">Ƀ{item.price}</span>
-                                        <span className="text-sm text-green-600">Ƀ{Math.floor(item.price * 0.8)}</span>
+                                        <span className="text-sm text-green-600">Ƀ{calculatePrice(item.price)}</span>
                                     </span>
                                 ) : (
                                     <span className="text-sm text-base-content/80">Ƀ{item.price}</span>
                                 )}
                                 <button
                                     className="text-red-500 text-xs"
-                                    onClick={() => removeFromCart(item._id)}
+                                    onClick={() => removeFromCart(idx, classroomId)}
                                 >
                                     ✕
                                 </button>
-                            </div>
-                        </li>
-                    ))}
-                </ul>
-            )}
-            {cartItems.length > 0 && (
-                <>
-                    <div className="mt-3 text-right font-semibold">
-                        Total: Ƀ{getTotal()}
+                             </div>
+                         </li>
+                     ))}
+                 </ul>
+             )}
+             {cartItems.length > 0 && (
+                 <>
+                     <div className="mt-3 text-right font-semibold">
+                        Total: Ƀ{getTotal(classroomId)}
                         {user?.discountShop && (
                             <span className="block text-xs text-green-600">
-                                You saved Ƀ{Math.floor(getTotal() * 0.2)}!
+                                You saved Ƀ{Math.floor(getTotal(classroomId) * 0.2)}!
                             </span>
                         )}
-                    </div>
-                    <div className="mt-2">
-                        <Link to="/checkout">
-                            <button className="mt-2 w-full btn btn-success">Go to Checkout</button>
-                        </Link>
-                    </div>
-                </>
-            )}
-        </div>
-    );
-};
+                     </div>
+                     <div className="mt-2">
+                         <Link to="/checkout">
+                             <button className="mt-2 w-full btn btn-success">Go to Checkout</button>
+                         </Link>
+                     </div>
+                 </>
+             )}
+         </div>
+     );
+ };
 
 export default CartDropdown;

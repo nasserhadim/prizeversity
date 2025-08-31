@@ -14,7 +14,7 @@ const NotificationSchema = new mongoose.Schema({
       'classroom_deletion',
       'group_deletion',
       'group_suspension',
-      'groupset_deletion',  // Add this new type
+      'groupset_deletion',
       'classroom_update',
       'groupset_update',
       'group_update',
@@ -32,6 +32,7 @@ const NotificationSchema = new mongoose.Schema({
       'bit_assignment_request',
       'bit_assignment_approved',
       'bit_assignment_rejected',
+      'feedback_report', // added to support feedback report notifications
     ],
     required: true 
   },

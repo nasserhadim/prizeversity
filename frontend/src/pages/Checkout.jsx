@@ -9,6 +9,7 @@ import { Image as ImageIcon } from 'lucide-react'; // added for image fallback
 import { resolveImageSrc } from '../utils/image';
 import { getEffectDescription, splitDescriptionEffect } from '../utils/itemHelpers';
 import Footer from '../components/Footer';
+import apiClassroom from '../API/apiClassroom';
 
 const Checkout = () => {
   const { classroomId } = useParams();
@@ -21,6 +22,7 @@ const Checkout = () => {
 
   const [balance, setBalance] = useState(0);
   const [hasDiscount, setHasDiscount] = useState(user?.discountShop || false);
+  const [classroom, setClassroom] = useState(null);
 
   useEffect(() => {
     setHasDiscount(user?.discountShop || false);
@@ -52,6 +54,23 @@ const Checkout = () => {
       fetchBalance();
     }
   }, [user, classroomId]);
+
+  // Fetch classroom name for header when viewing a classroom checkout
+  useEffect(() => {
+    if (!classroomId) {
+      setClassroom(null);
+      return;
+    }
+    let mounted = true;
+    apiClassroom.get(`/${classroomId}`)
+      .then(r => {
+        if (mounted) setClassroom(r.data);
+      })
+      .catch(err => {
+        console.error('Failed to fetch classroom for checkout:', err);
+      });
+    return () => { mounted = false; };
+  }, [classroomId]);
 
   // Calculating the discuonted price (only if discount is active)
   const calculatePrice = (price) => {
@@ -114,7 +133,11 @@ const Checkout = () => {
     <div className="flex flex-col min-h-screen bg-base-200">
       <main className="flex-grow flex items-start justify-center p-6 pt-24 pb-12">
         <div className="w-full max-w-4xl mx-auto p-8 bg-base-100 rounded-2xl shadow-lg border border-base-300 min-h-[50vh]">
-          <h2 className="text-2xl md:text-3xl font-bold mb-4 text-base-content text-center">Checkout</h2>
+          <h2 className="text-2xl md:text-3xl font-bold mb-4 text-base-content text-center">
+            {classroom?.name
+              ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''} Checkout`
+              : 'Checkout'}
+          </h2>
 
           {user?.discountShop && (
               <div className="bg-success/10 text-success p-3 rounded mb-4 text-sm">
@@ -148,7 +171,7 @@ const Checkout = () => {
                                   <div className="flex items-center justify-between">
                                       <span className="block font-medium text-base-content truncate">{item.name}</span>
                                       <button
-                                          onClick={() => removeFromCart(item._id)}
+                                          onClick={() => removeFromCart(/* was item._id */ idx, classroomId)}
                                           className="text-error text-sm ml-4"
                                           title="Remove item"
                                       >

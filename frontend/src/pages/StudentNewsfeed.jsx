@@ -14,6 +14,7 @@ export default function StudentNewsfeed() {
     
     const [items, setItems] = useState([]);
     const [classroomName, setClassroomName] = useState('');
+    const [classroomCode, setClassroomCode] = useState('');
     const [visibleCount, setVisibleCount] = useState(10);
     const [bgColor, setBgColor] = useState('');
     const [backgroundImage, setBackgroundImage] = useState('');
@@ -26,19 +27,19 @@ export default function StudentNewsfeed() {
             // fetch classroom info
             const classRes = await getClassroom(classId);
             setClassroomName(classRes.data.name);
+            setClassroomCode(classRes.data.code);
             setBgColor(classRes.data.color);
             setBackgroundImage(classRes.data.backgroundImage);
         }
         fetchData();
     }, [classId]);
 
-   
-
     return (
         <div className="flex flex-col min-h-screen bg-base-200">
             <div className="flex-grow">
                 <ClassroomBanner
                     name={classroomName}
+                    code={classroomCode}
                     bgColor={bgColor}
                     backgroundImage={backgroundImage}
                 />

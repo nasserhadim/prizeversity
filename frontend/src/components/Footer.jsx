@@ -8,7 +8,7 @@ const Footer = () => {
         <Link to="/privacy" className="link text-primary">Privacy Policy</Link>
         <Link to="/terms" className="link text-primary">Terms of Service</Link>
         <Link to="/support" className="link text-primary">Help & Support</Link>
-        <Link to="/feedback" className="link text-primary">Send Feedback</Link>
+        <Link to="/feedback" className="link text-primary">Site Feedback</Link>
       </div>
       <p className="text-base-content/60">
         © 2025 Prizeversity. All rights reserved.

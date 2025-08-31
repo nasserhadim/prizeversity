@@ -211,17 +211,18 @@ const Classroom = () => {
         {/* Classroom banner inside the classroom page */}
         <ClassroomBanner
           name={classroom.name}
-          bgColor={classroom.color}
-          backgroundImage={
-            classroom.backgroundImage
-              ? (
-                classroom.backgroundImage.startsWith('http')
-                  ? classroom.backgroundImage
-                  : `${BACKEND_URL}${classroom.backgroundImage}`
-              )
-              : undefined
-          }
-        />
+          code={classroom.code}
+           bgColor={classroom.color}
+           backgroundImage={
+             classroom.backgroundImage
+               ? (
+                 classroom.backgroundImage.startsWith('http')
+                   ? classroom.backgroundImage
+                   : `${BACKEND_URL}${classroom.backgroundImage}`
+               )
+               : undefined
+           }
+         />
 
         <div className="max-w-3xl mx-auto p-6 bg-green-50 rounded-lg space-y-6">
           {/* Navigation */}

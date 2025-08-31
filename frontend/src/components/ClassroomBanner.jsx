@@ -13,7 +13,13 @@ export default function ClassroomBanner({ name, bgColor, backgroundImage }) {
 
     return (
         <div style={style} className="py-12 px-6 text-white text-center">
-            <h1 className="text-3xl font-bold">{name}</h1>
+            {/* show name + code when provided */}
+            <h1 className="text-3xl font-bold">
+                {name}{/* keep name */}
+                {typeof arguments[0]?.code !== 'undefined' && arguments[0]?.code
+                    ? ` (${arguments[0].code})`
+                    : ''}
+            </h1>
         </div>
     );
 }
