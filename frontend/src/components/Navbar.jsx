@@ -124,6 +124,9 @@ const Navbar = () => {
   // Hook to close cart dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
+      // Ignore clicks on the cart toggle(s)
+      if (event.target.closest && event.target.closest('[data-cart-toggle]')) return;
+
       if (cartRef.current && !cartRef.current.contains(event.target)) {
         setShowCart(false);
       }
@@ -183,6 +186,7 @@ const Navbar = () => {
               className="relative"
               onClick={() => setShowCart(!showCart)}
               title="Cart"
+              data-cart-toggle
             >
               <ShoppingCart size={20} className="text-green-500" />
               {cartCount > 0 && (
@@ -311,6 +315,7 @@ const Navbar = () => {
               className="relative"
               onClick={() => setShowCart(!showCart)}
               title="Cart"
+              data-cart-toggle
             >
               <ShoppingCart size={24} className="text-green-500" />
               {cartCount > 0 && (
