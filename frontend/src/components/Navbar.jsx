@@ -103,8 +103,9 @@ const Navbar = () => {
     const joinRooms = () => {
       if (!user?._id) return;
       console.debug('[socket] Navbar joining rooms', { userId: user._id, classroomId });
-      socket.emit('join-user', user._id);
-      if (classroomId) socket.emit('join-classroom', classroomId);
+      // Use helpers that join the same room names the server emits to
+      joinUserRoom(user._id);
+      if (classroomId) joinClassroom(classroomId);
     };
 
     if (socket.connected) joinRooms();
