@@ -11,7 +11,7 @@ async function sendEmail() {
 
   const rawMessage = Buffer.from(
     `From: "Prizeversity" <info@prizeversity.com>\r\n` +
-    `To: samaksharora.09@gmail.com\r\n` +
+    `To: info@prizeversity.com\r\n` +
     `Subject: Hello from Prizeversity!\r\n\r\n` +
     `This is a test email sent using Gmail API + Workload Identity Federation.`
   ).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');

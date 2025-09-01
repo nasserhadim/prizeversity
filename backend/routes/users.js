@@ -2,10 +2,35 @@ const express = require('express');
 const router = express.Router();
 const { ensureAuthenticated } = require('../config/auth');
 const User = require('../models/User');
+const Group = require('../models/Group'); // Add this import if not already present
 const Classroom = require('../models/Classroom');
 const mongoose = require('mongoose');
 const Notification = require('../models/Notification');
 const { populateNotification } = require('../utils/notifications');
+
+// Add this helper function after the imports
+const cleanupUserFromGroups = async (userId) => {
+  try {
+    // Find all groups that contain this user
+    const groups = await Group.find({
+      'members._id': userId
+    });
+
+    // Remove user from each group and update multipliers
+    for (const group of groups) {
+      const wasInGroup = group.members.some(member => member._id.equals(userId));
+      if (wasInGroup) {
+        group.members = group.members.filter(member => !member._id.equals(userId));
+        await group.save();
+        
+        // Update group multiplier after member removal
+        await group.updateMultiplier();
+      }
+    }
+  } catch (err) {
+    console.error('Error cleaning up user from groups:', err);
+  }
+};
 
 // DELETE a user by ID
 router.delete('/:id', async (req, res) => {
@@ -101,22 +126,32 @@ console.log(`Student ${student._id}: oldBalance=${student.balance - adjustedAmou
 });
 
 
-// Get all studetns in a classroom
- router.get('/students', ensureAuthenticated, async (req, res) => {
+// Get Students in Classroom (updated for per-classroom balances)
+router.get('/students', ensureAuthenticated, async (req, res) => {
   const { classroomId } = req.query;
-  
-  // Ensure classroom access
   if (!classroomId || !req.user.classrooms.includes(classroomId)) {
     return res.status(403).json({ error: 'Forbidden' });
   }
 
-  // Find students by classroom
   const students = await User.find({
     role: 'student',
     classrooms: classroomId
-  }).select('_id email balance firstName lastName');
-   res.status(200).json(students);
- });
+  }).select('_id email firstName lastName');
+
+  // Add per-classroom balances
+  const studentsWithBalances = await Promise.all(
+    students.map(async (student) => {
+      const user = await User.findById(student._id).select('classroomBalances');
+      const classroomBalance = user.classroomBalances.find(cb => cb.classroom.toString() === classroomId);
+      return {
+        ...student.toObject(),
+        balance: classroomBalance ? classroomBalance.balance : 0
+      };
+    })
+  );
+
+  res.status(200).json(studentsWithBalances);
+});
 
 // GET all users (not just students) in a classroom
  router.get('/all', ensureAuthenticated, async (req, res) => {
@@ -140,18 +175,23 @@ console.log(`Student ${student._id}: oldBalance=${student.balance - adjustedAmou
    res.json(everyone);
  });
 
-// Get user balance
+// Get user balance (updated for per-classroom)
 router.get('/:id', ensureAuthenticated, async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select('balance email');
+    const { classroomId } = req.query;
+    const user = await User.findById(req.params.id).select('balance classroomBalances email');
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    res.status(200).json({ balance: user.balance, email: user.email });
+    let balance = user.balance; // Default to global
+    if (classroomId) {
+      balance = getClassroomBalance(user, classroomId);
+    }
+    res.json({ balance, email: user.email });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch user balance' });
-  }
+    console.error('Balance lookup failed:', err);
+    res.status(500).json({ error: 'Failed to fetch balance' });
+  }
 });
-
 
 
 
@@ -182,8 +222,8 @@ router.post('/:id/make-admin', ensureAuthenticated, async (req, res) => {
     res.status(200).json({ message: 'Student promoted to admin' });
   } catch (err) {
     console.error('Failed to promote student:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Demote an admin back to student
@@ -354,5 +394,39 @@ router.post('/bulk-upload', ensureAuthenticated, async (req, res) => {
   }
 });
 
+// Helper to get or initialize per-classroom balance (same logic as in wallet.js)
+const getClassroomBalance = (user, classroomId) => {
+  if (!Array.isArray(user.classroomBalances)) return 0;
+  const cb = user.classroomBalances.find(cb => String(cb.classroom) === String(classroomId));
+  return cb ? cb.balance : 0;
+};
+
+const updateClassroomBalance = (user, classroomId, newBalance) => {
+  if (!Array.isArray(user.classroomBalances)) user.classroomBalances = [];
+  const idx = user.classroomBalances.findIndex(cb => String(cb.classroom) === String(classroomId));
+  if (idx >= 0) {
+    user.classroomBalances[idx].balance = Math.max(0, newBalance);
+  } else {
+    user.classroomBalances.push({ classroom: classroomId, balance: Math.max(0, newBalance) });
+  }
+};
+
+// Add this route for user deletion (if it doesn't exist)
+router.delete('/delete-account', ensureAuthenticated, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    
+    // Clean up user from all groups first
+    await cleanupUserFromGroups(userId);
+    
+    // Add any other cleanup logic here (remove from classrooms, etc.)
+    
+    await User.findByIdAndDelete(userId);
+    res.status(200).json({ message: 'Account deleted successfully' });
+  } catch (err) {
+    console.error('Account deletion error:', err);
+    res.status(500).json({ error: 'Failed to delete account' });
+  }
+});
 
 module.exports = router;

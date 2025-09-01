@@ -128,7 +128,23 @@ router.get('/transactions/all', ensureAuthenticated, async (req, res) => {
   }
 });
 
-// Assign Balance to Student
+// Helper function to get or initialize per-classroom balance
+const getClassroomBalance = (user, classroomId) => {
+  const classroomBalance = user.classroomBalances.find(cb => cb.classroom.toString() === classroomId.toString());
+  return classroomBalance ? classroomBalance.balance : 0;
+};
+
+// Helper function to update per-classroom balance
+const updateClassroomBalance = (user, classroomId, newBalance) => {
+  const index = user.classroomBalances.findIndex(cb => cb.classroom.toString() === classroomId.toString());
+  if (index >= 0) {
+    user.classroomBalances[index].balance = Math.max(0, newBalance); // Prevent negative balances
+  } else {
+    user.classroomBalances.push({ classroom: classroomId, balance: Math.max(0, newBalance) });
+  }
+};
+
+// Assign Balance to Student (updated for per-classroom)
 router.post('/assign', ensureAuthenticated, async (req, res) => {
   const { classroomId, studentId, amount, description } = req.body;
 
@@ -187,22 +203,40 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
       multiplier = Math.max(...groups.map(g => g.groupMultiplier || 1));
     }
 
-    const adjustedAmount = numericAmount >= 0 
-      ? Math.round(numericAmount * multiplier)
-      : numericAmount;
+    // Use per-classroom balance if classroomId is provided
+    if (classroomId) {
+      const currentBalance = getClassroomBalance(student, classroomId);
+      const adjustedAmount = numericAmount >= 0 ? Math.round(numericAmount * multiplier) : numericAmount; // Apply multipliers as before
+      const newBalance = Math.max(0, currentBalance + adjustedAmount);
+      updateClassroomBalance(student, classroomId, newBalance);
 
-    student.balance = Math.max(0, student.balance + adjustedAmount);
-    student.transactions.push({
-      amount: adjustedAmount,
-      description: description || `Balance adjustment`,
-      assignedBy: req.user._id,
-      calculation: numericAmount >= 0 ? {
-        baseAmount: numericAmount,
-        personalMultiplier: 1, // Note: This route doesn't use personal multiplier
-        groupMultiplier: multiplier,
-        totalMultiplier: multiplier,
-      } : undefined,
-    });
+      student.transactions.push({
+        amount: adjustedAmount,
+        description: description || `Balance adjustment`,
+        assignedBy: req.user._id,
+        classroom: classroomId,
+        calculation: numericAmount >= 0 ? {
+          baseAmount: numericAmount,
+          personalMultiplier: 1, // Note: This route doesn't use personal multiplier
+          groupMultiplier: multiplier,
+          totalMultiplier: multiplier,
+        } : undefined,
+      });
+    } else {
+      // Fallback to global balance
+      student.balance = Math.max(0, student.balance + numericAmount);
+      student.transactions.push({
+        amount: numericAmount,
+        description: description || `Balance adjustment`,
+        assignedBy: req.user._id,
+        calculation: numericAmount >= 0 ? {
+          baseAmount: numericAmount,
+          personalMultiplier: 1, // Note: This route doesn't use personal multiplier
+          groupMultiplier: multiplier,
+          totalMultiplier: multiplier,
+        } : undefined,
+      });
+    }
 
     await student.save();
     console.log(`Assigned ${adjustedAmount} ₿ to ${student.email}`);
@@ -229,7 +263,18 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
       classroomId
     });
 
-    res.status(200).json({ message: 'Balance assigned successfully' });
+    // AFTER saving student(s) and creating notification(s), emit per-classroom update and return per-class balance
+const perClassBalance = classroomId ? getClassroomBalance(student, classroomId) : (student.balance || 0);
+req.app.get('io').to(`classroom-${classroomId}`).emit('balance_update', {
+  studentId: student._id,
+  newBalance: perClassBalance,
+  classroomId
+});
+
+res.status(200).json({
+  message: 'Balance assigned successfully',
+  balance: perClassBalance
+});
   } catch (err) {
     console.error('Failed to assign balance:', err.message);
     res.status(500).json({ error: err.message });
@@ -328,11 +373,18 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
 
       // Apply multiplier only for positive amounts
       const adjustedAmount = numericAmount >= 0
-   ? Math.round(numericAmount * totalMultiplier)
-   : numericAmount;
+        ? Math.round(numericAmount * totalMultiplier)
+        : numericAmount;
 
- // never let balance go negative
- student.balance = Math.max(0, student.balance + adjustedAmount);
+      // Update per-classroom balance when classroomId provided; otherwise fallback to global balance
+      if (classroomId) {
+        const current = getClassroomBalance(student, classroomId);
+        const newBalance = Math.max(0, current + adjustedAmount);
+        updateClassroomBalance(student, classroomId, newBalance);
+      } else {
+        // fallback: global balance (legacy)
+        student.balance = Math.max(0, (student.balance || 0) + adjustedAmount);
+      }
       student.transactions.push({
         amount: adjustedAmount,
         description,
@@ -417,11 +469,22 @@ router.post(
     }
     const { recipientShortId: recipientId, amount, classroomId } = req.body;
 
+    // Prevent student transfers if disabled by teacher
+    if (req.user.role === 'student' && classroomId) {
+      const classroom = await Classroom.findById(classroomId).select('studentSendEnabled');
+      if (classroom && !classroom.studentSendEnabled) {
+        return res.status(403).json({ error: 'Student-to-student transfers are currently disabled by the teacher.' });
+      }
+    }
+
     const numericAmount = Number(amount);
     if (!Number.isInteger(numericAmount) || numericAmount < 1) {
       return res.status(400).json({ error: 'Amount must be a positive integer' });
     }
 
+    // Ensure adjustedAmount is defined for later use (direct transfers use the raw amount)
+    const adjustedAmount = numericAmount;
+    
     // Load sender and recipient
     const sender = await User.findById(req.user._id);
     const recipient = await User.findOne({ shortId: recipientId });
@@ -430,44 +493,89 @@ router.post(
     if (String(sender._id) === String(recipient._id)) {
       return res.status(400).json({ error: 'Cannot transfer to yourself' });
     }
-    if ((sender.balance || 0) < numericAmount) {
-      return res.status(400).json({ error: 'Insufficient balance' });
-    }
 
-    // Apply recipient multiplier (passive)
-    const recipientMultiplier = recipient.passiveAttributes?.multiplier || 1;
-    const adjustedAmount = Math.round(numericAmount * recipientMultiplier);
+    // Update balances (use inside the transfer/assign handler where numericAmount/adjustedAmount/classroomId are available)
+const senderBalance = classroomId ? getClassroomBalance(sender, classroomId) : (sender.balance || 0);
+if (senderBalance < numericAmount) {
+  return res.status(400).json({ error: 'Insufficient balance' });
+}
 
-    sender.balance -= numericAmount;
-    recipient.balance += adjustedAmount;
+if (classroomId) {
+  updateClassroomBalance(sender, classroomId, Math.max(0, senderBalance - numericAmount));
+  const recipientBalance = getClassroomBalance(recipient, classroomId);
+  updateClassroomBalance(recipient, classroomId, recipientBalance + adjustedAmount);
+} else {
+  sender.balance = (sender.balance || 0) - numericAmount;
+  recipient.balance = (recipient.balance || 0) + adjustedAmount;
+}
 
-    sender.transactions.push({ 
-      amount: -numericAmount, 
-      description: `Transferred to ${label(recipient)}`,
-      classroom: classroomId || null,
-      createdAt: new Date()
-    });
-    recipient.transactions.push({ 
-      amount: adjustedAmount,  
-      description: `Received from ${label(sender)}`,
-      assignedBy: sender._id,
-      classroom: classroomId || null,
-      createdAt: new Date()
-    });
+// Add transactions (keep classroom reference)
+sender.transactions.push({
+  amount: -numericAmount,
+  description: `Transferred to ${label(recipient)}`,
+  classroom: classroomId || null,
+  createdAt: new Date()
+});
+recipient.transactions.push({
+  amount: adjustedAmount,
+  description: `Received from ${label(sender)}`,
+  assignedBy: sender._id,
+  classroom: classroomId || null,
+  createdAt: new Date()
+});
 
     await sender.save();
     await recipient.save();
 
-    return res.json({ message: 'Transfer complete' });
+    // --- Added: human readable notification messages for both parties ---
+    // Resolve classroom name for message context (if classroomId provided)
+    let classroomName = '';
+    if (classroomId) {
+      const Classroom = require('../models/Classroom');
+      // include the classroom code so messages show "Class Name (CODE)"
+      const classroom = await Classroom.findById(classroomId).select('name code');
+      if (classroom) classroomName = ` in "${classroom.name}${classroom.code ? ` (${classroom.code})` : ''}"`;
+    }
+    
+    const senderNotification = await Notification.create({
+      user: sender._id,
+      actionBy: sender._id,
+      type: 'wallet_transaction',
+      message: `You sent ${numericAmount} ₿ to ${label(recipient)}.`,
+      classroom: classroomId,
+      createdAt: new Date()
+    });
+    const populatedSenderNotification = await populateNotification(senderNotification._id);
+    req.app.get('io').to(`user-${sender._id}`).emit('notification', populatedSenderNotification);
+    
+    const recipientNotification = await Notification.create({
+      user: recipient._id,
+      actionBy: sender._id,
+      type: 'wallet_transaction',
+      message: `You received ${adjustedAmount} ₿ from ${label(sender)}.`,
+      classroom: classroomId,
+      createdAt: new Date()
+    });
+    const populatedRecipientNotification = await populateNotification(recipientNotification._id);
+    req.app.get('io').to(`user-${recipient._id}`).emit('notification', populatedRecipientNotification);
+    // --- end added block ---
+    
+    res.status(200).json({ message: 'Transfer complete' });
   }
 );
 
 // Will get the user balance
 router.get('/:userId/balance', ensureAuthenticated, async (req, res) => {
   try {
-    const user = await User.findById(req.params.userId).select('balance');
+    const { classroomId } = req.query;
+    const user = await User.findById(req.params.userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
-    res.json({ balance: user.balance });
+
+    let balance = user.balance; // Default to global
+    if (classroomId) {
+      balance = getClassroomBalance(user, classroomId);
+    }
+    res.json({ balance });
   } catch (err) {
     console.error('Balance lookup failed:', err);
     res.status(500).json({ error: 'Failed to fetch balance' });

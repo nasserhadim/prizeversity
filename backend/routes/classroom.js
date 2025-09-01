@@ -18,32 +18,76 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
+// Add conditional uploader so JSON requests (image URL) aren't passed through multer
+const conditionalUpload = (req, res, next) => {
+  const ct = (req.headers['content-type'] || '').toLowerCase();
+  if (ct.startsWith('multipart/form-data')) {
+    return upload.single('backgroundImage')(req, res, next);
+  }
+  return next();
+};
+
+
+// Helper to generate a random 6-character alphanumeric code
+function generateClassroomCode() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < 6; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
 
 // Create Classroom
 router.post(
   '/create',
   ensureAuthenticated,
-  upload.single('backgroundImage'),
+  conditionalUpload,
   async (req, res) => {
     // Debug logs
     console.log('[Create Classroom] content-type:', req.headers['content-type']);
     console.log('[Create Classroom] req.body:', req.body);
     console.log('[Create Classroom] req.file:', req.file);
 
-    const { name, code, color } = req.body;
-    const backgroundImage = req.file ? `/uploads/${req.file.filename}` : undefined;
+    const { name, color } = req.body;
+    let code = req.body.code;
+    // Accept uploaded file OR a backgroundImage URL passed in the request body
+    let backgroundImage = req.file
+      ? `/uploads/${req.file.filename}`
+      : (req.body && req.body.backgroundImage ? String(req.body.backgroundImage).trim() : undefined);
 
-    if (!name || !code) {
-      return res.status(400).json({ error: 'Classroom name and code are required' });
+    // Normalize URL: if a non-empty value was supplied without a scheme, assume https
+    if (backgroundImage && !backgroundImage.startsWith('/') && !/^https?:\/\//.test(backgroundImage) && !backgroundImage.startsWith('data:')) {
+      backgroundImage = `https://${backgroundImage}`;
     }
-    if (code.length < 5) {
-      return res.status(400).json({ error: 'Classroom code must be at least 5 characters long' });
+    console.log('[Create Classroom] final backgroundImage to save:', backgroundImage);
+
+    if (!name) {
+      return res.status(400).json({ error: 'Classroom name is required' });
     }
 
     try {
-      const existing = await Classroom.findOne({ code, archived: false });
-      if (existing) {
-        return res.status(400).json({ error: 'A classroom with this code already exists' });
+      // If no code is provided, generate a unique one
+      if (!code) {
+        let isUnique = false;
+        while (!isUnique) {
+          code = generateClassroomCode();
+          const existing = await Classroom.findOne({ code });
+          if (!existing) {
+            isUnique = true;
+          }
+        }
+      } else {
+        // Standardize to uppercase and validate provided code
+        code = code.toUpperCase();
+        if (code.length < 5 || code.length > 6) {
+          return res.status(400).json({ error: 'Classroom code must be 5-6 characters long!' });
+        }
+        const existing = await Classroom.findOne({ code, archived: false });
+        if (existing) {
+          return res.status(400).json({ error: 'A classroom with this code already exists' });
+        }
       }
 
       const classroom = new Classroom({
@@ -56,6 +100,7 @@ router.post(
       });
       try {
         await classroom.save();
+        console.log('[Create Classroom] saved backgroundImage:', classroom.backgroundImage);
         res.status(201).json(classroom);
       } catch (err) {
         console.error('[Create Classroom] save error:', err);
@@ -83,14 +128,21 @@ router.post('/join', ensureAuthenticated, async (req, res) => {
     return res.status(400).json({ error: 'Classroom code is required' });
   }
   try {
-    const classroom = await Classroom.findOne({ code: code.trim(), archived: false });
+    const classroom = await Classroom.findOne({ code: code.trim().toUpperCase(), archived: false });
     if (!classroom) {
-      console.log('No classroom found with code: ', code);
       return res.status(404).json({ error: 'Invalid classroom code' });
     }
 
     if (classroom.students.includes(req.user._id)) {
       return res.status(400).json({ error: 'You have already joined this classroom' });
+    }
+
+    // Initialize per-classroom balance if not present
+    const user = await User.findById(req.user._id);
+    const existingBalance = user.classroomBalances.find(cb => cb.classroom.toString() === classroom._id.toString());
+    if (!existingBalance) {
+      user.classroomBalances.push({ classroom: classroom._id, balance: 0 });
+      await user.save();
     }
 
     classroom.students.push(req.user._id);
@@ -304,7 +356,16 @@ router.delete('/:id', ensureAuthenticated, async (req, res) => {
 router.put('/:id', ensureAuthenticated, upload.single('backgroundImage'), async (req, res) => {
   console.log(' UPDATE req.body:', req.body);
   const { name, color, archived } = req.body;
-  const backgroundImage = req.file ? `/uploads/${req.file.filename}` : undefined;
+  // Accept uploaded file OR a backgroundImage URL passed in the request body
+  let backgroundImage = req.file
+    ? `/uploads/${req.file.filename}`
+    : (req.body && req.body.backgroundImage ? String(req.body.backgroundImage).trim() : undefined);
+
+  // Normalize URL if necessary (assume https when missing scheme)
+  if (backgroundImage && !backgroundImage.startsWith('/') && !/^https?:\/\//.test(backgroundImage) && !backgroundImage.startsWith('data:')) {
+    backgroundImage = `https://${backgroundImage}`;
+  }
+  console.log('[Update Classroom] final backgroundImage:', backgroundImage);
 
   try {
     const classroom = await Classroom.findById(req.params.id)
@@ -372,6 +433,31 @@ router.post('/:id/leave', ensureAuthenticated, async (req, res) => {
       return res.status(404).json({ error: 'Classroom not found' });
     }
 
+    // Remove student from all groups in this classroom before leaving
+    if (classroom.students.includes(req.user._id)) {
+      const GroupSet = require('../models/GroupSet');
+      const Group = require('../models/Group');
+      
+      // Find all groupsets in this classroom
+      const groupSets = await GroupSet.find({ classroom: req.params.id });
+      
+      // Remove user from all groups in these groupsets
+      for (const groupSet of groupSets) {
+        const groups = await Group.find({ _id: { $in: groupSet.groups } });
+        
+        for (const group of groups) {
+          const wasMember = group.members.some(member => member._id.equals(req.user._id));
+          if (wasMember) {
+            group.members = group.members.filter(member => !member._id.equals(req.user._id));
+            await group.save();
+            
+            // Update group multiplier after member removal
+            await group.updateMultiplier();
+          }
+        }
+      }
+    }
+
     if (classroom.teacher.toString() === req.user._id.toString()) {
       await Classroom.deleteOne({ _id: req.params.id });
     } else {
@@ -396,18 +482,28 @@ router.post('/:id/leave', ensureAuthenticated, async (req, res) => {
 });
 
 
-// Fetch & Remove Students
+// Fetch Students in Classroom (updated for per-classroom balances)
 router.get('/:id/students', ensureAuthenticated, async (req, res) => {
   try {
     const classroom = await Classroom.findById(req.params.id)
-      .populate(
-        'students',
-        'email role firstName lastName balance shortId'
-      );
+      .populate('students', 'email role firstName lastName shortId');
     if (!classroom) {
       return res.status(404).json({ error: 'Classroom not found' });
     }
-    res.status(200).json(classroom.students);
+
+    // Fetch per-classroom balances for each student
+    const studentsWithBalances = await Promise.all(
+      classroom.students.map(async (student) => {
+        const user = await User.findById(student._id).select('classroomBalances');
+        const classroomBalance = user.classroomBalances.find(cb => cb.classroom.toString() === req.params.id);
+        return {
+          ...student.toObject(),
+          balance: classroomBalance ? classroomBalance.balance : 0
+        };
+      })
+    );
+
+    res.status(200).json(studentsWithBalances);
   } catch (err) {
     console.error('[Fetch Students] error:', err);
     res.status(500).json({ error: 'Failed to fetch students' });

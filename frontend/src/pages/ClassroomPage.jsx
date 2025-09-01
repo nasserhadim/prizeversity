@@ -6,6 +6,17 @@ import socket from '../utils/socket';
 import toast from 'react-hot-toast';
 import { API_BASE } from '../config/api'; 
 import Footer from '../components/Footer';
+import { resolveBannerSrc } from '../utils/image';
+
+// Helper to generate a random 6-character alphanumeric code
+const generateRandomCode = () => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < 6; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+};
 
 export default function ClassroomPage() {
   const { user } = useAuth();
@@ -15,8 +26,16 @@ export default function ClassroomPage() {
   const [classroomCode, setClassroomCode] = useState('');
   const [color, setColor] = useState('#22c55e');
   const [backgroundFile, setBackgroundFile] = useState(null);
+  // Add new states for background image source toggle
+  const [backgroundImageSource, setBackgroundImageSource] = useState('file');
+  const [backgroundImageUrl, setBackgroundImageUrl] = useState('');
   const [joinClassroomCode, setJoinClassroomCode] = useState('');
   const [loading, setLoading] = useState(true);
+  
+  // Add tab state for different user roles
+  const [studentTab, setStudentTab] = useState('join'); // 'join' or 'classrooms'
+  const [teacherTab, setTeacherTab] = useState('create'); // 'create', 'classrooms', or 'archived'
+  
   const navigate = useNavigate();
   const BACKEND_URL = `${API_BASE}`;
 
@@ -60,30 +79,46 @@ export default function ClassroomPage() {
       return;
     }
 
-    // Build multipart form data for upload (including optional background image)
-    const formData = new FormData();
-    formData.append('name', classroomName);
-    formData.append('code', classroomCode);
-    formData.append('color', color);
-    if (backgroundFile) {
-      formData.append('backgroundImage', backgroundFile);
-    }
-
-    // Debug print form data entries
-    console.group('FormData entries:');
-    for (let pair of formData.entries()) {
-      console.log(pair[0] + ':', pair[1]);
-    }
-    console.groupEnd();
-
     try {
-      // POST to create classroom endpoint
-      await axios.post('/api/classroom/create', formData);
+      // If user chose file upload and selected a file, send multipart form
+      if (backgroundImageSource === 'file' && backgroundFile) {
+        const formData = new FormData();
+        formData.append('name', classroomName);
+        formData.append('code', classroomCode);
+        formData.append('color', color);
+        formData.append('backgroundImage', backgroundFile);
+
+        await axios.post('/api/classroom/create', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+      } else {
+        // JSON path: use image URL or no image
+        const payload = {
+          name: classroomName,
+          code: classroomCode,
+          color: color
+        };
+
+        if (backgroundImageSource === 'url' && backgroundImageUrl.trim()) {
+          // Normalize URL (add https if no protocol)
+          const normalizeUrl = (url) => {
+            const trimmed = url.trim();
+            if (trimmed.startsWith('http') || trimmed.startsWith('data:')) return trimmed;
+            return `https://${trimmed}`;
+          };
+          payload.backgroundImage = normalizeUrl(backgroundImageUrl);
+        }
+
+        await axios.post('/api/classroom/create', payload);
+      }
+
       toast.success('Classroom Created!');
       setClassroomName('');
       setClassroomCode('');
       setColor('#22c55e');
       setBackgroundFile(null);
+      setBackgroundImageUrl('');
+      setBackgroundImageSource('file');
       fetchClassrooms();
     } catch (err) {
       console.error('Create error:', err);
@@ -143,152 +178,341 @@ export default function ClassroomPage() {
       <div className="flex-1 space-y-6">
         <h1 className="text-2xl font-bold text-center">Classroom Dashboard</h1>
 
-        {role === 'teacher' && (
-          <div className="text-center my-4">
-            <button
-              className="btn btn-neutral"
-              onClick={() => navigate('/classrooms/archived')}
+        {/* Archived Classrooms Button for Teachers - moved to tab */}
+        
+        {/* Student Tab Switcher */}
+        {(role === 'student' || role === 'admin') && (
+          <div role="tablist" className="tabs tabs-boxed justify-center">
+            <a
+              role="tab"
+              className={`tab text-xs sm:text-sm ${studentTab === 'join' ? 'tab-active' : ''}`}
+              onClick={() => setStudentTab('join')}
             >
-              Archived Classrooms
-            </button>
+              <span className="hidden sm:inline">Join Classroom</span>
+              <span className="sm:hidden">Join</span>
+            </a>
+            <a
+              role="tab"
+              className={`tab text-xs sm:text-sm ${studentTab === 'classrooms' ? 'tab-active' : ''}`}
+              onClick={() => setStudentTab('classrooms')}
+            >
+              <span className="hidden sm:inline">My Classrooms</span>
+              <span className="sm:hidden">Classrooms</span>
+            </a>
           </div>
         )}
 
+        {/* Teacher Tab Switcher */}
         {role === 'teacher' && (
-          <div className="space-y-4 bg-base-100 p-4 rounded shadow">
-            <div>
-              <label htmlFor="name" className="block text-sm font-medium mb-1">
-                Classroom Name
-              </label>
-              <input
-                id="name"
-                type="text"
-                placeholder="Enter classroom name"
-                className="input input-bordered w-full"
-                value={classroomName}
-                onChange={e => setClassroomName(e.target.value)}
-              />
-            </div>
+          <div role="tablist" className="tabs tabs-boxed justify-center">
+            <a
+              role="tab"
+              className={`tab text-xs sm:text-sm ${teacherTab === 'create' ? 'tab-active' : ''}`}
+              onClick={() => setTeacherTab('create')}
+            >
+              <span className="hidden sm:inline">Create Classroom</span>
+              <span className="sm:hidden">Create</span>
+            </a>
+            <a
+              role="tab"
+              className={`tab text-xs sm:text-sm ${teacherTab === 'classrooms' ? 'tab-active' : ''}`}
+              onClick={() => setTeacherTab('classrooms')}
+            >
+              <span className="hidden sm:inline">My Classrooms</span>
+              <span className="sm:hidden">Classrooms</span>
+            </a>
+            <a
+              role="tab"
+              className={`tab text-xs sm:text-sm ${teacherTab === 'archived' ? 'tab-active' : ''}`}
+              onClick={() => setTeacherTab('archived')}
+            >
+              Archived
+            </a>
+          </div>
+        )}
 
-            <div>
-              <label htmlFor="code" className="block text-sm font-medium mb-1">
-                Classroom Code
-              </label>
-              <input
-                id="code"
-                type="text"
-                placeholder="Enter classroom code"
-                className="input input-bordered w-full"
-                value={classroomCode}
-                onChange={e => setClassroomCode(e.target.value)}
-              />
-            </div>
+        {/* Student Content */}
+        {(role === 'student' || role === 'admin') && (
+          <>
+            {/* Join Classroom Tab */}
+            {studentTab === 'join' && (
+              <div className="space-y-2 bg-base-100 p-4 rounded shadow max-w-md mx-auto">
+                <h2 className="text-lg font-semibold text-center mb-4">Join a Classroom</h2>
+                <input
+                  type="text"
+                  placeholder="Classroom Code"
+                  className="input input-bordered w-full"
+                  value={joinClassroomCode}
+                  onChange={e => setJoinClassroomCode(e.target.value)}
+                />
+                <button
+                  className="btn btn-success w-full"
+                  onClick={handleJoinClassroom}
+                >
+                  Join Classroom
+                </button>
+              </div>
+            )}
 
-            <div className="flex flex-col md:flex-row md:items-center gap-4">
-              <input
-                type="color"
-                value={color}
-                onChange={e => setColor(e.target.value)}
-                className="w-16 h-12 p-0 border rounded self-start"
-              />
-              <div className="flex-1 space-y-2">
-                <div className="flex items-center space-x-4">
-                  <input
-                    type="file"
-                    name="backgroundImage"
-                    accept="image/*"
-                    onChange={e => setBackgroundFile(e.target.files[0])}
-                    className="file-input file-input-bordered w-full max-w-xs"
-                  />
-                  {backgroundFile && (
-                    <img
-                      src={URL.createObjectURL(backgroundFile)}
-                      alt="Preview"
-                      className="w-16 h-16 object-cover rounded border"
-                    />
+            {/* My Classrooms Tab */}
+            {studentTab === 'classrooms' && (
+              <div>
+                <h2 className="text-xl font-semibold text-center mb-4">My Classrooms</h2>
+                <div className="grid gap-4 md:grid-cols-2">
+                  {loading ? (
+                    Array.from({ length: 4 }).map((_, i) => (
+                      <div key={i} className="card bg-base-200 shadow">
+                        <div className="card-body">
+                          <div className="skeleton h-6 w-1/2 mb-2"></div>
+                          <div className="skeleton h-4 w-1/3"></div>
+                        </div>
+                      </div>
+                    ))
+                  ) : classrooms.length === 0 ? (
+                    <div className="col-span-full text-center text-gray-500 py-8">
+                      You haven't joined any classrooms yet. Use a classroom code to join!
+                    </div>
+                  ) : (
+                    classrooms.map(c => {
+                      const style = {};
+                      let textClass = 'text-black';
+                      if (c.color && c.color.toLowerCase() !== '#ffffff') {
+                        style.backgroundColor = c.color;
+                        textClass = 'text-white';
+                      }
+                      if (c.backgroundImage) {
+                        const imageUrl = resolveBannerSrc(c.backgroundImage);
+                        style.backgroundImage = `url(${imageUrl})`;
+                        style.backgroundSize = 'cover';
+                        style.backgroundPosition = 'center';
+                        textClass = 'text-white';
+                      }
+
+                      return (
+                        <div
+                          key={c._id}
+                          className={`card bg-base-100 shadow cursor-pointer hover:shadow-lg transition-shadow ${textClass}`}
+                          style={style}
+                          onClick={() => handleCardClick(c._id)}
+                        >
+                          <div className="card-body">
+                            <h2 className="card-title">{c.name}</h2>
+                            <p className="text-sm opacity-75">Code: {c.code}</p>
+                          </div>
+                        </div>
+                      );
+                    })
                   )}
                 </div>
-                <p className="text-sm text-gray-500">
-                  Valid image formats: .jpg, .jpeg, .png, .gif, .bmp, .webp, .svg; max size: 10 MB.
-                </p>
               </div>
-            </div>
-
-            <button
-              className="btn btn-success w-full"
-              onClick={handleCreateClassroom}
-            >
-              Create Classroom
-            </button>
-          </div>
+            )}
+          </>
         )}
 
-        {(role === 'student' || role === 'admin') && (
-          <div className="space-y-2">
-            <input
-              type="text"
-              placeholder="Classroom Code"
-              className="input input-bordered w-full"
-              value={joinClassroomCode}
-              onChange={e => setJoinClassroomCode(e.target.value)}
-            />
-            <button
-              className="btn btn-success w-full"
-              onClick={handleJoinClassroom}
-            >
-              Join Classroom
-            </button>
-          </div>
-        )}
+        {/* Teacher Content */}
+        {role === 'teacher' && (
+          <>
+            {/* Create Classroom Tab */}
+            {teacherTab === 'create' && (
+              <div className="space-y-4 bg-base-100 p-4 rounded shadow max-w-md mx-auto">
+                <h2 className="text-lg font-semibold text-center mb-4">Create New Classroom</h2>
+                <div>
+                  <label htmlFor="name" className="block text-sm font-medium mb-1">
+                    Classroom Name
+                  </label>
+                  <input
+                    id="name"
+                    type="text"
+                    placeholder="Enter classroom name"
+                    className="input input-bordered w-full"
+                    value={classroomName}
+                    onChange={e => setClassroomName(e.target.value)}
+                  />
+                </div>
 
-        <div>
-          <h2 className="text-xl font-semibold mt-6">Classrooms</h2>
-          <div className="grid gap-4 md:grid-cols-2 mt-2">
-            {loading ? (
-              Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="card bg-base-200 shadow">
-                  <div className="card-body">
-                    <div className="skeleton h-6 w-1/2 mb-2"></div>
-                    <div className="skeleton h-4 w-1/3"></div>
+                <div>
+                  <label htmlFor="code" className="block text-sm font-medium mb-1">
+                    Classroom Code
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      id="code"
+                      type="text"
+                      placeholder="Enter or Generate a class code"
+                      className="input input-bordered flex-1"
+                      value={classroomCode}
+                      onChange={e => setClassroomCode(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      onClick={() => setClassroomCode(generateRandomCode())}
+                      title="Generate random code"
+                    >
+                      🎲
+                    </button>
                   </div>
                 </div>
-              ))
-            ) : (
-              classrooms.map(c => {
-                const style = {};
-                let textClass = 'text-black';
-                if (c.color && c.color.toLowerCase() !== '#ffffff') {
-                  style.backgroundColor = c.color;
-                  textClass = 'text-white';
-                }
-                if (c.backgroundImage) {
-                  const imageUrl = c.backgroundImage.startsWith('http')
-                    ? c.backgroundImage
-                    : `${BACKEND_URL}${c.backgroundImage}`;
-                  style.backgroundImage = `url(${imageUrl})`;
-                  style.backgroundSize = 'cover';
-                  style.backgroundPosition = 'center';
-                  textClass = 'text-white';
-                }
-                return (
-                  <div
-                    key={c._id}
-                    className="card bg-base-200 shadow hover:shadow-lg cursor-pointer transition"
-                    style={style}
-                    onClick={() => handleCardClick(c._id)}
-                  >
-                    <div className="card-body">
-                      <h3 className={`card-title ${textClass}`}>{c.name}</h3>
-                      <p className={textClass}>Code: {c.code}</p>
+
+                <div>
+                  <label htmlFor="color" className="block text-sm font-medium mb-1">
+                    Theme Color
+                  </label>
+                  <input
+                    id="color"
+                    type="color"
+                    value={color}
+                    onChange={e => setColor(e.target.value)}
+                    className="input w-full h-10 p-0 border"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="background" className="block text-sm font-medium">
+                    Background Image (Optional)
+                  </label>
+                  
+                  {/* Image source toggle */}
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="inline-flex rounded-full bg-gray-200 p-1">
+                      <button
+                        type="button"
+                        onClick={() => setBackgroundImageSource('file')}
+                        className={`px-3 py-1 rounded-full text-sm transition ${
+                          backgroundImageSource === 'file'
+                            ? 'bg-white shadow text-gray-900'
+                            : 'text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        Upload
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBackgroundImageSource('url')}
+                        className={`ml-1 px-3 py-1 rounded-full text-sm transition ${
+                          backgroundImageSource === 'url'
+                            ? 'bg-white shadow text-gray-900'
+                            : 'text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        Use image URL
+                      </button>
                     </div>
                   </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-      </div>
 
+                  {/* File upload or URL input */}
+                  {backgroundImageSource === 'file' ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        id="background"
+                        type="file"
+                        accept="image/*"
+                        onChange={e => setBackgroundFile(e.target.files[0])}
+                        className="file-input file-input-bordered flex-1 file-input-sm"
+                      />
+                      {backgroundFile && (
+                        <img
+                          src={URL.createObjectURL(backgroundFile)}
+                          alt="Preview"
+                          className="w-12 h-12 object-cover rounded border"
+                        />
+                      )}
+                    </div>
+                  ) : (
+                    <input
+                      type="url"
+                      placeholder="https://example.com/background.jpg"
+                      value={backgroundImageUrl}
+                      onChange={e => setBackgroundImageUrl(e.target.value)}
+                      className="input input-bordered w-full"
+                    />
+                  )}
+
+                  <p className="text-sm text-gray-500">
+                    Allowed: jpg, png, webp, gif. Max: 5 MB.
+                  </p>
+                </div>
+
+                <button
+                  className="btn btn-success w-full"
+                  onClick={handleCreateClassroom}
+                >
+                  Create Classroom
+                </button>
+              </div>
+            )}
+
+            {/* My Classrooms Tab */}
+            {teacherTab === 'classrooms' && (
+              <div>
+                <h2 className="text-xl font-semibold text-center mb-4">My Classrooms</h2>
+                <div className="grid gap-4 md:grid-cols-2">
+                  {loading ? (
+                    Array.from({ length: 8 }).map((_, i) => (
+                      <div key={i} className="card bg-base-200 shadow">
+                        <div className="card-body">
+                          <div className="skeleton h-6 w-1/2 mb-2"></div>
+                          <div className="skeleton h-4 w-1/3"></div>
+                        </div>
+                      </div>
+                    ))
+                  ) : classrooms.length === 0 ? (
+                    <div className="col-span-full text-center text-gray-500 py-8">
+                      You haven't created any classrooms yet. Create your first classroom to get started!
+                    </div>
+                  ) : (
+                    classrooms.map(c => {
+                      const style = {};
+                      let textClass = 'text-black';
+                      if (c.color && c.color.toLowerCase() !== '#ffffff') {
+                        style.backgroundColor = c.color;
+                        textClass = 'text-white';
+                      }
+                      if (c.backgroundImage) {
+                        const imageUrl = resolveBannerSrc(c.backgroundImage);
+                        style.backgroundImage = `url(${imageUrl})`;
+                        style.backgroundSize = 'cover';
+                        style.backgroundPosition = 'center';
+                        textClass = 'text-white';
+                      }
+
+                      return (
+                        <div
+                          key={c._id}
+                          className={`card bg-base-100 shadow cursor-pointer hover:shadow-lg transition-shadow ${textClass}`}
+                          style={style}
+                          onClick={() => handleCardClick(c._id)}
+                        >
+                          <div className="card-body">
+                            <h2 className="card-title">{c.name}</h2>
+                            <p className="text-sm opacity-75">Code: {c.code}</p>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Archived Classrooms Tab */}
+            {teacherTab === 'archived' && (
+              <div className="text-center">
+                <h2 className="text-xl font-semibold mb-4">Archived Classrooms</h2>
+                <p className="text-gray-600 mb-4">
+                  View and restore your archived classrooms
+                </p>
+                <button
+                  className="btn btn-neutral"
+                  onClick={() => navigate('/classrooms/archived')}
+                >
+                  View Archived Classrooms
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
       <Footer />
     </div>
   );

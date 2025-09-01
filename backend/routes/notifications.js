@@ -10,7 +10,7 @@ router.get('/', ensureAuthenticated, async (req, res) => {
     const notifications = await Notification.find({ user: req.user._id })
       .populate('user', 'email')
       .populate('actionBy', 'email firstName lastName')
-      .populate('classroom', 'name')
+      .populate('classroom', 'name code') // include code so frontend can show "Name (CODE)"
       .populate('groupSet', 'name')
       .populate('group', 'name')
       .sort('-createdAt');

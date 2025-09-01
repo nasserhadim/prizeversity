@@ -1,0 +1,284 @@
+/* small animation & hover polish for stars */
+.feedback-star {
+  transition: transform 200ms ease, filter 200ms ease;
+  transform-origin: center;
+}
+.feedback-star-input {
+  transition: transform 200ms cubic-bezier(.2,.9,.28,1), filter 200ms;
+  transform-origin: center;
+  /* keep masked star appearance but allow CSS filter glow */
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  margin-right: 6px;
+  display: inline-block;
+  vertical-align: middle;
+  line-height: 1;
+}
+.feedback-star-input:hover,
+.feedback-star:hover {
+  transform: scale(1.25);
+  filter: drop-shadow(0 8px 18px rgba(250,200,0,0.25)) saturate(1.2);
+  animation: starPulse 900ms ease-in-out;
+}
+
+/* Larger clickable/touchable stars and better layout on small screens */
+.rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* mobile: make stars bigger for easier tapping */
+@media (max-width: 640px) {
+  .feedback-star-input {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
+    margin-right: 8px;
+  }
+  .rating {
+    gap: 0.6rem;
+  }
+}
+
+/* Display stars for feedback items (not the form inputs) */
+.feedback-star-display {
+  display: inline-block; /* ensure svg participates in layout */
+  line-height: 0;
+  flex-shrink: 0;
+  /* let the icon size come from the component (size prop); keep these as safe bounds */
+  width: auto;
+  height: auto;
+}
+
+/* Mobile: make displayed stars larger for visibility/tap targets */
+@media (max-width: 640px) {
+  /* if you still want a CSS override, use max-height instead of forcing width/height */
+  .feedback-star-display {
+    max-height: 28px;
+  }
+}
+
+/* subtle pulsing effect */
+@keyframes starPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+
+/* make hidden feedback visually toned down */
+.feedback-hidden {
+  opacity: 0.6;
+  filter: grayscale(0.5);
+}
+
+/* ensure feedback card is a positioning context */
+.feedback-card {
+  position: relative;
+  overflow: visible;
+}
+
+/* layout helpers for feedback card */
+.feedback-card .card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* left side should be allowed to shrink (prevent overflowing the container) */
+.feedback-card .card-left {
+  min-width: 0; /* allow truncation */
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 12px; /* default small buffer */
+}
+
+/* stars container */
+.feedback-card .stars {
+  display: inline-flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* author text should truncate when space is tight */
+.feedback-card .author {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* right side controls must not shrink and stay visible inside card */
+.feedback-card .card-right {
+  flex-shrink: 0;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Mobile: prevent overlap by reserving space and positioning right controls */
+@media (max-width: 640px) {
+  .feedback-card .card-left {
+    padding-right: 140px; /* reserve room for date + buttons on the right */
+  }
+
+  /* float date/report/hide to top-right so they never overlap stars */
+  .feedback-card .card-right {
+    position: absolute;
+    right: 12px;
+    top: 12px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  /* make date smaller and keep it from wrapping awkwardly */
+  .feedback-card .card-right small {
+    font-size: 11px;
+    white-space: nowrap;
+    color: rgba(0,0,0,0.45);
+  }
+
+  /* ensure author text truncates and doesn't push layout */
+  .feedback-card .author {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* preserved existing display-star sizing */
+.feedback-star-display {
+  display: inline-block; /* ensure svg participates in layout */
+  line-height: 0;
+  flex-shrink: 0;
+  /* let the icon size come from the component (size prop); keep these as safe bounds */
+  width: auto;
+  height: auto;
+}
+
+/* mobile tweaks: larger displayed stars */
+@media (max-width: 640px) {
+  .feedback-star-display {
+    max-height: 28px;
+  }
+}
+
+/* Mobile: stack metadata under stars (avoid overlap) */
+@media (max-width: 640px) {
+  /* switch row to column so stars + author are first, then date/buttons */
+  .feedback-card .card-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  /* remove large right padding reserved previously */
+  .feedback-card .card-left {
+    padding-right: 12px;
+  }
+
+  /* place date/report/hide below the left content, aligned left */
+  .feedback-card .card-right {
+    position: static;
+    right: auto;
+    top: auto;
+    margin-top: 6px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+    justify-content: flex-start;
+    flex-shrink: 0;
+  }
+
+  .feedback-card .card-right small {
+    font-size: 12px;
+    color: rgba(0,0,0,0.5);
+    margin-right: 8px;
+  }
+
+  /* ensure author still truncates */
+  .feedback-card .author {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* Rating distribution rows (small bar chart) */
+.rating-distribution {
+  display: block;       /* ensure it occupies full width */
+  width: 100%;
+  max-width: 720px;
+  margin-bottom: 12px;
+}
+
+/* each row: label | bar | count */
+.rating-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+/* make bar container visible and occupy remaining space */
+.rating-bar {
+  flex: 1 1 auto;
+  height: 12px;
+  background-color: #f3f4f6; /* light gray */
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(0,0,0,0.04);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
+  margin-left: 6px;
+  margin-right: 6px;
+}
+
+/* colored fill — block element so width always applies */
+.rating-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #f59e0b, #fbbf24); /* yellow gradient */
+  border-radius: 6px 0 0 6px;
+  transition: width 300ms ease;
+  min-width: 2px; /* ensure tiny fills are visible even if % rounded small */
+  position: relative; /* enable absolute pct label inside */
+  overflow: visible;
+}
+
+/* percentage label that appears inside the colored fill */
+.rating-fill .pct-label {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.25);
+  pointer-events: none;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+/* fallback tiny pct shown beside count */
+.rating-count .text-xs {
+  opacity: 0.8;
+}
+/* Mobile tweaks keep label visible */
+@media (max-width: 640px) {
+  .rating-fill .pct-label { font-size: 10px; right: 6px; }
+}
+
+/* Mobile tweaks: slightly taller bars so visible on small screens */
+@media (max-width: 640px) {
+  .rating-bar { height: 14px; }
+  .rating-label { flex-basis: 40px; font-size: 0.95rem; }
+  .rating-count { flex-basis: 36px; font-size: 0.9rem; }
+}

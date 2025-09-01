@@ -154,6 +154,12 @@ prizeversity/
 >
 > - See the `.gitignore` file for other artifacts to ignore such as `node_modules` 
 
+## Install the Google API dependency (for sending emails) at project root.
+
+```
+\prizeversity> npm install googleapis
+```
+
 ## Initialize Backend and Frontend (IF CLONING/FORKING, ONLY RUN THE INSTALL STEPS, or `npm ci`):
 
 ### Scaffold `backend`:
@@ -568,6 +574,10 @@ JWT_SECRET=
 NODE_ENV=development # Set to 'production' in production environment
 
 DOMAIN=https://www.prizeversity.com
+
+# per-user (or per-IP for anonymous/unsigned users) cooldown that prevents submitting site-wide or classroom feedback more than once within X days. 
+# Cooldown resets per classroom (site feedback is separate).
+FEEDBACK_COOLDOWN_DAYS=30
 ```
 
 ## 3. Install dependencies
