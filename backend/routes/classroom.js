@@ -18,6 +18,15 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
+// Add conditional uploader so JSON requests (image URL) aren't passed through multer
+const conditionalUpload = (req, res, next) => {
+  const ct = (req.headers['content-type'] || '').toLowerCase();
+  if (ct.startsWith('multipart/form-data')) {
+    return upload.single('backgroundImage')(req, res, next);
+  }
+  return next();
+};
+
 
 // Helper to generate a random 6-character alphanumeric code
 function generateClassroomCode() {
@@ -34,7 +43,7 @@ function generateClassroomCode() {
 router.post(
   '/create',
   ensureAuthenticated,
-  upload.single('backgroundImage'),
+  conditionalUpload,
   async (req, res) => {
     // Debug logs
     console.log('[Create Classroom] content-type:', req.headers['content-type']);
@@ -42,8 +51,17 @@ router.post(
     console.log('[Create Classroom] req.file:', req.file);
 
     const { name, color } = req.body;
-    let { code } = req.body; // Make code mutable
-    const backgroundImage = req.file ? `/uploads/${req.file.filename}` : undefined;
+    let code = req.body.code;
+    // Accept uploaded file OR a backgroundImage URL passed in the request body
+    let backgroundImage = req.file
+      ? `/uploads/${req.file.filename}`
+      : (req.body && req.body.backgroundImage ? String(req.body.backgroundImage).trim() : undefined);
+
+    // Normalize URL: if a non-empty value was supplied without a scheme, assume https
+    if (backgroundImage && !backgroundImage.startsWith('/') && !/^https?:\/\//.test(backgroundImage) && !backgroundImage.startsWith('data:')) {
+      backgroundImage = `https://${backgroundImage}`;
+    }
+    console.log('[Create Classroom] final backgroundImage to save:', backgroundImage);
 
     if (!name) {
       return res.status(400).json({ error: 'Classroom name is required' });
@@ -82,6 +100,7 @@ router.post(
       });
       try {
         await classroom.save();
+        console.log('[Create Classroom] saved backgroundImage:', classroom.backgroundImage);
         res.status(201).json(classroom);
       } catch (err) {
         console.error('[Create Classroom] save error:', err);
@@ -337,7 +356,16 @@ router.delete('/:id', ensureAuthenticated, async (req, res) => {
 router.put('/:id', ensureAuthenticated, upload.single('backgroundImage'), async (req, res) => {
   console.log(' UPDATE req.body:', req.body);
   const { name, color, archived } = req.body;
-  const backgroundImage = req.file ? `/uploads/${req.file.filename}` : undefined;
+  // Accept uploaded file OR a backgroundImage URL passed in the request body
+  let backgroundImage = req.file
+    ? `/uploads/${req.file.filename}`
+    : (req.body && req.body.backgroundImage ? String(req.body.backgroundImage).trim() : undefined);
+
+  // Normalize URL if necessary (assume https when missing scheme)
+  if (backgroundImage && !backgroundImage.startsWith('/') && !/^https?:\/\//.test(backgroundImage) && !backgroundImage.startsWith('data:')) {
+    backgroundImage = `https://${backgroundImage}`;
+  }
+  console.log('[Update Classroom] final backgroundImage:', backgroundImage);
 
   try {
     const classroom = await Classroom.findById(req.params.id)

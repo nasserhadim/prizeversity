@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { LoaderIcon } from 'lucide-react';
 import ClassroomBanner from '../components/ClassroomBanner';
+import { resolveBannerSrc } from '../utils/image';
 import io from 'socket.io-client';
 import { API_BASE } from '../config/api';
 import ConfirmModal from '../components/ConfirmModal';
@@ -212,17 +213,9 @@ const Classroom = () => {
         <ClassroomBanner
           name={classroom.name}
           code={classroom.code}
-           bgColor={classroom.color}
-           backgroundImage={
-             classroom.backgroundImage
-               ? (
-                 classroom.backgroundImage.startsWith('http')
-                   ? classroom.backgroundImage
-                   : `${BACKEND_URL}${classroom.backgroundImage}`
-               )
-               : undefined
-           }
-         />
+          bgColor={classroom.color}
+          backgroundImage={resolveBannerSrc(classroom.backgroundImage)}
+        />
 
         <div className="max-w-3xl mx-auto p-6 bg-green-50 rounded-lg space-y-6">
           {/* Navigation */}
