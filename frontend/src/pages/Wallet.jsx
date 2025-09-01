@@ -343,7 +343,7 @@ useEffect(() => {
       </div>
 
       {/* ▼ Student tab switcher */}
-      {isStudent && (
+      {isStudent && classroom?.studentSendEnabled && (
         <div role="tablist" className="tabs tabs-boxed mb-6">
           <a
             role="tab"
@@ -436,7 +436,7 @@ useEffect(() => {
       {user.role === 'student' && (
         <>
           {/* ▼ Student: Wallet Transfer */}
-          {isStudent && studentTab === 'transfer' && (
+          {isStudent && studentTab === 'transfer' && classroom?.studentSendEnabled && (
             <div className="mb-6 space-y-2">
               <h2 className="font-bold mb-2">Wallet Transfer</h2>
 
@@ -536,7 +536,7 @@ useEffect(() => {
           )}
 
           {/* ▼ Student: Transaction History */}
-          {isStudent && studentTab === 'transactions' && (
+          {isStudent && (studentTab === 'transactions' || !classroom?.studentSendEnabled) && (
             <div className="mt-6">
               <div className="mb-4">
                 <p className="font-medium">Base Balance: {balance} ₿</p>

@@ -58,8 +58,7 @@ const People = () => {
 
   // Initial data fetch + robust realtime handlers
   useEffect(() => {
-    // Always refresh classroom / students when classroomId changes
-    fetchClassroom();
+    fetchClassroom(); // Add this line
     fetchStudents();
     fetchGroupSets();
     fetchTaBitPolicy();
@@ -69,8 +68,16 @@ const People = () => {
       .get(`/api/classroom/${classroomId}/student-send-enabled`, {
         withCredentials: true,
       })
-      .then((r) => setStudentSendEnabled(!!r.data.studentSendEnabled))
-      .catch(() => setStudentSendEnabled(false));
+     .then((r) => setStudentSendEnabled(!!r.data.studentSendEnabled))
+      .catch(() => setStudentSendEnabled(false)); // safe default
+
+      socket.on('classroom_update', (updatedClassroom) => {
+        // Refresh student list when classroom updates
+        if (updatedClassroom._id === classroomId) {
+          console.debug('[socket] People classroom_update received');
+          fetchClassroom();
+        }
+      });
 
     // Join helper (use shared helpers so server room names match)
     const joinRooms = () => {
@@ -456,6 +463,34 @@ const People = () => {
             </label>
 
              {/* render only after we know the value */}
+            {studentSendEnabled !== null && (
+              <label className="form-control w-full">
+                <span className="label-text mb-2 font-medium">
+                  Student-to-student wallet transfers
+                </span>
+                <input
+                  type="checkbox"
+                  className="toggle toggle-success"
+                  checked={studentSendEnabled}
+                  onChange={async (e) => {
+                    const isEnabled = e.target.checked;
+                    try {
+                      await axios.patch(
+                        `/api/classroom/${classroomId}/student-send-enabled`,
+                        { studentSendEnabled: isEnabled },
+                        { withCredentials: true }
+                      );
+                      toast.success(
+                        `Student transfers ${isEnabled ? 'enabled' : 'disabled'}`
+                      );
+                      setStudentSendEnabled(isEnabled);
+                    } catch (err) {
+                      toast.error('Failed to update setting');
+                    }
+                  }}
+                />
+              </label>
+            )}
 
 
 
