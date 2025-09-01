@@ -318,7 +318,7 @@ useEffect(() => {
       <div className="w-full max-w-4xl mx-auto flex-grow py-6 px-4 sm:px-6 box-border">
          <div className="flex justify-between items-center mb-4">
            <h1 className="text-2xl font-bold">
-             {classroom?.name ? `${classroom.name} Wallet` : 'Wallet'}
+             {classroom?.name ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''} Wallet` : 'Wallet'}
            </h1>
 
         {/* ▼ Tab buttons */}
