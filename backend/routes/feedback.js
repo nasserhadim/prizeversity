@@ -473,10 +473,15 @@ router.patch('/:id/hide', ensureAuthenticated, async (req, res) => {
       if (io) {
         if (feedback.classroom) {
           io.to(`classroom-${feedback.classroom}`).emit('moderation_log_updated', populatedLog);
-          io.to(`user-${String((await Classroom.findById(feedback.classroom)).teacher)}`).emit('moderation_log_updated', populatedLog).catch(()=>{});
+          const classroom = await Classroom.findById(feedback.classroom);
+          if (classroom?.teacher) {
+            io.to(`user-${classroom.teacher}`).emit('moderation_log_updated', populatedLog);
+          }
         } else {
           const admins = await User.find({ role: 'admin' }).select('_id');
-          for (const a of admins) io.to(`user-${a._id}`).emit('moderation_log_updated', populatedLog);
+          for (const a of admins) {
+            io.to(`user-${a._id}`).emit('moderation_log_updated', populatedLog);
+          }
         }
       }
     } catch (emitErr) {
