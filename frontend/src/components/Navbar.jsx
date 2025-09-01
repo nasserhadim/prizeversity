@@ -111,15 +111,7 @@ const Navbar = () => {
     if (socket.connected) joinRooms();
     socket.on('connect', joinRooms);
 
-    return () => {
-      socket.off('connect', joinRooms);
-    };
-  }, [user, classroomId]);
-
-  // ── Add robust realtime handlers for Navbar balance ──
-  useEffect(() => {
-    if (!user?._id) return;
-
+    // ── Add robust realtime handlers for Navbar balance ──
     const fetchNavBalance = async () => {
       try {
         const params = classroomId ? `?classroomId=${classroomId}` : '';
@@ -180,12 +172,12 @@ const Navbar = () => {
     socket.on('balance_adjust', balanceAdjustHandler);
 
     return () => {
+      socket.off('connect', joinRooms);
       socket.off('balance_update', balanceUpdateHandler);
       socket.off('notification', notificationHandler);
       socket.off('balance_adjust', balanceAdjustHandler);
     };
   }, [user, classroomId]);
-  // ── end realtime handlers ──
 
   // Close mobile menu when route changes
   useEffect(() => {
@@ -208,40 +200,6 @@ const Navbar = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
-
-  useEffect(() => {
-    if (!user?._id) return;
-
-    const notificationHandler = (payload) => {
-      console.debug('[socket] Navbar received notification:', payload);
-      const affectedUserId = payload?.user?._id || payload?.studentId || payload?.student?._id;
-      const notifType = payload?.type;
-      const walletTypes = new Set(['wallet_topup', 'wallet_transfer', 'wallet_adjustment', 'wallet_payment']);
-
-      if (!walletTypes.has(notifType)) return;
-      if (String(affectedUserId) === String(user._id)) {
-        // payload may include newBalance — prefer that if available
-        if (payload?.newBalance != null) {
-          setBalance(payload.newBalance);
-        } else {
-          // fallback: re-fetch navbar balance endpoint
-          (async () => {
-            try {
-              const { data } = await axios.get(`/api/wallet/${user._id}/balance${classroomId ? `?classroomId=${classroomId}` : ''}`, { withCredentials: true });
-              setBalance(data.balance);
-            } catch (err) {
-              console.error('Failed to refresh navbar balance after notification', err);
-            }
-          })();
-        }
-      }
-    };
-
-    socket.on('notification', notificationHandler);
-    return () => {
-      socket.off('notification', notificationHandler);
-    };
-  }, [user, classroomId]);
 
   if (!user) {
     return (
