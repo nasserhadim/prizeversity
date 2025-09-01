@@ -23,38 +23,36 @@ function formatRemainingMs(ms) {
   return parts.join(' ');
 }
 
-router.post('/', async (req, res) => {
+// Submit feedback (site OR classroom) — accepts optional classroomId in body.
+router.post('/', ensureAuthenticated, async (req, res) => {
   try {
-    const { rating, comment, userId: bodyUserId, anonymous, classroomId } = req.body;
-    const resolvedUserId = (!anonymous && req.user) ? req.user._id : (req.user ? req.user._id : (bodyUserId || undefined));
+    const { rating, comment, classroomId, anonymous } = req.body;
+    const resolvedUserId = req.user._id;
 
-    // Rate limit: per-user (if signed-in) or per-IP (unsigned/anonymous).
+    // Rate limit: per-user, scoped separately for site vs each classroom.
+    // Submitting feedback in one classroom should not block submitting in other classrooms or site feedback.
     const cooldownDays = Number(process.env.FEEDBACK_COOLDOWN_DAYS || 7);
     const cutoff = new Date(Date.now() - cooldownDays * 24 * 60 * 60 * 1000);
-    const ip = (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim();
 
-    let recent;
-    if (req.user) {
-      // Signed-in users: enforce by user id (even if they select anonymous)
-      if (classroomId) {
-        recent = await Feedback.findOne({ userId: req.user._id, classroom: classroomId, createdAt: { $gte: cutoff } });
-      } else {
-        recent = await Feedback.findOne({ userId: req.user._id, classroom: { $exists: false }, createdAt: { $gte: cutoff } });
-      }
+    // Recent lookup is explicitly scoped:
+    // - if classroomId provided: only consider feedbacks for that classroom
+    // - otherwise: only consider site-wide feedback (documents without a classroom field)
+    const recentFilter = {
+      userId: resolvedUserId,
+      createdAt: { $gte: cutoff }
+    };
+    if (classroomId) {
+      recentFilter.classroom = classroomId;
     } else {
-      // Not signed-in: enforce by IP for the same classroom/site-wide
-      if (classroomId) {
-        recent = await Feedback.findOne({ ip, classroom: classroomId, createdAt: { $gte: cutoff } });
-      } else {
-        recent = await Feedback.findOne({ ip, classroom: { $exists: false }, createdAt: { $gte: cutoff } });
-      }
+      recentFilter.classroom = { $exists: false };
     }
 
+    const recent = await Feedback.findOne(recentFilter);
     if (recent) {
       const cooldownMs = cooldownDays * 24 * 60 * 60 * 1000;
       const remainingMs = (new Date(recent.createdAt).getTime() + cooldownMs) - Date.now();
       const remainingText = formatRemainingMs(remainingMs);
-      return res.status(429).json({ error: `You can submit feedback only once every ${cooldownDays} day(s). Try again in ~${remainingText}.` });
+      return res.status(429).json({ error: `You can submit feedback only once every ${cooldownDays} day(s). Try again ~${remainingText}.` });
     }
 
     const feedback = new Feedback({
@@ -62,10 +60,28 @@ router.post('/', async (req, res) => {
       comment,
       classroom: classroomId || undefined,
       userId: resolvedUserId,
-      anonymous: !!anonymous,
-      ip: ip || undefined
+      anonymous: !!anonymous
     });
     await feedback.save();
+
+    // populate then emit real-time events so clients update immediately
+    try {
+      const populated = await Feedback.findById(feedback._id).populate('userId', 'firstName lastName email');
+      const io = req.app.get('io');
+      if (io) {
+        if (classroomId) {
+          io.to(`classroom-${classroomId}`).emit('feedback_created', populated);
+          const cls = await Classroom.findById(classroomId).select('teacher');
+          if (cls?.teacher) io.to(`user-${cls.teacher}`).emit('feedback_created', populated);
+        } else {
+          const admins = await User.find({ role: 'admin' }).select('_id');
+          for (const a of admins) io.to(`user-${a._id}`).emit('feedback_created', populated);
+        }
+      }
+    } catch (emitErr) {
+      console.error('emit feedback_created failed', emitErr);
+    }
+
     res.status(201).json({ message: 'Feedback submitted successfully', feedback });
   } catch (err) {
     console.error('Error submitting feedback:', err);
@@ -73,7 +89,8 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.post('/classroom', async (req, res) => {
+// If you want classroom feedback to require signed-in users, enable the auth middleware:
+router.post('/classroom', ensureAuthenticated, async (req, res) => {
   try {
     const { rating, comment, classroomId, userId: bodyUserId, anonymous } = req.body;
     const resolvedUserId = (req.user) ? req.user._id : (bodyUserId || undefined);
@@ -164,19 +181,19 @@ router.get('/classroom/:id', async (req, res) => {
   }
 });
 
-// NEW: report a feedback (any user; optionally anonymous reporter email)
-// send email template to admins for site-wide reports
-router.post('/:id/report', async (req, res) => {
+// NEW: report a feedback (authenticated users only)
+router.post('/:id/report', ensureAuthenticated, async (req, res) => {
   try {
-    const { reason, reporterEmail } = req.body;
+    const { reason, reporterEmail: bodyEmail } = req.body;
     const feedback = await Feedback.findById(req.params.id);
     if (!feedback) return res.status(404).json({ error: 'Feedback not found' });
 
     const log = await ModerationLog.create({
       feedback: feedback._id,
       action: 'report',
-      moderator: req.user ? req.user._id : undefined,
-      reporterEmail: reporterEmail || undefined,
+      moderator: req.user._id,
+      // prefer explicit body email, otherwise use authenticated user's email
+      reporterEmail: bodyEmail || req.user.email || undefined,
       reason: reason || '',
       classroom: feedback.classroom || undefined
     });
@@ -198,7 +215,12 @@ router.post('/:id/report', async (req, res) => {
           try {
             const populated = await populateNotification(created._id);
             const io = req.app.get('io');
-            if (io) io.to(`user-${admin._id}`).emit('notification', populated);
+            if (io) {
+              // emit regular notification payload
+              io.to(`user-${admin._id}`).emit('notification', populated);
+              // also emit a dedicated feedback_report event so admin pages can react specifically
+              io.to(`user-${admin._id}`).emit('feedback_report', populated);
+            }
           } catch (emitErr) {
             console.error('Failed to emit admin notification:', emitErr);
           }
@@ -241,7 +263,10 @@ router.post('/:id/report', async (req, res) => {
           try {
             const populated = await populateNotification(created._id);
             const io = req.app.get('io');
-            if (io) io.to(`user-${teacher._id}`).emit('notification', populated);
+            if (io) {
+              io.to(`user-${classroom.teacher._id}`).emit('notification', populated);
+              io.to(`user-${classroom.teacher._id}`).emit('feedback_report', populated);
+            }
           } catch (emitErr) {
             console.error('Failed to emit teacher notification:', emitErr);
           }
@@ -273,6 +298,22 @@ router.delete('/:id', ensureAuthenticated, async (req, res) => {
 
     await Feedback.findByIdAndDelete(req.params.id);
     await ModerationLog.create({ feedback: req.params.id, action: 'delete', moderator: req.user._id, classroom: feedback.classroom || undefined });
+
+    // emit moderation log update for admins/teacher
+    try {
+      const log = await ModerationLog.findOne({ feedback: req.params.id, action: 'delete', moderator: req.user._id }).populate('moderator', 'firstName lastName email').populate('feedback', 'rating comment classroom');
+      const io = req.app.get('io');
+      if (io) {
+        if (feedback.classroom) {
+          io.to(`classroom-${feedback.classroom}`).emit('moderation_log_updated', log);
+        } else {
+          const admins = await User.find({ role: 'admin' }).select('_id');
+          for (const a of admins) io.to(`user-${a._id}`).emit('moderation_log_updated', log);
+        }
+      }
+    } catch (emitErr) {
+      console.error('emit moderation_log_updated (delete) failed', emitErr);
+    }
 
     // broadcast deletion event to admins/teacher (optional)
     const io = req.app.get('io');
@@ -425,6 +466,28 @@ router.patch('/:id/hide', ensureAuthenticated, async (req, res) => {
       classroom: feedback.classroom || undefined
     });
 
+    // Emit moderation log update so UI refreshes
+    try {
+      const populatedLog = await ModerationLog.findOne({ feedback: feedback._id, moderator: req.user._id }).populate('moderator', 'firstName lastName email').populate('feedback', 'rating comment classroom');
+      const io = req.app.get('io');
+      if (io) {
+        if (feedback.classroom) {
+          io.to(`classroom-${feedback.classroom}`).emit('moderation_log_updated', populatedLog);
+          const classroom = await Classroom.findById(feedback.classroom);
+          if (classroom?.teacher) {
+            io.to(`user-${classroom.teacher}`).emit('moderation_log_updated', populatedLog);
+          }
+        } else {
+          const admins = await User.find({ role: 'admin' }).select('_id');
+          for (const a of admins) {
+            io.to(`user-${a._id}`).emit('moderation_log_updated', populatedLog);
+          }
+        }
+      }
+    } catch (emitErr) {
+      console.error('emit moderation_log_updated failed', emitErr);
+    }
+
     // emit socket updates to relevant parties
     const io = req.app.get('io');
     if (io) {
@@ -435,6 +498,25 @@ router.patch('/:id/hide', ensureAuthenticated, async (req, res) => {
         const classroom = await Classroom.findById(feedback.classroom).select('teacher');
         if (classroom && classroom.teacher) io.to(`user-${classroom.teacher}`).emit('feedback_visibility_changed', { feedbackId: feedback._id, hidden: feedback.hidden });
       }
+    }
+
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        // emit visibility change and full updated object
+        if (feedback.classroom) {
+          io.to(`classroom-${feedback.classroom}`).emit('feedback_visibility_changed', { feedbackId: feedback._id, hidden: feedback.hidden });
+          io.to(`classroom-${feedback.classroom}`).emit('feedback_updated', feedback);
+        } else {
+          const admins = await User.find({ role: 'admin' }).select('_id');
+          for (const a of admins) {
+            io.to(`user-${a._1d}`).emit('feedback_visibility_changed', { feedbackId: feedback._id, hidden: feedback.hidden });
+            io.to(`user-${a._id}`).emit('feedback_updated', feedback);
+          }
+        }
+      }
+    } catch (emitErr) {
+      console.error('emit feedback_visibility_changed failed', emitErr);
     }
 
     res.json({ success: true, feedback });

@@ -19,6 +19,9 @@ export default function ClassroomSettings() {
     const [updateClassroomName, setUpdateClassroomName] = useState('');
     const [updateColor, setUpdateColor] = useState('#ffffff');
     const [updateBackgroundFile, setUpdateBackgroundFile] = useState(null);
+    // New: keep same UX as "Create Classroom" (file vs url)
+    const [updateBackgroundImageSource, setUpdateBackgroundImageSource] = useState('file'); // 'file' | 'url'
+    const [updateBackgroundImageUrl, setUpdateBackgroundImageUrl] = useState('');
     const [archived, setArchived] = useState(false);
 
     // Fetch classroom details
@@ -149,8 +152,11 @@ export default function ClassroomSettings() {
             const formData = new FormData();
             formData.append('name', updateClassroomName || classroom.name);
             formData.append('color', updateColor);
-            if (updateBackgroundFile) {
+            // If user chose a file, append the file. If they chose URL, append the URL string.
+            if (updateBackgroundImageSource === 'file' && updateBackgroundFile) {
                 formData.append('backgroundImage', updateBackgroundFile);
+            } else if (updateBackgroundImageSource === 'url' && updateBackgroundImageUrl.trim()) {
+                formData.append('backgroundImage', updateBackgroundImageUrl.trim());
             }
 
             const res = await axios.put(`/api/classroom/${id}`, formData, {
@@ -212,21 +218,64 @@ export default function ClassroomSettings() {
                             onChange={(e) => setUpdateColor(e.target.value)}
                             className="input w-full h-10 p-0 border mt-2"
                         />
-                        <div className="flex items-center space-x-4 mt-2">
-                            <input
+                        <div className="mb-4">
+                          <label className="label">
+                            <span className="label-text">Background Image</span>
+                            <span className="label-text-alt">Optional</span>
+                          </label>
+
+                          <div className="inline-flex rounded-full bg-gray-200 p-1 mb-2">
+                            <button
+                              type="button"
+                              onClick={() => setUpdateBackgroundImageSource('file')}
+                              className={`px-3 py-1 rounded-full text-sm transition ${updateBackgroundImageSource === 'file' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
+                            >
+                              Upload
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setUpdateBackgroundImageSource('url')}
+                              className={`ml-1 px-3 py-1 rounded-full text-sm transition ${updateBackgroundImageSource === 'url' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
+                            >
+                              Use image URL
+                            </button>
+                          </div>
+
+                          {updateBackgroundImageSource === 'file' ? (
+                            <div className="flex items-center gap-2">
+                              <input
                                 type="file"
                                 name="backgroundImage"
-                                accept="image/*"
-                                onChange={e => setUpdateBackgroundFile(e.target.files[0])}
+                                accept="image/png,image/jpeg,image/webp,image/gif"
+                                onChange={e => {
+                                  setUpdateBackgroundFile(e.target.files[0]);
+                                  // keep URL empty when choosing file
+                                  setUpdateBackgroundImageUrl('');
+                                }}
                                 className="file-input file-input-bordered flex-1"
-                            />
-                            {updateBackgroundFile && (
+                              />
+                              {updateBackgroundFile && (
                                 <img
-                                    src={URL.createObjectURL(updateBackgroundFile)}
-                                    alt="Preview"
-                                    className="w-16 h-16 object-cover rounded border"
+                                  src={URL.createObjectURL(updateBackgroundFile)}
+                                  alt="Preview"
+                                  className="w-16 h-16 object-cover rounded border"
                                 />
-                            )}
+                              )}
+                            </div>
+                          ) : (
+                            <input
+                              type="url"
+                              placeholder="https://example.com/background.jpg"
+                              value={updateBackgroundImageUrl}
+                              onChange={e => {
+                                setUpdateBackgroundImageUrl(e.target.value);
+                                // clear file when entering URL
+                                setUpdateBackgroundFile(null);
+                              }}
+                              className="input input-bordered w-full"
+                            />
+                          )}
+                          <p className="text-xs text-gray-500 mt-2">Allowed: jpg, png, webp, gif. Max: 5 MB.</p>
                         </div>
                         <div className="mt-4 flex gap-2">
                             <button className="btn btn-primary" onClick={handleUpdateClassroom}>
@@ -247,29 +296,25 @@ export default function ClassroomSettings() {
                 )}
 
                 <div className="flex flex-wrap gap-2 justify-center w-full">
-                    <button className="btn btn-warning" onClick={handleLeave}>
-                        Leave Classroom
-                    </button>
-                    <button className="btn btn-error" onClick={handleDelete}>
-                        Delete Classroom
-                    </button>
-
-                    <button
-                        className={`btn ${archived ? 'btn-success' : 'btn-outline'} `}
-                        onClick={handleToggleArchive}
-                    >
-                        {archived ? 'Unarchive Classroom' : 'Archive Classroom'}
-                    </button>
-
+                    {user.role !== 'teacher' && (
+                        <button className="btn btn-warning" onClick={handleLeave}>
+                            Leave Classroom
+                        </button>
+                    )}
+                    {user.role === 'teacher' && (
+                        <>
+                            <button className="btn btn-error" onClick={handleDelete}>
+                                Delete Classroom
+                            </button>
+                            <button
+                                className={`btn ${archived ? 'btn-success' : 'btn-outline'} `}
+                                onClick={handleToggleArchive}
+                            >
+                                {archived ? 'Unarchive Classroom' : 'Archive Classroom'}
+                            </button>
+                        </>
+                    )}
                 </div>
-
-                <button
-                    className="btn btn-neutral mt-4"
-                    onClick={() => navigate('/classrooms/archived')}
-                >
-                    View Archived Classrooms
-                </button>
-
             </div>
             <Footer />
         </div>

@@ -16,17 +16,7 @@ export default function FeedbackList({
       ? feedbacks.feedbacks
       : [];
 
-  // rating counts (index 1..5)
-  const ratingCounts = useMemo(() => {
-    const counts = [0, 0, 0, 0, 0, 0];
-    (list || []).forEach(f => {
-      const r = Math.max(1, Math.min(5, Number(f.rating) || 0));
-      counts[r] = (counts[r] || 0) + 1;
-    });
-    return counts;
-  }, [list]);
-
-  const ratingTotal = useMemo(() => (list || []).length, [list]);
+  // Rating-distribution removed from list level; page renders it (so the bars span full page width).
 
   const [sortBy, setSortBy] = useState('newest'); // newest | highest | lowest | oldest
 
@@ -75,8 +65,7 @@ export default function FeedbackList({
  
   return (
     <div>
-      {/* put distribution full-width above the controls so bars can span */}
-      {renderDistribution()}
+      {/* distribution moved to page components */}
       <div className="flex items-center justify-between mb-2">
         <div className="text-sm text-base-content/60">
           {typeof total === 'number' ? `Showing ${list.length} of ${total}` : `Showing ${list.length}`}

@@ -141,7 +141,7 @@ res.json({
 );
 
 
-// Adjusting group multipliers directly
+// Update the manual multiplier setting route
 router.post('/groupset/:groupSetId/group/:groupId/set-multiplier', ensureAuthenticated, ensureTeacher, async (req, res) => {
   const { groupId } = req.params;
   const { multiplier } = req.body;
@@ -150,17 +150,15 @@ router.post('/groupset/:groupSetId/group/:groupId/set-multiplier', ensureAuthent
     const group = await Group.findById(groupId);
     if (!group) return res.status(404).json({ error: 'Group not found' });
 
-    // Validate multiplier value (between 0.5 and 2 for example)
-    if (multiplier < 0.5 || multiplier > 5) {
-
-      return res.status(400).json({ error: 'Multiplier must be between 0.5 and 5' });
+    // Validate multiplier value - only check for positive number
+    if (multiplier < 0) {
+      return res.status(400).json({ error: 'Multiplier must be a positive number' });
     }
 
-    // Saving the new multiplier
-    group.groupMultiplier = multiplier;
-    await group.save();
+    // Use the manual multiplier method (this sets isAutoMultiplier to false)
+    await group.setManualMultiplier(multiplier);
     
-    // Notify group members about the multiplier
+    // Notify group members about the multiplier change
     for (const member of group.members) {
       req.app.get('io').to(`user-${member._id}`).emit('group_multiplier_update', {
         groupId: group._id,
@@ -168,17 +166,40 @@ router.post('/groupset/:groupSetId/group/:groupId/set-multiplier', ensureAuthent
       });
     }
 
-    // Respnding with updated multiplier info
     res.json({ 
-      message: 'Group multiplier updated',
+      message: 'Group multiplier updated (manual override)',
       groupId: group._id,
-      multiplier
+      multiplier,
+      isAutoMultiplier: false
     });
   } catch (err) {
     console.error('Group multiplier update error:', err);
     res.status(500).json({ error: 'Failed to update group multiplier' });
-    }
   }
-);
+});
+
+// Add this route to reset a group back to auto multiplier mode
+router.post('/groupset/:groupSetId/group/:groupId/reset-auto-multiplier', ensureAuthenticated, ensureTeacher, async (req, res) => {
+  const { groupId } = req.params;
+
+  try {
+    const group = await Group.findById(groupId);
+    if (!group) return res.status(404).json({ error: 'Group not found' });
+
+    // Reset to auto mode and recalculate
+    group.isAutoMultiplier = true;
+    await group.updateMultiplier();
+
+    res.json({ 
+      message: 'Group multiplier reset to auto mode',
+      groupId: group._id,
+      multiplier: group.groupMultiplier,
+      isAutoMultiplier: true
+    });
+  } catch (err) {
+    console.error('Reset auto multiplier error:', err);
+    res.status(500).json({ error: 'Failed to reset to auto multiplier' });
+  }
+});
 
 module.exports = router;
