@@ -9,7 +9,7 @@ import { useState, useEffect, useRef } from 'react';
 import NotificationBell from './NotificationBell';
 import Logo from './Logo'; // Import the new Logo component
 import { API_BASE } from '../config/api';
-import socket from '../utils/socket';
+import socket, { joinUserRoom, joinClassroom } from '../utils/socket'; // <-- updated import
 import axios from 'axios';
 
 import {
@@ -115,20 +115,76 @@ const Navbar = () => {
     };
   }, [user, classroomId]);
 
+  // ── Add robust realtime handlers for Navbar balance ──
   useEffect(() => {
     if (!user?._id) return;
+
+    const fetchNavBalance = async () => {
+      try {
+        const params = classroomId ? `?classroomId=${classroomId}` : '';
+        const { data } = await axios.get(`/api/wallet/${user._id}/balance${params}`, { withCredentials: true });
+        setBalance(data.balance);
+      } catch (err) {
+        console.error('[Navbar] failed to fetch balance', err);
+      }
+    };
+
+    // Update if an event explicitly targets this user
     const balanceUpdateHandler = (payload) => {
-      console.debug('[socket] balance_update received in Navbar:', payload);
-      if (String(payload?.studentId) === String(user._id)) {
-        setBalance(payload.newBalance);
+      console.debug('[socket] Navbar balance_update:', payload);
+      const affectedId = payload?.studentId || payload?.user?._id || payload?.userId;
+      // if this event is for me:
+      if (String(affectedId) === String(user._id)) {
+        if (payload?.newBalance != null) {
+          setBalance(payload.newBalance);
+        } else {
+          // fallback: re-fetch from server
+          fetchNavBalance();
+        }
+      }
+    };
+
+    // Notifications may carry wallet changes
+    const notificationHandler = (payload) => {
+      console.debug('[socket] Navbar notification:', payload);
+      const walletTypes = new Set(['wallet_topup','wallet_transfer','wallet_adjustment','wallet_payment','wallet_transaction']);
+      if (!payload?.type || !walletTypes.has(payload.type)) return;
+      const affectedId = payload?.user?._id || payload?.studentId || payload?.userId;
+      if (String(affectedId) === String(user._id)) {
+        if (payload?.newBalance != null) setBalance(payload.newBalance);
+        else fetchNavBalance();
+      }
+    };
+
+    // Group/bulk events may include results array; check if current user is in results
+    const balanceAdjustHandler = (payload) => {
+      console.debug('[socket] Navbar balance_adjust:', payload);
+      if (Array.isArray(payload?.results)) {
+        const found = payload.results.find(r => String(r.id || r._id) === String(user._id));
+        if (found) {
+          if (found.newBalance != null) setBalance(found.newBalance);
+          else fetchNavBalance();
+        }
+      } else {
+        // fallback: classroom-scoped event may affect me — if classroom matches, re-fetch
+        const classroomFromPayload = payload?.classroomId || payload?.classroom?._id || payload?.classroom;
+        if (classroomFromPayload && String(classroomFromPayload) === String(classroomId)) {
+          fetchNavBalance();
+        }
       }
     };
 
     socket.on('balance_update', balanceUpdateHandler);
+    socket.on('notification', notificationHandler);
+    socket.on('balance_adjust', balanceAdjustHandler);
+
     return () => {
       socket.off('balance_update', balanceUpdateHandler);
+      socket.off('notification', notificationHandler);
+      socket.off('balance_adjust', balanceAdjustHandler);
     };
-  }, [user]);
+  }, [user, classroomId]);
+  // ── end realtime handlers ──
 
   // Close mobile menu when route changes
   useEffect(() => {
