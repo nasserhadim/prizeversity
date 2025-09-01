@@ -7,6 +7,16 @@ import toast from 'react-hot-toast';
 import { API_BASE } from '../config/api'; 
 import Footer from '../components/Footer';
 
+// Helper to generate a random 6-character alphanumeric code
+const generateRandomCode = () => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < 6; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+};
+
 export default function ClassroomPage() {
   const { user } = useAuth();
   const [role, setRole] = useState(user?.role || '');
@@ -174,14 +184,23 @@ export default function ClassroomPage() {
               <label htmlFor="code" className="block text-sm font-medium mb-1">
                 Classroom Code
               </label>
-              <input
-                id="code"
-                type="text"
-                placeholder="Enter classroom code"
-                className="input input-bordered w-full"
-                value={classroomCode}
-                onChange={e => setClassroomCode(e.target.value)}
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  id="code"
+                  type="text"
+                  placeholder="Enter or generate a code"
+                  className="input input-bordered w-full uppercase"
+                  value={classroomCode}
+                  onChange={e => setClassroomCode(e.target.value.toUpperCase())}
+                />
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => setClassroomCode(generateRandomCode())}
+                  title="Generate Random Code"
+                >
+                  🎲
+                </button>
+              </div>
             </div>
 
             <div className="flex flex-col md:flex-row md:items-center gap-4">

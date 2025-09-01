@@ -19,6 +19,17 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 
+// Helper to generate a random 6-character alphanumeric code
+function generateClassroomCode() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < 6; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+
 // Create Classroom
 router.post(
   '/create',
@@ -30,20 +41,35 @@ router.post(
     console.log('[Create Classroom] req.body:', req.body);
     console.log('[Create Classroom] req.file:', req.file);
 
-    const { name, code, color } = req.body;
+    const { name, color } = req.body;
+    let { code } = req.body; // Make code mutable
     const backgroundImage = req.file ? `/uploads/${req.file.filename}` : undefined;
 
-    if (!name || !code) {
-      return res.status(400).json({ error: 'Classroom name and code are required' });
-    }
-    if (code.length < 5) {
-      return res.status(400).json({ error: 'Classroom code must be at least 5 characters long' });
+    if (!name) {
+      return res.status(400).json({ error: 'Classroom name is required' });
     }
 
     try {
-      const existing = await Classroom.findOne({ code, archived: false });
-      if (existing) {
-        return res.status(400).json({ error: 'A classroom with this code already exists' });
+      // If no code is provided, generate a unique one
+      if (!code) {
+        let isUnique = false;
+        while (!isUnique) {
+          code = generateClassroomCode();
+          const existing = await Classroom.findOne({ code });
+          if (!existing) {
+            isUnique = true;
+          }
+        }
+      } else {
+        // Standardize to uppercase and validate provided code
+        code = code.toUpperCase();
+        if (code.length < 5 || code.length > 6) {
+          return res.status(400).json({ error: 'Classroom code must be 5-6 characters long!' });
+        }
+        const existing = await Classroom.findOne({ code, archived: false });
+        if (existing) {
+          return res.status(400).json({ error: 'A classroom with this code already exists' });
+        }
       }
 
       const classroom = new Classroom({
@@ -83,7 +109,7 @@ router.post('/join', ensureAuthenticated, async (req, res) => {
     return res.status(400).json({ error: 'Classroom code is required' });
   }
   try {
-    const classroom = await Classroom.findOne({ code: code.trim(), archived: false });
+    const classroom = await Classroom.findOne({ code: code.trim().toUpperCase(), archived: false });
     if (!classroom) {
       return res.status(404).json({ error: 'Invalid classroom code' });
     }
