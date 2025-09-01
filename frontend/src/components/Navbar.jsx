@@ -98,22 +98,36 @@ const Navbar = () => {
       }
     };
     fetchBalance();
+
+    // Join when socket connected
+    const joinRooms = () => {
+      if (!user?._id) return;
+      console.debug('[socket] Navbar joining rooms', { userId: user._id, classroomId });
+      socket.emit('join-user', user._id);
+      if (classroomId) socket.emit('join-classroom', classroomId);
+    };
+
+    if (socket.connected) joinRooms();
+    socket.on('connect', joinRooms);
+
+    return () => {
+      socket.off('connect', joinRooms);
+    };
   }, [user, classroomId]);
 
   useEffect(() => {
-    if (user?._id) {
-      const balanceUpdateHandler = (data) => {
-        if (data.studentId === user._id) {
-          setBalance(data.newBalance);
-        }
-      };
-      
-      socket.on('balance_update', balanceUpdateHandler);
+    if (!user?._id) return;
+    const balanceUpdateHandler = (payload) => {
+      console.debug('[socket] balance_update received in Navbar:', payload);
+      if (String(payload?.studentId) === String(user._id)) {
+        setBalance(payload.newBalance);
+      }
+    };
 
-      return () => {
-        socket.off('balance_update', balanceUpdateHandler);
-      };
-    }
+    socket.on('balance_update', balanceUpdateHandler);
+    return () => {
+      socket.off('balance_update', balanceUpdateHandler);
+    };
   }, [user]);
 
   // Close mobile menu when route changes
@@ -137,6 +151,40 @@ const Navbar = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
+  useEffect(() => {
+    if (!user?._id) return;
+
+    const notificationHandler = (payload) => {
+      console.debug('[socket] Navbar received notification:', payload);
+      const affectedUserId = payload?.user?._id || payload?.studentId || payload?.student?._id;
+      const notifType = payload?.type;
+      const walletTypes = new Set(['wallet_topup', 'wallet_transfer', 'wallet_adjustment', 'wallet_payment']);
+
+      if (!walletTypes.has(notifType)) return;
+      if (String(affectedUserId) === String(user._id)) {
+        // payload may include newBalance — prefer that if available
+        if (payload?.newBalance != null) {
+          setBalance(payload.newBalance);
+        } else {
+          // fallback: re-fetch navbar balance endpoint
+          (async () => {
+            try {
+              const { data } = await axios.get(`/api/wallet/${user._id}/balance${classroomId ? `?classroomId=${classroomId}` : ''}`, { withCredentials: true });
+              setBalance(data.balance);
+            } catch (err) {
+              console.error('Failed to refresh navbar balance after notification', err);
+            }
+          })();
+        }
+      }
+    };
+
+    socket.on('notification', notificationHandler);
+    return () => {
+      socket.off('notification', notificationHandler);
+    };
+  }, [user, classroomId]);
 
   if (!user) {
     return (

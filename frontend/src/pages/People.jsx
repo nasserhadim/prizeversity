@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
 import PendingApprovals from '../components/PendingApprovals';
-import socket from '../utils/socket'; // Add this import
+import socket, { joinClassroom, joinUserRoom } from '../utils/socket'; // <-- updated import
 import Footer from '../components/Footer';
 
 
@@ -56,9 +56,10 @@ const People = () => {
     }
   };
 
-  // Initial data fetch on classroomId change
+  // Initial data fetch + robust realtime handlers
   useEffect(() => {
-    fetchClassroom(); // Add this line
+    // Always refresh classroom / students when classroomId changes
+    fetchClassroom();
     fetchStudents();
     fetchGroupSets();
     fetchTaBitPolicy();
@@ -68,29 +69,180 @@ const People = () => {
       .get(`/api/classroom/${classroomId}/student-send-enabled`, {
         withCredentials: true,
       })
-     .then((r) => setStudentSendEnabled(!!r.data.studentSendEnabled))
-      .catch(() => setStudentSendEnabled(false)); // safe default
+      .then((r) => setStudentSendEnabled(!!r.data.studentSendEnabled))
+      .catch(() => setStudentSendEnabled(false));
 
-      socket.on('classroom_update', (updatedClassroom) => {
-        // Refresh student list when classroom updates
+    // Join helper (use shared helpers so server room names match)
+    const joinRooms = () => {
+      if (user?._id) {
+        console.debug('[socket] People joining user room', user._id);
+        joinUserRoom(user._id);
+      }
+      if (classroomId) {
+        console.debug('[socket] People joining classroom room', classroomId);
+        joinClassroom(classroomId);
+      }
+    };
+    if (socket.connected) joinRooms();
+    socket.on('connect', joinRooms);
+
+    // Normalize payloads from various backend emits
+    const normalize = (p) => {
+      // common shapes:
+      // { studentId, newBalance, classroomId }
+      // { type, user: { _id, balance }, classroom: <id|obj>, ... }
+      // { results: [{ id, newBalance }, ...], classroomId }
+      const uid = p?.studentId || p?.user?._id || p?.userId || p?.user?._id || p?.userId || p?.id;
+      const classroom = p?.classroom?._id || p?.classroomId || p?.classroom;
+      const newBalance =
+        p?.newBalance ??
+        p?.balance ??
+        p?.user?.balance ??
+        p?.amount ?? // sometimes payload carries amount only
+        null;
+      return { uid, newBalance, classroom };
+    };
+
+    // Apply update for single user; fallback to fetch if we don't have newBalance
+    const applyUpdateForUser = async (uid, newBalance, fromClassroom) => {
+      if (!uid) return;
+      // if event specifies a classroom and it doesn't match current, ignore
+      if (fromClassroom && String(fromClassroom) !== String(classroomId)) return;
+
+      if (newBalance != null) {
+        setStudents(prev =>
+          prev.map(s => {
+            if (String(s._id) !== String(uid)) return s;
+            const updated = { ...s };
+            // update top-level balance
+            updated.balance = newBalance;
+            // update per-classroom entry if present
+            const cb = Array.isArray(updated.classroomBalances) ? [...updated.classroomBalances] : [];
+            const idx = cb.findIndex(item => String(item.classroom) === String(classroomId));
+            if (idx >= 0) {
+              cb[idx] = { ...cb[idx], balance: newBalance };
+            } else if (newBalance != null) {
+              cb.push({ classroom: classroomId, balance: newBalance });
+            }
+            if (cb.length) updated.classroomBalances = cb;
+            return updated;
+          })
+        );
+        return;
+      }
+
+      // no newBalance in payload → re-fetch the user's per-classroom balance
+      try {
+        const { data } = await axios.get(`/api/users/${uid}?classroomId=${classroomId}`, { withCredentials: true });
+        setStudents(prev => prev.map(s => (String(s._id) === String(uid) ? { ...s, balance: data.balance } : s)));
+      } catch (err) {
+        console.error('[People] failed to refresh single user balance', err);
+      }
+    };
+
+    // Handlers accept a variety of event shapes
+    const balanceHandler = (payload) => {
+      console.debug('[socket] People balance_update payload:', payload);
+      // group emits sometimes include results array
+      if (Array.isArray(payload?.results) && payload.results.length > 0) {
+        payload.results.forEach(r => {
+          const uid = r.id || r._id || r.userId;
+          const nb = r.newBalance ?? r.newBal ?? r.balance ?? null;
+          applyUpdateForUser(uid, nb, payload.classroomId || payload.classroom);
+        });
+        return;
+      }
+
+      const { uid, newBalance, classroom } = normalize(payload);
+      // sometimes notification wraps user object
+      applyUpdateForUser(uid, newBalance, classroom);
+    };
+
+    const notificationHandler = (payload) => {
+      console.debug('[socket] People notification payload:', payload);
+      // React only to wallet-related notifications
+      const walletTypes = new Set(['wallet_topup','wallet_transfer','wallet_adjustment','wallet_payment','wallet_transaction']);
+      if (payload?.type && !walletTypes.has(payload.type)) return;
+
+      // If notification carries a populated user or studentId, use it
+      if (Array.isArray(payload?.results) && payload.results.length) {
+        payload.results.forEach(r => applyUpdateForUser(r.id || r._id, r.newBalance ?? r.newBal ?? null, payload.classroomId || payload.classroom));
+        return;
+      }
+
+      const uid = payload?.user?._id || payload?.studentId || payload?.userId || payload?.user;
+      const newBalance = payload?.newBalance ?? payload?.amount ?? payload?.user?.balance ?? null;
+      const classroom = payload?.classroom?._id || payload?.classroomId || payload?.classroom;
+      applyUpdateForUser(uid, newBalance, classroom);
+    };
+
+    // Also listen for group-adjust events that return results array
+    const groupBalanceHandler = (payload) => {
+      console.debug('[socket] People balance_adjust payload:', payload);
+      if (!Array.isArray(payload?.results)) return;
+      payload.results.forEach(r => applyUpdateForUser(r.id || r._id, r.newBalance ?? r.newBal ?? null, payload.classroomId || payload.classroom));
+    };
+
+    socket.on('balance_update', balanceHandler);
+    socket.on('notification', notificationHandler);
+    socket.on('balance_adjust', groupBalanceHandler);
+
+    // ── Ensure classroom-scoped / bulk wallet events refresh the full student list ──
+    const refreshOnBulkHandler = (payload) => {
+      try {
+        // If payload is classroom-scoped and does not specifically target the signed-in user,
+        // or if it contains a results array (bulk adjust), refresh the full students list.
+        const classroomFromPayload = payload?.classroomId || payload?.classroom?._id || payload?.classroom;
+        const hasResults = Array.isArray(payload?.results) && payload.results.length > 0;
+        const targetsMultiple = hasResults || (!payload?.studentId && !payload?.user?._id);
+
+        if (classroomFromPayload && String(classroomFromPayload) !== String(classroomId)) return;
+        if (hasResults || targetsMultiple) {
+          console.debug('[socket] People bulk balance event — refreshing all students', payload);
+          fetchStudents();
+          return;
+        }
+
+        // If single-target event but not ourselves, re-fetch that single user (ensure other users update)
+        const studentId = payload?.studentId || payload?.user?._id || payload?.userId;
+        if (studentId && String(studentId) !== String(user?._id)) {
+          console.debug('[socket] People single-target event for other user — refetch single user', { studentId });
+          axios.get(`/api/users/${studentId}?classroomId=${classroomId}`, { withCredentials: true })
+            .then(({ data }) => {
+              setStudents(prev => prev.map(s => (String(s._id) === String(studentId) ? { ...s, balance: data.balance } : s)));
+            })
+            .catch(err => console.error('[People] failed to refresh single user (bulk fallback)', err));
+        }
+      } catch (err) {
+        console.error('[People] refreshOnBulkHandler error', err);
+      }
+    };
+
+    socket.on('balance_update', refreshOnBulkHandler); // classroom-scoped single/multi emits
+    socket.on('balance_adjust', () => {
+      console.debug('[socket] balance_adjust received — refreshing students');
+      fetchStudents();
+    }); // group bulk events
+    socket.on('notification', (payload) => {
+      const walletTypes = new Set(['wallet_topup','wallet_transfer','wallet_adjustment','wallet_payment','wallet_transaction']);
+      if (payload?.type && walletTypes.has(payload.type)) {
+        // Some notifications are per-user, some are bulk — refresh to be safe
+        console.debug('[socket] wallet notification received — refreshing students', payload);
         fetchStudents();
-        fetchClassroom(); // Also refresh classroom data
-      });
-      
-      socket.on('user_profile_update', (data) => {
-        // Update specific student in the list
-        setStudents(prev => prev.map(student => 
-          student._id === data.userId 
-            ? { ...student, firstName: data.firstName, lastName: data.lastName }
-            : student
-        ));
-      });
-      
-      return () => {
-        socket.off('classroom_update');
-        socket.off('user_profile_update');
-      };
-  }, [classroomId]);
+      }
+    });
+    // ── end bulk-refresh handlers ──
+
+    return () => {
+      socket.off('connect', joinRooms);
+      socket.off('balance_update', balanceHandler);
+      socket.off('notification', notificationHandler);
+      socket.off('balance_adjust', groupBalanceHandler);
+      socket.off('balance_update', refreshOnBulkHandler);
+      socket.off('balance_adjust');
+      socket.off('notification');
+    };
+  }, [classroomId, user?._id]); // ensure we re-run when user becomes available
 
 
 // Fetch students with per-classroom balances
@@ -180,6 +332,59 @@ const People = () => {
     const blob = new Blob([excelBuffer], { type: 'application/octet-stream' });
     saveAs(blob, 'people.xlsx');
   };
+
+  // ── Join each student's user room so per-user notifications/balance events are received ──
+  useEffect(() => {
+    if (!Array.isArray(students) || students.length === 0) return;
+
+    const joinAllStudentRooms = () => {
+      console.debug('[socket] People joining student user rooms for', students.length, 'students');
+      students.forEach(s => {
+        if (s && s._id) {
+          try {
+            // Prefer shared helper
+            joinUserRoom(s._id);
+          } catch (e) {
+            // fallback: emit the alternate join events the server may expect
+            try { socket.emit('join-user', s._id); } catch (err) { /* ignore */ }
+            try { socket.emit('join', `user-${s._id}`); } catch (err) { /* ignore */ }
+          }
+        }
+      });
+    };
+
+    if (socket.connected) joinAllStudentRooms();
+    socket.on('connect', joinAllStudentRooms); // re-join on reconnect
+
+    // --- New: handle classroom-scoped balance_update for other students by re-fetching that single user ---
+    const otherStudentBalanceHandler = async (payload) => {
+      try {
+        const studentId = payload?.studentId || payload?.user?._id || payload?.userId;
+        const classroomFromPayload = payload?.classroomId || payload?.classroom?._id || payload?.classroom;
+        if (!studentId) return;
+        // ignore events not for this classroom (if classroom specified)
+        if (classroomFromPayload && String(classroomFromPayload) !== String(classroomId)) return;
+        // ignore current signed-in user here (already handled elsewhere)
+        if (String(studentId) === String(user?._id)) return;
+
+        // Re-fetch that single user's per-classroom balance (works even if server prevents joining other user rooms)
+        const { data } = await axios.get(`/api/users/${studentId}?classroomId=${classroomId}`, { withCredentials: true });
+        setStudents(prev => prev.map(s => (String(s._id) === String(studentId) ? { ...s, balance: data.balance } : s)));
+        console.debug('[People] updated student balance from server', { studentId, balance: data.balance });
+      } catch (err) {
+        console.error('[People] failed to refresh other student balance', err);
+      }
+    };
+
+    socket.on('balance_update', otherStudentBalanceHandler);
+
+    // optional cleanup: server may manage room membership so leaving is optional
+    return () => {
+      socket.off('connect', joinAllStudentRooms);
+      socket.off('balance_update', otherStudentBalanceHandler);
+    };
+  }, [students]);
+  // ── end join student rooms effect ──
 
   return (
     <div className="flex flex-col min-h-screen">
