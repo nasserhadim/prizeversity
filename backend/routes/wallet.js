@@ -469,6 +469,14 @@ router.post(
     }
     const { recipientShortId: recipientId, amount, classroomId } = req.body;
 
+    // Prevent student transfers if disabled by teacher
+    if (req.user.role === 'student' && classroomId) {
+      const classroom = await Classroom.findById(classroomId).select('studentSendEnabled');
+      if (classroom && !classroom.studentSendEnabled) {
+        return res.status(403).json({ error: 'Student-to-student transfers are currently disabled by the teacher.' });
+      }
+    }
+
     const numericAmount = Number(amount);
     if (!Number.isInteger(numericAmount) || numericAmount < 1) {
       return res.status(400).json({ error: 'Amount must be a positive integer' });

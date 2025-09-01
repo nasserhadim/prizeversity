@@ -30,4 +30,25 @@ export const subscribeToNotifications = (cb) => {
   return () => socket.off('notification');
 };
 
+/* --- NEW: lightweight subscription for feedback events --- */
+export function subscribeToFeedbackEvents(cb) {
+  const handlers = {
+    feedback_created: (p) => cb({ event: 'feedback_created', payload: p }),
+    feedback_updated: (p) => cb({ event: 'feedback_updated', payload: p }),
+    feedback_deleted: (p) => cb({ event: 'feedback_deleted', payload: p }),
+    feedback_visibility_changed: (p) => cb({ event: 'feedback_visibility_changed', payload: p }),
+    moderation_log_updated: (p) => cb({ event: 'moderation_log_updated', payload: p }),
+    feedback_report: (p) => cb({ event: 'feedback_report', payload: p }),
+  };
+  Object.entries(handlers).forEach(([ev, fn]) => socket.on(ev, fn));
+  return () => Object.entries(handlers).forEach(([ev, fn]) => socket.off(ev, fn));
+}
+
+/* --- NEW: convenience for only report events --- */
+export function subscribeToFeedbackReports(cb) {
+  const handler = (p) => cb(p);
+  socket.on('feedback_report', handler);
+  return () => socket.off('feedback_report', handler);
+}
+
 export default socket;

@@ -2,9 +2,11 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { API_BASE } from '../config/api';
 import { useAuth } from '../context/AuthContext';
-import { subscribeToNotifications } from '../utils/socket';
 import { toast } from 'react-hot-toast';
 import FeedbackList from '../components/FeedbackList';
+import useFeedbackRealtime from '../hooks/useFeedbackRealtime';
+import ExportButtons from '../components/ExportButtons';
+import { exportFeedbacksToCSV, exportFeedbacksToJSON } from '../utils/exportFeedbacks';
 
 export default function AdminModeration() {
   const { user } = useAuth();
@@ -58,17 +60,25 @@ export default function AdminModeration() {
     if (!user || user.role !== 'admin') return;
     fetchLogs(1);
     hydrateFeedbacks();
-
-    // subscribe to socket notifications for admins
-    const unsub = subscribeToNotifications((n) => {
-      if (n.type === 'feedback_report' || n.type === 'feedback') {
-        // refresh logs and feedback list
-        fetchLogs(1);
-        hydrateFeedbacks();
-      }
-    });
-    return unsub;
   }, [user, actionFilter, sortField, sortDir, reporterEmailFilter]);
+ 
+  // subscribe admin events (separate hook avoids duplicating handlers)
+  useFeedbackRealtime({
+    scope: 'admin',
+    fetchLogs,
+    hydrateFeedbacks
+  });
+
+  // Export handlers for admin page
+  const handleExportAdminFeedbacksCSV = async () => {
+    const base = `admin_feedbacks`;
+    return exportFeedbacksToCSV(feedbacks || [], base);
+  };
+
+  const handleExportAdminFeedbacksJSON = async () => {
+    const base = `admin_feedbacks`;
+    return exportFeedbacksToJSON(feedbacks || [], base);
+  };
 
   const handleHide = async (feedbackId, hide) => {
     try {
@@ -112,6 +122,16 @@ export default function AdminModeration() {
   return (
     <div className="max-w-4xl mx-auto p-6">
       <h1 className="text-2xl font-bold mb-4">Admin Moderation</h1>
+
+      {/* Export controls for admins (exports currently-visible feedback list) */}
+      <div className="mb-4 flex justify-end">
+        <ExportButtons
+          onExportCSV={handleExportAdminFeedbacksCSV}
+          onExportJSON={handleExportAdminFeedbacksJSON}
+          userName="admin"
+          exportLabel="admin_feedbacks"
+        />
+      </div>
 
       <div className="mb-4 flex gap-3 items-center">
         <label className="text-sm">Action</label>
