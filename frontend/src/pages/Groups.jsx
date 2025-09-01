@@ -52,6 +52,7 @@ const Groups = () => {
   const [confirmDeleteAllGroupSets, setConfirmDeleteAllGroupSets] = useState(null); // modal payload
   const groupSetFileInputRef = useRef(null); // ADD: clear native file input after submit
   const [selectedGroupSets, setSelectedGroupSets] = useState([]); // track selected GroupSet ids
+  const [groupSetMultiplierIncrement, setGroupSetMultiplierIncrement] = useState(0.1);
 
   // helper to toggle selection for a single GroupSet id
   const toggleGroupSetSelection = (groupSetId) => {
@@ -154,6 +155,7 @@ const Groups = () => {
         fd.append('selfSignup', groupSetSelfSignup);
         fd.append('joinApproval', groupSetJoinApproval);
         fd.append('maxMembers', Math.max(0, groupSetMaxMembers || 0));
+        fd.append('groupMultiplierIncrement', groupSetMultiplierIncrement); // Add this line
         fd.append('image', groupSetImageFile);
         await axios.post('/api/group/groupset/create', fd, { headers: { 'Content-Type': 'multipart/form-data' }});
       } else {
@@ -163,6 +165,7 @@ const Groups = () => {
           selfSignup: groupSetSelfSignup,
           joinApproval: groupSetJoinApproval,
           maxMembers: Math.max(0, groupSetMaxMembers || 0),
+          groupMultiplierIncrement: groupSetMultiplierIncrement, // Add this line
           image: groupSetImageSource === 'url' ? groupSetImageUrl : undefined,
         });
       }
@@ -186,6 +189,7 @@ const Groups = () => {
     setGroupSetSelfSignup(false);
     setGroupSetJoinApproval(false);
     setGroupSetMaxMembers('');
+    setGroupSetMultiplierIncrement(0.1);
     setGroupSetImage('');
     setGroupSetImageFile(null); // ADD
     setGroupSetImageSource('url'); // ADD
@@ -200,6 +204,7 @@ const Groups = () => {
     setGroupSetSelfSignup(gs.selfSignup);
     setGroupSetJoinApproval(gs.joinApproval);
     setGroupSetMaxMembers(gs.maxMembers);
+    setGroupSetMultiplierIncrement(gs.groupMultiplierIncrement || 0.1);
     setGroupSetImage(gs.image);
     setGroupSetImageFile(null);
     setGroupSetImageSource('url');
@@ -221,27 +226,18 @@ const Groups = () => {
         fd.append('selfSignup', groupSetSelfSignup);
         fd.append('joinApproval', groupSetJoinApproval);
         fd.append('maxMembers', Math.max(0, groupSetMaxMembers || 0));
+        fd.append('groupMultiplierIncrement', groupSetMultiplierIncrement); // Add this line
         fd.append('image', groupSetImageFile);
-        await axios.put(`/api/group/groupset/${editingGroupSetId}`, fd, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
+        await axios.put(`/api/group/groupset/${editingGroupSetId}`, fd, { headers: { 'Content-Type': 'multipart/form-data' }});
       } else {
-        // JSON path: include image only when user provided a URL or requested removal
-        const payload = {
+        await axios.put(`/api/group/groupset/${editingGroupSetId}`, {
           name: groupSetName,
           selfSignup: groupSetSelfSignup,
           joinApproval: groupSetJoinApproval,
           maxMembers: Math.max(0, groupSetMaxMembers || 0),
-        };
-
-        if (groupSetImageRemoved) {
-          // explicitly request reset to placeholder on server
-          payload.image = 'placeholder.jpg';
-        } else if (groupSetImageSource === 'url' && groupSetImageUrl) {
-          payload.image = groupSetImageUrl;
-        }
-
-        await axios.put(`/api/group/groupset/${editingGroupSetId}`, payload);
+          groupMultiplierIncrement: groupSetMultiplierIncrement, // Add this line
+          image: groupSetImageRemoved ? 'placeholder.jpg' : (groupSetImageSource === 'url' ? groupSetImageUrl : undefined),
+        });
       }
 
       toast.success('GroupSet updated successfully');
@@ -581,16 +577,32 @@ const Groups = () => {
     const filter = memberFilters[group._id] || 'all';
     const sort = memberSorts[group._id] || 'email';
     const search = memberSearches[group._id] || '';
+    
     return group.members
-      .filter(m => filter === 'all' || m.status === filter)
-      .filter(m => 
-        (m?._id?.email?.toLowerCase().includes(search.toLowerCase())) ||
-        (`${m?._id?.firstName || ''} ${m?._id?.lastName || ''}`.toLowerCase().includes(search.toLowerCase()))
-      )
+      .filter(m => {
+        // Skip members with null or undefined user data (deleted accounts)
+        if (!m._id) return false;
+        
+        return filter === 'all' || m.status === filter;
+      })
+      .filter(m => {
+        // Skip null members in search as well
+        if (!m._id) return false;
+        
+        const email = m._id.email?.toLowerCase() || '';
+        const firstName = m._id.firstName || '';
+        const lastName = m._id.lastName || '';
+        const fullName = `${firstName} ${lastName}`.toLowerCase();
+        
+        return email.includes(search.toLowerCase()) || fullName.includes(search.toLowerCase());
+      })
       .sort((a, b) => {
+        // Handle null members in sorting
+        if (!a._id || !b._id) return 0;
+        
         if (sort === 'email') {
-          const nameA = `${a._id.firstName || ''} ${a._id.lastName || ''}`.trim() || a._id.email;
-          const nameB = `${b._id.firstName || ''} ${b._id.lastName || ''}`.trim() || b._id.email;
+          const nameA = `${a._id.firstName || ''} ${a._id.lastName || ''}`.trim() || a._id.email || '';
+          const nameB = `${b._id.firstName || ''} ${b._id.lastName || ''}`.trim() || b._id.email || '';
           return nameA.localeCompare(nameB);
         }
         if (sort === 'status') return (a.status || '').localeCompare(b.status || '');
@@ -741,6 +753,27 @@ const Groups = () => {
               value={groupSetMaxMembers}
               onChange={(e) => setGroupSetMaxMembers(Math.max(0, e.target.value))}
             />
+            <div className="mb-4">
+              <label className="label">
+                <span className="label-text">Group Multiplier Increment</span>
+                <span className="label-text-alt">Per member</span>
+              </label>
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                max="1"
+                placeholder="0.1"
+                className="input input-bordered w-full"
+                value={groupSetMultiplierIncrement}
+                onChange={(e) => setGroupSetMultiplierIncrement(Math.max(0, e.target.value))}
+              />
+              <div className="label">
+                <span className="label-text-alt">
+                  Group multiplier will be 1x + (members × {groupSetMultiplierIncrement})
+                </span>
+              </div>
+            </div>
             <div className="flex items-center gap-2">
                 <div className="inline-flex rounded-full bg-gray-200 p-1">
                 <button
@@ -886,6 +919,7 @@ const Groups = () => {
                       <p>Self Signup: {gs.selfSignup ? 'Yes' : 'No'}</p>
                       <p>Join Approval: {gs.joinApproval ? 'Yes' : 'No'}</p>
                       <p>Max Members: {gs.maxMembers || 'No limit'}</p>
+                      <p>Multiplier Increment: +{gs.groupMultiplierIncrement || 0.1}x per member</p>
                     </div>
                   </div>
                   
@@ -980,6 +1014,11 @@ const Groups = () => {
                           <p className="text-sm">
                             Members: {group.members.length}/{group.maxMembers || 'No limit'} • 
                             Multiplier: {group.groupMultiplier || 1}x
+                            {group.isAutoMultiplier ? (
+                              <span className="text-green-600 text-xs ml-1">(Auto)</span>
+                            ) : (
+                              <span className="text-orange-600 text-xs ml-1">(Manual)</span>
+                            )}
                           </p>
                         </div>
                       </div>
@@ -1142,38 +1181,43 @@ const Groups = () => {
                             </tr>
                           </thead>
                           <tbody>
-                            {getFilteredAndSortedMembers(group).map((member, idx) => (
-                              <tr key={`${group._id}-${member._id._id}-${idx}`}>
-                                <td>
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedMembers[group._id]?.includes(member._id._id) || false}
-                                    onChange={() => handleSelectMember(group._id, member._id._id)}
-                                  />
-                                </td>
-                                <td>
-                                  {`${member._id.firstName || ''} ${member._id.lastName || ''}`.trim() || member._id.email}
-                                  <button 
-                                    className="btn btn-xs btn-ghost ml-2"
-                                    onClick={() => navigate(
-                                      `/profile/${member._id._id || member._id}`,
-                                      { state: { from: 'groups', classroomId: id } }
+                            {getFilteredAndSortedMembers(group).map((member, idx) => {
+                              // Skip rendering if member user data is null
+                              if (!member._id) return null;
+                              
+                              return (
+                                <tr key={`${group._id}-${member._id._id}-${idx}`}>
+                                  <td>
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedMembers[group._id]?.includes(member._id._id) || false}
+                                      onChange={() => handleSelectMember(group._id, member._id._id)}
+                                    />
+                                  </td>
+                                  <td>
+                                    {`${member._id.firstName || ''} ${member._id.lastName || ''}`.trim() || member._id.email || 'Unknown User'}
+                                    <button 
+                                      className="btn btn-xs btn-ghost ml-2"
+                                      onClick={() => navigate(
+                                        `/profile/${member._id._id || member._id}`,
+                                        { state: { from: 'groups', classroomId: id } }
+                                      )}
+                                    >
+                                      View Profile
+                                    </button>
+                                    {member._id.isFrozen && (
+                                      <Lock className="inline w-4 h-4 ml-1 text-red-500" title="Balance frozen" />
                                     )}
-                                   >
-                                     View Profile
-                                   </button>
-                                  {member._id.isFrozen && (
-                                    <Lock className="inline w-4 h-4 ml-1 text-red-500" title="Balance frozen" />
-                                  )}
-                                </td>
-                                <td>
-                                  <span className={`badge ${member.status === 'pending' ? 'badge-warning' : 'badge-success'}`}>
-                                    {member.status || 'approved'}
-                                  </span>
-                                </td>
-                                <td>{member.status === 'approved' ? new Date(member.joinDate).toLocaleString() : 'Pending'}</td>
-                              </tr>
-                            ))}
+                                  </td>
+                                  <td>
+                                    <span className={`badge ${member.status === 'pending' ? 'badge-warning' : 'badge-success'}`}>
+                                      {member.status || 'approved'}
+                                    </span>
+                                  </td>
+                                  <td>{member.status === 'approved' ? new Date(member.joinDate).toLocaleString() : 'Pending'}</td>
+                                </tr>
+                              );
+                            }).filter(Boolean)} {/* Filter out null elements */}
                           </tbody>
                         </table>
                       </div>
@@ -1314,6 +1358,27 @@ const Groups = () => {
               value={groupSetMaxMembers}
               onChange={(e) => setGroupSetMaxMembers(Math.max(0, e.target.value))}
             />
+            <div className="mb-4">
+              <label className="label">
+                <span className="label-text">Group Multiplier Increment</span>
+                <span className="label-text-alt">Per member</span>
+              </label>
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                max="1"
+                placeholder="0.1"
+                className="input input-bordered w-full"
+                value={groupSetMultiplierIncrement}
+                onChange={(e) => setGroupSetMultiplierIncrement(Math.max(0, e.target.value))}
+              />
+              <div className="label">
+                <span className="label-text-alt">
+                  Group multiplier will be 1x + (members × {groupSetMultiplierIncrement})
+                </span>
+              </div>
+            </div>
 
             <div className="flex justify-center gap-4 mt-4">
               <button

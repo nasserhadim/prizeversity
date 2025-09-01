@@ -6,6 +6,7 @@ const GroupSetSchema = new mongoose.Schema({
   selfSignup: { type: Boolean, default: false },
   joinApproval: { type: Boolean, default: false },
   maxMembers: { type: Number, default: null },
+  groupMultiplierIncrement: { type: Number, default: 0.1 }, // New field - amount to increase per member
   image: { type: String, default: 'placeholder.jpg' },
   groups: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Group' }],
   createdAt: { type: Date, default: Date.now }

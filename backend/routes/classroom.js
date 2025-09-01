@@ -433,6 +433,31 @@ router.post('/:id/leave', ensureAuthenticated, async (req, res) => {
       return res.status(404).json({ error: 'Classroom not found' });
     }
 
+    // Remove student from all groups in this classroom before leaving
+    if (classroom.students.includes(req.user._id)) {
+      const GroupSet = require('../models/GroupSet');
+      const Group = require('../models/Group');
+      
+      // Find all groupsets in this classroom
+      const groupSets = await GroupSet.find({ classroom: req.params.id });
+      
+      // Remove user from all groups in these groupsets
+      for (const groupSet of groupSets) {
+        const groups = await Group.find({ _id: { $in: groupSet.groups } });
+        
+        for (const group of groups) {
+          const wasMember = group.members.some(member => member._id.equals(req.user._id));
+          if (wasMember) {
+            group.members = group.members.filter(member => !member._id.equals(req.user._id));
+            await group.save();
+            
+            // Update group multiplier after member removal
+            await group.updateMultiplier();
+          }
+        }
+      }
+    }
+
     if (classroom.teacher.toString() === req.user._id.toString()) {
       await Classroom.deleteOne({ _id: req.params.id });
     } else {

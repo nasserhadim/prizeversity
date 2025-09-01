@@ -10,7 +10,7 @@ const upload = require('../middleware/upload'); // ADD: reuse existing upload mi
 
 // Create GroupSet
 router.post('/groupset/create', ensureAuthenticated, upload.single('image'), async (req, res) => {
-  const { name, classroomId, selfSignup, joinApproval, maxMembers } = req.body;
+  const { name, classroomId, selfSignup, joinApproval, maxMembers, groupMultiplierIncrement } = req.body;
   const image = req.file ? `/uploads/${req.file.filename}` : (req.body.image || undefined);
   try {
     // Check if groupset with same name exists in the classroom
@@ -33,6 +33,7 @@ router.post('/groupset/create', ensureAuthenticated, upload.single('image'), asy
       selfSignup, 
       joinApproval, 
       maxMembers, 
+      groupMultiplierIncrement: groupMultiplierIncrement || 0.1, // Add this line
       image 
     });
     await groupSet.save();
@@ -57,7 +58,7 @@ router.post('/groupset/create', ensureAuthenticated, upload.single('image'), asy
 
 // Update GroupSet
 router.put('/groupset/:id', ensureAuthenticated, upload.single('image'), async (req, res) => {
-  const { name, selfSignup, joinApproval, maxMembers } = req.body;
+  const { name, selfSignup, joinApproval, maxMembers, groupMultiplierIncrement } = req.body;
   const image = req.file ? `/uploads/${req.file.filename}` : (req.body.image !== undefined ? req.body.image : undefined);
   try {
     const groupSet = await GroupSet.findById(req.params.id)
@@ -65,11 +66,15 @@ router.put('/groupset/:id', ensureAuthenticated, upload.single('image'), async (
       .populate('classroom');
     if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
 
+    const oldName = groupSet.name;
     const changes = {};
     if (name !== undefined && groupSet.name !== name) changes.name = name;
     if (selfSignup !== undefined && groupSet.selfSignup !== selfSignup) changes.selfSignup = selfSignup;
     if (joinApproval !== undefined && groupSet.joinApproval !== joinApproval) changes.joinApproval = joinApproval;
     if (maxMembers !== undefined && groupSet.maxMembers !== maxMembers) changes.maxMembers = maxMembers;
+    if (groupMultiplierIncrement !== undefined && groupSet.groupMultiplierIncrement !== groupMultiplierIncrement) {
+      changes.groupMultiplierIncrement = groupMultiplierIncrement;
+    }
     if (image !== undefined && groupSet.image !== image) changes.image = image;
 
     if (Object.keys(changes).length === 0) {
@@ -78,6 +83,17 @@ router.put('/groupset/:id', ensureAuthenticated, upload.single('image'), async (
 
     Object.assign(groupSet, changes);
     await groupSet.save();
+
+    // If multiplier increment changed, update all groups in this groupset
+    if (changes.groupMultiplierIncrement !== undefined) {
+      const Group = require('../models/Group');
+      for (const groupId of groupSet.groups) {
+        const group = await Group.findById(groupId);
+        if (group) {
+          await group.updateMultiplier();
+        }
+      }
+    }
 
     // Get all unique members across all groups
     const memberIds = new Set();
@@ -230,7 +246,9 @@ router.post('/groupset/:groupSetId/group/create', ensureAuthenticated, upload.si
       const newGroup = new Group({
         name: newName,
         maxMembers: groupSet.maxMembers,
-        image
+        image,
+        isAutoMultiplier: true, // Enable auto calculation for new groups
+        groupMultiplier: 1 // Start with base multiplier
       });
 
       await newGroup.save();
@@ -313,6 +331,9 @@ router.post('/groupset/:groupSetId/group/:groupId/join', ensureAuthenticated, as
     });
 
     await group.save();
+
+    // Update group multiplier after member joins
+    await group.updateMultiplier();
 
     const populatedGroup = await Group.findById(group._id)
       .populate('members._id', 'email isFrozen firstName lastName');
@@ -489,6 +510,9 @@ router.post('/groupset/:groupSetId/group/:groupId/suspend', ensureAuthenticated,
 
     await group.save();
 
+    // Update group multiplier after suspending members
+    await group.updateMultiplier();
+
     // After successful member status change (approve/reject/suspend)
     const populatedGroup = await Group.findById(group._id)
       .populate('members._id', 'email firstName lastName');
@@ -514,10 +538,19 @@ router.post('/groupset/:groupSetId/group/:groupId/leave', ensureAuthenticated, a
     const isMember = group.members.some(member => member._id.equals(req.user._id));
     if (!isMember) return res.status(400).json({ message: "You're not a member of this group to leave it!" });
 
+    console.log(`Before leave - Group ${group.name}: ${group.members.length} members, multiplier: ${group.groupMultiplier}`);
+    
     group.members = group.members.filter(member => !member._id.equals(req.user._id));
     await group.save();
+
+    // Update group multiplier after member leaves
+    await group.updateMultiplier();
+    
+    console.log(`After leave - Group ${group.name}: ${group.members.length} members, multiplier: ${group.groupMultiplier}`);
+
     res.status(200).json({ message: 'Left group successfully' });
   } catch (err) {
+    console.error('Leave group error:', err);
     res.status(500).json({ error: 'Failed to leave group' });
   }
 });
@@ -579,6 +612,9 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
     });
 
     await group.save();
+
+    // Update group multiplier after approving members
+    await group.updateMultiplier();
 
     // Send notifications to approved members
     for (const memberId of approved) {
@@ -839,10 +875,19 @@ router.post('/groupset/:groupSetId/group/:groupId/leave', ensureAuthenticated, a
     const isMember = group.members.some(member => member._id.equals(req.user._id));
     if (!isMember) return res.status(400).json({ message: "You're not a member of this group to leave it!" });
 
+    console.log(`Before leave - Group ${group.name}: ${group.members.length} members, multiplier: ${group.groupMultiplier}`);
+    
     group.members = group.members.filter(member => !member._id.equals(req.user._id));
     await group.save();
+
+    // Update group multiplier after member leaves
+    await group.updateMultiplier();
+    
+    console.log(`After leave - Group ${group.name}: ${group.members.length} members, multiplier: ${group.groupMultiplier}`);
+
     res.status(200).json({ message: 'Left group successfully' });
   } catch (err) {
+    console.error('Leave group error:', err);
     res.status(500).json({ error: 'Failed to leave group' });
   }
 });
@@ -905,330 +950,8 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
 
     await group.save();
 
-    // Send notifications to approved members
-    for (const memberId of approved) {
-      const notification = await Notification.create({
-        user: memberId,
-        type: 'group_approval',
-        message: `Your request to join group "${group.name}" has been approved.`,
-        classroom: groupSet.classroom,
-        groupSet: groupSet._id,
-        group: group._id,
-        actionBy: req.user._id
-      });
-      
-      const populatedNotification = await populateNotification(notification._id);
-      req.app.get('io').to(`user-${memberId}`).emit('notification', populatedNotification);
-    }
-
-    // Send notifications to rejected members (due to capacity)
-    for (const memberId of rejected) {
-      const notification = await Notification.create({
-        user: memberId,
-        type: 'group_rejection',
-        message: `Your request to join group "${group.name}" was rejected due to group reaching maximum capacity.`,
-        classroom: groupSet.classroom,
-        groupSet: groupSet._id,
-        group: group._id,
-        actionBy: req.user._id
-      });
-      
-      const populatedNotification = await populateNotification(notification._id);
-      req.app.get('io').to(`user-${memberId}`).emit('notification', populatedNotification);
-    }
-
-    // After successful member status change
-    const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email firstName lastName');
-
-    // Emit update immediately
-    req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
-      groupSet: groupSet._id, 
-      group: populatedGroup
-    });
-
-    res.status(200).json({ 
-      message: `${approved.length} member(s) approved. ${rejected.length} member(s) rejected due to capacity limits.`,
-      approved,
-      rejected
-    });
-
-  } catch (err) {
-    console.error('Approval error:', err);
-    res.status(500).json({ error: 'Failed to approve members' });
-  }
-});
-
-// Reject Members from Group
-router.post('/groupset/:groupSetId/group/:groupId/reject', ensureAuthenticated, async (req, res) => {
-  const { memberIds } = req.body;
-
-  if (!memberIds || memberIds.length === 0) {
-    return res.status(400).json({ message: 'No selection with pending status made to perform this action.' });
-  }
-
-  try {
-    const group = await Group.findById(req.params.groupId);
-    if (!group) return res.status(404).json({ error: 'Group not found' });
-
-    const groupSet = await GroupSet.findById(req.params.groupSetId).populate('classroom');
-    if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
-
-    let rejectionCount = 0;
-    group.members = group.members.filter(member => {
-      if (memberIds.includes(member._id.toString()) && member.status === 'pending') {
-        rejectionCount++;
-        return false;  // Remove member
-      }
-      return true;  // Keep member
-    });
-
-    if (rejectionCount === 0) {
-      return res.status(400).json({ message: 'No pending members selected for rejection.' });
-    }
-
-    await group.save();
-
-    // Create notifications for rejected members
-    for (const memberId of memberIds) {
-      const notification = await Notification.create({
-        user: memberId,
-        type: 'group_rejection',
-        message: `Your request to join group "${group.name}" has been rejected.`,
-        classroom: groupSet.classroom._id,
-        groupSet: groupSet._id,
-        group: group._id,
-        actionBy: req.user._id
-      });
-      
-      const populatedNotification = await populateNotification(notification._id);
-      req.app.get('io').to(`user-${memberId}`).emit('notification', populatedNotification);
-    }
-
-    // After successful member status change (approve/reject/suspend)
-    const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email firstName lastName');
-
-    req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
-      groupSet: groupSet._id, 
-      group: populatedGroup
-    });
-
-    res.status(200).json({ message: 'Members rejected successfully' });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to reject members' });
-  }
-});
-
-// Join Classroom
-router.post('/join', ensureAuthenticated, async (req, res) => {
-  const { code } = req.body;
-  try {
-    const classroom = await Classroom.findOne({ code });
-    if (!classroom) return res.status(404).json({ error: 'Invalid classroom code' });
-
-    if (classroom.students.includes(req.user._id)) {
-      return res.status(400).json({ error: 'You have already joined this classroom' });
-    }
-
-    classroom.students.push(req.user._id);
-    await classroom.save();
-
-    // Populate and emit updated classroom immediately
-    const populatedClassroom = await Classroom.findById(classroom._id)
-      .populate('teacher', 'email')
-      .populate('students', 'email');
-
-    req.app.get('io').to(`classroom-${classroom._id}`).emit('classroom_update', populatedClassroom);
-
-    res.status(200).json({ message: 'Joined classroom successfully', classroom });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to join classroom' });
-  }
-});
-
-// Bulk Delete Groups within GroupSet
-router.delete('/groupset/:groupSetId/groups/bulk', ensureAuthenticated, async (req, res) => {
-  const { groupIds } = req.body;
-
-  if (!groupIds || groupIds.length === 0) {
-    return res.status(400).json({ error: 'No groups selected for deletion' });
-  }
-
-  try {
-    const groupSet = await GroupSet.findById(req.params.groupSetId);
-    if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
-
-    // Get all groups to be deleted for notifications
-    const groups = await Group.find({ _id: { $in: groupIds } }).populate('members._id');
-    
-    // Create notifications for all members in all groups
-    for (const group of groups) {
-      for (const member of group.members) {
-        const notification = await Notification.create({
-          user: member._id._id,
-          type: 'group_deletion',
-          message: `Group "${group.name}" has been deleted`,
-          classroom: groupSet.classroom,
-          groupSet: groupSet._id,
-          actionBy: req.user._id
-        });
-        
-        const populatedNotification = await populateNotification(notification._id);
-        req.app.get('io').to(`user-${member._id._id}`).emit('notification', populatedNotification);
-      }
-    }
-
-    // Delete all groups
-    await Group.deleteMany({ _id: { $in: groupIds } });
-    
-    // Remove group references from groupSet
-    groupSet.groups = groupSet.groups.filter(groupId => !groupIds.includes(groupId.toString()));
-    await groupSet.save();
-
-    // Emit group deletion event to all classroom members
-    req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_delete', {
-      groupSetId: groupSet._id,
-      groupId: req.params.groupId
-    });
-
-    res.status(200).json({ message: 'Group deleted successfully' });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to delete group' });
-  }
-});
-
-// Suspend Members from Group
-router.post('/groupset/:groupSetId/group/:groupId/suspend', ensureAuthenticated, async (req, res) => {
-  const { memberIds } = req.body;
-  
-  if (!memberIds || memberIds.length === 0) {
-    return res.status(400).json({ message: 'No members selected for suspension' });
-  }
-
-  try {
-    const group = await Group.findById(req.params.groupId);
-    if (!group) return res.status(404).json({ error: 'Group not found' });
-
-    const initialMemberCount = group.members.length;
-    group.members = group.members.filter(member => 
-      !memberIds.includes(member._id.toString()) || member.status === 'pending'
-    );
-    
-    if (group.members.length === initialMemberCount) {
-      return res.status(400).json({ message: 'No members were suspended' });
-    }
-
-    const groupSet = await GroupSet.findById(req.params.groupSetId);
-    if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
-
-    for (const memberId of memberIds) {
-      const notification = await Notification.create({
-        user: memberId,
-        type: 'group_suspension',
-        message: `You have been suspended from group "${group.name}"`,
-        classroom: groupSet.classroom,
-        groupSet: groupSet._id,
-        group: group._id,
-        actionBy: req.user._id
-      });
-    
-      const populatedNotification = await populateNotification(notification._id);
-      req.app.get('io').to(`user-${memberId}`).emit('notification', populatedNotification);
-    }
-
-    await group.save();
-
-    // After successful member status change (approve/reject/suspend)
-    const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email firstName lastName');
-
-    req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
-      groupSet: groupSet._id, 
-      group: populatedGroup
-    });
-
-    res.status(200).json({ message: 'Members suspended successfully' });
-  } catch (err) {
-    console.error('Suspension error:', err);
-    res.status(500).json({ error: 'Failed to suspend members' });
-  }
-});
-
-// Leave Group within GroupSet
-router.post('/groupset/:groupSetId/group/:groupId/leave', ensureAuthenticated, async (req, res) => {
-  try {
-    const group = await Group.findById(req.params.groupId);
-    if (!group) return res.status(404).json({ error: 'Group not found' });
-
-    const isMember = group.members.some(member => member._id.equals(req.user._id));
-    if (!isMember) return res.status(400).json({ message: "You're not a member of this group to leave it!" });
-
-    group.members = group.members.filter(member => !member._id.equals(req.user._id));
-    await group.save();
-    res.status(200).json({ message: 'Left group successfully' });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to leave group' });
-  }
-});
-
-// Approve Members to Group 
-router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated, async (req, res) => {
-  const { memberIds } = req.body;
-  
-  try {
-    const groupSet = await GroupSet.findById(req.params.groupSetId);
-    if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
-
-    const group = await Group.findById(req.params.groupId);
-    if (!group) return res.status(404).json({ error: 'Group not found' });
-
-    // Calculate current approved members count
-    const currentApprovedCount = group.members.filter(m => m.status === 'approved').length;
-
-    // Check if we have a member limit
-    const maxMembers = group.maxMembers || groupSet.maxMembers;
-    const remainingSlots = maxMembers ? maxMembers - currentApprovedCount : Infinity;
-
-    if (remainingSlots <= 0) {
-      return res.status(400).json({ message: 'Group is already at maximum capacity' });
-    }
-
-    // Sort members by join date to approve oldest requests first
-    const pendingMembers = memberIds
-      .map(id => group.members.find(m => m._id.toString() === id && m.status === 'pending'))
-      .filter(Boolean)
-      .sort((a, b) => a.joinDate - b.joinDate);
-
-    if (pendingMembers.length === 0) {
-      return res.status(400).json({ message: 'No pending members selected for approval.' });
-    }
-
-    // Track which members were approved and rejected
-    const approved = [];
-    const rejected = [];
-
-    // Process members up to the remaining slot limit
-    for (const member of pendingMembers) {
-      if (approved.length < remainingSlots) {
-        approved.push(member._id.toString());
-      } else {
-        rejected.push(member._id.toString());
-      }
-    }
-
-    // Update member statuses
-    group.members = group.members.map(member => {
-      if (approved.includes(member._id.toString())) {
-        return { ...member.toObject(), status: 'approved' };
-      }
-      if (rejected.includes(member._id.toString())) {
-        return { ...member.toObject(), status: 'rejected' };
-      }
-      return member;
-    });
-
-    await group.save();
+    // Update group multiplier after approving members
+    await group.updateMultiplier();
 
     // Send notifications to approved members
     for (const memberId of approved) {

@@ -10,6 +10,7 @@ const GroupSchema = new mongoose.Schema({
   maxMembers: { type: Number, default: null },
   image: { type: String, default: 'placeholder.jpg' },
   groupMultiplier: {type: Number, default: 1},
+  isAutoMultiplier: { type: Boolean, default: true }, // Track if using auto calculation
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -22,9 +23,46 @@ GroupSchema.virtual('siphonRequests', {
   }
 });
 
-
 GroupSchema.set('toJSON', { virtuals: true });
 GroupSchema.set('toObject', { virtuals: true });
+
+// Calculate multiplier based on approved members and groupset increment
+GroupSchema.methods.calculateMultiplier = async function() {
+  const GroupSet = require('./GroupSet');
+  const groupSet = await GroupSet.findOne({ groups: this._id });
+  
+  // If no groupset or no increment setting, return current multiplier
+  if (!groupSet || !groupSet.groupMultiplierIncrement) {
+    return this.groupMultiplier || 1;
+  }
+  
+  const approvedMemberCount = this.members.filter(m => m.status === 'approved').length;
+  return 1 + (approvedMemberCount * groupSet.groupMultiplierIncrement);
+};
+
+// Update multiplier when members change (only if auto mode is enabled)
+GroupSchema.methods.updateMultiplier = async function() {
+  const GroupSet = require('./GroupSet');
+  const groupSet = await GroupSet.findOne({ groups: this._id });
+  
+  // Only auto-update if groupset has multiplier increment AND auto mode is enabled
+  if (groupSet && groupSet.groupMultiplierIncrement && this.isAutoMultiplier) {
+    const approvedMemberCount = this.members.filter(m => m.status === 'approved').length;
+    const newMultiplier = 1 + (approvedMemberCount * groupSet.groupMultiplierIncrement);
+    this.groupMultiplier = newMultiplier;
+    return this.save();
+  }
+  
+  // If manual mode, don't change the multiplier
+  return this;
+};
+
+// Manual multiplier setting (overrides auto calculation)
+GroupSchema.methods.setManualMultiplier = async function(multiplier) {
+  this.groupMultiplier = multiplier;
+  this.isAutoMultiplier = false;
+  return this.save();
+};
 
 // When applying group multipliers:
 GroupSchema.methods.applyMultiplier = function(amount) {
@@ -33,11 +71,15 @@ GroupSchema.methods.applyMultiplier = function(amount) {
 
 // When a user joins a group:
 GroupSchema.methods.addMember = async function(userId) {
+  const User = require('./User');
   const user = await User.findById(userId);
   this.members.push({ _id: userId });
   await this.save();
   
   // Update user's group multipliers
+  if (!user.passiveAttributes) {
+    user.passiveAttributes = { luck: 1, multiplier: 1, groupMultiplier: 1 };
+  }
   user.passiveAttributes.groupMultiplier = Math.max(
     user.passiveAttributes.groupMultiplier || 1,
     this.groupMultiplier || 1

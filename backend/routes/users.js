@@ -2,10 +2,35 @@ const express = require('express');
 const router = express.Router();
 const { ensureAuthenticated } = require('../config/auth');
 const User = require('../models/User');
+const Group = require('../models/Group'); // Add this import if not already present
 const Classroom = require('../models/Classroom');
 const mongoose = require('mongoose');
 const Notification = require('../models/Notification');
 const { populateNotification } = require('../utils/notifications');
+
+// Add this helper function after the imports
+const cleanupUserFromGroups = async (userId) => {
+  try {
+    // Find all groups that contain this user
+    const groups = await Group.find({
+      'members._id': userId
+    });
+
+    // Remove user from each group and update multipliers
+    for (const group of groups) {
+      const wasInGroup = group.members.some(member => member._id.equals(userId));
+      if (wasInGroup) {
+        group.members = group.members.filter(member => !member._id.equals(userId));
+        await group.save();
+        
+        // Update group multiplier after member removal
+        await group.updateMultiplier();
+      }
+    }
+  } catch (err) {
+    console.error('Error cleaning up user from groups:', err);
+  }
+};
 
 // DELETE a user by ID
 router.delete('/:id', async (req, res) => {
@@ -197,8 +222,8 @@ router.post('/:id/make-admin', ensureAuthenticated, async (req, res) => {
     res.status(200).json({ message: 'Student promoted to admin' });
   } catch (err) {
     console.error('Failed to promote student:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Demote an admin back to student
@@ -385,5 +410,23 @@ const updateClassroomBalance = (user, classroomId, newBalance) => {
     user.classroomBalances.push({ classroom: classroomId, balance: Math.max(0, newBalance) });
   }
 };
+
+// Add this route for user deletion (if it doesn't exist)
+router.delete('/delete-account', ensureAuthenticated, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    
+    // Clean up user from all groups first
+    await cleanupUserFromGroups(userId);
+    
+    // Add any other cleanup logic here (remove from classrooms, etc.)
+    
+    await User.findByIdAndDelete(userId);
+    res.status(200).json({ message: 'Account deleted successfully' });
+  } catch (err) {
+    console.error('Account deletion error:', err);
+    res.status(500).json({ error: 'Failed to delete account' });
+  }
+});
 
 module.exports = router;

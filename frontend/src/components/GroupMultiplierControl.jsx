@@ -17,7 +17,7 @@ const GroupMultiplierControl = ({ group, groupSetId, classroomId, compact = fals
         { multiplier }
       );
       // Notify success
-      toast.success('Multiplier updated');
+      toast.success('Multiplier updated (manual override)');
       // Optionally refresh group data
       if (refreshGroups) {
         await refreshGroups();
@@ -30,32 +30,66 @@ const GroupMultiplierControl = ({ group, groupSetId, classroomId, compact = fals
     }
   };
 
+  const handleResetToAuto = async () => {
+    try {
+      setLoading(true);
+      await axios.post(`/api/groupset/${groupSetId}/group/${group._id}/reset-auto-multiplier`);
+      toast.success('Reset to auto multiplier');
+      if (refreshGroups) {
+        await refreshGroups();
+      }
+    } catch (err) {
+      toast.error('Failed to reset to auto multiplier');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return compact ? (
     <div className="flex items-center gap-1">
       <input
         type="number"
         min="0.5"
-        max="2"
+        max="5"
         step="0.1"
         value={multiplier}
         onChange={(e) => setMultiplier(parseFloat(e.target.value))}
         className="input input-xs input-bordered w-16"
+        title={group.isAutoMultiplier ? "Auto mode" : "Manual override"}
       />
       <button 
         onClick={handleUpdate}
         disabled={loading}
-        className="btn btn-xs btn-success"
+        className="btn btn-xs btn-warning"
+        title="Set manual multiplier (overrides auto)"
       >
         {loading ? '...' : 'Set'}
       </button>
+      {!group.isAutoMultiplier && (
+        <button 
+          onClick={handleResetToAuto}
+          disabled={loading}
+          className="btn btn-xs btn-success"
+          title="Reset to auto multiplier"
+        >
+          Auto
+        </button>
+      )}
     </div>
   ) : (
     <div className="flex items-center gap-2 mt-2">
-      <label className="label-text">Multiplier:</label>
+      <label className="label-text">
+        Multiplier: 
+        {group.isAutoMultiplier ? (
+          <span className="text-green-600 text-xs ml-1">(Auto)</span>
+        ) : (
+          <span className="text-orange-600 text-xs ml-1">(Manual)</span>
+        )}
+      </label>
       <input
         type="number"
         min="0.5"
-        max="2"
+        max="5"
         step="0.1"
         value={multiplier}
         onChange={(e) => setMultiplier(parseFloat(e.target.value))}
@@ -64,10 +98,19 @@ const GroupMultiplierControl = ({ group, groupSetId, classroomId, compact = fals
       <button 
         onClick={handleUpdate}
         disabled={loading}
-        className="btn btn-sm btn-primary"
+        className="btn btn-sm btn-warning"
       >
-        {loading ? 'Updating...' : 'Update'}
+        {loading ? 'Updating...' : 'Set Manual'}
       </button>
+      {!group.isAutoMultiplier && (
+        <button 
+          onClick={handleResetToAuto}
+          disabled={loading}
+          className="btn btn-sm btn-success"
+        >
+          Reset Auto
+        </button>
+      )}
     </div>
   );
 };
