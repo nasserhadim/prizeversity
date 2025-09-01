@@ -9,6 +9,11 @@ import FeedbackList from '../components/FeedbackList';
 import '../styles/Feedback.css';
 import { useAuth } from '../context/AuthContext';
 import ModerationLog from '../components/ModerationLog';
+import { subscribeToFeedbackEvents } from '../utils/socket';
+import useFeedbackRealtime from '../hooks/useFeedbackRealtime';
+import RatingDistribution from '../components/RatingDistribution';
+import ExportButtons from '../components/ExportButtons';
+import { exportFeedbacksToCSV, exportFeedbacksToJSON } from '../utils/exportFeedbacks';
  
 const ClassroomFeedbackPage = ({ userId }) => {
   const { classroomId } = useParams();
@@ -56,9 +61,15 @@ const ClassroomFeedbackPage = ({ userId }) => {
     }
   };
  
-  useEffect(() => {
-    fetchClassroomFeedback(1, false);
-  }, [classroomId, user]);
+  useEffect(() => { fetchClassroomFeedback(1, false); }, [classroomId]);
+ 
+  useFeedbackRealtime({
+    scope: 'classroom',
+    classroomId,
+    setFeedbacks,
+    setTotal,
+    fetchFeedbacks: fetchClassroomFeedback
+  });
  
   const loadMore = async () => {
     const next = page + 1;
@@ -129,13 +140,82 @@ const ClassroomFeedbackPage = ({ userId }) => {
     }
   };
  
+  // compute counts from feedbacks state
+  const ratingCounts = React.useMemo(() => {
+    const counts = [0,0,0,0,0,0];
+    (feedbacks || []).forEach(f => {
+      const r = Math.max(1, Math.min(5, Number(f.rating) || 0));
+      counts[r] = (counts[r] || 0) + 1;
+    });
+    return counts;
+  }, [feedbacks]);
+  const ratingTotal = (feedbacks || []).length;
+
+  const renderDistribution = () => {
+    if (!ratingTotal) return null;
+    return (
+      <div className="rating-distribution mb-4">
+        {Array.from({ length: 5 }).map((_, idx) => {
+          const star = 5 - idx;
+          const count = ratingCounts[star] || 0;
+          const pct = ratingTotal ? Math.round((count / ratingTotal) * 100) : 0;
+          const visiblePct = pct > 0 ? Math.max(pct, 4) : 0;
+          return (
+            <div key={star} className="rating-row flex items-center gap-3">
+              <div className="rating-label text-sm text-base-content/70 w-14">{star}★</div>
+              <div className="rating-bar w-full rounded h-3 overflow-hidden" aria-hidden={count === 0}>
+                <div className="rating-fill" style={{ width: `${visiblePct}%` }} title={`${pct}% (${count})`} />
+              </div>
+              <div className="rating-count text-sm text-base-content/60 w-12 text-right">{count}</div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+ 
+  const sanitize = (s = '') => String(s || '')
+    .replace(/[^\w\s-]/g, '')        // remove special chars
+    .trim()
+    .replace(/\s+/g, '_')
+    .slice(0, 60);                   // limit length
+ 
+  const handleExportClassroomFeedbacks = async () => {
+    const idPart = classroom?.code || classroomId || (classroom?._id) || 'unknown';
+    const namePart = classroom?.name ? sanitize(classroom.name) : '';
+    const baseName = `classroom_feedbacks_${String(idPart).replace(/\s+/g, '_')}${namePart ? `_${namePart}` : ''}`;
+    return exportFeedbacksToCSV(feedbacks || [], baseName);
+  };
+ 
+  const handleExportClassroomFeedbacksJSON = async () => {
+    const idPart = classroom?.code || classroomId || (classroom?._id) || 'unknown';
+    const namePart = classroom?.name ? sanitize(classroom.name) : '';
+    const baseName = `classroom_feedbacks_${String(idPart).replace(/\s+/g, '_')}${namePart ? `_${namePart}` : ''}`;
+    return exportFeedbacksToJSON(feedbacks || [], baseName);
+  };
+ 
   return (
     <div className="min-h-screen bg-base-200 flex flex-col justify-between">
       <div className="flex-grow p-4">
         <div className="card w-full max-w-3xl mx-auto shadow-xl bg-base-100 mt-8">
           <div className="card-body">
-            <h2 className="card-title text-primary mb-4">{classroom ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ""} Feedback` : "Let us know how this classroom is doing!"}</h2>
- 
+            <h2 className="card-title text-primary mb-4">
+              {classroom ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''} Feedback` : 'Classroom Feedback'}
+            </h2>
+            <RatingDistribution feedbacks={feedbacks} />
+
+            <div className="flex items-center mb-4">
+              <div className="ml-auto">
+                <ExportButtons
+                  onExportCSV={handleExportClassroomFeedbacks}
+                  onExportJSON={handleExportClassroomFeedbacksJSON}
+                  userName={classroom ? classroom.name : ''}
+                  exportLabel="classroom_feedbacks"
+                />
+              </div>
+            </div>
+
+            {/* tabs follow */}
             {/* Tabs */}
             <div role="tablist" className="tabs tabs-boxed mb-4">
               <a role="tab" className={`tab ${tab === 'submit' ? 'tab-active' : ''}`} onClick={() => setTab('submit')}>Submit</a>
