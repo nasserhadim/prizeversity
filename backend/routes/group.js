@@ -33,7 +33,7 @@ router.post('/groupset/create', ensureAuthenticated, upload.single('image'), asy
       selfSignup, 
       joinApproval, 
       maxMembers, 
-      groupMultiplierIncrement: groupMultiplierIncrement || 0.1, // Add this line
+      groupMultiplierIncrement: groupMultiplierIncrement !== undefined ? groupMultiplierIncrement : 0, // Default to 0, not 0.1
       image 
     });
     await groupSet.save();
@@ -73,7 +73,7 @@ router.put('/groupset/:id', ensureAuthenticated, upload.single('image'), async (
     if (joinApproval !== undefined && groupSet.joinApproval !== joinApproval) changes.joinApproval = joinApproval;
     if (maxMembers !== undefined && groupSet.maxMembers !== maxMembers) changes.maxMembers = maxMembers;
     if (groupMultiplierIncrement !== undefined && groupSet.groupMultiplierIncrement !== groupMultiplierIncrement) {
-      changes.groupMultiplierIncrement = groupMultiplierIncrement;
+      changes.groupMultiplierIncrement = groupMultiplierIncrement; // Don't use || 0.1 here
     }
     if (image !== undefined && groupSet.image !== image) changes.image = image;
 
@@ -297,27 +297,33 @@ router.post('/groupset/:groupSetId/group/:groupId/join', ensureAuthenticated, as
     // Check if group is full
     if (maxMembers && currentApprovedCount >= maxMembers) {
       return res.status(400).json({
-        error: `Group "${group.name}" has reached its maximum capacity of ${maxMembers}.`
+        error: `Group "${group.name}" has reached its maximum capacity of ${maxMembers} members.`
       });
     }
 
-    // Check for existing approved membership in this GroupSet
-    const alreadyInGroup = groupSet.groups.some(g =>
+    // Check for existing APPROVED membership across the entire GroupSet
+    const alreadyApprovedInGroupSet = groupSet.groups.some(g =>
       g.members.some(m => m._id.equals(req.user._id) && m.status === 'approved')
     );
-    if (alreadyInGroup) {
-      return res.status(400).json({ error: 'You are already in a group within this GroupSet.' });
+    if (alreadyApprovedInGroupSet) {
+      return res.status(400).json({ error: 'You are already approved in a group within this GroupSet.' });
     }
 
-    // Check for existing pending request in this group
-    const hasPending = group.members.some(m =>
-      m._id.equals(req.user._id) && m.status === 'pending'
+    // NEW: Check for existing PENDING request anywhere in the GroupSet
+    const hasPendingInGroupSet = groupSet.groups.some(g =>
+      g.members.some(m => m._id.equals(req.user._id) && m.status === 'pending')
     );
-    if (hasPending) {
-      return res.status(400).json({ error: `You already requested to join "${group.name}".` });
+    if (hasPendingInGroupSet) {
+      // Find which group has the pending request
+      const pendingGroup = groupSet.groups.find(g =>
+        g.members.some(m => m._id.equals(req.user._id) && m.status === 'pending')
+      );
+      return res.status(400).json({ 
+        error: `You already have a pending request in "${pendingGroup.name}". Cancel that request first or wait for approval.` 
+      });
     }
 
-    // Remove rejected requests
+    // Remove any old rejected requests from this specific group
     group.members = group.members.filter(m =>
       !(m._id.equals(req.user._id) && m.status === 'rejected')
     );
@@ -474,26 +480,45 @@ router.post('/groupset/:groupSetId/group/:groupId/suspend', ensureAuthenticated,
   const { memberIds } = req.body;
   
   if (!memberIds || memberIds.length === 0) {
-    return res.status(400).json({ message: 'No members selected for suspension' });
+    return res.status(400).json({ message: 'No members selected for suspension.' });
   }
 
   try {
     const group = await Group.findById(req.params.groupId);
     if (!group) return res.status(404).json({ error: 'Group not found' });
 
+    // Check if any selected members are actually approved (can only suspend approved members)
+    const selectedApprovedMembers = memberIds.filter(id =>
+      group.members.some(m => m._id.toString() === id && m.status === 'approved')
+    );
+
+    if (selectedApprovedMembers.length === 0) {
+      const pendingMembers = memberIds.filter(id =>
+        group.members.some(m => m._id.toString() === id && m.status === 'pending')
+      );
+      
+      if (pendingMembers.length > 0) {
+        return res.status(400).json({ 
+          message: 'Cannot suspend pending members. Use reject instead.' 
+        });
+      } else {
+        return res.status(400).json({ 
+          message: 'No approved members found in selection.' 
+        });
+      }
+    }
+
     const initialMemberCount = group.members.length;
     group.members = group.members.filter(member => 
-      !memberIds.includes(member._id.toString()) || member.status === 'pending'
+      !selectedApprovedMembers.includes(member._id.toString())
     );
     
-    if (group.members.length === initialMemberCount) {
-      return res.status(400).json({ message: 'No members were suspended' });
-    }
+    const suspendedCount = initialMemberCount - group.members.length;
 
     const groupSet = await GroupSet.findById(req.params.groupSetId);
     if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
 
-    for (const memberId of memberIds) {
+    for (const memberId of selectedApprovedMembers) {
       const notification = await Notification.create({
         user: memberId,
         type: 'group_suspension',
@@ -522,7 +547,9 @@ router.post('/groupset/:groupSetId/group/:groupId/suspend', ensureAuthenticated,
       group: populatedGroup
     });
 
-    res.status(200).json({ message: 'Members suspended successfully' });
+    res.status(200).json({ 
+      message: `${suspendedCount} member(s) suspended successfully.` 
+    });
   } catch (err) {
     console.error('Suspension error:', err);
     res.status(500).json({ error: 'Failed to suspend members' });
@@ -566,6 +593,27 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
     const group = await Group.findById(req.params.groupId);
     if (!group) return res.status(404).json({ error: 'Group not found' });
 
+    // Check if any of the selected members are actually pending
+    const selectedPendingMembers = memberIds.filter(id => 
+      group.members.some(m => m._id.toString() === id && m.status === 'pending')
+    );
+
+    if (selectedPendingMembers.length === 0) {
+      const alreadyApproved = memberIds.filter(id =>
+        group.members.some(m => m._id.toString() === id && m.status === 'approved')
+      );
+      
+      if (alreadyApproved.length > 0) {
+        return res.status(400).json({ 
+          message: 'Selected members are already approved.' 
+        });
+      } else {
+        return res.status(400).json({ 
+          message: 'No pending members found in selection.' 
+        });
+      }
+    }
+
     // Calculate current approved members count
     const currentApprovedCount = group.members.filter(m => m.status === 'approved').length;
 
@@ -574,18 +622,16 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
     const remainingSlots = maxMembers ? maxMembers - currentApprovedCount : Infinity;
 
     if (remainingSlots <= 0) {
-      return res.status(400).json({ message: 'Group is already at maximum capacity' });
+      return res.status(400).json({ 
+        message: `Group "${group.name}" is already at maximum capacity of ${maxMembers} members.` 
+      });
     }
 
     // Sort members by join date to approve oldest requests first
-    const pendingMembers = memberIds
+    const pendingMembers = selectedPendingMembers
       .map(id => group.members.find(m => m._id.toString() === id && m.status === 'pending'))
       .filter(Boolean)
       .sort((a, b) => a.joinDate - b.joinDate);
-
-    if (pendingMembers.length === 0) {
-      return res.status(400).json({ message: 'No pending members selected for approval.' });
-    }
 
     // Track which members were approved and rejected
     const approved = [];
@@ -600,15 +646,21 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
       }
     }
 
-    // Update member statuses
-    group.members = group.members.map(member => {
-      if (approved.includes(member._id.toString())) {
-        return { ...member.toObject(), status: 'approved' };
+    // Update member statuses - approve selected ones, remove rejected ones completely
+    group.members = group.members.filter(member => {
+      const memberId = member._id.toString();
+      
+      // If this member should be rejected, remove them entirely
+      if (rejected.includes(memberId)) {
+        return false; // Remove from group
       }
-      if (rejected.includes(member._id.toString())) {
-        return { ...member.toObject(), status: 'rejected' };
+      
+      // If this member should be approved, update their status
+      if (approved.includes(memberId)) {
+        member.status = 'approved';
       }
-      return member;
+      
+      return true; // Keep in group
     });
 
     await group.save();
@@ -632,7 +684,7 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
       req.app.get('io').to(`user-${memberId}`).emit('notification', populatedNotification);
     }
 
-    // Send notifications to rejected members (due to capacity)
+    // Send notifications to rejected members (due to capacity) - they were removed
     for (const memberId of rejected) {
       const notification = await Notification.create({
         user: memberId,
@@ -659,7 +711,9 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
     });
 
     res.status(200).json({ 
-      message: `${approved.length} member(s) approved. ${rejected.length} member(s) rejected due to capacity limits.`,
+      message: approved.length === selectedPendingMembers.length 
+        ? `${approved.length} member(s) approved successfully.`
+        : `${approved.length} member(s) approved. ${rejected.length} member(s) rejected due to capacity limits.`,
       approved,
       rejected
     });
@@ -675,7 +729,7 @@ router.post('/groupset/:groupSetId/group/:groupId/reject', ensureAuthenticated, 
   const { memberIds } = req.body;
 
   if (!memberIds || memberIds.length === 0) {
-    return res.status(400).json({ message: 'No selection with pending status made to perform this action.' });
+    return res.status(400).json({ message: 'No members selected for rejection.' });
   }
 
   try {
@@ -685,23 +739,38 @@ router.post('/groupset/:groupSetId/group/:groupId/reject', ensureAuthenticated, 
     const groupSet = await GroupSet.findById(req.params.groupSetId).populate('classroom');
     if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
 
-    let rejectionCount = 0;
-    group.members = group.members.filter(member => {
-      if (memberIds.includes(member._id.toString()) && member.status === 'pending') {
-        rejectionCount++;
-        return false;  // Remove member
-      }
-      return true;  // Keep member
-    });
+    // Check if any selected members are actually pending
+    const selectedPendingMembers = memberIds.filter(id =>
+      group.members.some(m => m._id.toString() === id && m.status === 'pending')
+    );
 
-    if (rejectionCount === 0) {
-      return res.status(400).json({ message: 'No pending members selected for rejection.' });
+    if (selectedPendingMembers.length === 0) {
+      const alreadyApproved = memberIds.filter(id =>
+        group.members.some(m => m._id.toString() === id && m.status === 'approved')
+      );
+      
+      if (alreadyApproved.length > 0) {
+        return res.status(400).json({ 
+          message: 'Cannot reject approved members. Use suspend instead.' 
+        });
+      } else {
+        return res.status(400).json({ 
+          message: 'No pending members found in selection.' 
+        });
+      }
     }
+
+    // Remove rejected members completely from the group
+    const initialMemberCount = group.members.length;
+    group.members = group.members.filter(member => 
+      !selectedPendingMembers.includes(member._id.toString())
+    );
+    const rejectionCount = initialMemberCount - group.members.length;
 
     await group.save();
 
     // Create notifications for rejected members
-    for (const memberId of memberIds) {
+    for (const memberId of selectedPendingMembers) {
       const notification = await Notification.create({
         user: memberId,
         type: 'group_rejection',
@@ -725,7 +794,9 @@ router.post('/groupset/:groupSetId/group/:groupId/reject', ensureAuthenticated, 
       group: populatedGroup
     });
 
-    res.status(200).json({ message: 'Members rejected successfully' });
+    res.status(200).json({ 
+      message: `${rejectionCount} member(s) rejected successfully.` 
+    });
   } catch (err) {
     res.status(500).json({ error: 'Failed to reject members' });
   }
@@ -814,26 +885,45 @@ router.post('/groupset/:groupSetId/group/:groupId/suspend', ensureAuthenticated,
   const { memberIds } = req.body;
   
   if (!memberIds || memberIds.length === 0) {
-    return res.status(400).json({ message: 'No members selected for suspension' });
+    return res.status(400).json({ message: 'No members selected for suspension.' });
   }
 
   try {
     const group = await Group.findById(req.params.groupId);
     if (!group) return res.status(404).json({ error: 'Group not found' });
 
+    // Check if any selected members are actually approved (can only suspend approved members)
+    const selectedApprovedMembers = memberIds.filter(id =>
+      group.members.some(m => m._id.toString() === id && m.status === 'approved')
+    );
+
+    if (selectedApprovedMembers.length === 0) {
+      const pendingMembers = memberIds.filter(id =>
+        group.members.some(m => m._id.toString() === id && m.status === 'pending')
+      );
+      
+      if (pendingMembers.length > 0) {
+        return res.status(400).json({ 
+          message: 'Cannot suspend pending members. Use reject instead.' 
+        });
+      } else {
+        return res.status(400).json({ 
+          message: 'No approved members found in selection.' 
+        });
+      }
+    }
+
     const initialMemberCount = group.members.length;
     group.members = group.members.filter(member => 
-      !memberIds.includes(member._id.toString()) || member.status === 'pending'
+      !selectedApprovedMembers.includes(member._id.toString())
     );
     
-    if (group.members.length === initialMemberCount) {
-      return res.status(400).json({ message: 'No members were suspended' });
-    }
+    const suspendedCount = initialMemberCount - group.members.length;
 
     const groupSet = await GroupSet.findById(req.params.groupSetId);
     if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
 
-    for (const memberId of memberIds) {
+    for (const memberId of selectedApprovedMembers) {
       const notification = await Notification.create({
         user: memberId,
         type: 'group_suspension',
@@ -850,6 +940,9 @@ router.post('/groupset/:groupSetId/group/:groupId/suspend', ensureAuthenticated,
 
     await group.save();
 
+    // Update group multiplier after suspending members
+    await group.updateMultiplier();
+
     // After successful member status change (approve/reject/suspend)
     const populatedGroup = await Group.findById(group._id)
       .populate('members._id', 'email firstName lastName');
@@ -859,7 +952,9 @@ router.post('/groupset/:groupSetId/group/:groupId/suspend', ensureAuthenticated,
       group: populatedGroup
     });
 
-    res.status(200).json({ message: 'Members suspended successfully' });
+    res.status(200).json({ 
+      message: `${suspendedCount} member(s) suspended successfully.` 
+    });
   } catch (err) {
     console.error('Suspension error:', err);
     res.status(500).json({ error: 'Failed to suspend members' });
@@ -903,6 +998,27 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
     const group = await Group.findById(req.params.groupId);
     if (!group) return res.status(404).json({ error: 'Group not found' });
 
+    // Check if any of the selected members are actually pending
+    const selectedPendingMembers = memberIds.filter(id => 
+      group.members.some(m => m._id.toString() === id && m.status === 'pending')
+    );
+
+    if (selectedPendingMembers.length === 0) {
+      const alreadyApproved = memberIds.filter(id =>
+        group.members.some(m => m._id.toString() === id && m.status === 'approved')
+      );
+      
+      if (alreadyApproved.length > 0) {
+        return res.status(400).json({ 
+          message: 'Selected members are already approved.' 
+        });
+      } else {
+        return res.status(400).json({ 
+          message: 'No pending members found in selection.' 
+        });
+      }
+    }
+
     // Calculate current approved members count
     const currentApprovedCount = group.members.filter(m => m.status === 'approved').length;
 
@@ -911,18 +1027,16 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
     const remainingSlots = maxMembers ? maxMembers - currentApprovedCount : Infinity;
 
     if (remainingSlots <= 0) {
-      return res.status(400).json({ message: 'Group is already at maximum capacity' });
+      return res.status(400).json({ 
+        message: `Group "${group.name}" is already at maximum capacity of ${maxMembers} members.` 
+      });
     }
 
     // Sort members by join date to approve oldest requests first
-    const pendingMembers = memberIds
+    const pendingMembers = selectedPendingMembers
       .map(id => group.members.find(m => m._id.toString() === id && m.status === 'pending'))
       .filter(Boolean)
       .sort((a, b) => a.joinDate - b.joinDate);
-
-    if (pendingMembers.length === 0) {
-      return res.status(400).json({ message: 'No pending members selected for approval.' });
-    }
 
     // Track which members were approved and rejected
     const approved = [];
@@ -937,15 +1051,21 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
       }
     }
 
-    // Update member statuses
-    group.members = group.members.map(member => {
-      if (approved.includes(member._id.toString())) {
-        return { ...member.toObject(), status: 'approved' };
+    // Update member statuses - approve selected ones, remove rejected ones completely
+    group.members = group.members.filter(member => {
+      const memberId = member._id.toString();
+      
+      // If this member should be rejected, remove them entirely
+      if (rejected.includes(memberId)) {
+        return false; // Remove from group
       }
-      if (rejected.includes(member._id.toString())) {
-        return { ...member.toObject(), status: 'rejected' };
+      
+      // If this member should be approved, update their status
+      if (approved.includes(memberId)) {
+        member.status = 'approved';
       }
-      return member;
+      
+      return true; // Keep in group
     });
 
     await group.save();
@@ -969,7 +1089,7 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
       req.app.get('io').to(`user-${memberId}`).emit('notification', populatedNotification);
     }
 
-    // Send notifications to rejected members (due to capacity)
+    // Send notifications to rejected members (due to capacity) - they were removed
     for (const memberId of rejected) {
       const notification = await Notification.create({
         user: memberId,
@@ -996,7 +1116,9 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
     });
 
     res.status(200).json({ 
-      message: `${approved.length} member(s) approved. ${rejected.length} member(s) rejected due to capacity limits.`,
+      message: approved.length === selectedPendingMembers.length 
+        ? `${approved.length} member(s) approved successfully.`
+        : `${approved.length} member(s) approved. ${rejected.length} member(s) rejected due to capacity limits.`,
       approved,
       rejected
     });
@@ -1012,7 +1134,7 @@ router.post('/groupset/:groupSetId/group/:groupId/reject', ensureAuthenticated, 
   const { memberIds } = req.body;
 
   if (!memberIds || memberIds.length === 0) {
-    return res.status(400).json({ message: 'No selection with pending status made to perform this action.' });
+    return res.status(400).json({ message: 'No members selected for rejection.' });
   }
 
   try {
@@ -1022,23 +1144,38 @@ router.post('/groupset/:groupSetId/group/:groupId/reject', ensureAuthenticated, 
     const groupSet = await GroupSet.findById(req.params.groupSetId).populate('classroom');
     if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
 
-    let rejectionCount = 0;
-    group.members = group.members.filter(member => {
-      if (memberIds.includes(member._id.toString()) && member.status === 'pending') {
-        rejectionCount++;
-        return false;  // Remove member
-      }
-      return true;  // Keep member
-    });
+    // Check if any selected members are actually pending
+    const selectedPendingMembers = memberIds.filter(id =>
+      group.members.some(m => m._id.toString() === id && m.status === 'pending')
+    );
 
-    if (rejectionCount === 0) {
-      return res.status(400).json({ message: 'No pending members selected for rejection.' });
+    if (selectedPendingMembers.length === 0) {
+      const alreadyApproved = memberIds.filter(id =>
+        group.members.some(m => m._id.toString() === id && m.status === 'approved')
+      );
+      
+      if (alreadyApproved.length > 0) {
+        return res.status(400).json({ 
+          message: 'Cannot reject approved members. Use suspend instead.' 
+        });
+      } else {
+        return res.status(400).json({ 
+          message: 'No pending members found in selection.' 
+        });
+      }
     }
+
+    // Remove rejected members completely from the group
+    const initialMemberCount = group.members.length;
+    group.members = group.members.filter(member => 
+      !selectedPendingMembers.includes(member._id.toString())
+    );
+    const rejectionCount = initialMemberCount - group.members.length;
 
     await group.save();
 
     // Create notifications for rejected members
-    for (const memberId of memberIds) {
+    for (const memberId of selectedPendingMembers) {
       const notification = await Notification.create({
         user: memberId,
         type: 'group_rejection',
@@ -1062,7 +1199,9 @@ router.post('/groupset/:groupSetId/group/:groupId/reject', ensureAuthenticated, 
       group: populatedGroup
     });
 
-    res.status(200).json({ message: 'Members rejected successfully' });
+    res.status(200).json({ 
+      message: `${rejectionCount} member(s) rejected successfully.` 
+    });
   } catch (err) {
     res.status(500).json({ error: 'Failed to reject members' });
   }

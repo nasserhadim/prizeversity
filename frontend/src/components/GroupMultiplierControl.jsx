@@ -49,8 +49,7 @@ const GroupMultiplierControl = ({ group, groupSetId, classroomId, compact = fals
     <div className="flex items-center gap-1">
       <input
         type="number"
-        min="0.5"
-        max="5"
+        min="0"
         step="0.1"
         value={multiplier}
         onChange={(e) => setMultiplier(parseFloat(e.target.value))}
@@ -88,8 +87,7 @@ const GroupMultiplierControl = ({ group, groupSetId, classroomId, compact = fals
       </label>
       <input
         type="number"
-        min="0.5"
-        max="5"
+        min="0"
         step="0.1"
         value={multiplier}
         onChange={(e) => setMultiplier(parseFloat(e.target.value))}

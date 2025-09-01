@@ -5,12 +5,12 @@ const GroupSchema = new mongoose.Schema({
   members: [{
     _id: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     joinDate: { type: Date, default: Date.now },
-    status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'approved' }
+    status: { type: String, enum: ['pending', 'approved'], default: 'approved' } // Removed 'rejected'
   }],
   maxMembers: { type: Number, default: null },
   image: { type: String, default: 'placeholder.jpg' },
   groupMultiplier: {type: Number, default: 1},
-  isAutoMultiplier: { type: Boolean, default: true }, // Track if using auto calculation
+  isAutoMultiplier: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -46,9 +46,12 @@ GroupSchema.methods.updateMultiplier = async function() {
   const groupSet = await GroupSet.findOne({ groups: this._id });
   
   // Only auto-update if groupset has multiplier increment AND auto mode is enabled
-  if (groupSet && groupSet.groupMultiplierIncrement && this.isAutoMultiplier) {
+  if (groupSet && groupSet.groupMultiplierIncrement !== undefined && this.isAutoMultiplier) {
     const approvedMemberCount = this.members.filter(m => m.status === 'approved').length;
-    const newMultiplier = 1 + (approvedMemberCount * groupSet.groupMultiplierIncrement);
+    // If increment is 0, multiplier stays at 1
+    const newMultiplier = groupSet.groupMultiplierIncrement === 0 
+      ? 1 
+      : 1 + (approvedMemberCount * groupSet.groupMultiplierIncrement);
     this.groupMultiplier = newMultiplier;
     return this.save();
   }

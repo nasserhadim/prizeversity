@@ -150,9 +150,9 @@ router.post('/groupset/:groupSetId/group/:groupId/set-multiplier', ensureAuthent
     const group = await Group.findById(groupId);
     if (!group) return res.status(404).json({ error: 'Group not found' });
 
-    // Validate multiplier value
-    if (multiplier < 0.5 || multiplier > 5) {
-      return res.status(400).json({ error: 'Multiplier must be between 0.5 and 5' });
+    // Validate multiplier value - only check for positive number
+    if (multiplier < 0) {
+      return res.status(400).json({ error: 'Multiplier must be a positive number' });
     }
 
     // Use the manual multiplier method (this sets isAutoMultiplier to false)

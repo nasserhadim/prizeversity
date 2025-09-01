@@ -52,7 +52,7 @@ const Groups = () => {
   const [confirmDeleteAllGroupSets, setConfirmDeleteAllGroupSets] = useState(null); // modal payload
   const groupSetFileInputRef = useRef(null); // ADD: clear native file input after submit
   const [selectedGroupSets, setSelectedGroupSets] = useState([]); // track selected GroupSet ids
-  const [groupSetMultiplierIncrement, setGroupSetMultiplierIncrement] = useState(0.1);
+  const [groupSetMultiplierIncrement, setGroupSetMultiplierIncrement] = useState(0); // Default to 0
 
   // helper to toggle selection for a single GroupSet id
   const toggleGroupSetSelection = (groupSetId) => {
@@ -189,7 +189,7 @@ const Groups = () => {
     setGroupSetSelfSignup(false);
     setGroupSetJoinApproval(false);
     setGroupSetMaxMembers('');
-    setGroupSetMultiplierIncrement(0.1);
+    setGroupSetMultiplierIncrement(0); // Reset to 0, not 0.1
     setGroupSetImage('');
     setGroupSetImageFile(null); // ADD
     setGroupSetImageSource('url'); // ADD
@@ -204,7 +204,7 @@ const Groups = () => {
     setGroupSetSelfSignup(gs.selfSignup);
     setGroupSetJoinApproval(gs.joinApproval);
     setGroupSetMaxMembers(gs.maxMembers);
-    setGroupSetMultiplierIncrement(gs.groupMultiplierIncrement || 0.1);
+    setGroupSetMultiplierIncrement(gs.groupMultiplierIncrement || 0); // Default to 0 if undefined
     setGroupSetImage(gs.image);
     setGroupSetImageFile(null);
     setGroupSetImageSource('url');
@@ -417,37 +417,49 @@ const Groups = () => {
 
   // Handles a student joining a group
   const handleJoinGroup = async (groupSetId, groupId) => {
-  const groupSet = groupSets.find(gs => gs._id === groupSetId);
-  if (!groupSet) return toast.error('GroupSet not found');
+    const groupSet = groupSets.find(gs => gs._id === groupSetId);
+    if (!groupSet) return;
 
-  const alreadyJoined = groupSet.groups.some(group =>
-    group.members.some(m => m._id._id === user._id && m.status === 'approved')
-  );
+    // Check if student already has an APPROVED membership in this GroupSet
+    const alreadyApprovedInGroupSet = groupSet.groups.some(group =>
+      group.members.some(m => m._id._id === user._id && m.status === 'approved')
+    );
 
-  if (user.role === 'student' && alreadyJoined) {
-    toast.error('Students can only join one group in this GroupSet');
-    return;
-  }
-
-  try {
-    // Check if joinApproval is required
-    if (!groupSet.joinApproval) {
-      // Join instantly (no approval flow)
-      await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/join`, {
-        autoApprove: true  // optional: flag to auto-approve in backend
-      });
-      toast.success('Joined group');
-    } else {
-      // Normal flow: request join
-      await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/join`);
-      toast.success('Join request sent');
+    if (user.role === 'student' && alreadyApprovedInGroupSet) {
+      toast.error('You are already approved in a group within this GroupSet');
+      return;
     }
 
-    fetchGroupSets();
-  } catch {
-    toast.error('Failed to join group');
-  }
-};
+    // Check if student already has a PENDING request in this GroupSet
+    const hasPendingInGroupSet = groupSet.groups.some(group =>
+      group.members.some(m => m._id._id === user._id && m.status === 'pending')
+    );
+
+    if (user.role === 'student' && hasPendingInGroupSet) {
+      const pendingGroup = groupSet.groups.find(group =>
+        group.members.some(m => m._id._id === user._id && m.status === 'pending')
+      );
+      toast.error(`You already have a pending request in "${pendingGroup.name}". Cancel that request first.`);
+      return;
+    }
+
+    try {
+      await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/join`);
+      
+      const groupSet = groupSets.find(gs => gs._id === groupSetId);
+      if (groupSet?.joinApproval) {
+        toast.success('Join request sent');
+      } else {
+        toast.success('Joined group');
+      }
+
+      fetchGroupSets();
+    } catch (err) {
+      // Display the specific error message from the backend
+      const errorMessage = err.response?.data?.error || 'Failed to join group';
+      toast.error(errorMessage);
+    }
+  };
 
   // const handleLeaveGroup = async (groupSetId, groupId) => {
   //   try {
@@ -486,8 +498,9 @@ const Groups = () => {
       });
       toast.success('Members approved');
       fetchGroupSets();
-    } catch {
-      toast.error('Failed to approve members');
+    } catch (err) {
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Failed to approve members';
+      toast.error(errorMessage);
     }
   };
 
@@ -499,8 +512,9 @@ const Groups = () => {
       });
       toast.success('Members rejected');
       fetchGroupSets();
-    } catch {
-      toast.error('Failed to reject members');
+    } catch (err) {
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Failed to reject members';
+      toast.error(errorMessage);
     }
   };
 
@@ -512,8 +526,9 @@ const Groups = () => {
       });
       toast.success('Members suspended');
       fetchGroupSets();
-    } catch {
-      toast.error('Failed to suspend members');
+    } catch (err) {
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Failed to suspend members';
+      toast.error(errorMessage);
     }
   };
 
@@ -762,15 +777,17 @@ const Groups = () => {
                 type="number"
                 step="0.1"
                 min="0"
-                max="1"
-                placeholder="0.1"
+                placeholder="0"
                 className="input input-bordered w-full"
                 value={groupSetMultiplierIncrement}
                 onChange={(e) => setGroupSetMultiplierIncrement(Math.max(0, e.target.value))}
               />
               <div className="label">
                 <span className="label-text-alt">
-                  Group multiplier will be 1x + (members × {groupSetMultiplierIncrement})
+                  {groupSetMultiplierIncrement > 0 
+                    ? `Group multiplier will be 1x + (members × ${groupSetMultiplierIncrement})`
+                    : `No automatic multiplier (groups stay at 1x)`
+                  }
                 </span>
               </div>
             </div>
@@ -919,7 +936,13 @@ const Groups = () => {
                       <p>Self Signup: {gs.selfSignup ? 'Yes' : 'No'}</p>
                       <p>Join Approval: {gs.joinApproval ? 'Yes' : 'No'}</p>
                       <p>Max Members: {gs.maxMembers || 'No limit'}</p>
-                      <p>Multiplier Increment: +{gs.groupMultiplierIncrement || 0.1}x per member</p>
+                      <p>
+                        Multiplier Increment: 
+                        {gs.groupMultiplierIncrement === 0 
+                          ? "None (groups stay at 1x)" 
+                          : `+${gs.groupMultiplierIncrement}x per member`
+                        }
+                      </p>
                     </div>
                   </div>
                   
@@ -1040,13 +1063,24 @@ const Groups = () => {
                         const isApproved = studentMembership?.status === 'approved';
                         const isPending = studentMembership?.status === 'pending';
 
-                        const alreadyJoinedApproved = gs.groups.some(g =>
-                          g.members.some(m => m._id._id === user._id && m.status === 'approved' || m.status === 'pending')
+                        // Check if student is already approved in ANY group in this GroupSet
+                        const alreadyApprovedInGroupSet = gs.groups.some(g =>
+                          g.members.some(m => m._id._id === user._id && m.status === 'approved')
+                        );
+
+                        // Check if student has a pending request in ANY group in this GroupSet
+                        const hasPendingInGroupSet = gs.groups.some(g =>
+                          g.members.some(m => m._id._id === user._id && m.status === 'pending')
+                        );
+
+                        // Find which group has the pending request (if any)
+                        const pendingGroup = gs.groups.find(g =>
+                          g.members.some(m => m._id._id === user._id && m.status === 'pending')
                         );
 
                         return (
                           <>
-                            {!studentMembership && !alreadyJoinedApproved && (
+                            {!studentMembership && !alreadyApprovedInGroupSet && !hasPendingInGroupSet && (
                               <button
                                 className="btn btn-xs btn-success"
                                 onClick={() => handleJoinGroup(gs._id, group._id)}
@@ -1083,6 +1117,18 @@ const Groups = () => {
                                   Siphon
                                 </button>
                               </>
+                            )}
+
+                            {alreadyApprovedInGroupSet && !isApproved && (
+                              <span className="text-xs text-gray-500">
+                                Already in another group
+                              </span>
+                            )}
+
+                            {hasPendingInGroupSet && !isPending && pendingGroup && (
+                              <span className="text-xs text-gray-500">
+                                Pending request in "{pendingGroup.name}"
+                              </span>
                             )}
                           </>
                         );
@@ -1155,6 +1201,7 @@ const Groups = () => {
                           <option value="all">All</option>
                           <option value="pending">Pending</option>
                           <option value="approved">Approved</option>
+                          {/* Removed 'rejected' option since rejected members are removed */}
                         </select>
                         <select
                           value={memberSorts[group._id] || 'email'}
@@ -1367,15 +1414,17 @@ const Groups = () => {
                 type="number"
                 step="0.1"
                 min="0"
-                max="1"
-                placeholder="0.1"
+                placeholder="0"
                 className="input input-bordered w-full"
                 value={groupSetMultiplierIncrement}
                 onChange={(e) => setGroupSetMultiplierIncrement(Math.max(0, e.target.value))}
               />
               <div className="label">
                 <span className="label-text-alt">
-                  Group multiplier will be 1x + (members × {groupSetMultiplierIncrement})
+                  {groupSetMultiplierIncrement > 0 
+                    ? `Group multiplier will be 1x + (members × ${groupSetMultiplierIncrement})`
+                    : `No automatic multiplier (groups stay at 1x)`
+                  }
                 </span>
               </div>
             </div>
