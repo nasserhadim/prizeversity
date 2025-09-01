@@ -247,29 +247,25 @@ export default function ClassroomSettings() {
                 )}
 
                 <div className="flex flex-wrap gap-2 justify-center w-full">
-                    <button className="btn btn-warning" onClick={handleLeave}>
-                        Leave Classroom
-                    </button>
-                    <button className="btn btn-error" onClick={handleDelete}>
-                        Delete Classroom
-                    </button>
-
-                    <button
-                        className={`btn ${archived ? 'btn-success' : 'btn-outline'} `}
-                        onClick={handleToggleArchive}
-                    >
-                        {archived ? 'Unarchive Classroom' : 'Archive Classroom'}
-                    </button>
-
+                    {user.role !== 'teacher' && (
+                        <button className="btn btn-warning" onClick={handleLeave}>
+                            Leave Classroom
+                        </button>
+                    )}
+                    {user.role === 'teacher' && (
+                        <>
+                            <button className="btn btn-error" onClick={handleDelete}>
+                                Delete Classroom
+                            </button>
+                            <button
+                                className={`btn ${archived ? 'btn-success' : 'btn-outline'} `}
+                                onClick={handleToggleArchive}
+                            >
+                                {archived ? 'Unarchive Classroom' : 'Archive Classroom'}
+                            </button>
+                        </>
+                    )}
                 </div>
-
-                <button
-                    className="btn btn-neutral mt-4"
-                    onClick={() => navigate('/classrooms/archived')}
-                >
-                    View Archived Classrooms
-                </button>
-
             </div>
             <Footer />
         </div>

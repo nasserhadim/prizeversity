@@ -256,6 +256,18 @@ const Classroom = () => {
             </div>
           )}
 
+          {/* Student "Leave Classroom" button */}
+          {user.role !== 'teacher' && (
+            <div className="my-4">
+              <button
+                className="btn btn-warning btn-sm"
+                onClick={handleLeaveClassroomConfirm}
+              >
+                Leave Classroom
+              </button>
+            </div>
+          )}
+
           {/* Announcements List */}
           <div className="space-y-6">
             <h3 className="text-center text-green-500 text-4xl font-bold mb-4">
