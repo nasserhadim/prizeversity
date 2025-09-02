@@ -40,6 +40,8 @@ const Groups = () => {
   const [adjustModal, setAdjustModal] = useState(null);
   const [adjustAmount, setAdjustAmount] = useState('');
   const [adjustDesc, setAdjustDesc] = useState('');
+  const [adjustApplyGroupMultipliers, setAdjustApplyGroupMultipliers] = useState(true); // Separate group multipliers
+  const [adjustApplyPersonalMultipliers, setAdjustApplyPersonalMultipliers] = useState(true); // Separate personal multipliers
   const [confirmDeleteGroup, setConfirmDeleteGroup] = useState(null);
   const [confirmDeleteGroupSet, setConfirmDeleteGroupSet] = useState(null);
   const [confirmLeaveGroup, setConfirmLeaveGroup] = useState(null);
@@ -576,7 +578,12 @@ const Groups = () => {
       const amt = Number(adjustAmount);
       await axios.post(
         `/api/groupset/${groupSetId}/group/${groupId}/adjust-balance`,
-        { amount: amt, description: adjustDesc }
+        { 
+          amount: amt, 
+          description: adjustDesc,
+          applyGroupMultipliers: adjustApplyGroupMultipliers, // Add separate parameter
+          applyPersonalMultipliers: adjustApplyPersonalMultipliers // Add separate parameter
+        }
       );
       toast.success(`All students ${amt >= 0 ? 'credited' : 'debited'} ${Math.abs(amt)} ₿`);
       fetchGroupSets();
@@ -1461,8 +1468,8 @@ const Groups = () => {
       )}
 
       {adjustModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white p-6 rounded shadow-lg w-80">
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="card bg-base-100 p-6 shadow-xl max-w-md w-full">
             <h3 className="text-lg mb-4">Adjust balances for all students</h3>
             <input
               type="number"
@@ -1478,6 +1485,50 @@ const Groups = () => {
               value={adjustDesc}
               onChange={e => setAdjustDesc(e.target.value)}
             />
+            
+            {/* Updated multiplier toggles - separate controls */}
+            <div className="space-y-3 mb-4">
+              <div className="form-control">
+                <label className="label cursor-pointer">
+                  <span className="label-text">Apply group multipliers</span>
+                  <input 
+                    type="checkbox" 
+                    className="toggle toggle-primary" 
+                    checked={adjustApplyGroupMultipliers}
+                    onChange={(e) => setAdjustApplyGroupMultipliers(e.target.checked)}
+                  />
+                </label>
+                <div className="label">
+                  <span className="label-text-alt text-gray-500">
+                    {adjustApplyGroupMultipliers 
+                      ? "Group multipliers will be applied" 
+                      : "Group multipliers will be ignored"
+                    }
+                  </span>
+                </div>
+              </div>
+              
+              <div className="form-control">
+                <label className="label cursor-pointer">
+                  <span className="label-text">Apply personal multipliers</span>
+                  <input 
+                    type="checkbox" 
+                    className="toggle toggle-primary" 
+                    checked={adjustApplyPersonalMultipliers}
+                    onChange={(e) => setAdjustApplyPersonalMultipliers(e.target.checked)}
+                  />
+                </label>
+                <div className="label">
+                  <span className="label-text-alt text-gray-500">
+                    {adjustApplyPersonalMultipliers 
+                      ? "Personal multipliers will be applied" 
+                      : "Personal multipliers will be ignored"
+                    }
+                  </span>
+                </div>
+              </div>
+            </div>
+
             <div className="flex justify-end gap-2">
               <button className="btn btn-sm" onClick={() => setAdjustModal(null)}>Cancel</button>
               <button className="btn btn-sm btn-primary" onClick={submitAdjust}>Apply</button>

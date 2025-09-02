@@ -146,7 +146,7 @@ const updateClassroomBalance = (user, classroomId, newBalance) => {
 
 // Assign Balance to Student (updated for per-classroom)
 router.post('/assign', ensureAuthenticated, async (req, res) => {
-  const { classroomId, studentId, amount, description } = req.body;
+  const { classroomId, studentId, amount, description, applyGroupMultipliers = true, applyPersonalMultipliers = true } = req.body; // Add separate parameters
 
   // Check Admin/TA permission
   if (req.user.role === 'admin') {
@@ -197,16 +197,23 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
       'members.status': 'approved'
     }).select('groupMultiplier');
 
-    // Get the highest multiplier
-    let multiplier = 1;
+    // Apply multipliers separately
+    let finalMultiplier = 1;
     if (groups.length > 0 && numericAmount >= 0) {
-      multiplier = Math.max(...groups.map(g => g.groupMultiplier || 1));
+      if (applyGroupMultipliers) {
+        finalMultiplier *= Math.max(...groups.map(g => g.groupMultiplier || 1));
+      }
+      if (applyPersonalMultipliers) {
+        finalMultiplier *= (student.passiveAttributes?.multiplier || 1);
+      }
     }
 
     // Use per-classroom balance if classroomId is provided
     if (classroomId) {
       const currentBalance = getClassroomBalance(student, classroomId);
-      const adjustedAmount = numericAmount >= 0 ? Math.round(numericAmount * multiplier) : numericAmount; // Apply multipliers as before
+      const adjustedAmount = (numericAmount >= 0 && (applyGroupMultipliers || applyPersonalMultipliers)) 
+        ? Math.round(numericAmount * finalMultiplier) 
+        : numericAmount;
       const newBalance = Math.max(0, currentBalance + adjustedAmount);
       updateClassroomBalance(student, classroomId, newBalance);
 
@@ -215,12 +222,18 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
         description: description || `Balance adjustment`,
         assignedBy: req.user._id,
         classroom: classroomId,
-        calculation: numericAmount >= 0 ? {
+        calculation: (numericAmount >= 0 && (applyGroupMultipliers || applyPersonalMultipliers)) ? {
           baseAmount: numericAmount,
-          personalMultiplier: 1, // Note: This route doesn't use personal multiplier
-          groupMultiplier: multiplier,
-          totalMultiplier: multiplier,
-        } : undefined,
+          personalMultiplier: applyPersonalMultipliers ? (student.passiveAttributes?.multiplier || 1) : 1,
+          groupMultiplier: applyGroupMultipliers ? Math.max(...groups.map(g => g.groupMultiplier || 1)) : 1,
+          totalMultiplier: finalMultiplier,
+        } : {
+          baseAmount: numericAmount,
+          personalMultiplier: 1,
+          groupMultiplier: 1,
+          totalMultiplier: 1,
+          note: getMultiplierNote(applyGroupMultipliers, applyPersonalMultipliers)
+        },
       });
     } else {
       // Fallback to global balance
@@ -232,8 +245,8 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
         calculation: numericAmount >= 0 ? {
           baseAmount: numericAmount,
           personalMultiplier: 1, // Note: This route doesn't use personal multiplier
-          groupMultiplier: multiplier,
-          totalMultiplier: multiplier,
+          groupMultiplier: finalMultiplier,
+          totalMultiplier: finalMultiplier,
         } : undefined,
       });
     }
@@ -290,7 +303,7 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
     });
   }
 
-  const { classroomId, updates } = req.body;
+  const { classroomId, updates, applyGroupMultipliers = true, applyPersonalMultipliers = true } = req.body; // Add separate parameters
   const customDescription = req.body.description;
 
   const roleLabel = req.user.role === 'admin' ? 'Admin/TA' : 'Teacher';
@@ -369,11 +382,20 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
       // Get all multipliers
       const groupMultiplier = await getGroupMultiplierForStudentInClassroom(studentId, classroomId);
       const passiveMultiplier = student.passiveAttributes?.multiplier || 1;
-      const totalMultiplier = groupMultiplier * passiveMultiplier;
+      
+      // Apply multipliers separately based on flags
+      let finalMultiplier = 1;
+      if (numericAmount >= 0) {
+        if (applyGroupMultipliers) {
+          finalMultiplier *= groupMultiplier;
+        }
+        if (applyPersonalMultipliers) {
+          finalMultiplier *= passiveMultiplier;
+        }
+      }
 
-      // Apply multiplier only for positive amounts
-      const adjustedAmount = numericAmount >= 0
-        ? Math.round(numericAmount * totalMultiplier)
+      const adjustedAmount = (numericAmount >= 0 && (applyGroupMultipliers || applyPersonalMultipliers))
+        ? Math.round(numericAmount * finalMultiplier)
         : numericAmount;
 
       // Update per-classroom balance when classroomId provided; otherwise fallback to global balance
@@ -391,12 +413,18 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
         assignedBy: req.user._id,
         createdAt: new Date(),
         classroom: classroomId || null,
-        calculation: numericAmount >= 0 ? {
+        calculation: (numericAmount >= 0 && (applyGroupMultipliers || applyPersonalMultipliers)) ? {
           baseAmount: numericAmount,
-          personalMultiplier: passiveMultiplier,
-          groupMultiplier: groupMultiplier,
-          totalMultiplier: totalMultiplier,
-        } : undefined,
+          personalMultiplier: applyPersonalMultipliers ? passiveMultiplier : 1,
+          groupMultiplier: applyGroupMultipliers ? groupMultiplier : 1,
+          totalMultiplier: finalMultiplier,
+        } : {
+          baseAmount: numericAmount,
+          personalMultiplier: 1,
+          groupMultiplier: 1,
+          totalMultiplier: 1,
+          note: getMultiplierNote(applyGroupMultipliers, applyPersonalMultipliers)
+        },
       });
 
       await student.save();
@@ -605,5 +633,17 @@ router.get('/:userId/balance', ensureAuthenticated, async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch balance' });
   }
 });
+
+// Helper function to generate appropriate note
+function getMultiplierNote(applyGroup, applyPersonal) {
+  if (!applyGroup && !applyPersonal) {
+    return "All multipliers bypassed by teacher";
+  } else if (!applyGroup) {
+    return "Group multipliers bypassed by teacher";
+  } else if (!applyPersonal) {
+    return "Personal multipliers bypassed by teacher";
+  }
+  return undefined;
+}
 
 module.exports = router;

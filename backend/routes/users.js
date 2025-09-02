@@ -43,14 +43,17 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// POST route for bulk assigning balance to students
+// Bulk assign balances to mulitpler students
 router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
-  // Restrict to teachers or admins only
   if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
-    return res.status(403).json({ error: 'Only teachers can bulk‑assign' });
+    return res.status(403).json({ 
+      success: false,
+      error: 'Only teachers can bulk-assign' 
+    });
   }
 
-  const { updates, description = 'Bulk adjustment by teacher' } = req.body;
+  const { classroomId, updates, applyGroupMultipliers = true, applyPersonalMultipliers = true } = req.body; // Add separate parameters
+  const customDescription = req.body.description;
 
   // Validate input
   if (!Array.isArray(updates) || updates.length === 0) {
@@ -85,17 +88,24 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
         continue;
       }
 
-      // Get all multipliers (group * passive)
-      const groupMultiplier = student.groups.length > 0 
-        ? Math.max(...student.groups.map(g => g.groupMultiplier || 1))
-        : 1;
+      // Get all multipliers
+      const groupMultiplier = await getGroupMultiplierForStudentInClassroom(studentId, classroomId);
       const passiveMultiplier = student.passiveAttributes?.multiplier || 1;
-      const totalMultiplier = groupMultiplier * passiveMultiplier;
+      
+      // Apply multipliers separately based on flags
+      let finalMultiplier = 1;
+      if (numericAmount >= 0) {
+        if (applyGroupMultipliers) {
+          finalMultiplier *= groupMultiplier;
+        }
+        if (applyPersonalMultipliers) {
+          finalMultiplier *= passiveMultiplier;
+        }
+      }
 
-      // Apply multiplier only for positive amounts
-     const adjustedAmount = amount >= 0 
-  ? Math.round(amount * totalMultiplier)
-  : amount;
+      const adjustedAmount = (numericAmount >= 0 && (applyGroupMultipliers || applyPersonalMultipliers))
+        ? Math.round(numericAmount * finalMultiplier)
+        : numericAmount;
 
     // Prevent balance from going below 0
     const newBalance = student.balance + adjustedAmount;
@@ -104,7 +114,7 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
     // Record the transaction
     student.transactions.push({
       amount: adjustedAmount,
-      description,
+      description: customDescription || 'Bulk adjustment by teacher',
       assignedBy: req.user._id,
       createdAt: new Date()
     });
@@ -428,5 +438,17 @@ router.delete('/delete-account', ensureAuthenticated, async (req, res) => {
     res.status(500).json({ error: 'Failed to delete account' });
   }
 });
+
+// Helper function to generate appropriate note
+function getMultiplierNote(applyGroup, applyPersonal) {
+  if (!applyGroup && !applyPersonal) {
+    return "All multipliers bypassed by teacher";
+  } else if (!applyGroup) {
+    return "Group multipliers bypassed by teacher";
+  } else if (!applyPersonal) {
+    return "Personal multipliers bypassed by teacher";
+  }
+  return undefined;
+}
 
 module.exports = router;
