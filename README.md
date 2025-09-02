@@ -578,6 +578,18 @@ DOMAIN=https://www.prizeversity.com
 # per-user (or per-IP for anonymous/unsigned users) cooldown that prevents submitting site-wide or classroom feedback more than once within X days. 
 # Cooldown resets per classroom (site feedback is separate).
 FEEDBACK_COOLDOWN_DAYS=30
+
+# GITHUB tokens and repo access (For Challenge #2 & Challenge #4)
+GITHUB_TOKEN=
+GITHUB_OWNER=
+GITHUB_REPO=
+
+# Keys for Caesar cipher challenge obfuscation
+# These values indicate the randomness in the shift values for the Caesar Cypher Challnege
+# Salt is used for randomness, prevents predictable cipher outputs.
+CAESAR_BASE=<base-shift, e.g. 3>
+CAESAR_RANGE=<max-range, e.g. 9>
+CAESAR_SALT=<input-any-salt-here, e.g. 739bbc2d7d07e8deed48a46eeb012836eae76663d9da8f53713d3309a49e29c1> 
 ```
 
 ## 3. Install dependencies
