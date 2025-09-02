@@ -467,7 +467,8 @@ router.post(
     if (senderLive.isFrozen) {
       return res.status(403).json({ error: 'Your account is frozen during a siphon request' });
     }
-    const { recipientShortId: recipientId, amount, classroomId } = req.body;
+
+    const { recipientShortId: recipientId, amount, classroomId, message } = req.body; // Add message
 
     // Prevent student transfers if disabled by teacher
     if (req.user.role === 'student' && classroomId) {
@@ -495,34 +496,48 @@ router.post(
     }
 
     // Update balances (use inside the transfer/assign handler where numericAmount/adjustedAmount/classroomId are available)
-const senderBalance = classroomId ? getClassroomBalance(sender, classroomId) : (sender.balance || 0);
-if (senderBalance < numericAmount) {
-  return res.status(400).json({ error: 'Insufficient balance' });
-}
+    const senderBalance = classroomId ? getClassroomBalance(sender, classroomId) : (sender.balance || 0);
+    if (senderBalance < numericAmount) {
+      return res.status(400).json({ error: 'Insufficient balance' });
+    }
 
-if (classroomId) {
-  updateClassroomBalance(sender, classroomId, Math.max(0, senderBalance - numericAmount));
-  const recipientBalance = getClassroomBalance(recipient, classroomId);
-  updateClassroomBalance(recipient, classroomId, recipientBalance + adjustedAmount);
-} else {
-  sender.balance = (sender.balance || 0) - numericAmount;
-  recipient.balance = (recipient.balance || 0) + adjustedAmount;
-}
+    if (classroomId) {
+      updateClassroomBalance(sender, classroomId, Math.max(0, senderBalance - numericAmount));
+      const recipientBalance = getClassroomBalance(recipient, classroomId);
+      updateClassroomBalance(recipient, classroomId, recipientBalance + adjustedAmount);
+    } else {
+      sender.balance = (sender.balance || 0) - numericAmount;
+      recipient.balance = (recipient.balance || 0) + adjustedAmount;
+    }
 
-// Add transactions (keep classroom reference)
-sender.transactions.push({
-  amount: -numericAmount,
-  description: `Transferred to ${label(recipient)}`,
-  classroom: classroomId || null,
-  createdAt: new Date()
-});
-recipient.transactions.push({
-  amount: adjustedAmount,
-  description: `Received from ${label(sender)}`,
-  assignedBy: sender._id,
-  classroom: classroomId || null,
-  createdAt: new Date()
-});
+    // Create custom descriptions based on whether a message was provided
+    const baseDescription = message ? 
+      `Transfer: ${message}` : 
+      `Transferred to ${label(recipient)}`;
+    
+    const senderDescription = message ?
+      `Sent to ${label(recipient)}: ${message}` :
+      `Transferred to ${label(recipient)}`;
+    
+    const recipientDescription = message ?
+      `Received from ${label(sender)}: ${message}` :
+      `Received from ${label(sender)}`;
+
+    // Add transactions (keep classroom reference)
+    sender.transactions.push({
+      amount: -numericAmount,
+      description: senderDescription,
+      assignedBy: sender._id,
+      classroom: classroomId || null,
+      createdAt: new Date()
+    });
+    recipient.transactions.push({
+      amount: adjustedAmount,
+      description: recipientDescription,
+      assignedBy: sender._id,
+      classroom: classroomId || null,
+      createdAt: new Date()
+    });
 
     await sender.save();
     await recipient.save();
@@ -537,11 +552,20 @@ recipient.transactions.push({
       if (classroom) classroomName = ` in "${classroom.name}${classroom.code ? ` (${classroom.code})` : ''}"`;
     }
     
+    // Update notification messages to include custom message if provided
+    const senderNotificationMessage = message ?
+      `You sent ${numericAmount} ₿ to ${label(recipient)} with message: "${message}".` :
+      `You sent ${numericAmount} ₿ to ${label(recipient)}.`;
+    
+    const recipientNotificationMessage = message ?
+      `You received ${adjustedAmount} ₿ from ${label(sender)} with message: "${message}".` :
+      `You received ${adjustedAmount} ₿ from ${label(sender)}.`;
+    
     const senderNotification = await Notification.create({
       user: sender._id,
       actionBy: sender._id,
       type: 'wallet_transaction',
-      message: `You sent ${numericAmount} ₿ to ${label(recipient)}.`,
+      message: senderNotificationMessage,
       classroom: classroomId,
       createdAt: new Date()
     });
@@ -552,7 +576,7 @@ recipient.transactions.push({
       user: recipient._id,
       actionBy: sender._id,
       type: 'wallet_transaction',
-      message: `You received ${adjustedAmount} ₿ from ${label(sender)}.`,
+      message: recipientNotificationMessage,
       classroom: classroomId,
       createdAt: new Date()
     });

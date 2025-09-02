@@ -36,7 +36,7 @@ export default function ClassroomSettings() {
                     user.role === 'admin' ||
                     (user.role === 'teacher' && cls.teacher === user._id);
                 if (!hasAccess) {
-                    toast.error('You no longer have access to this classroom');
+                    toast.error('You do not have access to this classroom');
                     navigate('/');
                     return;
                 }
