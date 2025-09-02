@@ -173,11 +173,21 @@ npm install express mongoose passport passport-google-oauth20 passport-microsoft
 
 npm install connect-mongo   # Used to store sessions in MongoDB instead of memory, which is suitable for production.
 
+npm install axios # Used in order to send GET and POST requests
+
 npm install socket.io
 
 npm install multer
 
 npm install express-session jsdom dompurify
+
+npm install sharp # Used for image buffers for the image analysis
+
+npm install piexifjs # Used to generate a new image buffer with the unique id EXIF metadeta
+
+npm install random-words
+
+npm install bad-words # Used for filtering
 
 npm install --save-dev jest eslint # if testing/linting are used
 
