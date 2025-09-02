@@ -25,6 +25,7 @@ const Wallet = () => {
   const [recipientId, setRecipientId] = useState('');
   const [selectedRecipientId, setSelectedRecipientId] = useState(''); 
   const [transferAmount, setTransferAmount] = useState('');
+  const [transferMessage, setTransferMessage] = useState(''); // Add transfer message state
   const [search, setSearch] = useState('');
   const [allTx, setAllTx] = useState([]);
   const [studentFilter, setStudentFilter] = useState('');  
@@ -503,6 +504,22 @@ useEffect(() => {
                   if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault();
                 }}
               />
+
+              {/* Add message input field */}
+              <textarea
+                placeholder="Optional message (e.g., 'Thanks for helping with homework!')"
+                className="textarea textarea-bordered w-full"
+                value={transferMessage}
+                onChange={(e) => setTransferMessage(e.target.value)}
+                rows={2}
+                maxLength={200}
+              />
+              {transferMessage.length > 0 && (
+                <div className="text-xs text-gray-500 text-right">
+                  {transferMessage.length}/200 characters
+                </div>
+              )}
+
               <button
                 className="btn btn-success w-full"
                 onClick={async () => {
@@ -516,6 +533,7 @@ useEffect(() => {
                     await axios.post('/api/wallet/transfer', {
                       recipientShortId: recipientId,
                       amount: parsedAmount,
+                      message: transferMessage.trim() || undefined, // Include message if provided
                       classroomId
                     }, { withCredentials: true });
                     toast.success('Transfer successful!');
@@ -525,6 +543,7 @@ useEffect(() => {
                     setRecipientId('');
                     setSelectedRecipientId('');
                     setTransferAmount('');
+                    setTransferMessage(''); // Reset message field
                   } catch (err) {
                     toast.error(err.response?.data?.error || 'Transfer failed.');
                   }

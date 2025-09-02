@@ -308,7 +308,7 @@ router.get('/:id', ensureAuthenticated, async (req, res) => {
       : classroom.students.includes(req.user._id);
 
     if (!hasAccess) {
-      return res.status(403).json({ error: 'You no longer have access to this classroom' });
+      return res.status(403).json({ error: 'You do not have access to this classroom' });
     }
 
     res.status(200).json(classroom);

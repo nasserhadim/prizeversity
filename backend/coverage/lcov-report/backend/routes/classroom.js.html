@@ -1004,7 +1004,7 @@ router.get('/:id', ensureAuthenticated, async (req, res) =&gt; {
 <span class="cstat-no" title="statement not covered" >      : classroom.students.includes(req.user._id);</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >    if (!hasAccess) {</span>
-<span class="cstat-no" title="statement not covered" >      return res.status(403).json({ error: 'You no longer have access to this classroom' });</span>
+<span class="cstat-no" title="statement not covered" >      return res.status(403).json({ error: 'You do not have access to this classroom' });</span>
 <span class="cstat-no" title="statement not covered" >    }</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >    res.status(200).json(classroom);</span>

@@ -13,7 +13,8 @@ const TeacherView = ({
   handleShowConfigModal,
   handleShowDeactivateModal,
   initiating,
-  classroomStudents = []
+  classroomStudents = [],
+  classroom
 }) => {
   const [showPasswords, setShowPasswords] = useState({});
   const [showDueDateModal, setShowDueDateModal] = useState(false);
@@ -268,7 +269,11 @@ const TeacherView = ({
       <div className={themeClasses.cardBase}>
         <div className="flex items-center gap-3 mb-4">
           <Shield className="w-8 h-8 text-red-500" />
-          <h1 className="text-3xl font-bold text-base-content">Cyber Challenge</h1>
+          <h1 className="text-3xl font-bold text-base-content">
+            {classroom?.name
+              ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''} - Cyber Challenge`
+              : 'Cyber Challenge'}
+          </h1>
         </div>
         <p className={`${themeClasses.mutedText} text-lg mb-6`}>
           Initiate the complete Cyber Challenge Series. Students will progress through multiple cybersecurity challenges, each with unique encrypted data and passwords to discover.
@@ -278,7 +283,7 @@ const TeacherView = ({
           {!challengeData || !challengeData.isActive ? (
             <button
               onClick={handleShowConfigModal}
-              className="btn btn-error btn-lg gap-2"
+              className="btn btn-error btn-lg gap-2 flex-wrap text-sm sm:text-base"
             >
               <Settings className="w-5 h-5" />
               Configure & Launch Challenge Series

@@ -23,7 +23,7 @@ router.post(
   async (req, res) => {
     const { groupId } = req.params;
     const groupSet = await GroupSet.findById(req.params.groupSetId).populate('classroom');
-    const { amount, description } = req.body;  // can be + or –
+    const { amount, description, applyGroupMultipliers = true, applyPersonalMultipliers = true } = req.body;
     
     try {
       // First validate the amount
@@ -35,14 +35,14 @@ router.post(
       // Find the group with members populated including their passiveAttributes
       const group = await Group.findById(groupId).populate({
         path: 'members._id',
-        select: 'balance passiveAttributes transactions role'
+        select: 'balance passiveAttributes transactions role classroomBalances'
       });
 
       if (!group) return res.status(404).json({ error: 'Group not found' });
 
       const results = [];
       
-      // Will loop through each group member and apply balance adjustmen
+      // Will loop through each group member and apply balance adjustment
       for (const member of group.members) {
         // Ensure we have a full user doc. member._id may be populated or may be an ObjectId.
         let user = member._id;
@@ -52,83 +52,98 @@ router.post(
         }
         if (!user || user.role !== 'student') continue;
 
-        // Apply multipliers only for positive amounts
-        // Calculate the adjusted amount
+        // Apply multipliers separately based on flags
         let adjustedAmount = numericAmount;
-        if (numericAmount > 0) { // This here only apply multipliers for positive amounts
-          const groupMultiplier = group.groupMultiplier || 1;
-          const personalMultiplier = user.passiveAttributes?.multiplier || 1;
-          adjustedAmount = Math.round(numericAmount * groupMultiplier * personalMultiplier);
+        let finalMultiplier = 1;
+        
+        if (numericAmount > 0) {
+          if (applyGroupMultipliers) {
+            finalMultiplier *= (group.groupMultiplier || 1);
+          }
+          if (applyPersonalMultipliers) {
+            finalMultiplier *= (user.passiveAttributes?.multiplier || 1);
+          }
+          adjustedAmount = Math.round(numericAmount * finalMultiplier);
         }
 
-        // Update user balance
-        user.balance = Math.max(0, user.balance + adjustedAmount);
+        // Update user balance using classroom-aware functions
+        const classroomId = groupSet?.classroom ? groupSet.classroom._id || groupSet.classroom : group.classroom;
+        
+        if (classroomId) {
+          const currentBalance = getClassroomBalance(user, classroomId);
+          const newBalance = Math.max(0, currentBalance + adjustedAmount);
+          updateClassroomBalance(user, classroomId, newBalance);
+        } else {
+          user.balance = Math.max(0, user.balance + adjustedAmount);
+        }
+
         user.transactions.push({
-          amount: adjustedAmount, // Store the actual amount transferred
+          amount: adjustedAmount,
           description: description || `Group adjust (${group.name})`,
           assignedBy: req.user._id,
-          calculation: numericAmount > 0 ? {
+          classroom: classroomId || null,
+          calculation: (numericAmount > 0 && (applyGroupMultipliers || applyPersonalMultipliers)) ? {
             baseAmount: numericAmount,
-            personalMultiplier: user.passiveAttributes?.multiplier || 1,
-            groupMultiplier: group.groupMultiplier || 1,
-            totalMultiplier: (group.groupMultiplier || 1) * (user.passiveAttributes?.multiplier || 1),
-          } : undefined,
+            personalMultiplier: applyPersonalMultipliers ? (user.passiveAttributes?.multiplier || 1) : 1,
+            groupMultiplier: applyGroupMultipliers ? (group.groupMultiplier || 1) : 1,
+            totalMultiplier: finalMultiplier,
+          } : {
+            baseAmount: numericAmount,
+            personalMultiplier: 1,
+            groupMultiplier: 1,
+            totalMultiplier: 1,
+            note: getMultiplierNote(applyGroupMultipliers, applyPersonalMultipliers)
+          },
         });
         await user.save();
 
         // Add result summary for the student
         results.push({ 
           id: user._id, 
-          newBalance: user.balance,
+          newBalance: classroomId ? getClassroomBalance(user, classroomId) : user.balance,
           baseAmount: numericAmount,
           adjustedAmount: adjustedAmount,
           multipliersApplied: {
-            group: group.groupMultiplier || 1,
-            personal: user.passiveAttributes?.multiplier || 1,
-            total: numericAmount > 0 ? (group.groupMultiplier || 1) * (user.passiveAttributes?.multiplier || 1) : 1
+            group: applyGroupMultipliers ? (group.groupMultiplier || 1) : 1,
+            personal: applyPersonalMultipliers ? (user.passiveAttributes?.multiplier || 1) : 1,
+            total: finalMultiplier
           }
         });
+
         // Create notification for this student
-  const notification = await Notification.create({
-    user: user._id, // specify the user this notification is for
-    type: 'wallet_transaction',
-    message: `You were ${amount >= 0 ? 'credited' : 'debited'} ${Math.abs(amount)} ₿ in ${group.name}.`,
-    amount,
-    description: description || `Group adjust (${group.name})`,
-    group: group._id,
-    groupSet: req.params.groupSetId,
-    classroom: groupSet?.classroom?._id,
-    actionBy: req.user._id,
-  });
-  const populated = await populateNotification(notification._id);
-      req.app.get('io').to(`user-${user._id}`).emit('notification', populated);
-
+        const notification = await Notification.create({
+          user: user._id,
+          type: 'wallet_transaction',
+          message: `You were ${amount >= 0 ? 'credited' : 'debited'} ${Math.abs(adjustedAmount)} ₿ in ${group.name}.`,
+          amount: adjustedAmount,
+          description: description || `Group adjust (${group.name})`,
+          group: group._id,
+          groupSet: req.params.groupSetId,
+          classroom: classroomId,
+          actionBy: req.user._id,
+        });
+        const populated = await populateNotification(notification._id);
+        req.app.get('io').to(`user-${user._id}`).emit('notification', populated);
       }
-// compute classroomId (from groupSet or group)
-const classroomId = groupSet?.classroom ? groupSet.classroom._id || groupSet.classroom : group.classroom;
 
-// results array: populate per-user classroom balance
-results.push({
-  id: user._id,
-  newBalance: getClassroomBalance(user, classroomId)
-});
+      // Emit classroom-aware event including classroomId
+      const classroomId = groupSet?.classroom ? groupSet.classroom._id || groupSet.classroom : group.classroom;
+      
+      req.app.get('io').to(`group-${group._id}`).emit('balance_adjust', {
+        groupId: group._id,
+        classroomId,
+        amount: numericAmount,
+        description,
+        results
+      });
 
-// Emit classroom-aware event including classroomId
-req.app.get('io').to(`group-${group._id}`).emit('balance_adjust', {
-  groupId: group._id,
-  classroomId,
-  amount,
-  description,
-  results
-});
-
-// Respond with success and detailed result
-res.json({ 
-  success: true,
-  message: `${results.length} students updated`,
-  results,
-  groupMultiplier: group.groupMultiplier || 1
-});
+      // Respond with success and detailed result
+      res.json({ 
+        success: true,
+        message: `${results.length} students updated`,
+        results,
+        groupMultiplier: group.groupMultiplier || 1
+      });
     } catch (err) {
       console.error('Group balance adjust error:', err);
       res.status(500).json({ 
@@ -201,5 +216,34 @@ router.post('/groupset/:groupSetId/group/:groupId/reset-auto-multiplier', ensure
     res.status(500).json({ error: 'Failed to reset to auto multiplier' });
   }
 });
+
+// Helper function for multiplier notes
+function getMultiplierNote(applyGroup, applyPersonal) {
+  if (!applyGroup && !applyPersonal) {
+    return "All multipliers bypassed by teacher";
+  } else if (!applyGroup) {
+    return "Group multipliers bypassed by teacher";
+  } else if (!applyPersonal) {
+    return "Personal multipliers bypassed by teacher";
+  }
+  return undefined;
+}
+
+// Add the helper functions at the top of the file after imports
+const getClassroomBalance = (user, classroomId) => {
+  if (!Array.isArray(user.classroomBalances)) return 0;
+  const cb = user.classroomBalances.find(cb => String(cb.classroom) === String(classroomId));
+  return cb ? cb.balance : 0;
+};
+
+const updateClassroomBalance = (user, classroomId, newBalance) => {
+  if (!Array.isArray(user.classroomBalances)) user.classroomBalances = [];
+  const idx = user.classroomBalances.findIndex(cb => String(cb.classroom) === String(classroomId));
+  if (idx >= 0) {
+    user.classroomBalances[idx].balance = Math.max(0, newBalance);
+  } else {
+    user.classroomBalances.push({ classroom: classroomId, balance: Math.max(0, newBalance) });
+  }
+};
 
 module.exports = router;

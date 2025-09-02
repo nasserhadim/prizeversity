@@ -200,15 +200,34 @@ router.delete('/groupset/:id', ensureAuthenticated, async (req, res) => {
 // Fetch GroupSets for Classroom
 router.get('/groupset/classroom/:classroomId', ensureAuthenticated, async (req, res) => {
   try {
-  
-const groupSets = await GroupSet.find({ classroom: req.params.classroomId })
-  .populate({
-    path: 'groups',
-    populate: [
-      { path: 'members._id', select: 'email isFrozen firstName lastName' },
-      { path: 'siphonRequests', model: 'SiphonRequest' }
-    ]
-  });
+    const groupSets = await GroupSet.find({ classroom: req.params.classroomId })
+      .populate({
+        path: 'groups',
+        populate: [
+          { 
+            path: 'members._id', 
+            select: 'email isFrozen firstName lastName'
+          },
+          { 
+            path: 'siphonRequests', 
+            model: 'SiphonRequest' 
+          }
+        ]
+      });
+
+    // Clean up any null member references and update multipliers if needed
+    for (const groupSet of groupSets) {
+      for (const group of groupSet.groups) {
+        const originalLength = group.members.length;
+        group.members = group.members.filter(member => member._id !== null);
+        
+        // If we removed null members, update the group
+        if (group.members.length !== originalLength) {
+          await group.updateMultiplier();
+          await group.save();
+        }
+      }
+    }
 
     res.status(200).json(groupSets);
   } catch (err) {

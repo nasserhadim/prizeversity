@@ -146,7 +146,7 @@ const updateClassroomBalance = (user, classroomId, newBalance) => {
 
 // Assign Balance to Student (updated for per-classroom)
 router.post('/assign', ensureAuthenticated, async (req, res) => {
-  const { classroomId, studentId, amount, description } = req.body;
+  const { classroomId, studentId, amount, description, applyGroupMultipliers = true, applyPersonalMultipliers = true } = req.body; // Add separate parameters
 
   // Check Admin/TA permission
   if (req.user.role === 'admin') {
@@ -197,16 +197,23 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
       'members.status': 'approved'
     }).select('groupMultiplier');
 
-    // Get the highest multiplier
-    let multiplier = 1;
+    // Apply multipliers separately
+    let finalMultiplier = 1;
     if (groups.length > 0 && numericAmount >= 0) {
-      multiplier = Math.max(...groups.map(g => g.groupMultiplier || 1));
+      if (applyGroupMultipliers) {
+        finalMultiplier *= Math.max(...groups.map(g => g.groupMultiplier || 1));
+      }
+      if (applyPersonalMultipliers) {
+        finalMultiplier *= (student.passiveAttributes?.multiplier || 1);
+      }
     }
 
     // Use per-classroom balance if classroomId is provided
     if (classroomId) {
       const currentBalance = getClassroomBalance(student, classroomId);
-      const adjustedAmount = numericAmount >= 0 ? Math.round(numericAmount * multiplier) : numericAmount; // Apply multipliers as before
+      const adjustedAmount = (numericAmount >= 0 && (applyGroupMultipliers || applyPersonalMultipliers)) 
+        ? Math.round(numericAmount * finalMultiplier) 
+        : numericAmount;
       const newBalance = Math.max(0, currentBalance + adjustedAmount);
       updateClassroomBalance(student, classroomId, newBalance);
 
@@ -215,12 +222,18 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
         description: description || `Balance adjustment`,
         assignedBy: req.user._id,
         classroom: classroomId,
-        calculation: numericAmount >= 0 ? {
+        calculation: (numericAmount >= 0 && (applyGroupMultipliers || applyPersonalMultipliers)) ? {
           baseAmount: numericAmount,
-          personalMultiplier: 1, // Note: This route doesn't use personal multiplier
-          groupMultiplier: multiplier,
-          totalMultiplier: multiplier,
-        } : undefined,
+          personalMultiplier: applyPersonalMultipliers ? (student.passiveAttributes?.multiplier || 1) : 1,
+          groupMultiplier: applyGroupMultipliers ? Math.max(...groups.map(g => g.groupMultiplier || 1)) : 1,
+          totalMultiplier: finalMultiplier,
+        } : {
+          baseAmount: numericAmount,
+          personalMultiplier: 1,
+          groupMultiplier: 1,
+          totalMultiplier: 1,
+          note: getMultiplierNote(applyGroupMultipliers, applyPersonalMultipliers)
+        },
       });
     } else {
       // Fallback to global balance
@@ -232,8 +245,8 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
         calculation: numericAmount >= 0 ? {
           baseAmount: numericAmount,
           personalMultiplier: 1, // Note: This route doesn't use personal multiplier
-          groupMultiplier: multiplier,
-          totalMultiplier: multiplier,
+          groupMultiplier: finalMultiplier,
+          totalMultiplier: finalMultiplier,
         } : undefined,
       });
     }
@@ -290,7 +303,7 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
     });
   }
 
-  const { classroomId, updates } = req.body;
+  const { classroomId, updates, applyGroupMultipliers = true, applyPersonalMultipliers = true } = req.body; // Add separate parameters
   const customDescription = req.body.description;
 
   const roleLabel = req.user.role === 'admin' ? 'Admin/TA' : 'Teacher';
@@ -369,11 +382,20 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
       // Get all multipliers
       const groupMultiplier = await getGroupMultiplierForStudentInClassroom(studentId, classroomId);
       const passiveMultiplier = student.passiveAttributes?.multiplier || 1;
-      const totalMultiplier = groupMultiplier * passiveMultiplier;
+      
+      // Apply multipliers separately based on flags
+      let finalMultiplier = 1;
+      if (numericAmount >= 0) {
+        if (applyGroupMultipliers) {
+          finalMultiplier *= groupMultiplier;
+        }
+        if (applyPersonalMultipliers) {
+          finalMultiplier *= passiveMultiplier;
+        }
+      }
 
-      // Apply multiplier only for positive amounts
-      const adjustedAmount = numericAmount >= 0
-        ? Math.round(numericAmount * totalMultiplier)
+      const adjustedAmount = (numericAmount >= 0 && (applyGroupMultipliers || applyPersonalMultipliers))
+        ? Math.round(numericAmount * finalMultiplier)
         : numericAmount;
 
       // Update per-classroom balance when classroomId provided; otherwise fallback to global balance
@@ -391,12 +413,18 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
         assignedBy: req.user._id,
         createdAt: new Date(),
         classroom: classroomId || null,
-        calculation: numericAmount >= 0 ? {
+        calculation: (numericAmount >= 0 && (applyGroupMultipliers || applyPersonalMultipliers)) ? {
           baseAmount: numericAmount,
-          personalMultiplier: passiveMultiplier,
-          groupMultiplier: groupMultiplier,
-          totalMultiplier: totalMultiplier,
-        } : undefined,
+          personalMultiplier: applyPersonalMultipliers ? passiveMultiplier : 1,
+          groupMultiplier: applyGroupMultipliers ? groupMultiplier : 1,
+          totalMultiplier: finalMultiplier,
+        } : {
+          baseAmount: numericAmount,
+          personalMultiplier: 1,
+          groupMultiplier: 1,
+          totalMultiplier: 1,
+          note: getMultiplierNote(applyGroupMultipliers, applyPersonalMultipliers)
+        },
       });
 
       await student.save();
@@ -467,7 +495,8 @@ router.post(
     if (senderLive.isFrozen) {
       return res.status(403).json({ error: 'Your account is frozen during a siphon request' });
     }
-    const { recipientShortId: recipientId, amount, classroomId } = req.body;
+
+    const { recipientShortId: recipientId, amount, classroomId, message } = req.body; // Add message
 
     // Prevent student transfers if disabled by teacher
     if (req.user.role === 'student' && classroomId) {
@@ -495,34 +524,48 @@ router.post(
     }
 
     // Update balances (use inside the transfer/assign handler where numericAmount/adjustedAmount/classroomId are available)
-const senderBalance = classroomId ? getClassroomBalance(sender, classroomId) : (sender.balance || 0);
-if (senderBalance < numericAmount) {
-  return res.status(400).json({ error: 'Insufficient balance' });
-}
+    const senderBalance = classroomId ? getClassroomBalance(sender, classroomId) : (sender.balance || 0);
+    if (senderBalance < numericAmount) {
+      return res.status(400).json({ error: 'Insufficient balance' });
+    }
 
-if (classroomId) {
-  updateClassroomBalance(sender, classroomId, Math.max(0, senderBalance - numericAmount));
-  const recipientBalance = getClassroomBalance(recipient, classroomId);
-  updateClassroomBalance(recipient, classroomId, recipientBalance + adjustedAmount);
-} else {
-  sender.balance = (sender.balance || 0) - numericAmount;
-  recipient.balance = (recipient.balance || 0) + adjustedAmount;
-}
+    if (classroomId) {
+      updateClassroomBalance(sender, classroomId, Math.max(0, senderBalance - numericAmount));
+      const recipientBalance = getClassroomBalance(recipient, classroomId);
+      updateClassroomBalance(recipient, classroomId, recipientBalance + adjustedAmount);
+    } else {
+      sender.balance = (sender.balance || 0) - numericAmount;
+      recipient.balance = (recipient.balance || 0) + adjustedAmount;
+    }
 
-// Add transactions (keep classroom reference)
-sender.transactions.push({
-  amount: -numericAmount,
-  description: `Transferred to ${label(recipient)}`,
-  classroom: classroomId || null,
-  createdAt: new Date()
-});
-recipient.transactions.push({
-  amount: adjustedAmount,
-  description: `Received from ${label(sender)}`,
-  assignedBy: sender._id,
-  classroom: classroomId || null,
-  createdAt: new Date()
-});
+    // Create custom descriptions based on whether a message was provided
+    const baseDescription = message ? 
+      `Transfer: ${message}` : 
+      `Transferred to ${label(recipient)}`;
+    
+    const senderDescription = message ?
+      `Sent to ${label(recipient)}: ${message}` :
+      `Transferred to ${label(recipient)}`;
+    
+    const recipientDescription = message ?
+      `Received from ${label(sender)}: ${message}` :
+      `Received from ${label(sender)}`;
+
+    // Add transactions (keep classroom reference)
+    sender.transactions.push({
+      amount: -numericAmount,
+      description: senderDescription,
+      assignedBy: sender._id,
+      classroom: classroomId || null,
+      createdAt: new Date()
+    });
+    recipient.transactions.push({
+      amount: adjustedAmount,
+      description: recipientDescription,
+      assignedBy: sender._id,
+      classroom: classroomId || null,
+      createdAt: new Date()
+    });
 
     await sender.save();
     await recipient.save();
@@ -537,11 +580,20 @@ recipient.transactions.push({
       if (classroom) classroomName = ` in "${classroom.name}${classroom.code ? ` (${classroom.code})` : ''}"`;
     }
     
+    // Update notification messages to include custom message if provided
+    const senderNotificationMessage = message ?
+      `You sent ${numericAmount} ₿ to ${label(recipient)} with message: "${message}".` :
+      `You sent ${numericAmount} ₿ to ${label(recipient)}.`;
+    
+    const recipientNotificationMessage = message ?
+      `You received ${adjustedAmount} ₿ from ${label(sender)} with message: "${message}".` :
+      `You received ${adjustedAmount} ₿ from ${label(sender)}.`;
+    
     const senderNotification = await Notification.create({
       user: sender._id,
       actionBy: sender._id,
       type: 'wallet_transaction',
-      message: `You sent ${numericAmount} ₿ to ${label(recipient)}.`,
+      message: senderNotificationMessage,
       classroom: classroomId,
       createdAt: new Date()
     });
@@ -552,7 +604,7 @@ recipient.transactions.push({
       user: recipient._id,
       actionBy: sender._id,
       type: 'wallet_transaction',
-      message: `You received ${adjustedAmount} ₿ from ${label(sender)}.`,
+      message: recipientNotificationMessage,
       classroom: classroomId,
       createdAt: new Date()
     });
@@ -581,5 +633,17 @@ router.get('/:userId/balance', ensureAuthenticated, async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch balance' });
   }
 });
+
+// Helper function to generate appropriate note
+function getMultiplierNote(applyGroup, applyPersonal) {
+  if (!applyGroup && !applyPersonal) {
+    return "All multipliers bypassed by teacher";
+  } else if (!applyGroup) {
+    return "Group multipliers bypassed by teacher";
+  } else if (!applyPersonal) {
+    return "Personal multipliers bypassed by teacher";
+  }
+  return undefined;
+}
 
 module.exports = router;

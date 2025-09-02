@@ -13,6 +13,8 @@ const BulkBalanceEditor = ({onSuccess}) => {
   const [step, setStep] = useState('select'); 
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
+  const [applyGroupMultipliers, setApplyGroupMultipliers] = useState(true); // Separate group multipliers
+  const [applyPersonalMultipliers, setApplyPersonalMultipliers] = useState(true); // Separate personal multipliers
   const [taBitPolicy, setTaBitPolicy] = useState('full');
   const [search, setSearch] = useState('');
   const userIsTeacher = (user?.role || '').toLowerCase() === 'teacher';
@@ -78,7 +80,9 @@ const BulkBalanceEditor = ({onSuccess}) => {
     const res = await axios.post('/api/wallet/assign/bulk', {
       classroomId,                     
       updates,
-      description
+      description,
+      applyGroupMultipliers, // Add separate parameter
+      applyPersonalMultipliers // Add separate parameter
     }, { withCredentials: true });
 
     // if Admin/TA policy = approval, server responds 202
@@ -198,6 +202,50 @@ const BulkBalanceEditor = ({onSuccess}) => {
             value={description}
             onChange={e => setDescription(e.target.value)}
           />
+          
+          {/* Updated multiplier toggles - separate controls */}
+          <div className="space-y-3 mb-4">
+            <div className="form-control">
+              <label className="label cursor-pointer">
+                <span className="label-text">Apply group multipliers</span>
+                <input 
+                  type="checkbox" 
+                  className="toggle toggle-primary" 
+                  checked={applyGroupMultipliers}
+                  onChange={(e) => setApplyGroupMultipliers(e.target.checked)}
+                />
+              </label>
+              <div className="label">
+                <span className="label-text-alt text-gray-500">
+                  {applyGroupMultipliers 
+                    ? "Group multipliers will be applied to positive amounts" 
+                    : "Group multipliers will be ignored"
+                  }
+                </span>
+              </div>
+            </div>
+            
+            <div className="form-control">
+              <label className="label cursor-pointer">
+                <span className="label-text">Apply personal multipliers</span>
+                <input 
+                  type="checkbox" 
+                  className="toggle toggle-primary" 
+                  checked={applyPersonalMultipliers}
+                  onChange={(e) => setApplyPersonalMultipliers(e.target.checked)}
+                />
+              </label>
+              <div className="label">
+                <span className="label-text-alt text-gray-500">
+                  {applyPersonalMultipliers 
+                    ? "Personal multipliers will be applied to positive amounts" 
+                    : "Personal multipliers will be ignored"
+                  }
+                </span>
+              </div>
+            </div>
+          </div>
+
           <div className="flex gap-2">
             <button className="btn btn-outline flex-1" onClick={back}>Back</button>
             <button
