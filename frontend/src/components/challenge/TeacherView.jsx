@@ -231,32 +231,69 @@ const TeacherView = ({
       for (const uc of challengeData.userChallenges) {
         if (uc.progress === 6 || uc.currentChallenge === 6) {
           try {
-            const response = await fetch(`/api/challenges/challenge7/${uc.uniqueId}`, {
-              credentials: 'include'
+            const timestamp = Date.now();
+            const response = await fetch(`/api/challenges/challenge7/${uc.uniqueId}?t=${timestamp}&bustCache=true`, {
+              credentials: 'include',
+              headers: {
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+              }
             });
             
             if (response.ok) {
               const data = await response.json();
+              
+              if (data.uniqueId && data.uniqueId !== uc.uniqueId) {
+                console.warn(`Challenge 7 data mismatch! Expected ${uc.uniqueId}, got ${data.uniqueId}`);
+                continue;
+              }
+              
+              const uniqueWords = [...new Set(data.words.map(w => w.toLowerCase()))];
               newChallenge7Data[uc.uniqueId] = {
                 quote: data.quote,
                 author: data.author,
                 words: data.words,
-                wordTokens: data.wordTokens
+                uniqueWords: uniqueWords,
+                wordTokens: data.wordTokens,
+                uniqueId: data.uniqueId || uc.uniqueId,
+                fetchedAt: timestamp
+              };
+            } else {
+              console.error(`Failed to fetch Challenge 7 data for ${uc.uniqueId}:`, response.status);
+              newChallenge7Data[uc.uniqueId] = {
+                quote: 'Error loading - please refresh',
+                author: 'Error',
+                words: [],
+                uniqueWords: [],
+                wordTokens: {},
+                uniqueId: uc.uniqueId,
+                error: true
               };
             }
           } catch (error) {
             console.error('Error fetching Challenge 7 data:', error);
             newChallenge7Data[uc.uniqueId] = {
-              quote: 'Error loading',
+              quote: 'Connection error - please refresh',
               author: 'Error',
               words: [],
-              wordTokens: {}
+              uniqueWords: [],
+              wordTokens: {},
+              uniqueId: uc.uniqueId,
+              error: true
             };
           }
         }
       }
       
-      setChallenge7Data(newChallenge7Data);
+      setChallenge7Data(prevData => {
+        const hasChanges = Object.keys(newChallenge7Data).some(uniqueId => 
+          !prevData[uniqueId] || 
+          prevData[uniqueId].quote !== newChallenge7Data[uniqueId].quote ||
+          prevData[uniqueId].error !== newChallenge7Data[uniqueId].error
+        );
+        
+        return hasChanges ? { ...prevData, ...newChallenge7Data } : prevData;
+      });
     };
 
     fetchChallenge7Data();
@@ -513,18 +550,24 @@ const TeacherView = ({
                                 ) : (
                                   <>
                                     <div className="text-sm text-red-600 font-medium">
-                                      Quote: "{challenge7Data[uc.uniqueId]?.quote || 'Loading...'}"
+                                      {challenge7Data[uc.uniqueId]?.error ? (
+                                        <span className="text-orange-600">⚠️ {challenge7Data[uc.uniqueId]?.quote}</span>
+                                      ) : (
+                                        <>Quote: "{challenge7Data[uc.uniqueId]?.quote || 'Loading...'}"</>
+                                      )}
                                     </div>
-                                    <div className="text-xs text-gray-500">
-                                      By: {challenge7Data[uc.uniqueId]?.author || 'Loading...'}
-                                    </div>
-                                    {uc.challenge7Progress && (
+                                    {!challenge7Data[uc.uniqueId]?.error && (
+                                      <div className="text-xs text-gray-500">
+                                        By: {challenge7Data[uc.uniqueId]?.author || 'Loading...'}
+                                      </div>
+                                    )}
+                                    {uc.challenge7Progress && !challenge7Data[uc.uniqueId]?.error && (
                                       <div className="text-xs text-blue-600 font-medium">
-                                        Progress: {uc.challenge7Progress.revealedWords?.length || 0}/{uc.challenge7Progress.totalWords || challenge7Data[uc.uniqueId]?.words?.length || '?'} words revealed ({((uc.challenge7Progress.revealedWords?.length || 0) / (uc.challenge7Progress.totalWords || challenge7Data[uc.uniqueId]?.words?.length || 1) * 100).toFixed(1)}%)
+                                        Progress: {uc.challenge7Progress.revealedWords?.length || 0}/{uc.challenge7Progress.totalWords || challenge7Data[uc.uniqueId]?.uniqueWords?.length || '?'} unique words revealed ({((uc.challenge7Progress.revealedWords?.length || 0) / (uc.challenge7Progress.totalWords || challenge7Data[uc.uniqueId]?.uniqueWords?.length || 1) * 100).toFixed(1)}%)
                                       </div>
                                     )}
                                     <div className="text-xs text-gray-500">
-                                      Hangman Challenge
+                                      Hangman Challenge {challenge7Data[uc.uniqueId]?.uniqueId ? `(ID: ${challenge7Data[uc.uniqueId].uniqueId})` : ''}
                                     </div>
                                   </>
                                 )}
@@ -606,21 +649,30 @@ const TeacherView = ({
                                   <div className="text-sm text-green-600 font-semibold">
                                     ✅ Hangman Complete - All words revealed
                                   </div>
+                                ) : challenge7Data[uc.uniqueId]?.error ? (
+                                  <div className="text-sm text-orange-600 font-semibold">
+                                    ⚠️ Data loading error - please refresh page
+                                  </div>
                                 ) : (
                                   <div className="space-y-2">
                                     <div className="bg-gray-50 border border-gray-200 rounded p-2">
                                       <div className="text-xs font-semibold text-gray-700 mb-1">
-                                        Progress: {uc.challenge7Progress?.revealedWords?.length || 0}/{challenge7Data[uc.uniqueId]?.words?.length || '?'} words 
-                                        ({((uc.challenge7Progress?.revealedWords?.length || 0) / (challenge7Data[uc.uniqueId]?.words?.length || 1) * 100).toFixed(0)}%)
+                                        Progress: {uc.challenge7Progress?.revealedWords?.length || 0}/{challenge7Data[uc.uniqueId]?.uniqueWords?.length || '?'} unique words 
+                                        ({((uc.challenge7Progress?.revealedWords?.length || 0) / (challenge7Data[uc.uniqueId]?.uniqueWords?.length || 1) * 100).toFixed(0)}%)
                                       </div>
                                       <div className="w-full bg-gray-200 rounded-full h-2">
                                         <div 
                                           className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
                                           style={{
-                                            width: `${((uc.challenge7Progress?.revealedWords?.length || 0) / (challenge7Data[uc.uniqueId]?.words?.length || 1) * 100)}%`
+                                            width: `${((uc.challenge7Progress?.revealedWords?.length || 0) / (challenge7Data[uc.uniqueId]?.uniqueWords?.length || 1) * 100)}%`
                                           }}
                                         ></div>
                                       </div>
+                                      {challenge7Data[uc.uniqueId]?.uniqueId && (
+                                        <div className="text-xs text-gray-500 mt-1">
+                                          Challenge ID: {challenge7Data[uc.uniqueId].uniqueId}
+                                        </div>
+                                      )}
                                     </div>
                                     
                                     <details className="bg-gray-50 border border-gray-200 rounded">
@@ -629,51 +681,55 @@ const TeacherView = ({
                                       </summary>
                                       <div className="p-2 border-t border-gray-200 max-h-40 overflow-y-auto">
                                         <div className="grid grid-cols-1 gap-1">
-                                          {challenge7Data[uc.uniqueId]?.words?.map((word, idx) => {
-                                            const isRevealed = uc.challenge7Progress?.revealedWords?.includes(word.toLowerCase());
-                                            const teacherRevealKey = `${uc._id}-${word.toLowerCase()}`;
-                                            const isTeacherRevealed = showPasswords[teacherRevealKey];
-                                            const shouldShowTokens = isRevealed || isTeacherRevealed;
-                                            
-                                            return (
-                                              <div key={idx} className={`flex items-center justify-between p-2 rounded text-xs ${isRevealed ? 'bg-green-50 border border-green-200' : shouldShowTokens ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50 border border-gray-200'}`}>
-                                                <div className="flex items-center gap-2">
-                                                  <span className={`font-mono ${isRevealed ? 'text-green-700 font-semibold' : shouldShowTokens ? 'text-blue-700 font-semibold' : 'text-gray-500'}`}>
-                                                    {isRevealed ? '✅' : shouldShowTokens ? '👁️' : '⬜'} "{word}"
-                                                  </span>
-                                                  {isRevealed && (
-                                                    <span className="text-xs text-green-600 bg-green-100 px-1 py-0.5 rounded">Student solved</span>
-                                                  )}
+                                          {challenge7Data[uc.uniqueId]?.uniqueWords?.length > 0 ? (
+                                            challenge7Data[uc.uniqueId].uniqueWords.map((word, idx) => {
+                                              const isRevealed = uc.challenge7Progress?.revealedWords?.includes(word.toLowerCase());
+                                              const teacherRevealKey = `${uc._id}-${word.toLowerCase()}`;
+                                              const isTeacherRevealed = showPasswords[teacherRevealKey];
+                                              const shouldShowTokens = isRevealed || isTeacherRevealed;
+                                              
+                                              return (
+                                                <div key={`${uc.uniqueId}-${word}-${idx}`} className={`flex items-center justify-between p-2 rounded text-xs ${isRevealed ? 'bg-green-50 border border-green-200' : shouldShowTokens ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50 border border-gray-200'}`}>
+                                                  <div className="flex items-center gap-2">
+                                                    <span className={`font-mono ${isRevealed ? 'text-green-700 font-semibold' : shouldShowTokens ? 'text-blue-700 font-semibold' : 'text-gray-500'}`}>
+                                                      {isRevealed ? '✅' : shouldShowTokens ? '👁️' : '⬜'} "{word}"
+                                                    </span>
+                                                    {isRevealed && (
+                                                      <span className="text-xs text-green-600 bg-green-100 px-1 py-0.5 rounded">Student solved</span>
+                                                    )}
+                                                  </div>
+                                                  <div className="flex items-center gap-1">
+                                                    {shouldShowTokens ? (
+                                                      <code className={`px-2 py-1 rounded text-xs font-mono border ${isRevealed ? 'bg-green-100 text-green-700 border-green-200' : 'bg-blue-100 text-blue-700 border-blue-200'}`}>
+                                                        {challenge7Data[uc.uniqueId]?.wordTokens?.[word.toLowerCase()]?.join(', ') || 'Loading...'}
+                                                      </code>
+                                                    ) : (
+                                                      <button
+                                                        onClick={() => togglePasswordVisibility(teacherRevealKey)}
+                                                        className="btn btn-xs btn-outline btn-primary gap-1 hover:btn-primary"
+                                                        title="Reveal token for this word"
+                                                      >
+                                                        <Eye className="w-3 h-3" />
+                                                        Reveal
+                                                      </button>
+                                                    )}
+                                                    {shouldShowTokens && (
+                                                      <button
+                                                        onClick={() => togglePasswordVisibility(teacherRevealKey)}
+                                                        className="btn btn-xs btn-ghost gap-1"
+                                                        title="Hide token"
+                                                      >
+                                                        <EyeOff className="w-3 h-3" />
+                                                      </button>
+                                                    )}
+                                                  </div>
                                                 </div>
-                                                <div className="flex items-center gap-1">
-                                                  {shouldShowTokens ? (
-                                                    <code className={`px-2 py-1 rounded text-xs font-mono border ${isRevealed ? 'bg-green-100 text-green-700 border-green-200' : 'bg-blue-100 text-blue-700 border-blue-200'}`}>
-                                                      {challenge7Data[uc.uniqueId]?.wordTokens?.[word.toLowerCase()]?.join(', ') || 'Loading...'}
-                                                    </code>
-                                                  ) : (
-                                                    <button
-                                                      onClick={() => togglePasswordVisibility(teacherRevealKey)}
-                                                      className="btn btn-xs btn-outline btn-primary gap-1 hover:btn-primary"
-                                                      title="Reveal token for this word"
-                                                    >
-                                                      <Eye className="w-3 h-3" />
-                                                      Reveal
-                                                    </button>
-                                                  )}
-                                                  {shouldShowTokens && (
-                                                    <button
-                                                      onClick={() => togglePasswordVisibility(teacherRevealKey)}
-                                                      className="btn btn-xs btn-ghost gap-1"
-                                                      title="Hide token"
-                                                    >
-                                                      <EyeOff className="w-3 h-3" />
-                                                    </button>
-                                                  )}
-                                                </div>
-                                              </div>
-                                            );
-                                          }) || (
-                                            <div className="text-xs text-gray-500 p-2">Loading word data...</div>
+                                              );
+                                            })
+                                          ) : (
+                                            <div className="text-xs text-gray-500 p-2">
+                                              {challenge7Data[uc.uniqueId]?.error ? 'Error loading word data' : 'Loading word data...'}
+                                            </div>
                                           )}
                                         </div>
                                       </div>
