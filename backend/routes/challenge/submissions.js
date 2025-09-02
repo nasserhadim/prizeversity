@@ -413,29 +413,39 @@ router.post('/submit-challenge6', ensureAuthenticated, async (req, res) => {
     const isCorrect = userTokens.some(token => validTokens.includes(token));
     
     if (isCorrect) {
-      const rewards = generateRewards(userId, uniqueId, challenge);
+      const challengeIndex = 5;
+      const user = await User.findById(userId);
+      let rewards = {
+        bits: 0,
+        multiplier: 0,
+        luck: 1.0,
+        discount: 0,
+        shield: false,
+      };
+
+      if (user) {
+        rewards = calculateChallengeRewards(user, challenge, challengeIndex, userChallenge);
+        await user.save();
+      }
       
       if (!userChallenge.completedChallenges) {
-        userChallenge.completedChallenges = {};
-      }
-      if (!userChallenge.challengeRewards) {
-        userChallenge.challengeRewards = {};
+        userChallenge.completedChallenges = [false, false, false, false, false, false, false];
       }
       
       userChallenge.completedChallenges[5] = true;
-      userChallenge.challengeRewards[5] = rewards;
+      userChallenge.progress = userChallenge.completedChallenges.filter(Boolean).length;
       userChallenge.lastCompletedAt = new Date();
       
       await challenge.save();
       
-      await User.findByIdAndUpdate(userId, {
-        $inc: { bits: rewards.bits, multiplier: rewards.multiplier }
-      });
-      
       return res.json({
         success: true,
         message: 'Challenge completed successfully!',
-        rewards
+        challengeName: CHALLENGE_NAMES[5],
+        rewards: rewards,
+        progress: userChallenge.progress,
+        allCompleted: userChallenge.progress >= 7,
+        nextChallenge: userChallenge.progress < 6 ? CHALLENGE_NAMES[userChallenge.progress] : null
       });
     }
     
