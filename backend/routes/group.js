@@ -206,7 +206,6 @@ const groupSets = await GroupSet.find({ classroom: req.params.classroomId })
     path: 'groups',
     populate: [
       { path: 'members._id', select: 'email isFrozen firstName lastName' },
-      
       { path: 'siphonRequests', model: 'SiphonRequest' }
     ]
   });

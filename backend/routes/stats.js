@@ -4,7 +4,7 @@ const { ensureAuthenticated } = require('../config/auth');
 const User = require('../models/User');
 const Item = require('../models/Item');
 const Classroom = require('../models/Classroom');
-const mongoose = require('mongoose'); // <-- add if not already present
+const mongoose = require('mongoose');
 
 // Will show all the attributes (that can be earned from the items from bazaar)in the statistics page
 
@@ -45,13 +45,15 @@ router.get('/student/:id', ensureAuthenticated, async (req, res) => {
 
     const passiveItems = (items || []).filter((item) => item.category === 'Passive');
 
+    // Return actual user stats (updated by challenges and items)
     return res.json({
       student: {
         name: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
         email: user.email,
       },
       shieldActive: !!user.shieldActive,
-      discountShop: user.discountShop ? 20 : 0,
+      shieldCount: user.shieldCount || 0,
+      discountShop: user.discountShop ? 20 : 0, // Return as number
       attackPower: attackCount,
       luck: user.passiveAttributes?.luck || 1,
       multiplier: user.passiveAttributes?.multiplier || 1,
