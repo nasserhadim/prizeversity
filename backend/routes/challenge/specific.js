@@ -353,4 +353,65 @@ router.get('/check-completion/:uniqueId/:challengeIndex', ensureAuthenticated, a
   }
 });
 
+router.get('/challenge-data/:classroomId', ensureAuthenticated, async (req, res) => {
+  try {
+    const { classroomId } = req.params;
+    const userId = req.user._id;
+
+    console.log('Fetching classroom with ID:', classroomId);
+
+    // Fetch classroom data separately
+    const Classroom = require('../../models/Classroom');
+    const classroom = await Classroom.findById(classroomId).select('name code');
+    console.log('Found classroom:', classroom);
+
+    const challenge = await Challenge.findOne({ classroomId });
+    console.log('Found challenge:', !!challenge);
+    
+    if (!challenge) {
+      return res.json({ 
+        challenge: null, 
+        classroom: classroom,
+        userChallenge: null 
+      });
+    }
+
+    const userChallenge = challenge.userChallenges.find(uc => uc.userId.toString() === userId.toString());
+
+    const challengeData = {
+      uniqueId: challenge.uniqueId,
+      classroomId: challenge.classroomId,
+      description: challenge.description,
+      createdAt: challenge.createdAt,
+      updatedAt: challenge.updatedAt,
+      userId: challenge.userId,
+      userChallenges: challenge.userChallenges.map(uc => ({
+        uniqueId: uc.uniqueId,
+        userId: uc.userId,
+        challenge1StartTime: uc.challenge1StartTime,
+        challenge1Attempts: uc.challenge1Attempts,
+        challenge1MaxAttempts: uc.challenge1MaxAttempts,
+        challenge2StartTime: uc.challenge2StartTime,
+        challenge2Attempts: uc.challenge2Attempts,
+        challenge2MaxAttempts: uc.challenge2MaxAttempts,
+        challenge3StartTime: uc.challenge3StartTime,
+        challenge3Attempts: uc.challenge3Attempts,
+        challenge3MaxAttempts: uc.challenge3MaxAttempts,
+        completedChallenges: uc.completedChallenges
+      }))
+    };
+
+    res.json({
+      challenge: challengeData,
+      classroom: classroom,
+      userChallenge,
+      isTeacher: challenge.userId.toString() === userId.toString()
+    });
+
+  } catch (error) {
+    console.error('Error fetching challenge data:', error);
+    res.status(500).json({ error: 'Failed to fetch challenge data' });
+  }
+});
+
 module.exports = router;

@@ -18,8 +18,12 @@ export const useChallengeData = (classroomId) => {
   const fetchChallengeData = async () => {
     try {
       setLoading(true);
+      console.log('Fetching challenge data for classroomId:', classroomId);
       const response = await getChallengeData(classroomId);
+      console.log('Challenge API response:', response);
       setChallengeData(response.challenge || null);
+      console.log('Setting classroom data:', response.classroom);
+      setClassroom(response.classroom || null);
       
       const newProgress = response.userChallenge?.progress || 0;
       
@@ -27,7 +31,7 @@ export const useChallengeData = (classroomId) => {
       setPreviousProgress(newProgress);
       setIsTeacher(response.isTeacher);
       
-      if (!classroom) {
+     if (!response.classroom) {
         const classroomResponse = await fetch(`${API_BASE}/api/classroom/${classroomId}`, {
           credentials: 'include'
         });
