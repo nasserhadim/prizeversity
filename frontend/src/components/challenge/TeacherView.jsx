@@ -278,7 +278,7 @@ const TeacherView = ({
           {!challengeData || !challengeData.isActive ? (
             <button
               onClick={handleShowConfigModal}
-              className="btn btn-error btn-lg gap-2"
+              className="btn btn-error btn-lg gap-2 flex-wrap text-sm sm:text-base"
             >
               <Settings className="w-5 h-5" />
               Configure & Launch Challenge Series

@@ -595,6 +595,16 @@ const Navbar = () => {
                   <Trophy size={20} />
                   <span>Leaderboard</span>
                 </Link>
+                
+                {/* ADD: Challenge link for mobile menu */}
+                <Link
+                  to={`/classroom/${classroomId}/challenge`}
+                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname.startsWith(`/classroom/${classroomId}/challenge`) ? 'text-green-500' : ''}`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <Shield size={20} />
+                  <span>Challenge</span>
+                </Link>
 
                 {/* ADDED: Feedback link for mobile/hamburger menu */}
                 <Link
