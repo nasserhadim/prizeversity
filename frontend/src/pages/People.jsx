@@ -641,23 +641,29 @@ const People = () => {
                            <p className="text-gray-500">No members</p>
                         ) : (
                           <ul className="list-disc ml-5 space-y-1">
-                            {group.members.map((m) => (
-                              <li key={m._id._id} className="flex justify-between items-center w-full">
-                                 <span>
-                                  {m._id.firstName || m._id.lastName
-                                    ? `${m._id.firstName || ''} ${m._id.lastName || ''}`.trim()
-                                    : m._id.name || m._id.email}
-                                </span>
-                                <button
-                                  className="btn btn-sm btn-outline ml-4"
-                                  onClick={() => navigate(`/classroom/${classroomId}/profile/${m._id._id}`)}
-                                >
-                                  View Profile
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
+                            {group.members
+                              .filter(m => m && m._id) // skip deleted / null members
+                              .map((m) => {
+                                const user = m._id;
+                                const userId = user._id || user; // handle populated object or raw id
+                                const displayName = user && (user.firstName || user.lastName)
+                                  ? `${user.firstName || ''} ${user.lastName || ''}`.trim()
+                                  : user?.name || user?.email || 'Unknown User';
+
+                                return (
+                                  <li key={String(userId)} className="flex justify-between items-center w-full">
+                                    <span>{displayName}</span>
+                                    <button
+                                      className="btn btn-sm btn-outline ml-4"
+                                      onClick={() => navigate(`/classroom/${classroomId}/profile/${userId}`)}
+                                    >
+                                      View Profile
+                                    </button>
+                                  </li>
+                                );
+                              })}
+                        </ul>
+                      )}
                       </div>
                      ))}
                   </div>

@@ -417,7 +417,11 @@ const Challenge = () => {
       <div className="card bg-base-100 border border-base-200 shadow-md rounded-2xl p-6">
         <div className="flex items-center gap-3 mb-4">
           <Shield className="w-8 h-8 text-red-500" />
-          <h1 className="text-3xl font-bold text-base-content">Cyber Challenge</h1>
+          <h1 className="text-3xl font-bold text-base-content">
+            {classroom?.name
+              ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''} - Cyber Challenge`
+              : 'Cyber Challenge'}
+          </h1>
         </div>
         
         {challengeData?.settings?.dueDateEnabled && challengeData?.settings?.dueDate && (
