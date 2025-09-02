@@ -18,13 +18,16 @@ const cleanupUserFromGroups = async (userId) => {
 
     // Remove user from each group and update multipliers
     for (const group of groups) {
-      const wasInGroup = group.members.some(member => member._id.equals(userId));
-      if (wasInGroup) {
-        group.members = group.members.filter(member => !member._id.equals(userId));
+      const initialLength = group.members.length;
+      group.members = group.members.filter(member => !member._id.equals(userId));
+      
+      if (group.members.length !== initialLength) {
         await group.save();
         
         // Update group multiplier after member removal
         await group.updateMultiplier();
+        
+        console.log(`Updated group ${group.name}: ${initialLength} -> ${group.members.length} members, multiplier: ${group.groupMultiplier}`);
       }
     }
   } catch (err) {
@@ -426,12 +429,24 @@ router.delete('/delete-account', ensureAuthenticated, async (req, res) => {
   try {
     const userId = req.user._id;
     
-    // Clean up user from all groups first
+    // Find all classrooms this user was in
+    const user = await User.findById(userId).populate('classrooms');
+    const classroomIds = user.classrooms.map(c => c._id);
+    
+    // Clean up user from groups first
     await cleanupUserFromGroups(userId);
     
-    // Add any other cleanup logic here (remove from classrooms, etc.)
-    
+    // Delete the user
     await User.findByIdAndDelete(userId);
+    
+    // Emit updates to all affected classrooms
+    for (const classroomId of classroomIds) {
+      req.app.get('io').to(`classroom-${classroomId}`).emit('user_deleted', {
+        userId,
+        classroomId
+      });
+    }
+    
     res.status(200).json({ message: 'Account deleted successfully' });
   } catch (err) {
     console.error('Account deletion error:', err);

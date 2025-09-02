@@ -135,6 +135,14 @@ const Groups = () => {
     socket.on('siphon_create', fetchGroupSets);
     socket.on('siphon_vote', fetchGroupSets);
     socket.on('siphon_update', fetchGroupSets);
+    
+    // Add this new listener here
+    socket.on('user_deleted', (data) => {
+      if (data.classroomId === id) {
+        console.log('User deleted, refreshing groups...');
+        fetchGroupSets();
+      }
+    });
 
     return () => {
       socket.off('group_update', fetchGroupSets);
@@ -142,6 +150,8 @@ const Groups = () => {
       socket.off('siphon_create', fetchGroupSets);
       socket.off('siphon_vote', fetchGroupSets);
       socket.off('siphon_update', fetchGroupSets);
+      // Add cleanup for the new listener
+      socket.off('user_deleted');
     };
   }, [id]);
 
@@ -424,7 +434,7 @@ const Groups = () => {
 
     // Check if student already has an APPROVED membership in this GroupSet
     const alreadyApprovedInGroupSet = groupSet.groups.some(group =>
-      group.members.some(m => m._id._id === user._id && m.status === 'approved')
+      group.members.some(m => m._id && m._id._id === user._id && m.status === 'approved')
     );
 
     if (user.role === 'student' && alreadyApprovedInGroupSet) {
@@ -434,12 +444,12 @@ const Groups = () => {
 
     // Check if student already has a PENDING request in this GroupSet
     const hasPendingInGroupSet = groupSet.groups.some(group =>
-      group.members.some(m => m._id._id === user._id && m.status === 'pending')
+      group.members.some(m => m._id && m._id._id === user._id && m.status === 'pending')
     );
 
     if (user.role === 'student' && hasPendingInGroupSet) {
       const pendingGroup = groupSet.groups.find(group =>
-        group.members.some(m => m._id._id === user._id && m.status === 'pending')
+        group.members.some(m => m._id && m._id._id === user._id && m.status === 'pending')
       );
       toast.error(`You already have a pending request in "${pendingGroup.name}". Cancel that request first.`);
       return;
@@ -1042,7 +1052,7 @@ const Groups = () => {
                         <div>
                           <h5 className="font-semibold">{group.name}</h5>
                           <p className="text-sm">
-                            Members: {group.members.length}/{group.maxMembers || 'No limit'} • 
+                            Members: {group.members.filter(m => m._id).length}/{group.maxMembers || 'No limit'} • 
                             Multiplier: {group.groupMultiplier || 1}x
                             {group.isAutoMultiplier ? (
                               <span className="text-green-600 text-xs ml-1">(Auto)</span>
@@ -1066,23 +1076,23 @@ const Groups = () => {
 
                     <div className="flex gap-2 flex-wrap mt-2">
                       {user.role === 'student' && (() => {
-                        const studentMembership = group.members.find(m => m._id._id === user._id);
+                        const studentMembership = group.members.find(m => m._id && m._id._id === user._id);
                         const isApproved = studentMembership?.status === 'approved';
                         const isPending = studentMembership?.status === 'pending';
 
                         // Check if student is already approved in ANY group in this GroupSet
                         const alreadyApprovedInGroupSet = gs.groups.some(g =>
-                          g.members.some(m => m._id._id === user._id && m.status === 'approved')
+                          g.members.some(m => m._id && m._id._id === user._id && m.status === 'approved')
                         );
 
                         // Check if student has a pending request in ANY group in this GroupSet
                         const hasPendingInGroupSet = gs.groups.some(g =>
-                          g.members.some(m => m._id._id === user._id && m.status === 'pending')
+                          g.members.some(m => m._id && m._id._id === user._id && m.status === 'pending')
                         );
 
                         // Find which group has the pending request (if any)
                         const pendingGroup = gs.groups.find(g =>
-                          g.members.some(m => m._id._id === user._id && m.status === 'pending')
+                          g.members.some(m => m._id && m._id._id === user._id && m.status === 'pending')
                         );
 
                         return (
@@ -1235,43 +1245,44 @@ const Groups = () => {
                             </tr>
                           </thead>
                           <tbody>
-                            {getFilteredAndSortedMembers(group).map((member, idx) => {
-                              // Skip rendering if member user data is null
-                              if (!member._id) return null;
-                              
-                              return (
-                                <tr key={`${group._id}-${member._id._id}-${idx}`}>
-                                  <td>
-                                    <input
-                                      type="checkbox"
-                                      checked={selectedMembers[group._id]?.includes(member._id._id) || false}
-                                      onChange={() => handleSelectMember(group._id, member._id._id)}
-                                    />
-                                  </td>
-                                  <td>
-                                    {`${member._id.firstName || ''} ${member._id.lastName || ''}`.trim() || member._id.email || 'Unknown User'}
-                                    <button 
-                                      className="btn btn-xs btn-ghost ml-2"
-                                      onClick={() => navigate(
-                                        `/profile/${member._id._id || member._id}`,
-                                        { state: { from: 'groups', classroomId: id } }
+                            {getFilteredAndSortedMembers(group)
+                              .filter(member => member._id) // Add this filter
+                              .map((member, index) => {
+                                if (!member._id) return null; // Add this check
+                                
+                                return (
+                                  <tr key={member._id._id || index}>
+                                    <td>
+                                      <input
+                                        type="checkbox"
+                                        checked={selectedMembers[group._id]?.includes(member._id._id) || false}
+                                        onChange={() => handleSelectMember(group._id, member._id._id)}
+                                      />
+                                    </td>
+                                    <td>
+                                      {`${member._id.firstName || ''} ${member._id.lastName || ''}`.trim() || member._id.email || 'Unknown User'}
+                                      <button 
+                                        className="btn btn-xs btn-ghost ml-2"
+                                        onClick={() => navigate(
+                                          `/profile/${member._id._id || member._id}`,
+                                          { state: { from: 'groups', classroomId: id } }
+                                        )}
+                                      >
+                                        View Profile
+                                      </button>
+                                      {member._id.isFrozen && (
+                                        <Lock className="inline w-4 h-4 ml-1 text-red-500" title="Balance frozen" />
                                       )}
-                                    >
-                                      View Profile
-                                    </button>
-                                    {member._id.isFrozen && (
-                                      <Lock className="inline w-4 h-4 ml-1 text-red-500" title="Balance frozen" />
-                                    )}
-                                  </td>
-                                  <td>
-                                    <span className={`badge ${member.status === 'pending' ? 'badge-warning' : 'badge-success'}`}>
-                                      {member.status || 'approved'}
-                                    </span>
-                                  </td>
-                                  <td>{member.status === 'approved' ? new Date(member.joinDate).toLocaleString() : 'Pending'}</td>
-                                </tr>
-                              );
-                            }).filter(Boolean)} {/* Filter out null elements */}
+                                    </td>
+                                    <td>
+                                      <span className={`badge ${member.status === 'pending' ? 'badge-warning' : 'badge-success'}`}>
+                                        {member.status || 'approved'}
+                                      </span>
+                                    </td>
+                                    <td>{member.status === 'approved' ? new Date(member.joinDate).toLocaleString() : 'Pending'}</td>
+                                  </tr>
+                                );
+                              }).filter(Boolean)} {/* Filter out null elements */}
                           </tbody>
                         </table>
                       </div>
