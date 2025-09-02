@@ -80,6 +80,8 @@ export default function ClassroomPage() {
     }
 
     try {
+      let createdClassroom;
+      
       // If user chose file upload and selected a file, send multipart form
       if (backgroundImageSource === 'file' && backgroundFile) {
         const formData = new FormData();
@@ -87,10 +89,11 @@ export default function ClassroomPage() {
         formData.append('code', classroomCode);
         formData.append('color', color);
         formData.append('backgroundImage', backgroundFile);
-
-        await axios.post('/api/classroom/create', formData, {
+        
+        const response = await axios.post('/api/classroom/create', formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
+        createdClassroom = response.data;
       } else {
         // JSON path: use image URL or no image
         const payload = {
@@ -109,17 +112,23 @@ export default function ClassroomPage() {
           payload.backgroundImage = normalizeUrl(backgroundImageUrl);
         }
 
-        await axios.post('/api/classroom/create', payload);
+        const response = await axios.post('/api/classroom/create', payload);
+        createdClassroom = response.data;
       }
 
       toast.success('Classroom Created!');
+      
+      // Reset form fields
       setClassroomName('');
       setClassroomCode('');
       setColor('#22c55e');
       setBackgroundFile(null);
       setBackgroundImageUrl('');
       setBackgroundImageSource('file');
-      fetchClassrooms();
+      
+      // Automatically navigate to the created classroom
+      navigate(`/classroom/${createdClassroom._id}`);
+      
     } catch (err) {
       console.error('Create error:', err);
       toast.error(err.response?.data?.error || 'Error creating classroom');
@@ -135,12 +144,15 @@ export default function ClassroomPage() {
     }
     try {
       // POST to join classroom endpoint
-      const res =await axios.post('/api/classroom/join', { code: code });
+      const res = await axios.post('/api/classroom/join', { code: code });
       toast.success('Joined classroom!', { duration: 800 });
-       // Reset join code input
+      
+      // Reset join code input
       setJoinClassroomCode('');
-      // Refresh classroom list
-      fetchClassrooms();
+      
+      // Automatically navigate to the joined classroom
+      navigate(`/classroom/${res.data.classroom._id}`);
+      
     } catch (err) {
       console.error(err);
       toast.error(err.response?.data?.error || 'Error joining classroom');
