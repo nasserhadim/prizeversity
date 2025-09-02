@@ -79,20 +79,20 @@ const ChallengeSite = () => {
 
   if (checkingCompletion) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-gray-400 font-mono">CHECKING ACCESS...</div>
+      <div className="min-h-screen bg-black flex items-center justify-center p-4">
+        <div className="text-gray-400 font-mono text-sm sm:text-base">CHECKING ACCESS...</div>
       </div>
     );
   }
 
   if (isCompleted) {
     return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center">
-        <div className="text-center space-y-4 max-w-md w-full px-4">
-          <h1 className="text-2xl font-mono text-gray-400 tracking-widest">ACCESS DENIED</h1>
-          <div className="bg-gray-900 border border-red-600 rounded-lg p-6">
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center p-4">
+        <div className="text-center space-y-4 max-w-md w-full">
+          <h1 className="text-xl sm:text-2xl font-mono text-gray-400 tracking-widest">ACCESS DENIED</h1>
+          <div className="bg-gray-900 border border-red-600 rounded-lg p-4 sm:p-6">
             <div className="text-red-400 font-mono text-sm font-bold mb-2">CHALLENGE ALREADY COMPLETED</div>
-            <div className="text-red-400 font-mono text-xs">You have already successfully completed this challenge.</div>
+            <div className="text-red-400 font-mono text-xs leading-relaxed">You have already successfully completed this challenge.</div>
           </div>
         </div>
       </div>
@@ -101,93 +101,93 @@ const ChallengeSite = () => {
 
   if (showClue) {
     return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center">
-        <div className="text-center space-y-8 max-w-2xl w-full px-4">
-          <div className="space-y-4">
-            <h1 className="text-3xl font-mono text-green-400 tracking-widest animate-pulse">
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center p-4">
+        <div className="text-center space-y-6 sm:space-y-8 max-w-2xl w-full">
+          <div className="space-y-3 sm:space-y-4">
+            <h1 className="text-2xl sm:text-3xl font-mono text-green-400 tracking-widest animate-pulse">
               ACCESS GRANTED
             </h1>
-            <div className="text-sm font-mono text-gray-500">CLASSIFIED INTELLIGENCE</div>
+            <div className="text-xs sm:text-sm font-mono text-gray-500">CLASSIFIED INTELLIGENCE</div>
           </div>
           
-          <div className="bg-gray-900 border border-green-600 rounded-lg p-6 space-y-6">
-            <div className="bg-black border border-green-400 rounded p-4">
-              <div className="text-green-400 font-mono text-lg text-center tracking-wider">
+          <div className="bg-gray-900 border border-green-600 rounded-lg p-4 sm:p-6 space-y-4 sm:space-y-6">
+            <div className="bg-black border border-green-400 rounded p-3 sm:p-4">
+              <div className="text-green-400 font-mono text-base sm:text-lg text-center tracking-wider">
                 LITTLE CAESAR'S SECRET
               </div>
             </div>
             
-            <div className="bg-gray-800 border border-gray-600 rounded-lg p-4 text-left space-y-2">
-              <div className="text-green-300 font-mono text-sm">okay...nice job.</div>
-              <div className="text-green-300 font-mono text-sm">but that was easy.</div>
-              <div className="text-green-300 font-mono text-sm">Head back to the classroom and see if you can find the next password.</div>
-              <div className="text-red-400 font-mono text-xs mt-4">This intelligence will self-destruct in your memory.</div>
+            <div className="bg-gray-800 border border-gray-600 rounded-lg p-3 sm:p-4 text-left space-y-2">
+              <div className="text-green-300 font-mono text-sm leading-relaxed">okay...nice job.</div>
+              <div className="text-green-300 font-mono text-sm leading-relaxed">but that was easy.</div>
+              <div className="text-green-300 font-mono text-sm leading-relaxed">Head back to the classroom and see if you can find the next password.</div>
+              <div className="text-red-400 font-mono text-xs mt-4 leading-relaxed">This intelligence will self-destruct in your memory.</div>
             </div>
 
             {/* Rewards Display */}
             {rewardData && (
-              <div className="bg-gray-800 border border-gray-600 rounded-lg p-4 space-y-2">
+              <div className="bg-gray-800 border border-gray-600 rounded-lg p-3 sm:p-4 space-y-2">
                 <div className="text-center text-yellow-400 font-mono text-sm mb-3">
                   REWARDS ACQUIRED
                 </div>
                 
                 {rewardData.bits > 0 && (
-                  <div className="flex items-center justify-between bg-gray-900 border border-yellow-600 rounded p-2">
+                  <div className="flex items-center justify-between bg-gray-900 border border-yellow-600 rounded p-2 sm:p-3">
                     <div className="flex items-center gap-2">
-                      <Coins className="w-4 h-4 text-yellow-400" />
-                      <span className="text-yellow-400 font-mono text-sm">BITS</span>
+                      <Coins className="w-4 h-4 text-yellow-400 flex-shrink-0" />
+                      <span className="text-yellow-400 font-mono text-xs sm:text-sm">BITS</span>
                     </div>
-                    <span className="text-yellow-400 font-mono text-sm font-bold">+{rewardData.bits}</span>
+                    <span className="text-yellow-400 font-mono text-xs sm:text-sm font-bold">+{rewardData.bits}</span>
                   </div>
                 )}
 
                 {rewardData.multiplier > 0 && (
-                  <div className="flex items-center justify-between bg-gray-900 border border-blue-600 rounded p-2">
+                  <div className="flex items-center justify-between bg-gray-900 border border-blue-600 rounded p-2 sm:p-3">
                     <div className="flex items-center gap-2">
-                      <Zap className="w-4 h-4 text-blue-400" />
-                      <span className="text-blue-400 font-mono text-sm">MULTIPLIER</span>
+                      <Zap className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                      <span className="text-blue-400 font-mono text-xs sm:text-sm">MULTIPLIER</span>
                     </div>
-                    <span className="text-blue-400 font-mono text-sm font-bold">+{rewardData.multiplier.toFixed(1)}</span>
+                    <span className="text-blue-400 font-mono text-xs sm:text-sm font-bold">+{rewardData.multiplier.toFixed(1)}</span>
                   </div>
                 )}
 
                 {rewardData.luck > 1.0 && (
-                  <div className="flex items-center justify-between bg-gray-900 border border-green-600 rounded p-2">
+                  <div className="flex items-center justify-between bg-gray-900 border border-green-600 rounded p-2 sm:p-3">
                     <div className="flex items-center gap-2">
-                      <Clover className="w-4 h-4 text-green-400" />
-                      <span className="text-green-400 font-mono text-sm">LUCK</span>
+                      <Clover className="w-4 h-4 text-green-400 flex-shrink-0" />
+                      <span className="text-green-400 font-mono text-xs sm:text-sm">LUCK</span>
                     </div>
-                    <span className="text-green-400 font-mono text-sm font-bold">×{rewardData.luck.toFixed(1)}</span>
+                    <span className="text-green-400 font-mono text-xs sm:text-sm font-bold">×{rewardData.luck.toFixed(1)}</span>
                   </div>
                 )}
 
                 {rewardData.discount > 0 && (
-                  <div className="flex items-center justify-between bg-gray-900 border border-purple-600 rounded p-2">
+                  <div className="flex items-center justify-between bg-gray-900 border border-purple-600 rounded p-2 sm:p-3">
                     <div className="flex items-center gap-2">
-                      <Percent className="w-4 h-4 text-purple-400" />
-                      <span className="text-purple-400 font-mono text-sm">DISCOUNT</span>
+                      <Percent className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                      <span className="text-purple-400 font-mono text-xs sm:text-sm">DISCOUNT</span>
                     </div>
-                    <span className="text-purple-400 font-mono text-sm font-bold">+{rewardData.discount}%</span>
+                    <span className="text-purple-400 font-mono text-xs sm:text-sm font-bold">+{rewardData.discount}%</span>
                   </div>
                 )}
 
                 {rewardData.shield && (
-                  <div className="flex items-center justify-between bg-gray-900 border border-cyan-600 rounded p-2">
+                  <div className="flex items-center justify-between bg-gray-900 border border-cyan-600 rounded p-2 sm:p-3">
                     <div className="flex items-center gap-2">
-                      <Shield className="w-4 h-4 text-cyan-400" />
-                      <span className="text-cyan-400 font-mono text-sm">SHIELD</span>
+                      <Shield className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+                      <span className="text-cyan-400 font-mono text-xs sm:text-sm">SHIELD</span>
                     </div>
-                    <span className="text-cyan-400 font-mono text-sm font-bold">ACTIVE</span>
+                    <span className="text-cyan-400 font-mono text-xs sm:text-sm font-bold">ACTIVE</span>
                   </div>
                 )}
 
                 {rewardData.attackBonus > 0 && (
-                  <div className="flex items-center justify-between bg-gray-900 border border-red-600 rounded p-2">
+                  <div className="flex items-center justify-between bg-gray-900 border border-red-600 rounded p-2 sm:p-3">
                     <div className="flex items-center gap-2">
-                      <Sword className="w-4 h-4 text-red-400" />
-                      <span className="text-red-400 font-mono text-sm">ATTACK</span>
+                      <Sword className="w-4 h-4 text-red-400 flex-shrink-0" />
+                      <span className="text-red-400 font-mono text-xs sm:text-sm">ATTACK</span>
                     </div>
-                    <span className="text-red-400 font-mono text-sm font-bold">+{rewardData.attackBonus}</span>
+                    <span className="text-red-400 font-mono text-xs sm:text-sm font-bold">+{rewardData.attackBonus}</span>
                   </div>
                 )}
               </div>
@@ -205,7 +205,7 @@ const ChallengeSite = () => {
               }));
               window.close();
             }}
-            className="w-full bg-green-600 hover:bg-green-700 text-white font-mono py-3 px-4 rounded border border-green-500 transition-colors"
+            className="w-full bg-green-600 hover:bg-green-700 text-white font-mono py-3 px-4 rounded border border-green-500 transition-colors text-sm sm:text-base"
           >
             RETURN TO BASE
           </button>
@@ -215,7 +215,7 @@ const ChallengeSite = () => {
   }
 
   return (
-    <div className="min-h-screen bg-black flex flex-col items-center justify-center">
+    <div className="min-h-screen bg-black flex flex-col items-center justify-center p-4">
       <style>{`
         @keyframes shake {
           0%, 100% { transform: translateX(0); }
@@ -226,24 +226,24 @@ const ChallengeSite = () => {
           animation: shake 0.5s ease-in-out;
         }
       `}</style>
-      <div className={`text-center space-y-8 max-w-md w-full px-4 ${shake ? 'shake' : ''}`}>
-        <div className="space-y-4">
-          <h1 className="text-3xl font-mono text-green-400 tracking-widest animate-pulse">
+      <div className={`text-center space-y-6 sm:space-y-8 max-w-md w-full ${shake ? 'shake' : ''}`}>
+        <div className="space-y-3 sm:space-y-4">
+          <h1 className="text-2xl sm:text-3xl font-mono text-green-400 tracking-widest animate-pulse">
             CHALLENGE_1
           </h1>
-          <div className="text-sm font-mono text-gray-500">CLASSIFIED ACCESS</div>
+          <div className="text-xs sm:text-sm font-mono text-gray-500">CLASSIFIED ACCESS</div>
         </div>
         
-        <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 space-y-6">
-          <div className="bg-gray-800 border border-gray-600 rounded-lg p-4">
+        <div className="bg-gray-900 border border-gray-700 rounded-lg p-4 sm:p-6 space-y-4 sm:space-y-6">
+          <div className="bg-gray-800 border border-gray-600 rounded-lg p-3 sm:p-4">
             <div className="text-center">
-              <div className="text-green-300 font-mono text-sm font-bold mb-2">ENTER DECRYPTED CREDENTIALS</div>
+              <div className="text-green-300 font-mono text-sm font-bold leading-relaxed">ENTER DECRYPTED CREDENTIALS</div>
             </div>
           </div>
           
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <div className="text-sm font-mono text-gray-500">PASSWORD:</div>
+              <div className="text-xs sm:text-sm font-mono text-gray-500">PASSWORD:</div>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
@@ -251,7 +251,7 @@ const ChallengeSite = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={loading}
-                  className="w-full bg-transparent border border-gray-600 pl-10 pr-4 py-3 font-mono text-center focus:outline-none transition-colors text-green-400 focus:border-green-400"
+                  className="w-full bg-transparent border border-gray-600 pl-10 pr-4 py-3 font-mono text-center focus:outline-none transition-colors text-green-400 focus:border-green-400 text-sm sm:text-base"
                   placeholder="ENTER DECRYPTED ID"
                 />
               </div>
@@ -260,7 +260,7 @@ const ChallengeSite = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-mono py-3 px-4 rounded border border-green-500 transition-colors"
+              className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-mono py-3 px-4 rounded border border-green-500 transition-colors text-sm sm:text-base"
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
@@ -274,9 +274,9 @@ const ChallengeSite = () => {
           </form>
         </div>
         
-        <div className="text-xs font-mono text-gray-700 space-y-1">
+        <div className="text-xs font-mono text-gray-700 space-y-1 leading-relaxed">
           <div>STATUS: UNAUTHORIZED ACCESS PROHIBITED</div>
-          <div>ID: {uniqueId}</div>
+          <div className="break-all">ID: {uniqueId}</div>
         </div>
       </div>
     </div>
