@@ -586,7 +586,20 @@ const Groups = () => {
 
   // Open the adjustment modal for a specific groupSet and group
   const openAdjustModal = (groupSetId, groupId) => {
-    setAdjustModal({ groupSetId, groupId });
+    const group = groupSets.find(gs => gs._id === groupSetId)?.groups.find(g => g._id === groupId);
+    if (!group) return;
+
+    const selectedIds = selectedMembers[groupId] || [];
+    const approvedMemberIds = selectedIds.filter(id => {
+      const member = group.members.find(m => m._id._id === id);
+      return member && member.status === 'approved';
+    });
+
+    if (approvedMemberIds.length === 0) {
+      toast.error('Please select at least one approved member to adjust balances.');
+      return;
+    }
+    setAdjustModal({ groupSetId, groupId, memberIds: approvedMemberIds });
     setAdjustAmount('');
     setAdjustDesc('');
   };
@@ -594,7 +607,7 @@ const Groups = () => {
   // Submit the balance adjustment to backend API
   const submitAdjust = async () => {
     try {
-      const { groupSetId, groupId } = adjustModal;
+      const { groupSetId, groupId, memberIds } = adjustModal;
       const amt = Number(adjustAmount);
       await axios.post(
         `/api/groupset/${groupSetId}/group/${groupId}/adjust-balance`,
@@ -602,10 +615,11 @@ const Groups = () => {
           amount: amt, 
           description: adjustDesc,
           applyGroupMultipliers: adjustApplyGroupMultipliers, // Add separate parameter
-          applyPersonalMultipliers: adjustApplyPersonalMultipliers // Add separate parameter
+          applyPersonalMultipliers: adjustApplyPersonalMultipliers, // Add separate parameter
+          memberIds,
         }
       );
-      toast.success(`All students ${amt >= 0 ? 'credited' : 'debited'} ${Math.abs(amt)} ₿`);
+      toast.success(`Selected members (excluding pending members (if any)) ${amt >= 0 ? 'credited' : 'debited'} ${Math.abs(amt)} ₿`);
       fetchGroupSets();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Adjust failed');

@@ -23,13 +23,17 @@ router.post(
   async (req, res) => {
     const { groupId } = req.params;
     const groupSet = await GroupSet.findById(req.params.groupSetId).populate('classroom');
-    const { amount, description, applyGroupMultipliers = true, applyPersonalMultipliers = true } = req.body;
+    const { amount, description, applyGroupMultipliers = true, applyPersonalMultipliers = true, memberIds } = req.body;
     
     try {
       // First validate the amount
       const numericAmount = Number(amount);
       if (isNaN(numericAmount)) {
         return res.status(400).json({ error: 'Invalid amount' });
+      }
+
+      if (!memberIds || !Array.isArray(memberIds) || memberIds.length === 0) {
+        return res.status(400).json({ error: 'No members selected for balance adjustment.' });
       }
 
       // Find the group with members populated including their passiveAttributes
@@ -50,7 +54,7 @@ router.post(
           // fallback: fetch user document
           user = await User.findById(member._id).select('balance passiveAttributes transactions role classroomBalances');
         }
-        if (!user || user.role !== 'student') continue;
+        if (!user || user.role !== 'student' || !memberIds.includes(user._id.toString())) continue;
 
         // Apply multipliers separately based on flags
         let adjustedAmount = numericAmount;
