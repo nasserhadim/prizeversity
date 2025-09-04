@@ -662,4 +662,47 @@ router.patch('/:classId/users/:userId/role', ensureAuthenticated, async (req, re
   }
 });
 
+// Update siphon timeout setting
+router.post('/:id/siphon-timeout', ensureAuthenticated, async (req, res) => {
+  try {
+    const classroom = await Classroom.findById(req.params.id);
+    if (!classroom) {
+      return res.status(404).json({ error: 'Classroom not found' });
+    }
+
+    if (classroom.teacher.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Only the teacher can update siphon timeout' });
+    }
+
+    const { siphonTimeoutHours } = req.body;
+    
+    if (siphonTimeoutHours < 1 || siphonTimeoutHours > 168) {
+      return res.status(400).json({ error: 'Siphon timeout must be between 1 and 168 hours' });
+    }
+
+    classroom.siphonTimeoutHours = siphonTimeoutHours;
+    await classroom.save();
+
+    res.json({ message: 'Siphon timeout updated successfully', siphonTimeoutHours });
+  } catch (err) {
+    console.error('[Update Siphon Timeout] error:', err);
+    res.status(500).json({ error: 'Failed to update siphon timeout' });
+  }
+});
+
+// Get siphon timeout setting
+router.get('/:id/siphon-timeout', ensureAuthenticated, async (req, res) => {
+  try {
+    const classroom = await Classroom.findById(req.params.id).select('siphonTimeoutHours');
+    if (!classroom) {
+      return res.status(404).json({ error: 'Classroom not found' });
+    }
+
+    res.json({ siphonTimeoutHours: classroom.siphonTimeoutHours || 72 });
+  } catch (err) {
+    console.error('[Get Siphon Timeout] error:', err);
+    res.status(500).json({ error: 'Failed to get siphon timeout' });
+  }
+});
+
 module.exports = router;

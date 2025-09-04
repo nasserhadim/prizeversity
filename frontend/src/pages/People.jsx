@@ -29,6 +29,7 @@ const People = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOption, setSortOption] = useState('default');
   const [classroom, setClassroom] = useState(null); // Add classroom state
+  const [siphonTimeoutHours, setSiphonTimeoutHours] = useState(72); // Add this line
 
   const navigate = useNavigate();
 
@@ -42,6 +43,20 @@ const People = () => {
       setStudentsCanViewStats(res.data.studentsCanViewStats !== false); // Default to true if not set
     } catch (err) {
       console.error('Failed to fetch classroom', err);
+    }
+  };
+
+  // Add this function
+  const fetchSiphonTimeout = async () => {
+    try {
+      const res = await axios.get(
+        `/api/classroom/${classroomId}/siphon-timeout`,
+        { withCredentials: true }
+      );
+      setSiphonTimeoutHours(res.data.siphonTimeoutHours || 72);
+    } catch (err) {
+      console.error('Failed to fetch siphon timeout', err);
+      setSiphonTimeoutHours(72); // Default fallback
     }
   };
 
@@ -77,6 +92,7 @@ const People = () => {
     fetchStudents();
     fetchGroupSets();
     fetchTaBitPolicy();
+    fetchSiphonTimeout();
 
     // Add classroom removal handler
     const handleClassroomRemoval = (data) => {
@@ -662,7 +678,7 @@ const People = () => {
 
             <label className="form-control w-full">
               <span className="label-text mb-2 font-medium">
-                Admin/TA bit assignment
+                Admin/TA bit assignment
               </span>
 
               <select
@@ -676,7 +692,7 @@ const People = () => {
                       { taBitPolicy: newPolicy },
                       { withCredentials: true }
                     );
-                    toast.success('Updated Admin/TA bit policy');
+                    toast.success('Updated Admin/TA bit policy');
                     setTaBitPolicy(newPolicy);
                   } catch (err) {
                     toast.error(
@@ -685,41 +701,90 @@ const People = () => {
                   }
                 }}
               >
-                <option value="full">① Full power (Admins/TAs can assign bits)</option>
-                <option value="approval">② Needs teacher approval</option>
-                <option value="none">③ Cannot assign bits</option>
+                <option value="full">Full permission (no approval needed)</option>
+                <option value="approval">Approval required</option>
+                <option value="none">No permission</option>
               </select>
+              <div className="label">
+                <span className="label-text-alt">
+                  Controls whether Admin/TAs can assign bits to students and adjust group balances directly or need teacher approval
+                </span>
+              </div>
             </label>
 
-             {/* render only after we know the value */}
-            {studentSendEnabled !== null && (
-              <label className="form-control w-full">
-                <span className="label-text mb-2 font-medium">
-                  Student-to-student wallet transfers
-                </span>
+            {/* Add Siphon Timeout Setting */}
+            <label className="form-control w-full">
+              <span className="label-text mb-2 font-medium">
+                Siphon Review Timeout
+              </span>
+              <div className="flex items-center gap-2">
                 <input
-                  type="checkbox"
-                  className="toggle toggle-success"
-                  checked={studentSendEnabled}
+                  type="number"
+                  min="1"
+                  max="168"
+                  className="input input-bordered w-24"
+                  value={siphonTimeoutHours}
                   onChange={async (e) => {
-                    const isEnabled = e.target.checked;
+                    const newTimeout = parseInt(e.target.value);
+                    if (newTimeout < 1 || newTimeout > 168) {
+                      toast.error('Timeout must be between 1 and 168 hours');
+                      return;
+                    }
                     try {
-                      await axios.patch(
-                        `/api/classroom/${classroomId}/student-send-enabled`,
-                        { studentSendEnabled: isEnabled },
+                      await axios.post(
+                        `/api/classroom/${classroomId}/siphon-timeout`,
+                        { siphonTimeoutHours: newTimeout },
                         { withCredentials: true }
                       );
-                      toast.success(
-                        `Student transfers ${isEnabled ? 'enabled' : 'disabled'}`
-                      );
-                      setStudentSendEnabled(isEnabled);
+                      toast.success('Updated siphon timeout');
+                      setSiphonTimeoutHours(newTimeout);
                     } catch (err) {
-                      toast.error('Failed to update setting');
+                      toast.error(
+                        err.response?.data?.error || 'Failed to update siphon timeout'
+                      );
                     }
                   }}
                 />
-              </label>
-            )}
+                <span className="label-text">hours</span>
+              </div>
+              <div className="label">
+                <span className="label-text-alt">
+                  How long students have to vote and teacher has to review siphon requests before they automatically expire
+                </span>
+              </div>
+            </label>
+
+            <label className="form-control w-full">
+              <span className="label-text mb-2 font-medium">
+                Student-to-student bit transfers
+              </span>
+              <input
+                type="checkbox"
+                className="toggle toggle-success"
+                checked={studentSendEnabled}
+                onChange={async (e) => {
+                  const isEnabled = e.target.checked;
+                  try {
+                    await axios.patch(
+                      `/api/classroom/${classroomId}/student-send-enabled`,
+                      { studentSendEnabled: isEnabled },
+                      { withCredentials: true }
+                    );
+                    toast.success(
+                      `Student transfers ${isEnabled ? 'enabled' : 'disabled'}`
+                    );
+                    setStudentSendEnabled(isEnabled);
+                  } catch (err) {
+                    toast.error('Failed to update setting');
+                  }
+                }}
+              />
+              <div className="label">
+                <span className="label-text-alt">
+                  Allow students to send bits to each other directly
+                </span>
+              </div>
+            </label>
 
             {/* Add the new setting for students viewing stats */}
             <label className="form-control w-full">
@@ -756,6 +821,11 @@ const People = () => {
                   }
                 }}
               />
+              <div className="label">
+                <span className="label-text-alt">
+                  Allow students to see each other's luck, multiplier, and other stats
+                </span>
+              </div>
             </label>
 
             {/* Show teacher's approval queue when policy=approval */}

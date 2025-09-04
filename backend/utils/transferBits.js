@@ -1,7 +1,21 @@
 const User = require('../models/User');
 
 async function transferBits({ fromUserId, recipients, amount, session = null, classroomId = null }) {
-  console.log('⏳ transferBits:', { fromUserId, recipients, amount });
+  console.log('⏳ transferBits:', { fromUserId: String(fromUserId), recipients: recipients.map(r => String(r)), amount });
+  
+  // Ensure the target user is NOT in the recipients list
+  const filteredRecipients = recipients.filter(id => String(id) !== String(fromUserId));
+  
+  console.log('🔍 After filtering target user:', { 
+    originalRecipients: recipients.map(r => String(r)),
+    filteredRecipients: filteredRecipients.map(r => String(r)),
+    targetUser: String(fromUserId)
+  });
+  
+  if (filteredRecipients.length === 0) {
+    throw new Error('No valid recipients for transfer');
+  }
+  
   // load sender
   const from = await User.findById(fromUserId).session(session);
   if (!from) throw new Error('Sender not found');
@@ -14,18 +28,21 @@ async function transferBits({ fromUserId, recipients, amount, session = null, cl
     from.balance = (from.balance || 0) - amount;
   }
 
-  // create sender transaction
+  // create sender transaction with detailed info
   from.transactions.push({
     amount: -amount,
-    description: `Transferred ${amount} bits`,
+    description: `Siphoned: ${amount} bits redistributed to ${filteredRecipients.length} group members`,
     classroom: classroomId || null,
     createdAt: new Date()
   });
   await from.save({ session });
 
-  // distribute to recipients
-  const perPerson = Math.floor(amount / recipients.length);
-  for (let userId of recipients) {
+  // distribute to recipients (excluding the target)
+  const perPerson = Math.floor(amount / filteredRecipients.length); // This should be correct
+  
+  // But also check the remainder calculation:
+  const remainder = amount - perPerson * filteredRecipients.length; // This should also use filteredRecipients.length
+  for (let userId of filteredRecipients) {
     const u = await User.findById(userId).session(session);
     if (!u) continue;
     if (classroomId) {
@@ -36,7 +53,7 @@ async function transferBits({ fromUserId, recipients, amount, session = null, cl
     }
     u.transactions.push({
       amount: perPerson,
-      description: `Received ${perPerson} bits (split)`,
+      description: `Siphon: Received ${perPerson} bits from redistributed amount (${filteredRecipients.length} recipients)`,
       assignedBy: from._id,
       classroom: classroomId || null,
       createdAt: new Date()
@@ -44,11 +61,25 @@ async function transferBits({ fromUserId, recipients, amount, session = null, cl
     await u.save({ session });
   }
 
-  // handle remainder
-  const remainder = amount - perPerson * recipients.length;
-  if (remainder > 0) {
-    from.balance += remainder;
-    await from.save({ session });
+  // handle remainder - give back to the first recipient, not the target
+  if (remainder > 0 && filteredRecipients.length > 0) {
+    const firstRecipient = await User.findById(filteredRecipients[0]).session(session);
+    if (firstRecipient) {
+      if (classroomId) {
+        const cur = getClassroomBalance(firstRecipient, classroomId);
+        updateClassroomBalance(firstRecipient, classroomId, cur + remainder);
+      } else {
+        firstRecipient.balance += remainder;
+      }
+      firstRecipient.transactions.push({
+        amount: remainder,
+        description: `Siphon remainder: ${remainder} additional bits`,
+        assignedBy: from._id,
+        classroom: classroomId || null,
+        createdAt: new Date()
+      });
+      await firstRecipient.save({ session });
+    }
   }
 
   console.log('transferBits complete');

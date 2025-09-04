@@ -211,7 +211,11 @@ router.get('/groupset/classroom/:classroomId', ensureAuthenticated, async (req, 
           },
           { 
             path: 'siphonRequests', 
-            model: 'SiphonRequest' 
+            model: 'SiphonRequest',
+            populate: {
+              path: 'targetUser',
+              select: 'firstName lastName email'
+            }
           }
         ]
       });

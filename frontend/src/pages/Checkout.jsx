@@ -121,11 +121,15 @@ const Checkout = () => {
       console.error("Checkout error:", {
         message: err.message,
         response: err.response?.data,
-        stack: err.stack
+        status: err.response?.status
       });
-      // Show backend error message when available
-      const msg = err.response?.data?.error || err.response?.data?.message || 'Checkout failed. Please try again.';
-      toast.error(msg);
+      
+      // Handle siphon-specific errors
+      if (err.response?.data?.siphonActive) {
+        toast.error(`Cannot checkout: ${err.response.data.error}`);
+      } else {
+        toast.error(err.response?.data?.error || 'Checkout failed');
+      }
     }
   };
 
@@ -206,7 +210,7 @@ const Checkout = () => {
 
                               {/* Price */}
                               <div className="ml-4 text-right flex-shrink-0">
-                                  {hasDiscount ? (
+                                  {user?.discountShop ? (
                                       <>
                                           <div className="text-xs line-through text-base-content/50">{item.price} ₿</div>
                                           <div className="text-success font-semibold">{calculatePrice(item.price)} ₿</div>
@@ -227,9 +231,9 @@ const Checkout = () => {
                       <div className="text-lg text-base-content">
                           Total: {calculateTotal()} ₿
                       </div>
-                      {user?.discountShop && (
+                      {user?.discountShop && getTotal(classroomId) > calculateTotal() && (
                           <div className="text-sm text-success">
-                              You saved {Math.floor(getTotal() * 0.2)} ₿!
+                              You saved {getTotal(classroomId) - calculateTotal()} ₿!
                           </div>
                       )}
                   </div>

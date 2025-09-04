@@ -52,6 +52,7 @@ const UserSchema = new mongoose.Schema({
   oauthLastName: { type: String },  // Temporary storage for OAuth last name
   role: { type: String, enum: ['admin', 'teacher', 'student']/*, default: 'student' */ },
   balance: { type: Number, default: 0, min: 0 },
+  isFrozen: { type: Boolean, default: false }, // Add default: false here
   // Per-classroom balances (new)
   classroomBalances: [{
     classroom: { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom' },
