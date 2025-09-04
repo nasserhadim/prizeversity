@@ -2,6 +2,7 @@ const express = require('express');
 const GroupSet = require('../models/GroupSet');
 const Group = require('../models/Group');
 const Notification = require('../models/Notification');
+const Classroom = require('../models/Classroom');
 const { ensureAuthenticated } = require('../config/auth');
 const router = express.Router();
 const io = require('socket.io')();
@@ -210,7 +211,11 @@ router.get('/groupset/classroom/:classroomId', ensureAuthenticated, async (req, 
           },
           { 
             path: 'siphonRequests', 
-            model: 'SiphonRequest' 
+            model: 'SiphonRequest',
+            populate: {
+              path: 'targetUser',
+              select: 'firstName lastName email'
+            }
           }
         ]
       });
@@ -492,6 +497,97 @@ router.delete('/groupset/:groupSetId/group/:groupId', ensureAuthenticated, async
     res.status(500).json({ error: 'Failed to delete group' });
   }
 });
+
+// Add members to a group (Teacher/Admin action)
+router.post('/groupset/:groupSetId/group/:groupId/add-members', ensureAuthenticated, async (req, res) => {
+  if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Only teachers or admins can add members.' });
+  }
+
+  const { memberIds } = req.body;
+  if (!memberIds || !Array.isArray(memberIds) || memberIds.length === 0) {
+    return res.status(400).json({ error: 'Member IDs are required.' });
+  }
+
+  try {
+    const groupSet = await GroupSet.findById(req.params.groupSetId).populate('groups');
+    if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
+
+    const group = await Group.findById(req.params.groupId);
+    if (!group) return res.status(404).json({ error: 'Group not found' });
+
+    const classroom = await Classroom.findById(groupSet.classroom).select('students');
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+
+    // --- Validation ---
+    const maxMembers = group.maxMembers || groupSet.maxMembers;
+    const currentApprovedCount = group.members.filter(m => m.status === 'approved').length;
+
+    if (maxMembers && (currentApprovedCount + memberIds.length) > maxMembers) {
+      return res.status(400).json({ error: `Adding these members would exceed the group capacity of ${maxMembers}.` });
+    }
+
+    const allMemberIdsInGroupSet = new Set(
+      groupSet.groups.flatMap(g => g.members.map(m => m._id.toString()))
+    );
+
+    const membersToAdd = [];
+    const errors = [];
+
+    for (const memberId of memberIds) {
+      if (!classroom.students.map(s => s.toString()).includes(memberId)) {
+        errors.push(`Student ${memberId} is not in this classroom.`);
+        continue;
+      }
+      if (allMemberIdsInGroupSet.has(memberId)) {
+        errors.push(`Student ${memberId} is already in a group in this GroupSet.`);
+        continue;
+      }
+      membersToAdd.push(memberId);
+    }
+
+    if (errors.length > 0) {
+      return res.status(400).json({ error: errors.join(' ') });
+    }
+
+    // --- Add Members ---
+    for (const memberId of membersToAdd) {
+      group.members.push({
+        _id: memberId,
+        status: 'approved',
+        joinDate: new Date()
+      });
+
+      const notification = await Notification.create({
+        user: memberId,
+        type: 'group_add',
+        message: `You have been added to the group "${group.name}".`,
+        classroom: groupSet.classroom,
+        groupSet: groupSet._id,
+        group: group._id,
+        actionBy: req.user._id
+      });
+      const populatedNotification = await populateNotification(notification._id);
+      req.app.get('io').to(`user-${memberId}`).emit('notification', populatedNotification);
+    }
+
+    await group.updateMultiplier();
+    await group.save();
+
+    const populatedGroup = await Group.findById(group._id).populate('members._id', 'email isFrozen firstName lastName');
+    req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', {
+      groupSet: groupSet._id,
+      group: populatedGroup
+    });
+
+    res.status(200).json({ message: `${membersToAdd.length} member(s) added successfully.` });
+
+  } catch (err) {
+    console.error('Add members error:', err);
+    res.status(500).json({ error: 'Failed to add members.' });
+  }
+});
+
 
 // Suspend Members from Group
 router.post('/groupset/:groupSetId/group/:groupId/suspend', ensureAuthenticated, async (req, res) => {

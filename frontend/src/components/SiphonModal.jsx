@@ -8,7 +8,7 @@ import { API_BASE } from '../config/api';
 
 const BACKEND_URL = `${API_BASE}`;
  
- function SiphonModal({group,onClose}){
+ function SiphonModal({group, onClose, classroomId}) { // Add classroomId prop
   console.log('[SiphonModal] group object:', group);
   const { user } = useAuth();
   const [target,setTarget] = useState('');
@@ -26,16 +26,18 @@ const BACKEND_URL = `${API_BASE}`;
     setAmount('');
     if (!id) return;
 
- 
     try {
       setLoadingBal(true);
       const { data } = await axios.get(
-        `${BACKEND_URL}/api/wallet/${id}/balance`,
+        classroomId 
+          ? `${BACKEND_URL}/api/wallet/${id}/balance?classroomId=${classroomId}`
+          : `${BACKEND_URL}/api/wallet/${id}/balance`,
         { withCredentials: true }
       );
       setTargetBalance(data.balance);
     } catch (err) {
       toast.error('Failed to load balance');
+      setTargetBalance(null);
     } finally {
       setLoadingBal(false);
     }
@@ -95,7 +97,7 @@ const BACKEND_URL = `${API_BASE}`;
             .filter(m => String(m._id._id) !== String(user._id))
             .map(m => (
               <option key={m._id._id} value={m._id._id}>
-                {m._id.email}
+                {`${m._id.firstName || ''} ${m._id.lastName || ''}`.trim() || m._id.email} - {m._id.email}
               </option>
             ))
           }

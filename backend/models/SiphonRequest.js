@@ -1,4 +1,3 @@
-
 const mongoose = require('mongoose');
 
 // The Siphon Request feature will be used to keep all request in a group if one of the members wins bits unfairly
@@ -15,19 +14,32 @@ const SiphonRequestSchema = new mongoose.Schema({
   targetUser:   { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   reasonHtml:   { type: String, required: true },
   amount:       { type: Number,  min: 1, required: true },
+  classroom:    { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom', required: true },
+  expiresAt:    { type: Date, required: true }, // Auto-expire date
 
   status:       {                                            
     type: String,
     enum: ['pending',           
            'group_approved',    
            'teacher_approved',  
-           'rejected'],
+           'rejected',
+           'expired'],
     default: 'pending'
   },
 
-  votes: [VoteSchema],          // one  per vote
-  createdAt:   { type: Date, default: Date.now }
+  votes: [VoteSchema],
+  createdAt:   { type: Date, default: Date.now },
+  
+  proof: {
+    originalName: String,
+    storedName: String,
+    mimeType: String,
+    size: Number
+  }
 });
+
+// Add index for auto-expiration
+SiphonRequestSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 module.exports =
   mongoose.models.SiphonRequest || mongoose.model('SiphonRequest', SiphonRequestSchema);

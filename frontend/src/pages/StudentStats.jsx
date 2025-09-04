@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import socket from '../utils/socket.js';
 import { LoaderIcon, RefreshCw } from 'lucide-react';
@@ -7,6 +7,7 @@ import Footer from '../components/Footer';
 
 const StudentStats = () => {
   const { classroomId, id: studentId } = useParams();
+  const location = useLocation();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -49,6 +50,28 @@ const StudentStats = () => {
       window.removeEventListener('focus', handleFocus);
     }
   }, [studentId, classroomId]);
+
+  // Determine where we came from to customize the back button
+  const backButton = (() => {
+    const from = location.state?.from;
+    if (from === 'leaderboard') {
+      return {
+        to: `/classroom/${classroomId}/leaderboard`,
+        label: '← Back to Leaderboard'
+      };
+    } else if (from === 'people') {
+      return {
+        to: `/classroom/${classroomId}/people`,
+        label: '← Back to People'
+      };
+    } else {
+      // Default fallback
+      return {
+        to: `/classroom/${classroomId}/people`,
+        label: '← Back to People'
+      };
+    }
+  })();
 
   if (loading) {
     return (
@@ -131,8 +154,8 @@ const StudentStats = () => {
         </div>
 
         {classroomId ? (
-          <Link to={`/classroom/${classroomId}/people`} className="btn btn-outline w-full">
-            ← Back to People
+          <Link to={backButton.to} className="btn btn-outline w-full">
+            {backButton.label}
           </Link>
         ) : (
           <button disabled className="btn btn-outline w-full opacity-50 cursor-not-allowed">

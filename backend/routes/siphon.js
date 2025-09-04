@@ -25,20 +25,51 @@ router.post(
     try {
       const { targetUserId, reason, amount } = req.body;
 
-      // Ensure the target has enough balance before proceeding
-      const User = require('../models/User');                   
-    const target = await User.findById(targetUserId).select('balance');
-    if (!target || target.balance < Number(amount)) {
-    return res.status(400).json({ error: 'Amount exceeds target user balance' });
-  }
+      // Get group and classroom info
+      const group = await Group.findById(req.params.groupId).populate('members._id', 'balance');
+      if (!group) return res.status(404).json({ error: 'Group not found' });
+
+      const groupSet = await GroupSet.findOne({ groups: req.params.groupId }).populate('classroom');
+      if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
+
+      const classroom = groupSet.classroom;
+
+      // Check if there's already an active siphon request in this group
+      const existingActiveSiphon = await SiphonRequest.findOne({
+        group: req.params.groupId,
+        status: { $in: ['pending', 'group_approved'] }
+      });
+
+      if (existingActiveSiphon) {
+        return res.status(400).json({ 
+          error: 'There is already an active siphon request in this group. Please wait for it to be resolved.' 
+        });
+      }
+
+      // Ensure the target has enough balance (check classroom-specific balance)
+      const target = await User.findById(targetUserId).select('balance classroomBalances');
+      if (!target) {
+        return res.status(400).json({ error: 'Target user not found' });
+      }
+
+      // Helper function to get classroom balance (add this if not already present)
+      const getClassroomBalance = (user, classroomId) => {
+        if (!Array.isArray(user.classroomBalances)) return user.balance || 0;
+        const cb = user.classroomBalances.find(cb => String(cb.classroom) === String(classroomId));
+        return cb ? cb.balance : (user.balance || 0);
+      };
+
+      const targetBalance = getClassroomBalance(target, classroom._id);
+      if (targetBalance < Number(amount)) {
+        return res.status(400).json({ error: 'Amount exceeds target user balance' });
+      }
       
-  // Sanitize the HTML reason input
+      // Sanitize the HTML reason input
       const cleanReason = DOMPurify.sanitize(reason, {
         ALLOWED_TAGS: ['b','i','u','span','font','p','br','ul','ol','li']
       });
 
-      
-      // Prepare file metadata if a proof was uploaded
+      // Prepare file metadata if proof was uploaded
       const proof = req.file
         ? {
             originalName: req.file.originalname,
@@ -47,6 +78,10 @@ router.post(
             size:         req.file.size,
           }
         : null;
+
+      // Calculate expiration date based on classroom setting
+      const timeoutHours = classroom.siphonTimeoutHours || 72;
+      const expiresAt = new Date(Date.now() + timeoutHours * 60 * 60 * 1000);
       
       // Create the SiphonRequest document
       const reqDoc = await SiphonRequest.create({
@@ -55,22 +90,29 @@ router.post(
         targetUser: targetUserId,
         reasonHtml: cleanReason,
         amount:     Number(amount),
+        classroom:  classroom._id,
+        expiresAt:  expiresAt,
         proof,
       });
 
-      // Freeze the target user temporarily
+      // Freeze the target user
+      console.log(`[Siphon] Freezing user ${targetUserId}`);
       await User.findByIdAndUpdate(targetUserId, { isFrozen: true });
-      const group = await Group.findById(reqDoc.group);
-    const classroomId = await GroupSet.findOne({groups: group._id}).then(gs=>gs?.classroom);
-  
+      
+      // Verify the user was frozen
+      const frozenUser = await User.findById(targetUserId).select('isFrozen');
+      console.log(`[Siphon] User ${targetUserId} frozen status: ${frozenUser.isFrozen}`);
+
+      // Notify target user
       const n = await Notification.create({
-        user: targetUserId, type:'siphon_request',
-        message:`Group "${group.name}" has opened a siphon request involving your account`,
-        group: group._id, actionBy: req.user._id, classroom: classroomId,
+        user: targetUserId, 
+        type:'siphon_request',
+        message:`Group "${group.name}" has opened a siphon request involving your account. You have ${timeoutHours} hours to respond or for your group to decide.`,
+        group: group._id, 
+        actionBy: req.user._id, 
+        classroom: classroom._id,
       });
       req.app.get('io').to(`user-${targetUserId}`).emit('notification', await populateNotification(n._id));
-    
-  
 
       // Emit real time update to group members
       req.app.get('io').to(`group-${reqDoc.group}`).emit('siphon_create', reqDoc);
@@ -89,23 +131,39 @@ router.post('/:id/vote', ensureAuthenticated, async (req,res)=>{
   if (!siphon || siphon.status!=='pending')
     return res.status(404).json({error:'Request not open for voting'});
 
-  // Verify that the user is an approved group member
+  // Check if siphon has expired
+  if (new Date() > siphon.expiresAt) {
+    siphon.status = 'expired';
+    await siphon.save();
+    await User.findByIdAndUpdate(siphon.targetUser, { isFrozen: false });
+    return res.status(400).json({error:'Siphon request has expired'});
+  }
+
+  // Verify that the user is an approved group member BUT NOT the target
   const group = await Group.findById(siphon.group);
   const isMember = group.members.some(m=>m._id.equals(req.user._id) && m.status==='approved');
+  const isTarget = siphon.targetUser.equals(req.user._id);
+  
   if (!isMember) return res.status(403).json({error:'Not a group member'});
+  if (isTarget) return res.status(403).json({error:'Target member cannot vote on their own siphon'});
 
   // Record or update the user's vote
   const idx = siphon.votes.findIndex(v=>v.user.equals(req.user._id));
   idx>=0 ? siphon.votes[idx].vote = vote : siphon.votes.push({user:req.user._id,vote});
   await siphon.save();
 
-  // Calculate voting outcome
-  const approvedMembers = group.members.filter(m=>m.status==='approved').length;
+  // Calculate voting outcome (excluding target from total count)
+  const eligibleMembers = group.members.filter(m=>m.status==='approved' && !m._id.equals(siphon.targetUser));
+  const totalEligibleVoters = eligibleMembers.length;
   const yesVotes = siphon.votes.filter(v=>v.vote==='yes').length;
   const noVotes  = siphon.votes.filter(v=>v.vote==='no').length;
+  const totalVotes = yesVotes + noVotes;
+
+  // Require majority of eligible members to vote
+  const majorityThreshold = Math.ceil(totalEligibleVoters / 2);
 
   // If majority voted "no", reject the request
-  if (noVotes > approvedMembers/2) {
+  if (noVotes >= majorityThreshold) {
     siphon.status = 'rejected';
     await siphon.save();
     await User.findByIdAndUpdate(siphon.targetUser, { isFrozen: false });
@@ -114,26 +172,36 @@ router.post('/:id/vote', ensureAuthenticated, async (req,res)=>{
   }
 
   // If majority voted "yes", escalate to teacher for final decision
-  if (yesVotes > approvedMembers/2) {
+  if (yesVotes >= majorityThreshold) {
     siphon.status = 'group_approved';
     await siphon.save();
 
-    // Notifying teacher of the classroom
+    // Notify teacher of the classroom
     const classroomId = await GroupSet.findOne({groups: group._id}).then(gs=>gs?.classroom);
     const teachers = await Classroom.findById(classroomId).select('teacher').then(c=>[c.teacher]);
     for (const t of teachers){
       const n = await Notification.create({
         user: t, type:'siphon_review',
-        message:`Group "${group.name}" approved a siphon request`,
+        message:`Group "${group.name}" approved a siphon request by majority vote and is pending your approval decision`,
         group: group._id, siphon: siphon._id, actionBy: req.user._id
       });
       req.app.get('io').to(`user-${t}`).emit('notification', await populateNotification(n._id));
     }
   }
 
-  // Emit vote updat in real time to group members
+  // Emit vote update in real time to group members
   req.app.get('io').to(`group-${group._id}`).emit('siphon_vote', siphon);
-  res.json({status:siphon.status});
+  res.json({
+    status: siphon.status,
+    votingProgress: {
+      yesVotes,
+      noVotes,
+      totalVotes,
+      totalEligibleVoters,
+      majorityThreshold,
+      needsMoreVotes: totalVotes < totalEligibleVoters && yesVotes < majorityThreshold && noVotes < majorityThreshold
+    }
+  });
 });
 
 // TEACHER REJECT a siphon request
@@ -158,38 +226,170 @@ router.post('/:id/teacher-approve', ensureAuthenticated, async (req, res) => {
   if (req.user.role !== 'teacher' && req.user.role !== 'admin')
     return res.status(403).json({ error: 'Only teacher or admin can approve' });
 
-  const siphon = await SiphonRequest.findById(req.params.id).populate('group');
+  const siphon = await SiphonRequest.findById(req.params.id).populate('group').populate('targetUser', 'firstName lastName email');
   if (!siphon || siphon.status !== 'group_approved')
     return res.status(400).json({ error: 'Not ready for teacher approval' });
 
   try {
+    // Get classroom context for balance updates
+    const groupSet = await GroupSet.findOne({ groups: siphon.group._id }).populate('classroom');
+    const classroomId = groupSet?.classroom?._id;
 
-    
-    // Select recipients (approved group mmebers excluding target)
+    // Select recipients (approved group members excluding target)
     const recipients = siphon.group.members
-      .filter(m => m.status === 'approved' && !m._id.equals(siphon.targetUser))
+      .filter(m => m.status === 'approved' && String(m._id) !== String(siphon.targetUser._id))
       .map(m => m._id);
 
-    // Transfer bits from target to recipients
-    console.log('transferBits finished');
-      await transferBits({
-        fromUserId: siphon.targetUser,
-        recipients,
-        amount: siphon.amount,
-        session,
-        classroomId: siphon.classroom || group.classroom || null
-      });
+    console.log('Siphon target user:', String(siphon.targetUser._id));
+    console.log('All group members:', siphon.group.members.map(m => ({ id: String(m._id), status: m.status })));
+    console.log('Filtered recipients:', recipients.map(r => String(r)));
 
+    if (recipients.length === 0) {
+      return res.status(400).json({ error: 'No eligible recipients found' });
+    }
+
+    // Transfer bits from target to recipients
+    console.log('transferBits starting');
     
+    // Get group and groupset info for transaction details
+    const groupInfo = await Group.findById(siphon.group._id).populate('name');
+    const groupSetInfo = await GroupSet.findOne({ groups: siphon.group._id }).select('name');
+    
+    await transferBits({
+      fromUserId: siphon.targetUser._id, // Change this line - add ._id
+      recipients,
+      amount: siphon.amount,
+      classroomId: classroomId
+    });
+
     // Mark request as fully approved and executed
     siphon.status = 'teacher_approved';
     await siphon.save();
     await User.findByIdAndUpdate(siphon.targetUser, { isFrozen: false });
+
+    // Create enhanced notifications with more details
+    const targetName = `${siphon.targetUser.firstName || ''} ${siphon.targetUser.lastName || ''}`.trim() || siphon.targetUser.email;
+    const amountPerRecipient = Math.floor(siphon.amount / recipients.length);
+    const groupName = siphon.group.name;
+    const groupSetName = groupSetInfo?.name || 'Unknown GroupSet';
+
+    // Update the target user's transaction with detailed info
+    const targetUser = await User.findById(siphon.targetUser);
+    if (targetUser && targetUser.transactions.length > 0) {
+      const lastTransaction = targetUser.transactions[targetUser.transactions.length - 1];
+      lastTransaction.description = `Siphoned from ${groupSetName} > ${groupName}: ${siphon.amount} bits redistributed to ${recipients.length} members`;
+      lastTransaction.metadata = {
+        type: 'siphon',
+        groupSet: groupSetInfo?._id,
+        groupSetName: groupSetName,
+        group: siphon.group._id,
+        groupName: groupName,
+        originalAmount: siphon.amount,
+        recipientCount: recipients.length,
+        amountPerRecipient: amountPerRecipient
+      };
+      await targetUser.save();
+    }
+
+    // Update recipients' transactions with detailed info
+    for (const recipientId of recipients) {
+      const recipient = await User.findById(recipientId);
+      if (recipient && recipient.transactions.length > 0) {
+        const lastTransaction = recipient.transactions[recipient.transactions.length - 1];
+        lastTransaction.description = `Siphon from ${groupSetName} > ${groupName}: Received ${amountPerRecipient} bits (from ${targetName})`;
+        lastTransaction.metadata = {
+          type: 'siphon',
+          groupSet: groupSetInfo?._id,
+          groupSetName: groupSetName,
+          group: siphon.group._id,
+          groupName: groupName,
+          targetUser: siphon.targetUser,
+          targetUserName: targetName,
+          originalAmount: siphon.amount,
+          recipientCount: recipients.length,
+          amountReceived: amountPerRecipient
+        };
+        await recipient.save();
+      }
+    }
+
+    // Notify target user (they LOST bits)
+    const targetNotification = await Notification.create({
+      user: siphon.targetUser._id,
+      type: 'siphon_approved',
+      message: `${siphon.amount} bits were siphoned from you and redistributed to ${recipients.length} group members in "${groupName}" (${groupSetName}).`,
+      classroom: classroomId,
+      group: siphon.group._id,
+      actionBy: req.user._id,
+    });
+    const populatedTargetNotification = await populateNotification(targetNotification._id);
+    req.app.get('io').to(`user-${siphon.targetUser._id}`).emit('notification', populatedTargetNotification);
+
+    // Notify recipients (they RECEIVED bits)
+    for (const recipientId of recipients) {
+      const recipientNotification = await Notification.create({
+        user: recipientId,
+        type: 'siphon_approved',
+        message: `You received ${amountPerRecipient} bits from siphon against ${targetName} in "${groupName}" (${groupSetName}).`,
+        classroom: classroomId,
+        group: siphon.group._id,
+        actionBy: req.user._id,
+      });
+      const populatedRecipientNotification = await populateNotification(recipientNotification._id);
+      req.app.get('io').to(`user-${recipientId}`).emit('notification', populatedRecipientNotification);
+    }
+
     req.app.get('io').to(`group-${siphon.group._id}`).emit('siphon_update', siphon);
     res.json({ message: 'Approved and executed', siphon });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Approval failed' });
+    console.error('Siphon approval error:', err);
+    res.status(500).json({ error: 'Approval failed: ' + err.message });
+  }
+});
+
+// Route to download proof file
+router.get('/:id/proof', ensureAuthenticated, async (req, res) => {
+  try {
+    const siphon = await SiphonRequest.findById(req.params.id);
+    if (!siphon) {
+      return res.status(404).json({ error: 'Siphon request not found' });
+    }
+
+    // Check if user has permission to view this proof
+    const group = await Group.findById(siphon.group);
+    if (!group) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
+    // Only allow group members and teachers to view proof
+    const isMember = group.members.some(m => m._id.equals(req.user._id));
+    const isTeacher = req.user.role === 'teacher';
+    const isAdmin = req.user.role === 'admin';
+
+    if (!isMember && !isTeacher && !isAdmin) {
+      return res.status(403).json({ error: 'Not authorized to view this proof' });
+    }
+
+    if (!siphon.proof || !siphon.proof.storedName) {
+      return res.status(404).json({ error: 'No proof file found' });
+    }
+
+    const path = require('path');
+    const filePath = path.join(__dirname, '../uploads', siphon.proof.storedName);
+    
+    // Set appropriate headers
+    res.setHeader('Content-Disposition', `attachment; filename="${siphon.proof.originalName}"`);
+    res.setHeader('Content-Type', siphon.proof.mimeType || 'application/octet-stream');
+    
+    res.sendFile(filePath, (err) => {
+      if (err) {
+        console.error('Error sending proof file:', err);
+        res.status(404).json({ error: 'File not found' });
+      }
+    });
+  } catch (err) {
+    console.error('Proof download error:', err);
+    res.status(500).json({ error: 'Failed to download proof' });
   }
 });
 

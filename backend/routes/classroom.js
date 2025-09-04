@@ -261,6 +261,53 @@ router.patch('/:id/student-send-enabled', ensureAuthenticated, async (req, res) 
 });
 
 
+// GET route to retrieve whether students can view other students' stats
+router.get('/:id/students-can-view-stats', ensureAuthenticated, async (req, res) => {
+  try {
+    const classroom = await Classroom.findById(req.params.id).select('teacher studentsCanViewStats');
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+    
+    // Only teacher can view this setting
+    if (classroom.teacher.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Only the teacher can view this setting' });
+    }
+    
+    res.json({ studentsCanViewStats: classroom.studentsCanViewStats !== false }); // Default to true
+  } catch (err) {
+    console.error('[Get students-can-view-stats] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PATCH route to update whether students can view other students' stats
+router.patch('/:id/students-can-view-stats', ensureAuthenticated, async (req, res) => {
+  try {
+    const { studentsCanViewStats } = req.body;
+    const classroom = await Classroom.findById(req.params.id);
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+    
+    // Only teacher can change this setting
+    if (classroom.teacher.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Only the teacher can change this setting' });
+    }
+    
+    classroom.studentsCanViewStats = !!studentsCanViewStats;
+    await classroom.save();
+    
+    // Emit the update to all clients in the classroom's room with proper populated data
+    const populatedClassroom = await Classroom.findById(classroom._id)
+      .populate('teacher', 'email')
+      .populate('students', 'email');
+    
+    req.app.get('io').to(`classroom-${classroom._id}`).emit('classroom_update', populatedClassroom);
+
+    res.json({ studentsCanViewStats: !!classroom.studentsCanViewStats });
+  } catch (err) {
+    console.error('[Patch students-can-view-stats] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Unarchive a Classroom
 router.put('/:id/unarchive', ensureAuthenticated, async (req, res) => {
   try {
@@ -518,6 +565,38 @@ router.delete('/:id/students/:studentId', ensureAuthenticated, async (req, res) 
       return res.status(404).json({ error: 'Classroom not found' });
     }
 
+    // Add group cleanup before removing from classroom
+    const GroupSet = require('../models/GroupSet');
+    const Group = require('../models/Group');
+    
+    // Find all groupsets in this classroom
+    const groupSets = await GroupSet.find({ classroom: req.params.id });
+    
+    // Remove user from all groups in these groupsets
+    for (const groupSet of groupSets) {
+      const groups = await Group.find({ _id: { $in: groupSet.groups } });
+      
+      for (const group of groups) {
+        const wasMember = group.members.some(member => member._id.toString() === req.params.studentId);
+        if (wasMember) {
+          // Remove the student from this group (whether pending, approved, or suspended)
+          group.members = group.members.filter(member => member._id.toString() !== req.params.studentId);
+          await group.save();
+          
+          // Update group multiplier after member removal
+          await group.updateMultiplier();
+          
+          // Emit group update to inform other members
+          const populatedGroup = await Group.findById(group._id)
+            .populate('members._id', 'email firstName lastName');
+          req.app.get('io').to(`classroom-${req.params.id}`).emit('group_update', { 
+            groupSet: groupSet._id, 
+            group: populatedGroup
+          });
+        }
+      }
+    }
+
     const notification = await Notification.create({
       user: req.params.studentId,
       type: 'classroom_removal',
@@ -580,6 +659,49 @@ router.patch('/:classId/users/:userId/role', ensureAuthenticated, async (req, re
   } catch (err) {
     console.error('[Change Role] error:', err);
     res.status(500).json({ error: 'Failed to update role' });
+  }
+});
+
+// Update siphon timeout setting
+router.post('/:id/siphon-timeout', ensureAuthenticated, async (req, res) => {
+  try {
+    const classroom = await Classroom.findById(req.params.id);
+    if (!classroom) {
+      return res.status(404).json({ error: 'Classroom not found' });
+    }
+
+    if (classroom.teacher.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Only the teacher can update siphon timeout' });
+    }
+
+    const { siphonTimeoutHours } = req.body;
+    
+    if (siphonTimeoutHours < 1 || siphonTimeoutHours > 168) {
+      return res.status(400).json({ error: 'Siphon timeout must be between 1 and 168 hours' });
+    }
+
+    classroom.siphonTimeoutHours = siphonTimeoutHours;
+    await classroom.save();
+
+    res.json({ message: 'Siphon timeout updated successfully', siphonTimeoutHours });
+  } catch (err) {
+    console.error('[Update Siphon Timeout] error:', err);
+    res.status(500).json({ error: 'Failed to update siphon timeout' });
+  }
+});
+
+// Get siphon timeout setting
+router.get('/:id/siphon-timeout', ensureAuthenticated, async (req, res) => {
+  try {
+    const classroom = await Classroom.findById(req.params.id).select('siphonTimeoutHours');
+    if (!classroom) {
+      return res.status(404).json({ error: 'Classroom not found' });
+    }
+
+    res.json({ siphonTimeoutHours: classroom.siphonTimeoutHours || 72 });
+  } catch (err) {
+    console.error('[Get Siphon Timeout] error:', err);
+    res.status(500).json({ error: 'Failed to get siphon timeout' });
   }
 });
 

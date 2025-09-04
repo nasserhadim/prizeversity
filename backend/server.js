@@ -35,6 +35,7 @@ const challengeTemplateRoutes = require('./routes/challengeTemplate');
 const challengeVerifyRoutes = require('./routes/challengeVerify');
 const { redirectBase, isProd } = require('./config/domain');
 const { cleanTrash } = require('./utils/cleanupTrash');
+require('./utils/siphonCleanup'); // Add this line
 
 const app = express();
 const PORT = process.env.PORT || 5000;
