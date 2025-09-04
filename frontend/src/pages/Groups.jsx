@@ -614,6 +614,45 @@ const Groups = () => {
     }
   };
 
+  const handleBulkAdjust = async () => {
+    if (!adjustModal) return;
+    const { groupSetId, groupId, amount: amt } = adjustModal;
+    
+    // Get selected member IDs for this group (only approved members)
+    const selectedMemberIds = selectedMembers[groupId] || [];
+    const approvedSelectedIds = selectedMemberIds.filter(memberId => {
+      const group = groupSets
+        .find(gs => gs._id === groupSetId)
+        ?.groups.find(g => g._id === groupId);
+      const member = group?.members.find(m => m._id._id === memberId);
+      return member?.status === 'approved';
+    });
+    
+    if (approvedSelectedIds.length === 0) {
+      toast.error('Please select approved members to transfer bits to');
+      return;
+    }
+
+    try {
+      await axios.post(
+        `/api/group-balance/groupset/${groupSetId}/group/${groupId}/adjust`,
+        {
+          amount: amt,
+          description: adjustDescription,
+          selectedMemberIds: approvedSelectedIds, // Add this
+          applyGroupMultipliers: adjustApplyGroupMultipliers,
+          applyPersonalMultipliers: adjustApplyPersonalMultipliers
+        }
+      );
+      toast.success(`Selected students ${amt >= 0 ? 'credited' : 'debited'} ${Math.abs(amt)} ₿`);
+      fetchGroupSets();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Adjust failed');
+    } finally {
+      setAdjustModal(null);
+    }
+  };
+
   // Helpers for member filtering/sorting
   const getFilteredAndSortedMembers = (group) => {
     const filter = memberFilters[group._id] || 'all';

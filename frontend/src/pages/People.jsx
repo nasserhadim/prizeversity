@@ -380,7 +380,8 @@ const People = () => {
           groupSets.forEach(groupSet => {
             groupSet.groups.forEach(group => {
               const isMember = group.members.some(member => 
-                String(member._id._id || member._id) === String(student._id)
+                String(member._id._id || member._id) === String(student._id) && 
+                member.status === 'approved' // Only count approved members
               );
               if (isMember) {
                 groups.push(`${groupSet.name}: ${group.name}`);
@@ -468,7 +469,8 @@ const People = () => {
           groupSets.forEach(groupSet => {
             groupSet.groups.forEach(group => {
               const isMember = group.members.some(member => 
-                String(member._id._id || member._id) === String(student._id)
+                String(member._id._id || member._id) === String(student._id) && 
+                member.status === 'approved' // Only count approved members
               );
               if (isMember) {
                 groups.push({
@@ -931,7 +933,7 @@ const People = () => {
                         ) : (
                           <ul className="list-disc ml-5 space-y-1">
                             {group.members
-                              .filter(m => m && m._id) // skip deleted / null members
+                              .filter(m => m && m._id && m.status === 'approved') // Add status filter
                               .map((m) => {
                                 const user = m._id;
                                 const userId = user._id || user; // handle populated object or raw id
@@ -944,7 +946,7 @@ const People = () => {
                                     <span>{displayName}</span>
                                     <button
                                       className="btn btn-sm btn-outline ml-4"
-                                      onClick={() => navigate(`/classroom/${classroomId}/profile/${userId}`)}
+                                      onClick={() => navigate(`/classroom/${classroomId}/profile/${userId}`, { state: { from: 'people', classroomId } })}
                                     >
                                       View Profile
                                     </button>
