@@ -658,7 +658,7 @@ const People = () => {
 {/* ─────────────── Settings TAB ─────────────── */}
         {tab === 'settings' && (user?.role || '').toLowerCase() === 'teacher' && (
           <div className="w-full space-y-6 min-w-0">
-             <h2 className="text-2xl font-semibold">Classroom Settings</h2>
+             <h2 className="text-2xl font-semibold">People Settings</h2>
 
             <label className="form-control w-full">
               <span className="label-text mb-2 font-medium">
