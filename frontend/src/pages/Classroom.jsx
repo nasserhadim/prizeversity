@@ -75,7 +75,18 @@ const Classroom = () => {
     setAnnouncements(prev => [announcement, ...prev]);
   };
 
+  // Add classroom removal handler
+  const handleClassroomRemoval = (data) => {
+    if (String(data.classroomId) === String(id)) {
+      toast.error(data.message || 'You have been removed from this classroom');
+      setTimeout(() => {
+        navigate('/classrooms');
+      }, 2000);
+    }
+  };
+
   socket.on('receive-announcement', handleNewAnnouncement);
+  socket.on('classroom_removal', handleClassroomRemoval);
 
    // listen for personal notifications
   const handleNotification = (notification) => {
@@ -85,8 +96,10 @@ const Classroom = () => {
 
   return () => {
     socket.off('receive-announcement', handleNewAnnouncement);
+    socket.off('classroom_removal', handleClassroomRemoval);
+    socket.off('notification', handleNotification);
   };
-}, [id]);
+}, [id, navigate]); // Add navigate to dependencies
 
   // Fetch classroom info and ensure user has access
   const fetchClassroomDetails = async () => {

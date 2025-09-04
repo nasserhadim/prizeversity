@@ -565,6 +565,38 @@ router.delete('/:id/students/:studentId', ensureAuthenticated, async (req, res) 
       return res.status(404).json({ error: 'Classroom not found' });
     }
 
+    // Add group cleanup before removing from classroom
+    const GroupSet = require('../models/GroupSet');
+    const Group = require('../models/Group');
+    
+    // Find all groupsets in this classroom
+    const groupSets = await GroupSet.find({ classroom: req.params.id });
+    
+    // Remove user from all groups in these groupsets
+    for (const groupSet of groupSets) {
+      const groups = await Group.find({ _id: { $in: groupSet.groups } });
+      
+      for (const group of groups) {
+        const wasMember = group.members.some(member => member._id.toString() === req.params.studentId);
+        if (wasMember) {
+          // Remove the student from this group (whether pending, approved, or suspended)
+          group.members = group.members.filter(member => member._id.toString() !== req.params.studentId);
+          await group.save();
+          
+          // Update group multiplier after member removal
+          await group.updateMultiplier();
+          
+          // Emit group update to inform other members
+          const populatedGroup = await Group.findById(group._id)
+            .populate('members._id', 'email firstName lastName');
+          req.app.get('io').to(`classroom-${req.params.id}`).emit('group_update', { 
+            groupSet: groupSet._id, 
+            group: populatedGroup
+          });
+        }
+      }
+    }
+
     const notification = await Notification.create({
       user: req.params.studentId,
       type: 'classroom_removal',

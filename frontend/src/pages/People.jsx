@@ -78,6 +78,19 @@ const People = () => {
     fetchGroupSets();
     fetchTaBitPolicy();
 
+    // Add classroom removal handler
+    const handleClassroomRemoval = (data) => {
+      if (String(data.classroomId) === String(classroomId)) {
+        toast.error(data.message || 'You have been removed from this classroom');
+        // Redirect to classroom dashboard after a short delay
+        setTimeout(() => {
+          navigate('/classrooms');
+        }, 2000);
+      }
+    };
+
+    socket.on('classroom_removal', handleClassroomRemoval);
+
     // Fetch if student send is enabled, with fallback default false
     axios
       .get(`/api/classroom/${classroomId}/student-send-enabled`, {
@@ -266,8 +279,9 @@ const People = () => {
       socket.off('balance_update', refreshOnBulkHandler);
       socket.off('balance_adjust');
       socket.off('notification');
+      socket.off('classroom_removal', handleClassroomRemoval); // Add cleanup
     };
-  }, [classroomId, user?._id]); // ensure we re-run when user becomes available
+  }, [classroomId, user?._id, navigate]); // Add navigate to dependencies
 
 
 // Fetch students with per-classroom balances
@@ -571,6 +585,41 @@ const People = () => {
   }, [students]);
   // ── end join student rooms effect ──
 
+  // Add this function with the other handler functions
+  const handleRemoveStudent = (studentId, studentName) => {
+    toast((t) => (
+      <div className="flex flex-col">
+        <span>Remove "{studentName}" from this classroom?</span>
+        <div className="flex justify-end gap-2 mt-2">
+          <button
+            className="btn btn-error btn-sm"
+            onClick={async () => {
+              toast.dismiss(t.id);
+              try {
+                await axios.delete(`/api/classroom/${classroomId}/students/${studentId}`, {
+                  withCredentials: true
+                });
+                toast.success('Student removed successfully!');
+                fetchStudents(); // Refresh the student list
+              } catch (err) {
+                console.error('Failed to remove student:', err);
+                toast.error(err.response?.data?.error || 'Failed to remove student');
+              }
+            }}
+          >
+            Remove
+          </button>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => toast.dismiss(t.id)}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    ));
+  };
+
   return (
     <div className="flex flex-col min-h-screen">
       <main className="flex-grow p-6 w-full max-w-5xl mx-auto">
@@ -817,6 +866,17 @@ const People = () => {
                           </button>
                         )}
 
+                        {/* Add Remove Student button for teachers */}
+                        {user?.role?.toLowerCase() === 'teacher' && student.role !== 'teacher' && String(student._id) !== String(user._id) && (
+                          <button
+                            className="btn btn-xs sm:btn-sm btn-error"
+                            onClick={() => handleRemoveStudent(student._id, student.firstName || student.lastName ? `${student.firstName || ''} ${student.lastName || ''}`.trim() : student.email)}
+                          >
+                            Remove
+                          </button>
+                        )}
+
+                        {/* Role change dropdown */}
                         {user?.role?.toLowerCase() === 'teacher'
             && student.role !== 'teacher'
           && String(student._id) !== String(user._id) && (

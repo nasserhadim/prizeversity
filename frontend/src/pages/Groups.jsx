@@ -130,13 +130,23 @@ const Groups = () => {
     fetchGroupSets();
     socket.emit('join', `classroom-${id}`);
 
+    // Add classroom removal handler
+    const handleClassroomRemoval = (data) => {
+      if (String(data.classroomId) === String(id)) {
+        toast.error(data.message || 'You have been removed from this classroom');
+        setTimeout(() => {
+          navigate('/classrooms');
+        }, 2000);
+      }
+    };
+
+    socket.on('classroom_removal', handleClassroomRemoval);
     socket.on('group_update', fetchGroupSets);
     socket.on('groupset_update', fetchGroupSets);
     socket.on('siphon_create', fetchGroupSets);
     socket.on('siphon_vote', fetchGroupSets);
     socket.on('siphon_update', fetchGroupSets);
     
-    // Add this new listener here
     socket.on('user_deleted', (data) => {
       if (data.classroomId === id) {
         console.log('User deleted, refreshing groups...');
@@ -150,10 +160,10 @@ const Groups = () => {
       socket.off('siphon_create', fetchGroupSets);
       socket.off('siphon_vote', fetchGroupSets);
       socket.off('siphon_update', fetchGroupSets);
-      // Add cleanup for the new listener
       socket.off('user_deleted');
+      socket.off('classroom_removal', handleClassroomRemoval); // Add cleanup
     };
-  }, [id]);
+  }, [id, navigate]); // Add navigate to dependencies
 
   // GroupSet creation/update/reset
   const handleCreateGroupSet = async () => {
