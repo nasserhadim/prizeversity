@@ -11,7 +11,7 @@ const Footer = () => {
         <Link to="/feedback" className="link text-primary">Site Feedback</Link>
       </div>
       <p className="text-base-content/60">
-        © 2025 Prizeversity. All rights reserved.
+        © {new Date().getFullYear()} Prizeversity. All rights reserved.
       </p>
     </div>
   );
