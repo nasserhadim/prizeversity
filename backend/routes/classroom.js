@@ -261,6 +261,53 @@ router.patch('/:id/student-send-enabled', ensureAuthenticated, async (req, res) 
 });
 
 
+// GET route to retrieve whether students can view other students' stats
+router.get('/:id/students-can-view-stats', ensureAuthenticated, async (req, res) => {
+  try {
+    const classroom = await Classroom.findById(req.params.id).select('teacher studentsCanViewStats');
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+    
+    // Only teacher can view this setting
+    if (classroom.teacher.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Only the teacher can view this setting' });
+    }
+    
+    res.json({ studentsCanViewStats: classroom.studentsCanViewStats !== false }); // Default to true
+  } catch (err) {
+    console.error('[Get students-can-view-stats] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PATCH route to update whether students can view other students' stats
+router.patch('/:id/students-can-view-stats', ensureAuthenticated, async (req, res) => {
+  try {
+    const { studentsCanViewStats } = req.body;
+    const classroom = await Classroom.findById(req.params.id);
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+    
+    // Only teacher can change this setting
+    if (classroom.teacher.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Only the teacher can change this setting' });
+    }
+    
+    classroom.studentsCanViewStats = !!studentsCanViewStats;
+    await classroom.save();
+    
+    // Emit the update to all clients in the classroom's room with proper populated data
+    const populatedClassroom = await Classroom.findById(classroom._id)
+      .populate('teacher', 'email')
+      .populate('students', 'email');
+    
+    req.app.get('io').to(`classroom-${classroom._id}`).emit('classroom_update', populatedClassroom);
+
+    res.json({ studentsCanViewStats: !!classroom.studentsCanViewStats });
+  } catch (err) {
+    console.error('[Patch students-can-view-stats] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Unarchive a Classroom
 router.put('/:id/unarchive', ensureAuthenticated, async (req, res) => {
   try {

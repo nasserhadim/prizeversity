@@ -22,7 +22,8 @@ const ClassroomSchema = new mongoose.Schema({
     enum: ['full', 'approval', 'none'],
     default: 'full',
   },
-  studentSendEnabled: { type: Boolean, default: true },
+  studentSendEnabled: { type: Boolean, default: false },
+  studentsCanViewStats: { type: Boolean, default: true }, // Add this line
   createdAt: { type: Date, default: Date.now }
 });
 

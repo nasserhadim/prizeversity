@@ -45,25 +45,32 @@ router.get('/student/:id', ensureAuthenticated, async (req, res) => {
 
     const passiveItems = (items || []).filter((item) => item.category === 'Passive');
 
-    // Return actual user stats (updated by challenges and items)
+    // Helper function to check if user has a specific effect from items
+    function hasEffect(effectName) {
+      return passiveItems.some((item) => item.primaryEffect === effectName);
+    }
+
+    // Keep the EXISTING return structure - don't change anything else
     return res.json({
       student: {
         name: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
         email: user.email,
       },
-      shieldActive: !!user.shieldActive,
-      shieldCount: user.shieldCount || 0,
-      discountShop: user.discountShop ? 20 : 0, // Return as number
-      attackPower: attackCount,
+      classroom: classroom?._id || null,
+      // Keep existing user stats from schema
       luck: user.passiveAttributes?.luck || 1,
       multiplier: user.passiveAttributes?.multiplier || 1,
-      groupMultiplier: user.passiveAttributes?.groupMultiplier || 1,
-      classroomId: classroom?._id?.toString() || null,
+      groupMultiplier: user.passiveAttributes?.groupMultiplier || 1, // Keep this!
+      shieldActive: user.shieldActive || false,
+      shieldCount: user.shieldCount || 0,
+      attackPower: attackCount,
+      // Keep existing computed stats from items
+      doubleEarnings: hasEffect('doubleEarnings'),
+      discountShop: hasEffect('discountShop') ? 20 : 0,
       passiveItemsCount: passiveItems.length
     });
   } catch (err) {
-    // Log full error so you can inspect the stack in the backend terminal
-    console.error('Stats fetch error:', err && err.stack ? err.stack : err);
+    console.error('Stats route error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

@@ -3,12 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
-import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
 import PendingApprovals from '../components/PendingApprovals';
-import socket, { joinClassroom, joinUserRoom } from '../utils/socket'; // <-- updated import
+import socket, { joinClassroom, joinUserRoom } from '../utils/socket';
 import Footer from '../components/Footer';
-
+import ExportButtons from '../components/ExportButtons';
+import formatExportFilename from '../utils/formatExportFilename';
 
 const ROLE_LABELS = {
   student: 'Student',
@@ -23,6 +23,7 @@ const People = () => {
   const [studentSendEnabled, setStudentSendEnabled] = useState(null);
   const [tab, setTab] = useState('everyone');
   const [taBitPolicy, setTaBitPolicy] = useState('full');
+  const [studentsCanViewStats, setStudentsCanViewStats] = useState(true); // Add this
   const [students, setStudents] = useState([]);
   const [groupSets, setGroupSets] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -31,13 +32,14 @@ const People = () => {
 
   const navigate = useNavigate();
 
-  // Fetch classroom data
+  // Fetch classroom settings including students can view stats
   const fetchClassroom = async () => {
     try {
       const res = await axios.get(`/api/classroom/${classroomId}`, {
         withCredentials: true,
       });
       setClassroom(res.data);
+      setStudentsCanViewStats(res.data.studentsCanViewStats !== false); // Default to true if not set
     } catch (err) {
       console.error('Failed to fetch classroom', err);
     }
@@ -56,9 +58,22 @@ const People = () => {
     }
   };
 
+  // Add function to fetch the students can view stats setting
+  const fetchStudentsCanViewStatsSetting = async () => {
+    try {
+      const res = await axios.get(`/api/classroom/${classroomId}/students-can-view-stats`, {
+        withCredentials: true,
+      });
+      setStudentsCanViewStats(res.data.studentsCanViewStats !== false);
+    } catch (err) {
+      console.error('Failed to fetch students can view stats setting', err);
+      setStudentsCanViewStats(true); // Default to true
+    }
+  };
+
   // Initial data fetch + robust realtime handlers
   useEffect(() => {
-    fetchClassroom(); // Add this line
+    fetchClassroom();
     fetchStudents();
     fetchGroupSets();
     fetchTaBitPolicy();
@@ -71,11 +86,14 @@ const People = () => {
      .then((r) => setStudentSendEnabled(!!r.data.studentSendEnabled))
       .catch(() => setStudentSendEnabled(false)); // safe default
 
+      // This is now the single source of truth for real-time updates to this setting.
       socket.on('classroom_update', (updatedClassroom) => {
-        // Refresh student list when classroom updates
         if (updatedClassroom._id === classroomId) {
-          console.debug('[socket] People classroom_update received');
-          fetchClassroom();
+          console.debug('[socket] People classroom_update received, updating state from payload.');
+          console.debug('[socket] Updated classroom data:', updatedClassroom);
+          // Update the entire classroom object and the specific setting state from the socket payload.
+          setClassroom(prev => ({ ...prev, ...updatedClassroom }));
+          setStudentsCanViewStats(updatedClassroom.studentsCanViewStats !== false);
         }
       });
 
@@ -283,14 +301,15 @@ const People = () => {
       );
     })
     .sort((a, b) => {
-      if (sortOption === 'balanceDesc') {
+      // Only allow balance sorting for teachers/admins
+      if (sortOption === 'balanceDesc' && (user?.role === 'teacher' || user?.role === 'admin')) {
         return (b.balance || 0) - (a.balance || 0);
       } else if (sortOption === 'nameAsc') {
         const nameA = (a.firstName || a.name || '').toLowerCase();
         const nameB = (b.firstName || b.name || '').toLowerCase();
         return nameA.localeCompare(nameB);
       }
-      return 0;
+      return 0; // Default order
     });
 
     // Handle bulk user upload via Excel file
@@ -322,24 +341,183 @@ const People = () => {
     reader.readAsArrayBuffer(file);
   };
 
-  // Export filtered students list to Excel file
-  const handleExportToExcel = () => {
-    const dataToExport = filteredStudents.map((student) => ({
-      Name: `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.name || student.email,
-      Email: student.email,
-      Balance: student.balance?.toFixed(2) || '0.00',
-      Role: ROLE_LABELS[student.role] || student.role,
-      Classes: student.classrooms?.map((c) => c.name).join(', ') || 'N/A',
-    }));
+  // Replace the old handleExportToExcel function with these new export functions
+  const exportPeopleToCSV = async () => {
+    if (!filteredStudents.length) {
+      throw new Error('No students to export');
+    }
 
-    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'People');
-    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-    const blob = new Blob([excelBuffer], { type: 'application/octet-stream' });
-    saveAs(blob, 'people.xlsx');
+    // Build comprehensive data including stats and groups
+    const dataToExport = await Promise.all(
+      filteredStudents.map(async (student) => {
+        let stats = {};
+        let groups = [];
+        
+        try {
+          // Fetch student stats
+          const statsRes = await axios.get(`/api/stats/student/${student._id}?classroomId=${classroomId}`, { withCredentials: true });
+          stats = statsRes.data;
+        } catch (err) {
+          console.error('Failed to fetch stats for student:', student._id);
+        }
+
+        try {
+          // Find groups this student belongs to
+          groupSets.forEach(groupSet => {
+            groupSet.groups.forEach(group => {
+              const isMember = group.members.some(member => 
+                String(member._id._id || member._id) === String(student._id)
+              );
+              if (isMember) {
+                groups.push(`${groupSet.name}: ${group.name}`);
+              }
+            });
+          });
+        } catch (err) {
+          console.error('Failed to process groups for student:', student._id);
+        }
+
+        return {
+          Name: `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.email,
+          Email: student.email,
+          Role: ROLE_LABELS[student.role] || student.role,
+          Balance: student.balance?.toFixed(2) || '0.00',
+          Luck: stats.luck || 1,
+          Multiplier: stats.multiplier || 1,
+          GroupMultiplier: stats.groupMultiplier || 1,
+          ShieldActive: stats.shieldActive ? 'Yes' : 'No',
+          ShieldCount: stats.shieldCount || 0,
+          AttackPower: stats.attackPower || 0,
+          DoubleEarnings: stats.doubleEarnings ? 'Yes' : 'No',
+          DiscountShop: stats.discountShop || 0,
+          PassiveItemsCount: stats.passiveItemsCount || 0,
+          Groups: groups.join('; ') || 'None'
+        };
+      })
+    );
+
+    // Create CSV
+    const headers = Object.keys(dataToExport[0]);
+    const csvContent = [
+      headers.join(','),
+      ...dataToExport.map(row => 
+        headers.map(header => {
+          const value = row[header];
+          // Escape CSV values that contain commas, quotes, or newlines
+          if (typeof value === 'string' && (value.includes(',') || value.includes('"') || value.includes('\n'))) {
+            return `"${value.replace(/"/g, '""')}"`;
+          }
+          return value;
+        }).join(',')
+      )
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    
+    const classroomName = classroom?.name || 'Unknown';
+    const classroomCode = classroom?.code || classroomId;
+    const base = formatExportFilename(`${classroomName}_${classroomCode}_people`, 'export');
+    a.download = `${base}.csv`;
+    
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    
+    return `${base}.csv`;
   };
 
+  const exportPeopleToJSON = async () => {
+    if (!filteredStudents.length) {
+      throw new Error('No students to export');
+    }
+
+    // Build comprehensive data including stats and groups
+    const dataToExport = await Promise.all(
+      filteredStudents.map(async (student) => {
+        let stats = {};
+        let groups = [];
+        
+        try {
+          // Fetch student stats
+          const statsRes = await axios.get(`/api/stats/student/${student._id}?classroomId=${classroomId}`, { withCredentials: true });
+          stats = statsRes.data;
+        } catch (err) {
+          console.error('Failed to fetch stats for student:', student._id);
+        }
+
+        try {
+          // Find groups this student belongs to
+          groupSets.forEach(groupSet => {
+            groupSet.groups.forEach(group => {
+              const isMember = group.members.some(member => 
+                String(member._id._id || member._id) === String(student._id)
+              );
+              if (isMember) {
+                groups.push({
+                  groupSetName: groupSet.name,
+                  groupName: group.name,
+                  groupSetId: groupSet._id,
+                  groupId: group._id
+                });
+              }
+            });
+          });
+        } catch (err) {
+          console.error('Failed to process groups for student:', student._id);
+        }
+
+        return {
+          _id: student._id,
+          name: `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.email,
+          firstName: student.firstName,
+          lastName: student.lastName,
+          email: student.email,
+          role: student.role,
+          balance: student.balance || 0,
+          stats: {
+            luck: stats.luck || 1,
+            multiplier: stats.multiplier || 1,
+            groupMultiplier: stats.groupMultiplier || 1,
+            shieldActive: stats.shieldActive || false,
+            shieldCount: stats.shieldCount || 0,
+            attackPower: stats.attackPower || 0,
+            doubleEarnings: stats.doubleEarnings || false,
+            discountShop: stats.discountShop || 0,
+            passiveItemsCount: stats.passiveItemsCount || 0
+          },
+          groups: groups,
+          classroom: {
+            _id: classroomId,
+            name: classroom?.name,
+            code: classroom?.code
+          },
+          exportedAt: new Date().toISOString(),
+          exportedFrom: 'people_page'
+        };
+      })
+    );
+
+    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    
+    const classroomName = classroom?.name || 'Unknown';
+    const classroomCode = classroom?.code || classroomId;
+    const base = formatExportFilename(`${classroomName}_${classroomCode}_people`, 'export');
+    a.download = `${base}.json`;
+    
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    
+    return `${base}.json`;
+  };
   // ── Join each student's user room so per-user notifications/balance events are received ──
   useEffect(() => {
     if (!Array.isArray(students) || students.length === 0) return;
@@ -492,11 +670,44 @@ const People = () => {
               </label>
             )}
 
+            {/* Add the new setting for students viewing stats */}
+            <label className="form-control w-full">
+              <span className="label-text mb-2 font-medium">
+                Allow students to view other students' stats
+              </span>
+              <input
+                type="checkbox"
+                className="toggle toggle-success"
+                checked={studentsCanViewStats}
+                onChange={async (e) => {
+                  const isEnabled = e.target.checked;
+                  
+                  // Optimistically update the UI immediately
+                  setStudentsCanViewStats(isEnabled);
+                  
+                  try {
+                    // Send the update to the server
+                    await axios.patch(
+                      `/api/classroom/${classroomId}/students-can-view-stats`,
+                      { studentsCanViewStats: isEnabled },
+                      { withCredentials: true }
+                    );
+                    toast.success(
+                      `Students can ${isEnabled ? 'now' : 'no longer'} view other students' stats`
+                    );
+                    
+                    // The socket event will update other users, but this user sees immediate feedback
+                    
+                  } catch (err) {
+                    // If the request fails, revert the optimistic update
+                    setStudentsCanViewStats(!isEnabled);
+                    toast.error('Failed to update setting');
+                  }
+                }}
+              />
+            </label>
 
-
-    
-
-          {/* Show teacher’s approval queue when policy=approval */}
+            {/* Show teacher's approval queue when policy=approval */}
     {taBitPolicy === 'approval' && (
       <PendingApprovals classroomId={classroomId} />
     )}
@@ -524,12 +735,16 @@ const People = () => {
                   />
                 )}
 
-                <button
-                  className="btn btn-sm btn-accent"
-                  onClick={handleExportToExcel}
-                >
-                  Export to Excel
-                </button>
+                {/* Only show export for teachers/admins */}
+                {(user?.role === 'teacher' || user?.role === 'admin') && (
+                  <ExportButtons
+                    onExportCSV={exportPeopleToCSV}
+                    onExportJSON={exportPeopleToJSON}
+                    userName={classroom?.name || 'classroom'}
+                    exportLabel="people"
+                    className="mr-2"
+                  />
+                )}
 
                 <select
                   className="select select-bordered"
@@ -537,7 +752,10 @@ const People = () => {
                   onChange={(e) => setSortOption(e.target.value)}
                 >
                   <option value="default">Sort By</option>
-                  <option value="balanceDesc">Balance (High → Low)</option>
+                  {/* Only show balance sorting for teachers/admins */}
+                  {(user?.role === 'teacher' || user?.role === 'admin') && (
+                    <option value="balanceDesc">Balance (High → Low)</option>
+                  )}
                   <option value="nameAsc">Name (A → Z)</option>
                 </select>
               </div>
@@ -562,9 +780,12 @@ const People = () => {
                         </span>
                       </div>
 
-                      <div className="text-sm text-gray-500 mt-1">
-                        Balance: B{student.balance?.toFixed(2) || '0.00'}
-                      </div>
+                      {/* Only show balance to teachers/admins */}
+                      {(user?.role?.toLowerCase() === 'teacher' || user?.role?.toLowerCase() === 'admin') && (
+                        <div className="text-sm text-gray-500 mt-1">
+                          Balance: B{student.balance?.toFixed(2) || '0.00'}
+                        </div>
+                      )}
 
                       <div className="flex gap-2 mt-2 flex-wrap">
                         <button
@@ -577,12 +798,20 @@ const People = () => {
                           View Profile
                         </button>
 
-                        {(user?.role?.toLowerCase() === 'teacher' || 
-                          user?.role?.toLowerCase() === 'admin' ||
-                          (user?.role?.toLowerCase() === 'student' && String(student._id) === String(user._id))) && (
+                        {/* 
+                          Show "View Stats" button if:
+                          1. The current user is a teacher or admin.
+                          OR
+                          2. The student in the list is the current user (you can always see your own stats).
+                          OR
+                          3. The current user is a student AND the classroom setting allows it.
+                        */}
+                        {(user?.role === 'teacher' || user?.role === 'admin' || String(student._id) === String(user?._id) || (user?.role === 'student' && studentsCanViewStats)) && (
                           <button
-                            className="btn btn-sm btn-success"
-                            onClick={() => navigate(`/classroom/${classroomId}/student/${student._id}/stats`)}
+                            className="btn btn-xs sm:btn-sm btn-success"
+                            onClick={() => navigate(`/classroom/${classroomId}/student/${student._id}/stats`, {
+                              state: { from: 'people' }
+                            })}
                           >
                             View Stats
                           </button>
