@@ -17,6 +17,9 @@ const Groups = () => {
   const { user } = useAuth();
   const [groupSets, setGroupSets] = useState([]);
   const [classroom, setClassroom] = useState(null);
+  const [allStudents, setAllStudents] = useState([]); // Add state for all students
+  const [addMemberModal, setAddMemberModal] = useState(null); // { groupId, groupSetId }
+  const [selectedStudent, setSelectedStudent] = useState(''); // student id for the add dropdown
   const [activeTab, setActiveTab] = useState('list'); // 'list' or 'create'
   const [loading, setLoading] = useState(true);
   const [groupSetName, setGroupSetName] = useState('');
@@ -107,10 +110,19 @@ const Groups = () => {
   // Fetch classroom details
   const fetchClassroom = async () => {
     try {
-      const response = await axios.get(`/api/classroom/${id}`);
-      setClassroom(response.data);
-    } catch (err) {
-      console.error('Failed to fetch classroom:', err);
+      const res = await axios.get(`/api/classroom/${id}`);
+      setClassroom(res.data);
+    } catch {
+      toast.error('Failed to fetch classroom details');
+    }
+  };
+
+  const fetchAllStudents = async () => {
+    try {
+      const res = await axios.get(`/api/classroom/${id}/students`);
+      setAllStudents(res.data);
+    } catch {
+      toast.error('Failed to fetch students for classroom');
     }
   };
 
@@ -127,6 +139,7 @@ const Groups = () => {
   // Will fetch all the updates from the groups, their siphone votes, groupsets, and siphon updates
   useEffect(() => {
     fetchClassroom();
+    fetchAllStudents(); // Fetch students on load
     fetchGroupSets();
     socket.emit('join', `classroom-${id}`);
 
@@ -483,15 +496,26 @@ const Groups = () => {
     }
   };
 
-  // const handleLeaveGroup = async (groupSetId, groupId) => {
-  //   try {
-  //     await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/leave`);
-  //     toast.success('Left group');
-  //     fetchGroupSets();
-  //   } catch {
-  //     toast.error('Failed to leave group');
-  //   }
-  // };
+  // Handles adding a student to a group by a teacher/admin
+  const handleAddMember = async () => {
+    if (!addMemberModal || !selectedStudent) {
+      return toast.error('Please select a student to add.');
+    }
+    const { groupSetId, groupId } = addMemberModal;
+    try {
+      await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/add-members`, {
+        memberIds: [selectedStudent]
+      });
+      toast.success('Student added successfully.');
+      fetchGroupSets();
+      setAddMemberModal(null);
+      setSelectedStudent('');
+    } catch (err) {
+      const errorMessage = err.response?.data?.error || 'Failed to add student.';
+      toast.error(errorMessage);
+    }
+  };
+
   // Handles a student leaving a group
   const handleLeaveGroup = async (groupSetIdParam, groupIdParam) => {
     // Accept optional parameters (from direct button click) or fall back to confirm modal state
@@ -609,17 +633,22 @@ const Groups = () => {
     try {
       const { groupSetId, groupId, memberIds } = adjustModal;
       const amt = Number(adjustAmount);
-      await axios.post(
-        `/api/groupset/${groupSetId}/group/${groupId}/adjust-balance`,
+      const res = await axios.post(
+        `/api/groupset/${groupSetId}/group/${groupId}/adjust-balance`, // Remove 'group-balance' prefix
         { 
           amount: amt, 
           description: adjustDesc,
-          applyGroupMultipliers: adjustApplyGroupMultipliers, // Add separate parameter
-          applyPersonalMultipliers: adjustApplyPersonalMultipliers, // Add separate parameter
+          applyGroupMultipliers: adjustApplyGroupMultipliers,
+          applyPersonalMultipliers: adjustApplyPersonalMultipliers,
           memberIds,
         }
       );
-      toast.success(`Selected members (excluding pending members (if any)) ${amt >= 0 ? 'credited' : 'debited'} ${Math.abs(amt)} ₿`);
+
+      if (res.status === 202) {
+        toast.success('Request sent for teacher approval.');
+      } else {
+        toast.success(`Selected members (excluding pending members (if any)) ${amt >= 0 ? 'credited' : 'debited'} ${Math.abs(amt)} ₿`);
+      }
       fetchGroupSets();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Adjust failed');
@@ -1216,6 +1245,7 @@ const Groups = () => {
 
                       {(user.role === 'teacher' || user.role === 'admin') && (
                         <>
+                          <button className="btn btn-xs btn-primary" onClick={() => { setAddMemberModal({ groupId: group._id, groupSetId: gs._id }); setSelectedStudent(''); }}>Add Member</button>
                           <button className="btn btn-xs btn-info" onClick={() => openEditGroupModal(gs._id, group._id, group.name, group.maxMembers)}>Edit</button>
                           <button className="btn btn-xs btn-error" onClick={() =>
                             setConfirmDeleteGroup({
@@ -1774,6 +1804,49 @@ const Groups = () => {
             <div className="flex justify-center gap-4">
               <button onClick={() => setConfirmDeleteAllGroupSets(null)} className="btn btn-sm">Cancel</button>
               <button onClick={handleDeleteAllGroupSets} className="btn btn-sm btn-error">Delete {confirmDeleteAllGroupSets.ids.length} GroupSet(s)</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Member Modal */}
+      {addMemberModal && (
+        <div className="modal modal-open">
+          <div className="modal-box">
+            <h3 className="font-bold text-lg">Add Member to Group</h3>
+            <p className="py-4">Select a student to add. Only students not already in this group set are shown.</p>
+            
+            <select
+              className="select select-bordered w-full"
+              value={selectedStudent}
+              onChange={(e) => setSelectedStudent(e.target.value)}
+            >
+              <option value="" disabled>Select a student</option>
+              {(() => {
+                const groupSet = groupSets.find(gs => gs._id === addMemberModal.groupSetId);
+                if (!groupSet) return null;
+
+                const memberIdsInGroupSet = new Set(
+                  groupSet.groups.flatMap(g => g.members.map(m => m._id._id))
+                );
+
+                const availableStudents = allStudents.filter(s => !memberIdsInGroupSet.has(s._id));
+
+                if (availableStudents.length === 0) {
+                  return <option disabled>No available students</option>;
+                }
+
+                return availableStudents.map(student => (
+                  <option key={student._id} value={student._id}>
+                    {`${student.firstName || ''} ${student.lastName || ''}`.trim() || student.email}
+                  </option>
+                ));
+              })()}
+            </select>
+
+            <div className="modal-action">
+              <button className="btn btn-ghost" onClick={() => setAddMemberModal(null)}>Cancel</button>
+              <button className="btn btn-success" onClick={handleAddMember} disabled={!selectedStudent}>Add</button>
             </div>
           </div>
         </div>

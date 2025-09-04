@@ -163,24 +163,22 @@ router.post('/:id/teacher-approve', ensureAuthenticated, async (req, res) => {
     return res.status(400).json({ error: 'Not ready for teacher approval' });
 
   try {
-
-    
-    // Select recipients (approved group mmebers excluding target)
+    // Select recipients (approved group members excluding target)
     const recipients = siphon.group.members
       .filter(m => m.status === 'approved' && !m._id.equals(siphon.targetUser))
       .map(m => m._id);
 
     // Transfer bits from target to recipients
-    console.log('transferBits finished');
-      await transferBits({
-        fromUserId: siphon.targetUser,
-        recipients,
-        amount: siphon.amount,
-        session,
-        classroomId: siphon.classroom || group.classroom || null
-      });
+    console.log('transferBits starting');
+    await transferBits({
+      fromUserId: siphon.targetUser,
+      recipients,
+      amount: siphon.amount,
+      // Remove the session parameter since it's not defined here
+      // session, 
+      classroomId: siphon.classroom || siphon.group.classroom || null
+    });
 
-    
     // Mark request as fully approved and executed
     siphon.status = 'teacher_approved';
     await siphon.save();

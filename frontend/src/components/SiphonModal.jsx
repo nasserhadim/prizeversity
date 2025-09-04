@@ -95,7 +95,7 @@ const BACKEND_URL = `${API_BASE}`;
             .filter(m => String(m._id._id) !== String(user._id))
             .map(m => (
               <option key={m._id._id} value={m._id._id}>
-                {m._id.email}
+                {`${m._id.firstName || ''} ${m._id.lastName || ''}`.trim() || m._id.email} - {m._id.email}
               </option>
             ))
           }

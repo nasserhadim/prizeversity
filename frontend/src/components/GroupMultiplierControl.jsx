@@ -13,7 +13,7 @@ const GroupMultiplierControl = ({ group, groupSetId, classroomId, compact = fals
       setLoading(true);
       // API call to update multiplier
       await axios.post(
-        `/api/groupset/${groupSetId}/group/${group._id}/set-multiplier`,
+        `/api/groupset/${groupSetId}/group/${group._id}/set-multiplier`, // Remove 'group-balance' prefix
         { multiplier }
       );
       // Notify success

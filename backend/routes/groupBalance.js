@@ -6,14 +6,94 @@ const User  = require('../models/User');
 const router = express.Router();
 const Notification = require('../models/Notification');
 const { populateNotification } = require('../utils/notifications');
+const Classroom = require('../models/Classroom'); // Import Classroom model
+const PendingAssignment = require('../models/PendingAssignment'); // Import PendingAssignment model
 
-// Middlware will allow only teachers or admins to access certain routes
-function ensureTeacher(req, res, next) {
-  if (!['teacher','admin'].includes(req.user.role)) {
-    return res.status(403).json({ error:'Only teachers or admins can adjust group balances' });
+// Utility to check if a TA can assign bits based on classroom policy
+async function canTAAssignBits({ taUser, classroomId }) {
+  const classroom = await Classroom.findById(classroomId).select('taBitPolicy students');
+  if (!classroom) return { ok: false, status: 404, msg: 'Classroom not found' };
+
+  // TAs must be part of the classroom they are trying to affect
+  if (!classroom.students.map(String).includes(String(taUser._id))) {
+    return { ok: false, status: 403, msg: 'You are not part of this classroom' };
   }
-  next();
+
+  switch (classroom.taBitPolicy) {
+    case 'full':
+      return { ok: true };
+    case 'none':
+      return { ok: false, status: 403, msg: 'Policy forbids Admins/TAs from assigning bits' };
+    case 'approval':
+      return { ok: false, requiresApproval: true };
+    default:
+      // Default to 'full' if not set, but should ideally be set.
+      return { ok: true };
+  }
 }
+
+
+// Middleware will allow only teachers or admins to access certain routes
+async function ensureTeacher(req, res, next) {
+  if (req.user.role === 'teacher') {
+    return next();
+  }
+
+  if (req.user.role === 'admin') {
+    const { groupSetId } = req.params;
+    const groupSet = await GroupSet.findById(groupSetId).populate('classroom');
+    
+    // If there's no classroom context, we can't check policy, so deny for safety.
+    // Teachers can still operate on such groups.
+    if (!groupSet || !groupSet.classroom) {
+      return res.status(404).json({ error: 'Classroom context not found for this group. TAs cannot adjust balances.' });
+    }
+    const classroomId = groupSet.classroom._id;
+    const gate = await canTAAssignBits({ taUser: req.user, classroomId });
+
+    if (gate.ok) {
+      return next();
+    }
+
+    if (gate.requiresApproval) {
+      req.requiresApproval = true; // Pass this to the main route handler
+      return next();
+    }
+    
+    return res.status(gate.status || 403).json({ error: gate.msg || 'You are not authorized to perform this action.' });
+  }
+
+  return res.status(403).json({ error: 'Only teachers or admins can adjust group balances' });
+}
+
+// Helper function for multiplier notes
+function getMultiplierNote(applyGroup, applyPersonal) {
+  if (!applyGroup && !applyPersonal) {
+    return "All multipliers bypassed by teacher";
+  } else if (!applyGroup) {
+    return "Group multipliers bypassed by teacher";
+  } else if (!applyPersonal) {
+    return "Personal multipliers bypassed by teacher";
+  }
+  return undefined;
+}
+
+// Add the helper functions at the top of the file after imports
+const getClassroomBalance = (user, classroomId) => {
+  if (!Array.isArray(user.classroomBalances)) return 0;
+  const cb = user.classroomBalances.find(cb => String(cb.classroom) === String(classroomId));
+  return cb ? cb.balance : 0;
+};
+
+const updateClassroomBalance = (user, classroomId, newBalance) => {
+  if (!Array.isArray(user.classroomBalances)) user.classroomBalances = [];
+  const idx = user.classroomBalances.findIndex(cb => String(cb.classroom) === String(classroomId));
+  if (idx >= 0) {
+    user.classroomBalances[idx].balance = Math.max(0, newBalance);
+  } else {
+    user.classroomBalances.push({ classroom: classroomId, balance: Math.max(0, newBalance) });
+  }
+};
 
 // Adjust balance for all students in a group, applying group and personal multipliers
 router.post(
@@ -21,8 +101,8 @@ router.post(
   ensureAuthenticated,
   ensureTeacher,
   async (req, res) => {
-    const { groupId } = req.params;
-    const groupSet = await GroupSet.findById(req.params.groupSetId).populate('classroom');
+    const { groupId, groupSetId } = req.params;
+    const groupSet = await GroupSet.findById(groupSetId).populate('classroom');
     const { amount, description, applyGroupMultipliers = true, applyPersonalMultipliers = true, memberIds } = req.body;
     
     try {
@@ -32,22 +112,48 @@ router.post(
         return res.status(400).json({ error: 'Invalid amount' });
       }
 
-      if (!memberIds || !Array.isArray(memberIds) || memberIds.length === 0) {
-        return res.status(400).json({ error: 'No members selected for balance adjustment.' });
+      // If approval is required, create pending assignments and return
+      if (req.requiresApproval) {
+        const classroom = groupSet.classroom;
+        for (const memberId of memberIds) {
+          await PendingAssignment.create({
+            classroom: classroom._id,
+            student: memberId,
+            amount: numericAmount,
+            description: description || `Group adjust`,
+            requestedBy: req.user._id,
+          });
+        }
+        // Notify teacher
+        const notification = await Notification.create({
+          user: classroom.teacher,
+          type: 'bit_assignment_request',
+          message: `Admin/TA ${req.user.firstName || req.user.email} requested a group balance adjustment.`,
+          classroom: classroom._id,
+          actionBy: req.user._id,
+        });
+        const populated = await populateNotification(notification._id);
+        req.app.get('io').to(`user-${classroom.teacher}`).emit('notification', populated);
+
+        return res.status(202).json({ message: 'Request queued for teacher approval' });
       }
 
       // Find the group with members populated including their passiveAttributes
       const group = await Group.findById(groupId).populate({
         path: 'members._id',
-        select: 'balance passiveAttributes transactions role classroomBalances'
+        model: 'User',
+        select: 'balance passiveAttributes transactions role classroomBalances',
       });
 
       if (!group) return res.status(404).json({ error: 'Group not found' });
 
       const results = [];
+      const membersToUpdate = memberIds 
+        ? group.members.filter(m => memberIds.includes(m._id._id.toString()))
+        : group.members;
       
       // Will loop through each group member and apply balance adjustment
-      for (const member of group.members) {
+      for (const member of membersToUpdate) {
         // Ensure we have a full user doc. member._id may be populated or may be an ObjectId.
         let user = member._id;
         if (!user || !user._id) {
@@ -161,40 +267,44 @@ router.post(
 
 
 // Update the manual multiplier setting route
-router.post('/groupset/:groupSetId/group/:groupId/set-multiplier', ensureAuthenticated, ensureTeacher, async (req, res) => {
-  const { groupId } = req.params;
-  const { multiplier } = req.body;
+router.post(
+  '/groupset/:groupSetId/group/:groupId/set-multiplier',
+  ensureAuthenticated,
+  ensureTeacher,
+  async (req, res) => {
+    const { groupId } = req.params;
+    const { multiplier } = req.body;
 
-  try {
-    const group = await Group.findById(groupId);
-    if (!group) return res.status(404).json({ error: 'Group not found' });
+    try {
+      const group = await Group.findById(groupId);
+      if (!group) return res.status(404).json({ error: 'Group not found' });
 
-    // Validate multiplier value - only check for positive number
-    if (multiplier < 0) {
-      return res.status(400).json({ error: 'Multiplier must be a positive number' });
-    }
+      // Validate multiplier value - only check for positive number
+      if (multiplier < 0) {
+        return res.status(400).json({ error: 'Multiplier must be a positive number' });
+      }
 
-    // Use the manual multiplier method (this sets isAutoMultiplier to false)
-    await group.setManualMultiplier(multiplier);
-    
-    // Notify group members about the multiplier change
-    for (const member of group.members) {
-      req.app.get('io').to(`user-${member._id}`).emit('group_multiplier_update', {
+      // Use the manual multiplier method (this sets isAutoMultiplier to false)
+      await group.setManualMultiplier(multiplier);
+      
+      // Notify group members about the multiplier change
+      for (const member of group.members) {
+        req.app.get('io').to(`user-${member._id}`).emit('group_multiplier_update', {
+          groupId: group._id,
+          multiplier
+        });
+      }
+
+      res.json({ 
+        message: 'Group multiplier updated (manual override)',
         groupId: group._id,
-        multiplier
+        multiplier,
+        isAutoMultiplier: false
       });
+    } catch (err) {
+      console.error('Group multiplier update error:', err);
+      res.status(500).json({ error: 'Failed to update group multiplier' });
     }
-
-    res.json({ 
-      message: 'Group multiplier updated (manual override)',
-      groupId: group._id,
-      multiplier,
-      isAutoMultiplier: false
-    });
-  } catch (err) {
-    console.error('Group multiplier update error:', err);
-    res.status(500).json({ error: 'Failed to update group multiplier' });
-  }
 });
 
 // Add this route to reset a group back to auto multiplier mode
@@ -220,34 +330,5 @@ router.post('/groupset/:groupSetId/group/:groupId/reset-auto-multiplier', ensure
     res.status(500).json({ error: 'Failed to reset to auto multiplier' });
   }
 });
-
-// Helper function for multiplier notes
-function getMultiplierNote(applyGroup, applyPersonal) {
-  if (!applyGroup && !applyPersonal) {
-    return "All multipliers bypassed by teacher";
-  } else if (!applyGroup) {
-    return "Group multipliers bypassed by teacher";
-  } else if (!applyPersonal) {
-    return "Personal multipliers bypassed by teacher";
-  }
-  return undefined;
-}
-
-// Add the helper functions at the top of the file after imports
-const getClassroomBalance = (user, classroomId) => {
-  if (!Array.isArray(user.classroomBalances)) return 0;
-  const cb = user.classroomBalances.find(cb => String(cb.classroom) === String(classroomId));
-  return cb ? cb.balance : 0;
-};
-
-const updateClassroomBalance = (user, classroomId, newBalance) => {
-  if (!Array.isArray(user.classroomBalances)) user.classroomBalances = [];
-  const idx = user.classroomBalances.findIndex(cb => String(cb.classroom) === String(classroomId));
-  if (idx >= 0) {
-    user.classroomBalances[idx].balance = Math.max(0, newBalance);
-  } else {
-    user.classroomBalances.push({ classroom: classroomId, balance: Math.max(0, newBalance) });
-  }
-};
 
 module.exports = router;
