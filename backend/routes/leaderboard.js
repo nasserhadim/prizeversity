@@ -7,27 +7,23 @@ const router = express.Router();
 
 // The leaderboard will list all the users in that classroom from the one that has the most bits gathered.
 
-// Leaderboard (updated for per-classroom balances)
+// Leaderboard (updated to not expose balances)
 router.get('/:classroomId/leaderboard', ensureAuthenticated, async (req, res) => {
   try {
     const classroomId = req.params.classroomId;
     const classroom = await Classroom.findById(classroomId).populate('students', 'email role firstName lastName');
     if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
 
-    // Fetch per-classroom balances and sort
-    const leaderboard = await Promise.all(
-      classroom.students
-        .filter(student => student.role === 'student')
-        .map(async (student) => {
-          const user = await User.findById(student._id).select('classroomBalances');
-          const classroomBalance = user.classroomBalances.find(cb => cb.classroom.toString() === classroomId);
-          return {
-            ...student.toObject(),
-            balance: classroomBalance ? classroomBalance.balance : 0
-          };
-        })
-    );
-    leaderboard.sort((a, b) => b.balance - a.balance);
+    // Return students without balance information
+    const leaderboard = classroom.students
+      .filter(student => student.role === 'student')
+      .map(student => ({
+        _id: student._id,
+        email: student.email,
+        firstName: student.firstName,
+        lastName: student.lastName,
+        role: student.role
+      }));
 
     res.json(leaderboard);
   } catch (err) {

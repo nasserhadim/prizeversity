@@ -12,11 +12,14 @@ import { API_BASE } from '../config/api'; // add
 import { resolveImageSrc, resolveGroupSetSrc, isPlaceholderGroupSetImage } from '../utils/image'; // OR import the helper
 
 const Groups = () => {
-  const { id } = useParams();
-  const navigate = useNavigate(); // Add this line
+  const { id } = useParams(); // This is the classroomId
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [groupSets, setGroupSets] = useState([]);
   const [classroom, setClassroom] = useState(null);
+  const [allStudents, setAllStudents] = useState([]); // Add state for all students
+  const [addMemberModal, setAddMemberModal] = useState(null); // { groupId, groupSetId }
+  const [selectedStudent, setSelectedStudent] = useState(''); // student id for the add dropdown
   const [activeTab, setActiveTab] = useState('list'); // 'list' or 'create'
   const [loading, setLoading] = useState(true);
   const [groupSetName, setGroupSetName] = useState('');
@@ -107,10 +110,19 @@ const Groups = () => {
   // Fetch classroom details
   const fetchClassroom = async () => {
     try {
-      const response = await axios.get(`/api/classroom/${id}`);
-      setClassroom(response.data);
-    } catch (err) {
-      console.error('Failed to fetch classroom:', err);
+      const res = await axios.get(`/api/classroom/${id}`);
+      setClassroom(res.data);
+    } catch {
+      toast.error('Failed to fetch classroom details');
+    }
+  };
+
+  const fetchAllStudents = async () => {
+    try {
+      const res = await axios.get(`/api/classroom/${id}/students`);
+      setAllStudents(res.data);
+    } catch {
+      toast.error('Failed to fetch students for classroom');
     }
   };
 
@@ -127,16 +139,27 @@ const Groups = () => {
   // Will fetch all the updates from the groups, their siphone votes, groupsets, and siphon updates
   useEffect(() => {
     fetchClassroom();
+    fetchAllStudents(); // Fetch students on load
     fetchGroupSets();
     socket.emit('join', `classroom-${id}`);
 
+    // Add classroom removal handler
+    const handleClassroomRemoval = (data) => {
+      if (String(data.classroomId) === String(id)) {
+        toast.error(data.message || 'You have been removed from this classroom');
+        setTimeout(() => {
+          navigate('/classrooms');
+        }, 2000);
+      }
+    };
+
+    socket.on('classroom_removal', handleClassroomRemoval);
     socket.on('group_update', fetchGroupSets);
     socket.on('groupset_update', fetchGroupSets);
     socket.on('siphon_create', fetchGroupSets);
     socket.on('siphon_vote', fetchGroupSets);
     socket.on('siphon_update', fetchGroupSets);
     
-    // Add this new listener here
     socket.on('user_deleted', (data) => {
       if (data.classroomId === id) {
         console.log('User deleted, refreshing groups...');
@@ -150,10 +173,10 @@ const Groups = () => {
       socket.off('siphon_create', fetchGroupSets);
       socket.off('siphon_vote', fetchGroupSets);
       socket.off('siphon_update', fetchGroupSets);
-      // Add cleanup for the new listener
       socket.off('user_deleted');
+      socket.off('classroom_removal', handleClassroomRemoval); // Add cleanup
     };
-  }, [id]);
+  }, [id, navigate]); // Add navigate to dependencies
 
   // GroupSet creation/update/reset
   const handleCreateGroupSet = async () => {
@@ -473,15 +496,26 @@ const Groups = () => {
     }
   };
 
-  // const handleLeaveGroup = async (groupSetId, groupId) => {
-  //   try {
-  //     await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/leave`);
-  //     toast.success('Left group');
-  //     fetchGroupSets();
-  //   } catch {
-  //     toast.error('Failed to leave group');
-  //   }
-  // };
+  // Handles adding a student to a group by a teacher/admin
+  const handleAddMember = async () => {
+    if (!addMemberModal || !selectedStudent) {
+      return toast.error('Please select a student to add.');
+    }
+    const { groupSetId, groupId } = addMemberModal;
+    try {
+      await axios.post(`/api/group/groupset/${groupSetId}/group/${groupId}/add-members`, {
+        memberIds: [selectedStudent]
+      });
+      toast.success('Student added successfully.');
+      fetchGroupSets();
+      setAddMemberModal(null);
+      setSelectedStudent('');
+    } catch (err) {
+      const errorMessage = err.response?.data?.error || 'Failed to add student.';
+      toast.error(errorMessage);
+    }
+  };
+
   // Handles a student leaving a group
   const handleLeaveGroup = async (groupSetIdParam, groupIdParam) => {
     // Accept optional parameters (from direct button click) or fall back to confirm modal state
@@ -576,7 +610,20 @@ const Groups = () => {
 
   // Open the adjustment modal for a specific groupSet and group
   const openAdjustModal = (groupSetId, groupId) => {
-    setAdjustModal({ groupSetId, groupId });
+    const group = groupSets.find(gs => gs._id === groupSetId)?.groups.find(g => g._id === groupId);
+    if (!group) return;
+
+    const selectedIds = selectedMembers[groupId] || [];
+    const approvedMemberIds = selectedIds.filter(id => {
+      const member = group.members.find(m => m._id._id === id);
+      return member && member.status === 'approved';
+    });
+
+    if (approvedMemberIds.length === 0) {
+      toast.error('Please select at least one approved member to adjust balances.');
+      return;
+    }
+    setAdjustModal({ groupSetId, groupId, memberIds: approvedMemberIds });
     setAdjustAmount('');
     setAdjustDesc('');
   };
@@ -584,18 +631,63 @@ const Groups = () => {
   // Submit the balance adjustment to backend API
   const submitAdjust = async () => {
     try {
-      const { groupSetId, groupId } = adjustModal;
+      const { groupSetId, groupId, memberIds } = adjustModal;
       const amt = Number(adjustAmount);
-      await axios.post(
-        `/api/groupset/${groupSetId}/group/${groupId}/adjust-balance`,
+      const res = await axios.post(
+        `/api/groupset/${groupSetId}/group/${groupId}/adjust-balance`, // Remove 'group-balance' prefix
         { 
           amount: amt, 
           description: adjustDesc,
-          applyGroupMultipliers: adjustApplyGroupMultipliers, // Add separate parameter
-          applyPersonalMultipliers: adjustApplyPersonalMultipliers // Add separate parameter
+          applyGroupMultipliers: adjustApplyGroupMultipliers,
+          applyPersonalMultipliers: adjustApplyPersonalMultipliers,
+          memberIds,
         }
       );
-      toast.success(`All students ${amt >= 0 ? 'credited' : 'debited'} ${Math.abs(amt)} ₿`);
+
+      if (res.status === 202) {
+        toast.success('Request sent for teacher approval.');
+      } else {
+        toast.success(`Selected members (excluding pending members (if any)) ${amt >= 0 ? 'credited' : 'debited'} ${Math.abs(amt)} ₿`);
+      }
+      fetchGroupSets();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Adjust failed');
+    } finally {
+      setAdjustModal(null);
+    }
+  };
+
+  const handleBulkAdjust = async () => {
+    if (!adjustModal) return;
+    const { groupSetId, groupId, amount: amt } = adjustModal;
+    
+    // Get selected member IDs for this group (only approved members)
+    const selectedMemberIds = selectedMembers[groupId] || [];
+    const approvedSelectedIds = selectedMemberIds.filter(memberId => {
+      const group = groupSets
+        .find(gs => gs._id === groupSetId)
+        ?.groups.find(g => g._id === groupId);
+      const member = group?.members.find(m => m._id._id === memberId);
+      return member?.status === 'approved';
+    });
+    
+    if (approvedSelectedIds.length === 0) {
+      toast.error('Please select approved members to transfer bits to');
+      return;
+    }
+
+    try {
+      await axios.post(
+        `/api/group-balance/groupset/${groupSetId}/group/${groupId}/adjust`,
+        {
+          amount: amt,
+          description: adjustDescription,
+          selectedMemberIds: approvedSelectedIds, // Add this
+          applyGroupMultipliers: adjustApplyGroupMultipliers,
+          applyPersonalMultipliers: adjustApplyPersonalMultipliers
+        }
+      );
+      toast.success(`Selected students ${amt >= 0 ? 'credited' : 'debited'} ${Math.abs(amt)} ₿`);
       fetchGroupSets();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Adjust failed');
@@ -1153,6 +1245,7 @@ const Groups = () => {
 
                       {(user.role === 'teacher' || user.role === 'admin') && (
                         <>
+                          <button className="btn btn-xs btn-primary" onClick={() => { setAddMemberModal({ groupId: group._id, groupSetId: gs._id }); setSelectedStudent(''); }}>Add Member</button>
                           <button className="btn btn-xs btn-info" onClick={() => openEditGroupModal(gs._id, group._id, group.name, group.maxMembers)}>Edit</button>
                           <button className="btn btn-xs btn-error" onClick={() =>
                             setConfirmDeleteGroup({
@@ -1172,30 +1265,78 @@ const Groups = () => {
                       <div className="mt-4">
                         <h5 className="text-sm font-semibold">Active Siphon Requests</h5>
                         {group.siphonRequests
-                          .filter(r => r.status !== 'teacher_approved')
-                          .map(r => (
-                            <div key={r._id} className="border p-2 mt-2 rounded bg-base-200">
-                              <p>
-                                <strong>{r.amount} bits</strong> from {r.targetUser.email}
-                              </p>
-                              <div className="italic text-xs mb-1" dangerouslySetInnerHTML={{ __html: r.reasonHtml }} />
+                          .filter(r => !['teacher_approved', 'expired'].includes(r.status))
+                          .map(r => {
+                            const eligibleVoters = group.members.filter(m => 
+                              m.status === 'approved' && m._id._id !== r.targetUser._id
+                            ).length;
+                            const yesVotes = r.votes?.filter(v => v.vote === 'yes').length || 0;
+                            const noVotes = r.votes?.filter(v => v.vote === 'no').length || 0;
+                            const totalVotes = yesVotes + noVotes;
+                            const majorityThreshold = Math.ceil(eligibleVoters / 2);
+                            const timeRemaining = r.expiresAt ? Math.max(0, Math.ceil((new Date(r.expiresAt) - new Date()) / (1000 * 60 * 60))) : null;
 
-                              {r.status === 'pending' && user.role !== 'teacher' &&
-                                !r.votes.some(v => v.user.toString() === user._id) && (
-                                  <div className="flex gap-1">
-                                    <button className="btn btn-xs btn-success" onClick={() => voteOnSiphon(r._id, 'yes')}>Yes</button>
-                                    <button className="btn btn-xs btn-error" onClick={() => voteOnSiphon(r._id, 'no')}>No</button>
+                            return (
+                              <div key={r._id} className="border p-2 mt-2 rounded bg-base-200">
+                                <p>
+                                  <strong>{r.amount} bits</strong> from {
+                                    r.targetUser?.firstName && r.targetUser?.lastName 
+                                      ? `${r.targetUser.firstName} ${r.targetUser.lastName}` 
+                                      : r.targetUser?.email || 'Unknown User'
+                                  }
+                                  {timeRemaining !== null && (
+                                    <span className="text-xs text-warning ml-2">
+                                      (Expires in {timeRemaining}h)
+                                    </span>
+                                  )}
+                                </p>
+                                <div className="italic text-xs mb-1" dangerouslySetInnerHTML={{ __html: r.reasonHtml }} />
+                                
+                                {/* Show proof file if available - KEEP ONLY THIS ONE */}
+                                {r.proof && r.proof.originalName && (
+                                  <div className="text-xs mb-2">
+                                    <span className="font-semibold">Proof attached: </span>
+                                    <a 
+                                      href={`/api/siphon/${r._id}/proof`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="link link-primary"
+                                    >
+                                      {r.proof.originalName}
+                                    </a>
+                                  </div>
+                                )}
+                                
+                                {r.status === 'pending' && (
+                                  <div className="text-xs text-info mb-2">
+                                    Voting: {yesVotes} Yes, {noVotes} No ({totalVotes}/{eligibleVoters} voted, need {majorityThreshold} for majority)
                                   </div>
                                 )}
 
-                              {r.status === 'group_approved' && user.role === 'teacher' && (
-                                <div className="flex gap-1 mt-1">
-                                  <button className="btn btn-xs btn-success" onClick={() => teacherApprove(r._id)}>Approve</button>
-                                  <button className="btn btn-xs btn-error" onClick={() => teacherReject(r._id)}>Reject</button>
-                                </div>
-                              )}
-                            </div>
-                          ))}
+                                {r.status === 'group_approved' && (
+                                  <div className="text-xs text-success mb-2">
+                                    ✅ Majority vote decided: {r.votes?.filter(v => v.vote === 'yes').length || 0} voted YES, {r.votes?.filter(v => v.vote === 'no').length || 0} voted NO, {eligibleVoters - (r.votes?.length || 0)} didn't vote. Pending teacher approval decision.
+                                  </div>
+                                )}
+
+                                {r.status === 'pending' && user.role !== 'teacher' &&
+                                  !r.votes.some(v => v.user.toString() === user._id) && 
+                                  r.targetUser._id !== user._id && (
+                                    <div className="flex gap-1">
+                                      <button className="btn btn-xs btn-success" onClick={() => voteOnSiphon(r._id, 'yes')}>Yes</button>
+                                      <button className="btn btn-xs btn-error" onClick={() => voteOnSiphon(r._id, 'no')}>No</button>
+                                    </div>
+                                  )}
+
+                                {r.status === 'group_approved' && user.role === 'teacher' && (
+                                  <div className="flex gap-1 mt-1">
+                                    <button className="btn btn-xs btn-success" onClick={() => teacherApprove(r._id)}>Approve</button>
+                                    <button className="btn btn-xs btn-error" onClick={() => teacherReject(r._id)}>Reject</button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                       </div>
                     )}
 
@@ -1474,6 +1615,7 @@ const Groups = () => {
       {openSiphonModal && (
         <SiphonModal
           group={openSiphonModal}
+          classroomId={id} // Use 'id' from useParams, which is the classroomId
           onClose={() => setOpenSiphonModal(null)}
         />
       )}
@@ -1665,7 +1807,7 @@ const Groups = () => {
       {/* Bulk Delete Groups Confirmation Modal */}
       {confirmBulkDeleteGroups && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-md">
+          <div className="bg-white dark:bgbase-100 p-6 rounded-xl shadow-lg w-[90%] max-w-md">
             <h2 className="text-lg font-semibold mb-4 text-center">Delete Groups</h2>
             <p className="text-sm text-center mb-4">
               Are you sure you want to delete the following {confirmBulkDeleteGroups.groupIds.length} group(s)?
@@ -1711,6 +1853,49 @@ const Groups = () => {
             <div className="flex justify-center gap-4">
               <button onClick={() => setConfirmDeleteAllGroupSets(null)} className="btn btn-sm">Cancel</button>
               <button onClick={handleDeleteAllGroupSets} className="btn btn-sm btn-error">Delete {confirmDeleteAllGroupSets.ids.length} GroupSet(s)</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Member Modal */}
+      {addMemberModal && (
+        <div className="modal modal-open">
+          <div className="modal-box">
+            <h3 className="font-bold text-lg">Add Member to Group</h3>
+            <p className="py-4">Select a student to add. Only students not already in this group set are shown.</p>
+            
+            <select
+              className="select select-bordered w-full"
+              value={selectedStudent}
+              onChange={(e) => setSelectedStudent(e.target.value)}
+            >
+              <option value="" disabled>Select a student</option>
+              {(() => {
+                const groupSet = groupSets.find(gs => gs._id === addMemberModal.groupSetId);
+                if (!groupSet) return null;
+
+                const memberIdsInGroupSet = new Set(
+                  groupSet.groups.flatMap(g => g.members.map(m => m._id._id))
+                );
+
+                const availableStudents = allStudents.filter(s => !memberIdsInGroupSet.has(s._id));
+
+                if (availableStudents.length === 0) {
+                  return <option disabled>No available students</option>;
+                }
+
+                return availableStudents.map(student => (
+                  <option key={student._id} value={student._id}>
+                    {`${student.firstName || ''} ${student.lastName || ''}`.trim() || student.email}
+                  </option>
+                ));
+              })()}
+            </select>
+
+            <div className="modal-action">
+              <button className="btn btn-ghost" onClick={() => setAddMemberModal(null)}>Cancel</button>
+              <button className="btn btn-success" onClick={handleAddMember} disabled={!selectedStudent}>Add</button>
             </div>
           </div>
         </div>

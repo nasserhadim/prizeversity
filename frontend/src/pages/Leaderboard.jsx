@@ -6,9 +6,11 @@ import socket from '../utils/socket';
 import apiLeaderboard from '../API/apiLeaderboard.js';
 import apiClassroom from '../API/apiClassroom.js';
 import Footer from '../components/Footer';
+import { useAuth } from '../context/AuthContext'; // Add this import
 
 const Leaderboard = () => {
   const { classId } = useParams();
+  const { user } = useAuth(); // Add this
   const [students, setStudents] = useState([]);
   const [filteredStudents, setFilteredStudents] = useState([]);
   const [classroom, setClassroom] = useState(null);
@@ -16,6 +18,7 @@ const Leaderboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortField, setSortField] = useState('balance');
   const [sortDirection, setSortDirection] = useState('desc');
+  const [studentsCanViewStats, setStudentsCanViewStats] = useState(true); // Add this
   const navigate = useNavigate();
 
   // Helper function to get display name (similar to other components)
@@ -31,6 +34,7 @@ const Leaderboard = () => {
     try {
       const response = await apiClassroom.get(`/${classId}`);
       setClassroom(response.data);
+      setStudentsCanViewStats(response.data.studentsCanViewStats !== false); // Default to true
     } catch (err) {
       console.error('Failed to fetch classroom:', err);
     }
@@ -77,49 +81,34 @@ const Leaderboard = () => {
       return displayName.includes(searchTerm.toLowerCase());
     });
 
-    // Sort students
+    // Sort students by name only (remove balance sorting)
     filtered.sort((a, b) => {
-      let aValue, bValue;
-      
-      switch (sortField) {
-        case 'name':
-          aValue = getDisplayName(a).toLowerCase();
-          bValue = getDisplayName(b).toLowerCase();
-          break;
-        case 'balance':
-          aValue = a.balance;
-          bValue = b.balance;
-          break;
-        default:
-          aValue = a.balance;
-          bValue = b.balance;
-      }
+      const aValue = getDisplayName(a).toLowerCase();
+      const bValue = getDisplayName(b).toLowerCase();
 
       if (sortDirection === 'asc') {
-        return aValue > bValue ? 1 : -1;
+        return aValue.localeCompare(bValue);
       } else {
-        return aValue < bValue ? 1 : -1;
+        return bValue.localeCompare(aValue);
       }
     });
 
     setFilteredStudents(filtered);
   }, [students, searchTerm, sortField, sortDirection]);
 
-  // Handle sorting
   const handleSort = (field) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('desc');
+    if (field === 'name') {
+      if (sortField === field) {
+        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+      } else {
+        setSortField(field);
+        setSortDirection('asc');
+      }
     }
   };
 
-  // Get sort icon
   const getSortIcon = (field) => {
-    if (sortField !== field) {
-      return <ArrowUpDown size={14} className="opacity-50" />;
-    }
+    if (sortField !== field) return <ArrowUpDown size={14} className="opacity-50" />;
     return sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />;
   };
 
@@ -166,21 +155,13 @@ const Leaderboard = () => {
                       Name {getSortIcon('name')}
                     </button>
                   </th>
-                  <th>
-                    <button
-                      className="flex items-center gap-2 hover:text-primary transition-colors"
-                      onClick={() => handleSort('balance')}
-                    >
-                      <Coins size={16} /> Balance {getSortIcon('balance')}
-                    </button>
-                  </th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredStudents.length === 0 ? (
                   <tr>
-                    <td colSpan="4" className="text-center py-8 text-base-content/50">
+                    <td colSpan="3" className="text-center py-8 text-base-content/50">
                       {searchTerm ? 'No students found matching your search.' : 'No students in this classroom yet.'}
                     </td>
                   </tr>
@@ -197,21 +178,30 @@ const Leaderboard = () => {
                       </td>
                       <td className="font-medium">{getDisplayName(student)}</td>
                       <td>
-                        <div className="flex items-center gap-1 font-semibold">
-                          <Coins size={14} className="text-yellow-500" />
-                          Ƀ{student.balance}
-                        </div>
-                      </td>
-                      <td>
-                        <button
-                          className="btn btn-sm btn-outline"
-                          onClick={() => navigate(
-                            `/classroom/${classId}/profile/${student._id}`,
-                            { state: { from: 'leaderboard', classroomId: classId } }
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <button
+                            className="btn btn-xs sm:btn-sm btn-outline whitespace-nowrap"
+                            onClick={() => navigate(
+                              `/classroom/${classId}/profile/${student._id}`,
+                              { state: { from: 'leaderboard', classroomId: classId } }
+                            )}
+                          >
+                            View Profile
+                          </button>
+                          {/* Only show View Stats if teacher allows it OR user is teacher/admin */}
+                          {(user?.role === 'teacher' || user?.role === 'admin' || 
+                            (studentsCanViewStats && String(student._id) !== String(user?._id)) ||
+                            String(student._id) === String(user?._id)) && (
+                            <button
+                              className="btn btn-xs sm:btn-sm btn-success whitespace-nowrap"
+                              onClick={() => navigate(`/classroom/${classId}/student/${student._id}/stats`, {
+                                state: { from: 'leaderboard' }
+                              })}
+                            >
+                              View Stats
+                            </button>
                           )}
-                        >
-                          View Profile
-                        </button>
+                        </div>
                       </td>
                     </tr>
                   ))

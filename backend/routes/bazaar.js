@@ -241,6 +241,7 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
 
 // Checkout multiple items (updated for per-classroom balances)
 router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) => {
+  console.log(`[Checkout] User ${req.user._id} attempting checkout`);
   console.log("Received checkout request:", req.body);
 
   try {
@@ -251,10 +252,33 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
       return res.status(400).json({ error: 'Invalid checkout data or missing classroomId' });
     }
 
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).select('balance classroomBalances isFrozen transactions');
     if (!user) {
       console.error("User not found:", userId);
       return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Initialize transactions array if it doesn't exist
+    if (!user.transactions) {
+      user.transactions = [];
+    }
+
+    console.log(`[Checkout] User ${userId} isFrozen: ${user.isFrozen}`);
+    
+    // Additional frozen check (backup to middleware)
+    if (user.isFrozen) {
+      const SiphonRequest = require('../models/SiphonRequest');
+      const activeSiphon = await SiphonRequest.findOne({
+        targetUser: userId,
+        status: { $in: ['pending', 'group_approved'] }
+      });
+
+      if (activeSiphon) {
+        return res.status(403).json({ 
+          error: 'Your account is frozen due to an active siphon request. Cannot complete checkout.',
+          siphonActive: true
+        });
+      }
     }
 
     const total = items.reduce((sum, item) => sum + item.price, 0);

@@ -7,6 +7,7 @@ const NotificationSchema = new mongoose.Schema({
   type: { 
     type: String, 
     enum: [
+      'group_add', // Add this
       'group_approval', 
       'group_rejection', 
       'classroom_removal', 
