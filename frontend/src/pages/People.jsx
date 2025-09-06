@@ -30,6 +30,8 @@ const People = () => {
   const [sortOption, setSortOption] = useState('default');
   const [classroom, setClassroom] = useState(null); // Add classroom state
   const [siphonTimeoutHours, setSiphonTimeoutHours] = useState(72); // Add this line
+  const [showUnassigned, setShowUnassigned] = useState(false); // Add this state variable
+  const [unassignedSearch, setUnassignedSearch] = useState(''); // Add to state
 
   const navigate = useNavigate();
 
@@ -638,6 +640,40 @@ const People = () => {
     ));
   };
 
+  // Add this helper function near the top of the People component
+  const getUnassignedStudents = (students, groupSets) => {
+    const assignedStudentIds = new Set();
+    
+    // Collect all student IDs that are assigned to any group in any group set
+    groupSets.forEach(groupSet => {
+      groupSet.groups.forEach(group => {
+        group.members.forEach(member => {
+          if (member._id && member.status === 'approved') {
+            const studentId = member._id._id || member._id;
+            assignedStudentIds.add(String(studentId));
+          }
+        });
+      });
+    });
+    
+    // Return students who are not in any group
+    return students.filter(student => 
+      student.role === 'student' && 
+      !assignedStudentIds.has(String(student._id))
+    );
+  };
+
+  // Add this helper function
+const getGroupAssignmentStats = (students, groupSets) => {
+  const totalStudents = students.filter(s => s.role === 'student').length;
+  const assignedStudents = totalStudents - getUnassignedStudents(students, groupSets).length;
+  const assignmentRate = totalStudents > 0 ? (assignedStudents / totalStudents * 100).toFixed(1) : 0;
+  
+  return { totalStudents, assignedStudents, assignmentRate };
+};
+
+  const stats = getGroupAssignmentStats(students, groupSets);
+
   return (
     <div className="flex flex-col min-h-screen">
       <main className="flex-grow p-6 w-full max-w-5xl mx-auto">
@@ -988,49 +1024,136 @@ const People = () => {
 
         {tab === 'groups' && (
           <div className="space-y-6 w-full min-w-0">
-            {groupSets.length === 0 ? (
-              <p>No groups available yet.</p>
-            ) : (
-              groupSets.map((gs) => (
-                <div key={gs._id} className="w-full min-w-0">
-                  <h2 className="text-xl font-semibold">{gs.name}</h2>
-                  <div className="mt-2 grid grid-cols-1 gap-4 w-full">
-                    {gs.groups.map((group) => (
-                      <div key={group._id} className="border p-4 rounded w-full min-w-0 bg-base-100">
-                         <h3 className="text-lg font-bold">{group.name}</h3>
-                         {group.members.length === 0 ? (
-                           <p className="text-gray-500">No members</p>
-                        ) : (
-                          <ul className="list-disc ml-5 space-y-1">
-                            {group.members
-                              .filter(m => m && m._id && m.status === 'approved') // Add status filter
-                              .map((m) => {
-                                const user = m._id;
-                                const userId = user._id || user; // handle populated object or raw id
-                                const displayName = user && (user.firstName || user.lastName)
-                                  ? `${user.firstName || ''} ${user.lastName || ''}`.trim()
-                                  : user?.name || user?.email || 'Unknown User';
-
-                                return (
-                                  <li key={String(userId)} className="flex justify-between items-center w-full">
-                                    <span>{displayName}</span>
-                                    <button
-                                      className="btn btn-sm btn-outline ml-4"
-                                      onClick={() => navigate(`/classroom/${classroomId}/profile/${userId}`, { state: { from: 'people', classroomId } })}
-                                    >
-                                      View Profile
-                                    </button>
-                                  </li>
-                                );
-                              })}
-                        </ul>
-                      )}
+            {/* Add Unassigned Students Filter */}
+    {(user?.role === 'teacher' || user?.role === 'admin') && (
+      <div className="card bg-base-100 shadow-sm border">
+        <div className="card-body p-4">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-semibold">
+              Unassigned Students ({getUnassignedStudents(students, groupSets).length})
+            </h3>
+            <button
+              className="btn btn-sm btn-outline"
+              onClick={() => setShowUnassigned(!showUnassigned)}
+            >
+              {showUnassigned ? 'Hide' : 'Show'} Unassigned
+            </button>
+          </div>
+          
+          {showUnassigned && (
+            <div className="mt-4">
+              {getUnassignedStudents(students, groupSets).length === 0 ? (
+                <p className="text-gray-500 italic">All students are assigned to groups!</p>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-sm text-gray-600 mb-3">
+                    Students who haven't joined any group yet:
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {getUnassignedStudents(students, groupSets)
+                      .filter(student => {
+                        const name = `${student.firstName || ''} ${student.lastName || ''}`.trim().toLowerCase();
+                        const email = student.email.toLowerCase();
+                        const query = unassignedSearch.toLowerCase();
+                        return name.includes(query) || email.includes(query);
+                      })
+                      .map(student => (
+                      <div 
+                        key={student._id} 
+                        className="flex justify-between items-center p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800"
+                      >
+                        <span className="font-medium">
+                          {student.firstName || student.lastName
+                            ? `${student.firstName || ''} ${student.lastName || ''}`.trim()
+                            : student.email}
+                        </span>
+                        <div className="flex gap-2">
+                          <button
+                            className="btn btn-xs btn-outline"
+                            onClick={() => navigate(
+                              `/classroom/${classroomId}/profile/${student._id}`,
+                              { state: { from: 'people', classroomId } }
+                            )}
+                          >
+                            Profile
+                          </button>
+                        </div>
                       </div>
-                     ))}
+                    ))}
                   </div>
                 </div>
-              ))
-             )}
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    )}
+    
+    {/* Existing group sets content */}
+    {groupSets.length === 0 ? (
+      <p>No groups available yet.</p>
+    ) : (
+      groupSets.map((gs) => (
+        <div key={gs._id} className="w-full min-w-0">
+          <h2 className="text-xl font-semibold">{gs.name}</h2>
+          <div className="mt-2 grid grid-cols-1 gap-4 w-full">
+            {gs.groups.map((group) => (
+              <div key={group._id} className="border p-4 rounded w-full min-w-0 bg-base-100">
+                 <h3 className="text-lg font-bold">{group.name}</h3>
+                 {group.members.length === 0 ? (
+                   <p className="text-gray-500">No members</p>
+                ) : (
+                  <ul className="list-disc ml-5 space-y-1">
+                    {group.members
+                      .filter(m => m && m._id && m.status === 'approved') // Add status filter
+                      .map((m) => {
+                        const user = m._id;
+                        const userId = user._id || user; // handle populated object or raw id
+                        const displayName = user && (user.firstName || user.lastName)
+                          ? `${user.firstName || ''} ${user.lastName || ''}`.trim()
+                          : user?.name || user?.email || 'Unknown User';
+
+                        return (
+                          <li key={String(userId)} className="flex justify-between items-center w-full">
+                            <span>{displayName}</span>
+                            <button
+                              className="btn btn-sm btn-outline ml-4"
+                              onClick={() => navigate(`/classroom/${classroomId}/profile/${userId}`, { state: { from: 'people', classroomId } })}
+                            >
+                              View Profile
+                            </button>
+                          </li>
+                        );
+                      })}
+                </ul>
+              )}
+              </div>
+             ))}
+          </div>
+        </div>
+      ))
+     )}
+
+     {/* Add this stats display section */}
+     {user?.role === 'teacher' && (
+      <div className="mb-6">
+        <h2 className="text-2xl font-semibold mb-4">Group Assignment Stats</h2>
+        <div className="stats stats-horizontal shadow mb-4">
+          <div className="stat">
+            <div className="stat-title">Total Students</div>
+            <div className="stat-value text-lg">{stats.totalStudents}</div>
+          </div>
+          <div className="stat">
+            <div className="stat-title">Assigned</div>
+            <div className="stat-value text-lg text-success">{stats.assignedStudents}</div>
+          </div>
+          <div className="stat">
+            <div className="stat-title">Assignment Rate</div>
+            <div className="stat-value text-lg">{stats.assignmentRate}%</div>
+          </div>
+        </div>
+      </div>
+    )}
           </div>
         )}
       </main>
