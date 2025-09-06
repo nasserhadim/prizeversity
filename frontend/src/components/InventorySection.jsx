@@ -25,7 +25,7 @@ const InventorySection = ({ userId, classroomId }) => {
     const load = async () => {
       try {
         const [invRes, studentRes] = await Promise.all([
-          apiBazaar.get(`/inventory/${userId}`),
+          apiBazaar.get(`/inventory/${userId}?classroomId=${classroomId}`), // Add classroomId query param
           apiClassroom.get(`/${classroomId}/students`)
         ]);
         setItems(invRes.data.items);
@@ -72,7 +72,7 @@ const InventorySection = ({ userId, classroomId }) => {
       toast.success(response.data.message || 'Swap successful!');
       
       // Refresh inventory
-      const invRes = await apiBazaar.get(`/inventory/${userId}`);
+      const invRes = await apiBazaar.get(`/inventory/${userId}?classroomId=${classroomId}`); // Add classroomId query param
       setItems(invRes.data.items);
     } catch (err) {
       console.error('Swap failed:', err);
@@ -138,7 +138,7 @@ const InventorySection = ({ userId, classroomId }) => {
       toast.success(response.data.message || 'Item used successfully!');
       
       // Refresh inventory
-      const invRes = await apiBazaar.get(`/inventory/${userId}`);
+      const invRes = await apiBazaar.get(`/inventory/${userId}?classroomId=${classroomId}`); // Add classroomId query param
       setItems(invRes.data.items);
       
     } catch (err) {
@@ -165,7 +165,7 @@ const InventorySection = ({ userId, classroomId }) => {
       toast.success(response.data.message || 'Nullify successful!');
       
       // Refresh inventory
-      const invRes = await apiBazaar.get(`/inventory/${userId}`);
+      const invRes = await apiBazaar.get(`/inventory/${userId}?classroomId=${classroomId}`); // Add classroomId query param
       setItems(invRes.data.items);
     } catch (err) {
       console.error('Nullify failed:', err);

@@ -475,8 +475,37 @@ router.get('/orders/:orderId', async (req, res) => {
 // Get the inventory page for the user to see what items they have
 router.get('/inventory/:userId', async (req, res) => {
   const { userId } = req.params;
-  const items = await Item.find({ owner: userId });
-  res.json({ items });
+  const { classroomId } = req.query; // Add classroom filter
+  
+  try {
+    let items;
+    if (classroomId) {
+      // Filter items to only those from the specified classroom's bazaar
+      items = await Item.find({ owner: userId })
+        .populate({
+          path: 'bazaar',
+          populate: {
+            path: 'classroom',
+            select: '_id'
+          }
+        });
+      
+      // Filter to only items from the specified classroom
+      items = items.filter(item => 
+        item.bazaar && 
+        item.bazaar.classroom && 
+        item.bazaar.classroom._id.toString() === classroomId.toString()
+      );
+    } else {
+      // If no classroom specified, return all items (existing behavior)
+      items = await Item.find({ owner: userId });
+    }
+    
+    res.json({ items });
+  } catch (err) {
+    console.error('Failed to fetch inventory:', err);
+    res.status(500).json({ error: 'Failed to fetch inventory' });
+  }
 });
 
 module.exports = router;
