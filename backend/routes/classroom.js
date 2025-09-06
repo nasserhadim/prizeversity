@@ -544,6 +544,19 @@ router.post('/:id/leave', ensureAuthenticated, async (req, res) => {
       await classroom.save();
     }
 
+    // Remove classroomJoinDates entry for the leaving user so future rejoins get a fresh join date
+    try {
+      const User = require('../models/User');
+      const leavingUser = await User.findById(req.user._id);
+      if (leavingUser) {
+        leavingUser.classroomJoinDates = (leavingUser.classroomJoinDates || [])
+          .filter(cjd => String(cjd.classroom) !== String(req.params.id));
+        await leavingUser.save();
+      }
+    } catch (e) {
+      console.error('[Leave Classroom] failed to clear classroomJoinDates for user:', e);
+    }
+
     // When student leaves/is removed
     req.app.get('io').to(`classroom-${req.params.id}`).emit('student_left', {
       studentId: req.user._id,
@@ -639,6 +652,19 @@ router.delete('/:id/students/:studentId', ensureAuthenticated, async (req, res) 
           });
         }
       }
+    }
+
+    // Remove join-date entry for the removed student so a future rejoin records a new join date
+    try {
+      const User = require('../models/User');
+      const removedUser = await User.findById(req.params.studentId);
+      if (removedUser) {
+        removedUser.classroomJoinDates = (removedUser.classroomJoinDates || [])
+          .filter(cjd => String(cjd.classroom) !== String(req.params.id));
+        await removedUser.save();
+      }
+    } catch (e) {
+      console.error('[Remove Student] failed to clear classroomJoinDates for removed user:', e);
     }
 
     const notification = await Notification.create({
