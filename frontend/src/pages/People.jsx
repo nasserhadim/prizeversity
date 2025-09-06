@@ -325,11 +325,17 @@ const People = () => {
   // Filter and sort students based on searchQuery and sortOption
   const filteredStudents = [...students]
     .filter((student) => {
-      const name = (student.firstName || student.name || '').toLowerCase();
+      const firstName = (student.firstName || '').toLowerCase();
+      const lastName = (student.lastName || '').toLowerCase();
       const email = (student.email || '').toLowerCase();
+      const fullName = `${firstName} ${lastName}`.trim().toLowerCase();
+      const query = searchQuery.toLowerCase();
+      
       return (
-        name.includes(searchQuery.toLowerCase()) ||
-        email.includes(searchQuery.toLowerCase())
+        firstName.includes(query) ||
+        lastName.includes(query) ||
+        email.includes(query) ||
+        fullName.includes(query)
       );
     })
     .sort((a, b) => {
@@ -340,6 +346,14 @@ const People = () => {
         const nameA = (a.firstName || a.name || '').toLowerCase();
         const nameB = (b.firstName || b.name || '').toLowerCase();
         return nameA.localeCompare(nameB);
+      } else if (sortOption === 'joinDateAsc') {
+        const dateA = new Date(a.joinedAt || a.createdAt || 0);
+        const dateB = new Date(b.joinedAt || b.createdAt || 0);
+        return dateA - dateB;
+      } else if (sortOption === 'joinDateDesc') {
+        const dateA = new Date(a.joinedAt || a.createdAt || 0);
+        const dateB = new Date(b.joinedAt || b.createdAt || 0);
+        return dateB - dateA;
       }
       return 0; // Default order
     });
@@ -415,6 +429,11 @@ const People = () => {
           Email: student.email,
           Role: ROLE_LABELS[student.role] || student.role,
           Balance: student.balance?.toFixed(2) || '0.00',
+          JoinedDate: student.joinedAt 
+            ? new Date(student.joinedAt).toLocaleString() 
+            : student.createdAt 
+              ? new Date(student.createdAt).toLocaleString()
+              : 'Unknown',
           Luck: stats.luck || 1,
           Multiplier: stats.multiplier || 1,
           GroupMultiplier: stats.groupMultiplier || 1,
@@ -424,7 +443,7 @@ const People = () => {
           DoubleEarnings: stats.doubleEarnings ? 'Yes' : 'No',
           DiscountShop: stats.discountShop || 0,
           PassiveItemsCount: stats.passiveItemsCount || 0,
-          Groups: groups.join('; ') || 'None'
+          Groups: groups.length > 0 ? groups.join('; ') : 'Unassigned'
         };
       })
     );
@@ -512,6 +531,7 @@ const People = () => {
           email: student.email,
           role: student.role,
           balance: student.balance || 0,
+          joinedDate: student.joinedAt || student.createdAt || null,
           stats: {
             luck: stats.luck || 1,
             multiplier: stats.multiplier || 1,
@@ -523,7 +543,7 @@ const People = () => {
             discountShop: stats.discountShop || 0,
             passiveItemsCount: stats.passiveItemsCount || 0
           },
-          groups: groups,
+          groups: groups.length > 0 ? groups : ['Unassigned'],
           classroom: {
             _id: classroomId,
             name: classroom?.name,
@@ -914,6 +934,8 @@ const getGroupAssignmentStats = (students, groupSets) => {
                     <option value="balanceDesc">Balance (High → Low)</option>
                   )}
                   <option value="nameAsc">Name (A → Z)</option>
+                  <option value="joinDateDesc">Join Date (Newest)</option>
+                  <option value="joinDateAsc">Join Date (Oldest)</option>
                 </select>
               </div>
             </div>
@@ -940,9 +962,19 @@ const getGroupAssignmentStats = (students, groupSets) => {
                       {/* Only show balance to teachers/admins */}
                       {(user?.role?.toLowerCase() === 'teacher' || user?.role?.toLowerCase() === 'admin') && (
                         <div className="text-sm text-gray-500 mt-1">
-                          Balance: B{student.balance?.toFixed(2) || '0.00'}
+                          Balance: ₿{student.balance?.toFixed(2) || '0.00'}
                         </div>
                       )}
+
+                      {/* Add join date display */}
+                      <div className="text-sm text-gray-500 mt-1">
+                        Joined: {student.joinedAt 
+                          ? new Date(student.joinedAt).toLocaleDateString() 
+                          : student.createdAt 
+                            ? new Date(student.createdAt).toLocaleDateString()
+                            : 'Unknown'
+                        }
+                      </div>
 
                       <div className="flex gap-2 mt-2 flex-wrap">
                         <button

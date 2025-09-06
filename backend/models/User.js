@@ -58,6 +58,11 @@ const UserSchema = new mongoose.Schema({
     classroom: { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom' },
     balance: { type: Number, default: 0, min: 0 }
   }],
+  // Add classroom join dates tracking
+  classroomJoinDates: [{
+    classroom: { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom' },
+    joinedAt: { type: Date, default: Date.now }
+  }],
   groups: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Group' }],
   transactions: [TransactionSchema],
   isBanned: { type: Boolean, default: false },

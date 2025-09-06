@@ -398,21 +398,61 @@ router.get(
       if (req.user._id.toString() !== userId && req.user.role !== 'teacher') {
         return res.status(403).json({ error: 'Not authorized' });
       }
-      const orders = await Order.find({ user: userId })
-        .populate('items')
-        .populate({
-          path: 'items',
-          populate: {
-            path: 'bazaar',
+      
+      let orders;
+      
+      // If teacher is requesting, filter by their classrooms only
+      if (req.user.role === 'teacher' && req.user._id.toString() !== userId) {
+        // Get all classrooms taught by this teacher
+        const Classroom = require('../models/Classroom');
+        const teacherClassrooms = await Classroom.find({ 
+          teacher: req.user._id 
+        }).select('_id');
+        
+        const teacherClassroomIds = teacherClassrooms.map(c => c._id);
+        
+        // Fetch orders and populate to get classroom info
+        const allOrders = await Order.find({ user: userId })
+          .populate('items')
+          .populate({
+            path: 'items',
             populate: {
-              path: 'classroom',
-              select: 'name code'
+              path: 'bazaar',
+              populate: {
+                path: 'classroom',
+                select: '_id name code'
+              }
             }
-          }
+          })
+          .sort({ createdAt: -1 });
+        
+        // Filter orders to only include those from teacher's classrooms
+        orders = allOrders.filter(order => {
+          return order.items.some(item => {
+            const classroomId = item.bazaar?.classroom?._id;
+            return classroomId && teacherClassroomIds.some(tcId => tcId.equals(classroomId));
+          });
         });
+      } else {
+        // Student viewing their own orders - return all
+        orders = await Order.find({ user: userId })
+          .populate('items')
+          .populate({
+            path: 'items',
+            populate: {
+              path: 'bazaar',
+              populate: {
+                path: 'classroom',
+                select: '_id name code'
+              }
+            }
+          })
+          .sort({ createdAt: -1 });
+      }
+      
       res.json(orders);
     } catch (err) {
-      console.error(err);
+      console.error('Failed to fetch orders:', err);
       res.status(500).json({ error: 'Failed to fetch orders' });
     }
   }
