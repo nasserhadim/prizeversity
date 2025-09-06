@@ -969,9 +969,9 @@ const getGroupAssignmentStats = (students, groupSets) => {
                       {/* Add join date display */}
                       <div className="text-sm text-gray-500 mt-1">
                         Joined: {student.joinedAt 
-                          ? new Date(student.joinedAt).toLocaleDateString() 
+                          ? new Date(student.joinedAt).toLocaleString() 
                           : student.createdAt 
-                            ? new Date(student.createdAt).toLocaleDateString()
+                            ? new Date(student.createdAt).toLocaleString()
                             : 'Unknown'
                         }
                       </div>

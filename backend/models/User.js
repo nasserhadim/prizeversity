@@ -83,6 +83,8 @@ const UserSchema = new mongoose.Schema({
     match: /^[A-Z]{2}\d{4}$/,
   },
 
+}, { 
+  timestamps: true  // This should be here to automatically add createdAt and updatedAt
 });
 
 UserSchema.pre('validate', async function (next) {
