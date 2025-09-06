@@ -94,12 +94,31 @@ router.post(
         name,
         code,
         teacher: req.user._id,
-        students: [req.user._id],
+        students: [], // Teacher should not be in the students list
         color: color || undefined,
         backgroundImage: backgroundImage || undefined
       });
       try {
         await classroom.save();
+
+        // Add join date for the teacher who created the classroom
+        const teacher = await User.findById(req.user._id);
+        if (teacher) {
+          if (!teacher.classroomJoinDates) {
+            teacher.classroomJoinDates = [];
+          }
+          const alreadyHasJoinDate = teacher.classroomJoinDates.some(
+            (d) => d.classroom.toString() === classroom._id.toString()
+          );
+          if (!alreadyHasJoinDate) {
+            teacher.classroomJoinDates.push({
+              classroom: classroom._id,
+              joinedAt: classroom.createdAt, // Use classroom creation date as join date
+            });
+            await teacher.save();
+          }
+        }
+
         console.log('[Create Classroom] saved backgroundImage:', classroom.backgroundImage);
         res.status(201).json(classroom);
       } catch (err) {
@@ -142,8 +161,19 @@ router.post('/join', ensureAuthenticated, async (req, res) => {
     const existingBalance = user.classroomBalances.find(cb => cb.classroom.toString() === classroom._id.toString());
     if (!existingBalance) {
       user.classroomBalances.push({ classroom: classroom._id, balance: 0 });
-      await user.save();
     }
+
+    // Add classroom join date tracking
+    const existingJoinDate = user.classroomJoinDates?.find(cjd => cjd.classroom.toString() === classroom._id.toString());
+    if (!existingJoinDate) {
+      if (!user.classroomJoinDates) user.classroomJoinDates = [];
+      user.classroomJoinDates.push({ 
+        classroom: classroom._id, 
+        joinedAt: new Date() 
+      });
+    }
+
+    await user.save();
 
     classroom.students.push(req.user._id);
     await classroom.save();
@@ -378,6 +408,7 @@ router.delete('/:id', ensureAuthenticated, async (req, res) => {
       return res.status(403).json({ error: 'Not authorized to delete this classroom' });
     }
 
+    // Send notifications to all recipients
     const recipients = [classroom.teacher, ...classroom.students];
     for (const recipientId of recipients) {
       const notification = await Notification.create({
@@ -388,6 +419,14 @@ router.delete('/:id', ensureAuthenticated, async (req, res) => {
       });
       const populated = await populateNotification(notification._id);
       req.app.get('io').to(`user-${recipientId}`).emit('notification', populated);
+    }
+
+    // Emit classroom removal to all students (ensure string conversion)
+    for (const studentId of classroom.students) {
+      req.app.get('io').to(`user-${studentId}`).emit('classroom_removal', {
+        classroomId: classroom._id.toString(), // Convert to string
+        message: `Classroom "${classroom.name}" has been deleted`
+      });
     }
 
     await Classroom.deleteOne({ _id: req.params.id });
@@ -514,6 +553,19 @@ router.post('/:id/leave', ensureAuthenticated, async (req, res) => {
       await classroom.save();
     }
 
+    // Remove classroomJoinDates entry for the leaving user so future rejoins get a fresh join date
+    try {
+      const User = require('../models/User');
+      const leavingUser = await User.findById(req.user._id);
+      if (leavingUser) {
+        leavingUser.classroomJoinDates = (leavingUser.classroomJoinDates || [])
+          .filter(cjd => String(cjd.classroom) !== String(req.params.id));
+        await leavingUser.save();
+      }
+    } catch (e) {
+      console.error('[Leave Classroom] failed to clear classroomJoinDates for user:', e);
+    }
+
     // When student leaves/is removed
     req.app.get('io').to(`classroom-${req.params.id}`).emit('student_left', {
       studentId: req.user._id,
@@ -533,24 +585,38 @@ router.post('/:id/leave', ensureAuthenticated, async (req, res) => {
 router.get('/:id/students', ensureAuthenticated, async (req, res) => {
   try {
     const classroom = await Classroom.findById(req.params.id)
-      .populate('students', 'email role firstName lastName shortId');
+      .populate('teacher', 'email role firstName lastName shortId createdAt')
+      .populate('students', 'email role firstName lastName shortId createdAt');
     if (!classroom) {
       return res.status(404).json({ error: 'Classroom not found' });
     }
 
+    const allUsers = [...classroom.students];
+    if (classroom.teacher) {
+      // Ensure teacher is not duplicated if they are also in students list (edge case)
+      if (!allUsers.some(s => s._id.equals(classroom.teacher._id))) {
+        allUsers.unshift(classroom.teacher);
+      }
+    }
+
     // Fetch per-classroom balances for each student
-    const studentsWithBalances = await Promise.all(
-      classroom.students.map(async (student) => {
-        const user = await User.findById(student._id).select('classroomBalances');
+    const usersWithData = await Promise.all(
+      allUsers.map(async (person) => {
+        const user = await User.findById(person._id).select('classroomBalances classroomJoinDates');
         const classroomBalance = user.classroomBalances.find(cb => cb.classroom.toString() === req.params.id);
+        
+        // Try to find classroom-specific join date, fall back to account creation date
+        const classroomJoinDate = user.classroomJoinDates?.find(cjd => cjd.classroom.toString() === req.params.id);
+        
         return {
-          ...student.toObject(),
-          balance: classroomBalance ? classroomBalance.balance : 0
+          ...person.toObject(),
+          balance: classroomBalance ? classroomBalance.balance : 0,
+          joinedAt: classroomJoinDate?.joinedAt || person.createdAt
         };
       })
     );
 
-    res.status(200).json(studentsWithBalances);
+    res.status(200).json(usersWithData);
   } catch (err) {
     console.error('[Fetch Students] error:', err);
     res.status(500).json({ error: 'Failed to fetch students' });
@@ -597,6 +663,19 @@ router.delete('/:id/students/:studentId', ensureAuthenticated, async (req, res) 
       }
     }
 
+    // Remove join-date entry for the removed student so a future rejoin records a new join date
+    try {
+      const User = require('../models/User');
+      const removedUser = await User.findById(req.params.studentId);
+      if (removedUser) {
+        removedUser.classroomJoinDates = (removedUser.classroomJoinDates || [])
+          .filter(cjd => String(cjd.classroom) !== String(req.params.id));
+        await removedUser.save();
+      }
+    } catch (e) {
+      console.error('[Remove Student] failed to clear classroomJoinDates for removed user:', e);
+    }
+
     const notification = await Notification.create({
       user: req.params.studentId,
       type: 'classroom_removal',
@@ -607,7 +686,7 @@ router.delete('/:id/students/:studentId', ensureAuthenticated, async (req, res) 
     const populated = await populateNotification(notification._id);
     req.app.get('io').to(`user-${req.params.studentId}`).emit('notification', populated);
     req.app.get('io').to(`user-${req.params.studentId}`).emit('classroom_removal', {
-      classroomId: classroom._id,
+      classroomId: classroom._id.toString(), // Convert to string
       message: `You have been removed from classroom "${classroom.name}"`
     });
 

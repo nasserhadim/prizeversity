@@ -137,7 +137,7 @@ const TransactionList = ({ transactions }) => {
                 {(tx.items && tx.items.length > 0 ? tx.items : orderCache[tx.orderId] || []).map((it) => {
                    // Split description into main + Effect (same helper used by OrderCard)
                    const { main: descMain, effect: effectFromDesc } = splitDescriptionEffect(it.description || '');
-                   const autoEffect = !effectFromDesc && getEffectDescription(it);
+                   const autoEffect = getEffectDescription(it);
                    return (
                      <div key={it.id || it._id || it.name} className="flex items-start gap-3">
                        <div className="w-10 h-10 bg-base-200 rounded overflow-hidden flex items-center justify-center flex-shrink-0">
@@ -162,7 +162,7 @@ const TransactionList = ({ transactions }) => {
                            <div className="text-xs text-base-content/70 whitespace-pre-wrap mt-1">
                              {descMain}
                            </div>
-                         ) : it.description ? (
+                         ) : it.description && !effectFromDesc ? (
                            <div className="text-xs text-base-content/70 line-clamp-2 mt-1">
                              {it.description}
                            </div>

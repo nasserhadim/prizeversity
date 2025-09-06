@@ -591,6 +591,22 @@ export default function Profile() {
                     <InfoRow label="Email" value={profile?.email || 'N/A'} />
                     <InfoRow label="User ID" value={profile?.shortId || '—'} />
                     {profile?.role && <InfoRow label="Role" value={ROLE_LABELS[profile.role] || profile.role} />}
+                    
+                    {/* Add Member Since row */}
+                    <InfoRow 
+                      label="Member Since" 
+                      value={profile?.createdAt || user?.createdAt
+                        ? new Date(profile?.createdAt || user?.createdAt).toLocaleString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true
+                          })
+                        : 'Unknown'
+                      } 
+                    />
 
                     {/* Edit / Save controls */}
                     {String(user?._id) === String(profileId || profile?._id) && (
