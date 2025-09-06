@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import { useParams } from 'react-router-dom'; // <-- add this
+import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext'; 
 import BulkBalanceEditor from '../components/BulkBalanceEditor';
 import TransactionList, { inferType, TYPES } from '../components/TransactionList';
 import toast from 'react-hot-toast';
 import Footer from '../components/Footer';
 import socket from '../utils/socket';
+import ExportButtons from '../components/ExportButtons';
 
 const Wallet = () => {
   const { user } = useAuth();
@@ -26,7 +27,7 @@ const Wallet = () => {
   const [selectedRecipientId, setSelectedRecipientId] = useState(''); 
   const [transferAmount, setTransferAmount] = useState('');
   const [transferMessage, setTransferMessage] = useState(''); // Add transfer message state
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(''); // Add search state
   const [allTx, setAllTx] = useState([]);
   const [studentFilter, setStudentFilter] = useState('');  
   const [studentList, setStudentList] = useState([]);
@@ -41,7 +42,122 @@ const Wallet = () => {
     admin: 'Admin/TA'
   };
 
-  // Filter transactions based on selected role and direction
+  // Export functions with classroom code in filename
+  const exportTransactionsToCSV = async () => {
+    if (!filteredTx.length) {
+      throw new Error('No transactions to export');
+    }
+    
+    const csvHeaders = ['Date', 'Amount', 'Description', 'Type', 'Role'];
+    const csvRows = filteredTx.map(tx => {
+      const isSiphon = tx.description?.toLowerCase().includes('siphon') || 
+                      tx.type === 'siphon' ||
+                      (tx.description?.includes('transferred from') && tx.description?.includes('group'));
+      
+      // For siphon transactions, we can extract the source from the description
+      let assignerInfo = 'System';
+      let assignerRole = 'system';
+      
+      if (!isSiphon && tx.assignedBy) {
+        assignerInfo = `${tx.assignedBy.firstName || ''} ${tx.assignedBy.lastName || ''}`.trim() || tx.assignedBy.email;
+        assignerRole = tx.assignedBy.role || 'unknown';
+      } else if (isSiphon) {
+        // For siphon transactions, we can extract info from description if available
+        assignerInfo = 'Siphon System';
+        assignerRole = 'siphon';
+      }
+      
+      return [
+        new Date(tx.createdAt).toLocaleString(),
+        tx.amount,
+        tx.description || '',
+        isSiphon ? 'siphon' : 'adjustment',
+        assignerRole
+      ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(',');
+    });
+    
+    const csvContent = [csvHeaders.join(','), ...csvRows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    
+    // Include classroom code in filename
+    const classroomName = classroom?.name || 'wallet';
+    const classroomCode = classroom?.code || '';
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = classroomCode 
+      ? `${classroomName}_${classroomCode}_transactions_${timestamp}.csv`
+      : `${classroomName}_transactions_${timestamp}.csv`;
+    
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    return filename;
+  };
+
+  const exportTransactionsToJSON = async () => {
+    if (!filteredTx.length) {
+      throw new Error('No transactions to export');
+    }
+    
+    const data = filteredTx.map(tx => {
+      const isSiphon = tx.description?.toLowerCase().includes('siphon') || 
+                      tx.type === 'siphon' ||
+                      (tx.description?.includes('transferred from') && tx.description?.includes('group'));
+      
+      let assignerInfo = null;
+      if (!isSiphon && tx.assignedBy) {
+        assignerInfo = {
+          _id: tx.assignedBy._id,
+          name: `${tx.assignedBy.firstName || ''} ${tx.assignedBy.lastName || ''}`.trim() || tx.assignedBy.email,
+          email: tx.assignedBy.email,
+          role: tx.assignedBy.role
+        };
+      } else if (isSiphon) {
+        assignerInfo = {
+          _id: null,
+          name: 'Siphon System',
+          email: null,
+          role: 'siphon'
+        };
+      }
+      
+      return {
+        _id: tx._id,
+        date: tx.createdAt,
+        amount: tx.amount,
+        description: tx.description,
+        assignedBy: assignerInfo,
+        classroom: tx.classroom,
+        type: isSiphon ? 'siphon' : 'adjustment'
+      };
+    });
+    
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    
+    // Include classroom code in filename
+    const classroomName = classroom?.name || 'wallet';
+    const classroomCode = classroom?.code || '';
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = classroomCode 
+      ? `${classroomName}_${classroomCode}_transactions_${timestamp}.json`
+      : `${classroomName}_transactions_${timestamp}.json`;
+    
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    return filename;
+  };
+
+  // Filter transactions based on selected role, direction, and search
   const filteredTx = useMemo(() => {
     const sourceTx = user.role === 'student' ? transactions : allTx;
     return sourceTx.filter(tx => {
@@ -64,7 +180,15 @@ const Wallet = () => {
         if (found) assignerRole = found.role;
       }
 
-      const roleMatch = roleFilter === 'all' || (assignerRole === roleFilter);
+      // Check if it's a siphon transaction
+      const isSiphon = tx.description?.toLowerCase().includes('siphon') || 
+                      tx.type === 'siphon' ||
+                      (tx.description?.includes('transferred from') && tx.description?.includes('group'));
+
+      // Update role matching to include siphon
+      const roleMatch = roleFilter === 'all' || 
+                       (assignerRole === roleFilter) ||
+                       (roleFilter === 'siphon' && isSiphon);
 
       const directionMatch =
         directionFilter === 'all'
@@ -73,9 +197,17 @@ const Wallet = () => {
             ? Number(tx.amount) > 0
             : Number(tx.amount) < 0;
 
-      return assignerMatch && roleMatch && directionMatch;
+      // Search functionality
+      const searchMatch = !search.trim() || 
+        (tx.description || '').toLowerCase().includes(search.toLowerCase()) ||
+        (tx.assignedBy?.firstName || '').toLowerCase().includes(search.toLowerCase()) ||
+        (tx.assignedBy?.lastName || '').toLowerCase().includes(search.toLowerCase()) ||
+        (tx.assignedBy?.email || '').toLowerCase().includes(search.toLowerCase()) ||
+        (tx.amount || '').toString().includes(search.toLowerCase());
+
+      return assignerMatch && roleMatch && directionMatch && searchMatch;
     });
-  }, [allTx, transactions, roleFilter, directionFilter, assignerFilter, user.role, classroom, studentList]);
+  }, [allTx, transactions, roleFilter, directionFilter, assignerFilter, search, user.role, classroom, studentList]);
 
   // Fetch students in classroom to populate dropdown/filter UI
   const fetchUsers = async () => {
@@ -373,8 +505,17 @@ useEffect(() => {
         <div className="space-y-4">
           <h2 className="font-bold">All Transactions</h2>
 
-          {/* ▼ filter bar */}
-          <div className="flex flex-wrap gap-2">
+          {/* ▼ Enhanced filter bar with search and export */}
+          <div className="flex flex-wrap gap-2 items-center">
+            {/* Search bar */}
+            <input
+              type="search"
+              placeholder="Search transactions..."
+              className="input input-bordered flex-1 min-w-[200px]"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+
             {/* user selector */}
             <select
               className="select select-bordered max-w-xs"
@@ -394,28 +535,28 @@ useEffect(() => {
             >
               <option value="">All users</option>
               {studentList.map((u) => {
-              
-              const displayName = (u.firstName || u.lastName)
-                ? `${u.firstName || ''} ${u.lastName || ''}`.trim()
-                : u.name || u.email;
-              return (
-                <option key={u._id} value={u._id}>
-                  {displayName} – {ROLE_LABELS[u.role] || u.role}
-                </option>
-              );
-            })}
+                const displayName = (u.firstName || u.lastName)
+                  ? `${u.firstName || ''} ${u.lastName || ''}`.trim()
+                  : u.name || u.email;
+                return (
+                  <option key={u._id} value={u._id}>
+                    {displayName} – {ROLE_LABELS[u.role] || u.role}
+                  </option>
+                );
+              })}
             </select>
 
-            {/* Role filter */}
+            {/* Role filter with siphon option */}
             <select
               className="select select-bordered max-w-xs"
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
               disabled={!!assignerFilter}
             >
-              <option value="all">All Roles</option>
+              <option value="all">All Types</option>
               <option value="teacher">Adjustment by Teacher</option>
               <option value="admin">Adjustment by Admin/TA</option>
+              <option value="siphon">Siphon Transfers</option>
             </select>
 
             {/* Direction filter */}
@@ -428,12 +569,19 @@ useEffect(() => {
               <option value="credit">Credit</option>
               <option value="debit">Debit</option>
             </select>
+
+            {/* Export buttons */}
+            <ExportButtons
+              onExportCSV={exportTransactionsToCSV}
+              onExportJSON={exportTransactionsToJSON}
+              userName={classroom?.name || 'classroom'}
+              exportLabel="transactions"
+            />
           </div>
 
-          {}
-         <TransactionList transactions={filteredTx} />
+          <TransactionList transactions={filteredTx} />
         </div>
-    )}
+      )}
       {user.role === 'student' && (
         <>
           {/* ▼ Student: Wallet Transfer */}
@@ -561,8 +709,18 @@ useEffect(() => {
                 <p className="font-medium">Base Balance: {balance} ₿</p>
               </div>
               <h2 className="text-lg font-semibold">Transaction History</h2>
-              {/* Student's transaction list */}
+              
+              {/* Student search and filter controls */}
               <div className="flex flex-wrap gap-2 my-4">
+                {/* Search bar for students too */}
+                <input
+                  type="search"
+                  placeholder="Search your transactions..."
+                  className="input input-bordered flex-1 min-w-[200px]"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+
                 {/* User selector (All users) */}
                 <select
                   className="select select-bordered max-w-xs"
@@ -585,22 +743,23 @@ useEffect(() => {
                       : u.name || u.email;
                     return (
                       <option key={u._id} value={u._id}>
-                        {displayName} – {ROLE_LABELS[u.role] || u.role}
+                        {displayName} – {ROLE_LABELS[u.role] || u.role}
                       </option>
                     );
                   })}
                 </select>
 
-                {/* Role filter (All roles) */}
+                {/* Role filter (All roles) with siphon option */}
                 <select
                   className="select select-bordered max-w-xs"
                   value={roleFilter}
                   onChange={(e) => setRoleFilter(e.target.value)}
                   disabled={!!assignerFilter}
                 >
-                  <option value="all">All Roles</option>
+                  <option value="all">All Types</option>
                   <option value="teacher">Adjustment by Teacher</option>
                   <option value="admin">Adjustment by Admin/TA</option>
+                  <option value="siphon">Siphon Transfers</option>
                 </select>
 
                 {/* Direction filter (All directions) */}
@@ -613,7 +772,16 @@ useEffect(() => {
                   <option value="credit">Credit</option>
                   <option value="debit">Debit</option>
                 </select>
+
+                {/* Export for students too */}
+                <ExportButtons
+                  onExportCSV={exportTransactionsToCSV}
+                  onExportJSON={exportTransactionsToJSON}
+                  userName={`${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.email}
+                  exportLabel="transactions"
+                />
               </div>
+
               <TransactionList transactions={filteredTx} />
             </div>
           )}

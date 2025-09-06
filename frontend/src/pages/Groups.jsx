@@ -855,15 +855,22 @@ const Groups = () => {
                   type="checkbox"
                   className="toggle toggle-primary"
                   checked={groupSetSelfSignup}
-                  onChange={(e) => setGroupSetSelfSignup(e.target.checked)}
+                  onChange={(e) => {
+                    setGroupSetSelfSignup(e.target.checked);
+                    // Auto-disable join approval if self-signup is disabled
+                    if (!e.target.checked) {
+                      setGroupSetJoinApproval(false);
+                    }
+                  }}
                 />
                 Self Signup
               </label>
-              <label className="flex items-center gap-2">
+              <label className={`flex items-center gap-2 ${!groupSetSelfSignup ? 'opacity-50' : ''}`}>
                 <input
                   type="checkbox"
                   className="toggle toggle-primary"
-                  checked={groupSetJoinApproval}
+                  checked={groupSetJoinApproval && groupSetSelfSignup} // Auto-uncheck if self-signup disabled
+                  disabled={!groupSetSelfSignup} // Disable when self-signup is off
                   onChange={(e) => setGroupSetJoinApproval(e.target.checked)}
                 />
                 Join Approval Required
@@ -1189,13 +1196,21 @@ const Groups = () => {
 
                         return (
                           <>
-                            {!studentMembership && !alreadyApprovedInGroupSet && !hasPendingInGroupSet && (
+                            {/* Only show join button if self-signup is enabled */}
+                            {!studentMembership && !alreadyApprovedInGroupSet && !hasPendingInGroupSet && gs.selfSignup && (
                               <button
                                 className="btn btn-xs btn-success"
                                 onClick={() => handleJoinGroup(gs._id, group._id)}
                               >
                                 Join
                               </button>
+                            )}
+
+                            {/* Show message when self-signup is disabled */}
+                            {!studentMembership && !alreadyApprovedInGroupSet && !hasPendingInGroupSet && !gs.selfSignup && (
+                              <span className="text-xs text-gray-500">
+                                Manual enrollment only
+                              </span>
                             )}
 
                             {isPending && (
@@ -1219,6 +1234,7 @@ const Groups = () => {
                                 >
                                   Leave
                                 </button>
+                                {/* Only show siphon button to group members */}
                                 <button
                                   className="btn btn-xs btn-warning"
                                   onClick={() => setOpenSiphonModal(group)}
@@ -1260,8 +1276,12 @@ const Groups = () => {
                       )}
                     </div>
 
-                    {/* Siphon requests */}
+                    {/* Siphon requests - Only show to group members, teachers, and admins */}
                     {group.siphonRequests?.length > 0 && (
+                      user.role === 'teacher' || 
+                      user.role === 'admin' || 
+                      group.members.some(m => m._id && m._id._id === user._id && m.status === 'approved')
+                    ) && (
                       <div className="mt-4">
                         <h5 className="text-sm font-semibold">Active Siphon Requests</h5>
                         {group.siphonRequests
@@ -1412,7 +1432,15 @@ const Groups = () => {
                                         View Profile
                                       </button>
                                       {member._id.isFrozen && (
-                                        <Lock className="inline w-4 h-4 ml-1 text-red-500" title="Balance frozen" />
+                                        // Only show frozen icon to group members, teachers, and admins
+                                        (user.role === 'teacher' || 
+                                         user.role === 'admin' || 
+                                         group.members.some(m => m._id && m._id._id === user._id && m.status === 'approved')
+                                        ) && (
+                                          <div className="tooltip" data-tip="Account frozen due to siphon request">
+                                            <Lock className="inline w-4 h-4 ml-1 text-red-500 cursor-help" />
+                                          </div>
+                                        )
                                       )}
                                     </td>
                                     <td>
@@ -1464,15 +1492,22 @@ const Groups = () => {
                   type="checkbox"
                   className="toggle toggle-primary"
                   checked={groupSetSelfSignup}
-                  onChange={(e) => setGroupSetSelfSignup(e.target.checked)}
+                  onChange={(e) => {
+                    setGroupSetSelfSignup(e.target.checked);
+                    // Auto-disable join approval if self-signup is disabled
+                    if (!e.target.checked) {
+                      setGroupSetJoinApproval(false);
+                    }
+                  }}
                 />
                 Self Signup
               </label>
-              <label className="flex items-center gap-2">
+              <label className={`flex items-center gap-2 ${!groupSetSelfSignup ? 'opacity-50' : ''}`}>
                 <input
                   type="checkbox"
                   className="toggle toggle-primary"
-                  checked={groupSetJoinApproval}
+                  checked={groupSetJoinApproval && groupSetSelfSignup} // Auto-uncheck if self-signup disabled
+                  disabled={!groupSetSelfSignup} // Disable when self-signup is off
                   onChange={(e) => setGroupSetJoinApproval(e.target.checked)}
                 />
                 Join Approval Required
@@ -1758,7 +1793,7 @@ const Groups = () => {
               </button>
               <button
                 onClick={handleLeaveGroup}
-                className="btn btn-sm btn-error"
+                               className="btn btn-sm btn-error"
               >
                 Yes, Leave
               </button>
