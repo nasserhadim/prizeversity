@@ -23,15 +23,16 @@ const People = () => {
   const [studentSendEnabled, setStudentSendEnabled] = useState(null);
   const [tab, setTab] = useState('everyone');
   const [taBitPolicy, setTaBitPolicy] = useState('full');
-  const [studentsCanViewStats, setStudentsCanViewStats] = useState(true); // Add this
+  const [studentsCanViewStats, setStudentsCanViewStats] = useState(true);
   const [students, setStudents] = useState([]);
   const [groupSets, setGroupSets] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOption, setSortOption] = useState('default');
-  const [classroom, setClassroom] = useState(null); // Add classroom state
-  const [siphonTimeoutHours, setSiphonTimeoutHours] = useState(72); // Add this line
-  const [showUnassigned, setShowUnassigned] = useState(false); // Add this state variable
-  const [unassignedSearch, setUnassignedSearch] = useState(''); // Add to state
+  const [roleFilter, setRoleFilter] = useState('all'); // Add role filter state
+  const [classroom, setClassroom] = useState(null);
+  const [siphonTimeoutHours, setSiphonTimeoutHours] = useState(72);
+  const [showUnassigned, setShowUnassigned] = useState(false);
+  const [unassignedSearch, setUnassignedSearch] = useState('');
 
   const navigate = useNavigate();
 
@@ -322,7 +323,7 @@ const People = () => {
     }
   };
 
-  // Filter and sort students based on searchQuery and sortOption
+  // Filter and sort students based on searchQuery, sortOption, and roleFilter
   const filteredStudents = [...students]
     .filter((student) => {
       const firstName = (student.firstName || '').toLowerCase();
@@ -331,17 +332,25 @@ const People = () => {
       const fullName = `${firstName} ${lastName}`.trim().toLowerCase();
       const query = searchQuery.toLowerCase();
       
-      return (
+      // Search filter
+      const matchesSearch = (
         firstName.includes(query) ||
         lastName.includes(query) ||
         email.includes(query) ||
         fullName.includes(query)
       );
+
+      // Role filter
+      const matchesRole = roleFilter === 'all' || student.role === roleFilter;
+      
+      return matchesSearch && matchesRole;
     })
     .sort((a, b) => {
       // Only allow balance sorting for teachers/admins
       if (sortOption === 'balanceDesc' && (user?.role === 'teacher' || user?.role === 'admin')) {
         return (b.balance || 0) - (a.balance || 0);
+      } else if (sortOption === 'balanceAsc' && (user?.role === 'teacher' || user?.role === 'admin')) {
+        return (a.balance || 0) - (b.balance || 0);
       } else if (sortOption === 'nameAsc') {
         const nameA = (a.firstName || a.name || '').toLowerCase();
         const nameB = (b.firstName || b.name || '').toLowerCase();
@@ -923,6 +932,18 @@ const getGroupAssignmentStats = (students, groupSets) => {
                   />
                 )}
 
+                {/* Role Filter */}
+                <select
+                  className="select select-bordered"
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value)}
+                >
+                  <option value="all">All Roles</option>
+                  <option value="student">Students</option>
+                  <option value="admin">Admin/TAs</option>
+                  <option value="teacher">Teachers</option>
+                </select>
+
                 <select
                   className="select select-bordered"
                   value={sortOption}
@@ -931,7 +952,10 @@ const getGroupAssignmentStats = (students, groupSets) => {
                   <option value="default">Sort By</option>
                   {/* Only show balance sorting for teachers/admins */}
                   {(user?.role === 'teacher' || user?.role === 'admin') && (
-                    <option value="balanceDesc">Balance (High → Low)</option>
+                    <>
+                      <option value="balanceDesc">Balance (High → Low)</option>
+                      <option value="balanceAsc">Balance (Low → High)</option>
+                    </>
                   )}
                   <option value="nameAsc">Name (A → Z)</option>
                   <option value="joinDateDesc">Join Date (Newest)</option>
@@ -942,7 +966,7 @@ const getGroupAssignmentStats = (students, groupSets) => {
 
             <div className="space-y-2">
               {filteredStudents.length === 0 ? (
-                <p>No matching students found.</p>
+                <p>No matching {roleFilter === 'all' ? 'people' : roleFilter === 'admin' ? 'Admin/TAs' : `${roleFilter}s`} found.</p>
               ) : (
                 filteredStudents.map((student) => (
                   <div
