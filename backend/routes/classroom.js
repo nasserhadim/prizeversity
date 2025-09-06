@@ -408,6 +408,7 @@ router.delete('/:id', ensureAuthenticated, async (req, res) => {
       return res.status(403).json({ error: 'Not authorized to delete this classroom' });
     }
 
+    // Send notifications to all recipients
     const recipients = [classroom.teacher, ...classroom.students];
     for (const recipientId of recipients) {
       const notification = await Notification.create({
@@ -418,6 +419,14 @@ router.delete('/:id', ensureAuthenticated, async (req, res) => {
       });
       const populated = await populateNotification(notification._id);
       req.app.get('io').to(`user-${recipientId}`).emit('notification', populated);
+    }
+
+    // Emit classroom removal to all students (ensure string conversion)
+    for (const studentId of classroom.students) {
+      req.app.get('io').to(`user-${studentId}`).emit('classroom_removal', {
+        classroomId: classroom._id.toString(), // Convert to string
+        message: `Classroom "${classroom.name}" has been deleted`
+      });
     }
 
     await Classroom.deleteOne({ _id: req.params.id });
@@ -677,7 +686,7 @@ router.delete('/:id/students/:studentId', ensureAuthenticated, async (req, res) 
     const populated = await populateNotification(notification._id);
     req.app.get('io').to(`user-${req.params.studentId}`).emit('notification', populated);
     req.app.get('io').to(`user-${req.params.studentId}`).emit('classroom_removal', {
-      classroomId: classroom._id,
+      classroomId: classroom._id.toString(), // Convert to string
       message: `You have been removed from classroom "${classroom.name}"`
     });
 
