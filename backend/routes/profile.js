@@ -24,6 +24,16 @@ router.get('/student/:id', ensureAuthenticated, async (req, res) => {
 
     // Convert to plain object so we can safely modify/override fields for response
     const userObj = user.toObject();
+    
+    // Debug: Log what we actually have
+    console.log('[Profile Debug] user.createdAt:', user.createdAt);
+    console.log('[Profile Debug] userObj.createdAt:', userObj.createdAt);
+    console.log('[Profile Debug] user._id:', user._id);
+    
+    // Ensure createdAt is included
+    if (!userObj.createdAt && user.createdAt) {
+      userObj.createdAt = user.createdAt;
+    }
 
     // Guard classroomBalances (may be undefined)
     if (classroomId && Array.isArray(userObj.classroomBalances)) {

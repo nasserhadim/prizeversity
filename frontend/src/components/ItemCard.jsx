@@ -7,6 +7,7 @@ import { ShoppingCart } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext.jsx';
 import { resolveImageSrc } from '../utils/image';
+import { splitDescriptionEffect, getEffectDescription } from '../utils/itemHelpers';
 
 const ItemCard = ({ item, role, classroomId }) => {
   const [quantity, setQuantity] = useState(1);
@@ -64,6 +65,8 @@ const ItemCard = ({ item, role, classroomId }) => {
     return `${finalPrice} ₿`;
   };
 
+  const { main, effect } = splitDescriptionEffect(item.description || '');
+
   return (
     <div className="card bg-base-100 shadow-md border border-base-200 hover:shadow-lg transition duration-200 rounded-2xl overflow-hidden">
       {/* Image */}
@@ -86,7 +89,22 @@ const ItemCard = ({ item, role, classroomId }) => {
          <h3 className="card-title text-lg md:text-xl font-semibold">
            {item.name}
          </h3>
-        <p className="text-base-content opacity-70 text-sm mt-2">{item.description}</p>
+        <p className="text-sm text-base-content/70 whitespace-pre-wrap">
+          {main || 'No description provided.'}
+        </p>
+
+        {effect && (
+          <div className="text-sm text-base-content/60 mt-1">
+            <strong>Effect:</strong> {effect}
+          </div>
+        )}
+
+        {!effect && getEffectDescription(item) && (
+          <div className="text-sm text-base-content/60 mt-1">
+            <strong>Effect:</strong> {getEffectDescription(item)}
+          </div>
+        )}
+
         <p className="text-base-content font-bold text-base">
            {calculatePrice()}
          </p>

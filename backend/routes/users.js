@@ -384,7 +384,11 @@ router.post('/bulk-upload', ensureAuthenticated, async (req, res) => {
       lastName,
       role,
       classrooms: [classroomId],
-      balance: initialBalance
+      balance: initialBalance,
+      classroomJoinDates: [{
+        classroom: classroomId,
+        joinedAt: new Date()
+      }]
     });
     await newUser.save();
 

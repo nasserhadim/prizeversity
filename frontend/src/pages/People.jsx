@@ -23,13 +23,16 @@ const People = () => {
   const [studentSendEnabled, setStudentSendEnabled] = useState(null);
   const [tab, setTab] = useState('everyone');
   const [taBitPolicy, setTaBitPolicy] = useState('full');
-  const [studentsCanViewStats, setStudentsCanViewStats] = useState(true); // Add this
+  const [studentsCanViewStats, setStudentsCanViewStats] = useState(true);
   const [students, setStudents] = useState([]);
   const [groupSets, setGroupSets] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOption, setSortOption] = useState('default');
-  const [classroom, setClassroom] = useState(null); // Add classroom state
-  const [siphonTimeoutHours, setSiphonTimeoutHours] = useState(72); // Add this line
+  const [roleFilter, setRoleFilter] = useState('all'); // Add role filter state
+  const [classroom, setClassroom] = useState(null);
+  const [siphonTimeoutHours, setSiphonTimeoutHours] = useState(72);
+  const [showUnassigned, setShowUnassigned] = useState(false);
+  const [unassignedSearch, setUnassignedSearch] = useState('');
 
   const navigate = useNavigate();
 
@@ -320,24 +323,46 @@ const People = () => {
     }
   };
 
-  // Filter and sort students based on searchQuery and sortOption
+  // Filter and sort students based on searchQuery, sortOption, and roleFilter
   const filteredStudents = [...students]
     .filter((student) => {
-      const name = (student.firstName || student.name || '').toLowerCase();
+      const firstName = (student.firstName || '').toLowerCase();
+      const lastName = (student.lastName || '').toLowerCase();
       const email = (student.email || '').toLowerCase();
-      return (
-        name.includes(searchQuery.toLowerCase()) ||
-        email.includes(searchQuery.toLowerCase())
+      const fullName = `${firstName} ${lastName}`.trim().toLowerCase();
+      const query = searchQuery.toLowerCase();
+      
+      // Search filter
+      const matchesSearch = (
+        firstName.includes(query) ||
+        lastName.includes(query) ||
+        email.includes(query) ||
+        fullName.includes(query)
       );
+
+      // Role filter
+      const matchesRole = roleFilter === 'all' || student.role === roleFilter;
+      
+      return matchesSearch && matchesRole;
     })
     .sort((a, b) => {
       // Only allow balance sorting for teachers/admins
       if (sortOption === 'balanceDesc' && (user?.role === 'teacher' || user?.role === 'admin')) {
         return (b.balance || 0) - (a.balance || 0);
+      } else if (sortOption === 'balanceAsc' && (user?.role === 'teacher' || user?.role === 'admin')) {
+        return (a.balance || 0) - (b.balance || 0);
       } else if (sortOption === 'nameAsc') {
         const nameA = (a.firstName || a.name || '').toLowerCase();
         const nameB = (b.firstName || b.name || '').toLowerCase();
         return nameA.localeCompare(nameB);
+      } else if (sortOption === 'joinDateAsc') {
+        const dateA = new Date(a.joinedAt || a.createdAt || 0);
+        const dateB = new Date(b.joinedAt || b.createdAt || 0);
+        return dateA - dateB;
+      } else if (sortOption === 'joinDateDesc') {
+        const dateA = new Date(a.joinedAt || a.createdAt || 0);
+        const dateB = new Date(b.joinedAt || b.createdAt || 0);
+        return dateB - dateA;
       }
       return 0; // Default order
     });
@@ -413,6 +438,11 @@ const People = () => {
           Email: student.email,
           Role: ROLE_LABELS[student.role] || student.role,
           Balance: student.balance?.toFixed(2) || '0.00',
+          JoinedDate: student.joinedAt 
+            ? new Date(student.joinedAt).toLocaleString() 
+            : student.createdAt 
+              ? new Date(student.createdAt).toLocaleString()
+              : 'Unknown',
           Luck: stats.luck || 1,
           Multiplier: stats.multiplier || 1,
           GroupMultiplier: stats.groupMultiplier || 1,
@@ -422,7 +452,7 @@ const People = () => {
           DoubleEarnings: stats.doubleEarnings ? 'Yes' : 'No',
           DiscountShop: stats.discountShop || 0,
           PassiveItemsCount: stats.passiveItemsCount || 0,
-          Groups: groups.join('; ') || 'None'
+          Groups: groups.length > 0 ? groups.join('; ') : 'Unassigned'
         };
       })
     );
@@ -510,6 +540,7 @@ const People = () => {
           email: student.email,
           role: student.role,
           balance: student.balance || 0,
+          joinedDate: student.joinedAt || student.createdAt || null,
           stats: {
             luck: stats.luck || 1,
             multiplier: stats.multiplier || 1,
@@ -521,7 +552,7 @@ const People = () => {
             discountShop: stats.discountShop || 0,
             passiveItemsCount: stats.passiveItemsCount || 0
           },
-          groups: groups,
+          groups: groups.length > 0 ? groups : ['Unassigned'],
           classroom: {
             _id: classroomId,
             name: classroom?.name,
@@ -637,6 +668,40 @@ const People = () => {
       </div>
     ));
   };
+
+  // Add this helper function near the top of the People component
+  const getUnassignedStudents = (students, groupSets) => {
+    const assignedStudentIds = new Set();
+    
+    // Collect all student IDs that are assigned to any group in any group set
+    groupSets.forEach(groupSet => {
+      groupSet.groups.forEach(group => {
+        group.members.forEach(member => {
+          if (member._id && member.status === 'approved') {
+            const studentId = member._id._id || member._id;
+            assignedStudentIds.add(String(studentId));
+          }
+        });
+      });
+    });
+    
+    // Return students who are not in any group
+    return students.filter(student => 
+      student.role === 'student' && 
+      !assignedStudentIds.has(String(student._id))
+    );
+  };
+
+  // Add this helper function
+const getGroupAssignmentStats = (students, groupSets) => {
+  const totalStudents = students.filter(s => s.role === 'student').length;
+  const assignedStudents = totalStudents - getUnassignedStudents(students, groupSets).length;
+  const assignmentRate = totalStudents > 0 ? (assignedStudents / totalStudents * 100).toFixed(1) : 0;
+  
+  return { totalStudents, assignedStudents, assignmentRate };
+};
+
+  const stats = getGroupAssignmentStats(students, groupSets);
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -867,6 +932,18 @@ const People = () => {
                   />
                 )}
 
+                {/* Role Filter */}
+                <select
+                  className="select select-bordered"
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value)}
+                >
+                  <option value="all">All Roles</option>
+                  <option value="student">Students</option>
+                  <option value="admin">Admin/TAs</option>
+                  <option value="teacher">Teachers</option>
+                </select>
+
                 <select
                   className="select select-bordered"
                   value={sortOption}
@@ -875,16 +952,21 @@ const People = () => {
                   <option value="default">Sort By</option>
                   {/* Only show balance sorting for teachers/admins */}
                   {(user?.role === 'teacher' || user?.role === 'admin') && (
-                    <option value="balanceDesc">Balance (High → Low)</option>
+                    <>
+                      <option value="balanceDesc">Balance (High → Low)</option>
+                      <option value="balanceAsc">Balance (Low → High)</option>
+                    </>
                   )}
                   <option value="nameAsc">Name (A → Z)</option>
+                  <option value="joinDateDesc">Join Date (Newest)</option>
+                  <option value="joinDateAsc">Join Date (Oldest)</option>
                 </select>
               </div>
             </div>
 
             <div className="space-y-2">
               {filteredStudents.length === 0 ? (
-                <p>No matching students found.</p>
+                <p>No matching {roleFilter === 'all' ? 'people' : roleFilter === 'admin' ? 'Admin/TAs' : `${roleFilter}s`} found.</p>
               ) : (
                 filteredStudents.map((student) => (
                   <div
@@ -904,9 +986,19 @@ const People = () => {
                       {/* Only show balance to teachers/admins */}
                       {(user?.role?.toLowerCase() === 'teacher' || user?.role?.toLowerCase() === 'admin') && (
                         <div className="text-sm text-gray-500 mt-1">
-                          Balance: B{student.balance?.toFixed(2) || '0.00'}
+                          Balance: ₿{student.balance?.toFixed(2) || '0.00'}
                         </div>
                       )}
+
+                      {/* Add join date display */}
+                      <div className="text-sm text-gray-500 mt-1">
+                        Joined: {student.joinedAt 
+                          ? new Date(student.joinedAt).toLocaleString() 
+                          : student.createdAt 
+                            ? new Date(student.createdAt).toLocaleString()
+                            : 'Unknown'
+                        }
+                      </div>
 
                       <div className="flex gap-2 mt-2 flex-wrap">
                         <button
@@ -988,49 +1080,136 @@ const People = () => {
 
         {tab === 'groups' && (
           <div className="space-y-6 w-full min-w-0">
-            {groupSets.length === 0 ? (
-              <p>No groups available yet.</p>
-            ) : (
-              groupSets.map((gs) => (
-                <div key={gs._id} className="w-full min-w-0">
-                  <h2 className="text-xl font-semibold">{gs.name}</h2>
-                  <div className="mt-2 grid grid-cols-1 gap-4 w-full">
-                    {gs.groups.map((group) => (
-                      <div key={group._id} className="border p-4 rounded w-full min-w-0 bg-base-100">
-                         <h3 className="text-lg font-bold">{group.name}</h3>
-                         {group.members.length === 0 ? (
-                           <p className="text-gray-500">No members</p>
-                        ) : (
-                          <ul className="list-disc ml-5 space-y-1">
-                            {group.members
-                              .filter(m => m && m._id && m.status === 'approved') // Add status filter
-                              .map((m) => {
-                                const user = m._id;
-                                const userId = user._id || user; // handle populated object or raw id
-                                const displayName = user && (user.firstName || user.lastName)
-                                  ? `${user.firstName || ''} ${user.lastName || ''}`.trim()
-                                  : user?.name || user?.email || 'Unknown User';
-
-                                return (
-                                  <li key={String(userId)} className="flex justify-between items-center w-full">
-                                    <span>{displayName}</span>
-                                    <button
-                                      className="btn btn-sm btn-outline ml-4"
-                                      onClick={() => navigate(`/classroom/${classroomId}/profile/${userId}`, { state: { from: 'people', classroomId } })}
-                                    >
-                                      View Profile
-                                    </button>
-                                  </li>
-                                );
-                              })}
-                        </ul>
-                      )}
+            {/* Add Unassigned Students Filter */}
+    {(user?.role === 'teacher' || user?.role === 'admin') && (
+      <div className="card bg-base-100 shadow-sm border">
+        <div className="card-body p-4">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-semibold">
+              Unassigned Students ({getUnassignedStudents(students, groupSets).length})
+            </h3>
+            <button
+              className="btn btn-sm btn-outline"
+              onClick={() => setShowUnassigned(!showUnassigned)}
+            >
+              {showUnassigned ? 'Hide' : 'Show'} Unassigned
+            </button>
+          </div>
+          
+          {showUnassigned && (
+            <div className="mt-4">
+              {getUnassignedStudents(students, groupSets).length === 0 ? (
+                <p className="text-gray-500 italic">All students are assigned to groups!</p>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-sm text-gray-600 mb-3">
+                    Students who haven't joined any group yet:
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {getUnassignedStudents(students, groupSets)
+                      .filter(student => {
+                        const name = `${student.firstName || ''} ${student.lastName || ''}`.trim().toLowerCase();
+                        const email = student.email.toLowerCase();
+                        const query = unassignedSearch.toLowerCase();
+                        return name.includes(query) || email.includes(query);
+                      })
+                      .map(student => (
+                      <div 
+                        key={student._id} 
+                        className="flex justify-between items-center p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800"
+                      >
+                        <span className="font-medium">
+                          {student.firstName || student.lastName
+                            ? `${student.firstName || ''} ${student.lastName || ''}`.trim()
+                            : student.email}
+                        </span>
+                        <div className="flex gap-2">
+                          <button
+                            className="btn btn-xs btn-outline"
+                            onClick={() => navigate(
+                              `/classroom/${classroomId}/profile/${student._id}`,
+                              { state: { from: 'people', classroomId } }
+                            )}
+                          >
+                            Profile
+                          </button>
+                        </div>
                       </div>
-                     ))}
+                    ))}
                   </div>
                 </div>
-              ))
-             )}
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    )}
+    
+    {/* Existing group sets content */}
+    {groupSets.length === 0 ? (
+      <p>No groups available yet.</p>
+    ) : (
+      groupSets.map((gs) => (
+        <div key={gs._id} className="w-full min-w-0">
+          <h2 className="text-xl font-semibold">{gs.name}</h2>
+          <div className="mt-2 grid grid-cols-1 gap-4 w-full">
+            {gs.groups.map((group) => (
+              <div key={group._id} className="border p-4 rounded w-full min-w-0 bg-base-100">
+                 <h3 className="text-lg font-bold">{group.name}</h3>
+                 {group.members.length === 0 ? (
+                   <p className="text-gray-500">No members</p>
+                ) : (
+                  <ul className="list-disc ml-5 space-y-1">
+                    {group.members
+                      .filter(m => m && m._id && m.status === 'approved') // Add status filter
+                      .map((m) => {
+                        const user = m._id;
+                        const userId = user._id || user; // handle populated object or raw id
+                        const displayName = user && (user.firstName || user.lastName)
+                          ? `${user.firstName || ''} ${user.lastName || ''}`.trim()
+                          : user?.name || user?.email || 'Unknown User';
+
+                        return (
+                          <li key={String(userId)} className="flex justify-between items-center w-full">
+                            <span>{displayName}</span>
+                            <button
+                              className="btn btn-sm btn-outline ml-4"
+                              onClick={() => navigate(`/classroom/${classroomId}/profile/${userId}`, { state: { from: 'people', classroomId } })}
+                            >
+                              View Profile
+                            </button>
+                          </li>
+                        );
+                      })}
+                </ul>
+              )}
+              </div>
+             ))}
+          </div>
+        </div>
+      ))
+     )}
+
+     {/* Add this stats display section */}
+     {user?.role === 'teacher' && (
+      <div className="mb-6">
+        <h2 className="text-2xl font-semibold mb-4">Group Assignment Stats</h2>
+        <div className="stats stats-horizontal shadow mb-4">
+          <div className="stat">
+            <div className="stat-title">Total Students</div>
+            <div className="stat-value text-lg">{stats.totalStudents}</div>
+          </div>
+          <div className="stat">
+            <div className="stat-title">Assigned</div>
+            <div className="stat-value text-lg text-success">{stats.assignedStudents}</div>
+          </div>
+          <div className="stat">
+            <div className="stat-title">Assignment Rate</div>
+            <div className="stat-value text-lg">{stats.assignmentRate}%</div>
+          </div>
+        </div>
+      </div>
+    )}
           </div>
         )}
       </main>

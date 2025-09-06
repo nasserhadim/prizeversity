@@ -107,12 +107,33 @@ router.post(
       const n = await Notification.create({
         user: targetUserId, 
         type:'siphon_request',
-        message:`Group "${group.name}" has opened a siphon request involving your account. You have ${timeoutHours} hours to respond or for your group to decide.`,
+        message:`Group "${group.name}" has initiated a siphon request involving your account. You have ${timeoutHours} hours to respond or for your group to decide.`,
         group: group._id, 
         actionBy: req.user._id, 
         classroom: classroom._id,
       });
       req.app.get('io').to(`user-${targetUserId}`).emit('notification', await populateNotification(n._id));
+
+      // Notify all other approved group members (except requester and target) about the new siphon request
+      const eligibleVoters = group.members.filter(m => 
+        m.status === 'approved' && 
+        !m._id.equals(req.user._id) && 
+        !m._id.equals(targetUserId)
+      );
+
+      for (const voter of eligibleVoters) {
+        const voterNotification = await Notification.create({
+          user: voter._id,
+          type: 'siphon_request',
+          message: `A siphon request has been initiated in group "${group.name}". Your vote is needed within ${timeoutHours} hours.`,
+          group: group._id,
+          actionBy: req.user._id,
+          classroom: classroom._id,
+        });
+        
+        const populatedVoterNotification = await populateNotification(voterNotification._id);
+        req.app.get('io').to(`user-${voter._id}`).emit('notification', populatedVoterNotification);
+      }
 
       // Emit real time update to group members
       req.app.get('io').to(`group-${reqDoc.group}`).emit('siphon_create', reqDoc);
@@ -167,6 +188,39 @@ router.post('/:id/vote', ensureAuthenticated, async (req,res)=>{
     siphon.status = 'rejected';
     await siphon.save();
     await User.findByIdAndUpdate(siphon.targetUser, { isFrozen: false });
+    
+    // Notify all group members (except target) that the siphon was rejected by majority vote
+    const allGroupMembers = group.members.filter(m => 
+      m.status === 'approved' && !m._id.equals(siphon.targetUser)
+    );
+
+    for (const member of allGroupMembers) {
+      const rejectionNotification = await Notification.create({
+        user: member._id,
+        type: 'siphon_rejected',
+        message: `The siphon request in group "${group.name}" was rejected by majority vote (${noVotes} voted NO, ${yesVotes} voted YES).`,
+        group: group._id,
+        actionBy: req.user._id,
+        classroom: classroomId,
+      });
+      
+      const populatedRejectionNotification = await populateNotification(rejectionNotification._id);
+      req.app.get('io').to(`user-${member._id}`).emit('notification', populatedRejectionNotification);
+    }
+
+    // Notify the target user that the siphon request against them was rejected
+    const targetRejectionNotification = await Notification.create({
+      user: siphon.targetUser,
+      type: 'siphon_rejected',
+      message: `Good news! The siphon request against you in group "${group.name}" was rejected by majority vote (${noVotes} voted NO, ${yesVotes} voted YES). Your account is now unfrozen.`,
+      group: group._id,
+      actionBy: req.user._id,
+      classroom: classroomId,
+    });
+    
+    const populatedTargetRejectionNotification = await populateNotification(targetRejectionNotification._id);
+    req.app.get('io').to(`user-${siphon.targetUser}`).emit('notification', populatedTargetRejectionNotification);
+
     req.app.get('io').to(`group-${group._id}`).emit('siphon_update', siphon);
     return res.json({ status: siphon.status });
   }
@@ -176,13 +230,46 @@ router.post('/:id/vote', ensureAuthenticated, async (req,res)=>{
     siphon.status = 'group_approved';
     await siphon.save();
 
+    // Notify all group members (except target) that majority voted yes and it's now pending teacher decision
+    const allGroupMembers = group.members.filter(m => 
+      m.status === 'approved' && !m._id.equals(siphon.targetUser)
+    );
+
+    for (const member of allGroupMembers) {
+      const approvalNotification = await Notification.create({
+        user: member._id,
+        type: 'siphon_approved',
+        message: `The siphon request in group "${group.name}" was approved by majority vote (${yesVotes} voted YES, ${noVotes} voted NO). Now pending teacher decision.`,
+        group: group._id,
+        actionBy: req.user._id,
+        classroom: classroomId,
+      });
+      
+      const populatedApprovalNotification = await populateNotification(approvalNotification._id);
+      req.app.get('io').to(`user-${member._id}`).emit('notification', populatedApprovalNotification);
+    }
+
+    // Notify the target user that the siphon request against them was approved by majority vote
+    const targetApprovalNotification = await Notification.create({
+      user: siphon.targetUser,
+      type: 'siphon_approved',
+      message: `The siphon request against you in group "${group.name}" was approved by majority vote (${yesVotes} voted YES, ${noVotes} voted NO). It's now pending teacher decision. Your account remains frozen until the teacher makes a final decision.`,
+      group: group._id,
+      actionBy: req.user._id,
+      classroom: classroomId,
+    });
+    
+    const populatedTargetApprovalNotification = await populateNotification(targetApprovalNotification._id);
+    req.app.get('io').to(`user-${siphon.targetUser}`).emit('notification', populatedTargetApprovalNotification);
+
     // Notify teacher of the classroom
     const classroomId = await GroupSet.findOne({groups: group._id}).then(gs=>gs?.classroom);
     const teachers = await Classroom.findById(classroomId).select('teacher').then(c=>[c.teacher]);
     for (const t of teachers){
+      const requesterName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email;
       const n = await Notification.create({
         user: t, type:'siphon_review',
-        message:`Group "${group.name}" approved a siphon request by majority vote and is pending your approval decision`,
+        message:`Group "${group.name}" approved a siphon request by majority vote and is pending your approval decision. Initiated by ${requesterName}.`,
         group: group._id, siphon: siphon._id, actionBy: req.user._id
       });
       req.app.get('io').to(`user-${t}`).emit('notification', await populateNotification(n._id));
