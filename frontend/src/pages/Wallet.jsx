@@ -188,7 +188,8 @@ const Wallet = () => {
       // Update role matching to include siphon
       const roleMatch = roleFilter === 'all' || 
                        (assignerRole === roleFilter) ||
-                       (roleFilter === 'siphon' && isSiphon);
+                       (roleFilter === 'siphon' && isSiphon) ||
+                       (roleFilter === 'purchase' && tx.type === 'purchase');
 
       const directionMatch =
         directionFilter === 'all'
@@ -554,6 +555,7 @@ useEffect(() => {
               disabled={!!assignerFilter}
             >
               <option value="all">All Types</option>
+              <option value="purchase">Checkout</option>
               <option value="teacher">Adjustment by Teacher</option>
               <option value="admin">Adjustment by Admin/TA</option>
               <option value="siphon">Siphon Transfers</option>
@@ -757,6 +759,7 @@ useEffect(() => {
                   disabled={!!assignerFilter}
                 >
                   <option value="all">All Types</option>
+                  <option value="purchase">Checkout</option>
                   <option value="teacher">Adjustment by Teacher</option>
                   <option value="admin">Adjustment by Admin/TA</option>
                   <option value="siphon">Siphon Transfers</option>
