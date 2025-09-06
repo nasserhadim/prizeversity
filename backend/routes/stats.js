@@ -39,6 +39,33 @@ router.get('/student/:id', ensureAuthenticated, async (req, res) => {
       classroom = await Classroom.findOne({ students: userId }).select('_id').lean() || null;
     }
 
+    // Calculate actual group multiplier based on current group memberships
+    let actualGroupMultiplier = 1;
+    if (classroomId) {
+      const GroupSet = require('../models/GroupSet');
+      const Group = require('../models/Group');
+      
+      const groupSets = await GroupSet.find({ classroom: classroomId }).select('groups');
+      const groupIds = groupSets.flatMap(gs => gs.groups);
+      
+      if (groupIds.length > 0) {
+        const groups = await Group.find({
+          _id: { $in: groupIds },
+          members: {
+            $elemMatch: {
+              _id: userId,
+              status: 'approved'
+            }
+          }
+        }).select('groupMultiplier');
+
+        if (groups && groups.length > 0) {
+          // Sum of multipliers across distinct groupsets (same as wallet logic)
+          actualGroupMultiplier = groups.reduce((sum, g) => sum + (g.groupMultiplier || 1), 0);
+        }
+      }
+    }
+
     const attackCount = (items || []).filter((item) =>
       ['halveBits', 'stealBits'].includes(item.primaryEffect)
     ).length;
@@ -60,7 +87,7 @@ router.get('/student/:id', ensureAuthenticated, async (req, res) => {
       // Keep existing user stats from schema
       luck: user.passiveAttributes?.luck || 1,
       multiplier: user.passiveAttributes?.multiplier || 1,
-      groupMultiplier: user.passiveAttributes?.groupMultiplier || 1, // Keep this!
+      groupMultiplier: actualGroupMultiplier, // Use calculated value instead
       shieldActive: user.shieldActive || false,
       shieldCount: user.shieldCount || 0,
       attackPower: attackCount,
