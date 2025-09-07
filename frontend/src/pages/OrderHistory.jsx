@@ -170,7 +170,8 @@ export default function OrderHistory() {
     return (
         <div className="flex flex-col min-h-screen">
             <main className="flex-grow p-4 container mx-auto">
-                <h1 className="text-2xl mb-4">Your Order History</h1>
+                <h1 className="text-2xl mb-2">Your Order History</h1>
+                <div className="text-sm text-gray-500 mb-4">Showing {visibleOrders.length} record{visibleOrders.length === 1 ? '' : 's'}</div>
 
                 <OrderFilterBar
                   search={search}

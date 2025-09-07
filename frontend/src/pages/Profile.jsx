@@ -666,7 +666,9 @@ export default function Profile() {
  
                   {user?.role === 'teacher' && profile?.role === 'student' && (
                         <div className="mt-6">
-                            <h2 className="text-xl mb-2">Purchase History</h2>
+                            <h2 className="text-xl mb-2">
+                                Purchase History {visibleOrders ? `(${visibleOrders.length})` : ''}
+                            </h2>
                             {loadingOrders ? (
                                 <p>Loading…</p>
                             ) : ordersError ? (
