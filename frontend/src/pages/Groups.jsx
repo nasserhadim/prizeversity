@@ -11,6 +11,20 @@ import Footer from '../components/Footer';
 import { API_BASE } from '../config/api'; // add
 import { resolveImageSrc, resolveGroupSetSrc, isPlaceholderGroupSetImage } from '../utils/image'; // OR import the helper
 
+function getMemberId(member) {
+  if (!member) return null;
+  // member may be { _id: ObjectId | populatedDoc } or may already be the id value
+  const idField = member._id ?? member;
+  if (!idField) return null;
+  if (typeof idField === 'string') return idField;
+  if (typeof idField === 'object') {
+    if (idField._id) return String(idField._id);
+    // Some Mongoose objects stringify sensibly
+    if (typeof idField.toString === 'function') return String(idField.toString());
+  }
+  return null;
+}
+
 const Groups = () => {
   const { id } = useParams(); // This is the classroomId
   const navigate = useNavigate();
@@ -20,6 +34,7 @@ const Groups = () => {
   const [allStudents, setAllStudents] = useState([]); // Add state for all students
   const [addMemberModal, setAddMemberModal] = useState(null); // { groupId, groupSetId }
   const [selectedStudent, setSelectedStudent] = useState(''); // student id for the add dropdown
+  const [addMemberSearch, setAddMemberSearch] = useState('');
   const [activeTab, setActiveTab] = useState('list'); // 'list' or 'create'
   const [loading, setLoading] = useState(true);
   const [groupSetName, setGroupSetName] = useState('');
@@ -510,6 +525,7 @@ const Groups = () => {
       fetchGroupSets();
       setAddMemberModal(null);
       setSelectedStudent('');
+      setAddMemberSearch('');
     } catch (err) {
       const errorMessage = err.response?.data?.error || 'Failed to add student.';
       toast.error(errorMessage);
@@ -615,7 +631,7 @@ const Groups = () => {
 
     const selectedIds = selectedMembers[groupId] || [];
     const approvedMemberIds = selectedIds.filter(id => {
-      const member = group.members.find(m => m._id._id === id);
+      const member = group.members.find(m => getMemberId(m) === String(id));
       return member && member.status === 'approved';
     });
 
@@ -738,7 +754,7 @@ const Groups = () => {
   // Toggle select all members in a group
   const handleSelectAllMembers = (groupId, group) => {
     const allSelected = (selectedMembers[groupId] || []).length === group.members.length;
-    const newSelected = allSelected ? [] : group.members.map(m => m._id._id);
+    const newSelected = allSelected ? [] : group.members.map(m => getMemberId(m)).filter(Boolean);
     setSelectedMembers(prev => ({ ...prev, [groupId]: newSelected }));
   };
 
@@ -1175,23 +1191,23 @@ const Groups = () => {
 
                     <div className="flex gap-2 flex-wrap mt-2">
                       {user.role === 'student' && (() => {
-                        const studentMembership = group.members.find(m => m._id && m._id._id === user._id);
+                        const studentMembership = group.members.find(m => getMemberId(m) === String(user._id));
                         const isApproved = studentMembership?.status === 'approved';
                         const isPending = studentMembership?.status === 'pending';
 
                         // Check if student is already approved in ANY group in this GroupSet
                         const alreadyApprovedInGroupSet = gs.groups.some(g =>
-                          g.members.some(m => m._id && m._id._id === user._id && m.status === 'approved')
+                          g.members.some(m => getMemberId(m) === String(user._id) && m.status === 'approved')
                         );
 
                         // Check if student has a pending request in ANY group in this GroupSet
                         const hasPendingInGroupSet = gs.groups.some(g =>
-                          g.members.some(m => m._id && m._id._id === user._id && m.status === 'pending')
+                          g.members.some(m => getMemberId(m) === String(user._id) && m.status === 'pending')
                         );
 
                         // Find which group has the pending request (if any)
                         const pendingGroup = gs.groups.find(g =>
-                          g.members.some(m => m._id && m._id._id === user._id && m.status === 'pending')
+                          g.members.some(m => getMemberId(m) === String(user._id) && m.status === 'pending')
                         );
 
                         return (
@@ -1287,9 +1303,11 @@ const Groups = () => {
                         {group.siphonRequests
                           .filter(r => !['teacher_approved', 'expired'].includes(r.status))
                           .map(r => {
-                            const eligibleVoters = group.members.filter(m => 
-                              m.status === 'approved' && m._id._id !== r.targetUser._id
-                            ).length;
+                            const targetUserId = r.targetUser?._id ?? r.targetUser;
+                            const eligibleVoters = group.members.filter(m => {
+                              const mid = getMemberId(m);
+                              return m.status === 'approved' && mid && String(mid) !== String(targetUserId);
+                            }).length;
                             const yesVotes = r.votes?.filter(v => v.vote === 'yes').length || 0;
                             const noVotes = r.votes?.filter(v => v.vote === 'no').length || 0;
                             const totalVotes = yesVotes + noVotes;
@@ -1407,25 +1425,24 @@ const Groups = () => {
                           </thead>
                           <tbody>
                             {getFilteredAndSortedMembers(group)
-                              .filter(member => member._id) // Add this filter
+                              .filter(member => getMemberId(member)) // ensure a valid id
                               .map((member, index) => {
-                                if (!member._id) return null; // Add this check
-                                
+                                const mid = getMemberId(member) || String(index);
                                 return (
-                                  <tr key={member._id._id || index}>
+                                  <tr key={mid}>
                                     <td>
                                       <input
                                         type="checkbox"
-                                        checked={selectedMembers[group._id]?.includes(member._id._id) || false}
-                                        onChange={() => handleSelectMember(group._id, member._id._id)}
+                                        checked={selectedMembers[group._id]?.includes(mid) || false}
+                                        onChange={() => handleSelectMember(group._id, mid)}
                                       />
                                     </td>
                                     <td>
-                                      {`${member._id.firstName || ''} ${member._id.lastName || ''}`.trim() || member._id.email || 'Unknown User'}
+                                      {`${member._id?.firstName || ''} ${member._id?.lastName || ''}`.trim() || member._id?.email || 'Unknown User'}
                                       <button 
                                         className="btn btn-xs btn-ghost ml-2"
                                         onClick={() => navigate(
-                                          `/profile/${member._id._id || member._id}`,
+                                          `/profile/${mid}`,
                                           { state: { from: 'groups', classroomId: id } }
                                         )}
                                       >
@@ -1900,6 +1917,14 @@ const Groups = () => {
             <h3 className="font-bold text-lg">Add Member to Group</h3>
             <p className="py-4">Select a student to add. Only students not already in this group set are shown.</p>
             
+            <input
+              type="text"
+              placeholder="Search students by name or email..."
+              className="input input-bordered w-full mb-3"
+              value={addMemberSearch}
+              onChange={(e) => setAddMemberSearch(e.target.value)}
+            />
+            
             <select
               className="select select-bordered w-full"
               value={selectedStudent}
@@ -1911,10 +1936,22 @@ const Groups = () => {
                 if (!groupSet) return null;
 
                 const memberIdsInGroupSet = new Set(
-                  groupSet.groups.flatMap(g => g.members.map(m => m._id._id))
+                  groupSet.groups.flatMap(g => g.members.map(m => m._id._id || m._id))
                 );
 
-                const availableStudents = allStudents.filter(s => !memberIdsInGroupSet.has(s._id));
+                const q = (addMemberSearch || '').trim().toLowerCase();
+                const availableStudents = allStudents
+                  // exclude anyone already in the groupset
+                  .filter(s => !memberIdsInGroupSet.has(s._id))
+                  // exclude teacher accounts and the current user (teacher/TA)
+                  .filter(s => (s.role || '').toLowerCase() !== 'teacher' && String(s._id) !== String(user._id))
+                  // apply search filter (name or email)
+                  .filter(s => {
+                    if (!q) return true;
+                    const name = `${s.firstName || ''} ${s.lastName || ''}`.trim().toLowerCase();
+                    const email = (s.email || '').toLowerCase();
+                    return name.includes(q) || email.includes(q);
+                  });
 
                 if (availableStudents.length === 0) {
                   return <option disabled>No available students</option>;
