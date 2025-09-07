@@ -235,7 +235,11 @@ router.post('/:id/vote', ensureAuthenticated, async (req,res)=>{
       m.status === 'approved' && !m._id.equals(siphon.targetUser)
     );
 
-    for (const member of allGroupMembers) {
+    // After computing `group` (and before creating notifications), resolve classroomId once
+    const classroomId = await GroupSet.findOne({ groups: group._id }).then(gs => gs?.classroom);
+
+    // Notify eligible voters about the vote outcome
+    for (const member of eligibleMembers) {
       const approvalNotification = await Notification.create({
         user: member._id,
         type: 'siphon_approved',
@@ -262,8 +266,7 @@ router.post('/:id/vote', ensureAuthenticated, async (req,res)=>{
     const populatedTargetApprovalNotification = await populateNotification(targetApprovalNotification._id);
     req.app.get('io').to(`user-${siphon.targetUser}`).emit('notification', populatedTargetApprovalNotification);
 
-    // Notify teacher of the classroom
-    const classroomId = await GroupSet.findOne({groups: group._id}).then(gs=>gs?.classroom);
+    // Notify teacher of the classroom (reuse classroomId resolved above)
     const teachers = await Classroom.findById(classroomId).select('teacher').then(c=>[c.teacher]);
     for (const t of teachers){
       const requesterName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email;
