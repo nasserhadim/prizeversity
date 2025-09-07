@@ -465,9 +465,12 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
 router.get('/transactions', ensureAuthenticated, async (req, res) => {
   try {
     const { classroomId } = req.query;
-    const user = await User.findById(req.user._id).select('transactions');
+    // Populate assignedBy on each transaction so student exports/display have assigner info (firstName/lastName/email/role)
+    const user = await User.findById(req.user._id)
+      .select('transactions')
+      .populate({ path: 'transactions.assignedBy', select: 'firstName lastName email role' });
     if (!user) return res.status(404).json({ error: 'User not found' });
-
+    
     let txs = user.transactions || [];
     if (classroomId) {
       txs = txs.filter(t => t.classroom && String(t.classroom) === String(classroomId));
