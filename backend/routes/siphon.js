@@ -162,6 +162,11 @@ router.post('/:id/vote', ensureAuthenticated, async (req,res)=>{
 
   // Verify that the user is an approved group member BUT NOT the target
   const group = await Group.findById(siphon.group);
+
+  // Resolve classroomId (used for notifications / checks). Fixes ReferenceError: classroomId is not defined
+  const groupSet = await GroupSet.findOne({ groups: group._id }).select('classroom');
+  const classroomId = groupSet?.classroom ?? null;
+
   const isMember = group.members.some(m=>m._id.equals(req.user._id) && m.status==='approved');
   const isTarget = siphon.targetUser.equals(req.user._id);
   
