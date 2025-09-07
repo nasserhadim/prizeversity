@@ -111,16 +111,17 @@ router.post(
         group: group._id, 
         actionBy: req.user._id, 
         classroom: classroom._id,
+        anonymized: true
       });
       req.app.get('io').to(`user-${targetUserId}`).emit('notification', await populateNotification(n._id));
-
+ 
       // Notify all other approved group members (except requester and target) about the new siphon request
       const eligibleVoters = group.members.filter(m => 
         m.status === 'approved' && 
         !m._id.equals(req.user._id) && 
         !m._id.equals(targetUserId)
       );
-
+ 
       for (const voter of eligibleVoters) {
         const voterNotification = await Notification.create({
           user: voter._id,
@@ -129,6 +130,7 @@ router.post(
           group: group._id,
           actionBy: req.user._id,
           classroom: classroom._id,
+          anonymized: true
         });
         
         const populatedVoterNotification = await populateNotification(voterNotification._id);
@@ -198,7 +200,7 @@ router.post('/:id/vote', ensureAuthenticated, async (req,res)=>{
     const allGroupMembers = group.members.filter(m => 
       m.status === 'approved' && !m._id.equals(siphon.targetUser)
     );
-
+ 
     for (const member of allGroupMembers) {
       const rejectionNotification = await Notification.create({
         user: member._id,
@@ -207,12 +209,12 @@ router.post('/:id/vote', ensureAuthenticated, async (req,res)=>{
         group: group._id,
         actionBy: req.user._id,
         classroom: classroomId,
+        anonymized: true
       });
-      
       const populatedRejectionNotification = await populateNotification(rejectionNotification._id);
       req.app.get('io').to(`user-${member._id}`).emit('notification', populatedRejectionNotification);
     }
-
+ 
     // Notify the target user that the siphon request against them was rejected
     const targetRejectionNotification = await Notification.create({
       user: siphon.targetUser,
@@ -221,20 +223,20 @@ router.post('/:id/vote', ensureAuthenticated, async (req,res)=>{
       group: group._id,
       actionBy: req.user._id,
       classroom: classroomId,
+      anonymized: true
     });
-    
     const populatedTargetRejectionNotification = await populateNotification(targetRejectionNotification._id);
     req.app.get('io').to(`user-${siphon.targetUser}`).emit('notification', populatedTargetRejectionNotification);
-
+ 
     req.app.get('io').to(`group-${group._id}`).emit('siphon_update', siphon);
     return res.json({ status: siphon.status });
   }
-
+ 
   // If majority voted "yes", escalate to teacher for final decision
   if (yesVotes >= majorityThreshold) {
     siphon.status = 'group_approved';
     await siphon.save();
-
+ 
     // Notify all group members (except target) that majority voted yes and it's now pending teacher decision
     const allGroupMembers = group.members.filter(m => 
       m.status === 'approved' && !m._id.equals(siphon.targetUser)
@@ -252,13 +254,13 @@ router.post('/:id/vote', ensureAuthenticated, async (req,res)=>{
         group: group._id,
         actionBy: req.user._id,
         classroom: classroomId,
+        anonymized: true
       });
-      
       const populatedApprovalNotification = await populateNotification(approvalNotification._id);
       req.app.get('io').to(`user-${member._id}`).emit('notification', populatedApprovalNotification);
     }
-
-    // Notify the target user that the siphon request against them was approved by majority vote
+ 
+    // Notify the target user that the siphon request against them was approved
     const targetApprovalNotification = await Notification.create({
       user: siphon.targetUser,
       type: 'siphon_approved',
@@ -266,11 +268,11 @@ router.post('/:id/vote', ensureAuthenticated, async (req,res)=>{
       group: group._id,
       actionBy: req.user._id,
       classroom: classroomId,
+      anonymized: true
     });
-    
     const populatedTargetApprovalNotification = await populateNotification(targetApprovalNotification._id);
     req.app.get('io').to(`user-${siphon.targetUser}`).emit('notification', populatedTargetApprovalNotification);
-
+ 
     // Notify teacher of the classroom (reuse classroomId resolved above)
     const teachers = await Classroom.findById(classroomId).select('teacher').then(c=>[c.teacher]);
     for (const t of teachers){
@@ -312,6 +314,51 @@ router.post('/:id/teacher-reject', ensureAuthenticated, async (req, res) => {
   siphon.status = 'rejected';
   await siphon.save();
   await User.findByIdAndUpdate(siphon.targetUser, { isFrozen: false });
+  
+  // Follow-up notification to the target letting them know account has been unfrozen
+  try {
+    const groupDoc = await Group.findById(siphon.group).select('name');
+    const followup = await Notification.create({
+      user: siphon.targetUser,
+      type: 'siphon_rejected',
+      message: `Good news! Your account has been unfrozen following the teacher's decision in group "${groupDoc?.name || 'the group'}".`,
+      group: siphon.group,
+      actionBy: req.user._id,
+      classroom: siphon.classroom,
+      anonymized: true
+    });
+    const populated = await populateNotification(followup._id);
+    req.app.get('io').to(`user-${siphon.targetUser}`).emit('notification', populated);
+  } catch (e) {
+    console.error('Failed to send teacher-reject followup notification:', e);
+  }
+
+  // NEW: Notify group members (except the target) that the teacher rejected the siphon.
+  try {
+    const group = await Group.findById(siphon.group).populate('members._id', '_id status');
+    const classroomId = siphon.classroom;
+    const recipients = (group?.members || [])
+      .filter(m => m.status === 'approved' && String(m._id._id) !== String(siphon.targetUser))
+      .map(m => m._id._id);
+
+    for (const memberId of recipients) {
+      const n = await Notification.create({
+        user: memberId,
+        type: 'siphon_rejected',
+        // do NOT include the target's name — preserve privacy
+        message: `The siphon request in group "${group?.name || 'the group'}" was rejected by the teacher.`,
+        group: siphon.group,
+        classroom: classroomId,
+        actionBy: req.user._id,
+        anonymized: true
+      });
+      const populated = await populateNotification(n._id);
+      req.app.get('io').to(`user-${memberId}`).emit('notification', populated);
+    }
+  } catch (e) {
+    console.error('Failed to notify group on teacher reject:', e);
+  }
+
   req.app.get('io').to(`group-${siphon.group}`).emit('siphon_update', siphon);
   res.json({ message: 'Request rejected', siphon });
 });

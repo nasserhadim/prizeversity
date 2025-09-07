@@ -1,5 +1,6 @@
 const express = require('express');
 const Notification = require('../models/Notification');
+const User = require('../models/User'); // added
 const { ensureAuthenticated } = require('../config/auth');
 const { populateNotification } = require('../utils/notifications');
 const router = express.Router();
@@ -14,8 +15,57 @@ router.get('/', ensureAuthenticated, async (req, res) => {
       .populate('groupSet', 'name')
       .populate('group', 'name')
       .sort('-createdAt');
+
+    // Sanitize anonymized notifications: replace actor with System while keeping other populated fields.
+    // If a non-anonymized notification arrives without actor name fields, fetch the actor as a fallback.
+    const sanitized = await Promise.all(notifications.map(async n => {
+      const obj = n && typeof n.toObject === 'function' ? n.toObject() : n;
+
+      // Keep anonymized notifications clearly labeled "System"
+      if (obj && obj.anonymized) {
+        obj.actionBy = { _id: null, firstName: 'System', lastName: '', email: null };
+        return obj;
+      }
+
+      // If actionBy is populated but missing name/email -> we should fetch the user record.
+      let needActorFetch = false;
+      if (!obj || !obj.actionBy) {
+        needActorFetch = true;
+      } else {
+        // actionBy might be an object (possibly populated) or an id string/ObjectId
+        if (typeof obj.actionBy === 'object') {
+          const hasName = !!(obj.actionBy.firstName || obj.actionBy.lastName || obj.actionBy.email);
+          if (!hasName) needActorFetch = true;
+        } else {
+          needActorFetch = true;
+        }
+      }
+
+      // Resolve the actor id robustly from the original mongoose document `n`
+      let actorId = null;
+      if (n && n.actionBy) {
+        if (typeof n.actionBy === 'object') {
+          // could be populated doc or just { _id: ObjectId }
+          actorId = n.actionBy._id ? n.actionBy._id : null;
+        } else {
+          actorId = n.actionBy; // likely an ObjectId or string id
+        }
+      }
+
+      if (needActorFetch && actorId) {
+        try {
+          const actor = await User.findById(actorId).select('firstName lastName email');
+          if (actor) obj.actionBy = actor.toObject();
+        } catch (e) {
+          console.error('Failed to fetch notification actor fallback:', e);
+          // leave obj.actionBy as-is (frontend will handle missing actor)
+        }
+      }
+
+      return obj;
+    }));
       
-    res.status(200).json(notifications);
+    res.status(200).json(sanitized);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch notifications' });
   }
