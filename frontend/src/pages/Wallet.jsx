@@ -35,6 +35,10 @@ const Wallet = () => {
   const [directionFilter, setDirectionFilter] = useState('all');
   const [assignerFilter, setAssignerFilter] = useState('');
 
+  // Sorting for transactions (date by default)
+  const [sortField, setSortField] = useState('date'); // 'date' | 'amount'
+  const [sortDirection, setSortDirection] = useState('desc'); // 'asc' | 'desc'
+  
   // Map role values to readable labels
   const ROLE_LABELS = {
     student: 'Student',
@@ -157,59 +161,152 @@ const Wallet = () => {
     return filename;
   };
 
-  // Filter transactions based on selected role, direction, and search
+  // Filter + sort transactions based on selected role, direction, search and sort settings
   const filteredTx = useMemo(() => {
     const sourceTx = user.role === 'student' ? transactions : allTx;
-    return sourceTx.filter(tx => {
-      // normalize assigner id (could be populated object or raw ObjectId/string)
+
+    // Filtering (deep search)
+    const qRaw = (search || '').trim();
+    const q = qRaw.toLowerCase();
+    const isNumericQuery = q !== '' && !Number.isNaN(Number(q));
+
+    const matchesDeep = (tx) => {
+      if (!q) return true;
+
+      // Collect candidate strings from many places in the tx object
+      const parts = [];
+      parts.push(tx.description || '');
+      parts.push(tx._id || '');
+      parts.push(tx.orderId || '');
+      parts.push(String(tx.amount || ''));
+      parts.push(tx.type || '');
+      parts.push(tx.studentName || '');
+      parts.push(tx.studentEmail || '');
+      // assignedBy fields (may be populated object or id)
+      if (tx.assignedBy) {
+        parts.push(tx.assignedBy.firstName || '');
+        parts.push(tx.assignedBy.lastName || '');
+        parts.push(tx.assignedBy.email || '');
+        parts.push(tx.assignedBy.role || '');
+      }
+      // items (checkout) - search names, descriptions, price
+      if (Array.isArray(tx.items)) {
+        tx.items.forEach(it => {
+          parts.push(it.name || '');
+          parts.push(it.description || '');
+          parts.push(String(it.price || ''));
+        });
+      }
+      // calculation / metadata fields
+      if (tx.calculation) {
+        parts.push(String(tx.calculation.baseAmount || ''));
+        parts.push(String(tx.calculation.total || ''));
+        parts.push(JSON.stringify(tx.calculation || {}));
+      }
+      if (tx.metadata) parts.push(JSON.stringify(tx.metadata));
+
+      // Date strings
+      const created = new Date(tx.createdAt || tx.date || Date.now());
+      if (!Number.isNaN(created.getTime())) {
+        parts.push(created.toISOString());
+        parts.push(created.toLocaleString());
+        parts.push(created.toDateString());
+      }
+
+      const hay = parts.join(' ').toLowerCase();
+
+      // If the user typed a number, match amounts/price tokens as substring
+      if (isNumericQuery) {
+        return hay.includes(q);
+      }
+
+      // Support multi-word queries: require all tokens (AND)
+      const tokens = q.split(/\s+/).filter(Boolean);
+      return tokens.every(t => hay.includes(t));
+    };
+
+    // Apply existing role/direction/assigner filters, but use matchesDeep for search
+    let list = sourceTx.filter((tx) => {
+      const isSiphon =
+        tx.description?.toLowerCase().includes('siphon') ||
+        tx.type === 'siphon' ||
+        (tx.description?.includes('transferred from') && tx.description?.includes('group'));
+
       const rawAssigner = tx.assignedBy;
       const assignerId = rawAssigner ? (rawAssigner._id || rawAssigner).toString() : '';
-
-      // allow match when no assigner filter is selected
-      const assignerMatch = !assignerFilter || (assignerId === assignerFilter);
-
-      // try to determine assigner role:
-      let assignerRole = rawAssigner?.role;
-      if (!assignerRole && classroom) {
-        // teacher may be stored separately on classroom
-        const teacherId = (classroom.teacher && (classroom.teacher._id || classroom.teacher)).toString();
-        if (assignerId && teacherId && assignerId === teacherId) assignerRole = 'teacher';
+      
+      // Infer assigner role for unpopulated transactions (students' own view)
+      let assignerRole = isSiphon ? 'siphon' : 'system';
+      if (rawAssigner) {
+        // If backend populated assignedBy with role, prefer that
+        if (typeof rawAssigner === 'object' && rawAssigner.role) {
+          assignerRole = rawAssigner.role;
+        } else {
+          // rawAssigner is likely an id string -> try to resolve from classroom/studentList
+          if (classroom?.teacher && assignerId === String(classroom.teacher?._id || classroom.teacher)) {
+            assignerRole = 'teacher';
+          } else {
+            const found = (studentList || []).find(u => String(u._id) === assignerId);
+            if (found) assignerRole = found.role || 'student';
+            else assignerRole = 'unknown';
+          }
+        }
       }
-      if (!assignerRole && studentList && studentList.length) {
-        const found = studentList.find(u => String(u._id) === assignerId);
-        if (found) assignerRole = found.role;
-      }
 
-      // Check if it's a siphon transaction
-      const isSiphon = tx.description?.toLowerCase().includes('siphon') || 
-                      tx.type === 'siphon' ||
-                      (tx.description?.includes('transferred from') && tx.description?.includes('group'));
-
-      // Update role matching to include siphon
-      const roleMatch = roleFilter === 'all' || 
-                       (assignerRole === roleFilter) ||
-                       (roleFilter === 'siphon' && isSiphon) ||
-                       (roleFilter === 'purchase' && tx.type === 'purchase');
+      const roleMatch =
+        roleFilter === 'all' ||
+        (assignerRole === roleFilter) ||
+        (roleFilter === 'siphon' && isSiphon) ||
+        (roleFilter === 'purchase' && tx.type === 'purchase');
 
       const directionMatch =
         directionFilter === 'all'
           ? true
           : directionFilter === 'credit'
-            ? Number(tx.amount) > 0
-            : Number(tx.amount) < 0;
+          ? Number(tx.amount) > 0
+          : Number(tx.amount) < 0;
 
-      // Search functionality
-      const searchMatch = !search.trim() || 
-        (tx.description || '').toLowerCase().includes(search.toLowerCase()) ||
-        (tx.assignedBy?.firstName || '').toLowerCase().includes(search.toLowerCase()) ||
-        (tx.assignedBy?.lastName || '').toLowerCase().includes(search.toLowerCase()) ||
-        (tx.assignedBy?.email || '').toLowerCase().includes(search.toLowerCase()) ||
-        (tx.amount || '').toString().includes(search.toLowerCase());
+      const assignerMatch = !assignerFilter || assignerFilter === assignerId;
 
-      return assignerMatch && roleMatch && directionMatch && searchMatch;
+      const searchMatch = matchesDeep(tx);
+
+      return roleMatch && directionMatch && assignerMatch && searchMatch;
     });
-  }, [allTx, transactions, roleFilter, directionFilter, assignerFilter, search, user.role, classroom, studentList]);
+ 
+     // Sort
+     const sorted = list.slice().sort((a, b) => {
+       let aVal, bVal;
+       if (sortField === 'amount') {
+         aVal = Number(a.amount || 0);
+         bVal = Number(b.amount || 0);
+       } else {
+         // default to date
+         aVal = new Date(a.createdAt || a.date || 0).getTime();
+         bVal = new Date(b.createdAt || b.date || 0).getTime();
+       }
+       if (aVal === bVal) return 0;
+       const asc = sortDirection === 'asc';
+       return asc ? (aVal < bVal ? -1 : 1) : (aVal < bVal ? 1 : -1);
+     });
+ 
+     return sorted;
+   }, [
+     allTx,
+     transactions,
+     roleFilter,
+     directionFilter,
+     assignerFilter,
+     search,
+     user.role,
+     classroom,
+     studentList,
+     sortField,
+     sortDirection
+   ]);
 
+  // Number of transactions currently visible after filters/sort
+  const transactionCount = filteredTx.length;
+  
   // Fetch students in classroom to populate dropdown/filter UI
   const fetchUsers = async () => {
     if (!classroomId) return;
@@ -504,7 +601,9 @@ useEffect(() => {
       {/* ▼ Transactions tab */}
       {activeTab === 'transactions' && (user.role === 'teacher' || user.role === 'admin') && (
         <div className="space-y-4">
-          <h2 className="font-bold">All Transactions</h2>
+          <h2 className="font-bold">
+            All Transactions <span className="text-sm text-gray-500">({transactionCount})</span>
+          </h2>
 
           {/* ▼ Enhanced filter bar with search and export */}
           <div className="flex flex-wrap gap-2 items-center">
@@ -572,13 +671,32 @@ useEffect(() => {
               <option value="debit">Debit</option>
             </select>
 
-            {/* Export buttons */}
-            <ExportButtons
-              onExportCSV={exportTransactionsToCSV}
-              onExportJSON={exportTransactionsToJSON}
-              userName={classroom?.name || 'classroom'}
-              exportLabel="transactions"
-            />
+            {/* Sort controls (Date / Amount) */}
+            <select
+              className="select select-bordered max-w-xs"
+              value={sortField}
+              onChange={(e) => setSortField(e.target.value)}
+              title="Sort field"
+            >
+              <option value="date">Sort: Date</option>
+              <option value="amount">Sort: Amount</option>
+            </select>
+            
+            <button
+              className="btn btn-outline btn-sm"
+              title="Toggle sort direction"
+              onClick={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
+            >
+              {sortDirection === 'asc' ? 'Asc' : 'Desc'}
+            </button>
+
+             {/* Export buttons */}
+             <ExportButtons
+               onExportCSV={exportTransactionsToCSV}
+               onExportJSON={exportTransactionsToJSON}
+               userName={classroom?.name || 'classroom'}
+               exportLabel="transactions"
+             />
           </div>
 
           <TransactionList transactions={filteredTx} />
@@ -710,7 +828,9 @@ useEffect(() => {
               <div className="mb-4">
                 <p className="font-medium">Base Balance: {balance} ₿</p>
               </div>
-              <h2 className="text-lg font-semibold">Transaction History</h2>
+              <h2 className="text-lg font-semibold">
+                Transaction History <span className="text-sm text-gray-500">({transactionCount})</span>
+              </h2>
               
               {/* Student search and filter controls */}
               <div className="flex flex-wrap gap-2 my-4">
@@ -775,6 +895,27 @@ useEffect(() => {
                   <option value="credit">Credit</option>
                   <option value="debit">Debit</option>
                 </select>
+
+                {/* ── Sort controls for student Transactions (also used by teachers above) ── */}
+                <div className="flex items-center gap-2 mb-3">
+                  <select
+                    className="select select-bordered max-w-xs"
+                    value={sortField}
+                    onChange={(e) => setSortField(e.target.value)}
+                    title="Sort field"
+                  >
+                    <option value="date">Sort: Date</option>
+                    <option value="amount">Sort: Amount</option>
+                  </select>
+
+                  <button
+                    className="btn btn-outline btn-sm"
+                    title="Toggle sort direction"
+                    onClick={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
+                  >
+                    {sortDirection === 'asc' ? 'Asc' : 'Desc'}
+                  </button>
+                </div>
 
                 {/* Export for students too */}
                 <ExportButtons

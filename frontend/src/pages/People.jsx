@@ -703,6 +703,10 @@ const getGroupAssignmentStats = (students, groupSets) => {
 
   const stats = getGroupAssignmentStats(students, groupSets);
 
+  // Add visible / total counts for UI
+const totalPeople = students.length;
+const visibleCount = filteredStudents.length;
+
   return (
     <div className="flex flex-col min-h-screen">
       <main className="flex-grow p-6 w-full max-w-5xl mx-auto">
@@ -712,6 +716,11 @@ const getGroupAssignmentStats = (students, groupSets) => {
               ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''} People`
               : 'People'}
           </h1>
+
+          {/* New: show counts */}
+          <div className="text-sm text-gray-600 mt-1">
+            Showing {visibleCount} of {totalPeople} people
+          </div>
         </div>
 
         <div className="flex space-x-4 mb-6">
@@ -903,34 +912,17 @@ const getGroupAssignmentStats = (students, groupSets) => {
         {tab === 'everyone' && (
           <div>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
-              <input
-                type="text"
-                placeholder="Search by name or email..."
-                className="input input-bordered w-full md:w-1/2"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-
-              <div className="flex flex-wrap gap-2 items-center">
-               {user?.role?.toLowerCase() === 'teacher' && (
+              {/* Unified filter bar: search -> role/sort -> exports */}
+              <div className="mb-4 flex flex-wrap gap-2 items-center">
+                <div className="relative flex-1 min-w-[220px]">
                   <input
-                    type="file"
-                    accept=".xlsx, .xls"
-                    className="file-input file-input-sm"
-                    onChange={handleExcelUpload}
+                    type="search"
+                    placeholder="Search by name or email..."
+                    className="input input-bordered w-full"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
                   />
-                )}
-
-                {/* Only show export for teachers/admins */}
-                {(user?.role === 'teacher' || user?.role === 'admin') && (
-                  <ExportButtons
-                    onExportCSV={exportPeopleToCSV}
-                    onExportJSON={exportPeopleToJSON}
-                    userName={classroom?.name || 'classroom'}
-                    exportLabel="people"
-                    className="mr-2"
-                  />
-                )}
+                </div>
 
                 {/* Role Filter */}
                 <select
@@ -944,13 +936,13 @@ const getGroupAssignmentStats = (students, groupSets) => {
                   <option value="teacher">Teachers</option>
                 </select>
 
+                {/* Sort */}
                 <select
                   className="select select-bordered"
                   value={sortOption}
                   onChange={(e) => setSortOption(e.target.value)}
                 >
                   <option value="default">Sort By</option>
-                  {/* Only show balance sorting for teachers/admins */}
                   {(user?.role === 'teacher' || user?.role === 'admin') && (
                     <>
                       <option value="balanceDesc">Balance (High → Low)</option>
@@ -961,6 +953,18 @@ const getGroupAssignmentStats = (students, groupSets) => {
                   <option value="joinDateDesc">Join Date (Newest)</option>
                   <option value="joinDateAsc">Join Date (Oldest)</option>
                 </select>
+
+                {/* Exports aligned to the right */}
+                {(user?.role === 'teacher' || user?.role === 'admin') && (
+                  <div className="ml-auto flex items-center">
+                    <ExportButtons
+                      onExportCSV={exportPeopleToCSV}
+                      onExportJSON={exportPeopleToJSON}
+                      userName={classroom?.name || 'classroom'}
+                      exportLabel="people"
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1194,7 +1198,7 @@ const getGroupAssignmentStats = (students, groupSets) => {
      {user?.role === 'teacher' && (
       <div className="mb-6">
         <h2 className="text-2xl font-semibold mb-4">Group Assignment Stats</h2>
-        <div className="stats stats-horizontal shadow mb-4">
+        <div className="stats stats-vertical md:stats-horizontal shadow mb-4">
           <div className="stat">
             <div className="stat-title">Total Students</div>
             <div className="stat-value text-lg">{stats.totalStudents}</div>

@@ -41,6 +41,8 @@ const NotificationSchema = new mongoose.Schema({
   groupSet: { type: mongoose.Schema.Types.ObjectId, ref: 'GroupSet' },
   group: { type: mongoose.Schema.Types.ObjectId, ref: 'Group' },
   actionBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  // When true, frontend should not display the actor's name (privacy)
+  anonymized: { type: Boolean, default: false },
   read: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
