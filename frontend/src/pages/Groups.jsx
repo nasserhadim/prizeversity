@@ -20,6 +20,7 @@ const Groups = () => {
   const [allStudents, setAllStudents] = useState([]); // Add state for all students
   const [addMemberModal, setAddMemberModal] = useState(null); // { groupId, groupSetId }
   const [selectedStudent, setSelectedStudent] = useState(''); // student id for the add dropdown
+  const [addMemberSearch, setAddMemberSearch] = useState('');
   const [activeTab, setActiveTab] = useState('list'); // 'list' or 'create'
   const [loading, setLoading] = useState(true);
   const [groupSetName, setGroupSetName] = useState('');
@@ -510,6 +511,7 @@ const Groups = () => {
       fetchGroupSets();
       setAddMemberModal(null);
       setSelectedStudent('');
+      setAddMemberSearch('');
     } catch (err) {
       const errorMessage = err.response?.data?.error || 'Failed to add student.';
       toast.error(errorMessage);
@@ -1900,6 +1902,14 @@ const Groups = () => {
             <h3 className="font-bold text-lg">Add Member to Group</h3>
             <p className="py-4">Select a student to add. Only students not already in this group set are shown.</p>
             
+            <input
+              type="text"
+              placeholder="Search students by name or email..."
+              className="input input-bordered w-full mb-3"
+              value={addMemberSearch}
+              onChange={(e) => setAddMemberSearch(e.target.value)}
+            />
+            
             <select
               className="select select-bordered w-full"
               value={selectedStudent}
@@ -1911,10 +1921,22 @@ const Groups = () => {
                 if (!groupSet) return null;
 
                 const memberIdsInGroupSet = new Set(
-                  groupSet.groups.flatMap(g => g.members.map(m => m._id._id))
+                  groupSet.groups.flatMap(g => g.members.map(m => m._id._id || m._id))
                 );
 
-                const availableStudents = allStudents.filter(s => !memberIdsInGroupSet.has(s._id));
+                const q = (addMemberSearch || '').trim().toLowerCase();
+                const availableStudents = allStudents
+                  // exclude anyone already in the groupset
+                  .filter(s => !memberIdsInGroupSet.has(s._id))
+                  // exclude teacher accounts and the current user (teacher/TA)
+                  .filter(s => (s.role || '').toLowerCase() !== 'teacher' && String(s._id) !== String(user._id))
+                  // apply search filter (name or email)
+                  .filter(s => {
+                    if (!q) return true;
+                    const name = `${s.firstName || ''} ${s.lastName || ''}`.trim().toLowerCase();
+                    const email = (s.email || '').toLowerCase();
+                    return name.includes(q) || email.includes(q);
+                  });
 
                 if (availableStudents.length === 0) {
                   return <option disabled>No available students</option>;
