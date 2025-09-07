@@ -1194,7 +1194,7 @@ const getGroupAssignmentStats = (students, groupSets) => {
      {user?.role === 'teacher' && (
       <div className="mb-6">
         <h2 className="text-2xl font-semibold mb-4">Group Assignment Stats</h2>
-        <div className="stats stats-horizontal shadow mb-4">
+        <div className="stats stats-vertical md:stats-horizontal shadow mb-4">
           <div className="stat">
             <div className="stat-title">Total Students</div>
             <div className="stat-value text-lg">{stats.totalStudents}</div>
