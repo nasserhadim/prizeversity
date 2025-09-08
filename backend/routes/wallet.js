@@ -494,12 +494,17 @@ router.post(
   ensureAuthenticated,
   blockIfFrozen,
   async (req, res) => {
-    const senderLive = await User.findById(req.user._id).select('isFrozen');
-    if (senderLive.isFrozen) {
+    // Determine classroom context from body/query
+    const classroomId = req.body?.classroomId || req.query?.classroomId || null;
+    const senderLive = await User.findById(req.user._id).select('classroomFrozen').lean();
+    const frozenHere = classroomId
+      ? Array.isArray(senderLive?.classroomFrozen) && senderLive.classroomFrozen.some(cf => String(cf.classroom) === String(classroomId))
+      : Array.isArray(senderLive?.classroomFrozen) && senderLive.classroomFrozen.length > 0;
+    if (frozenHere) {
       return res.status(403).json({ error: 'Your account is frozen during a siphon request' });
     }
 
-    const { recipientShortId: recipientId, amount, classroomId, message } = req.body; // Add message
+    const { recipientShortId: recipientId, amount, message } = req.body; // classroomId is derived earlier in this scope
 
     // Prevent student transfers if disabled by teacher
     if (req.user.role === 'student' && classroomId) {
