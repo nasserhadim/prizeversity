@@ -11,7 +11,7 @@
 - Reward system with dynamic **Bazaar**
 - Gamified **stat-based mechanics** (such as **Discount**, **multiplier**, **luck**, **Shield**, and **Attack Bonus**)
 - User stats, profiles, leaderboard, and transaction history dashboards.
-- OSINT inspired Challenges
+- OSINT inspired **Challenges**
 
 ...and more!
 

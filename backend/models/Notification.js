@@ -21,15 +21,18 @@ const NotificationSchema = new mongoose.Schema({
       'group_update',
       'siphon_review', 
       'siphon_request',     
-     'siphon_rejected',
+      'siphon_rejected',
       'siphon_approved',
       'wallet_transaction',
       'wallet_topup',
-     'ta_promotion', 
+      'ta_promotion', 
       'ta_demotion', 
       'announcement', // New type for announcements
       'attack', // New type for attack notification
-      'defend', // New type for defense notification
+      'defend',
+      // Ban/unban notifications for classrooms
+      'classroom_ban',
+      'classroom_unban',
       'bit_assignment_request',
       'bit_assignment_approved',
       'bit_assignment_rejected',

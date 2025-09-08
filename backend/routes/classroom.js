@@ -7,6 +7,7 @@ const GroupSet = require('../models/GroupSet');
 const Notification = require('../models/Notification');
 const User = require('../models/User');
 const { ensureAuthenticated } = require('../config/auth');
+const blockIfFrozen = require('../middleware/blockIfFrozen');
 const { populateNotification } = require('../utils/notifications');
 
 const router = express.Router();
@@ -150,6 +151,13 @@ router.post('/join', ensureAuthenticated, async (req, res) => {
     const classroom = await Classroom.findOne({ code: code.trim().toUpperCase(), archived: false });
     if (!classroom) {
       return res.status(404).json({ error: 'Invalid classroom code' });
+    }
+
+    // Block join if user is banned (supports legacy bannedStudents array and optional banLog)
+    const isBannedLegacy = Array.isArray(classroom.bannedStudents) && classroom.bannedStudents.map(String).includes(String(req.user._id));
+    const isBannedLog = Array.isArray(classroom.banLog) && classroom.banLog.some(br => String(br.user || br) === String(req.user._id));
+    if (isBannedLegacy || isBannedLog) {
+      return res.status(403).json({ error: 'You are banned from this classroom' });
     }
 
     if (classroom.students.includes(req.user._id)) {
@@ -375,20 +383,46 @@ router.get('/student', ensureAuthenticated, async (req, res) => {
 // Fetch Specific Classroom
 router.get('/:id', ensureAuthenticated, async (req, res) => {
   try {
-    const classroom = await Classroom.findById(req.params.id);
+    // Populate teacher/students/bannedStudents and any banLog.user so frontend can read reason/timestamp reliably
+    const classroom = await Classroom.findById(req.params.id)
+      .populate('teacher', 'email role firstName lastName shortId createdAt')
+      .populate('students', 'email role firstName lastName shortId createdAt')
+      .populate('bannedStudents', 'email role firstName lastName shortId createdAt')
+      .populate({ path: 'banLog.user', select: 'email role firstName lastName shortId createdAt', strictPopulate: false });
     if (!classroom) {
       return res.status(404).json({ error: 'Classroom not found' });
     }
 
-    const hasAccess = req.user.role === 'teacher'
-      ? classroom.teacher.toString() === req.user._id.toString()
-      : classroom.students.includes(req.user._id);
+    // Normalize id checks (handles populated objects or raw ObjectId strings)
+    const userIdStr = String(req.user._id);
+    const teacherIdStr = String(classroom.teacher?._id || classroom.teacher);
+    const studentIds = Array.isArray(classroom.students) ? classroom.students.map(s => String(s._id || s)) : [];
+
+    const isTeacherUser = teacherIdStr === userIdStr;
+    const isStudentUser = studentIds.includes(userIdStr);
+
+    // Only allow access to teacher/admin or to students who are members
+    const hasAccess =
+      req.user.role === 'admin' ||
+      (req.user.role === 'teacher' && isTeacherUser) ||
+      (req.user.role === 'student' && isStudentUser);
 
     if (!hasAccess) {
       return res.status(403).json({ error: 'You do not have access to this classroom' });
     }
 
-    res.status(200).json(classroom);
+    // Deny access for banned students (supports objects or ids in bannedStudents and supports banLog)
+    const bannedStudentsIds = Array.isArray(classroom.bannedStudents) ? classroom.bannedStudents.map(b => String(b._id || b)) : [];
+    const isBannedLegacy = bannedStudentsIds.includes(userIdStr);
+    const isBannedLog = Array.isArray(classroom.banLog) && classroom.banLog.some(br => String(br.user?._id || br.user) === userIdStr);
+    if ((isBannedLegacy || isBannedLog) && req.user.role !== 'teacher' && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'You are banned from this classroom' });
+    }
+
+    // Ensure a canonical banLog is present (backend historically used banLog or bannedRecords)
+    const classroomObj = classroom && classroom.toObject ? classroom.toObject() : classroom;
+    classroomObj.banLog = classroomObj.banLog || classroomObj.bannedRecords || [];
+    res.status(200).json(classroomObj);
   } catch (err) {
     console.error('[Fetch Classroom] error:', err);
     res.status(500).json({ error: 'Failed to fetch classroom' });
@@ -512,11 +546,25 @@ router.put('/:id', ensureAuthenticated, upload.single('backgroundImage'), async 
 
 
 // Leave Classroom
-router.post('/:id/leave', ensureAuthenticated, async (req, res) => {
+router.post('/:id/leave', ensureAuthenticated, blockIfFrozen, async (req, res) => {
   try {
     const classroom = await Classroom.findById(req.params.id);
     if (!classroom) {
       return res.status(404).json({ error: 'Classroom not found' });
+    }
+
+    // Prevent leaving classroom while there's an active siphon against this user
+    const SiphonRequest = require('../models/SiphonRequest');
+    const User = require('../models/User');
+    const liveUser = await User.findById(req.user._id).select('isFrozen');
+    if (liveUser?.isFrozen) {
+      const active = await SiphonRequest.findOne({
+        targetUser: req.user._id,
+        status: { $in: ['pending', 'group_approved'] }
+      });
+      if (active) {
+        return res.status(403).json({ error: 'You cannot leave the classroom while a siphon request against you is pending.' });
+      }
     }
 
     // Remove student from all groups in this classroom before leaving
@@ -575,7 +623,7 @@ router.post('/:id/leave', ensureAuthenticated, async (req, res) => {
 
     res.status(200).json({ message: 'Left classroom successfully' });
   } catch (err) {
-    console.error('[Leave Classroom] error:', err);
+    console.error('Leave classroom error:', err);
     res.status(500).json({ error: 'Failed to leave classroom' });
   }
 });
@@ -584,6 +632,16 @@ router.post('/:id/leave', ensureAuthenticated, async (req, res) => {
 // Fetch Students in Classroom (updated for per-classroom balances)
 router.get('/:id/students', ensureAuthenticated, async (req, res) => {
   try {
+    // Quick ban check before returning students (so banned users are blocked)
+    const classroomCheck = await Classroom.findById(req.params.id).select('bannedStudents banLog teacher');
+    if (!classroomCheck) return res.status(404).json({ error: 'Classroom not found' });
+    const userIdStr = String(req.user._id);
+    const isBannedLegacy = Array.isArray(classroomCheck.bannedStudents) && classroomCheck.bannedStudents.map(b => (b._id ? String(b._id) : String(b))).includes(userIdStr);
+    const isBannedLog = Array.isArray(classroomCheck.banLog) && classroomCheck.banLog.some(br => String(br.user?._id || br.user) === userIdStr);
+    if ((isBannedLegacy || isBannedLog) && req.user.role !== 'teacher' && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'You are banned from this classroom' });
+    }
+
     const classroom = await Classroom.findById(req.params.id)
       .populate('teacher', 'email role firstName lastName shortId createdAt')
       .populate('students', 'email role firstName lastName shortId createdAt');
@@ -695,7 +753,8 @@ router.delete('/:id/students/:studentId', ensureAuthenticated, async (req, res) 
     );
     await classroom.save();
 
-    const updated = await Classroom.findById(classroom._id).populate('students', 'email');
+    const updated = await Classroom.findById(classroom._id)
+      .populate('students', 'email');
     req.app.get('io').to(`classroom-${classroom._id}`).emit('classroom_update', updated);
 
     res.status(200).json({ message: 'Student removed successfully' });
@@ -781,6 +840,131 @@ router.get('/:id/siphon-timeout', ensureAuthenticated, async (req, res) => {
   } catch (err) {
     console.error('[Get Siphon Timeout] error:', err);
     res.status(500).json({ error: 'Failed to get siphon timeout' });
+  }
+});
+
+// Ban a student (teacher only) - student is removed from students and added to bannedStudents
+router.post('/:id/students/:studentId/ban', ensureAuthenticated, async (req, res) => {
+  try {
+    const { id, studentId } = req.params;
+    const reason = req.body?.reason ? String(req.body.reason).trim() : '';
+    const classroom = await Classroom.findById(id).populate('students', 'email');
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+
+    if (classroom.teacher.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Only the teacher can ban students' });
+    }
+
+    if (!classroom.students.map(s => s._id.toString()).includes(studentId)) {
+      return res.status(400).json({ error: 'Student is not in this classroom' });
+    }
+
+    // NOTE: do NOT remove the student from classroom.students here.
+    // Keep them listed so the teacher can later unban (and so unban logic that looks at bannedStudents/banLog still works).
+    // We still record the ban (bannedStudents + banLog) and emit classroom_removal so the client is booted.
+    classroom.bannedStudents = classroom.bannedStudents || [];
+    if (!classroom.bannedStudents.map(b => b.toString()).includes(studentId)) {
+      classroom.bannedStudents.push(studentId);
+    }
+    await classroom.save();
+
+    // Persist minimal ban record (reason + timestamp) using atomic update so it's stored even if schema isn't updated.
+    await Classroom.updateOne(
+      { _id: classroom._id },
+      { $push: { banLog: { user: studentId, reason: reason || '', bannedAt: new Date() } } }
+    );
+
+    // Create and emit notification to the banned student
+    const notification = await Notification.create({
+      user: studentId,
+      type: 'classroom_ban',
+      message: `You have been banned from classroom "${classroom.name}"` + (reason ? ` — Reason: ${reason}` : ''),
+      classroom: classroom._id,
+      actionBy: req.user._id,
+      createdAt: new Date()
+    });
+    const populated = await populateNotification(notification._id);
+    try { req.app.get('io').to(`user-${studentId}`).emit('notification', populated); } catch(e){/*ignore*/}
+
+    // Also emit classroom_removal so client boots the user similar to removal flow
+    try {
+      req.app.get('io').to(`user-${studentId}`).emit('classroom_removal', {
+        classroomId: classroom._id.toString(),
+        message: `You have been banned from classroom "${classroom.name}"` + (reason ? ` — Reason: ${reason}` : '')
+      });
+    } catch (e) { /* ignore */ }
+
+    // Emit classroom update to classroom room
+    const updated = await Classroom.findById(classroom._id)
+      .populate('students', 'email')
+      .populate('bannedStudents', 'email firstName lastName')
+      .populate({ path: 'banLog.user', select: 'email firstName lastName', strictPopulate: false })
+      .populate({ path: 'bannedRecords.user', select: 'email firstName lastName', strictPopulate: false });
+    const updatedObj = updated && updated.toObject ? updated.toObject() : updated;
+    updatedObj.banLog = updatedObj.banLog || updatedObj.bannedRecords || [];
+    try { req.app.get('io').to(`classroom-${classroom._id}`).emit('classroom_update', updatedObj); } catch(e){/*ignore*/}
+
+    res.status(200).json({ message: 'Student banned successfully' });
+  } catch (err) {
+    console.error('[Ban Student] error:', err);
+    res.status(500).json({ error: 'Failed to ban student' });
+  }
+});
+
+// Unban a student (teacher only) - remove from bannedStudents
+router.post('/:id/students/:studentId/unban', ensureAuthenticated, async (req, res) => {
+  try {
+    const { id, studentId } = req.params;
+    const classroom = await Classroom.findById(id).populate('bannedStudents', 'email firstName lastName');
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+
+    if (classroom.teacher.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Only the teacher can unban students' });
+    }
+
+    if (!classroom.bannedStudents || !classroom.bannedStudents.map(b => b._id ? b._id.toString() : b.toString()).includes(studentId)) {
+      return res.status(400).json({ error: 'Student is not banned' });
+    }
+
+    classroom.bannedStudents = (classroom.bannedStudents || []).filter(b => {
+      const idStr = b._id ? b._id.toString() : b.toString();
+      return idStr !== studentId;
+    });
+
+    await classroom.save();
+
+    // Remove any banLog entries for this user
+    await Classroom.updateOne(
+      { _id: classroom._id },
+      { $pull: { banLog: { user: studentId } } }
+    );
+
+    // Notify the student they have been unbanned
+    const notification = await Notification.create({
+      user: studentId,
+      type: 'classroom_unban',
+      message: `You have been unbanned from classroom "${classroom.name}". You may now rejoin.`,
+      classroom: classroom._id,
+      actionBy: req.user._id,
+      createdAt: new Date()
+    });
+    const populated = await populateNotification(notification._id);
+    try { req.app.get('io').to(`user-${studentId}`).emit('notification', populated); } catch(e){/*ignore*/}
+
+    // Emit classroom update to classroom room
+    const updated = await Classroom.findById(classroom._id)
+      .populate('students', 'email')
+      .populate('bannedStudents', 'email firstName lastName')
+      .populate({ path: 'banLog.user', select: 'email firstName lastName', strictPopulate: false })
+      .populate({ path: 'bannedRecords.user', select: 'email firstName lastName', strictPopulate: false });
+    const updatedObj = updated && updated.toObject ? updated.toObject() : updated;
+    updatedObj.banLog = updatedObj.banLog || updatedObj.bannedRecords || [];
+    try { req.app.get('io').to(`classroom-${classroom._id}`).emit('classroom_update', updatedObj); } catch(e){/*ignore*/}
+
+    res.status(200).json({ message: 'Student unbanned successfully' });
+  } catch (err) {
+    console.error('[Unban Student] error:', err);
+    res.status(500).json({ error: 'Failed to unban student' });
   }
 });
 

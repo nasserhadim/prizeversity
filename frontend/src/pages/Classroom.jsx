@@ -107,10 +107,14 @@ const Classroom = () => {
     try {
       const response = await axios.get(`/api/classroom/${id}`);
       const classroom = response.data;
+      // Normalize comparisons to strings to avoid ObjectId vs string mismatches
+      const userIdStr = String(user._id);
+      const teacherIdStr = String(classroom.teacher?._id || classroom.teacher);
+      const studentIdStrs = Array.isArray(classroom.students) ? classroom.students.map(s => String(s._id || s)) : [];
       const hasAccess =
         user.role === 'admin' ||
-        (user.role === 'teacher' && classroom.teacher === user._id) ||
-        (user.role === 'student' && classroom.students.includes(user._id));
+        (user.role === 'teacher' && teacherIdStr === userIdStr) ||
+        (user.role === 'student' && studentIdStrs.includes(userIdStr));
 
       if (!hasAccess) {
         toast.error('You do not have access to this classroom');
@@ -157,7 +161,8 @@ const Classroom = () => {
           navigate('/classrooms');
         } catch (err) {
           console.error('Failed to leave classroom', err);
-          toast.error('Failed to leave classroom!');
+          const msg = err.response?.data?.error || err.response?.data?.message || 'Failed to leave classroom!';
+          toast.error(msg);
         }
       }
     });

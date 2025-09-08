@@ -6,13 +6,21 @@ const ClassroomSchema = new mongoose.Schema({
     type: String, 
     required: true, 
     minlength: 5,
-    maxlength: 6, // <-- Add this line
-    unique: true // <-- ENFORCE GLOBAL UNIQUENESS
+    maxlength: 6,
+    unique: true
   },
   teacher: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   students: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   bazaars: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Bazaar' }],
   groups: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Group' }],
+  // Students who are banned from this classroom (kept separate so they cannot rejoin)
+  bannedStudents: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  // Optional ban metadata so frontend can display reason + timestamp without breaking existing code
+  bannedRecords: [{
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    reason: { type: String, default: '' },
+    bannedAt: { type: Date, default: Date.now }
+  }],
   color: { type: String, default: '#ffffff' },
   // filename/path for an optional background image
   backgroundImage: { type: String, default: '' },
