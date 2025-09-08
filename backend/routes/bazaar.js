@@ -252,7 +252,7 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
       return res.status(400).json({ error: 'Invalid checkout data or missing classroomId' });
     }
 
-    const user = await User.findById(userId).select('balance classroomBalances isFrozen transactions');
+    const user = await User.findById(userId).select('balance classroomBalances classroomFrozen transactions');
     if (!user) {
       console.error("User not found:", userId);
       return res.status(404).json({ error: 'User not found' });
@@ -263,10 +263,13 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
       user.transactions = [];
     }
 
-    console.log(`[Checkout] User ${userId} isFrozen: ${user.isFrozen}`);
+    // Additional frozen check (backup to middleware) — check classroom-scoped freeze
+    const frozenHere = classroomId
+      ? Array.isArray(user?.classroomFrozen) && user.classroomFrozen.some(cf => String(cf.classroom) === String(classroomId))
+      : Array.isArray(user?.classroomFrozen) && user.classroomFrozen.length > 0;
+    console.log(`[Checkout] User ${userId} frozenHere: ${frozenHere}`);
     
-    // Additional frozen check (backup to middleware)
-    if (user.isFrozen) {
+    if (frozenHere) {
       const SiphonRequest = require('../models/SiphonRequest');
       const activeSiphon = await SiphonRequest.findOne({
         targetUser: userId,

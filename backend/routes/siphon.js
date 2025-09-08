@@ -96,12 +96,12 @@ router.post(
       });
 
       // Freeze the target user
-      console.log(`[Siphon] Freezing user ${targetUserId}`);
-      await User.findByIdAndUpdate(targetUserId, { isFrozen: true });
-      
+      console.log(`[Siphon] Freezing user ${targetUserId} for classroom ${classroom._id}`);
+      await User.findByIdAndUpdate(targetUserId, { $addToSet: { classroomFrozen: { classroom: classroom._id } } });
+
       // Verify the user was frozen
-      const frozenUser = await User.findById(targetUserId).select('isFrozen');
-      console.log(`[Siphon] User ${targetUserId} frozen status: ${frozenUser.isFrozen}`);
+      const frozenUser = await User.findById(targetUserId).select('classroomFrozen');
+      console.log(`[Siphon] User ${targetUserId} classroomFrozen:`, frozenUser.classroomFrozen);
 
       // Notify target user
       const n = await Notification.create({
@@ -158,7 +158,10 @@ router.post('/:id/vote', ensureAuthenticated, async (req,res)=>{
   if (new Date() > siphon.expiresAt) {
     siphon.status = 'expired';
     await siphon.save();
-    await User.findByIdAndUpdate(siphon.targetUser, { isFrozen: false });
+    // Unfreeze only for this siphon's classroom
+    await User.findByIdAndUpdate(siphon.targetUser, {
+      $pull: { classroomFrozen: { classroom: siphon.classroom } }
+    });
     return res.status(400).json({error:'Siphon request has expired'});
   }
 
@@ -194,7 +197,9 @@ router.post('/:id/vote', ensureAuthenticated, async (req,res)=>{
   if (noVotes >= majorityThreshold) {
     siphon.status = 'rejected';
     await siphon.save();
-    await User.findByIdAndUpdate(siphon.targetUser, { isFrozen: false });
+    await User.findByIdAndUpdate(siphon.targetUser, {
+      $pull: { classroomFrozen: { classroom: siphon.classroom } }
+    });
     
     // Notify all group members (except target) that the siphon was rejected by majority vote
     const allGroupMembers = group.members.filter(m => 
@@ -313,7 +318,9 @@ router.post('/:id/teacher-reject', ensureAuthenticated, async (req, res) => {
   // Updates the request status and unfreezes user
   siphon.status = 'rejected';
   await siphon.save();
-  await User.findByIdAndUpdate(siphon.targetUser, { isFrozen: false });
+  await User.findByIdAndUpdate(siphon.targetUser, {
+    $pull: { classroomFrozen: { classroom: siphon.classroom } }
+  });
   
   // Follow-up notification to the target letting them know account has been unfrozen
   try {
@@ -407,7 +414,9 @@ router.post('/:id/teacher-approve', ensureAuthenticated, async (req, res) => {
     // Mark request as fully approved and executed
     siphon.status = 'teacher_approved';
     await siphon.save();
-    await User.findByIdAndUpdate(siphon.targetUser, { isFrozen: false });
+    await User.findByIdAndUpdate(siphon.targetUser, {
+      $pull: { classroomFrozen: { classroom: siphon.classroom } }
+    });
 
     // Create enhanced notifications with more details
     const targetName = `${siphon.targetUser.firstName || ''} ${siphon.targetUser.lastName || ''}`.trim() || siphon.targetUser.email;

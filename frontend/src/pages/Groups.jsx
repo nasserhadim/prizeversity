@@ -1448,7 +1448,10 @@ const Groups = () => {
                                       >
                                         View Profile
                                       </button>
-                                      {member._id.isFrozen && (
+                                      {(
+                                        // check classroom-scoped freeze for this classroom (id from useParams)
+                                        member._id?.classroomFrozen?.some(cf => String(cf.classroom) === String(id))
+                                      ) && (
                                         // Only show frozen icon to group members, teachers, and admins
                                         (user.role === 'teacher' || 
                                          user.role === 'admin' || 

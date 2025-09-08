@@ -17,8 +17,8 @@ async function cleanupExpiredSiphons() {
       siphon.status = 'expired';
       await siphon.save();
       
-      // Unfreeze the target user
-      await User.findByIdAndUpdate(siphon.targetUser, { isFrozen: false });
+      // Unfreeze the target user for this siphon's classroom only
+      await User.findByIdAndUpdate(siphon.targetUser, { $pull: { classroomFrozen: { classroom: siphon.classroom } } });
 
       // Try to gather group / classroom context
       let group = null;

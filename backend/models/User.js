@@ -63,6 +63,10 @@ const UserSchema = new mongoose.Schema({
     classroom: { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom' },
     joinedAt: { type: Date, default: Date.now }
   }],
+  // Per-classroom freeze flags: list of classroom ids where this user is currently frozen
+  classroomFrozen: [{
+    classroom: { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom' }
+  }],
   groups: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Group' }],
   transactions: [TransactionSchema],
   isBanned: { type: Boolean, default: false },
