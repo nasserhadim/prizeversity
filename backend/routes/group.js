@@ -365,7 +365,7 @@ router.post('/groupset/:groupSetId/group/:groupId/join', ensureAuthenticated, as
     await group.updateMultiplier();
 
     const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email isFrozen firstName lastName');
+      .populate('members._id', 'email isFrozen firstName lastName classroomFrozen');
 
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', {
       groupSet: groupSet._id,
@@ -433,10 +433,10 @@ router.put('/groupset/:groupSetId/group/:groupId', ensureAuthenticated, upload.s
 
     // Always emit the group update event with populated data
     const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email firstName lastName');
+      .populate('members._id', 'email isFrozen firstName lastName classroomFrozen');
 
-    req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
-      groupSet: groupSet._id, 
+    req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', {
+      groupSet: groupSet._id,
       group: populatedGroup
     });
 
@@ -574,7 +574,7 @@ router.post('/groupset/:groupSetId/group/:groupId/add-members', ensureAuthentica
     await group.updateMultiplier();
     await group.save();
 
-    const populatedGroup = await Group.findById(group._id).populate('members._id', 'email isFrozen firstName lastName');
+    const populatedGroup = await Group.findById(group._id).populate('members._id', 'email isFrozen firstName lastName classroomFrozen');
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', {
       groupSet: groupSet._id,
       group: populatedGroup
@@ -654,7 +654,7 @@ router.post('/groupset/:groupSetId/group/:groupId/suspend', ensureAuthenticated,
 
     // After successful member status change (approve/reject/suspend)
     const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email firstName lastName');
+      .populate('members._id', 'email firstName lastName classroomFrozen');
 
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
       groupSet: groupSet._id, 
@@ -816,7 +816,7 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
 
     // After successful member status change
     const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email firstName lastName');
+      .populate('members._id', 'email isFrozen firstName lastName classroomFrozen');
 
     // Emit update immediately
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
@@ -901,7 +901,7 @@ router.post('/groupset/:groupSetId/group/:groupId/reject', ensureAuthenticated, 
 
     // After successful member status change (approve/reject/suspend)
     const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email firstName lastName');
+      .populate('members._id', 'email firstName lastName classroomFrozen');
 
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
       groupSet: groupSet._id, 
@@ -1059,7 +1059,7 @@ router.post('/groupset/:groupSetId/group/:groupId/suspend', ensureAuthenticated,
 
     // After successful member status change (approve/reject/suspend)
     const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email firstName lastName');
+      .populate('members._id', 'email firstName lastName classroomFrozen');
 
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
       groupSet: groupSet._id, 
@@ -1221,7 +1221,7 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
 
     // After successful member status change
     const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email firstName lastName');
+      .populate('members._id', 'email isFrozen firstName lastName classroomFrozen');
 
     // Emit update immediately
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
@@ -1306,7 +1306,7 @@ router.post('/groupset/:groupSetId/group/:groupId/reject', ensureAuthenticated, 
 
     // After successful member status change (approve/reject/suspend)
     const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email firstName lastName');
+      .populate('members._id', 'email firstName lastName classroomFrozen');
 
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
       groupSet: groupSet._id, 
