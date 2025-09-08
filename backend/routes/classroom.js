@@ -7,6 +7,7 @@ const GroupSet = require('../models/GroupSet');
 const Notification = require('../models/Notification');
 const User = require('../models/User');
 const { ensureAuthenticated } = require('../config/auth');
+const blockIfFrozen = require('../middleware/blockIfFrozen');
 const { populateNotification } = require('../utils/notifications');
 
 const router = express.Router();
@@ -512,11 +513,25 @@ router.put('/:id', ensureAuthenticated, upload.single('backgroundImage'), async 
 
 
 // Leave Classroom
-router.post('/:id/leave', ensureAuthenticated, async (req, res) => {
+router.post('/:id/leave', ensureAuthenticated, blockIfFrozen, async (req, res) => {
   try {
     const classroom = await Classroom.findById(req.params.id);
     if (!classroom) {
       return res.status(404).json({ error: 'Classroom not found' });
+    }
+
+    // Prevent leaving classroom while there's an active siphon against this user
+    const SiphonRequest = require('../models/SiphonRequest');
+    const User = require('../models/User');
+    const liveUser = await User.findById(req.user._id).select('isFrozen');
+    if (liveUser?.isFrozen) {
+      const active = await SiphonRequest.findOne({
+        targetUser: req.user._id,
+        status: { $in: ['pending', 'group_approved'] }
+      });
+      if (active) {
+        return res.status(403).json({ error: 'You cannot leave the classroom while a siphon request against you is pending.' });
+      }
     }
 
     // Remove student from all groups in this classroom before leaving
@@ -575,7 +590,7 @@ router.post('/:id/leave', ensureAuthenticated, async (req, res) => {
 
     res.status(200).json({ message: 'Left classroom successfully' });
   } catch (err) {
-    console.error('[Leave Classroom] error:', err);
+    console.error('Leave classroom error:', err);
     res.status(500).json({ error: 'Failed to leave classroom' });
   }
 });

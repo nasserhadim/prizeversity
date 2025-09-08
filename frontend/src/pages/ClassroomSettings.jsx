@@ -77,7 +77,8 @@ export default function ClassroomSettings() {
                                 setTimeout(() => toast.dismiss(toastId), 3000);
                             } catch (err) {
                                 console.error(err);
-                                toast.error('Failed to leave classroom');
+                                const msg = err.response?.data?.error || err.response?.data?.message || 'Failed to leave classroom';
+                                toast.error(msg);
                             }
                         }}
                     >

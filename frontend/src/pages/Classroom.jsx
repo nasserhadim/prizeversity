@@ -157,7 +157,8 @@ const Classroom = () => {
           navigate('/classrooms');
         } catch (err) {
           console.error('Failed to leave classroom', err);
-          toast.error('Failed to leave classroom!');
+          const msg = err.response?.data?.error || err.response?.data?.message || 'Failed to leave classroom!';
+          toast.error(msg);
         }
       }
     });
