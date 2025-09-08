@@ -669,6 +669,19 @@ const People = () => {
     ));
   };
 
+  { /* Add helper to unban (place near other handlers like handleRemoveStudent) */ }
+const handleUnbanStudent = async (studentId) => {
+  try {
+    await axios.post(`/api/classroom/${classroomId}/students/${studentId}/unban`, {}, { withCredentials: true });
+    toast.success('Student unbanned');
+    await fetchStudents();
+    await fetchClassroom();
+  } catch (err) {
+    console.error('Failed to unban', err);
+    toast.error(err.response?.data?.error || 'Failed to unban student');
+  }
+};
+
   // Add this helper function near the top of the People component
   const getUnassignedStudents = (students, groupSets) => {
     const assignedStudentIds = new Set();
@@ -972,36 +985,72 @@ const visibleCount = filteredStudents.length;
               {filteredStudents.length === 0 ? (
                 <p>No matching {roleFilter === 'all' ? 'people' : roleFilter === 'admin' ? 'Admin/TAs' : `${roleFilter}s`} found.</p>
               ) : (
-                filteredStudents.map((student) => (
-                  <div
-                    key={student._id}
-                    className="border p-3 rounded shadow flex justify-between items-center"
-                  >
-                    <div>
-                      <div className="font-medium text-lg">
-                        {student.firstName || student.lastName
-                          ? `${student.firstName || ''} ${student.lastName || ''}`.trim()
-                          : student.name || student.email}
+                filteredStudents.map((student) => {
+                  const isBanned = Boolean(
+                    // Normalize bannedStudents entries (may be Object or id) and prefer banLog if present
+                    (() => {
+                      // Prefer canonical banLog but fall back to older 'bannedRecords' shape.
+                      const banLog = (Array.isArray(classroom?.banLog) && classroom.banLog.length) 
+                        ? classroom.banLog 
+                        : (Array.isArray(classroom?.bannedRecords) ? classroom.bannedRecords : []);
+                      const banRecord = (banLog || []).find(br => String(br.user?._id || br.user) === String(student._id));
+                      if (banRecord) return true; // fast return if there's a banLog entry
+
+                      const bannedStudents = Array.isArray(classroom?.bannedStudents) ? classroom.bannedStudents : [];
+                      const bannedIds = bannedStudents.map(b => (b && b._id) ? String(b._id) : String(b));
+                      return bannedIds.includes(String(student._id));
+                    })()
+                  );
+                  const banRecord = (classroom?.banLog || []).find(br => String(br.user?._id || br.user) === String(student._id));
+
+                  return (
+                    <div key={student._id} className="border p-3 rounded shadow flex justify-between items-center">
+                      <div>
+                        <div className="font-medium text-lg">
+                          {student.firstName || student.lastName
+                            ? `${student.firstName || ''} ${student.lastName || ''}`.trim()
+                            : student.name || student.email}
                         <span className="ml-2 text-gray-600 text-sm">
                           – Role: {ROLE_LABELS[student.role] || student.role}
                         </span>
-                      </div>
-
-                      {/* Only show balance to teachers/admins */}
-                      {(user?.role?.toLowerCase() === 'teacher' || user?.role?.toLowerCase() === 'admin') && (
-                        <div className="text-sm text-gray-500 mt-1">
-                          Balance: ₿{student.balance?.toFixed(2) || '0.00'}
                         </div>
-                      )}
 
-                      {/* Add join date display */}
-                      <div className="text-sm text-gray-500 mt-1">
-                        Joined: {student.joinedAt 
-                          ? new Date(student.joinedAt).toLocaleString() 
-                          : student.createdAt 
-                            ? new Date(student.createdAt).toLocaleString()
-                            : 'Unknown'
-                        }
+                        {isBanned && (
+                          <div className="mt-1">
+                            <span className="badge badge-error mr-2">BANNED</span>
+                            <div className="text-xs text-red-600">
+                              {/* show HTML reasonHtml if present, otherwise plain reason text */}
+                              {banRecord ? (
+                                <div>
+                                  {banRecord.reasonHtml ? (
+                                    <div className="text-xs text-red-600" dangerouslySetInnerHTML={{ __html: banRecord.reasonHtml }} />
+                                  ) : (
+                                    <div className="text-xs text-red-600">{banRecord.reason ? `Reason: ${banRecord.reason}` : 'No reason provided'}</div>
+                                  )}
+                                  {banRecord.bannedAt && <div className="text-xs text-red-600">• {new Date(banRecord.bannedAt).toLocaleString()}</div>}
+                                </div>
+                              ) : (
+                                <div className="text-xs text-red-600">No reason provided</div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Only show balance to teachers/admins */}
+                        {(user?.role?.toLowerCase() === 'teacher' || user?.role?.toLowerCase() === 'admin') && (
+                          <div className="text-sm text-gray-500 mt-1">
+                            Balance: ₿{student.balance?.toFixed(2) || '0.00'}
+                          </div>
+                        )}
+
+                        {/* Join date display */}
+                        <div className="text-sm text-gray-500 mt-1">
+                          Joined: {student.joinedAt
+                            ? new Date(student.joinedAt).toLocaleString()
+                            : student.createdAt
+                              ? new Date(student.createdAt).toLocaleString()
+                              : 'Unknown'}
+                        </div>
                       </div>
 
                       <div className="flex gap-2 mt-2 flex-wrap">
@@ -1036,12 +1085,77 @@ const visibleCount = filteredStudents.length;
 
                         {/* Add Remove Student button for teachers */}
                         {user?.role?.toLowerCase() === 'teacher' && student.role !== 'teacher' && String(student._id) !== String(user._id) && (
-                          <button
-                            className="btn btn-xs sm:btn-sm btn-error"
-                            onClick={() => handleRemoveStudent(student._id, student.firstName || student.lastName ? `${student.firstName || ''} ${student.lastName || ''}`.trim() : student.email)}
-                          >
-                            Remove
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              className="btn btn-xs sm:btn-sm btn-error"
+                              onClick={() => handleRemoveStudent(student._id, student.firstName || student.lastName ? `${student.firstName || ''} ${student.lastName || ''}`.trim() : student.email)}
+                            >
+                              Remove
+                            </button>
+
+                            {/* Show Unban if banned, otherwise show Ban */}
+                            {isBanned ? (
+                              <button
+                                type="button"
+                                className="btn btn-xs sm:btn-sm btn-success"
+                                onClick={(e) => { e.stopPropagation(); handleUnbanStudent(student._id); }}
+                              >
+                                Unban
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                className="btn btn-xs sm:btn-sm btn-warning"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toast((t) => (
+                                    <div className="flex flex-col" onClick={(ev) => ev.stopPropagation()}>
+                                      <span>Ban "{student.firstName || student.lastName ? `${student.firstName || ''} ${student.lastName || ''}`.trim() : student.email}" from this classroom?</span>
+                                      <textarea
+                                        id={`ban-reason-${student._id}`}
+                                        placeholder="Optional reason (shown to student)"
+                                        autoFocus
+                                        rows={3}
+                                        className="textarea textarea-sm textarea-bordered mt-2 w-full"
+                                        style={{ backgroundColor: '#ffffff', color: '#000000', padding: '8px' }}
+                                      />
+                                      <div className="flex justify-end gap-2 mt-2">
+                                        <button
+                                          type="button"
+                                          className="btn btn-warning btn-sm"
+                                          onClick={async (ev) => {
+                                            ev.stopPropagation();
+                                            const input = document.getElementById(`ban-reason-${student._id}`);
+                                            const reason = input ? input.value : '';
+                                            toast.dismiss(t.id);
+                                            try {
+                                              await axios.post(
+                                                `/api/classroom/${classroomId}/students/${student._id}/ban`,
+                                                { reason },
+                                                { withCredentials: true }
+                                              );
+                                              toast.success('Student banned');
+                                              await fetchStudents();
+                                              await fetchClassroom();
+                                            } catch (err) {
+                                              console.error('Failed to ban', err);
+                                              toast.error(err.response?.data?.error || 'Failed to ban student');
+                                            }
+                                          }}
+                                        >
+                                          Yes
+                                        </button>
+                                        <button type="button" className="btn btn-ghost btn-sm" onClick={(ev) => { ev.stopPropagation(); toast.dismiss(t.id); }}>Cancel</button>
+                                      </div>
+                                    </div>
+                                  ));
+                                }}
+                              >
+                                Ban
+                              </button>
+                            )}
+                          </>
                         )}
 
                         {/* Role change dropdown */}
@@ -1075,8 +1189,8 @@ const visibleCount = filteredStudents.length;
                         )}
                       </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
