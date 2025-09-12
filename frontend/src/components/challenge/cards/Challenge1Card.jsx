@@ -442,10 +442,12 @@ const TeacherView = ({
                     checked={challengeData?.settings?.dueDateEnabled || false}
                     onChange={async (e) => {
                       try {
+                        const defaultDate = new Date();
+                        defaultDate.setDate(defaultDate.getDate() + 7);
                         const response = await updateDueDate(
                           challengeData._id, 
                           e.target.checked, 
-                          e.target.checked ? (challengeData?.settings?.dueDate || new Date().toISOString().slice(0, 16)) : null
+                          e.target.checked ? (challengeData?.settings?.dueDate || defaultDate.toISOString().slice(0, 16)) : null
                         );
                         setChallengeData(response.challenge);
                         toast.success('Due date settings updated');
@@ -494,8 +496,16 @@ const TeacherView = ({
                   className="btn btn-ghost"
                   onClick={() => setShowDueDateModal(false)}
                 >
-                  Close
+                  Cancel
                 </button>
+                {challengeData?.settings?.dueDateEnabled && (
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => setShowDueDateModal(false)}
+                  >
+                    Update Due Date
+                  </button>
+                )}
               </div>
             </div>
           </div>
