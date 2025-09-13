@@ -145,6 +145,31 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticate
   }
 });
 
+// (JA) List items in a bazaar with optional category and keyword filters
+router.get('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticated, async (req, res) => {
+  try {
+    const { bazaarId } = req.params;
+    const { category, q } = req.query;
+
+    const filter = { bazaar: bazaarId };
+
+    if (category && ['Attack', 'Defend', 'Utility', 'Passive'].includes(category)) {
+      filter.category = category;
+    }
+    // (JA) Apply keyword search on name/description if provided
+    if (q && q.trim()) {
+      const rx = new RegExp(q.trim(), 'i');
+      filter.$or = [{ name: rx }, { description: rx }];
+    }
+
+    const items = await Item.find(filter).lean();
+    res.json({ items, count: items.length });
+  } catch (err) {
+    console.error('[List Bazaar Items] error:', err);
+    res.status(500).json({ error: 'Failed to fetch items' });
+  }
+});
+
 // Helper functions (add these at the top of the file, after imports)
 const getClassroomBalance = (user, classroomId) => {
   const classroomBalance = user.classroomBalances.find(cb => cb.classroom.toString() === classroomId.toString());
