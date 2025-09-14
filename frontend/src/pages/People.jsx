@@ -99,7 +99,7 @@ const People = () => {
 
     // Add classroom removal handler
     const handleClassroomRemoval = (data) => {
-      if (String(data.classroomId) === String(classroomId)) {
+      if (String(data.classroomId) === String(classroomId) && String(data.userId) === String(user._id)) {
         toast.error(data.message || 'You have been removed from this classroom');
         // Redirect to classroom dashboard after a short delay
         setTimeout(() => {
@@ -120,6 +120,7 @@ const People = () => {
 
       // This is now the single source of truth for real-time updates to this setting.
       socket.on('classroom_update', (updatedClassroom) => {
+        console.log('classroom_update received, banLog:', updatedClassroom.banLog);
         if (updatedClassroom._id === classroomId) {
           console.debug('[socket] People classroom_update received, updating state from payload.');
           console.debug('[socket] Updated classroom data:', updatedClassroom);
@@ -676,6 +677,8 @@ const handleUnbanStudent = async (studentId) => {
     toast.success('Student unbanned');
     await fetchStudents();
     await fetchClassroom();
+    // Add a small delay to ensure state propagates
+    setTimeout(() => setClassroom(prev => ({ ...prev })), 500); // Force re-render if needed
   } catch (err) {
     console.error('Failed to unban', err);
     toast.error(err.response?.data?.error || 'Failed to unban student');
@@ -994,8 +997,14 @@ const visibleCount = filteredStudents.length;
                         ? classroom.banLog 
                         : (Array.isArray(classroom?.bannedRecords) ? classroom.bannedRecords : []);
                       const banRecord = (banLog || []).find(br => String(br.user?._id || br.user) === String(student._id));
-                      if (banRecord) return true; // fast return if there's a banLog entry
-
+                      console.log('classroom.banLog:', classroom?.banLog);
+                      console.log('student._id:', student._id);
+                      console.log('banRecord found:', banRecord);
+                      if (banRecord) {
+                        console.log('banRecord.reason:', banRecord.reason);
+                        console.log('banRecord.bannedAt:', banRecord.bannedAt);
+                        return true;
+                      }
                       const bannedStudents = Array.isArray(classroom?.bannedStudents) ? classroom.bannedStudents : [];
                       const bannedIds = bannedStudents.map(b => (b && b._id) ? String(b._id) : String(b));
                       return bannedIds.includes(String(student._id));
@@ -1019,18 +1028,19 @@ const visibleCount = filteredStudents.length;
                           <div className="mt-1">
                             <span className="badge badge-error mr-2">BANNED</span>
                             <div className="text-xs text-red-600">
-                              {/* show HTML reasonHtml if present, otherwise plain reason text */}
                               {banRecord ? (
                                 <div>
-                                  {banRecord.reasonHtml ? (
-                                    <div className="text-xs text-red-600" dangerouslySetInnerHTML={{ __html: banRecord.reasonHtml }} />
+                                 { (user?.role === 'teacher' || user?.role === 'admin') ? (
+                                    <div>
+                                     Reason: {banRecord.reason || 'Not specified'}
+                                      <div>• {new Date(banRecord.bannedAt).toLocaleString()}</div>
+                                    </div>
                                   ) : (
-                                    <div className="text-xs text-red-600">{banRecord.reason ? `Reason: ${banRecord.reason}` : 'No reason provided'}</div>
+                                    <div>• {new Date(banRecord.bannedAt).toLocaleString()}</div>
                                   )}
-                                  {banRecord.bannedAt && <div className="text-xs text-red-600">• {new Date(banRecord.bannedAt).toLocaleString()}</div>}
                                 </div>
                               ) : (
-                                <div className="text-xs text-red-600">No reason provided</div>
+                                <div>Banned (no details available)</div>
                               )}
                             </div>
                           </div>
@@ -1138,6 +1148,7 @@ const visibleCount = filteredStudents.length;
                                               toast.success('Student banned');
                                               await fetchStudents();
                                               await fetchClassroom();
+                                              setTimeout(() => setClassroom(prev => ({ ...prev })), 500);
                                             } catch (err) {
                                               console.error('Failed to ban', err);
                                               toast.error(err.response?.data?.error || 'Failed to ban student');
@@ -1146,10 +1157,12 @@ const visibleCount = filteredStudents.length;
                                         >
                                           Yes
                                         </button>
-                                        <button type="button" className="btn btn-ghost btn-sm" onClick={(ev) => { ev.stopPropagation(); toast.dismiss(t.id); }}>Cancel</button>
+                                        <button type="button" className="btn btn-ghost btn-sm" onClick={(ev) => { ev.stopPropagation(); toast.dismiss(t.id); }}>
+                                          Cancel
+                                        </button>
                                       </div>
                                     </div>
-                                  ));
+                                  ), { duration: Infinity }); // <- keep modal visible until dismissed programmatically
                                 }}
                               >
                                 Ban
