@@ -1271,29 +1271,38 @@ const visibleCount = filteredStudents.length;
                         const query = unassignedSearch.toLowerCase();
                         return name.includes(query) || email.includes(query);
                       })
-                      .map(student => (
-                      <div 
-                        key={student._id} 
-                        className="flex justify-between items-center p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800"
-                      >
-                        <span className="font-medium">
-                          {student.firstName || student.lastName
-                            ? `${student.firstName || ''} ${student.lastName || ''}`.trim()
-                            : student.email}
-                        </span>
-                        <div className="flex gap-2">
-                          <button
-                            className="btn btn-xs btn-outline"
-                            onClick={() => navigate(
-                              `/classroom/${classroomId}/profile/${student._id}`,
-                              { state: { from: 'people', classroomId } }
-                            )}
-                          >
-                            Profile
-                          </button>
+                      .map(student => {
+                      // NEW: determine ban status for unassigned student
+                      const banInfo = getBanInfo(student, classroom);
+                      const isBanned = Boolean(banInfo?.banned);
+
+                      return (
+                        <div 
+                          key={student._id} 
+                          className="flex justify-between items-center p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800"
+                        >
+                          <span className="font-medium">
+                            {student.firstName || student.lastName
+                              ? `${student.firstName || ''} ${student.lastName || ''}`.trim()
+                              : student.email}
+                            {/* SHOW BANNED BADGE FOR UNASSIGNED STUDENTS */}
+                            {isBanned && <span className="badge badge-error ml-2">BANNED</span>}
+                          </span>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              className="btn btn-xs btn-outline"
+                              onClick={() => navigate(
+                                `/classroom/${classroomId}/profile/${student._id}`,
+                                { state: { from: 'people', classroomId } }
+                              )}
+                            >
+                              Profile
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
