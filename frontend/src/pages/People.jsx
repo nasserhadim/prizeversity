@@ -1239,7 +1239,7 @@ const visibleCount = filteredStudents.length;
         {tab === 'groups' && (
           <div className="space-y-6 w-full min-w-0">
             {/* Add Unassigned Students Filter */}
-    {(user?.role === 'teacher' || user?.role === 'admin') && (
+    {(user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'student') && (
       <div className="card bg-base-100 shadow-sm border">
         <div className="card-body p-4">
           <div className="flex justify-between items-center">
