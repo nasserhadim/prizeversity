@@ -1979,18 +1979,33 @@ const Groups = () => {
                 );
 
                 const q = (addMemberSearch || '').trim().toLowerCase();
+
+                 // Build banned id sets from current classroom (supports legacy shapes)
+                 const bannedIds = new Set(
+                   (classroom?.bannedStudents || []).map(b => (b && b._id) ? String(b._id) : String(b))
+                 );
+                 const banLogIds = new Set(
+                   (classroom?.banLog || []).map(br => String(br.user?._id || br.user))
+                 );
+
                 const availableStudents = allStudents
                   // exclude anyone already in the groupset
                   .filter(s => !memberIdsInGroupSet.has(s._id))
-                  // exclude teacher accounts and the current user (teacher/TA)
-                  .filter(s => (s.role || '').toLowerCase() !== 'teacher' && String(s._id) !== String(user._id))
-                  // apply search filter (name or email)
-                  .filter(s => {
-                    if (!q) return true;
-                    const name = `${s.firstName || ''} ${s.lastName || ''}`.trim().toLowerCase();
-                    const email = (s.email || '').toLowerCase();
-                    return name.includes(q) || email.includes(q);
-                  });
+                  // exclude teacher accounts, the current user, and banned students
+                  .filter(s => 
+                    (s.role || '').toLowerCase() !== 'teacher' &&
+                    String(s._id) !== String(user._id) &&
+                    !bannedIds.has(String(s._id)) &&
+                    !banLogIds.has(String(s._id)) &&
+                    !s.isBanned
+                  )
+                   // apply search filter (name or email)
+                   .filter(s => {
+                     if (!q) return true;
+                     const name = `${s.firstName || ''} ${s.lastName || ''}`.trim().toLowerCase();
+                     const email = (s.email || '').toLowerCase();
+                     return name.includes(q) || email.includes(q);
+                   });
 
                 if (availableStudents.length === 0) {
                   return <option disabled>No available students</option>;
