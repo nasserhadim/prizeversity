@@ -824,6 +824,17 @@ const Groups = () => {
     }
   };
 
+  // Helper: is user banned in this classroom
+  const isBannedInClassroom = (userId) => {
+    if (!classroom) return false;
+    const bannedStudents = Array.isArray(classroom?.bannedStudents) ? classroom.bannedStudents : [];
+    const bannedIds = bannedStudents.map(b => (b && b._id) ? String(b._id) : String(b));
+    if (bannedIds.includes(String(userId))) return true;
+
+    const banLog = Array.isArray(classroom?.banLog) ? classroom.banLog : (Array.isArray(classroom?.bannedRecords) ? classroom.bannedRecords : []);
+    return (banLog || []).some(br => String(br.user?._id || br.user) === String(userId));
+  };
+
   // Create GroupSet
   return (
     <div className="min-h-screen flex flex-col bg-base-200 p-6">
@@ -1439,6 +1450,10 @@ const Groups = () => {
                                     </td>
                                     <td>
                                       {`${member._id?.firstName || ''} ${member._id?.lastName || ''}`.trim() || member._id?.email || 'Unknown User'}
+                                      {/* Show banned badge if user is banned in this classroom */}
+                                      {isBannedInClassroom(mid) && (
+                                        <span className="badge badge-error ml-2">BANNED</span>
+                                      )}
                                       <button 
                                         className="btn btn-xs btn-ghost ml-2"
                                         onClick={() => navigate(
