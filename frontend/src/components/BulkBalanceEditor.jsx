@@ -19,6 +19,10 @@ const BulkBalanceEditor = ({onSuccess}) => {
   const [taBitPolicy, setTaBitPolicy] = useState('full');
   const [search, setSearch] = useState('');
 
+  // NEW: group membership tracking + filter
+  const [groupMembership, setGroupMembership] = useState(new Set());
+  const [groupFilter, setGroupFilter] = useState('all'); // 'all' | 'inGroup' | 'solo'
+
   // NEW: classroom meta (to detect banned students / banLog)
   const [classroom, setClassroom] = useState(null);
 
@@ -125,13 +129,25 @@ const BulkBalanceEditor = ({onSuccess}) => {
     : u.email; // Fallback to emali if there is no names
 
   const visibleStudents = useMemo(() => {
-    if (!search.trim()) return students; // There is no filter applied
-    const q = search.toLowerCase();
-    return students.filter(s =>
-      fullName(s).toLowerCase().includes(q) ||
-  (s.email || '').toLowerCase().includes(q) // Filers by name or email
-    );
-  }, [students, search]);
+    // apply search first (same behaviour as before)
+    const qRaw = (search || '').trim();
+    const q = qRaw.toLowerCase();
+    const base = q === ''
+      ? students.slice()
+      : students.filter(s =>
+          fullName(s).toLowerCase().includes(q) ||
+          (s.email || '').toLowerCase().includes(q)
+        );
+
+    // apply group filter
+    if (groupFilter === 'inGroup') {
+      return base.filter(s => groupMembership.has(String(s._id)));
+    }
+    if (groupFilter === 'solo') {
+      return base.filter(s => !groupMembership.has(String(s._id)));
+    }
+    return base;
+  }, [students, search, groupFilter, groupMembership]);
 
   useEffect(() => {
     const url = classroomId
@@ -150,6 +166,23 @@ const BulkBalanceEditor = ({onSuccess}) => {
         })
         .then((r) => setTaBitPolicy(r.data.taBitPolicy)) // Will set the Admin/TA policy
         .catch(() => setTaBitPolicy('full')); // The default will be to full if the fetch fails
+
+      // NEW: fetch groupSets for this classroom to determine who is in any group
+      axios
+        .get(`/api/group/groupset/classroom/${classroomId}`, { withCredentials: true })
+        .then(res => {
+          const ids = new Set();
+          (res.data || []).forEach(gs => {
+            (gs.groups || []).forEach(g => {
+              (g.members || []).forEach(m => {
+                const mid = m && (m._id? (m._id._id || m._id) : m);
+                if (mid) ids.add(String(mid));
+              });
+            });
+          });
+          setGroupMembership(ids);
+        })
+        .catch(() => setGroupMembership(new Set()));
     }
   }, [classroomId]);
 
@@ -232,6 +265,21 @@ const BulkBalanceEditor = ({onSuccess}) => {
             value={search}
             onChange={e => setSearch(e.target.value)}
          />
+
+         {/* NEW: group membership filter */}
+         {classroomId && (
+           <div className="mb-3">
+             <select
+               className="select select-bordered max-w-xs"
+               value={groupFilter}
+               onChange={(e) => setGroupFilter(e.target.value)}
+             >
+               <option value="all">All students</option>
+               <option value="inGroup">In groups</option>
+               <option value="solo">Solo (no groups)</option>
+             </select>
+           </div>
+         )}
           <div className="h-72 overflow-y-auto border rounded p-2 mb-4">
   <div className="flex items-center gap-2 py-1 border-b mb-2">
     <input
