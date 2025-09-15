@@ -1321,24 +1321,63 @@ const visibleCount = filteredStudents.length;
                     {group.members
                       .filter(m => m && m._id && m.status === 'approved') // Add status filter
                       .map((m) => {
-                        const user = m._id;
-                        const userId = user._id || user; // handle populated object or raw id
-                        const displayName = user && (user.firstName || user.lastName)
-                          ? `${user.firstName || ''} ${user.lastName || ''}`.trim()
-                          : user?.name || user?.email || 'Unknown User';
+                        // avoid shadowing the outer `user` (viewer) from useAuth()
+                        const memberUser = m._id;
+                        const userId = memberUser._id || memberUser; // handle populated object or raw id
+                        const displayName = memberUser && (memberUser.firstName || memberUser.lastName)
+                          ? `${memberUser.firstName || ''} ${memberUser.lastName || ''}`.trim()
+                          : memberUser?.name || memberUser?.email || 'Unknown User';
 
+                         // Determine banned state for this member (reuse classroom shape logic)
+                        const banLog = (Array.isArray(classroom?.banLog) && classroom.banLog.length)
+                          ? classroom.banLog
+                          : (Array.isArray(classroom?.bannedRecords) ? classroom.bannedRecords : []);
+                        const isBannedMember = Boolean(
+                          banLog.find(br => String(br.user?._id || br.user) === String(userId)) ||
+                          (Array.isArray(classroom?.bannedStudents) &&
+                            classroom.bannedStudents.map(b => (b && b._id) ? String(b._id) : String(b)).includes(String(userId)))
+                        );
+
+                        // Determine siphoned state: either account frozen for this classroom OR an active siphon targeting them
+                        const isFrozenForClassroom = Boolean(
+                          memberUser?.classroomFrozen?.some(cf => String(cf.classroom) === String(classroomId))
+                        );
+                        const isTargetOfActiveSiphon = Boolean(
+                           (group?.siphonRequests || []).some(r =>
+                            String(r.targetUser?._id || r.targetUser) === String(userId) &&
+                            ['pending','group_approved'].includes(r.status)
+                           )
+                         );
+                         const isSiphoned = isFrozenForClassroom || isTargetOfActiveSiphon;
+
+                        // Only allow viewing the siphoned badge if the current viewer is a teacher/admin
+                        // or is an approved member of this group (mirrors Groups.jsx visibility rules)
+                        const currentUserId = user?._id;
+                        const isViewerTeacherOrAdmin = (user?.role === 'teacher' || user?.role === 'admin');
+                        const isViewerGroupMember = Boolean(
+                          group?.members?.some(m => {
+                            const mid = m._id?._id || m._id;
+                            return String(mid) === String(currentUserId) && m.status === 'approved';
+                          })
+                        );
+                        const canSeeSiphon = isViewerTeacherOrAdmin || isViewerGroupMember;
+ 
                         return (
                           <li key={String(userId)} className="flex justify-between items-center w-full">
-                            <span>{displayName}</span>
-                            <button
-                              className="btn btn-sm btn-outline ml-4"
-                              onClick={() => navigate(`/classroom/${classroomId}/profile/${userId}`, { state: { from: 'people', classroomId } })}
-                            >
-                              View Profile
-                            </button>
-                          </li>
-                        );
-                      })}
+                            <span className="flex items-center gap-2">
+                              <span>{displayName}</span>
+                              {isBannedMember && <span className="badge badge-error">BANNED</span>}
+                              {isSiphoned && canSeeSiphon && <span className="badge badge-warning">SIPHONED</span>}
+                            </span>
+                             <button
+                               className="btn btn-sm btn-outline ml-4"
+                               onClick={() => navigate(`/classroom/${classroomId}/profile/${userId}`, { state: { from: 'people', classroomId } })}
+                             >
+                               View Profile
+                             </button>
+                           </li>
+                         );
+                       })}
                 </ul>
               )}
               </div>
