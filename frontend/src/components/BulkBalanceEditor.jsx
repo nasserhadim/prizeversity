@@ -213,13 +213,16 @@ const BulkBalanceEditor = ({onSuccess}) => {
                   className="toggle toggle-primary" 
                   checked={applyGroupMultipliers}
                   onChange={(e) => setApplyGroupMultipliers(e.target.checked)}
+                  disabled={Number(amount) < 0}
                 />
               </label>
               <div className="label">
                 <span className="label-text-alt text-gray-500">
-                  {applyGroupMultipliers 
-                    ? "Group multipliers will be applied to positive amounts" 
-                    : "Group multipliers will be ignored"
+                  {Number(amount) < 0
+                    ? "Disabled for debit adjustments"
+                    : (applyGroupMultipliers 
+                        ? "Group multipliers will be applied to positive amounts" 
+                        : "Group multipliers will be ignored")
                   }
                 </span>
               </div>
@@ -233,13 +236,16 @@ const BulkBalanceEditor = ({onSuccess}) => {
                   className="toggle toggle-primary" 
                   checked={applyPersonalMultipliers}
                   onChange={(e) => setApplyPersonalMultipliers(e.target.checked)}
+                  disabled={Number(amount) < 0}
                 />
               </label>
               <div className="label">
                 <span className="label-text-alt text-gray-500">
-                  {applyPersonalMultipliers 
-                    ? "Personal multipliers will be applied to positive amounts" 
-                    : "Personal multipliers will be ignored"
+                  {Number(amount) < 0
+                    ? "Disabled for debit adjustments"
+                    : (applyPersonalMultipliers 
+                        ? "Personal multipliers will be applied to positive amounts" 
+                        : "Personal multipliers will be ignored")
                   }
                 </span>
               </div>

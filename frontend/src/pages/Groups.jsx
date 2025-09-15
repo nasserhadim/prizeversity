@@ -1740,14 +1740,17 @@ const Groups = () => {
                     className="toggle toggle-primary" 
                     checked={adjustApplyGroupMultipliers}
                     onChange={(e) => setAdjustApplyGroupMultipliers(e.target.checked)}
+                    disabled={Number(adjustAmount) < 0}
                   />
                 </label>
                 <div className="label">
                   <span className="label-text-alt text-gray-500">
-                    {adjustApplyGroupMultipliers 
-                      ? "Group multipliers will be applied" 
-                      : "Group multipliers will be ignored"
-                    }
+                  {Number(adjustAmount) < 0
+                    ? "Disabled for debit adjustments"
+                    : (adjustApplyGroupMultipliers 
+                        ? "Group multipliers will be applied" 
+                        : "Group multipliers will be ignored")
+                  }
                   </span>
                 </div>
               </div>
@@ -1760,14 +1763,17 @@ const Groups = () => {
                     className="toggle toggle-primary" 
                     checked={adjustApplyPersonalMultipliers}
                     onChange={(e) => setAdjustApplyPersonalMultipliers(e.target.checked)}
+                    disabled={Number(adjustAmount) < 0}
                   />
                 </label>
                 <div className="label">
                   <span className="label-text-alt text-gray-500">
-                    {adjustApplyPersonalMultipliers 
-                      ? "Personal multipliers will be applied" 
-                      : "Personal multipliers will be ignored"
-                    }
+                  {Number(adjustAmount) < 0
+                    ? "Disabled for debit adjustments"
+                    : (adjustApplyPersonalMultipliers 
+                        ? "Personal multipliers will be applied" 
+                        : "Personal multipliers will be ignored")
+                  }
                   </span>
                 </div>
               </div>
