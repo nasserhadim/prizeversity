@@ -1450,10 +1450,30 @@ const Groups = () => {
                                     </td>
                                     <td>
                                       {`${member._id?.firstName || ''} ${member._id?.lastName || ''}`.trim() || member._id?.email || 'Unknown User'}
+                                      
                                       {/* Show banned badge if user is banned in this classroom */}
                                       {isBannedInClassroom(mid) && (
                                         <span className="badge badge-error ml-2">BANNED</span>
                                       )}
+                                      
+                                      {/* Only show SIPHONED to teachers/admins or students who are in the same group */}
+                                      {(() => {
+                                        const isSiphoned = (group?.siphonRequests || []).some(r => {
+                                          const targetId = r.targetUser?._id ?? r.targetUser;
+                                          return String(targetId) === String(mid) && ['pending','group_approved'].includes(r.status);
+                                        });
+
+                                        const viewerIsGroupMember = !!group?.members?.some(m => getMemberId(m) === String(user._id) && m.status === 'approved');
+
+                                        const canSeeSiphoned = isSiphoned && (
+                                          user.role === 'teacher' ||
+                                          user.role === 'admin' ||
+                                          viewerIsGroupMember
+                                        );
+
+                                        return canSeeSiphoned ? <span className="badge badge-warning ml-2">SIPHONED</span> : null;
+                                      })()}
+                                      
                                       <button 
                                         className="btn btn-xs btn-ghost ml-2"
                                         onClick={() => navigate(
@@ -1463,6 +1483,7 @@ const Groups = () => {
                                       >
                                         View Profile
                                       </button>
+                                      
                                       {(
                                         // check classroom-scoped freeze for this classroom (id from useParams)
                                         member._id?.classroomFrozen?.some(cf => String(cf.classroom) === String(id))
