@@ -663,7 +663,7 @@ const Groups = () => {
       if (res.status === 202) {
         toast.success('Request sent for teacher approval.');
       } else {
-        toast.success(`Selected members (excluding pending members (if any)) ${amt >= 0 ? 'credited' : 'debited'} ${Math.abs(amt)} ₿`);
+        toast.success(`Selected members (excluding pending/banned members (if any)) ${amt >= 0 ? 'credited' : 'debited'} ${Math.abs(amt)} ₿`);
       }
       fetchGroupSets();
     } catch (err) {
