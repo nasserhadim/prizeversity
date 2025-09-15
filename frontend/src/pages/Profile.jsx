@@ -123,7 +123,8 @@ export default function Profile() {
 
   // Added new useEffect to fetch the stats into a table.
   useEffect(() => {
-      if (user.role === 'teacher' && profile?.role === 'student') {
+      // Allow teachers and admins/TAs to view a student's purchase history
+      if ((user.role === 'teacher' || user.role === 'admin') && profile?.role === 'student') {
           axios
               .get(`/api/bazaar/orders/user/${profileId}`, {
                   withCredentials: true
@@ -664,7 +665,7 @@ export default function Profile() {
                    />
                   </div>
  
-                  {user?.role === 'teacher' && profile?.role === 'student' && (
+                  {( (user?.role === 'teacher') || (user?.role === 'admin') ) && profile?.role === 'student' && (
                         <div className="mt-6">
                             <h2 className="text-xl mb-2">
                                 Purchase History {visibleOrders ? `(${visibleOrders.length})` : ''}
