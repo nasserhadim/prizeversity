@@ -35,7 +35,7 @@ const challengeTemplateRoutes = require('./routes/challengeTemplate');
 const challengeVerifyRoutes = require('./routes/challengeVerify');
 const { redirectBase, isProd } = require('./config/domain');
 const { cleanTrash } = require('./utils/cleanupTrash');
-require('./utils/siphonCleanup'); // Add this line
+// require('./utils/siphonCleanup'); // Add this line
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -136,6 +136,26 @@ const trashDir = path.join(uploadsDir, 'trash');
     console.error('Failed to schedule uploads/trash cleanup:', err);
   }
 })();
+
+// start siphon expiry janitor and ensure TTL/indexes
+try {
+  // load the cleanup (this runs the setInterval inside the module)
+  require('./utils/siphonCleanup');
+} catch (e) {
+  console.error('Failed to start siphonCleanup:', e);
+}
+
+// ensure SiphonRequest indexes (TTL) are created after mongoose opens
+// (use the mongoose already required at top of file)
+mongoose.connection.once('open', async () => {
+  try {
+    const SiphonRequest = require('./models/SiphonRequest');
+    await SiphonRequest.init();
+    console.log('SiphonRequest indexes ensured');
+  } catch (err) {
+    console.error('Failed to initialize SiphonRequest indexes:', err);
+  }
+});
 
 // Routes
 
