@@ -4,7 +4,7 @@ async function transferBits({ fromUserId, recipients, amount, session = null, cl
   console.log('⏳ transferBits:', { fromUserId: String(fromUserId), recipients: recipients.map(r => String(r)), amount });
   
   // Ensure the target user is NOT in the recipients list
-  const filteredRecipients = recipients.filter(id => String(id) !== String(fromUserId));
+  let filteredRecipients = recipients.filter(id => String(id) !== String(fromUserId));
   
   console.log('🔍 After filtering target user:', { 
     originalRecipients: recipients.map(r => String(r)),
@@ -12,6 +12,20 @@ async function transferBits({ fromUserId, recipients, amount, session = null, cl
     targetUser: String(fromUserId)
   });
   
+  // If classroomId provided, filter out recipients who are banned in that classroom
+  if (classroomId) {
+    try {
+      const Classroom = require('../models/Classroom');
+      const classroom = await Classroom.findById(classroomId).select('bannedStudents').lean();
+      const bannedSet = new Set((classroom?.bannedStudents || []).map(b => String(b._id || b)));
+      const beforeCount = filteredRecipients.length;
+      filteredRecipients = filteredRecipients.filter(r => !bannedSet.has(String(r)));
+      console.log('transferBits: filtered banned recipients', { beforeCount, afterCount: filteredRecipients.length });
+    } catch (e) {
+      console.warn('transferBits: failed to check banned students for classroom', classroomId, e);
+    }
+  }
+
   if (filteredRecipients.length === 0) {
     throw new Error('No valid recipients for transfer');
   }
