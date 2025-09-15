@@ -173,6 +173,10 @@ export default function Profile() {
   }, [orders]);
 
   const visibleOrders = useMemo(() => {
+    const qRaw = (searchOrders || '').trim().toLowerCase();
+    const tokens = qRaw.split(/\s+/).filter(Boolean);
+    const isNumericQuery = qRaw !== '' && !Number.isNaN(Number(qRaw));
+
     return orders
       .filter(o => {
         // classroom filter: compare string ids only
@@ -186,24 +190,58 @@ export default function Profile() {
           if (orderClassroomId !== String(classroomFilter)) return false;
         }
 
-        // existing search filter logic
-        const q = (searchOrders || '').trim().toLowerCase();
-        const searchMatch = !q || (
-          (o._id || '').toLowerCase().includes(q) ||
-          ((o.items || []).some(i => (i.name || '').toLowerCase().includes(q))) ||
-          (classroomLabel(o) || '').toLowerCase().includes(q) ||
-          (o.total || '').toString().toLowerCase().includes(q)
-        );
-        return searchMatch;
+        if (!qRaw) return true;
+
+        // Build a haystack of searchable strings from the order + items
+        const parts = [];
+        parts.push(o._id || '');
+        parts.push(o.orderId || '');
+        parts.push(String(o.total || ''));
+        parts.push(o.createdAt || '');
+        parts.push(classroomLabel(o) || '');
+        parts.push(o.description || '');
+        // items
+        (o.items || []).forEach(it => {
+          parts.push(it.name || '');
+          parts.push(it.description || '');
+          parts.push(String(it.price || ''));
+          parts.push(it.category || '');
+          parts.push(it.primaryEffect || '');
+          parts.push(String(it.primaryEffectValue || ''));
+          if (Array.isArray(it.secondaryEffects)) parts.push(it.secondaryEffects.join(' '));
+          // include human-readable effect description where available
+          try {
+            parts.push(getEffectDescription(it) || '');
+            const { main, effect } = splitDescriptionEffect(it.description || '');
+            parts.push(main || '');
+            parts.push(effect || '');
+          } catch (e) {
+            // ignore helper failures
+          }
+          // include bazaar & classroom metadata if present
+          if (it.bazaar?.name) parts.push(it.bazaar.name);
+          if (it.bazaar?.classroom?.name) parts.push(it.bazaar.classroom.name);
+          if (it.bazaar?.classroom?.code) parts.push(it.bazaar.classroom.code);
+        });
+
+        const hay = parts.join(' ').toLowerCase();
+
+        // If the whole query is numeric, allow matching numbers (amount/price/total)
+        if (isNumericQuery) {
+          return hay.includes(qRaw);
+        }
+
+        // Multi-word queries: require all tokens (AND)
+        return tokens.every(t => hay.includes(t));
       })
-       .sort((a, b) => {
-         // Sort by selected field and direction
-         const aVal = sortField === 'date' ? new Date(a.createdAt) : a[sortField];
-         const bVal = sortField === 'date' ? new Date(b.createdAt) : b[sortField];
-         const order = sortDirection === 'asc' ? 1 : -1;
-         return aVal < bVal ? -order : aVal > bVal ? order : 0;
-       });
-   }, [orders, searchOrders, classroomFilter, sortField, sortDirection]);
+      .sort((a, b) => {
+        // Sort by selected field and direction
+        const aVal = sortField === 'date' ? new Date(a.createdAt) : a[sortField];
+        const bVal = sortField === 'date' ? new Date(b.createdAt) : b[sortField];
+        const order = sortDirection === 'asc' ? 1 : -1;
+        return aVal < bVal ? -order : aVal > bVal ? order : 0;
+      });
+  }, [orders, searchOrders, classroomFilter, sortField, sortDirection]);
 
   // Pagination / lazy-load (shared hook)
   const {
