@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 
 const BulkBalanceEditor = ({onSuccess}) => {
   // Attributes that will be used for all the functions that will be created below
   const { id: classroomId } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [students, setStudents] = useState([]);
   const [selectedIds, setSelected] = useState(new Set());
@@ -17,6 +18,103 @@ const BulkBalanceEditor = ({onSuccess}) => {
   const [applyPersonalMultipliers, setApplyPersonalMultipliers] = useState(true); // Separate personal multipliers
   const [taBitPolicy, setTaBitPolicy] = useState('full');
   const [search, setSearch] = useState('');
+
+  // NEW: classroom meta (to detect banned students / banLog)
+  const [classroom, setClassroom] = useState(null);
+
+  useEffect(() => {
+    if (!classroomId) return;
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await axios.get(`/api/classroom/${classroomId}`, { withCredentials: true });
+        if (!mounted) return;
+        setClassroom(res.data);
+      } catch (err) {
+        console.error('Failed to load classroom meta for badges', err);
+        setClassroom(null);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [classroomId]);
+
+  // helper: detect banned per-classroom (handles older shapes)
+  const isBannedInClassroom = (student) => {
+    if (!classroom) return false;
+    const bannedStudents = Array.isArray(classroom?.bannedStudents) ? classroom.bannedStudents : [];
+    const bannedIds = bannedStudents.map(b => (b && b._id) ? String(b._id) : String(b));
+    if (bannedIds.includes(String(student._id))) return true;
+
+    const banLog = Array.isArray(classroom?.banLog) && classroom.banLog.length
+      ? classroom.banLog
+      : (Array.isArray(classroom?.bannedRecords) ? classroom.bannedRecords : []);
+    const banRecord = (banLog || []).find(br => String(br.user?._id || br.user) === String(student._id));
+    return Boolean(banRecord);
+  };
+
+  // helper: detect siphoned/frozen for this classroom (robust across shapes)
+  const isSiphonedInClassroom = (student) => {
+    if (!student) return false;
+
+    // Guarded deep walk to find any isFrozen flag or any classroomFrozen arrays.
+    const seen = new WeakSet();
+    let foundFrozen = false;
+    const cfEntries = [];
+
+    const walk = (obj, depth = 0) => {
+      if (!obj || typeof obj !== 'object' || depth > 8) return;
+      if (seen.has(obj)) return;
+      seen.add(obj);
+
+      // direct flags
+      if (obj.isFrozen === true || obj.frozen === true) {
+        foundFrozen = true;
+        return;
+      }
+
+      // direct array named classroomFrozen
+      if (Array.isArray(obj.classroomFrozen)) {
+        cfEntries.push(...obj.classroomFrozen);
+      }
+
+      // also accept arrays on other keys that look like classroomFrozen
+      for (const key of Object.keys(obj)) {
+        const val = obj[key];
+        if (Array.isArray(val) && key.toLowerCase().includes('classroom') && val.length) {
+          cfEntries.push(...val);
+        }
+      }
+
+      // recurse
+      for (const key of Object.keys(obj)) {
+        try {
+          const v = obj[key];
+          if (v && typeof v === 'object') walk(v, depth + 1);
+        } catch (e) {}
+      }
+    };
+
+    walk(student);
+
+    // quick return if a global freeze flag is present anywhere
+    if (foundFrozen) return true;
+
+    // No classroom freeze entries found
+    if (cfEntries.length === 0) {
+      // Temporary debug: uncomment if you still don't see badge to inspect the incoming object
+      // console.log('[isSiphonedInClassroom] student sample:', student);
+      return false;
+    }
+
+    const targetClassroomId = String(classroomId);
+    return cfEntries.some(cf => {
+      // handle shapes: ObjectId string, { classroom: id }, { classroom: { _id: id } }, or { classRoom: id }
+      const room = cf && (cf.classroom || cf.classRoom || cf.classroomId || cf);
+      const roomId = room && (room._id ? String(room._id) : String(room));
+      return roomId === targetClassroomId;
+    });
+  };
+
   const userIsTeacher = (user?.role || '').toLowerCase() === 'teacher';
   const userIsTA = (user?.role || '').toLowerCase() === 'admin';
   const taMayAssign = userIsTeacher || (userIsTA && taBitPolicy === 'full');
@@ -165,8 +263,33 @@ const BulkBalanceEditor = ({onSuccess}) => {
                   checked={selectedIds.has(s._id)}
                   onChange={() => toggle(s._id)}
                 />
-                <span className="flex-1 truncate">{fullName(s)}</span>
-                <span className="w-16 text-right">{s.balance} Ƀ</span>
+                <div>
+                  <div className="font-medium">
+                    {s.firstName || s.lastName ? `${s.firstName || ''} ${s.lastName || ''}`.trim() : s.email}
+                    {isBannedInClassroom(s) && (
+                      <span className="badge badge-error ml-2">BANNED</span>
+                    )}
+                    {isSiphonedInClassroom(s) && (
+                      <span className="badge badge-warning ml-2">SIPHONED</span>
+                    )}
+                  </div>
+                  <div className="text-sm">
+                    <button
+                      className="btn btn-ghost btn-xs mt-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const path = classroomId
+                          ? `/classroom/${classroomId}/profile/${s._id}`
+                          : `/profile/${s._id}`;
+                        // Mark origin as 'wallet' so Profile shows "Back to Wallet"
+                        navigate(path, { state: { from: 'wallet', classroomId } });
+                      }}
+                    >
+                      View Profile
+                    </button>
+                  </div>
+                </div>
+                <span className="ml-auto w-16 text-right">{s.balance} Ƀ</span>
               </div>
             ))}
             {visibleStudents.length === 0 && <p className="text-gray-500">No matching students.</p>}
