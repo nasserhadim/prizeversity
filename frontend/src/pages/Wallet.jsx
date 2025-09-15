@@ -11,6 +11,9 @@ import ExportButtons from '../components/ExportButtons';
 
 const Wallet = () => {
   const { user } = useAuth();
+  // Only show the "All users" / assigner filter to teachers/admins
+  const canSeeUserFilter = Boolean(user && ['teacher', 'admin'].includes((user.role || '').toString().toLowerCase()));
+
   const { id: classroomId } = useParams();
 
   // Default tab logic for students
@@ -383,7 +386,7 @@ const fetchWallet = async () => {
 
    // Deduplicate transactions by a stable key:
    // prefer the transaction _id (if present), otherwise fallback to orderId,
-   // otherwise use description+amount+timestamp (stable enough for de-duping).
+   // otherwise use description+amount+timestamp (stable enough for de-dupping).
    const unique = (() => {
      const seen = new Map();
      for (const tx of sorted) {
@@ -617,34 +620,36 @@ useEffect(() => {
             />
 
             {/* user selector */}
-            <select
-              className="select select-bordered max-w-xs"
-              value={assignerFilter}
-              onChange={(e) => {
-                const id = e.target.value;
-                setAssignerFilter(id);
-                if (id) {
-                  const selectedUser = studentList.find(u => u._id === id);
-                  if (selectedUser) {
-                    setRoleFilter(selectedUser.role);
+            {canSeeUserFilter && (
+              <select
+                className="select select-bordered max-w-xs"
+                value={assignerFilter}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setAssignerFilter(id);
+                  if (id) {
+                    const selectedUser = studentList.find(u => u._id === id);
+                    if (selectedUser) {
+                      setRoleFilter(selectedUser.role);
+                    }
+                  } else {
+                    setRoleFilter('all');
                   }
-                } else {
-                  setRoleFilter('all');
-                }
-              }}
-            >
-              <option value="">All users</option>
-              {studentList.map((u) => {
-                const displayName = (u.firstName || u.lastName)
-                  ? `${u.firstName || ''} ${u.lastName || ''}`.trim()
-                  : u.name || u.email;
-                return (
-                  <option key={u._id} value={u._id}>
-                    {displayName} – {ROLE_LABELS[u.role] || u.role}
-                  </option>
-                );
-              })}
-            </select>
+                }}
+              >
+                <option value="">All users</option>
+                {studentList.map((u) => {
+                  const displayName = (u.firstName || u.lastName)
+                    ? `${u.firstName || ''} ${u.lastName || ''}`.trim()
+                    : u.name || u.email;
+                  return (
+                    <option key={u._id} value={u._id}>
+                      {displayName} – {ROLE_LABELS[u.role] || u.role}
+                    </option>
+                  );
+                })}
+              </select>
+            )}
 
             {/* Role filter with siphon option */}
             <select
@@ -844,32 +849,34 @@ useEffect(() => {
                 />
 
                 {/* User selector (All users) */}
-                <select
-                  className="select select-bordered max-w-xs"
-                  value={assignerFilter}
-                  onChange={(e) => {
-                    const id = e.target.value;
-                    setAssignerFilter(id);
-                    if (id) {
-                      const selectedUser = studentList.find(u => u._id === id);
-                      if (selectedUser) setRoleFilter(selectedUser.role);
-                    } else {
-                      setRoleFilter('all');
-                    }
-                  }}
-                >
-                  <option value="">All users</option>
-                  {studentList.map((u) => {
-                    const displayName = (u.firstName || u.lastName)
-                      ? `${u.firstName || ''} ${u.lastName || ''}`.trim()
-                      : u.name || u.email;
-                    return (
-                      <option key={u._id} value={u._id}>
-                        {displayName} – {ROLE_LABELS[u.role] || u.role}
-                      </option>
-                    );
-                  })}
-                </select>
+                {canSeeUserFilter && (
+                  <select
+                    className="select select-bordered max-w-xs"
+                    value={assignerFilter}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      setAssignerFilter(id);
+                      if (id) {
+                        const selectedUser = studentList.find(u => u._id === id);
+                        if (selectedUser) setRoleFilter(selectedUser.role);
+                      } else {
+                        setRoleFilter('all');
+                      }
+                    }}
+                  >
+                    <option value="">All users</option>
+                    {studentList.map((u) => {
+                      const displayName = (u.firstName || u.lastName)
+                        ? `${u.firstName || ''} ${u.lastName || ''}`.trim()
+                        : u.name || u.email;
+                      return (
+                        <option key={u._id} value={u._id}>
+                          {displayName} – {ROLE_LABELS[u.role] || u.role}
+                        </option>
+                      );
+                    })}
+                  </select>
+                )}
 
                 {/* Role filter (All roles) with siphon option */}
                 <select
