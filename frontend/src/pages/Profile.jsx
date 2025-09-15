@@ -164,24 +164,38 @@ export default function Profile() {
     const m = new Map();
     (orders || []).forEach(o => {
       const c = o.items?.[0]?.bazaar?.classroom;
-      if (c && c._id) m.set(c._id, `${c.name}${c.code ? ` (${c.code})` : ''}`);
+      // normalize to string id to avoid ObjectId vs string comparison issues
+      if (c && (c._id || c.id)) {
+        m.set(String(c._id || c.id), `${c.name || ''}${c.code ? ` (${c.code})` : ''}`);
+      }
     });
     return Array.from(m.entries()).map(([id, label]) => ({ id, label }));
   }, [orders]);
 
   const visibleOrders = useMemo(() => {
-     return orders
-       .filter(o => {
-         // Filter by search term (order ID, item name, classroom, total)
-         const q = (searchOrders || '').trim().toLowerCase();
-         const searchMatch = !q || (
-           (o._id || '').toLowerCase().includes(q) ||
-           ((o.items || []).some(i => (i.name || '').toLowerCase().includes(q))) ||
-           (classroomLabel(o) || '').toLowerCase().includes(q) ||
-           (o.total || '').toString().toLowerCase().includes(q)
-         );
-         return searchMatch;
-       })
+    return orders
+      .filter(o => {
+        // classroom filter: compare string ids only
+        if (classroomFilter && classroomFilter !== 'all') {
+          const orderClassroomId = String(
+            o.classroom?._id ||
+            o.classroom ||
+            o.items?.[0]?.bazaar?.classroom?._id ||
+            ''
+          );
+          if (orderClassroomId !== String(classroomFilter)) return false;
+        }
+
+        // existing search filter logic
+        const q = (searchOrders || '').trim().toLowerCase();
+        const searchMatch = !q || (
+          (o._id || '').toLowerCase().includes(q) ||
+          ((o.items || []).some(i => (i.name || '').toLowerCase().includes(q))) ||
+          (classroomLabel(o) || '').toLowerCase().includes(q) ||
+          (o.total || '').toString().toLowerCase().includes(q)
+        );
+        return searchMatch;
+      })
        .sort((a, b) => {
          // Sort by selected field and direction
          const aVal = sortField === 'date' ? new Date(a.createdAt) : a[sortField];
