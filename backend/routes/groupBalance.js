@@ -149,10 +149,11 @@ router.post(
 
       // Compose the transaction description once (in outer scope) so it's available
       // everywhere: per-user transactions, notifications, and emitted events.
-      const txDescription = (description && String(description).trim())
-        ? `Group adjust (${group.name}): ${String(description).trim()}`
-        : `Group adjust (${group.name})`;
-        
+      const roleLabel = req.user.role === 'admin' ? 'Admin/TA' : 'Teacher';
+      const userName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email || String(req.user._id);
+      const baseDesc = (description && String(description).trim()) ? `: ${String(description).trim()}` : '';
+      const txDescription = `Group adjust (${group.name})${baseDesc} by ${roleLabel} (${userName})`;
+      
       // Keep successful entries and skipped entries as separate arrays.
       const results = []; // detailed per-student success entries
       const skipped = []; // skipped entries (e.g. banned / not found)
@@ -244,17 +245,17 @@ router.post(
           });
  
          // Create notification for this student
-        const notification = await Notification.create({
-          user: user._id,
-          type: 'wallet_transaction',
-          message: `You were ${amount >= 0 ? 'credited' : 'debited'} ${Math.abs(adjustedAmount)} ₿ in ${group.name}.`,
-          amount: adjustedAmount,
-          description: txDescription,
-          group: group._id,
-          groupSet: req.params.groupSetId,
-          classroom: classroomId,
-          actionBy: req.user._id,
-        });
+         const notification = await Notification.create({
+           user: user._id,
+           type: 'wallet_transaction',
+           message: `You were ${amount >= 0 ? 'credited' : 'debited'} ${Math.abs(adjustedAmount)} ₿ in ${group.name}.`,
+           amount: adjustedAmount,
+           description: txDescription,
+           group: group._id,
+           groupSet: req.params.groupSetId,
+           classroom: classroomId,
+           actionBy: req.user._id,
+         });
          const populated = await populateNotification(notification._id);
          req.app.get('io').to(`user-${user._id}`).emit('notification', populated);
         }
