@@ -324,6 +324,23 @@ const People = () => {
     }
   };
 
+  // Add helper to detect ban info for a student
+const getBanInfo = (student, classroomObj) => {
+  const banLog = (Array.isArray(classroomObj?.banLog) && classroomObj.banLog.length)
+    ? classroomObj.banLog
+    : (Array.isArray(classroomObj?.bannedRecords) ? classroomObj.bannedRecords : []);
+  const banRecord = (banLog || []).find(br => String(br.user?._id || br.user) === String(student._id));
+  if (banRecord) {
+    return { banned: true, reason: banRecord.reason || '', bannedAt: banRecord.bannedAt || null };
+  }
+  const bannedStudents = Array.isArray(classroomObj?.bannedStudents) ? classroomObj.bannedStudents : [];
+  const bannedIds = bannedStudents.map(b => (b && b._id) ? String(b._id) : String(b));
+  if (bannedIds.includes(String(student._id))) {
+    return { banned: true, reason: '', bannedAt: null };
+  }
+  return { banned: false, reason: '', bannedAt: null };
+};
+
   // Filter and sort students based on searchQuery, sortOption, and roleFilter
   const filteredStudents = [...students]
     .filter((student) => {
@@ -341,7 +358,11 @@ const People = () => {
         fullName.includes(query)
       );
 
-      // Role filter
+      // Role filter (adds 'banned' option)
+      if (roleFilter === 'banned') {
+        const banInfo = getBanInfo(student, classroom);
+        return matchesSearch && banInfo.banned;
+      }
       const matchesRole = roleFilter === 'all' || student.role === roleFilter;
       
       return matchesSearch && matchesRole;
@@ -497,7 +518,6 @@ const People = () => {
       throw new Error('No students to export');
     }
 
-    // Build comprehensive data including stats and groups
     const dataToExport = await Promise.all(
       filteredStudents.map(async (student) => {
         let stats = {};
@@ -533,6 +553,8 @@ const People = () => {
           console.error('Failed to process groups for student:', student._id);
         }
 
+        const banInfo = getBanInfo(student, classroom);
+
         return {
           _id: student._id,
           name: `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.email,
@@ -559,6 +581,10 @@ const People = () => {
             name: classroom?.name,
             code: classroom?.code
           },
+          // NEW: standardized ban/status fields
+          status: banInfo.banned ? 'banned' : (student.role || 'unknown'),
+          banReason: banInfo.reason || '',
+          banTimestamp: banInfo.bannedAt ? new Date(banInfo.bannedAt).toISOString() : null,
           exportedAt: new Date().toISOString(),
           exportedFrom: 'people_page'
         };
@@ -950,6 +976,7 @@ const visibleCount = filteredStudents.length;
                   <option value="student">Students</option>
                   <option value="admin">Admin/TAs</option>
                   <option value="teacher">Teachers</option>
+                  <option value="banned">Banned</option> {/* <-- NEW */}
                 </select>
 
                 {/* Sort */}
