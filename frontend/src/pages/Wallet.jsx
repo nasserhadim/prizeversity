@@ -547,6 +547,18 @@ useEffect(() => {
   };
 }, [user?._id, classroomId]);
 
+  // Compute total spent (sum of negative amounts) scoped to current classroom if provided
+  const totalSpent = useMemo(() => {
+    if (!transactions || transactions.length === 0) return 0;
+    const txs = classroomId
+      ? transactions.filter(t => String(t.classroom) === String(classroomId))
+      : transactions;
+    return txs.reduce((sum, t) => {
+      const amt = Number(t.amount) || 0;
+      return sum + (amt < 0 ? Math.abs(amt) : 0);
+    }, 0);
+  }, [transactions, classroomId]);
+
   return (
     <div className="min-h-screen flex flex-col overflow-x-hidden">
       <div className="w-full max-w-4xl mx-auto flex-grow py-6 px-4 sm:px-6 box-border">
@@ -832,6 +844,8 @@ useEffect(() => {
             <div className="mt-6">
               <div className="mb-4">
                 <p className="font-medium">Base Balance: {balance} ₿</p>
+                {/* Total spent line */}
+                <p className="text-sm text-gray-500">Total spent: ₿{totalSpent.toFixed(2)}</p>
               </div>
               <h2 className="text-lg font-semibold">
                 Transaction History <span className="text-sm text-gray-500">({transactionCount})</span>

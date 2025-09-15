@@ -96,6 +96,13 @@ mongoose.connect(process.env.MONGO_URI, {})
       console.error('❌ Error checking indexes:', err.message);
     });
 
+    // Start siphon janitor now that mongoose is connected
+    try {
+      const siphonCleanup = require('./utils/siphonCleanup');
+      siphonCleanup.startJanitorOnce && siphonCleanup.startJanitorOnce();
+    } catch (e) {
+      console.error('Failed to start siphonCleanup after DB connect:', e);
+    }
   })
   .catch(err => console.log(err));
 

@@ -5,9 +5,18 @@ const Group = require('../models/Group');
 const GroupSet = require('../models/GroupSet');
 const Classroom = require('../models/Classroom');
 const { populateNotification } = require('./notifications');
+const mongoose = require('mongoose');
+
+const CLEAN_INTERVAL_MS = Number(process.env.SIPHON_CLEAN_INTERVAL_MS || 1 * 60 * 1000); // default: 1 minute
 
 async function cleanupExpiredSiphons() {
   try {
+    // guard: don't try DB queries until mongoose is connected
+    if (mongoose.connection.readyState !== 1) {
+      console.log('[siphonCleanup] mongoose not connected, skipping cleanup run');
+      return;
+    }
+
     const expiredSiphons = await SiphonRequest.find({
       status: 'pending',
       expiresAt: { $lt: new Date() }
@@ -130,7 +139,20 @@ async function cleanupExpiredSiphons() {
   }
 }
 
-// Run every 10 minutes
-setInterval(cleanupExpiredSiphons, 10 * 60 * 1000);
+/* Replace immediate setInterval startup with a connection-aware starter */
+let _janitorStarted = false;
+function startJanitorOnce() {
+  if (_janitorStarted) return;
+  if (mongoose.connection.readyState === 1) {
+    // Run an immediate pass and then schedule interval
+    cleanupExpiredSiphons().catch(e => console.error('[siphonCleanup] startup run failed:', e));
+    setInterval(cleanupExpiredSiphons, CLEAN_INTERVAL_MS);
+    _janitorStarted = true;
+    console.log('[siphonCleanup] janitor started (interval ms):', CLEAN_INTERVAL_MS);
+  }
+}
 
-module.exports = { cleanupExpiredSiphons };
+// Do NOT auto-start on require; listen for connection open and export starter
+mongoose.connection.once && mongoose.connection.once('open', startJanitorOnce);
+
+module.exports = { cleanupExpiredSiphons, startJanitorOnce };

@@ -19,6 +19,20 @@ module.exports = async function blockIfFrozen(req, res, next) {
     if (classroomId) activeSiphonQuery.classroom = classroomId;
     const activeSiphon = await SiphonRequest.findOne(activeSiphonQuery).populate('classroom', 'siphonTimeoutHours');
 
+    // helper: format ms -> "1h 2m 3s" (omits zero parts)
+    const formatMs = (ms) => {
+      if (!ms || ms <= 0) return '0s';
+      const totalSeconds = Math.floor(ms / 1000);
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+      const parts = [];
+      if (hours) parts.push(`${hours}h`);
+      if (minutes) parts.push(`${minutes}m`);
+      if (seconds || parts.length === 0) parts.push(`${seconds}s`);
+      return parts.join(' ');
+    };
+
     // Determine if user is frozen in the classroom context
     const frozenInThisClassroom = classroomId
       ? Array.isArray(user?.classroomFrozen) && user.classroomFrozen.some(cf => String(cf.classroom) === String(classroomId))
@@ -26,13 +40,19 @@ module.exports = async function blockIfFrozen(req, res, next) {
 
     if (frozenInThisClassroom) {
       if (activeSiphon) {
-        const timeRemaining = new Date(activeSiphon.expiresAt) - new Date();
-        const hoursRemaining = Math.ceil(timeRemaining / (1000 * 60 * 60));
-        console.log(`[blockIfFrozen] Blocking user - time remaining: ${hoursRemaining}h`);
+        const now = Date.now();
+        const expiresAt = new Date(activeSiphon.expiresAt);
+        const msRemaining = Math.max(0, expiresAt.getTime() - now);
+        const humanReadable = formatMs(msRemaining);
+        console.log(`[blockIfFrozen] Blocking user - time remaining: ${humanReadable} (${msRemaining}ms)`);
         return res.status(403).json({
-          error: `Your account is frozen due to an active siphon request. Time remaining: ${hoursRemaining} hours.`,
+          error: `Your account is frozen due to an active siphon request. Time Remaining: ${humanReadable}`,
           siphonActive: true,
-          timeRemaining: hoursRemaining
+          // Human-friendly string (keeps compatibility with older clients)
+          timeRemaining: humanReadable,
+          // Precise fields for frontend countdown display:
+          timeRemainingMs: msRemaining,
+          expiresAt: expiresAt.toISOString()
         });
       }
       console.log(`[blockIfFrozen] User frozen (no active siphon found in this classroom)`);
