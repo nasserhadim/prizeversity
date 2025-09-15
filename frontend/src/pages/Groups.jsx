@@ -73,6 +73,28 @@ const Groups = () => {
   const groupSetFileInputRef = useRef(null); // ADD: clear native file input after submit
   const [selectedGroupSets, setSelectedGroupSets] = useState([]); // track selected GroupSet ids
   const [groupSetMultiplierIncrement, setGroupSetMultiplierIncrement] = useState(0); // Default to 0
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000); // update every second for countdown
+    return () => clearInterval(t);
+  }, []);
+
+  // Helper: format milliseconds into compact countdown (e.g. "1d 2h 3m 4s")
+  function formatMs(ms) {
+    if (ms == null) return '';
+    if (ms <= 0) return '0s';
+    const sec = Math.floor(ms / 1000) % 60;
+    const min = Math.floor(ms / (1000 * 60)) % 60;
+    const hrs = Math.floor(ms / (1000 * 60 * 60)) % 24;
+    const days = Math.floor(ms / (1000 * 60 * 60 * 24));
+    const parts = [];
+    if (days) parts.push(`${days}d`);
+    if (hrs) parts.push(`${hrs}h`);
+    if (min) parts.push(`${min}m`);
+    parts.push(`${sec}s`);
+    return parts.join(' ');
+  }
 
   // helper to toggle selection for a single GroupSet id
   const toggleGroupSetSelection = (groupSetId) => {
@@ -1323,8 +1345,11 @@ const Groups = () => {
                             const noVotes = r.votes?.filter(v => v.vote === 'no').length || 0;
                             const totalVotes = yesVotes + noVotes;
                             const majorityThreshold = Math.ceil(eligibleVoters / 2);
-                            const timeRemaining = r.expiresAt ? Math.max(0, Math.ceil((new Date(r.expiresAt) - new Date()) / (1000 * 60 * 60))) : null;
-
+                            const createdAt = r.createdAt ? new Date(r.createdAt) : null;
+                            const expiresAt = r.expiresAt ? new Date(r.expiresAt) : null;
+                            const msRemaining = expiresAt ? Math.max(0, expiresAt - now) : null;
+                            const timeRemainingStr = msRemaining == null ? null : formatMs(msRemaining);
+                            
                             return (
                               <div key={r._id} className="border p-2 mt-2 rounded bg-base-200">
                                 <p>
@@ -1333,9 +1358,9 @@ const Groups = () => {
                                       ? `${r.targetUser.firstName} ${r.targetUser.lastName}` 
                                       : r.targetUser?.email || 'Unknown User'
                                   }
-                                  {timeRemaining !== null && (
+                                  {timeRemainingStr !== null && (
                                     <span className="text-xs text-warning ml-2">
-                                      (Expires in {timeRemaining}h)
+                                      (Expires in {timeRemainingStr})
                                     </span>
                                   )}
                                 </p>
@@ -1381,6 +1406,12 @@ const Groups = () => {
                                   <div className="flex gap-1 mt-1">
                                     <button className="btn btn-xs btn-success" onClick={() => teacherApprove(r._id)}>Approve</button>
                                     <button className="btn btn-xs btn-error" onClick={() => teacherReject(r._id)}>Reject</button>
+                                  </div>
+                                )}
+
+                                {createdAt && (
+                                  <div className="text-xs text-muted mb-1">
+                                    Initiated: {createdAt.toLocaleString()}
                                   </div>
                                 )}
                               </div>

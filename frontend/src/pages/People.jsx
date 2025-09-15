@@ -25,6 +25,8 @@ const People = () => {
   const [taBitPolicy, setTaBitPolicy] = useState('full');
   const [studentsCanViewStats, setStudentsCanViewStats] = useState(true);
   const [students, setStudents] = useState([]);
+  // Map of studentId -> total spent (number)
+  const [totalSpentMap, setTotalSpentMap] = useState({});
   const [groupSets, setGroupSets] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOption, setSortOption] = useState('default');
@@ -373,6 +375,14 @@ const getBanInfo = (student, classroomObj) => {
         return (b.balance || 0) - (a.balance || 0);
       } else if (sortOption === 'balanceAsc' && (user?.role === 'teacher' || user?.role === 'admin')) {
         return (a.balance || 0) - (b.balance || 0);
+      } else if (sortOption === 'totalSpentDesc' && (user?.role === 'teacher' || user?.role === 'admin')) {
+        const aVal = Number(totalSpentMap[a._id] || 0);
+        const bVal = Number(totalSpentMap[b._id] || 0);
+        return bVal - aVal;
+      } else if (sortOption === 'totalSpentAsc' && (user?.role === 'teacher' || user?.role === 'admin')) {
+        const aVal = Number(totalSpentMap[a._id] || 0);
+        const bVal = Number(totalSpentMap[b._id] || 0);
+        return aVal - bVal;
       } else if (sortOption === 'nameAsc') {
         const nameA = (a.firstName || a.name || '').toLowerCase();
         const nameB = (b.firstName || b.name || '').toLowerCase();
@@ -389,7 +399,56 @@ const getBanInfo = (student, classroomObj) => {
       return 0; // Default order
     });
 
-    // Handle bulk user upload via Excel file
+  // ── Fetch per-student "total spent" (sum of negative transaction amounts) for teacher/admin viewers ──
+  useEffect(() => {
+    // Only fetch when a teacher/admin is viewing and we have a classroom
+    const viewerRole = (user?.role || '').toString().toLowerCase();
+    if (!user || !['teacher', 'admin'].includes(viewerRole)) return;
+    if (!classroomId) return;
+
+    // Limit to first N visible students to avoid too many requests
+    const visible = Array.isArray(filteredStudents) ? filteredStudents.slice(0, 50) : [];
+    const ids = visible.map(s => s._id).filter(Boolean);
+    if (!ids.length) {
+      setTotalSpentMap({});
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const promises = ids.map(id =>
+          axios
+            .get(`/api/wallet/transactions/all?studentId=${id}&classroomId=${classroomId}`, { withCredentials: true })
+            .then(res => {
+              const txs = Array.isArray(res.data) ? res.data : (res.data?.transactions || []);
+              const spent = txs.reduce((sum, t) => {
+                const amt = Number(t.amount) || 0;
+                return sum + (amt < 0 ? Math.abs(amt) : 0);
+              }, 0);
+              return { id, spent };
+            })
+            .catch((err) => {
+              console.debug('[People] failed to fetch transactions for', id, err?.message || err);
+              return { id, spent: 0 };
+            })
+        );
+
+        const results = await Promise.all(promises);
+        if (cancelled) return;
+        const map = {};
+        results.forEach(r => { map[r.id] = r.spent; });
+        setTotalSpentMap(map);
+      } catch (err) {
+        if (!cancelled) console.error('[People] failed to load per-student totals', err);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [user, classroomId, filteredStudents]);
+  // ── end per-student totals effect ──
+
+  // Handle bulk user upload via Excel file
   const handleExcelUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -460,6 +519,8 @@ const getBanInfo = (student, classroomObj) => {
           Email: student.email,
           Role: ROLE_LABELS[student.role] || student.role,
           Balance: student.balance?.toFixed(2) || '0.00',
+          // Include Total spent for CSV export (uses per-student totals loaded into totalSpentMap)
+          TotalSpent: (Number(totalSpentMap[student._id] || 0)).toFixed(2),
           JoinedDate: student.joinedAt 
             ? new Date(student.joinedAt).toLocaleString() 
             : student.createdAt 
@@ -563,6 +624,8 @@ const getBanInfo = (student, classroomObj) => {
           email: student.email,
           role: student.role,
           balance: student.balance || 0,
+          // include numeric totalSpent for JSON export
+          totalSpent: Number(totalSpentMap[student._id] || 0),
           joinedDate: student.joinedAt || student.createdAt || null,
           stats: {
             luck: stats.luck || 1,
@@ -990,6 +1053,8 @@ const visibleCount = filteredStudents.length;
                     <>
                       <option value="balanceDesc">Balance (High → Low)</option>
                       <option value="balanceAsc">Balance (Low → High)</option>
+                      <option value="totalSpentDesc">Total Spent (High → Low)</option>
+                      <option value="totalSpentAsc">Total Spent (Low → High)</option>
                     </>
                   )}
                   <option value="nameAsc">Name (A → Z)</option>
@@ -1077,6 +1142,13 @@ const visibleCount = filteredStudents.length;
                         {(user?.role?.toLowerCase() === 'teacher' || user?.role?.toLowerCase() === 'admin') && (
                           <div className="text-sm text-gray-500 mt-1">
                             Balance: ₿{student.balance?.toFixed(2) || '0.00'}
+                          </div>
+                        )}
+
+                        {/* Show total spent to teachers/admins */}
+                        {(user?.role?.toLowerCase() === 'teacher' || user?.role?.toLowerCase() === 'admin') && (
+                          <div className="text-sm text-gray-500">
+                            Total spent: ₿{((totalSpentMap[student._id] || 0)).toFixed(2)}
                           </div>
                         )}
 

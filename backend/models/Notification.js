@@ -43,7 +43,7 @@ const NotificationSchema = new mongoose.Schema({
   classroom: { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom' },
   groupSet: { type: mongoose.Schema.Types.ObjectId, ref: 'GroupSet' },
   group: { type: mongoose.Schema.Types.ObjectId, ref: 'Group' },
-  actionBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  actionBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // allow null/system actions
   // When true, frontend should not display the actor's name (privacy)
   anonymized: { type: Boolean, default: false },
   read: { type: Boolean, default: false },
