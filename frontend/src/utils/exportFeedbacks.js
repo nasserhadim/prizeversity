@@ -14,14 +14,15 @@ export function exportFeedbacksToCSV(feedbacks = [], filenameBase = 'feedbacks')
 
   const header = ['id', 'rating', 'comment', 'anonymous', 'hidden', 'createdAt', 'userId', 'userName', 'userEmail', 'classroomId'];
   const rows = (feedbacks || []).map(f => {
-    const userId = f.userId && (typeof f.userId === 'object' ? f.userId._id : f.userId) || '';
-    const userName = f.userId && (typeof f.userId === 'object' ? `${f.userId.firstName || ''} ${f.userId.lastName || ''}`.trim() : '') || '';
-    const userEmail = f.userId && (typeof f.userId === 'object' ? f.userId.email : '') || '';
+    const isAnon = !!f.anonymous;
+    const userId = isAnon ? '' : (f.userId && (typeof f.userId === 'object' ? f.userId._id : f.userId)) || '';
+    const userName = isAnon ? '' : (f.userId && (typeof f.userId === 'object' ? `${f.userId.firstName || ''} ${f.userId.lastName || ''}`.trim() : '')) || '';
+    const userEmail = isAnon ? '' : (f.userId && (typeof f.userId === 'object' ? f.userId.email : '') ) || '';
     return [
       escapeCsvCell(f._id || ''),
       escapeCsvCell(f.rating ?? ''),
       escapeCsvCell(f.comment ?? ''),
-      escapeCsvCell(f.anonymous ? 'true' : 'false'),
+      escapeCsvCell(isAnon ? 'true' : 'false'),
       escapeCsvCell(f.hidden ? 'true' : 'false'),
       escapeCsvCell(new Date(f.createdAt || '').toISOString() || ''),
       escapeCsvCell(userId),
@@ -54,12 +55,13 @@ export function exportFeedbacksToJSON(feedbacks = [], filenameBase = 'feedbacks'
     anonymous: !!f.anonymous,
     hidden: !!f.hidden,
     createdAt: f.createdAt,
-    user: (f.userId && typeof f.userId === 'object') ? {
+    // hide user details for anonymous feedbacks
+    user: f.anonymous ? null : ((f.userId && typeof f.userId === 'object') ? {
       _id: f.userId._id,
       firstName: f.userId.firstName,
       lastName: f.userId.lastName,
       email: f.userId.email
-    } : (f.userId || null),
+    } : (f.userId || null)),
     classroom: f.classroom || null
   }));
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
