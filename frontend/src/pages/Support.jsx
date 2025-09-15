@@ -17,7 +17,8 @@ import {
   Bell,
   ShoppingCart,
   GraduationCap,
-  UserCheck
+  UserCheck,
+  LockClosed
 } from 'lucide-react';
 import Footer from '../components/Footer';
 
@@ -325,6 +326,39 @@ const Support = () => {
             "Your theme preference is saved automatically!"
           ],
           role: ["all"]
+        }
+      ]
+    },
+    {
+      category: "Bans & Classroom Access",
+      icon: <LockClosed size={20} />,
+      questions: [
+        {
+          question: "What does banning a student do?",
+          answer: [
+            "Banning prevents a student from accessing the classroom and from receiving any balance adjustments for that classroom (credits/assignments/transfers).",
+            "Banned students are blocked at the server level so they cannot bypass the ban by re-entering the classroom code.",
+            "The system will also prevent any balance changes targeted at a banned student for the affected classroom."
+          ],
+          role: ["teacher","admin","student"]
+        },
+        {
+          question: "When should I Ban vs Remove a student?",
+          answer: [
+            "Remove: takes a student out of the classroom but does not prevent them from rejoining via the classroom code.",
+            "Ban: keeps the student listed as barred from the classroom so they cannot rejoin even if they have the classroom code.",
+            "Important: If you both ban AND remove a student, the student entry may be permanently removed from the classroom roster and the teacher may lose the easy unban/unlist management path—so only Remove if you are sure you never want them to reappear in the classroom list.",
+            "Recommendation: Prefer Ban (without removing) when you want to temporarily or permanently block access while preserving the ability to unban later. Only Remove when you are certain you want the student gone from the roster entirely."
+          ],
+          role: ["teacher"]
+        },
+        {
+          question: "Can a teacher unban a student?",
+          answer: [
+            "Yes — teachers can unban students and restore their ability to access the classroom and receive balance adjustments, provided the student record still exists in the classroom data (i.e. student was NOT removed).",
+            "If the student was removed and the teacher expects to unban later, then unfortunately it wont be possible to unban the student as their record was permanently deleted from the classroom roster upon removal.",
+          ],
+          role: ["teacher"]
         }
       ]
     }
