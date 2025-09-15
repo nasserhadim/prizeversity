@@ -147,11 +147,15 @@ router.post(
 
       if (!group) return res.status(404).json({ error: 'Group not found' });
 
-      // Use an object so we can return both detailed results and skipped items
-      const results = {
-        list: [],     // detailed per-student success entries
-        skipped: []   // skipped entries (e.g. banned / not found)
-      };
+      // Compose the transaction description once (in outer scope) so it's available
+      // everywhere: per-user transactions, notifications, and emitted events.
+      const txDescription = (description && String(description).trim())
+        ? `Group adjust (${group.name}): ${String(description).trim()}`
+        : `Group adjust (${group.name})`;
+        
+      // Keep successful entries and skipped entries as separate arrays.
+      const results = []; // detailed per-student success entries
+      const skipped = []; // skipped entries (e.g. banned / not found)
       const membersToUpdate = memberIds 
         ? group.members.filter(m => memberIds.includes(m._id._id.toString()))
         : group.members;
@@ -174,7 +178,7 @@ router.post(
           // Skip non-students & skip banned users
           if (!user || user.role !== 'student' || !memberIds.includes(user._id.toString())) continue;
           if (classroomBannedSet.has(String(user._id))) {
-            results.skipped.push({ id: String(user._id), reason: 'User is banned in this classroom' });
+            skipped.push({ id: String(user._id), reason: 'User is banned in this classroom' });
             continue;
           }
 
@@ -194,7 +198,7 @@ router.post(
 
           // Update user balance using classroom-aware functions
           const classroomId = groupSet?.classroom ? groupSet.classroom._id || groupSet.classroom : group.classroom;
-          
+        
           if (classroomId) {
             const currentBalance = getClassroomBalance(user, classroomId);
             const newBalance = Math.max(0, currentBalance + adjustedAmount);
@@ -208,7 +212,7 @@ router.post(
 
           user.transactions.push({
             amount: adjustedAmount,
-            description: description || `Group adjust (${group.name})`,
+            description: txDescription,
             assignedBy: req.user._id,
             classroom: classroomId || null,
             calculation: (numericAmount > 0 && (applyGroupMultipliers || applyPersonalMultipliers)) ? {
@@ -225,9 +229,9 @@ router.post(
             },
           });
           await user.save();
-
+ 
           // Add result summary for the student
-          results.list.push({ 
+          results.push({ 
             id: user._id, 
             newBalance: classroomId ? getClassroomBalance(user, classroomId) : user.balance,
             baseAmount: numericAmount,
@@ -238,40 +242,42 @@ router.post(
               total: finalMultiplier
             }
           });
-
-          // Create notification for this student
-          const notification = await Notification.create({
-            user: user._id,
-            type: 'wallet_transaction',
-            message: `You were ${amount >= 0 ? 'credited' : 'debited'} ${Math.abs(adjustedAmount)} ₿ in ${group.name}.`,
-            amount: adjustedAmount,
-            description: description || `Group adjust (${group.name})`,
-            group: group._id,
-            groupSet: req.params.groupSetId,
-            classroom: classroomId,
-            actionBy: req.user._id,
-          });
-          const populated = await populateNotification(notification._id);
-          req.app.get('io').to(`user-${user._id}`).emit('notification', populated);
+ 
+         // Create notification for this student
+        const notification = await Notification.create({
+          user: user._id,
+          type: 'wallet_transaction',
+          message: `You were ${amount >= 0 ? 'credited' : 'debited'} ${Math.abs(adjustedAmount)} ₿ in ${group.name}.`,
+          amount: adjustedAmount,
+          description: txDescription,
+          group: group._id,
+          groupSet: req.params.groupSetId,
+          classroom: classroomId,
+          actionBy: req.user._id,
+        });
+         const populated = await populateNotification(notification._id);
+         req.app.get('io').to(`user-${user._id}`).emit('notification', populated);
         }
       }
 
-      // Emit classroom-aware event including classroomId
+      // Emit classroom-aware event including classroomId, use composed description
       const classroomId = groupSet?.classroom ? groupSet.classroom._id || groupSet.classroom : group.classroom;
       
       req.app.get('io').to(`group-${group._id}`).emit('balance_adjust', {
         groupId: group._id,
         classroomId,
         amount: numericAmount,
-        description,
-        results
+        description: txDescription,
+        results,
+        skipped
       });
-
-      // Respond with success and detailed result
+      
+       // Respond with success and detailed result
       res.json({ 
         success: true,
-        message: `${results.list.length} students updated`,
+        message: `${results.length} students updated`,
         results,
+        skipped,
         groupMultiplier: group.groupMultiplier || 1
       });
     } catch (err) {
