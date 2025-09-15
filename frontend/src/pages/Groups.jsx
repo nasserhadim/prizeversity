@@ -1298,7 +1298,7 @@ const Groups = () => {
                             })
                           }>Delete</button>
                           <button className="btn btn-xs btn-warning" onClick={() => setOpenSiphonModal(group)}>Siphon</button>
-                          <button className="btn btn-xs btn-success" onClick={() => openAdjustModal(gs._id, group._id)}>Transfer</button>
+                          <button className="btn btn-xs btn-success" onClick={() => openAdjustModal(gs._id, group._id)}>Adjust</button>
                         </>
                       )}
                     </div>
@@ -1328,7 +1328,7 @@ const Groups = () => {
                             return (
                               <div key={r._id} className="border p-2 mt-2 rounded bg-base-200">
                                 <p>
-                                  <strong>{r.amount} bits</strong> from {
+                                  <strong>{r.amount} ₿</strong> from {
                                     r.targetUser?.firstName && r.targetUser?.lastName 
                                       ? `${r.targetUser.firstName} ${r.targetUser.lastName}` 
                                       : r.targetUser?.email || 'Unknown User'

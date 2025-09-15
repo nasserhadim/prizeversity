@@ -220,7 +220,7 @@ const Support = () => {
             "• Review and approve/reject student join requests",
             "• Configure group-specific settings and permissions",
             "• Suspend group members (if necessary)",
-            "• Transfer bits at the group level for bulk awards"
+            "• Adjust bits at the group level for bulk awards"
           ],
           role: ["teacher"]
         },
