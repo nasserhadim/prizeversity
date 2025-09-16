@@ -449,15 +449,15 @@ const TeacherView = ({
             <div className="mt-6">
               <h3 className="text-xl font-semibold mb-4">Student Challenge Progress</h3>
               <div className="overflow-x-auto">
-                <table className="table table-zebra w-full">
+                <table className="table table-zebra w-full table-auto text-sm md:text-base">
                   <thead>
                     <tr>
-                      <th>Student</th>
-                      <th>Current Challenge</th>
-                      <th>Challenge Data</th>
-                      <th>Solution</th>
-                      <th>Started At</th>
-                      <th>Status</th>
+                      <th className="whitespace-nowrap">Student</th>
+                      <th className="whitespace-nowrap">Current Challenge</th>
+                      <th className="hidden md:table-cell whitespace-nowrap">Challenge Data</th>
+                      <th className="whitespace-nowrap">Solution</th>
+                      <th className="hidden sm:table-cell whitespace-nowrap">Started At</th>
+                      <th className="whitespace-nowrap">Status</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -476,20 +476,20 @@ const TeacherView = ({
                       const currentChallenge = getCurrentChallenge(workingOnChallenge);
                       
                       return (
-                        <tr key={uc._id}>
-                          <td className="font-medium">
+                        <tr key={uc._id} className="align-top">
+                          <td className="font-medium whitespace-normal break-words">
                             {uc.userId.firstName} {uc.userId.lastName}
                             <br />
-                            <span className="text-sm text-gray-500">{uc.userId.email}</span>
+                            <span className="text-xs md:text-sm text-gray-500 break-words">{uc.userId.email}</span>
                           </td>
                           <td>
                             <div className="flex flex-col">
                               <span className="font-semibold">Challenge {workingOnChallenge + 1}</span>
-                              <span className="text-sm text-gray-600">{workingOnTitle}</span>
+                              <span className="text-xs md:text-sm text-gray-600">{workingOnTitle}</span>
                               <span className="text-xs text-gray-500">{currentChallenge.method}</span>
                             </div>
                           </td>
-                          <td>
+                          <td className="hidden md:table-cell">
                             {workingOnChallenge === 0 && (
                               <div className="space-y-1">
                                 <code className="bg-red-100 px-2 py-1 rounded text-sm font-mono text-red-700">
@@ -748,15 +748,15 @@ const TeacherView = ({
                               </div>
                             )}
                           </td>
-                          <td>
+                          <td className="hidden sm:table-cell">
                             {uc.startedAt ? (
-                              <div className="text-sm">
+                              <div className="text-xs md:text-sm">
                                 <div>{new Date(uc.startedAt).toLocaleDateString()}</div>
                                 <div className="text-xs text-gray-500">
                                   {new Date(uc.startedAt).toLocaleTimeString()}
                                 </div>
                                 {uc.currentChallenge !== undefined && (
-                                  <div className="badge badge-info badge-xs mt-1">
+                                  <div className="badge badge-info badge-xs mt-1 whitespace-nowrap">
                                     Working on #{uc.currentChallenge + 1}
                                   </div>
                                 )}
@@ -766,7 +766,7 @@ const TeacherView = ({
                             )}
                           </td>
                           <td>
-                            <div className={`badge ${uc.completedChallenges?.[workingOnChallenge] ? 'badge-success' : 'badge-warning'}`}>
+                            <div className={`badge ${uc.completedChallenges?.[workingOnChallenge] ? 'badge-success' : 'badge-warning'} whitespace-nowrap`}>
                               {uc.completedChallenges?.[workingOnChallenge] ? 'Completed' : 'In Progress'}
                             </div>
                           </td>

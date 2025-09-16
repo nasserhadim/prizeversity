@@ -164,6 +164,9 @@ router.post('/verify-challenge2-external', ensureAuthenticated, async (req, res)
   }
 });
 
+// Challenge 3 config
+const CHALLENGE3_LIMIT_MINUTES = 120;
+
 router.post('/challenge3/:uniqueId/verify', ensureAuthenticated, async (req, res) => {
   try {
     const { uniqueId } = req.params;
@@ -210,10 +213,10 @@ router.post('/challenge3/:uniqueId/verify', ensureAuthenticated, async (req, res
     const currentTime = new Date();
     const timeElapsed = startTime ? (currentTime - startTime) / (1000 * 60) : 0; // minutes
     
-    if (timeElapsed > 30) {
+    if (timeElapsed > CHALLENGE3_LIMIT_MINUTES) {
       return res.status(408).json({ 
         success: false, 
-        message: 'Time limit exceeded (30 minutes)' 
+        message: `Time limit exceeded (${CHALLENGE3_LIMIT_MINUTES} minutes)` 
       });
     }
     
