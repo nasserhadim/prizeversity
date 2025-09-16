@@ -14,7 +14,9 @@ const TeacherView = ({
   handleShowDeactivateModal,
   initiating,
   classroomStudents = [],
-  classroom
+  classroom,
+  classroomId,
+  fetchChallengeData
 }) => {
   const [showPasswords, setShowPasswords] = useState({});
   const [showDueDateModal, setShowDueDateModal] = useState(false);
@@ -22,8 +24,17 @@ const TeacherView = ({
   const [studentNames, setStudentNames] = useState({});
   const [challenge6Data, setChallenge6Data] = useState({});
   const [challenge7Data, setChallenge7Data] = useState({});
+  const [localDueDate, setLocalDueDate] = useState('');
   const dropdownRef = useRef(null);
   const themeClasses = getThemeClasses(isDark);
+
+  useEffect(() => {
+    if (challengeData?.settings?.dueDate) {
+      setLocalDueDate(new Date(new Date(challengeData.settings.dueDate).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16));
+    } else {
+      setLocalDueDate('');
+    }
+  }, [challengeData?.settings?.dueDate]);
 
   // Use the userChallenge _id (uc._id) as the toggle key so each row is stable
   const togglePasswordVisibility = (ucId) => {
@@ -91,7 +102,7 @@ const TeacherView = ({
 
   const handleAssignStudent = async (studentId) => {
     try {
-      const response = await fetch(`/api/challenges/${challengeData._id}/assign-student`, {
+      const response = await fetch(`/api/challenges/${classroomId}/assign-student`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -101,7 +112,7 @@ const TeacherView = ({
       if (response.ok) {
         toast.success('Student assigned to challenge successfully');
         setShowAssignDropdown(false);
-        window.location.reload();
+        await fetchChallengeData();
       } else {
         toast.error('Failed to assign student');
       }
@@ -298,8 +309,6 @@ const TeacherView = ({
 
     fetchChallenge7Data();
   }, [challengeData?.userChallenges]);
-
-
 
   return (
     <div className="p-6 space-y-8">
@@ -789,15 +798,19 @@ const TeacherView = ({
                         const defaultDate = new Date();
                         defaultDate.setDate(defaultDate.getDate() + 7);
                         const response = await updateDueDate(
-                          challengeData._id, 
+                          classroomId, 
                           e.target.checked, 
                           e.target.checked ? (challengeData?.settings?.dueDate || defaultDate.toISOString().slice(0, 16)) : null
                         );
-                        setChallengeData(response.challenge);
+                        setChallengeData(prev => ({
+                          ...prev,
+                          settings: {
+                            ...prev?.settings,
+                            dueDateEnabled: response.challenge.settings.dueDateEnabled,
+                            dueDate: response.challenge.settings.dueDate
+                          }
+                        }));
                         toast.success('Due date settings updated');
-                        if (!e.target.checked) {
-                          setShowDueDateModal(false);
-                        }
                       } catch (error) {
                         toast.error(error.message || 'Failed to update due date');
                       }
@@ -815,19 +828,11 @@ const TeacherView = ({
                   <input
                     type="datetime-local"
                     className="input input-bordered w-full"
-                    value={challengeData?.settings?.dueDate ? new Date(challengeData.settings.dueDate).toISOString().slice(0, 16) : ''}
-                    onChange={async (e) => {
-                      if (e.target.value) {
-                        try {
-                          const response = await updateDueDate(challengeData._id, true, e.target.value);
-                          setChallengeData(response.challenge);
-                          toast.success('Due date updated');
-                        } catch (error) {
-                          toast.error(error.message || 'Failed to update due date');
-                        }
-                      }
+                    value={localDueDate || (challengeData?.settings?.dueDate ? new Date(new Date(challengeData.settings.dueDate).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '')}
+                    onChange={(e) => {
+                      setLocalDueDate(e.target.value);
                     }}
-                    min={new Date().toISOString().slice(0, 16)}
+                    min={new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)}
                   />
                   <div className="text-sm text-gray-500 mt-1">
                     Students will not be able to submit answers after this time
@@ -836,20 +841,40 @@ const TeacherView = ({
               )}
 
               <div className="card-actions justify-end gap-2">
+                {challengeData?.settings?.dueDateEnabled && localDueDate && (
+                  <button
+                    className="btn btn-primary"
+                    onClick={async () => {
+                      try {
+                        const response = await updateDueDate(classroomId, true, localDueDate);
+                        setChallengeData(prev => ({
+                          ...prev,
+                          settings: {
+                            ...prev?.settings,
+                            dueDateEnabled: response.challenge.settings.dueDateEnabled,
+                            dueDate: response.challenge.settings.dueDate
+                          }
+                        }));
+                        toast.success('Due date updated');
+                        setLocalDueDate('');
+                        await fetchChallengeData();
+                      } catch (error) {
+                        toast.error(error.message || 'Failed to update due date');
+                      }
+                    }}
+                  >
+                    Save Due Date
+                  </button>
+                )}
                 <button
                   className="btn btn-ghost"
-                  onClick={() => setShowDueDateModal(false)}
+                  onClick={() => {
+                    setShowDueDateModal(false);
+                    setLocalDueDate('');
+                  }}
                 >
                   Cancel
                 </button>
-                {challengeData?.settings?.dueDateEnabled && (
-                  <button
-                    className="btn btn-primary"
-                    onClick={() => setShowDueDateModal(false)}
-                  >
-                    Update Due Date
-                  </button>
-                )}
               </div>
             </div>
           </div>

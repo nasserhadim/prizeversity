@@ -181,6 +181,8 @@ const Challenge = () => {
           handleShowConfigModal={handleShowConfigModal}
           handleShowDeactivateModal={handleShowDeactivateModal}
           initiating={initiating}
+          classroomId={classroomId}
+          fetchChallengeData={fetchChallengeData}
         />
         
         <ChallengeConfigModal
