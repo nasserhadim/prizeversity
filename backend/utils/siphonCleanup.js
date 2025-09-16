@@ -6,6 +6,7 @@ const GroupSet = require('../models/GroupSet');
 const Classroom = require('../models/Classroom');
 const { populateNotification } = require('./notifications');
 const mongoose = require('mongoose');
+const { getIO } = require('./io');
 
 const CLEAN_INTERVAL_MS = Number(process.env.SIPHON_CLEAN_INTERVAL_MS || 1 * 60 * 1000); // default: 1 minute
 
@@ -57,8 +58,7 @@ async function cleanupExpiredSiphons() {
 
         // emit realtime if io available
         try {
-          const srv = require('../server');
-          const io = srv?.getIO ? srv.getIO() : srv?.io;
+          const io = getIO && getIO();
           if (io) io.to(`user-${siphon.targetUser}`).emit('notification', populatedTarget);
         } catch (e) {
           // server may not export io; ignore
@@ -87,8 +87,7 @@ async function cleanupExpiredSiphons() {
             const populated = await populateNotification(n._id);
 
             try {
-              const srv = require('../server');
-              const io = srv?.getIO ? srv.getIO() : srv?.io;
+              const io = getIO && getIO();
               if (io) io.to(`user-${memberId}`).emit('notification', populated);
             } catch (e) {}
           } catch (err) {
@@ -98,8 +97,7 @@ async function cleanupExpiredSiphons() {
 
         // Emit group-level update
         try {
-          const srv = require('../server');
-          const io = srv?.getIO ? srv.getIO() : srv?.io;
+          const io = getIO && getIO();
           if (io) io.to(`group-${group._id}`).emit('siphon_update', siphon);
         } catch (e) {}
       }
@@ -119,8 +117,7 @@ async function cleanupExpiredSiphons() {
           });
           const populatedT = await populateNotification(tn._id);
           try {
-            const srv = require('../server');
-            const io = srv?.getIO ? srv.getIO() : srv?.io;
+            const io = getIO && getIO();
             if (io) io.to(`user-${teacherId}`).emit('notification', populatedT);
           } catch (e) {}
         } catch (err) {
