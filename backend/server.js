@@ -45,12 +45,17 @@ console.log("✅ Socket.IO CORS origin set to:", redirectBase);
 // Initialize Socket.IO with CORS settings
 // This allows the frontend to connect to the Socket.IO server from the specified origin
 
+const { setIO } = require('./utils/io'); // <-- new import
+
 const io = new Server(httpServer, {
   cors: {
     origin: redirectBase,
     methods: ["GET", "POST"]
   }
 });
+
+// register io for other modules
+setIO(io);
 
 // Middleware
 app.use(cors({
@@ -245,7 +250,7 @@ io.on('connection', (socket) => {
   });
 });
 
-// Make io accessible to routes
+// Make io accessible to routes (optional / keep for compatibility)
 app.set('io', io);
 
 // Start Server
