@@ -393,21 +393,21 @@ router.post('/:classroomId/debug-progress', ensureAuthenticated, ensureTeacher, 
 
     let userChallenge = challenge.userChallenges.find(uc => uc.userId.toString() === userId.toString());
     
+    const targetProgress = parseInt(progress);
+    const totalChallenges = typeof challenge.getTotalChallenges === 'function'
+      ? challenge.getTotalChallenges()
+      : (challenge.settings?.challengeBits?.length || 7);
+
     if (!userChallenge) {
-      const crypto = require('crypto');
-      const uniqueId = crypto.randomBytes(16).toString('hex');
-      
-      userChallenge = {
-        userId,
-        uniqueId,
-        progress: parseInt(progress),
-        completedAt: progress >= 7 ? new Date() : null
-      };
-      
+      // Generate a valid userChallenge (includes required hashedPassword and passwords)
+      const generated = challenge.generateUserChallenge(userId);
+      generated.progress = targetProgress;
+      generated.completedAt = targetProgress >= totalChallenges ? new Date() : null;
+      userChallenge = generated;
       challenge.userChallenges.push(userChallenge);
     } else {
-      userChallenge.progress = parseInt(progress);
-      userChallenge.completedAt = progress >= 4 ? new Date() : null;
+      userChallenge.progress = targetProgress;
+      userChallenge.completedAt = targetProgress >= totalChallenges ? new Date() : null;
     }
 
     await challenge.save();

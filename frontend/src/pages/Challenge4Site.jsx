@@ -262,15 +262,6 @@ const Challenge4Site = () => {
               Our sources have identified suspicious activity in a public repository related to WSU transit systems. 
               Intelligence suggests that evidence has been hidden in plain sight using steganographic techniques.
             </p>
-            <div className="bg-red-900 border border-red-600 rounded-lg p-4">
-              <h3 className="font-semibold text-red-300 mb-2">🎯 Mission Objectives:</h3>
-              <ul className="space-y-1 text-sm text-gray-300">
-                <li>• Investigate the target repository</li>
-                <li>• Locate suspicious digital artifacts</li>
-                <li>• Perform forensic analysis on discovered evidence</li>
-                <li>• Extract the hidden intelligence</li>
-              </ul>
-            </div>
           </div>
         </div>
 
@@ -294,11 +285,6 @@ const Challenge4Site = () => {
                 <ExternalLink size={16} />
                 Investigate Repository
               </a>
-            </div>
-            <div className="bg-yellow-900 border border-yellow-600 rounded-lg p-4">
-              <p className="text-yellow-300 text-sm">
-                💡 <strong>OSINT Tip:</strong> Pay close attention to file modification dates and unexpected additions to the repository structure.
-              </p>
             </div>
           </div>
         </div>
@@ -344,63 +330,6 @@ const Challenge4Site = () => {
                   </button>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Investigation Guidelines */}
-        <div className="bg-gray-900 rounded-lg border border-gray-700 p-6">
-          <h3 className="text-lg font-bold mb-4 text-green-400">🔍 Investigation Guidelines</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <h4 className="font-semibold mb-3 text-green-300">OSINT Methodology:</h4>
-              <ul className="space-y-2 text-sm text-gray-400">
-                <li className="flex items-start gap-2">
-                  <span className="text-green-500 font-bold">•</span>
-                  Systematic repository enumeration
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-500 font-bold">•</span>
-                  File modification timeline analysis
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-500 font-bold">•</span>
-                  Digital artifact identification
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-500 font-bold">•</span>
-                  Metadata extraction techniques
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-500 font-bold">•</span>
-                  Evidence correlation and analysis
-                </li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-3 text-green-300">Digital Forensics Tools:</h4>
-              <ul className="space-y-2 text-sm text-gray-400">
-                <li className="flex items-start gap-2">
-                  <span className="text-purple-500 font-bold">•</span>
-                  Online metadata analyzers
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-purple-500 font-bold">•</span>
-                  Command-line forensics utilities
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-purple-500 font-bold">•</span>
-                  Browser developer tools
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-purple-500 font-bold">•</span>
-                  File system analysis
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-purple-500 font-bold">•</span>
-                  Hexadecimal editors
-                </li>
-              </ul>
             </div>
           </div>
         </div>
