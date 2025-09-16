@@ -102,7 +102,14 @@ const TeacherView = ({
 
   const handleAssignStudent = async (studentId) => {
     try {
-      const response = await fetch(`/api/challenges/${classroomId}/assign-student`, {
+      const challengeId = challengeData?.challenge?._id || challengeData?._id;
+      
+      if (!challengeId) {
+        toast.error('Challenge ID not found');
+        return;
+      }
+
+      const response = await fetch(`/api/challenges/${challengeId}/assign-student`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -114,7 +121,8 @@ const TeacherView = ({
         setShowAssignDropdown(false);
         await fetchChallengeData();
       } else {
-        toast.error('Failed to assign student');
+        const errorData = await response.json();
+        toast.error(errorData.message || 'Failed to assign student');
       }
     } catch (error) {
       toast.error('Error assigning student');
