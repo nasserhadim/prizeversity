@@ -380,60 +380,6 @@ router.post('/:challengeId/assign-student', ensureAuthenticated, ensureTeacher, 
   }
 });
 
-router.post('/:classroomId/debug-progress', ensureAuthenticated, ensureTeacher, async (req, res) => {
-  try {
-    const { classroomId } = req.params;
-    const { progress } = req.body;
-    const userId = req.user._id;
-
-    const challenge = await Challenge.findOne({ classroomId });
-    if (!challenge) {
-      return res.status(404).json({ message: 'Challenge not found' });
-    }
-
-    let userChallenge = challenge.userChallenges.find(uc => uc.userId.toString() === userId.toString());
-    
-    const targetProgress = parseInt(progress);
-    const totalChallenges = typeof challenge.getTotalChallenges === 'function'
-      ? challenge.getTotalChallenges()
-      : (challenge.settings?.challengeBits?.length || 7);
-
-    if (!userChallenge) {
-      // Generate a valid userChallenge (includes required hashedPassword and passwords)
-      const generated = challenge.generateUserChallenge(userId);
-      generated.progress = targetProgress;
-      generated.completedAt = targetProgress >= totalChallenges ? new Date() : null;
-      userChallenge = generated;
-      challenge.userChallenges.push(userChallenge);
-    } else {
-      userChallenge.progress = targetProgress;
-      userChallenge.completedAt = targetProgress >= totalChallenges ? new Date() : null;
-    }
-
-    await challenge.save();
-
-    const user = await User.findById(userId);
-    if (user && progress > 0) {
-      for (let i = 0; i < progress; i++) {
-        const baseBits = (challenge.settings.challengeBits || [])[i] || 0;
-        user.balance = (user.balance || 0) + baseBits;
-      }
-      await user.save();
-      console.log(`Applied rewards for challenges 0-${progress-1} to user ${userId}`);
-    }
-
-    res.json({ 
-      success: true, 
-      message: `Progress set to ${progress}`,
-      userChallenge 
-    });
-
-  } catch (error) {
-    console.error('Error setting debug progress:', error);
-    res.status(500).json({ message: 'Failed to set progress' });
-  }
-});
-
 function createDefaultValidationSettings() {
   const crypto = require('crypto');
   return [
