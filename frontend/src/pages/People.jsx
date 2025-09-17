@@ -25,6 +25,8 @@ const People = () => {
   const [taBitPolicy, setTaBitPolicy] = useState('full');
   const [studentsCanViewStats, setStudentsCanViewStats] = useState(true);
   const [students, setStudents] = useState([]);
+  // Map of studentId -> total spent (number)
+  const [totalSpentMap, setTotalSpentMap] = useState({});
   const [groupSets, setGroupSets] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOption, setSortOption] = useState('default');
@@ -99,7 +101,7 @@ const People = () => {
 
     // Add classroom removal handler
     const handleClassroomRemoval = (data) => {
-      if (String(data.classroomId) === String(classroomId)) {
+      if (String(data.classroomId) === String(classroomId) && String(data.userId) === String(user._id)) {
         toast.error(data.message || 'You have been removed from this classroom');
         // Redirect to classroom dashboard after a short delay
         setTimeout(() => {
@@ -120,6 +122,7 @@ const People = () => {
 
       // This is now the single source of truth for real-time updates to this setting.
       socket.on('classroom_update', (updatedClassroom) => {
+        console.log('classroom_update received, banLog:', updatedClassroom.banLog);
         if (updatedClassroom._id === classroomId) {
           console.debug('[socket] People classroom_update received, updating state from payload.');
           console.debug('[socket] Updated classroom data:', updatedClassroom);
@@ -323,6 +326,23 @@ const People = () => {
     }
   };
 
+  // Add helper to detect ban info for a student
+const getBanInfo = (student, classroomObj) => {
+  const banLog = (Array.isArray(classroomObj?.banLog) && classroomObj.banLog.length)
+    ? classroomObj.banLog
+    : (Array.isArray(classroomObj?.bannedRecords) ? classroomObj.bannedRecords : []);
+  const banRecord = (banLog || []).find(br => String(br.user?._id || br.user) === String(student._id));
+  if (banRecord) {
+    return { banned: true, reason: banRecord.reason || '', bannedAt: banRecord.bannedAt || null };
+  }
+  const bannedStudents = Array.isArray(classroomObj?.bannedStudents) ? classroomObj.bannedStudents : [];
+  const bannedIds = bannedStudents.map(b => (b && b._id) ? String(b._id) : String(b));
+  if (bannedIds.includes(String(student._id))) {
+    return { banned: true, reason: '', bannedAt: null };
+  }
+  return { banned: false, reason: '', bannedAt: null };
+};
+
   // Filter and sort students based on searchQuery, sortOption, and roleFilter
   const filteredStudents = [...students]
     .filter((student) => {
@@ -340,7 +360,11 @@ const People = () => {
         fullName.includes(query)
       );
 
-      // Role filter
+      // Role filter (adds 'banned' option)
+      if (roleFilter === 'banned') {
+        const banInfo = getBanInfo(student, classroom);
+        return matchesSearch && banInfo.banned;
+      }
       const matchesRole = roleFilter === 'all' || student.role === roleFilter;
       
       return matchesSearch && matchesRole;
@@ -351,6 +375,14 @@ const People = () => {
         return (b.balance || 0) - (a.balance || 0);
       } else if (sortOption === 'balanceAsc' && (user?.role === 'teacher' || user?.role === 'admin')) {
         return (a.balance || 0) - (b.balance || 0);
+      } else if (sortOption === 'totalSpentDesc' && (user?.role === 'teacher' || user?.role === 'admin')) {
+        const aVal = Number(totalSpentMap[a._id] || 0);
+        const bVal = Number(totalSpentMap[b._id] || 0);
+        return bVal - aVal;
+      } else if (sortOption === 'totalSpentAsc' && (user?.role === 'teacher' || user?.role === 'admin')) {
+        const aVal = Number(totalSpentMap[a._id] || 0);
+        const bVal = Number(totalSpentMap[b._id] || 0);
+        return aVal - bVal;
       } else if (sortOption === 'nameAsc') {
         const nameA = (a.firstName || a.name || '').toLowerCase();
         const nameB = (b.firstName || b.name || '').toLowerCase();
@@ -367,7 +399,56 @@ const People = () => {
       return 0; // Default order
     });
 
-    // Handle bulk user upload via Excel file
+  // ── Fetch per-student "total spent" (sum of negative transaction amounts) for teacher/admin viewers ──
+  useEffect(() => {
+    // Only fetch when a teacher/admin is viewing and we have a classroom
+    const viewerRole = (user?.role || '').toString().toLowerCase();
+    if (!user || !['teacher', 'admin'].includes(viewerRole)) return;
+    if (!classroomId) return;
+
+    // Limit to first N visible students to avoid too many requests
+    const visible = Array.isArray(filteredStudents) ? filteredStudents.slice(0, 50) : [];
+    const ids = visible.map(s => s._id).filter(Boolean);
+    if (!ids.length) {
+      setTotalSpentMap({});
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const promises = ids.map(id =>
+          axios
+            .get(`/api/wallet/transactions/all?studentId=${id}&classroomId=${classroomId}`, { withCredentials: true })
+            .then(res => {
+              const txs = Array.isArray(res.data) ? res.data : (res.data?.transactions || []);
+              const spent = txs.reduce((sum, t) => {
+                const amt = Number(t.amount) || 0;
+                return sum + (amt < 0 ? Math.abs(amt) : 0);
+              }, 0);
+              return { id, spent };
+            })
+            .catch((err) => {
+              console.debug('[People] failed to fetch transactions for', id, err?.message || err);
+              return { id, spent: 0 };
+            })
+        );
+
+        const results = await Promise.all(promises);
+        if (cancelled) return;
+        const map = {};
+        results.forEach(r => { map[r.id] = r.spent; });
+        setTotalSpentMap(map);
+      } catch (err) {
+        if (!cancelled) console.error('[People] failed to load per-student totals', err);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [user, classroomId, filteredStudents]);
+  // ── end per-student totals effect ──
+
+  // Handle bulk user upload via Excel file
   const handleExcelUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -438,6 +519,8 @@ const People = () => {
           Email: student.email,
           Role: ROLE_LABELS[student.role] || student.role,
           Balance: student.balance?.toFixed(2) || '0.00',
+          // Include Total spent for CSV export (uses per-student totals loaded into totalSpentMap)
+          TotalSpent: (Number(totalSpentMap[student._id] || 0)).toFixed(2),
           JoinedDate: student.joinedAt 
             ? new Date(student.joinedAt).toLocaleString() 
             : student.createdAt 
@@ -496,7 +579,6 @@ const People = () => {
       throw new Error('No students to export');
     }
 
-    // Build comprehensive data including stats and groups
     const dataToExport = await Promise.all(
       filteredStudents.map(async (student) => {
         let stats = {};
@@ -532,6 +614,8 @@ const People = () => {
           console.error('Failed to process groups for student:', student._id);
         }
 
+        const banInfo = getBanInfo(student, classroom);
+
         return {
           _id: student._id,
           name: `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.email,
@@ -540,6 +624,8 @@ const People = () => {
           email: student.email,
           role: student.role,
           balance: student.balance || 0,
+          // include numeric totalSpent for JSON export
+          totalSpent: Number(totalSpentMap[student._id] || 0),
           joinedDate: student.joinedAt || student.createdAt || null,
           stats: {
             luck: stats.luck || 1,
@@ -558,6 +644,10 @@ const People = () => {
             name: classroom?.name,
             code: classroom?.code
           },
+          // NEW: standardized ban/status fields
+          status: banInfo.banned ? 'banned' : (student.role || 'unknown'),
+          banReason: banInfo.reason || '',
+          banTimestamp: banInfo.bannedAt ? new Date(banInfo.bannedAt).toISOString() : null,
           exportedAt: new Date().toISOString(),
           exportedFrom: 'people_page'
         };
@@ -668,6 +758,21 @@ const People = () => {
       </div>
     ));
   };
+
+  { /* Add helper to unban (place near other handlers like handleRemoveStudent) */ }
+const handleUnbanStudent = async (studentId) => {
+  try {
+    await axios.post(`/api/classroom/${classroomId}/students/${studentId}/unban`, {}, { withCredentials: true });
+    toast.success('Student unbanned');
+    await fetchStudents();
+    await fetchClassroom();
+    // Add a small delay to ensure state propagates
+    setTimeout(() => setClassroom(prev => ({ ...prev })), 500); // Force re-render if needed
+  } catch (err) {
+    console.error('Failed to unban', err);
+    toast.error(err.response?.data?.error || 'Failed to unban student');
+  }
+};
 
   // Add this helper function near the top of the People component
   const getUnassignedStudents = (students, groupSets) => {
@@ -934,6 +1039,7 @@ const visibleCount = filteredStudents.length;
                   <option value="student">Students</option>
                   <option value="admin">Admin/TAs</option>
                   <option value="teacher">Teachers</option>
+                  <option value="banned">Banned</option> {/* <-- NEW */}
                 </select>
 
                 {/* Sort */}
@@ -947,6 +1053,8 @@ const visibleCount = filteredStudents.length;
                     <>
                       <option value="balanceDesc">Balance (High → Low)</option>
                       <option value="balanceAsc">Balance (Low → High)</option>
+                      <option value="totalSpentDesc">Total Spent (High → Low)</option>
+                      <option value="totalSpentAsc">Total Spent (Low → High)</option>
                     </>
                   )}
                   <option value="nameAsc">Name (A → Z)</option>
@@ -972,36 +1080,86 @@ const visibleCount = filteredStudents.length;
               {filteredStudents.length === 0 ? (
                 <p>No matching {roleFilter === 'all' ? 'people' : roleFilter === 'admin' ? 'Admin/TAs' : `${roleFilter}s`} found.</p>
               ) : (
-                filteredStudents.map((student) => (
-                  <div
-                    key={student._id}
-                    className="border p-3 rounded shadow flex justify-between items-center"
-                  >
-                    <div>
-                      <div className="font-medium text-lg">
-                        {student.firstName || student.lastName
-                          ? `${student.firstName || ''} ${student.lastName || ''}`.trim()
-                          : student.name || student.email}
+                filteredStudents.map((student) => {
+                  const isBanned = Boolean(
+                    // Normalize bannedStudents entries (may be Object or id) and prefer banLog if present
+                    (() => {
+                      // Prefer canonical banLog but fall back to older 'bannedRecords' shape.
+                      const banLog = (Array.isArray(classroom?.banLog) && classroom.banLog.length) 
+                        ? classroom.banLog 
+                        : (Array.isArray(classroom?.bannedRecords) ? classroom.bannedRecords : []);
+                      const banRecord = (banLog || []).find(br => String(br.user?._id || br.user) === String(student._id));
+                      console.log('classroom.banLog:', classroom?.banLog);
+                      console.log('student._id:', student._id);
+                      console.log('banRecord found:', banRecord);
+                      if (banRecord) {
+                        console.log('banRecord.reason:', banRecord.reason);
+                        console.log('banRecord.bannedAt:', banRecord.bannedAt);
+                        return true;
+                      }
+                      const bannedStudents = Array.isArray(classroom?.bannedStudents) ? classroom.bannedStudents : [];
+                      const bannedIds = bannedStudents.map(b => (b && b._id) ? String(b._id) : String(b));
+                      return bannedIds.includes(String(student._id));
+                    })()
+                  );
+                  const banRecord = (classroom?.banLog || []).find(br => String(br.user?._id || br.user) === String(student._id));
+
+                  return (
+                    <div key={student._id} className="border p-3 rounded shadow flex justify-between items-center">
+                      <div>
+                        <div className="font-medium text-lg">
+                          {student.firstName || student.lastName
+                            ? `${student.firstName || ''} ${student.lastName || ''}`.trim()
+                            : student.name || student.email}
                         <span className="ml-2 text-gray-600 text-sm">
                           – Role: {ROLE_LABELS[student.role] || student.role}
                         </span>
-                      </div>
-
-                      {/* Only show balance to teachers/admins */}
-                      {(user?.role?.toLowerCase() === 'teacher' || user?.role?.toLowerCase() === 'admin') && (
-                        <div className="text-sm text-gray-500 mt-1">
-                          Balance: ₿{student.balance?.toFixed(2) || '0.00'}
                         </div>
-                      )}
 
-                      {/* Add join date display */}
-                      <div className="text-sm text-gray-500 mt-1">
-                        Joined: {student.joinedAt 
-                          ? new Date(student.joinedAt).toLocaleString() 
-                          : student.createdAt 
-                            ? new Date(student.createdAt).toLocaleString()
-                            : 'Unknown'
-                        }
+                        {isBanned && (
+                          <div className="mt-1">
+                            <span className="badge badge-error mr-2">BANNED</span>
+                            <div className="text-xs text-red-600">
+                              {banRecord ? (
+                                <div>
+                                 { (user?.role === 'teacher' || user?.role === 'admin') ? (
+                                    <div>
+                                     Reason: {banRecord.reason || 'Not specified'}
+                                      <div>• {new Date(banRecord.bannedAt).toLocaleString()}</div>
+                                    </div>
+                                  ) : (
+                                    <div>• {new Date(banRecord.bannedAt).toLocaleString()}</div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div>Banned (no details available)</div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Only show balance to teachers/admins */}
+                        {(user?.role?.toLowerCase() === 'teacher' || user?.role?.toLowerCase() === 'admin') && (
+                          <div className="text-sm text-gray-500 mt-1">
+                            Balance: ₿{student.balance?.toFixed(2) || '0.00'}
+                          </div>
+                        )}
+
+                        {/* Show total spent to teachers/admins */}
+                        {(user?.role?.toLowerCase() === 'teacher' || user?.role?.toLowerCase() === 'admin') && (
+                          <div className="text-sm text-gray-500">
+                            Total spent: ₿{((totalSpentMap[student._id] || 0)).toFixed(2)}
+                          </div>
+                        )}
+
+                        {/* Join date display */}
+                        <div className="text-sm text-gray-500 mt-1">
+                          Joined: {student.joinedAt
+                            ? new Date(student.joinedAt).toLocaleString()
+                            : student.createdAt
+                              ? new Date(student.createdAt).toLocaleString()
+                              : 'Unknown'}
+                        </div>
                       </div>
 
                       <div className="flex gap-2 mt-2 flex-wrap">
@@ -1036,12 +1194,80 @@ const visibleCount = filteredStudents.length;
 
                         {/* Add Remove Student button for teachers */}
                         {user?.role?.toLowerCase() === 'teacher' && student.role !== 'teacher' && String(student._id) !== String(user._id) && (
-                          <button
-                            className="btn btn-xs sm:btn-sm btn-error"
-                            onClick={() => handleRemoveStudent(student._id, student.firstName || student.lastName ? `${student.firstName || ''} ${student.lastName || ''}`.trim() : student.email)}
-                          >
-                            Remove
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              className="btn btn-xs sm:btn-sm btn-error"
+                              onClick={() => handleRemoveStudent(student._id, student.firstName || student.lastName ? `${student.firstName || ''} ${student.lastName || ''}`.trim() : student.email)}
+                            >
+                              Remove
+                            </button>
+
+                            {/* Show Unban if banned, otherwise show Ban */}
+                            {isBanned ? (
+                              <button
+                                type="button"
+                                className="btn btn-xs sm:btn-sm btn-success"
+                                onClick={(e) => { e.stopPropagation(); handleUnbanStudent(student._id); }}
+                              >
+                                Unban
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                className="btn btn-xs sm:btn-sm btn-warning"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toast((t) => (
+                                    <div className="flex flex-col" onClick={(ev) => ev.stopPropagation()}>
+                                      <span>Ban "{student.firstName || student.lastName ? `${student.firstName || ''} ${student.lastName || ''}`.trim() : student.email}" from this classroom?</span>
+                                      <textarea
+                                        id={`ban-reason-${student._id}`}
+                                        placeholder="Optional reason (shown to student)"
+                                        autoFocus
+                                        rows={3}
+                                        className="textarea textarea-sm textarea-bordered mt-2 w-full"
+                                        style={{ backgroundColor: '#ffffff', color: '#000000', padding: '8px' }}
+                                      />
+                                      <div className="flex justify-end gap-2 mt-2">
+                                        <button
+                                          type="button"
+                                          className="btn btn-warning btn-sm"
+                                          onClick={async (ev) => {
+                                            ev.stopPropagation();
+                                            const input = document.getElementById(`ban-reason-${student._id}`);
+                                            const reason = input ? input.value : '';
+                                            toast.dismiss(t.id);
+                                            try {
+                                              await axios.post(
+                                                `/api/classroom/${classroomId}/students/${student._id}/ban`,
+                                                { reason },
+                                                { withCredentials: true }
+                                              );
+                                              toast.success('Student banned');
+                                              await fetchStudents();
+                                              await fetchClassroom();
+                                              setTimeout(() => setClassroom(prev => ({ ...prev })), 500);
+                                            } catch (err) {
+                                              console.error('Failed to ban', err);
+                                              toast.error(err.response?.data?.error || 'Failed to ban student');
+                                            }
+                                          }}
+                                        >
+                                          Yes
+                                        </button>
+                                        <button type="button" className="btn btn-ghost btn-sm" onClick={(ev) => { ev.stopPropagation(); toast.dismiss(t.id); }}>
+                                          Cancel
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ), { duration: Infinity }); // <- keep modal visible until dismissed programmatically
+                                }}
+                              >
+                                Ban
+                              </button>
+                            )}
+                          </>
                         )}
 
                         {/* Role change dropdown */}
@@ -1075,8 +1301,8 @@ const visibleCount = filteredStudents.length;
                         )}
                       </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
@@ -1085,7 +1311,7 @@ const visibleCount = filteredStudents.length;
         {tab === 'groups' && (
           <div className="space-y-6 w-full min-w-0">
             {/* Add Unassigned Students Filter */}
-    {(user?.role === 'teacher' || user?.role === 'admin') && (
+    {(user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'student') && (
       <div className="card bg-base-100 shadow-sm border">
         <div className="card-body p-4">
           <div className="flex justify-between items-center">
@@ -1117,29 +1343,38 @@ const visibleCount = filteredStudents.length;
                         const query = unassignedSearch.toLowerCase();
                         return name.includes(query) || email.includes(query);
                       })
-                      .map(student => (
-                      <div 
-                        key={student._id} 
-                        className="flex justify-between items-center p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800"
-                      >
-                        <span className="font-medium">
-                          {student.firstName || student.lastName
-                            ? `${student.firstName || ''} ${student.lastName || ''}`.trim()
-                            : student.email}
-                        </span>
-                        <div className="flex gap-2">
-                          <button
-                            className="btn btn-xs btn-outline"
-                            onClick={() => navigate(
-                              `/classroom/${classroomId}/profile/${student._id}`,
-                              { state: { from: 'people', classroomId } }
-                            )}
-                          >
-                            Profile
-                          </button>
+                      .map(student => {
+                      // NEW: determine ban status for unassigned student
+                      const banInfo = getBanInfo(student, classroom);
+                      const isBanned = Boolean(banInfo?.banned);
+
+                      return (
+                        <div 
+                          key={student._id} 
+                          className="flex justify-between items-center p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800"
+                        >
+                          <span className="font-medium">
+                            {student.firstName || student.lastName
+                              ? `${student.firstName || ''} ${student.lastName || ''}`.trim()
+                              : student.email}
+                            {/* SHOW BANNED BADGE FOR UNASSIGNED STUDENTS */}
+                            {isBanned && <span className="badge badge-error ml-2">BANNED</span>}
+                          </span>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              className="btn btn-xs btn-outline"
+                              onClick={() => navigate(
+                                `/classroom/${classroomId}/profile/${student._id}`,
+                                { state: { from: 'people', classroomId } }
+                              )}
+                            >
+                              Profile
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1167,24 +1402,63 @@ const visibleCount = filteredStudents.length;
                     {group.members
                       .filter(m => m && m._id && m.status === 'approved') // Add status filter
                       .map((m) => {
-                        const user = m._id;
-                        const userId = user._id || user; // handle populated object or raw id
-                        const displayName = user && (user.firstName || user.lastName)
-                          ? `${user.firstName || ''} ${user.lastName || ''}`.trim()
-                          : user?.name || user?.email || 'Unknown User';
+                        // avoid shadowing the outer `user` (viewer) from useAuth()
+                        const memberUser = m._id;
+                        const userId = memberUser._id || memberUser; // handle populated object or raw id
+                        const displayName = memberUser && (memberUser.firstName || memberUser.lastName)
+                          ? `${memberUser.firstName || ''} ${memberUser.lastName || ''}`.trim()
+                          : memberUser?.name || memberUser?.email || 'Unknown User';
 
+                         // Determine banned state for this member (reuse classroom shape logic)
+                        const banLog = (Array.isArray(classroom?.banLog) && classroom.banLog.length)
+                          ? classroom.banLog
+                          : (Array.isArray(classroom?.bannedRecords) ? classroom.bannedRecords : []);
+                        const isBannedMember = Boolean(
+                          banLog.find(br => String(br.user?._id || br.user) === String(userId)) ||
+                          (Array.isArray(classroom?.bannedStudents) &&
+                            classroom.bannedStudents.map(b => (b && b._id) ? String(b._id) : String(b)).includes(String(userId)))
+                        );
+
+                        // Determine siphoned state: either account frozen for this classroom OR an active siphon targeting them
+                        const isFrozenForClassroom = Boolean(
+                          memberUser?.classroomFrozen?.some(cf => String(cf.classroom) === String(classroomId))
+                        );
+                        const isTargetOfActiveSiphon = Boolean(
+                           (group?.siphonRequests || []).some(r =>
+                            String(r.targetUser?._id || r.targetUser) === String(userId) &&
+                            ['pending','group_approved'].includes(r.status)
+                           )
+                         );
+                         const isSiphoned = isFrozenForClassroom || isTargetOfActiveSiphon;
+
+                        // Only allow viewing the siphoned badge if the current viewer is a teacher/admin
+                        // or is an approved member of this group (mirrors Groups.jsx visibility rules)
+                        const currentUserId = user?._id;
+                        const isViewerTeacherOrAdmin = (user?.role === 'teacher' || user?.role === 'admin');
+                        const isViewerGroupMember = Boolean(
+                          group?.members?.some(m => {
+                            const mid = m._id?._id || m._id;
+                            return String(mid) === String(currentUserId) && m.status === 'approved';
+                          })
+                        );
+                        const canSeeSiphon = isViewerTeacherOrAdmin || isViewerGroupMember;
+ 
                         return (
                           <li key={String(userId)} className="flex justify-between items-center w-full">
-                            <span>{displayName}</span>
-                            <button
-                              className="btn btn-sm btn-outline ml-4"
-                              onClick={() => navigate(`/classroom/${classroomId}/profile/${userId}`, { state: { from: 'people', classroomId } })}
-                            >
-                              View Profile
-                            </button>
-                          </li>
-                        );
-                      })}
+                            <span className="flex items-center gap-2">
+                              <span>{displayName}</span>
+                              {isBannedMember && <span className="badge badge-error">BANNED</span>}
+                              {isSiphoned && canSeeSiphon && <span className="badge badge-warning">SIPHONED</span>}
+                            </span>
+                             <button
+                               className="btn btn-sm btn-outline ml-4"
+                               onClick={() => navigate(`/classroom/${classroomId}/profile/${userId}`, { state: { from: 'people', classroomId } })}
+                             >
+                               View Profile
+                             </button>
+                           </li>
+                         );
+                       })}
                 </ul>
               )}
               </div>

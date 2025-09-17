@@ -117,7 +117,13 @@ const CreateBazaar = ({ classroomId, onCreate }) => {
 
         {imageSource === 'file' ? (
           <>
-            <input type="file" accept="image/*" onChange={e => setImageFile(e.target.files[0])} />
+            {/* Styled file input to match other upload controls */}
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              onChange={e => setImageFile(e.target.files[0])}
+              className="file-input file-input-bordered w-full max-w-xs"
+            />
             <p className="text-xs text-gray-500">Allowed: jpg, png, webp, gif. Max: 5 MB.</p>
           </>
         ) : (

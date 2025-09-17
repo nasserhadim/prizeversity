@@ -32,9 +32,13 @@ export default function ClassroomSettings() {
                 const cls = res.data;
                 setArchived(cls.archived);
                 // Only teacher/admin can access
+                // Normalize teacher id (handle populated object or raw id)
+                const teacherId = cls.teacher && (typeof cls.teacher === 'string'
+                  ? cls.teacher
+                  : (cls.teacher._id || cls.teacher).toString());
                 const hasAccess =
                     user.role === 'admin' ||
-                    (user.role === 'teacher' && cls.teacher === user._id);
+                    (user.role === 'teacher' && String(teacherId) === String(user._id));
                 if (!hasAccess) {
                     toast.error('You do not have access to this classroom');
                     navigate('/');
@@ -77,7 +81,8 @@ export default function ClassroomSettings() {
                                 setTimeout(() => toast.dismiss(toastId), 3000);
                             } catch (err) {
                                 console.error(err);
-                                toast.error('Failed to leave classroom');
+                                const msg = err.response?.data?.error || err.response?.data?.message || 'Failed to leave classroom';
+                                toast.error(msg);
                             }
                         }}
                     >

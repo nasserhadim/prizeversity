@@ -4,6 +4,7 @@ const Group = require('../models/Group');
 const Notification = require('../models/Notification');
 const Classroom = require('../models/Classroom');
 const { ensureAuthenticated } = require('../config/auth');
+const blockIfFrozen = require('../middleware/blockIfFrozen');
 const router = express.Router();
 const io = require('socket.io')();
 const { populateNotification } = require('../utils/notifications');
@@ -365,7 +366,7 @@ router.post('/groupset/:groupSetId/group/:groupId/join', ensureAuthenticated, as
     await group.updateMultiplier();
 
     const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email isFrozen firstName lastName');
+      .populate('members._id', 'email isFrozen firstName lastName classroomFrozen');
 
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', {
       groupSet: groupSet._id,
@@ -433,10 +434,10 @@ router.put('/groupset/:groupSetId/group/:groupId', ensureAuthenticated, upload.s
 
     // Always emit the group update event with populated data
     const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email firstName lastName');
+      .populate('members._id', 'email isFrozen firstName lastName classroomFrozen');
 
-    req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
-      groupSet: groupSet._id, 
+    req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', {
+      groupSet: groupSet._id,
       group: populatedGroup
     });
 
@@ -574,7 +575,7 @@ router.post('/groupset/:groupSetId/group/:groupId/add-members', ensureAuthentica
     await group.updateMultiplier();
     await group.save();
 
-    const populatedGroup = await Group.findById(group._id).populate('members._id', 'email isFrozen firstName lastName');
+    const populatedGroup = await Group.findById(group._id).populate('members._id', 'email isFrozen firstName lastName classroomFrozen');
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', {
       groupSet: groupSet._id,
       group: populatedGroup
@@ -654,7 +655,7 @@ router.post('/groupset/:groupSetId/group/:groupId/suspend', ensureAuthenticated,
 
     // After successful member status change (approve/reject/suspend)
     const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email firstName lastName');
+      .populate('members._id', 'email firstName lastName classroomFrozen');
 
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
       groupSet: groupSet._id, 
@@ -671,14 +672,28 @@ router.post('/groupset/:groupSetId/group/:groupId/suspend', ensureAuthenticated,
 });
 
 // Leave Group within GroupSet
-router.post('/groupset/:groupSetId/group/:groupId/leave', ensureAuthenticated, async (req, res) => {
+router.post('/groupset/:groupSetId/group/:groupId/leave', ensureAuthenticated, blockIfFrozen, async (req, res) => {
   try {
     const group = await Group.findById(req.params.groupId);
     if (!group) return res.status(404).json({ error: 'Group not found' });
 
+    // Prevent leaving while there's an active siphon against this user
+    const SiphonRequest = require('../models/SiphonRequest');
+    const User = require('../models/User');
+    const liveUser = await User.findById(req.user._id).select('isFrozen');
+    if (liveUser?.isFrozen) {
+      const active = await SiphonRequest.findOne({
+        targetUser: req.user._id,
+        status: { $in: ['pending', 'group_approved'] }
+      });
+      if (active) {
+        return res.status(403).json({ message: 'You cannot leave the group while a siphon request against you is pending.' });
+      }
+    }
+
     const isMember = group.members.some(member => member._id.equals(req.user._id));
     if (!isMember) return res.status(400).json({ message: "You're not a member of this group to leave it!" });
-
+    
     console.log(`Before leave - Group ${group.name}: ${group.members.length} members, multiplier: ${group.groupMultiplier}`);
     
     group.members = group.members.filter(member => !member._id.equals(req.user._id));
@@ -816,7 +831,7 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
 
     // After successful member status change
     const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email firstName lastName');
+      .populate('members._id', 'email isFrozen firstName lastName classroomFrozen');
 
     // Emit update immediately
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
@@ -901,7 +916,7 @@ router.post('/groupset/:groupSetId/group/:groupId/reject', ensureAuthenticated, 
 
     // After successful member status change (approve/reject/suspend)
     const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email firstName lastName');
+      .populate('members._id', 'email firstName lastName classroomFrozen');
 
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
       groupSet: groupSet._id, 
@@ -1059,7 +1074,7 @@ router.post('/groupset/:groupSetId/group/:groupId/suspend', ensureAuthenticated,
 
     // After successful member status change (approve/reject/suspend)
     const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email firstName lastName');
+      .populate('members._id', 'email firstName lastName classroomFrozen');
 
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
       groupSet: groupSet._id, 
@@ -1076,14 +1091,28 @@ router.post('/groupset/:groupSetId/group/:groupId/suspend', ensureAuthenticated,
 });
 
 // Leave Group within GroupSet
-router.post('/groupset/:groupSetId/group/:groupId/leave', ensureAuthenticated, async (req, res) => {
+router.post('/groupset/:groupSetId/group/:groupId/leave', ensureAuthenticated, blockIfFrozen, async (req, res) => {
   try {
     const group = await Group.findById(req.params.groupId);
     if (!group) return res.status(404).json({ error: 'Group not found' });
 
+    // Prevent leaving while there's an active siphon against this user
+    const SiphonRequest = require('../models/SiphonRequest');
+    const User = require('../models/User');
+    const liveUser = await User.findById(req.user._id).select('isFrozen');
+    if (liveUser?.isFrozen) {
+      const active = await SiphonRequest.findOne({
+        targetUser: req.user._id,
+        status: { $in: ['pending', 'group_approved'] }
+      });
+      if (active) {
+        return res.status(403).json({ message: 'You cannot leave the group while a siphon request against you is pending.' });
+      }
+    }
+
     const isMember = group.members.some(member => member._id.equals(req.user._id));
     if (!isMember) return res.status(400).json({ message: "You're not a member of this group to leave it!" });
-
+    
     console.log(`Before leave - Group ${group.name}: ${group.members.length} members, multiplier: ${group.groupMultiplier}`);
     
     group.members = group.members.filter(member => !member._id.equals(req.user._id));
@@ -1221,7 +1250,7 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
 
     // After successful member status change
     const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email firstName lastName');
+      .populate('members._id', 'email isFrozen firstName lastName classroomFrozen');
 
     // Emit update immediately
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
@@ -1306,7 +1335,7 @@ router.post('/groupset/:groupSetId/group/:groupId/reject', ensureAuthenticated, 
 
     // After successful member status change (approve/reject/suspend)
     const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email firstName lastName');
+      .populate('members._id', 'email firstName lastName classroomFrozen');
 
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
       groupSet: groupSet._id, 

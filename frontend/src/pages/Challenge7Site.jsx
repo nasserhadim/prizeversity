@@ -88,7 +88,7 @@ const Challenge7Site = () => {
         .filter(t => !isNaN(t));
       
       if (userTokens.length === 0) {
-        setSubmitMessage('❌ Please enter valid token ID numbers');
+        setSubmitMessage('❌ Please enter valid numbers');
         setSubmitting(false);
         return;
       }
@@ -144,7 +144,7 @@ const Challenge7Site = () => {
           }, 500);
         }
       } else {
-        setSubmitMessage(`❌ INCORRECT token for "${selectedWord}". Try again.`);
+        setSubmitMessage(`❌ Incorrect value for "${selectedWord}". Try again.`);
       }
     } catch (error) {
       setSubmitMessage('⚠️ Connection error. Please try again.');
@@ -355,7 +355,7 @@ const Challenge7Site = () => {
             HANGMAN_7
           </h1>
           <div className="text-sm font-mono text-gray-500">
-            TOKENIZATION CHALLENGE
+            DECODE THE QUOTE
           </div>
         </div>
         
@@ -384,14 +384,14 @@ const Challenge7Site = () => {
               <div className="text-gray-300 font-mono text-xs space-y-1">
                 <div className="flex items-center justify-center gap-2">
                   <Target className="w-3 h-3 text-cyan-400" />
-                  <span>Select a word to reveal by finding its token ID</span>
+                  <span>Select a word to reveal by entering its matching value</span>
                 </div>
                 <div className="flex items-center justify-center gap-2">
                   <Lightbulb className="w-3 h-3 text-cyan-400" />
-                  <span>Enter the correct token ID(s) for the selected word</span>
+                  <span>Enter the correct value(s) for the selected word</span>
                 </div>
                 <div className="text-yellow-400">
-                  Multiple valid tokens accepted - enter any or all separated by commas
+                  Multiple answers accepted - enter any or all separated by commas
                 </div>
               </div>
             </div>
@@ -413,7 +413,7 @@ const Challenge7Site = () => {
           )}
           
           <div className="text-sm font-mono text-gray-500">
-            {selectedWord ? 'ENTER TOKEN ID(S):' : 'SELECT A WORD ABOVE FIRST'}
+            {selectedWord ? 'ENTER VALUE(S):' : 'SELECT A WORD ABOVE FIRST'}
           </div>
           
           <input
@@ -427,7 +427,7 @@ const Challenge7Site = () => {
                 ? 'border-gray-700 text-gray-500' 
                 : 'border-gray-600 text-red-400 focus:border-red-400'
             }`}
-            placeholder={selectedWord ? "TOKEN ID(S)" : "SELECT WORD FIRST"}
+            placeholder={selectedWord ? "VALUE(S)" : "SELECT WORD FIRST"}
           />
           
           <button
@@ -441,14 +441,14 @@ const Challenge7Site = () => {
                   VERIFYING...
                 </span>
               ) : (
-                'SUBMIT TOKEN'
+                'SUBMIT'
               )}
           </button>
           
           <div className="text-xs font-mono text-gray-500 space-y-1">
             <div className="flex items-center justify-center gap-2">
               <span className="text-green-400">⏎</span>
-              <span>Press ENTER to submit token</span>
+              <span>Press ENTER to submit</span>
             </div>
             {submitMessage && (
               <div className={`text-center ${

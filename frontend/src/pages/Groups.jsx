@@ -73,6 +73,28 @@ const Groups = () => {
   const groupSetFileInputRef = useRef(null); // ADD: clear native file input after submit
   const [selectedGroupSets, setSelectedGroupSets] = useState([]); // track selected GroupSet ids
   const [groupSetMultiplierIncrement, setGroupSetMultiplierIncrement] = useState(0); // Default to 0
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000); // update every second for countdown
+    return () => clearInterval(t);
+  }, []);
+
+  // Helper: format milliseconds into compact countdown (e.g. "1d 2h 3m 4s")
+  function formatMs(ms) {
+    if (ms == null) return '';
+    if (ms <= 0) return '0s';
+    const sec = Math.floor(ms / 1000) % 60;
+    const min = Math.floor(ms / (1000 * 60)) % 60;
+    const hrs = Math.floor(ms / (1000 * 60 * 60)) % 24;
+    const days = Math.floor(ms / (1000 * 60 * 60 * 24));
+    const parts = [];
+    if (days) parts.push(`${days}d`);
+    if (hrs) parts.push(`${hrs}h`);
+    if (min) parts.push(`${min}m`);
+    parts.push(`${sec}s`);
+    return parts.join(' ');
+  }
 
   // helper to toggle selection for a single GroupSet id
   const toggleGroupSetSelection = (groupSetId) => {
@@ -663,7 +685,7 @@ const Groups = () => {
       if (res.status === 202) {
         toast.success('Request sent for teacher approval.');
       } else {
-        toast.success(`Selected members (excluding pending members (if any)) ${amt >= 0 ? 'credited' : 'debited'} ${Math.abs(amt)} ₿`);
+        toast.success(`Selected members (excluding pending/banned members (if any)) ${amt >= 0 ? 'credited' : 'debited'} ${Math.abs(amt)} ₿`);
       }
       fetchGroupSets();
     } catch (err) {
@@ -822,6 +844,17 @@ const Groups = () => {
     } catch (err) {
       toast.error('Failed to delete groups');
     }
+  };
+
+  // Helper: is user banned in this classroom
+  const isBannedInClassroom = (userId) => {
+    if (!classroom) return false;
+    const bannedStudents = Array.isArray(classroom?.bannedStudents) ? classroom.bannedStudents : [];
+    const bannedIds = bannedStudents.map(b => (b && b._id) ? String(b._id) : String(b));
+    if (bannedIds.includes(String(userId))) return true;
+
+    const banLog = Array.isArray(classroom?.banLog) ? classroom.banLog : (Array.isArray(classroom?.bannedRecords) ? classroom.bannedRecords : []);
+    return (banLog || []).some(br => String(br.user?._id || br.user) === String(userId));
   };
 
   // Create GroupSet
@@ -1287,7 +1320,7 @@ const Groups = () => {
                             })
                           }>Delete</button>
                           <button className="btn btn-xs btn-warning" onClick={() => setOpenSiphonModal(group)}>Siphon</button>
-                          <button className="btn btn-xs btn-success" onClick={() => openAdjustModal(gs._id, group._id)}>Transfer</button>
+                          <button className="btn btn-xs btn-success" onClick={() => openAdjustModal(gs._id, group._id)}>Adjust</button>
                         </>
                       )}
                     </div>
@@ -1312,19 +1345,22 @@ const Groups = () => {
                             const noVotes = r.votes?.filter(v => v.vote === 'no').length || 0;
                             const totalVotes = yesVotes + noVotes;
                             const majorityThreshold = Math.ceil(eligibleVoters / 2);
-                            const timeRemaining = r.expiresAt ? Math.max(0, Math.ceil((new Date(r.expiresAt) - new Date()) / (1000 * 60 * 60))) : null;
-
+                            const createdAt = r.createdAt ? new Date(r.createdAt) : null;
+                            const expiresAt = r.expiresAt ? new Date(r.expiresAt) : null;
+                            const msRemaining = expiresAt ? Math.max(0, expiresAt - now) : null;
+                            const timeRemainingStr = msRemaining == null ? null : formatMs(msRemaining);
+                            
                             return (
                               <div key={r._id} className="border p-2 mt-2 rounded bg-base-200">
                                 <p>
-                                  <strong>{r.amount} bits</strong> from {
+                                  <strong>{r.amount} ₿</strong> from {
                                     r.targetUser?.firstName && r.targetUser?.lastName 
                                       ? `${r.targetUser.firstName} ${r.targetUser.lastName}` 
                                       : r.targetUser?.email || 'Unknown User'
                                   }
-                                  {timeRemaining !== null && (
+                                  {timeRemainingStr !== null && (
                                     <span className="text-xs text-warning ml-2">
-                                      (Expires in {timeRemaining}h)
+                                      (Expires in {timeRemainingStr})
                                     </span>
                                   )}
                                 </p>
@@ -1370,6 +1406,12 @@ const Groups = () => {
                                   <div className="flex gap-1 mt-1">
                                     <button className="btn btn-xs btn-success" onClick={() => teacherApprove(r._id)}>Approve</button>
                                     <button className="btn btn-xs btn-error" onClick={() => teacherReject(r._id)}>Reject</button>
+                                  </div>
+                                )}
+
+                                {createdAt && (
+                                  <div className="text-xs text-muted mb-1">
+                                    Initiated: {createdAt.toLocaleString()}
                                   </div>
                                 )}
                               </div>
@@ -1439,6 +1481,30 @@ const Groups = () => {
                                     </td>
                                     <td>
                                       {`${member._id?.firstName || ''} ${member._id?.lastName || ''}`.trim() || member._id?.email || 'Unknown User'}
+                                      
+                                      {/* Show banned badge if user is banned in this classroom */}
+                                      {isBannedInClassroom(mid) && (
+                                        <span className="badge badge-error ml-2">BANNED</span>
+                                      )}
+                                      
+                                      {/* Only show SIPHONED to teachers/admins or students who are in the same group */}
+                                      {(() => {
+                                        const isSiphoned = (group?.siphonRequests || []).some(r => {
+                                          const targetId = r.targetUser?._id ?? r.targetUser;
+                                          return String(targetId) === String(mid) && ['pending','group_approved'].includes(r.status);
+                                        });
+
+                                        const viewerIsGroupMember = !!group?.members?.some(m => getMemberId(m) === String(user._id) && m.status === 'approved');
+
+                                        const canSeeSiphoned = isSiphoned && (
+                                          user.role === 'teacher' ||
+                                          user.role === 'admin' ||
+                                          viewerIsGroupMember
+                                        );
+
+                                        return canSeeSiphoned ? <span className="badge badge-warning ml-2">SIPHONED</span> : null;
+                                      })()}
+                                      
                                       <button 
                                         className="btn btn-xs btn-ghost ml-2"
                                         onClick={() => navigate(
@@ -1448,7 +1514,11 @@ const Groups = () => {
                                       >
                                         View Profile
                                       </button>
-                                      {member._id.isFrozen && (
+                                      
+                                      {(
+                                        // check classroom-scoped freeze for this classroom (id from useParams)
+                                        member._id?.classroomFrozen?.some(cf => String(cf.classroom) === String(id))
+                                      ) && (
                                         // Only show frozen icon to group members, teachers, and admins
                                         (user.role === 'teacher' || 
                                          user.role === 'admin' || 
@@ -1701,14 +1771,17 @@ const Groups = () => {
                     className="toggle toggle-primary" 
                     checked={adjustApplyGroupMultipliers}
                     onChange={(e) => setAdjustApplyGroupMultipliers(e.target.checked)}
+                    disabled={Number(adjustAmount) < 0}
                   />
                 </label>
                 <div className="label">
                   <span className="label-text-alt text-gray-500">
-                    {adjustApplyGroupMultipliers 
-                      ? "Group multipliers will be applied" 
-                      : "Group multipliers will be ignored"
-                    }
+                  {Number(adjustAmount) < 0
+                    ? "Disabled for debit adjustments"
+                    : (adjustApplyGroupMultipliers 
+                        ? "Group multipliers will be applied" 
+                        : "Group multipliers will be ignored")
+                  }
                   </span>
                 </div>
               </div>
@@ -1721,14 +1794,17 @@ const Groups = () => {
                     className="toggle toggle-primary" 
                     checked={adjustApplyPersonalMultipliers}
                     onChange={(e) => setAdjustApplyPersonalMultipliers(e.target.checked)}
+                    disabled={Number(adjustAmount) < 0}
                   />
                 </label>
                 <div className="label">
                   <span className="label-text-alt text-gray-500">
-                    {adjustApplyPersonalMultipliers 
-                      ? "Personal multipliers will be applied" 
-                      : "Personal multipliers will be ignored"
-                    }
+                  {Number(adjustAmount) < 0
+                    ? "Disabled for debit adjustments"
+                    : (adjustApplyPersonalMultipliers 
+                        ? "Personal multipliers will be applied" 
+                        : "Personal multipliers will be ignored")
+                  }
                   </span>
                 </div>
               </div>
@@ -1940,18 +2016,33 @@ const Groups = () => {
                 );
 
                 const q = (addMemberSearch || '').trim().toLowerCase();
+
+                 // Build banned id sets from current classroom (supports legacy shapes)
+                 const bannedIds = new Set(
+                   (classroom?.bannedStudents || []).map(b => (b && b._id) ? String(b._id) : String(b))
+                 );
+                 const banLogIds = new Set(
+                   (classroom?.banLog || []).map(br => String(br.user?._id || br.user))
+                 );
+
                 const availableStudents = allStudents
                   // exclude anyone already in the groupset
                   .filter(s => !memberIdsInGroupSet.has(s._id))
-                  // exclude teacher accounts and the current user (teacher/TA)
-                  .filter(s => (s.role || '').toLowerCase() !== 'teacher' && String(s._id) !== String(user._id))
-                  // apply search filter (name or email)
-                  .filter(s => {
-                    if (!q) return true;
-                    const name = `${s.firstName || ''} ${s.lastName || ''}`.trim().toLowerCase();
-                    const email = (s.email || '').toLowerCase();
-                    return name.includes(q) || email.includes(q);
-                  });
+                  // exclude teacher accounts, the current user, and banned students
+                  .filter(s => 
+                    (s.role || '').toLowerCase() !== 'teacher' &&
+                    String(s._id) !== String(user._id) &&
+                    !bannedIds.has(String(s._id)) &&
+                    !banLogIds.has(String(s._id)) &&
+                    !s.isBanned
+                  )
+                   // apply search filter (name or email)
+                   .filter(s => {
+                     if (!q) return true;
+                     const name = `${s.firstName || ''} ${s.lastName || ''}`.trim().toLowerCase();
+                     const email = (s.email || '').toLowerCase();
+                     return name.includes(q) || email.includes(q);
+                   });
 
                 if (availableStudents.length === 0) {
                   return <option disabled>No available students</option>;

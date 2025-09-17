@@ -11,6 +11,9 @@ import ExportButtons from '../components/ExportButtons';
 
 const Wallet = () => {
   const { user } = useAuth();
+  // Only show the "All users" / assigner filter to teachers/admins
+  const canSeeUserFilter = Boolean(user && ['teacher', 'admin'].includes((user.role || '').toString().toLowerCase()));
+
   const { id: classroomId } = useParams();
 
   // Default tab logic for students
@@ -383,7 +386,7 @@ const fetchWallet = async () => {
 
    // Deduplicate transactions by a stable key:
    // prefer the transaction _id (if present), otherwise fallback to orderId,
-   // otherwise use description+amount+timestamp (stable enough for de-duping).
+   // otherwise use description+amount+timestamp (stable enough for de-dupping).
    const unique = (() => {
      const seen = new Map();
      for (const tx of sorted) {
@@ -544,6 +547,18 @@ useEffect(() => {
   };
 }, [user?._id, classroomId]);
 
+  // Compute total spent (sum of negative amounts) scoped to current classroom if provided
+  const totalSpent = useMemo(() => {
+    if (!transactions || transactions.length === 0) return 0;
+    const txs = classroomId
+      ? transactions.filter(t => String(t.classroom) === String(classroomId))
+      : transactions;
+    return txs.reduce((sum, t) => {
+      const amt = Number(t.amount) || 0;
+      return sum + (amt < 0 ? Math.abs(amt) : 0);
+    }, 0);
+  }, [transactions, classroomId]);
+
   return (
     <div className="min-h-screen flex flex-col overflow-x-hidden">
       <div className="w-full max-w-4xl mx-auto flex-grow py-6 px-4 sm:px-6 box-border">
@@ -617,34 +632,36 @@ useEffect(() => {
             />
 
             {/* user selector */}
-            <select
-              className="select select-bordered max-w-xs"
-              value={assignerFilter}
-              onChange={(e) => {
-                const id = e.target.value;
-                setAssignerFilter(id);
-                if (id) {
-                  const selectedUser = studentList.find(u => u._id === id);
-                  if (selectedUser) {
-                    setRoleFilter(selectedUser.role);
+            {canSeeUserFilter && (
+              <select
+                className="select select-bordered max-w-xs"
+                value={assignerFilter}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setAssignerFilter(id);
+                  if (id) {
+                    const selectedUser = studentList.find(u => u._id === id);
+                    if (selectedUser) {
+                      setRoleFilter(selectedUser.role);
+                    }
+                  } else {
+                    setRoleFilter('all');
                   }
-                } else {
-                  setRoleFilter('all');
-                }
-              }}
-            >
-              <option value="">All users</option>
-              {studentList.map((u) => {
-                const displayName = (u.firstName || u.lastName)
-                  ? `${u.firstName || ''} ${u.lastName || ''}`.trim()
-                  : u.name || u.email;
-                return (
-                  <option key={u._id} value={u._id}>
-                    {displayName} – {ROLE_LABELS[u.role] || u.role}
-                  </option>
-                );
-              })}
-            </select>
+                }}
+              >
+                <option value="">All users</option>
+                {studentList.map((u) => {
+                  const displayName = (u.firstName || u.lastName)
+                    ? `${u.firstName || ''} ${u.lastName || ''}`.trim()
+                    : u.name || u.email;
+                  return (
+                    <option key={u._id} value={u._id}>
+                      {displayName} – {ROLE_LABELS[u.role] || u.role}
+                    </option>
+                  );
+                })}
+              </select>
+            )}
 
             {/* Role filter with siphon option */}
             <select
@@ -827,6 +844,8 @@ useEffect(() => {
             <div className="mt-6">
               <div className="mb-4">
                 <p className="font-medium">Base Balance: {balance} ₿</p>
+                {/* Total spent line */}
+                <p className="text-sm text-gray-500">Total spent: ₿{totalSpent.toFixed(2)}</p>
               </div>
               <h2 className="text-lg font-semibold">
                 Transaction History <span className="text-sm text-gray-500">({transactionCount})</span>
@@ -844,32 +863,34 @@ useEffect(() => {
                 />
 
                 {/* User selector (All users) */}
-                <select
-                  className="select select-bordered max-w-xs"
-                  value={assignerFilter}
-                  onChange={(e) => {
-                    const id = e.target.value;
-                    setAssignerFilter(id);
-                    if (id) {
-                      const selectedUser = studentList.find(u => u._id === id);
-                      if (selectedUser) setRoleFilter(selectedUser.role);
-                    } else {
-                      setRoleFilter('all');
-                    }
-                  }}
-                >
-                  <option value="">All users</option>
-                  {studentList.map((u) => {
-                    const displayName = (u.firstName || u.lastName)
-                      ? `${u.firstName || ''} ${u.lastName || ''}`.trim()
-                      : u.name || u.email;
-                    return (
-                      <option key={u._id} value={u._id}>
-                        {displayName} – {ROLE_LABELS[u.role] || u.role}
-                      </option>
-                    );
-                  })}
-                </select>
+                {canSeeUserFilter && (
+                  <select
+                    className="select select-bordered max-w-xs"
+                    value={assignerFilter}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      setAssignerFilter(id);
+                      if (id) {
+                        const selectedUser = studentList.find(u => u._id === id);
+                        if (selectedUser) setRoleFilter(selectedUser.role);
+                      } else {
+                        setRoleFilter('all');
+                      }
+                    }}
+                  >
+                    <option value="">All users</option>
+                    {studentList.map((u) => {
+                      const displayName = (u.firstName || u.lastName)
+                        ? `${u.firstName || ''} ${u.lastName || ''}`.trim()
+                        : u.name || u.email;
+                      return (
+                        <option key={u._id} value={u._id}>
+                          {displayName} – {ROLE_LABELS[u.role] || u.role}
+                        </option>
+                      );
+                    })}
+                  </select>
+                )}
 
                 {/* Role filter (All roles) with siphon option */}
                 <select

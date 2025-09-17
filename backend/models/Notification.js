@@ -21,15 +21,18 @@ const NotificationSchema = new mongoose.Schema({
       'group_update',
       'siphon_review', 
       'siphon_request',     
-     'siphon_rejected',
+      'siphon_rejected',
       'siphon_approved',
       'wallet_transaction',
       'wallet_topup',
-     'ta_promotion', 
+      'ta_promotion', 
       'ta_demotion', 
       'announcement', // New type for announcements
       'attack', // New type for attack notification
-      'defend', // New type for defense notification
+      'defend',
+      // Ban/unban notifications for classrooms
+      'classroom_ban',
+      'classroom_unban',
       'bit_assignment_request',
       'bit_assignment_approved',
       'bit_assignment_rejected',
@@ -40,7 +43,7 @@ const NotificationSchema = new mongoose.Schema({
   classroom: { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom' },
   groupSet: { type: mongoose.Schema.Types.ObjectId, ref: 'GroupSet' },
   group: { type: mongoose.Schema.Types.ObjectId, ref: 'Group' },
-  actionBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  actionBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // allow null/system actions
   // When true, frontend should not display the actor's name (privacy)
   anonymized: { type: Boolean, default: false },
   read: { type: Boolean, default: false },

@@ -27,13 +27,16 @@ import {
   Replace,
   LogOut,
   History,
-  Star
+  Star,
+  Sun,
+  Moon
 } from 'lucide-react';
 
 const BACKEND_URL = `${API_BASE}`;
 
 const Navbar = () => {
   const { user, logout, setPersona, originalUser } = useContext(AuthContext);
+  const { theme, toggleTheme } = useContext(ThemeContext);
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -71,7 +74,6 @@ const Navbar = () => {
     user?.lastName &&
     user?.role
   );
-  const { theme, toggleTheme } = useContext(ThemeContext);
 
   // Extract classroom ID from URL path
   const classroomMatch = location.pathname.match(/^\/classroom\/([^\/]+)/);
@@ -209,6 +211,13 @@ const Navbar = () => {
           <Logo />
           <div className="flex items-center gap-2 flex-shrink min-w-0">
             <button
+              onClick={toggleTheme}
+              className="p-2 hover:bg-base-200 rounded-lg"
+              title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+            >
+              {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
+            </button>
+            <button
               className="btn btn-sm btn-outline flex-shrink min-w-0 whitespace-normal h-auto"
               onClick={() => (window.location.href = '/api/auth/google')}
             >
@@ -260,6 +269,15 @@ const Navbar = () => {
               )}
             </button>
           )}
+
+          {/* Theme Toggle */}
+          <button
+            onClick={toggleTheme}
+            className="p-2 hover:bg-base-200 rounded-lg"
+            title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+          >
+            {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
+          </button>
 
           {/* Notification Bell */}
           <NotificationBell />
@@ -401,6 +419,15 @@ const Navbar = () => {
               )}
             </button>
           )}
+
+          {/* Theme Toggle */}
+          <button
+            onClick={toggleTheme}
+            className="p-2 hover:bg-base-200 rounded-lg"
+            title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+          >
+            {theme === 'light' ? <Moon size={24} /> : <Sun size={24} />}
+          </button>
 
           {/* Desktop Notification Bell */}
           <NotificationBell />

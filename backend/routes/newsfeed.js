@@ -17,7 +17,15 @@ const storage = multer.diskStorage({
     filename: (req, file, cb) =>
         cb(null, `${Date.now()}-${file.originalname}`)
 });
-const upload = multer({ storage });
+// increase limits so large HTML content and attachments are accepted
+const upload = multer({
+  storage,
+  limits: {
+    fieldSize: 10 * 1024 * 1024, // 10 MB for text fields (content)
+    fileSize: 20 * 1024 * 1024,  // 20 MB per file
+    files: 20                    // max number of files
+  }
+});
 
 const { ensureTeacher } = require('../middleware/auth');
 
@@ -155,5 +163,14 @@ router.put(
         }
     }
 );
+
+// Add express error handler to return JSON for Multer errors
+router.use((err, req, res, next) => {
+  if (err && err.name === 'MulterError') {
+    console.error('Multer error on newsfeed route:', err);
+    return res.status(400).json({ error: err.message });
+  }
+  next(err);
+});
 
 module.exports = router;
