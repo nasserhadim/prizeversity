@@ -77,7 +77,14 @@ const ChallengeConfigModal = ({
       settings.maxHintsPerChallenge = Number.isFinite(challengeConfig.maxHintsPerChallenge) ? challengeConfig.maxHintsPerChallenge : 2;
 
       settings.dueDateEnabled = challengeConfig.dueDateEnabled || false;
-      settings.dueDate = challengeConfig.dueDate || '';
+      
+      if (challengeConfig.dueDateEnabled && challengeConfig.dueDate) {
+        const localDate = new Date(challengeConfig.dueDate);
+        const utcDate = new Date(localDate.getTime() + localDate.getTimezoneOffset() * 60000);
+        settings.dueDate = utcDate.toISOString();
+      } else {
+        settings.dueDate = '';
+      }
 
       await configureChallenge(classroomId, challengeConfig.title, settings);
       toast.success('Challenge configured successfully');

@@ -59,9 +59,8 @@ const Challenge6Site = () => {
         .map(t => parseInt(t, 10))
         .filter(t => !isNaN(t));
       
-      // Validate at least one token provided
       if (userTokens.length === 0) {
-        setSubmitMessage('❌ Please enter a valid token ID number');
+        setSubmitMessage('❌ Please enter a valid number');
         setSubmitting(false);
         return;
       }
@@ -187,13 +186,11 @@ const Challenge6Site = () => {
             <div className="text-center">
               <div className="text-orange-300 font-mono text-sm font-bold mb-2">MISSION OBJECTIVE</div>
               <div className="text-gray-300 font-mono text-sm">
-                Determine the numerical index position of the target word
+                Determine the required number for the target word
               </div>
-              <div className="text-cyan-400 font-mono text-xs mt-2">
-                Think about how AI systems process language into numbers
-              </div>
+              
               <div className="text-cyan-300 font-mono text-xs mt-2">
-                You may enter a single token ID or multiple IDs separated by commas
+                You may enter one or more numbers separated by commas
               </div>
             </div>
           </div>
@@ -214,7 +211,7 @@ const Challenge6Site = () => {
                 ? 'border-gray-700 text-gray-500' 
                 : 'border-gray-600 text-green-400 focus:border-green-400'
             }`}
-            placeholder={submitting ? "PROCESSING..." : "TOKEN ID"}
+            placeholder={submitting ? "PROCESSING..." : "ENTER VALUE"}
           />
           <div className="text-xs font-mono text-gray-500 space-y-1">
             <div className="flex items-center justify-center gap-2">
