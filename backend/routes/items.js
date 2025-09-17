@@ -206,3 +206,6 @@ So we concluded that it will be much efficient if we separate them in each file.
 // });
 
 // module.exports = router;
+
+
+//taking a look at this 9/16, all are commented out. will remake a brand new item router

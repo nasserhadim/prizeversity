@@ -151,6 +151,8 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
+app.use('/api/shops', require('./routes/shops'));   // mounts all Shop CRUD at /api/shops  NEW 9/16 Retaj 
+
 // app.use('/api/items', itemRoutes);
 app.use('/api/stats', statsRouter);
 app.use('/api', groupBalanceRoutes);
