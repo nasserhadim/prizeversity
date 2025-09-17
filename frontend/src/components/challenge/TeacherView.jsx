@@ -30,7 +30,10 @@ const TeacherView = ({
 
   useEffect(() => {
     if (challengeData?.settings?.dueDate) {
-      setLocalDueDate(new Date(new Date(challengeData.settings.dueDate).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16));
+      // Convert UTC date from server to local datetime-local format
+      const date = new Date(challengeData.settings.dueDate);
+      const localISOString = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+      setLocalDueDate(localISOString);
     } else {
       setLocalDueDate('');
     }
@@ -808,7 +811,7 @@ const TeacherView = ({
                         const response = await updateDueDate(
                           classroomId, 
                           e.target.checked, 
-                          e.target.checked ? (challengeData?.settings?.dueDate || defaultDate.toISOString().slice(0, 16)) : null
+                          e.target.checked ? (challengeData?.settings?.dueDate || defaultDate.toISOString()) : null
                         );
                         setChallengeData(prev => ({
                           ...prev,
@@ -836,7 +839,7 @@ const TeacherView = ({
                   <input
                     type="datetime-local"
                     className="input input-bordered w-full"
-                    value={localDueDate || (challengeData?.settings?.dueDate ? new Date(new Date(challengeData.settings.dueDate).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '')}
+                    value={localDueDate}
                     onChange={(e) => {
                       setLocalDueDate(e.target.value);
                     }}
@@ -854,7 +857,12 @@ const TeacherView = ({
                     className="btn btn-primary"
                     onClick={async () => {
                       try {
-                        const response = await updateDueDate(classroomId, true, localDueDate);
+                        // Convert local datetime-local value to UTC for storage
+                        const localDate = new Date(localDueDate);
+                        const utcDate = new Date(localDate.getTime() + localDate.getTimezoneOffset() * 60000);
+                        const utcISOString = utcDate.toISOString();
+                        
+                        const response = await updateDueDate(classroomId, true, utcISOString);
                         setChallengeData(prev => ({
                           ...prev,
                           settings: {
