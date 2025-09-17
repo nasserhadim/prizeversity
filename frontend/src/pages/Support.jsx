@@ -75,6 +75,7 @@ const Support = () => {
             "",
             "**TAs (Assistant Admins) can:**",
             "• Help manage classroom activities such as assigning bits within classrooms (if allowed by the teacher)",
+            "• Assist with group management",
             "",
             "**Students can:**",
             "• Earn bits through participation and challenges",
@@ -257,7 +258,7 @@ const Support = () => {
             "• If approved, bits are redistributed to cooperative members",
             "",
             "**Important limits:**",
-            "• Only one siphon request per 72 hours",
+            "• Only one siphon request per 72 hours (or as configured by teacher in people settings) per group",
             "• Prevents abuse of the system",
             "• Encourages genuine collaboration"
           ],

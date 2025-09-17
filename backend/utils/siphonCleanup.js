@@ -38,7 +38,12 @@ async function cleanupExpiredSiphons() {
       try {
         group = await Group.findById(siphon.group).populate('members._id', 'email');
         groupSet = group ? await GroupSet.findOne({ groups: group._id }).populate('classroom') : null;
-        classroom = groupSet?.classroom ? await Classroom.findById(groupSet.classroom) : null;
+        // If groupSet.classroom is already populated, use it; otherwise fetch by id
+        if (groupSet?.classroom) {
+          classroom = groupSet.classroom && groupSet.classroom._id ? groupSet.classroom : await Classroom.findById(groupSet.classroom);
+        } else {
+          classroom = null;
+        }
       } catch (err) {
         console.error('[siphonCleanup] Failed to populate context:', err);
       }
