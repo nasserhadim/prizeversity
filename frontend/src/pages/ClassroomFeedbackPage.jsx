@@ -14,6 +14,7 @@ import useFeedbackRealtime from '../hooks/useFeedbackRealtime';
 import RatingDistribution from '../components/RatingDistribution';
 import ExportButtons from '../components/ExportButtons';
 import { exportFeedbacksToCSV, exportFeedbacksToJSON } from '../utils/exportFeedbacks';
+import AverageRating from '../components/AverageRating';
  
 const ClassroomFeedbackPage = ({ userId }) => {
   const { classroomId } = useParams();
@@ -105,6 +106,9 @@ const ClassroomFeedbackPage = ({ userId }) => {
       await fetchClassroomFeedback(1, false);
       // switch to recent tab so user sees their submitted feedback
       setTab('recent');
+
+      // SAVE local fallback so anonymous submit still shows "Your rating"
+      try { localStorage.setItem(`feedback_your_rating_classroom_${classroomId}`, String(rating)); } catch (e) { /* ignore */ }
     } catch (err) {
       console.error("Error submitting feedback:", err);
       toast.error(err.response?.data?.error || 'Failed to submit feedback');
@@ -202,6 +206,13 @@ const ClassroomFeedbackPage = ({ userId }) => {
             <h2 className="card-title text-primary mb-4">
               {classroom ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''} Feedback` : 'Classroom Feedback'}
             </h2>
+
+            <AverageRating
+              feedbacks={feedbacks}
+              user={user}
+              yourRatingLocal={Number(localStorage.getItem(`feedback_your_rating_classroom_${classroomId}`)) || null}
+            />
+
             <RatingDistribution feedbacks={feedbacks} />
 
             <div className="flex items-center mb-4">

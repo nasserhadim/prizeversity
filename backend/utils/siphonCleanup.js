@@ -38,7 +38,33 @@ async function cleanupExpiredSiphons() {
       try {
         group = await Group.findById(siphon.group).populate('members._id', 'email');
         groupSet = group ? await GroupSet.findOne({ groups: group._id }).populate('classroom') : null;
-        classroom = groupSet?.classroom ? await Classroom.findById(groupSet.classroom) : null;
+
+        // Debug logging to help trace why teacher notifications may be skipped
+        console.log('[siphonCleanup] context lookup', {
+          siphonId: siphon._id,
+          siphonGroup: siphon.group,
+          siphonClassroom: siphon.classroom,
+          groupId: group?._id,
+          groupSetId: groupSet?._id,
+          groupSetClassroomType: typeof groupSet?.classroom
+        });
+
+        // Prefer populated classroom document, otherwise fetch by id.
+        if (groupSet?.classroom) {
+          classroom = (groupSet.classroom && groupSet.classroom._id)
+            ? groupSet.classroom
+            : await Classroom.findById(groupSet.classroom);
+        } else if (siphon.classroom) {
+          // fallback: if the siphon itself stored a classroom id
+          classroom = await Classroom.findById(siphon.classroom).catch(() => null);
+        } else {
+          classroom = null;
+        }
+        // Ensure classroom is a full document (helpful for teacher field)
+        if (classroom && !(classroom.teacher || classroom.teacher === null)) {
+          // try to refresh
+          classroom = await Classroom.findById(classroom._id).catch(() => classroom);
+        }
       } catch (err) {
         console.error('[siphonCleanup] Failed to populate context:', err);
       }
@@ -104,24 +130,32 @@ async function cleanupExpiredSiphons() {
 
       // Notify classroom teacher(s) if we have classroom
       if (classroom) {
-        const teacherId = classroom.teacher;
-        try {
-          const tn = await Notification.create({
-            user: teacherId,
-            type: 'siphon_rejected',
-            message: `A siphon request in group "${group?.name || 'unknown'}" expired without teacher action.`,
-            group: group?._id,
-            siphon: siphon._id,
-            classroom: classroom._id,
-            actionBy: null
-          });
-          const populatedT = await populateNotification(tn._id);
-          try {
-            const io = getIO && getIO();
-            if (io) io.to(`user-${teacherId}`).emit('notification', populatedT);
-          } catch (e) {}
-        } catch (err) {
-          console.error('[siphonCleanup] Failed to notify teacher:', err);
+        // Support classroom.teacher being a single id or an array of ids
+        const teachers = Array.isArray(classroom.teacher) ? classroom.teacher : [classroom.teacher];
+        if (!teachers || teachers.length === 0 || teachers.every(t => !t)) {
+          console.log('[siphonCleanup] classroom has no teacher to notify', { classroomId: classroom._id });
+        } else {
+          for (const teacherId of teachers) {
+            if (!teacherId) continue;
+            try {
+              const tn = await Notification.create({
+                user: teacherId,
+                type: 'siphon_rejected',
+                message: `A siphon request in group "${group?.name || 'unknown'}" expired without teacher action.`,
+                group: group?._id,
+                siphon: siphon._id,
+                classroom: classroom._id,
+                actionBy: null
+              });
+              const populatedT = await populateNotification(tn._id);
+              try {
+                const io = getIO && getIO();
+                if (io) io.to(`user-${teacherId}`).emit('notification', populatedT);
+              } catch (e) {}
+            } catch (err) {
+              console.error('[siphonCleanup] Failed to notify teacher:', teacherId, err);
+            }
+          }
         }
       }
 
