@@ -48,38 +48,6 @@ export const useChallengeData = (classroomId) => {
     }
   };
 
-  const setDebugProgress = async (targetProgress) => {
-    try {
-      const previousProgressValue = userChallenge?.progress || 0;
-      
-      const response = await fetch(`${API_BASE}/api/challenges/${classroomId}/debug-progress`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ progress: targetProgress })
-      });
-      
-      if (response.ok) {
-        toast.success(`Progress set to Challenge ${targetProgress + 1}!`);
-        
-        if (targetProgress > previousProgressValue && targetProgress > 0) {
-          const completedChallengeIndex = targetProgress - 1;
-          const rewardInfo = getRewardDataForChallenge(completedChallengeIndex, challengeData, userChallenge, CHALLENGE_NAMES);
-          if (rewardInfo) {
-            setRewardData(rewardInfo);
-            setShowRewardModal(true);
-          }
-        }
-        
-        await fetchChallengeData();
-      } else {
-        toast.error('Failed to set progress');
-      }
-    } catch (error) {
-      console.error('Error setting debug progress:', error);
-      toast.error('Failed to set progress');
-    }
-  };
 
   useEffect(() => {
     fetchChallengeData();
@@ -149,7 +117,6 @@ export const useChallengeData = (classroomId) => {
     setShowRewardModal,
     rewardData,
     setRewardData,
-    fetchChallengeData,
-    setDebugProgress
+    fetchChallengeData
   };
 };
