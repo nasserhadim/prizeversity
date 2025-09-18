@@ -115,6 +115,14 @@ const Bazaar = () => {
             {bazaar.description}
           </p>
         </div>
+        {/* Modification Section */}
+        {(user.role === 'teacher' || user.role === 'admin') && (
+            <div className="flex gap-2">
+                <button className="btn btn-sm btn-info" onClick={() => handleEditBazaar()}>Edit</button>
+                <button className="btn btn-sm btn-error" onClick={() => setConfirmDeleteBazaar()}>Delete</button>
+            </div>
+        )}
+
       </div>
 
       {/* Teacher Create Item */}
