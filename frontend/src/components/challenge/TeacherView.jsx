@@ -30,9 +30,13 @@ const TeacherView = ({
 
   useEffect(() => {
     if (challengeData?.settings?.dueDate) {
-      // Convert UTC date from server to local datetime-local format
-      const date = new Date(challengeData.settings.dueDate);
-      const localISOString = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+      const utcDate = new Date(challengeData.settings.dueDate);
+      const year = utcDate.getFullYear();
+      const month = String(utcDate.getMonth() + 1).padStart(2, '0');
+      const day = String(utcDate.getDate()).padStart(2, '0');
+      const hours = String(utcDate.getHours()).padStart(2, '0');
+      const minutes = String(utcDate.getMinutes()).padStart(2, '0');
+      const localISOString = `${year}-${month}-${day}T${hours}:${minutes}`;
       setLocalDueDate(localISOString);
     } else {
       setLocalDueDate('');
@@ -857,10 +861,12 @@ const TeacherView = ({
                     className="btn btn-primary"
                     onClick={async () => {
                       try {
-                        // Convert local datetime-local value to UTC for storage
-                        const localDate = new Date(localDueDate);
-                        const utcDate = new Date(localDate.getTime() + localDate.getTimezoneOffset() * 60000);
-                        const utcISOString = utcDate.toISOString();
+                        const [datePart, timePart] = localDueDate.split('T');
+                        const [year, month, day] = datePart.split('-').map(Number);
+                        const [hours, minutes] = timePart.split(':').map(Number);
+                        
+                        const localDate = new Date(year, month - 1, day, hours, minutes);
+                        const utcISOString = localDate.toISOString();
                         
                         const response = await updateDueDate(classroomId, true, utcISOString);
                         setChallengeData(prev => ({

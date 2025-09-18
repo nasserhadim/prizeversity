@@ -18,7 +18,6 @@ import CppBugHuntChallenge from '../components/challenge/cards/SecurityBugFixCha
 import DigitalForensicsChallenge from '../components/challenge/cards/DigitalForensicsChallenge';
 import WayneAWSChallenge from '../components/challenge/cards/WayneAWSChallenge';
 import ChallengeConfigModal from '../components/challenge/modals/ChallengeConfigModal';
-import DebugPanel from '../components/challenge/modals/DebugPanel';
 import NeedleInAHaystackChallenge from '../components/challenge/cards/NeedleInAHaystack';
 import QuoteHangmanChallenge from '../components/challenge/cards/QuoteHangmanChallenge';
 
@@ -63,7 +62,6 @@ const Challenge = () => {
     setShowRewardModal,
     rewardData,
     fetchChallengeData,
-    setDebugProgress
   } = useChallengeData(classroomId);
   
   const {
@@ -93,7 +91,6 @@ const Challenge = () => {
   const [unlockingHint, setUnlockingHint] = useState({});
   const [showDeleteWarning, setShowDeleteWarning] = useState(false);
   const [dontShowDeleteWarning, setDontShowDeleteWarning] = useState(false);
-  const [showDebugPanel, setShowDebugPanel] = useState(false);
   const [showStudentHintModal, setShowStudentHintModal] = useState(false);
   const [newHint, setNewHint] = useState(null);
   const [hintChallengeName, setHintChallengeName] = useState('');
@@ -398,12 +395,6 @@ const Challenge = () => {
                 <Shield className="w-4 h-4" />
                 <span className="text-sm">Teacher Mode</span>
                 <button
-                  onClick={() => setShowDebugPanel(true)}
-                  className="btn btn-sm btn-accent gap-1"
-                >
-                  🔧 Debug
-                </button>
-                <button
                   onClick={handleSwitchToTeacher}
                   className="btn btn-sm btn-secondary gap-1"
                 >
@@ -644,12 +635,6 @@ const Challenge = () => {
         hintNumber={hintNumber}
       />
 
-      <DebugPanel
-        showDebugPanel={showDebugPanel}
-        setShowDebugPanel={setShowDebugPanel}
-        userChallenge={userChallenge}
-        setDebugProgress={setDebugProgress}
-      />
     </div>
   );
 };
