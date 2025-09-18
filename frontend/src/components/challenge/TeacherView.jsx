@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Shield, Settings, Users, Eye, EyeOff, UserPlus } from 'lucide-react';
 import { getCurrentChallenge } from '../../utils/challengeUtils';
 import { getThemeClasses } from '../../utils/themeUtils';
-import { updateDueDate } from '../../API/apiChallenge';
+import { updateDueDate, toggleChallengeVisibility } from '../../API/apiChallenge';
 import toast from 'react-hot-toast';
 import socket from '../../utils/socket';
 
@@ -25,6 +25,7 @@ const TeacherView = ({
   const [challenge6Data, setChallenge6Data] = useState({});
   const [challenge7Data, setChallenge7Data] = useState({});
   const [localDueDate, setLocalDueDate] = useState('');
+  const [togglingVisibility, setTogglingVisibility] = useState(false);
   const dropdownRef = useRef(null);
   const themeClasses = getThemeClasses(isDark);
 
@@ -325,6 +326,19 @@ const TeacherView = ({
     fetchChallenge7Data();
   }, [challengeData?.userChallenges]);
 
+  const handleToggleVisibility = async () => {
+    try {
+      setTogglingVisibility(true);
+      const result = await toggleChallengeVisibility(classroomId);
+      toast.success(result.message);
+      await fetchChallengeData();
+    } catch (error) {
+      toast.error(error.message || 'Failed to toggle challenge visibility');
+    } finally {
+      setTogglingVisibility(false);
+    }
+  };
+
   return (
     <div className="p-6 space-y-8">
       <div className={themeClasses.cardBase}>
@@ -350,18 +364,38 @@ const TeacherView = ({
               Configure & Launch Challenge Series
             </button>
           ) : (
-            <button
-              onClick={handleShowDeactivateModal}
-              disabled={initiating}
-              className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
-            >
-              {initiating ? (
-                <span className="loading loading-spinner loading-sm"></span>
-              ) : (
-                <Shield className="w-5 h-5" />
-              )}
-              Delete Challenge
-            </button>
+            <>
+              <button
+                onClick={handleToggleVisibility}
+                disabled={togglingVisibility}
+                className={`btn btn-lg gap-2 flex-wrap text-sm sm:text-base ${
+                  challengeData.isVisible 
+                    ? 'btn-warning' 
+                    : 'btn-success'
+                }`}
+              >
+                {togglingVisibility ? (
+                  <span className="loading loading-spinner loading-sm"></span>
+                ) : challengeData.isVisible ? (
+                  <EyeOff className="w-5 h-5" />
+                ) : (
+                  <Eye className="w-5 h-5" />
+                )}
+                {challengeData.isVisible ? 'Hide from Students' : 'Show to Students'}
+              </button>
+              <button
+                onClick={handleShowDeactivateModal}
+                disabled={initiating}
+                className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
+              >
+                {initiating ? (
+                  <span className="loading loading-spinner loading-sm"></span>
+                ) : (
+                  <Shield className="w-5 h-5" />
+                )}
+                Delete Challenge
+              </button>
+            </>
           )}
         </div>
       </div>

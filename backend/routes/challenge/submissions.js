@@ -23,6 +23,10 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
       return res.status(404).json({ success: false, message: 'No active challenge found' });
     }
 
+    if (!challenge.isVisible) {
+      return res.status(403).json({ success: false, message: 'Challenge is temporarily unavailable' });
+    }
+
     if (isChallengeExpired(challenge)) {
       return res.status(403).json({ 
         success: false, 
@@ -271,6 +275,10 @@ router.post('/:classroomId/start', ensureAuthenticated, async (req, res) => {
       return res.status(404).json({ success: false, message: 'No active challenge found' });
     }
 
+    if (!challenge.isVisible) {
+      return res.status(403).json({ success: false, message: 'Challenge is temporarily unavailable' });
+    }
+
     const userChallenge = challenge.userChallenges.find(uc => uc.userId.toString() === userId.toString());
     if (!userChallenge) {
       return res.status(404).json({ success: false, message: 'User not enrolled in challenge' });
@@ -316,6 +324,10 @@ router.post('/:classroomId/hints/unlock', ensureAuthenticated, async (req, res) 
     const challenge = await Challenge.findOne({ classroomId, isActive: true });
     if (!challenge) {
       return res.status(404).json({ success: false, message: 'No active challenge found' });
+    }
+
+    if (!challenge.isVisible) {
+      return res.status(403).json({ success: false, message: 'Challenge is temporarily unavailable' });
     }
 
     const userChallenge = challenge.userChallenges.find(uc => uc.userId.toString() === userId.toString());

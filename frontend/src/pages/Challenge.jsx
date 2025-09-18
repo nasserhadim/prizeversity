@@ -449,6 +449,16 @@ const Challenge = () => {
             </p>
           </div>
         </div>
+      ) : challengeData && challengeData.hidden && !isTeacher ? (
+        <div className="card bg-base-100 border border-base-200 shadow-md rounded-2xl p-6 text-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="text-6xl">🔧</div>
+            <h2 className={`text-2xl font-semibold ${themeClasses.mutedText}`}>Challenge Temporarily Unavailable</h2>
+            <p className={`${isDark ? 'text-base-content/60' : 'text-gray-500'}`}>
+              This challenge is currently under maintenance. Please check back later!
+            </p>
+          </div>
+        </div>
       ) : userChallenge ? (
         challengeData?.settings?.dueDateEnabled && 
         challengeData?.settings?.dueDate && 

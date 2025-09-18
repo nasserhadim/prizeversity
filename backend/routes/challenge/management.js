@@ -35,6 +35,15 @@ router.get('/:classroomId', ensureAuthenticated, async (req, res) => {
       });
     }
 
+    if (!isTeacher && !challenge.isVisible) {
+      return res.json({ 
+        challenge: null, 
+        userChallenge: null,
+        isTeacher: false,
+        hidden: true
+      });
+    }
+
     let needsSave = false;
     for (const userChallenge of challenge.userChallenges) {
       if (!userChallenge.challenge2Password) {
@@ -81,6 +90,40 @@ router.get('/:classroomId', ensureAuthenticated, async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching challenge:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.post('/:classroomId/toggle-visibility', ensureAuthenticated, ensureTeacher, async (req, res) => {
+  try {
+    const { classroomId } = req.params;
+    const userId = req.user._id;
+
+    const classroom = await Classroom.findById(classroomId);
+    if (!classroom) {
+      return res.status(404).json({ message: 'Classroom not found' });
+    }
+
+    if (classroom.teacher.toString() !== userId.toString()) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const challenge = await Challenge.findOne({ classroomId });
+    if (!challenge) {
+      return res.status(404).json({ message: 'Challenge not found' });
+    }
+
+    challenge.isVisible = !challenge.isVisible;
+    await challenge.save();
+
+    res.json({ 
+      success: true, 
+      isVisible: challenge.isVisible,
+      message: challenge.isVisible ? 'Challenge is now visible to students' : 'Challenge is now hidden from students'
+    });
+
+  } catch (error) {
+    console.error('Error toggling challenge visibility:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
