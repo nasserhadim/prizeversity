@@ -53,7 +53,6 @@ const Bazaar = () => {
 
 
     const handleDeleteBazaar = async () => {
-        return;
         if (!confirmDeleteBazaar) return;
         
         try {
