@@ -200,17 +200,12 @@ router.post(
           // Update user balance using classroom-aware functions
           const classroomId = groupSet?.classroom ? groupSet.classroom._id || groupSet.classroom : group.classroom;
         
-          // Capture previous balance before updating
-          let previousBalance = 0;
-          
           if (classroomId) {
             const currentBalance = getClassroomBalance(user, classroomId);
-            previousBalance = currentBalance;
             const newBalance = Math.max(0, currentBalance + adjustedAmount);
             updateClassroomBalance(user, classroomId, newBalance);
           } else {
-            previousBalance = user.balance || 0;
-            user.balance = Math.max(0, previousBalance + adjustedAmount);
+            user.balance = Math.max(0, user.balance + adjustedAmount);
           }
 
           // Ensure transactions array exists before pushing
@@ -226,13 +221,11 @@ router.post(
               personalMultiplier: applyPersonalMultipliers ? (user.passiveAttributes?.multiplier || 1) : 1,
               groupMultiplier: applyGroupMultipliers ? (group.groupMultiplier || 1) : 1,
               totalMultiplier: finalMultiplier,
-              previousBalance: previousBalance,
             } : {
               baseAmount: numericAmount,
               personalMultiplier: 1,
               groupMultiplier: 1,
               totalMultiplier: 1,
-              previousBalance: previousBalance,
               note: getMultiplierNote(applyGroupMultipliers, applyPersonalMultipliers)
             },
           });

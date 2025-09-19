@@ -53,7 +53,7 @@ const copyToClipboard = async (text) => {
   }
 };
 
-const TransactionList = ({ transactions, showAllCalculations = false }) => {
+const TransactionList = ({ transactions }) => {
   // Memoized list of transactions filtered by type (or all if filterType='all')
   const visible = transactions || [];
 
@@ -122,17 +122,9 @@ const TransactionList = ({ transactions, showAllCalculations = false }) => {
               {new Date(tx.createdAt || tx.date || Date.now()).toLocaleString()}
             </p>
 
-            {showAllCalculations && (
+            {tx.calculation && (
               <p className="text-xs text-gray-400 mt-1">
-                (Base: {tx.calculation?.previousBalance !== undefined ? tx.calculation.previousBalance.toFixed(2) : Math.abs(tx.amount).toFixed(2)}₿, 
-                Personal: {tx.calculation?.personalMultiplier?.toFixed(2) || '1.00'}x, 
-                Group: {tx.calculation?.groupMultiplier?.toFixed(2) || '1.00'}x, 
-                Total: {tx.calculation?.totalMultiplier?.toFixed(2) || '1.00'}x)
-              </p>
-            )}
-            {!showAllCalculations && tx.calculation && (
-              <p className="text-xs text-gray-400 mt-1">
-                (Base: {tx.calculation.previousBalance !== undefined ? tx.calculation.previousBalance.toFixed(2) : tx.calculation.baseAmount?.toFixed(2)}₿, 
+                (Base: {tx.calculation.baseAmount}₿, 
                 Personal: {tx.calculation.personalMultiplier?.toFixed(2)}x, 
                 Group: {tx.calculation.groupMultiplier?.toFixed(2)}x, 
                 Total: {tx.calculation.totalMultiplier?.toFixed(2)}x)

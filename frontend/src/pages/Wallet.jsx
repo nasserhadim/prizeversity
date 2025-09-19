@@ -716,10 +716,7 @@ useEffect(() => {
              />
           </div>
 
-          <TransactionList 
-            transactions={filteredTx} 
-            showAllCalculations={user.role === 'teacher' || user.role === 'admin'} 
-          />
+          <TransactionList transactions={filteredTx} />
         </div>
       )}
       {user.role === 'student' && (
@@ -950,15 +947,11 @@ useEffect(() => {
                 />
               </div>
 
-              <TransactionList 
-            transactions={filteredTx} 
-            showAllCalculations={user.role === 'teacher' || user.role === 'admin'} 
-          />
+              <TransactionList transactions={filteredTx} />
             </div>
           )}
         </>
       )}
-
       </div>
       <Footer />
     </div>
