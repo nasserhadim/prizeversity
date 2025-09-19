@@ -36,6 +36,7 @@ const TransactionSchema = new mongoose.Schema({
     personalMultiplier: Number,
     groupMultiplier: Number,
     totalMultiplier: Number,
+    previousBalance: Number, // Store the user's balance before this transaction
   }
 });
 

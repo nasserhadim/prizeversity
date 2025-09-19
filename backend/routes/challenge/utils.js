@@ -79,15 +79,20 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
   if (bitsAwarded > 0) {
     const classroomId = challenge.classroomId;
     
+    // Capture previous balance BEFORE updating it
+    let previousBalance = 0;
     if (classroomId) {
       const classroomBalance = user.classroomBalances.find(cb => cb.classroom.toString() === classroomId.toString());
+      previousBalance = classroomBalance ? (classroomBalance.balance || 0) : 0;
+      
       if (classroomBalance) {
-        classroomBalance.balance = (classroomBalance.balance || 0) + bitsAwarded;
+        classroomBalance.balance = previousBalance + bitsAwarded;
       } else {
         user.classroomBalances.push({ classroom: classroomId, balance: bitsAwarded });
       }
     } else {
-      user.balance = (user.balance || 0) + bitsAwarded;
+      previousBalance = user.balance || 0;
+      user.balance = previousBalance + bitsAwarded;
     }
     
     rewardsEarned.bits = bitsAwarded;
@@ -109,12 +114,16 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
         challengeName: challengeName,
         classroom: classroomId,
         assignedBy: challenge.createdBy,
-        calculation: hintsEnabled && usedHints > 0 ? {
+        calculation: {
           baseAmount: baseBits,
-          hintsUsed: usedHints,
-          penaltyPercent: penaltyPercent,
-          finalAmount: bitsAwarded
-        } : undefined,
+          hintsUsed: hintsEnabled && usedHints > 0 ? usedHints : undefined,
+          penaltyPercent: hintsEnabled && usedHints > 0 ? penaltyPercent : undefined,
+          finalAmount: bitsAwarded,
+          previousBalance: previousBalance,
+          personalMultiplier: 1.0,
+          groupMultiplier: 1.0,
+          totalMultiplier: 1.0
+        },
         createdAt: new Date()
       });
     }

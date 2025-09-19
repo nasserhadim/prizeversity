@@ -243,17 +243,20 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
           personalMultiplier: applyPersonalMultipliers ? (student.passiveAttributes?.multiplier || 1) : 1,
           groupMultiplier: applyGroupMultipliers ? Math.max(...groups.map(g => g.groupMultiplier || 1)) : 1,
           totalMultiplier: finalMultiplier,
+          previousBalance: currentBalance,
         } : {
           baseAmount: numericAmount,
           personalMultiplier: 1,
           groupMultiplier: 1,
           totalMultiplier: 1,
+          previousBalance: currentBalance,
           note: getMultiplierNote(applyGroupMultipliers, applyPersonalMultipliers)
         },
       });
     } else {
       // Fallback to global balance
-      student.balance = Math.max(0, student.balance + numericAmount);
+      const previousGlobalBalance = student.balance || 0;
+      student.balance = Math.max(0, previousGlobalBalance + numericAmount);
       student.transactions.push({
         amount: numericAmount,
         description: description || `Balance adjustment`,
@@ -263,6 +266,7 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
           personalMultiplier: 1, // Note: This route doesn't use personal multiplier
           groupMultiplier: finalMultiplier,
           totalMultiplier: finalMultiplier,
+          previousBalance: previousGlobalBalance,
         } : undefined,
       });
     }
@@ -425,14 +429,19 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
         ? Math.round(numericAmount * finalMultiplier)
         : numericAmount;
 
+      // Capture previous balance before updating
+      let previousBalance = 0;
+      
       // Update per-classroom balance when classroomId provided; otherwise fallback to global balance
       if (classroomId) {
         const current = getClassroomBalance(student, classroomId);
+        previousBalance = current;
         const newBalance = Math.max(0, current + adjustedAmount);
         updateClassroomBalance(student, classroomId, newBalance);
       } else {
         // fallback: global balance (legacy)
-        student.balance = Math.max(0, (student.balance || 0) + adjustedAmount);
+        previousBalance = student.balance || 0;
+        student.balance = Math.max(0, previousBalance + adjustedAmount);
       }
       student.transactions.push({
         amount: adjustedAmount,
@@ -445,11 +454,13 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
           personalMultiplier: applyPersonalMultipliers ? passiveMultiplier : 1,
           groupMultiplier: applyGroupMultipliers ? groupMultiplier : 1,
           totalMultiplier: finalMultiplier,
+          previousBalance: previousBalance,
         } : {
           baseAmount: numericAmount,
           personalMultiplier: 1,
           groupMultiplier: 1,
           totalMultiplier: 1,
+          previousBalance: previousBalance,
           note: getMultiplierNote(applyGroupMultipliers, applyPersonalMultipliers)
         },
       });

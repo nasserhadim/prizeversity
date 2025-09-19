@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { Shield, Settings, Users, Eye, EyeOff, UserPlus } from 'lucide-react';
+import { Shield, Settings, Users, Eye, EyeOff, UserPlus, Edit3 } from 'lucide-react';
 import { getCurrentChallenge } from '../../utils/challengeUtils';
 import { getThemeClasses } from '../../utils/themeUtils';
 import { updateDueDate, toggleChallengeVisibility } from '../../API/apiChallenge';
+import ChallengeUpdateModal from './modals/ChallengeUpdateModal';
 import toast from 'react-hot-toast';
 import socket from '../../utils/socket';
 
@@ -20,6 +21,7 @@ const TeacherView = ({
 }) => {
   const [showPasswords, setShowPasswords] = useState({});
   const [showDueDateModal, setShowDueDateModal] = useState(false);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [showAssignDropdown, setShowAssignDropdown] = useState(false);
   const [studentNames, setStudentNames] = useState({});
   const [challenge6Data, setChallenge6Data] = useState({});
@@ -345,9 +347,9 @@ const TeacherView = ({
         <div className="flex items-center gap-3 mb-4">
           <Shield className="w-8 h-8 text-red-500" />
           <h1 className="text-3xl font-bold text-base-content">
-            {classroom?.name
+            {challengeData?.title || (classroom?.name
               ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''} - Cyber Challenge`
-              : 'Cyber Challenge'}
+              : 'Cyber Challenge')}
           </h1>
         </div>
         <p className={`${themeClasses.mutedText} text-lg mb-6`}>
@@ -382,6 +384,13 @@ const TeacherView = ({
                   <Eye className="w-5 h-5" />
                 )}
                 {challengeData.isVisible ? 'Hide from Students' : 'Show to Students'}
+              </button>
+              <button
+                onClick={() => setShowUpdateModal(true)}
+                className="btn btn-primary btn-lg gap-2 flex-wrap text-sm sm:text-base"
+              >
+                <Edit3 className="w-5 h-5" />
+                Update Challenge
               </button>
               <button
                 onClick={handleShowDeactivateModal}
@@ -936,6 +945,14 @@ const TeacherView = ({
           </div>
         </div>
       )}
+
+      <ChallengeUpdateModal
+        showUpdateModal={showUpdateModal}
+        setShowUpdateModal={setShowUpdateModal}
+        challengeData={challengeData}
+        fetchChallengeData={fetchChallengeData}
+        classroomId={classroomId}
+      />
     </div>
   );
 };

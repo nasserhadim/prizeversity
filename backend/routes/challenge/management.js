@@ -267,6 +267,133 @@ router.post('/:classroomId/initiate', ensureAuthenticated, ensureTeacher, async 
   }
 });
 
+router.put('/:classroomId/update', ensureAuthenticated, ensureTeacher, async (req, res) => {
+  try {
+    const { classroomId } = req.params;
+    const { title, challengeBits, totalRewardBits, rewardMode, challengeMultipliers, totalMultiplier, multiplierMode, challengeLuck, totalLuck, luckMode, challengeDiscounts, totalDiscount, discountMode, challengeShields, totalShield, shieldMode, challengeHints, challengeHintsEnabled, hintPenaltyPercent, maxHintsPerChallenge, dueDateEnabled, dueDate } = req.body;
+    const teacherId = req.user._id;
+
+    const classroom = await Classroom.findById(classroomId);
+    if (!classroom) {
+      return res.status(404).json({ message: 'Classroom not found' });
+    }
+
+    if (classroom.teacher.toString() !== teacherId.toString()) {
+      return res.status(403).json({ message: 'Only the classroom teacher can update challenges' });
+    }
+
+    const challenge = await Challenge.findOne({ classroomId });
+    if (!challenge) {
+      return res.status(404).json({ message: 'No challenge found for this classroom' });
+    }
+
+    if (title !== undefined) {
+      challenge.title = title;
+    }
+
+    if (challengeBits !== undefined) {
+      challenge.settings.challengeBits = challengeBits;
+    }
+
+    if (totalRewardBits !== undefined) {
+      challenge.settings.totalRewardBits = totalRewardBits;
+    }
+
+    if (rewardMode !== undefined) {
+      challenge.settings.rewardMode = rewardMode;
+    }
+
+    if (challengeMultipliers !== undefined) {
+      challenge.settings.challengeMultipliers = challengeMultipliers;
+    }
+
+    if (totalMultiplier !== undefined) {
+      challenge.settings.totalMultiplier = totalMultiplier;
+    }
+
+    if (multiplierMode !== undefined) {
+      challenge.settings.multiplierMode = multiplierMode;
+    }
+
+    if (challengeLuck !== undefined) {
+      challenge.settings.challengeLuck = challengeLuck;
+    }
+
+    if (totalLuck !== undefined) {
+      challenge.settings.totalLuck = totalLuck;
+    }
+
+    if (luckMode !== undefined) {
+      challenge.settings.luckMode = luckMode;
+    }
+
+    if (challengeDiscounts !== undefined) {
+      challenge.settings.challengeDiscounts = challengeDiscounts;
+    }
+
+    if (totalDiscount !== undefined) {
+      challenge.settings.totalDiscount = totalDiscount;
+    }
+
+    if (discountMode !== undefined) {
+      challenge.settings.discountMode = discountMode;
+    }
+
+    if (challengeShields !== undefined) {
+      challenge.settings.challengeShields = challengeShields;
+    }
+
+    if (totalShield !== undefined) {
+      challenge.settings.totalShield = totalShield;
+    }
+
+    if (shieldMode !== undefined) {
+      challenge.settings.shieldMode = shieldMode;
+    }
+
+    if (challengeHints !== undefined) {
+      challenge.settings.challengeHints = challengeHints;
+    }
+
+    if (challengeHintsEnabled !== undefined) {
+      challenge.settings.challengeHintsEnabled = challengeHintsEnabled;
+    }
+
+    if (hintPenaltyPercent !== undefined) {
+      challenge.settings.hintPenaltyPercent = hintPenaltyPercent;
+    }
+
+    if (maxHintsPerChallenge !== undefined) {
+      challenge.settings.maxHintsPerChallenge = maxHintsPerChallenge;
+    }
+
+    if (dueDateEnabled !== undefined) {
+      challenge.settings.dueDateEnabled = dueDateEnabled;
+    }
+
+    if (dueDate !== undefined) {
+      challenge.settings.dueDate = dueDateEnabled ? dueDate : null;
+    }
+
+    await challenge.save();
+
+    res.json({ 
+      message: 'Challenge updated successfully',
+      challenge: {
+        _id: challenge._id,
+        title: challenge.title,
+        settings: challenge.settings,
+        isConfigured: challenge.isConfigured,
+        isActive: challenge.isActive
+      }
+    });
+
+  } catch (error) {
+    console.error('Error updating challenge:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 router.post('/:classroomId/update-due-date', ensureAuthenticated, ensureTeacher, async (req, res) => {
   try {
     const { classroomId } = req.params;
