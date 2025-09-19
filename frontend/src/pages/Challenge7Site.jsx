@@ -357,24 +357,33 @@ const Challenge7Site = () => {
           <div className="text-sm font-mono text-gray-500">
             DECODE THE QUOTE
           </div>
+          
+          {/* Warning Notice */}
+          <div className="bg-yellow-900/30 border border-yellow-600 rounded-lg p-3 max-w-2xl mx-auto">
+            <div className="text-yellow-400 font-mono text-xs font-bold text-center mb-1">
+              ⚠️ NOTICE
+            </div>
+            <div className="text-yellow-300 font-mono text-xs text-center leading-relaxed">
+              There is a known issue with load states for the quote. You may need to refresh your browser 
+              a few times to ensure the quote is consistent and accurate.
+            </div>
+            <br />
+            <div className="text-yellow-300 font-mono text-xs text-center leading-relaxed">
+              However, even if the quote changes, the solution you arrive at is the main key to decode the quote(s)!
+            </div>
+          </div>
         </div>
         
         <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 space-y-6">
           <div className="bg-black border border-green-400 rounded p-4">
             <div className="text-green-400 font-mono text-lg text-center mb-2">
-              🎯 DECODE THE QUOTE
+              🎯 QUOTE
             </div>
-            <div className="text-gray-300 font-mono text-sm text-center">
-              By {challengeData?.author}
+            <div className="text-gray-300 font-mono text-sm text-center mb-3">
+              By {challengeData?.author}:
             </div>
-          </div>
-          
-          <div className="bg-gray-800 border border-gray-600 rounded-lg p-4">
-            <div className="text-center">
-              <div className="text-orange-300 font-mono text-sm font-bold mb-3">QUOTE TO DECODE</div>
-              <div className="text-left bg-black border border-gray-700 rounded p-4 font-mono text-sm">
-                {challengeData?.words?.map((word, index) => renderWord(word, index))}
-              </div>
+            <div className="text-green-300 font-mono text-sm text-center italic">
+              "{challengeData?.quote}"
             </div>
           </div>
           
@@ -396,9 +405,7 @@ const Challenge7Site = () => {
               </div>
             </div>
           </div>
-        </div>
-        
-        <div className="space-y-4">
+
           {selectedWord && (
             <div className="bg-gray-800 border border-yellow-600 rounded-lg p-4">
               <div className="text-center">
@@ -411,6 +418,18 @@ const Challenge7Site = () => {
               </div>
             </div>
           )}
+          
+          <div className="bg-gray-800 border border-gray-600 rounded-lg p-4">
+            <div className="text-center">
+              <div className="text-orange-300 font-mono text-sm font-bold mb-3">QUOTE TO DECODE</div>
+              <div className="text-left bg-black border border-gray-700 rounded p-4 font-mono text-sm">
+                {challengeData?.words?.map((word, index) => renderWord(word, index))}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div className="space-y-4">
           
           <div className="text-sm font-mono text-gray-500">
             {selectedWord ? 'ENTER VALUE(S):' : 'SELECT A WORD ABOVE FIRST'}
@@ -427,7 +446,7 @@ const Challenge7Site = () => {
                 ? 'border-gray-700 text-gray-500' 
                 : 'border-gray-600 text-red-400 focus:border-red-400'
             }`}
-            placeholder={selectedWord ? "VALUE(S)" : "SELECT WORD FIRST"}
+            placeholder={selectedWord ? "VALUE(S)" : "Please Select a word first to enter its value!"}
           />
           
           <button
