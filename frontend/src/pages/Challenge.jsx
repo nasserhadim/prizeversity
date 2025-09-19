@@ -411,9 +411,9 @@ const Challenge = () => {
         <div className="flex items-center gap-3 mb-4">
           <Shield className="w-8 h-8 text-red-500" />
           <h1 className="text-3xl font-bold text-base-content">
-            {classroom?.name
+            {challengeData?.title || (classroom?.name
               ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''} - Cyber Challenge`
-              : 'Cyber Challenge'}
+              : 'Cyber Challenge')}
           </h1>
         </div>
         
@@ -446,6 +446,16 @@ const Challenge = () => {
             <h2 className={`text-2xl font-semibold ${themeClasses.mutedText}`}>No Active Challenge</h2>
             <p className={`${isDark ? 'text-base-content/60' : 'text-gray-500'}`}>
               Your instructor hasn't initiated a cyber challenge yet. Check back later!
+            </p>
+          </div>
+        </div>
+      ) : challengeData && challengeData.hidden && !isTeacher ? (
+        <div className="card bg-base-100 border border-base-200 shadow-md rounded-2xl p-6 text-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="text-6xl">🔧</div>
+            <h2 className={`text-2xl font-semibold ${themeClasses.mutedText}`}>Challenge Temporarily Unavailable</h2>
+            <p className={`${isDark ? 'text-base-content/60' : 'text-gray-500'}`}>
+              This challenge is currently under maintenance. Please check back later!
             </p>
           </div>
         </div>

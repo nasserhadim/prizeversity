@@ -213,6 +213,22 @@ const Challenge6Site = () => {
             }`}
             placeholder={submitting ? "PROCESSING..." : "ENTER VALUE"}
           />
+          
+          <button
+            onClick={handleSubmit}
+            disabled={submitting || !input.trim()}
+            className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-mono py-3 px-4 rounded border border-green-500 transition-colors"
+          >
+            {submitting ? (
+              <span className="flex items-center justify-center gap-2">
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                PROCESSING...
+              </span>
+            ) : (
+              'SUBMIT'
+            )}
+          </button>
+          
           <div className="text-xs font-mono text-gray-500 space-y-1">
             <div className="flex items-center justify-center gap-2">
               <span className="text-green-400">⏎</span>

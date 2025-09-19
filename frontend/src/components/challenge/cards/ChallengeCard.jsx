@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Play, Eye, AlertTriangle } from 'lucide-react';
 import { getChallengeColors } from '../../../utils/themeUtils';
-import { calculatePotentialBits } from '../../../utils/challengeUtils';
+import { getRewardDataForChallenge } from '../../../utils/challengeUtils';
 import { unlockHint, startChallenge } from '../../../API/apiChallenge';
-import { CHALLENGE_IDS } from '../../../constants/challengeConstants';
+import { CHALLENGE_IDS, CHALLENGE_NAMES } from '../../../constants/challengeConstants';
+import RewardsDisplay from '../RewardsDisplay';
 import toast from 'react-hot-toast';
 
 const ChallengeCard = ({ 
@@ -29,6 +30,8 @@ const ChallengeCard = ({
   const isChallengeStarted = userChallenge?.currentChallenge === challengeIndex || isCompleted;
   
   const challengeId = CHALLENGE_IDS[challengeIndex];
+  const rewardData = getRewardDataForChallenge(challengeIndex, challengeData, userChallenge, CHALLENGE_NAMES);
+  const challengeRewards = rewardData?.rewards;
   
   const handleUnlockHint = async () => {
     try {
@@ -154,14 +157,17 @@ const ChallengeCard = ({
             {challengeName}
           </div>
           
-          <div className={`badge badge-outline badge-sm w-fit ${
-            userChallenge?.hintsUsed?.[challengeIndex] > 0 ? 'badge-warning' : ''
-          }`}>
-            {calculatePotentialBits(challengeIndex, challengeData, userChallenge)} bits
+          <div className="flex flex-wrap gap-1">
+            <RewardsDisplay 
+              rewards={challengeRewards} 
+              isDark={isDark} 
+              isCompleted={isCompleted}
+              size="sm"
+            />
             {userChallenge?.hintsUsed?.[challengeIndex] > 0 && (
-              <span className="ml-1 text-xs opacity-75">
-                (-{userChallenge.hintsUsed[challengeIndex] * (challengeData?.settings?.hintPenaltyPercent || 25)}%)
-              </span>
+              <div className="badge badge-warning badge-xs">
+                -{userChallenge.hintsUsed[challengeIndex] * (challengeData?.settings?.hintPenaltyPercent || 25)}% hints
+              </div>
             )}
           </div>
         </div>
@@ -182,14 +188,17 @@ const ChallengeCard = ({
             {challengeIcon} {challengeName}
           </span>
           
-          <div className={`badge badge-outline badge-sm ${
-            userChallenge?.hintsUsed?.[challengeIndex] > 0 ? 'badge-warning' : ''
-          }`}>
-            {calculatePotentialBits(challengeIndex, challengeData, userChallenge)} bits
+          <div className="flex items-center gap-2">
+            <RewardsDisplay 
+              rewards={challengeRewards} 
+              isDark={isDark} 
+              isCompleted={isCompleted}
+              size="sm"
+            />
             {userChallenge?.hintsUsed?.[challengeIndex] > 0 && (
-              <span className="ml-1 text-xs opacity-75">
-                (-{userChallenge.hintsUsed[challengeIndex] * (challengeData?.settings?.hintPenaltyPercent || 25)}%)
-              </span>
+              <div className="badge badge-warning badge-xs">
+                -{userChallenge.hintsUsed[challengeIndex] * (challengeData?.settings?.hintPenaltyPercent || 25)}% hints
+              </div>
             )}
           </div>
           
@@ -213,6 +222,26 @@ const ChallengeCard = ({
               </div>
             </div>
           )}
+
+          <div className="bg-base-200 rounded-lg p-3 sm:p-4">
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <span className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>Challenge Rewards</span>
+              </div>
+              <RewardsDisplay 
+                rewards={challengeRewards} 
+                isDark={isDark} 
+                isCompleted={isCompleted}
+                size="lg"
+              />
+              {userChallenge?.hintsUsed?.[challengeIndex] > 0 && (
+                <div className="text-xs text-orange-600 dark:text-orange-400">
+                  ⚠️ Hints used: {userChallenge.hintsUsed[challengeIndex]} 
+                  (reducing rewards by {userChallenge.hintsUsed[challengeIndex] * (challengeData?.settings?.hintPenaltyPercent || 25)}%)
+                </div>
+              )}
+            </div>
+          </div>
 
           {challengeData?.settings?.challengeHintsEnabled?.[challengeIndex] && (
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">

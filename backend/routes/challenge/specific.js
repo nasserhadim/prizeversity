@@ -19,6 +19,10 @@ router.get('/challenge3/:uniqueId', ensureAuthenticated, async (req, res) => {
       return res.status(404).json({ message: 'Challenge not found' });
     }
 
+    if (!challenge.isVisible) {
+      return res.status(403).json({ message: 'Challenge is temporarily unavailable' });
+    }
+
     const userChallenge = challenge.userChallenges.find(uc => uc.uniqueId === uniqueId);
     if (!userChallenge) {
       return res.status(404).json({ message: 'User challenge not found' });
@@ -238,6 +242,10 @@ router.get('/challenge6/:uniqueId', ensureAuthenticated, async (req, res) => {
       return res.status(404).json({ message: 'Challenge not found' });
     }
 
+    if (userRole !== 'teacher' && !challenge.isVisible) {
+      return res.status(403).json({ message: 'Challenge is temporarily unavailable' });
+    }
+
     const userChallenge = challenge.userChallenges.find(uc => uc.uniqueId === uniqueId);
     if (!userChallenge) {
       return res.status(404).json({ message: 'User challenge not found' });
@@ -297,6 +305,10 @@ router.get('/challenge7/:uniqueId', ensureAuthenticated, async (req, res) => {
 
     if (!challenge) {
       return res.status(404).json({ message: 'Challenge not found' });
+    }
+
+    if (userRole !== 'teacher' && !challenge.isVisible) {
+      return res.status(403).json({ message: 'Challenge is temporarily unavailable' });
     }
 
     const userChallenge = challenge.userChallenges.find(uc => uc.uniqueId === uniqueId);
