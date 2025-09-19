@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Store, HandCoins  } from 'lucide-react';
 import { Image as ImageIcon } from 'lucide-react';
-// import axios from 'axios'
+import axios from 'axios'
 //import apiBazaar from '../API/apiBazaar.js'
 import CreateBazaar from '../components/CreateBazaar';
 import CreateItem from '../components/CreateItem';
@@ -22,6 +22,7 @@ const Bazaar = () => {
   const [classroom, setClassroom] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showInventory, setShowInventory] = useState(false);
+  const [confirmDeleteBazaar, setConfirmDeleteBazaar] = useState(null);
 
   // Fetch classroom details
   const fetchClassroom = async () => {
@@ -50,6 +51,19 @@ const Bazaar = () => {
     fetchBazaar();
   }, [classroomId]);
 
+
+    const handleDeleteBazaar = async () => {
+        return;
+        if (!confirmDeleteBazaar) return;
+        
+        try {
+            await apiBazaar.delete(`/api/bazaar/classroom/${classroomId}/bazaar/${confirmDeleteBazaar._id}`);
+            toast.success('Bazaar deleted');
+            setConfirmDeleteBazaar(null);
+        } catch(error) {
+        toast.error('Failed to delete bazaar', error);
+        }
+    };
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-base-200">
                         <span className="loading loading-ring loading-lg"></span>
                       </div>
@@ -119,7 +133,7 @@ const Bazaar = () => {
         {(user.role === 'teacher' || user.role === 'admin') && (
             <div className="flex gap-2">
                 <button className="btn btn-sm btn-info" onClick={() => handleEditBazaar()}>Edit</button>
-                <button className="btn btn-sm btn-error" onClick={() => setConfirmDeleteBazaar()}>Delete</button>
+                <button className="btn btn-sm btn-error" onClick={() => setConfirmDeleteBazaar(bazaar)}>Delete</button>
             </div>
         )}
 
@@ -210,6 +224,33 @@ const Bazaar = () => {
           )}
         </div>
       </div>
+
+    {confirmDeleteBazaar && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
+            <h2 className="text-lg font-semibold mb-4 text-center">Delete Bazaar</h2>
+            <p className="text-sm text-center">
+              Are you sure you want to delete the Bazaar <strong>{confirmDeleteBazaar.name}</strong>?
+              <br />
+              This will also delete all its items.
+            </p>
+            <div className="mt-6 flex justify-center gap-4">
+              <button
+                onClick={() => setConfirmDeleteBazaar(null)}
+                className="btn btn-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteBazaar}
+                className="btn btn-sm btn-error"
+              >
+                Yes, Delete
+              </button>
+            </div>
+          </div>
+        </div>
+    )}
       <Footer />
     </div>
   );
