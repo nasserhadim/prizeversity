@@ -51,6 +51,7 @@ const ChallengeSchema = new mongoose.Schema({
   description: { type: String, default: 'Complete all challenges to earn maximum bits!' },
   isActive: { type: Boolean, default: false },
   isConfigured: { type: Boolean, default: false },
+  isVisible: { type: Boolean, default: true },
   
   settings: {
     rewardMode: { type: String, enum: ['individual', 'total'], default: 'individual' },
