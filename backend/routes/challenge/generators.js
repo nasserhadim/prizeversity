@@ -220,7 +220,6 @@ int main() {
     actualOutput: result,
     task: `Manually trace through this C++ program and determine what value it outputs. This is YOUR personalized code - it won't work for other students!`,
     securityNote: `🔒 ANTI-CHEAT: This code is personalized with YOUR name and agent ID. AI tools will give wrong answers because they don't know your specific student data!`,
-    hint: "Work through each loop iteration step by step. Pay attention to the even/odd iteration logic and the final modifier calculation.",
     difficulty: "Intermediate",
     timeLimit: "120 minutes",
     debugInfo: {

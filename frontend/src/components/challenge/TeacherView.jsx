@@ -358,7 +358,7 @@ const TeacherView = ({
           Initiate the complete Cyber Challenge Series. Students will progress through multiple cybersecurity challenges, each with unique encrypted data and passwords to discover.
         </p>
         
-        <div className="flex gap-4">
+        <div className="flex flex-col sm:flex-row gap-4">
           {!challengeData || !challengeData.isActive ? (
             <button
               onClick={handleShowConfigModal}
@@ -456,7 +456,7 @@ const TeacherView = ({
             )}
           </div>
           
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
             <div className={`stat ${isDark ? 'bg-base-300 border border-base-700' : 'bg-base-200'} rounded-lg p-4`}>
               <div className="stat-title">Status</div>
               <div className={`stat-value text-lg ${challengeData.isActive ? 'text-success' : 'text-warning'}`}>
@@ -508,7 +508,7 @@ const TeacherView = ({
           {challengeData.isActive && challengeData.userChallenges && challengeData.userChallenges.length > 0 && (
             <div className="mt-6">
               <h3 className="text-xl font-semibold mb-4">Student Challenge Progress</h3>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto -mx-6 px-6 sm:mx-0 sm:px-0">
                 <table className="table table-zebra w-full table-auto text-sm md:text-base">
                   <thead>
                     <tr>
