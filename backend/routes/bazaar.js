@@ -535,25 +535,30 @@ router.get('/inventory/:userId', async (req, res) => {
 });
 
 // Delete Bazaar
-router.delete('/classroom/:classroomId/bazaar/:id', ensureAuthenticated, async (req, res) => {
-  try {
-    const bazaar = await Bazaar.findById(req.params.id)
-      .populate('items');
-      //.populate('classroom'); /
-    if (!bazaar) return res.status(404).json({ error: 'Bazaar not found' });
+router.delete(
+    '/classroom/:classroomId/bazaar/delete',
+    ensureAuthenticated,
+    ensureTeacher,
+    async (req, res) => {
+        const { classroomId} = req.params;
 
-    /* */
+    try {
+        // finds bazaar connected to classroom - errors if not found
+        const bazaar = await Bazaar.findOne({ classroom: classroomId });
+        if (!bazaar) {
+            return res.status(404).json({ error: 'Bazaar not found' });
+        }
+        // deletes bazaar items
+        if (bazaar.items.length > 0) {
+            await Item.deleteMany({ _id: { $in: bazaar.items } });
+        }
 
-    // Delete all associated items first
-    if (bazaar.items.length > 0) {
-      await Item.deleteMany({ _id: { $in: bazaar.items } });
-    }
-
-    await Bazaar.deleteOne({ _id: req.params.id });
-
-    res.status(200).json({ message: 'Bazaar deleted successfully' });
+        //deletes bazaar
+        await Bazaar.deleteOne({ classroom: classroomId });
+        res.status(200).json({ message: 'Bazaar deleted successfully' });
+    
   } catch (err) {
-    res.status(500).json({ error: 'Failed to delete bazaar' });
+    res.status(500).json({ error: 'Failed1' });
   }
 });
 

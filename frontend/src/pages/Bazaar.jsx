@@ -24,6 +24,21 @@ const Bazaar = () => {
   const [showInventory, setShowInventory] = useState(false);
   const [confirmDeleteBazaar, setConfirmDeleteBazaar] = useState(null);
 
+    // delete bazaar
+    const handleDeleteBazaar = async () => {
+        if (!confirmDeleteBazaar) return;
+        try {
+            await apiBazaar.delete(`classroom/${classroomId}/bazaar/delete`);
+            toast.success('Bazaar deleted');
+            setConfirmDeleteBazaar(null);
+            setBazaar(null);
+        } catch(error) {
+            console.error(error);
+            toast.error(`Failed to delete bazaar: ${error.response?.data?.error || error.message}`);
+            setConfirmDeleteBazaar(null);
+        }
+    };
+
   // Fetch classroom details
   const fetchClassroom = async () => {
     try {
@@ -37,9 +52,11 @@ const Bazaar = () => {
   // Will fetch the bazaar from the classroom
   const fetchBazaar = async () => {
     try {
-      const res = await apiBazaar.get(`classroom/${classroomId}/${bazaar.id}`);
+      const res = await apiBazaar.get(`classroom/${classroomId}/bazaar`);
       setBazaar(res.data.bazaar);
-    } catch {
+    } catch (error){
+        console.error(error);
+        //toast.error(`Failed to fetch bazaar: ${error.response?.data?.error || error.message}`);
       setBazaar(null);
     } finally {
       setLoading(false);
@@ -47,23 +64,11 @@ const Bazaar = () => {
   };
 
   useEffect(() => {
+    handleDeleteBazaar();
     fetchClassroom();
     fetchBazaar();
   }, [classroomId]);
 
-
-    const handleDeleteBazaar = async () => {
-        if (!confirmDeleteBazaar) return;
-        
-        try {
-            await axios.delete(`/api/bazaar/classroom/${classroomId}/bazaar/${bazaar}`);
-            toast.success('Bazaar deleted');
-            setConfirmDeleteBazaar(null);
-        } catch(error) {
-            console.error(error);
-            toast.error(`Failed to delete bazaar: ${error.response?.data?.error || error.message}`);
-        }
-    };
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-base-200">
                         <span className="loading loading-ring loading-lg"></span>
                       </div>
