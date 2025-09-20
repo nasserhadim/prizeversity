@@ -423,7 +423,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
              </div>
            )} 
 
-          {/* Option to specify the discount amount the instructor wants I ADDED THESE LINES*/}
+          {/* Option to specify the discount amount the instructor wants*/}
            {form.primaryEffect === 'discountShop' && (
              <div className="form-control">
                <label className="label">
