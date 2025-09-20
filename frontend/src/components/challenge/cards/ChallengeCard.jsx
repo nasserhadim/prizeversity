@@ -27,7 +27,7 @@ const ChallengeCard = ({
   
   const colors = getChallengeColors(challengeIndex, isDark);
   const isCompleted = userChallenge?.completedChallenges?.[challengeIndex] || false;
-  const isChallengeStarted = userChallenge?.currentChallenge === challengeIndex || isCompleted;
+  const isChallengeStarted = (userChallenge?.currentChallenge !== undefined && userChallenge?.currentChallenge === challengeIndex) || isCompleted;
   
   const challengeId = CHALLENGE_IDS[challengeIndex];
   const rewardData = getRewardDataForChallenge(challengeIndex, challengeData, userChallenge, CHALLENGE_NAMES);
@@ -257,7 +257,7 @@ const ChallengeCard = ({
           </p>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            {!isCompleted && !isChallengeStarted && challengeIndex !== 2 && (
+            {!isCompleted && !isChallengeStarted && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
