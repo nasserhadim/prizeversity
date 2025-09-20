@@ -37,7 +37,7 @@ const Bazaar = () => {
   // Will fetch the bazaar from the classroom
   const fetchBazaar = async () => {
     try {
-      const res = await apiBazaar.get(`classroom/${classroomId}/bazaar`);
+      const res = await apiBazaar.get(`classroom/${classroomId}/${bazaar.id}`);
       setBazaar(res.data.bazaar);
     } catch {
       setBazaar(null);
@@ -56,11 +56,12 @@ const Bazaar = () => {
         if (!confirmDeleteBazaar) return;
         
         try {
-            await apiBazaar.delete(`/api/bazaar/classroom/${classroomId}/bazaar/${confirmDeleteBazaar._id}`);
+            await axios.delete(`/api/bazaar/classroom/${classroomId}/bazaar/${bazaar}`);
             toast.success('Bazaar deleted');
             setConfirmDeleteBazaar(null);
         } catch(error) {
-        toast.error('Failed to delete bazaar', error);
+            console.error(error);
+            toast.error(`Failed to delete bazaar: ${error.response?.data?.error || error.message}`);
         }
     };
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-base-200">

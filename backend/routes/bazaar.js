@@ -534,4 +534,28 @@ router.get('/inventory/:userId', async (req, res) => {
   }
 });
 
+// Delete Bazaar
+router.delete('/classroom/:classroomId/bazaar/:id', ensureAuthenticated, async (req, res) => {
+  try {
+    const bazaar = await Bazaar.findById(req.params.id)
+      .populate('items');
+      //.populate('classroom'); /
+    if (!bazaar) return res.status(404).json({ error: 'Bazaar not found' });
+
+    /* */
+
+    // Delete all associated items first
+    if (bazaar.items.length > 0) {
+      await Item.deleteMany({ _id: { $in: bazaar.items } });
+    }
+
+    await Bazaar.deleteOne({ _id: req.params.id });
+
+    res.status(200).json({ message: 'Bazaar deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete bazaar' });
+  }
+});
+
+
 module.exports = router;
