@@ -1,3 +1,4 @@
+import BazaarSearch from "../BazaarSearch";
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -116,6 +117,14 @@ const Bazaar = () => {
         </div>
       </div>
 
+      {/* Search & filter controls for the Bazaar items */}
+      <BazaarSearch
+        onFiltersChange={(filters) => {
+          // This will be used on the next pass to fetch filtered items
+          console.log("Bazaar filters:", filters);
+        }}
+      />
+      
       {/* Teacher Create Item */}
       {user.role === 'teacher' && (
         <div className="card card-compact bg-base-100 shadow p-4 border border-base-200">
