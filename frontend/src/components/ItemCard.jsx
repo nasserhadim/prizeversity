@@ -34,19 +34,19 @@ const ItemCard = ({ item, role, classroomId }) => {
     }
   };
 
-  // Calculating the discounted price if discount is active 
-  // Adding the calculation of group multiplier
+  // this is calculating the the discounted price if discount is active 
+  // this will be adding the calculation of group multiplier
   const calculatePrice = () => {
     const basePrice = item.price;
     let finalPrice = basePrice;
     let discountApplied = false;
     let groupBonus = false;
 
-    if (role === 'student' && user?.discountShop) {
-      finalPrice = Math.floor(basePrice * 0.8);
-      discountApplied = true;
-    }
-    
+    if (role === 'student' && Number(user?.discountPercent) > 0) {
+    const pct = Number(user.discountPercent);
+    finalPrice = Math.floor(basePrice * (1 - pct / 100));
+    discountApplied = true;
+}
     if (user?.groups?.length > 0 && user?.groupMultiplier > 1) {
       finalPrice = Math.floor(finalPrice / user.groupMultiplier);
       groupBonus = true;
@@ -57,7 +57,7 @@ const ItemCard = ({ item, role, classroomId }) => {
         <>
           <span className="line-through text-gray-400 mr-2">{basePrice} ₿</span>
           <span className="text-green-600">{finalPrice} ₿</span>
-          {discountApplied && <span className="text-xs text-green-600 ml-1">(20% off)</span>}
+          {discountApplied && <span className="text-xs text-green-600 ml-1">{Number(user.discountPercent)}% off</span>}
           {groupBonus && <span className="text-xs text-blue-600 ml-1">(+{Math.round((user.groupMultiplier-1)*100)}% group bonus)</span>}
         </>
       );

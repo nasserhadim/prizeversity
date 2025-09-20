@@ -11,6 +11,7 @@ import { getEffectDescription, splitDescriptionEffect } from '../utils/itemHelpe
 import Footer from '../components/Footer';
 import apiClassroom from '../API/apiClassroom';
 
+
 const Checkout = () => {
   const { classroomId } = useParams();
   const { user } = useAuth();
@@ -73,15 +74,16 @@ const Checkout = () => {
   }, [classroomId]);
 
   // Calculating the discuonted price (only if discount is active)
+  const pct = Number(user?.discountPercent) || 0;
+
   const calculatePrice = (price) => {
-    return user?.discountShop ? Math.floor(price * 0.8) : price;
+  return pct > 0 ? Math.floor(price * (1 - pct / 100)) : price;
   };
 
-  // Calculating the total with discount
   const calculateTotal = () => {
-    const subtotal = cartItems.reduce((sum, item) => sum + item.price, 0);
-    return user?.discountShop ? Math.floor(subtotal * 0.8) : subtotal;
-  }
+  const subtotal = cartItems.reduce((sum, item) => sum + item.price, 0);
+  return pct > 0 ? Math.floor(subtotal * (1 - pct / 100)) : subtotal;
+};
 
   const handleCheckout = async () => {
     try {
@@ -145,7 +147,7 @@ const Checkout = () => {
 
           {user?.discountShop && (
               <div className="bg-success/10 text-success p-3 rounded mb-4 text-sm">
-                  🎉 20% discount applied to all items!
+                  🎉 {Number(user.discountPercent)}% discount applied to all items!
               </div>
           )}
 

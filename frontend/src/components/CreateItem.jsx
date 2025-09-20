@@ -7,7 +7,7 @@ import { describeEffectFromForm } from '../utils/itemHelpers';
 // Will define the primary effect options by item category
 const CATEGORY_OPTIONS = {
   Attack: [
-    { label: 'Bit Splitter (halve bits)', value: 'halveBits' },
+    { label: 'Bit Splitter', value: 'splitBits' },
     { label: 'Bit Leech (steal %)', value: 'stealBits' },
     { label: 'Attribute Swapper', value: 'swapper' },
     { label: 'Nullifier (reset to default)', value: 'nullify'}
@@ -17,7 +17,7 @@ const CATEGORY_OPTIONS = {
   ],
   Utility: [
     { label: 'Earnings Multiplier (2x)', value: 'doubleEarnings' },
-    { label: 'Shop Discount (20%)', value: 'discountShop' }
+    { label: 'Shop Discount', value: 'discountShop' }
   ],
   Passive: [] // No primary effects for passive
 };
@@ -40,7 +40,8 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
     image: '',
     category: '',
     primaryEffect: '',
-    primaryEffectValue: 1,
+    primaryEffectValue: '', //changed this from 1 to ''
+    primaryEffectDuration: '', //added this line
     secondaryEffects: [],
     swapOptions: []
   });
@@ -69,7 +70,8 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
       image: '',
       category: '',
       primaryEffect: '',
-      primaryEffectValue: 1,
+      primaryEffectValue: '', //changed this from 1 to ''
+      primaryEffectDuration: '', //added this line
       secondaryEffects: [],
       swapOptions: []
     });
@@ -88,7 +90,8 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
       [name]: value,
       ...(name === 'category' ? {
         primaryEffect: '',
-        primaryEffectValue: 1,
+        primaryEffectValue: '',
+        primaryEffectDuration: '', //added this line
         secondaryEffects: [],
         swapOptions: []
       } : {})
@@ -111,6 +114,17 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
       newEffects[index] = { ...newEffects[index], [field]: value };
       return { ...prev, secondaryEffects: newEffects };
     });
+  };
+
+  // when selecting primary effect, set sensible defaults for certain effects
+  const handlePrimaryEffectSelect = (e) => {
+    const value = e.target.value;
+    setForm(prev => ({
+      ...prev,
+      primaryEffect: value,
+      // the default discount to 20% so preview shows meaningful text
+      ...(value === 'discountShop' ? { primaryEffectValue: prev.primaryEffectValue} : {})
+    }));
   };
 
   // Remove a secondary effect at the given index
@@ -386,6 +400,51 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                </div>
              </div>
            )}
+
+            {/* Bit Split amount Input */}
+           {form.primaryEffect === 'splitBits' && (
+             <div className="form-control">
+               <label className="label">
+                 <span className="label-text font-medium">Applied Split</span>
+               </label>
+               <div className="join">
+                 <input
+                   type="number"
+                   className="input input-bordered join-item w-full"
+                   //value={form.primaryEffectValue}
+                   onChange={(e) => setForm(prev => ({
+                     ...prev,
+                     primaryEffectValue: e.target.value
+                   }))}
+                   placeholder="example: 1/2 for half"
+                 />
+                 <span className="join-item bg-base-200 px-4 flex items-center">bits</span>
+               </div>
+             </div>
+           )} 
+
+          {/* Option to specify the discount amount the instructor wants I ADDED THESE LINES*/}
+           {form.primaryEffect === 'discountShop' && (
+             <div className="form-control">
+               <label className="label">
+                 <span className="label-text font-medium">Applied Discount</span>
+               </label>
+               <div className="join">
+                 <input
+                   type="number"
+                   className="input input-bordered join-item w-full"
+                   //value={form.primaryEffectValue}
+                   onChange={(e) => setForm(prev => ({
+                     ...prev,
+                     primaryEffectValue: Math.min(100, Math.max(1, e.target.value))
+                   }))}
+                   min="1"
+                   max="100"
+                 />
+                 <span className="join-item bg-base-200 px-4 flex items-center">%</span>
+               </div>
+             </div>
+           )} 
  
            {/* Swapper Options */}
            {form.primaryEffect === 'swapper' && (
