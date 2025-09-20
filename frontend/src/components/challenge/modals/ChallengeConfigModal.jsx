@@ -568,7 +568,7 @@ const ChallengeConfigModal = ({
                 </div>
               </div>
             ) : (
-              <>
+              <div className="overflow-x-auto">
                 <table className="table table-compact w-full min-w-[1000px]">
                   <thead>
                     <tr className="sticky top-0 bg-base-100 z-20">
@@ -879,7 +879,7 @@ const ChallengeConfigModal = ({
                     </tr>
                   </tbody>
                 </table>
-              </>
+              </div>
             )}
           </div>
 

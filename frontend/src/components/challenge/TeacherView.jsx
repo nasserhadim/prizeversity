@@ -350,7 +350,7 @@ const TeacherView = ({
           <Shield className="w-8 h-8 text-red-500" />
           <h1 className="text-3xl font-bold text-base-content">
             {challengeData?.title || (classroom?.name
-              ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''} - Cyber Challenge`
+              ? `${classroom.name} (${classroom.code}) - Cyber Challenge`
               : 'Cyber Challenge')}
           </h1>
         </div>
@@ -517,6 +517,7 @@ const TeacherView = ({
                       <th className="hidden md:table-cell whitespace-nowrap">Challenge Data</th>
                       <th className="whitespace-nowrap">Solution</th>
                       <th className="hidden sm:table-cell whitespace-nowrap">Started At</th>
+                      <th className="hidden lg:table-cell whitespace-nowrap">Completed At</th>
                       <th className="whitespace-nowrap">Status</th>
                     </tr>
                   </thead>
@@ -815,14 +816,31 @@ const TeacherView = ({
                                 <div className="text-xs text-gray-500">
                                   {new Date(uc.startedAt).toLocaleTimeString()}
                                 </div>
-                                {uc.currentChallenge !== undefined && (
-                                  <div className="badge badge-info badge-xs mt-1 whitespace-nowrap">
-                                    Working on #{uc.currentChallenge + 1}
-                                  </div>
-                                )}
                               </div>
                             ) : (
                               <span className="text-sm text-gray-400">Not started</span>
+                            )}
+                          </td>
+                          <td className="hidden lg:table-cell">
+                            {uc.completedChallenges?.[workingOnChallenge] && uc.challengeCompletedAt?.[workingOnChallenge] ? (
+                              <div className="text-xs md:text-sm">
+                                <div>{new Date(uc.challengeCompletedAt[workingOnChallenge]).toLocaleDateString()}</div>
+                                <div className="text-xs text-gray-500">
+                                  {new Date(uc.challengeCompletedAt[workingOnChallenge]).toLocaleTimeString()}
+                                </div>
+                              </div>
+                            ) : uc.progress >= 7 && uc.completedAt ? (
+                              <div className="text-xs md:text-sm">
+                                <div>{new Date(uc.completedAt).toLocaleDateString()}</div>
+                                <div className="text-xs text-gray-500">
+                                  {new Date(uc.completedAt).toLocaleTimeString()}
+                                </div>
+                                <div className="text-xs text-blue-600 font-medium">
+                                  Series Complete
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-sm text-gray-400">Not completed</span>
                             )}
                           </td>
                           <td>
