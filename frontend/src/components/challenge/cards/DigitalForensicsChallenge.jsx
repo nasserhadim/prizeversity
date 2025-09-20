@@ -15,7 +15,7 @@ const DigitalForensicsChallenge = ({ userChallenge, isDark, onExternalLinkClick 
       <div className={`${colors.sectionBg} rounded-lg p-4`}>
         <h4 className={`font-semibold ${colors.textColor} mb-2`}>🕵️ Your Investigation</h4>
         <p className={`text-sm ${themeClasses.bodyText} mb-3`}>
-          One of Wayne State's Alumni left some evidence in a GitHub repository. Your task is to find it and extract the hidden metadata.
+          One of Wayne State's Alumni left some evidence in a GitHub repository. Your task is to find it and extract the correct information.
         </p>
         <div className="space-y-2">
           <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>🔍 Use OSINT techniques to locate your evidence</p>

@@ -20,6 +20,7 @@ import WayneAWSChallenge from '../components/challenge/cards/WayneAWSChallenge';
 import ChallengeConfigModal from '../components/challenge/modals/ChallengeConfigModal';
 import NeedleInAHaystackChallenge from '../components/challenge/cards/NeedleInAHaystack';
 import QuoteHangmanChallenge from '../components/challenge/cards/QuoteHangmanChallenge';
+import Footer from '../components/Footer';
 
 // Hooks
 import { useChallengeData } from '../hooks/useChallengeData';
@@ -386,7 +387,8 @@ const Challenge = () => {
 
   // Student view
   return (
-    <div className="p-6 space-y-8">
+    <div className="min-h-screen flex flex-col">
+      <div className="flex-1 p-6 space-y-8">
       {isTeacherInStudentView && (
         <div className="fixed bottom-6 right-6 z-50">
           <div className="card bg-primary text-primary-content shadow-xl">
@@ -645,6 +647,8 @@ const Challenge = () => {
         hintNumber={hintNumber}
       />
 
+      </div>
+      <Footer />
     </div>
   );
 };
