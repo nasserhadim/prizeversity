@@ -6,6 +6,7 @@ import { updateDueDate, toggleChallengeVisibility } from '../../API/apiChallenge
 import ChallengeUpdateModal from './modals/ChallengeUpdateModal';
 import toast from 'react-hot-toast';
 import socket from '../../utils/socket';
+import Footer from '../Footer';
 
 const TeacherView = ({ 
   challengeData,
@@ -342,7 +343,8 @@ const TeacherView = ({
   };
 
   return (
-    <div className="p-6 space-y-8">
+    <div className="min-h-screen flex flex-col">
+      <div className="flex-1 p-6 space-y-8">
       <div className={themeClasses.cardBase}>
         <div className="flex items-center gap-3 mb-4">
           <Shield className="w-8 h-8 text-red-500" />
@@ -953,6 +955,8 @@ const TeacherView = ({
         fetchChallengeData={fetchChallengeData}
         classroomId={classroomId}
       />
+      </div>
+      <Footer />
     </div>
   );
 };
