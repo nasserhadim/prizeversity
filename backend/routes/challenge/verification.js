@@ -50,7 +50,18 @@ router.post('/verify-password', ensureAuthenticated, async (req, res) => {
     if (!userChallenge.completedChallenges[0]) {
       userChallenge.completedChallenges[0] = true;
       userChallenge.progress = userChallenge.completedChallenges.filter(Boolean).length;
-      userChallenge.completedAt = Date.now();
+      
+      if (!userChallenge.challengeCompletedAt) {
+        userChallenge.challengeCompletedAt = [];
+      }
+      while (userChallenge.challengeCompletedAt.length <= 0) {
+        userChallenge.challengeCompletedAt.push(null);
+      }
+      userChallenge.challengeCompletedAt[0] = new Date();
+      
+      if (userChallenge.progress >= 7) {
+        userChallenge.completedAt = new Date();
+      }
       
       const user = await User.findById(userId);
       if (user) {

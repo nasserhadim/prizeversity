@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { Shield, Settings, Users, Eye, EyeOff, UserPlus } from 'lucide-react';
+import { Shield, Settings, Users, Eye, EyeOff, UserPlus, Edit3 } from 'lucide-react';
 import { getCurrentChallenge } from '../../utils/challengeUtils';
 import { getThemeClasses } from '../../utils/themeUtils';
-import { updateDueDate } from '../../API/apiChallenge';
+import { updateDueDate, toggleChallengeVisibility } from '../../API/apiChallenge';
+import ChallengeUpdateModal from './modals/ChallengeUpdateModal';
 import toast from 'react-hot-toast';
 import socket from '../../utils/socket';
+import Footer from '../Footer';
 
 const TeacherView = ({ 
   challengeData,
@@ -20,11 +22,13 @@ const TeacherView = ({
 }) => {
   const [showPasswords, setShowPasswords] = useState({});
   const [showDueDateModal, setShowDueDateModal] = useState(false);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [showAssignDropdown, setShowAssignDropdown] = useState(false);
   const [studentNames, setStudentNames] = useState({});
   const [challenge6Data, setChallenge6Data] = useState({});
   const [challenge7Data, setChallenge7Data] = useState({});
   const [localDueDate, setLocalDueDate] = useState('');
+  const [togglingVisibility, setTogglingVisibility] = useState(false);
   const dropdownRef = useRef(null);
   const themeClasses = getThemeClasses(isDark);
 
@@ -325,22 +329,36 @@ const TeacherView = ({
     fetchChallenge7Data();
   }, [challengeData?.userChallenges]);
 
+  const handleToggleVisibility = async () => {
+    try {
+      setTogglingVisibility(true);
+      const result = await toggleChallengeVisibility(classroomId);
+      toast.success(result.message);
+      await fetchChallengeData();
+    } catch (error) {
+      toast.error(error.message || 'Failed to toggle challenge visibility');
+    } finally {
+      setTogglingVisibility(false);
+    }
+  };
+
   return (
-    <div className="p-6 space-y-8">
+    <div className="min-h-screen flex flex-col">
+      <div className="flex-1 p-6 space-y-8">
       <div className={themeClasses.cardBase}>
         <div className="flex items-center gap-3 mb-4">
           <Shield className="w-8 h-8 text-red-500" />
           <h1 className="text-3xl font-bold text-base-content">
-            {classroom?.name
-              ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''} - Cyber Challenge`
-              : 'Cyber Challenge'}
+            {challengeData?.title || (classroom?.name
+              ? `${classroom.name} (${classroom.code}) - Cyber Challenge`
+              : 'Cyber Challenge')}
           </h1>
         </div>
         <p className={`${themeClasses.mutedText} text-lg mb-6`}>
           Initiate the complete Cyber Challenge Series. Students will progress through multiple cybersecurity challenges, each with unique encrypted data and passwords to discover.
         </p>
         
-        <div className="flex gap-4">
+        <div className="flex flex-col sm:flex-row gap-4">
           {!challengeData || !challengeData.isActive ? (
             <button
               onClick={handleShowConfigModal}
@@ -350,18 +368,45 @@ const TeacherView = ({
               Configure & Launch Challenge Series
             </button>
           ) : (
-            <button
-              onClick={handleShowDeactivateModal}
-              disabled={initiating}
-              className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
-            >
-              {initiating ? (
-                <span className="loading loading-spinner loading-sm"></span>
-              ) : (
-                <Shield className="w-5 h-5" />
-              )}
-              Delete Challenge
-            </button>
+            <>
+              <button
+                onClick={handleToggleVisibility}
+                disabled={togglingVisibility}
+                className={`btn btn-lg gap-2 flex-wrap text-sm sm:text-base ${
+                  challengeData.isVisible 
+                    ? 'btn-warning' 
+                    : 'btn-success'
+                }`}
+              >
+                {togglingVisibility ? (
+                  <span className="loading loading-spinner loading-sm"></span>
+                ) : challengeData.isVisible ? (
+                  <EyeOff className="w-5 h-5" />
+                ) : (
+                  <Eye className="w-5 h-5" />
+                )}
+                {challengeData.isVisible ? 'Hide from Students' : 'Show to Students'}
+              </button>
+              <button
+                onClick={() => setShowUpdateModal(true)}
+                className="btn btn-primary btn-lg gap-2 flex-wrap text-sm sm:text-base"
+              >
+                <Edit3 className="w-5 h-5" />
+                Update Challenge
+              </button>
+              <button
+                onClick={handleShowDeactivateModal}
+                disabled={initiating}
+                className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
+              >
+                {initiating ? (
+                  <span className="loading loading-spinner loading-sm"></span>
+                ) : (
+                  <Shield className="w-5 h-5" />
+                )}
+                Delete Challenge
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -411,7 +456,7 @@ const TeacherView = ({
             )}
           </div>
           
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
             <div className={`stat ${isDark ? 'bg-base-300 border border-base-700' : 'bg-base-200'} rounded-lg p-4`}>
               <div className="stat-title">Status</div>
               <div className={`stat-value text-lg ${challengeData.isActive ? 'text-success' : 'text-warning'}`}>
@@ -463,7 +508,7 @@ const TeacherView = ({
           {challengeData.isActive && challengeData.userChallenges && challengeData.userChallenges.length > 0 && (
             <div className="mt-6">
               <h3 className="text-xl font-semibold mb-4">Student Challenge Progress</h3>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto -mx-6 px-6 sm:mx-0 sm:px-0">
                 <table className="table table-zebra w-full table-auto text-sm md:text-base">
                   <thead>
                     <tr>
@@ -472,6 +517,7 @@ const TeacherView = ({
                       <th className="hidden md:table-cell whitespace-nowrap">Challenge Data</th>
                       <th className="whitespace-nowrap">Solution</th>
                       <th className="hidden sm:table-cell whitespace-nowrap">Started At</th>
+                      <th className="hidden lg:table-cell whitespace-nowrap">Completed At</th>
                       <th className="whitespace-nowrap">Status</th>
                     </tr>
                   </thead>
@@ -770,14 +816,31 @@ const TeacherView = ({
                                 <div className="text-xs text-gray-500">
                                   {new Date(uc.startedAt).toLocaleTimeString()}
                                 </div>
-                                {uc.currentChallenge !== undefined && (
-                                  <div className="badge badge-info badge-xs mt-1 whitespace-nowrap">
-                                    Working on #{uc.currentChallenge + 1}
-                                  </div>
-                                )}
                               </div>
                             ) : (
                               <span className="text-sm text-gray-400">Not started</span>
+                            )}
+                          </td>
+                          <td className="hidden lg:table-cell">
+                            {uc.completedChallenges?.[workingOnChallenge] && uc.challengeCompletedAt?.[workingOnChallenge] ? (
+                              <div className="text-xs md:text-sm">
+                                <div>{new Date(uc.challengeCompletedAt[workingOnChallenge]).toLocaleDateString()}</div>
+                                <div className="text-xs text-gray-500">
+                                  {new Date(uc.challengeCompletedAt[workingOnChallenge]).toLocaleTimeString()}
+                                </div>
+                              </div>
+                            ) : uc.progress >= 7 && uc.completedAt ? (
+                              <div className="text-xs md:text-sm">
+                                <div>{new Date(uc.completedAt).toLocaleDateString()}</div>
+                                <div className="text-xs text-gray-500">
+                                  {new Date(uc.completedAt).toLocaleTimeString()}
+                                </div>
+                                <div className="text-xs text-blue-600 font-medium">
+                                  Series Complete
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-sm text-gray-400">Not completed</span>
                             )}
                           </td>
                           <td>
@@ -902,6 +965,16 @@ const TeacherView = ({
           </div>
         </div>
       )}
+
+      <ChallengeUpdateModal
+        showUpdateModal={showUpdateModal}
+        setShowUpdateModal={setShowUpdateModal}
+        challengeData={challengeData}
+        fetchChallengeData={fetchChallengeData}
+        classroomId={classroomId}
+      />
+      </div>
+      <Footer />
     </div>
   );
 };

@@ -23,6 +23,10 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
       return res.status(404).json({ success: false, message: 'No active challenge found' });
     }
 
+    if (!challenge.isVisible) {
+      return res.status(403).json({ success: false, message: 'Challenge is temporarily unavailable' });
+    }
+
     if (isChallengeExpired(challenge)) {
       return res.status(403).json({ 
         success: false, 
@@ -65,6 +69,14 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
     if (isCorrect) {
       userChallenge.completedChallenges[challengeIndex] = true;
       userChallenge.progress = userChallenge.completedChallenges.filter(Boolean).length;
+      
+      if (!userChallenge.challengeCompletedAt) {
+        userChallenge.challengeCompletedAt = [];
+      }
+      while (userChallenge.challengeCompletedAt.length <= challengeIndex) {
+        userChallenge.challengeCompletedAt.push(null);
+      }
+      userChallenge.challengeCompletedAt[challengeIndex] = new Date();
       
       const user = await User.findById(userId);
       let rewardsEarned = {
@@ -240,8 +252,21 @@ router.post('/complete-challenge/:level', ensureAuthenticated, async (req, res) 
       return res.status(401).json({ message: 'Incorrect solution' });
     }
 
-    userChallenge.progress = challengeLevel;
-    if (challengeLevel === 4) {
+    if (!userChallenge.completedChallenges) {
+      userChallenge.completedChallenges = [false, false, false, false, false, false, false];
+    }
+    userChallenge.completedChallenges[challengeLevel - 1] = true;
+    userChallenge.progress = userChallenge.completedChallenges.filter(Boolean).length;
+    
+    if (!userChallenge.challengeCompletedAt) {
+      userChallenge.challengeCompletedAt = [];
+    }
+    while (userChallenge.challengeCompletedAt.length <= challengeLevel - 1) {
+      userChallenge.challengeCompletedAt.push(null);
+    }
+    userChallenge.challengeCompletedAt[challengeLevel - 1] = new Date();
+    
+    if (userChallenge.progress >= 7) {
       userChallenge.completedAt = new Date();
     }
     
@@ -269,6 +294,10 @@ router.post('/:classroomId/start', ensureAuthenticated, async (req, res) => {
     const challenge = await Challenge.findOne({ classroomId, isActive: true });
     if (!challenge) {
       return res.status(404).json({ success: false, message: 'No active challenge found' });
+    }
+
+    if (!challenge.isVisible) {
+      return res.status(403).json({ success: false, message: 'Challenge is temporarily unavailable' });
     }
 
     const userChallenge = challenge.userChallenges.find(uc => uc.userId.toString() === userId.toString());
@@ -316,6 +345,10 @@ router.post('/:classroomId/hints/unlock', ensureAuthenticated, async (req, res) 
     const challenge = await Challenge.findOne({ classroomId, isActive: true });
     if (!challenge) {
       return res.status(404).json({ success: false, message: 'No active challenge found' });
+    }
+
+    if (!challenge.isVisible) {
+      return res.status(403).json({ success: false, message: 'Challenge is temporarily unavailable' });
     }
 
     const userChallenge = challenge.userChallenges.find(uc => uc.userId.toString() === userId.toString());
@@ -434,7 +467,18 @@ router.post('/submit-challenge6', ensureAuthenticated, async (req, res) => {
       
       userChallenge.completedChallenges[5] = true;
       userChallenge.progress = userChallenge.completedChallenges.filter(Boolean).length;
-      userChallenge.lastCompletedAt = new Date();
+      
+      if (!userChallenge.challengeCompletedAt) {
+        userChallenge.challengeCompletedAt = [];
+      }
+      while (userChallenge.challengeCompletedAt.length <= 5) {
+        userChallenge.challengeCompletedAt.push(null);
+      }
+      userChallenge.challengeCompletedAt[5] = new Date();
+      
+      if (userChallenge.progress >= 7) {
+        userChallenge.completedAt = new Date();
+      }
       
       await challenge.save();
       
@@ -566,8 +610,19 @@ router.post('/submit-challenge7', ensureAuthenticated, async (req, res) => {
         
         userChallenge.completedChallenges[6] = true;
         userChallenge.challengeRewards[6] = rewards;
-        userChallenge.lastCompletedAt = new Date();
         userChallenge.progress = userChallenge.completedChallenges.filter(Boolean).length;
+        
+        if (!userChallenge.challengeCompletedAt) {
+          userChallenge.challengeCompletedAt = [];
+        }
+        while (userChallenge.challengeCompletedAt.length <= 6) {
+          userChallenge.challengeCompletedAt.push(null);
+        }
+        userChallenge.challengeCompletedAt[6] = new Date();
+        
+        if (userChallenge.progress >= 7) {
+          userChallenge.completedAt = new Date();
+        }
         
         console.log('💰 Challenge 7 rewards calculated:', rewards);
       }
