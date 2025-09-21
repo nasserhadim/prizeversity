@@ -23,6 +23,9 @@ const Bazaar = () => {
   const [classroom, setClassroom] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showInventory, setShowInventory] = useState(false);
+  const [filteredItems, setFilteredItems] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState("");
 
   // Fetch classroom details
   const fetchClassroom = async () => {
@@ -124,7 +127,7 @@ const Bazaar = () => {
           console.log("Bazaar filters:", filters);
         }}
       />
-      
+
       {/* Teacher Create Item */}
       {user.role === 'teacher' && (
         <div className="card card-compact bg-base-100 shadow p-4 border border-base-200">
