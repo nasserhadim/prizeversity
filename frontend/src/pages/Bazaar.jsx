@@ -1,4 +1,4 @@
-import BazaarSearch from "../BazaarSearch";
+import BazaarSearch from "components/BazaarSearch";
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -333,7 +333,8 @@ const Bazaar = () => {
         </div>
         <Footer />
       </div>
-      );
-};
+    </div>
+    );
+    };
 
       export default Bazaar;
