@@ -1,5 +1,7 @@
 const { get_encoding } = require('tiktoken');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 
 async function generateQuoteForUser(uniqueId, salt = 'hangman_challenge_2024') {
   const hash = crypto.createHash('md5').update(uniqueId + salt).digest('hex');
@@ -15,82 +17,21 @@ async function generateQuoteForUser(uniqueId, salt = 'hangman_challenge_2024') {
   const char2Offset = parseInt(char2Hash.substring(4, 8), 16);
   const lengthOffset = parseInt(lengthHash.substring(8, 12), 16);
   
-  const fallbackQuotes = [
-    // Tech & Innovation
-    { quote: "The only way to do great work is to love what you do.", author: "Steve Jobs" },
-    { quote: "Innovation distinguishes between a leader and a follower.", author: "Steve Jobs" },
-    { quote: "Code is poetry.", author: "Unknown" },
-    { quote: "The best error message is the one that never shows up.", author: "Thomas Fuchs" },
-    { quote: "Talk is cheap. Show me the code.", author: "Linus Torvalds" },
-    { quote: "Programs must be written for people to read.", author: "Harold Abelson" },
-    { quote: "Any fool can write code that a computer can understand.", author: "Martin Fowler" },
-    { quote: "First, solve the problem. Then, write the code.", author: "John Johnson" },
-    { quote: "Code never lies, comments sometimes do.", author: "Ron Jeffries" },
-    { quote: "The function of good software is to make the complex appear simple.", author: "Grady Booch" },
-    { quote: "Any sufficiently advanced technology is indistinguishable from magic.", author: "Arthur C. Clarke" },
-    { quote: "The best way to predict the future is to invent it.", author: "Alan Kay" },
-    { quote: "It's still magic even if you know how it's done.", author: "Terry Pratchett" },
-    { quote: "We are stuck with technology when what we really want is just stuff that works.", author: "Douglas Adams" },
-    { quote: "A CD. How quaint. We have these in Museums.", author: "Eoin Colfer" },
-    { quote: "I have never let my schooling interfere with my education.", author: "Mark Twain" },
-    { quote: "Technological progress has merely provided us with more efficient means for going backwards.", author: "Aldous Huxley" },
-    { quote: "It's supposed to be automatic, but actually you have to push this button.", author: "John Brunner" },
-    { quote: "The purpose of technology is to make people more efficient so they can live more fulfilling lives.", author: "Elon Musk" },
-    { quote: "Technology is best when it brings people together.", author: "Matt Mullenweg" },
-    { quote: "The computer is like an ethereal machine that only you can operate.", author: "Kurt Vonnegut" },
-    { quote: "The future is already here—it's just not very evenly distributed.", author: "William Gibson" },
-    { quote: "Technology is a word that describes something that doesn't work yet.", author: "Douglas Adams" },
-    { quote: "Any fool can write code that a computer can understand.", author: "Martin Fowler" },
-    { quote: "First, solve the problem. Then, write the code.", author: "The Internet" },
-    
-    // Motivational & Success
-    { quote: "Success is not final, failure is not fatal: it is the courage to continue that counts.", author: "Winston Churchill" },
-    { quote: "The way to get started is to quit talking and begin doing.", author: "Walt Disney" },
-    { quote: "Don't let yesterday take up too much of today.", author: "Will Rogers" },
-    { quote: "You learn more from failure than from success.", author: "Unknown" },
-    { quote: "It's not whether you get knocked down, it's whether you get up.", author: "Vince Lombardi" },
-    { quote: "Believe you can and you're halfway there.", author: "Theodore Roosevelt" },
-    { quote: "The only impossible journey is the one you never begin.", author: "Tony Robbins" },
-    { quote: "Success is walking from failure to failure with no loss of enthusiasm.", author: "Winston Churchill" },
-    { quote: "Your limitation—it's only your imagination.", author: "Unknown" },
-    { quote: "Push yourself, because no one else is going to do it for you.", author: "Unknown" },
-    
-    // Philosophy & Wisdom
-    { quote: "Life is what happens to you while you're busy making other plans.", author: "John Lennon" },
-    { quote: "The future belongs to those who believe in the beauty of their dreams.", author: "Eleanor Roosevelt" },
-    { quote: "It is during our darkest moments that we must focus to see the light.", author: "Aristotle" },
-    { quote: "Be yourself; everyone else is already taken.", author: "Oscar Wilde" },
-    { quote: "Two things are infinite: the universe and human stupidity.", author: "Albert Einstein" },
-    { quote: "In the middle of difficulty lies opportunity.", author: "Albert Einstein" },
-    { quote: "Life is really simple, but we insist on making it complicated.", author: "Confucius" },
-    { quote: "The only true wisdom is in knowing you know nothing.", author: "Socrates" },
-    { quote: "Yesterday is history, tomorrow is a mystery, today is a gift.", author: "Eleanor Roosevelt" },
-    { quote: "The mind is everything. What you think you become.", author: "Buddha" },
-    
-    // Learning & Growth
-    { quote: "Live as if you were to die tomorrow. Learn as if you were to live forever.", author: "Mahatma Gandhi" },
-    { quote: "The more that you read, the more things you will know.", author: "Dr. Seuss" },
-    { quote: "Learning never exhausts the mind.", author: "Leonardo da Vinci" },
-    { quote: "Education is the most powerful weapon which you can use to change the world.", author: "Nelson Mandela" },
-    { quote: "The beautiful thing about learning is that no one can take it away from you.", author: "B.B. King" },
-    { quote: "An investment in knowledge pays the best interest.", author: "Benjamin Franklin" },
-    { quote: "The expert in anything was once a beginner.", author: "Helen Hayes" },
-    { quote: "Knowledge is power.", author: "Francis Bacon" },
-    { quote: "Tell me and I forget, teach me and I remember, involve me and I learn.", author: "Benjamin Franklin" },
-    { quote: "The capacity to learn is a gift; the ability to learn is a skill.", author: "Brian Herbert" },
-    
-    // Leadership & Achievement  
-    { quote: "A leader is one who knows the way, goes the way, and shows the way.", author: "John C. Maxwell" },
-    { quote: "The greatest leader is not necessarily the one who does the greatest things.", author: "Ronald Reagan" },
-    { quote: "Don't be afraid to give your best to what seemingly are small jobs.", author: "Dale Carnegie" },
-    { quote: "The difference between ordinary and extraordinary is that little extra.", author: "Jimmy Johnson" },
-    { quote: "Excellence is never an accident.", author: "Aristotle" },
-    { quote: "Quality is not an act, it is a habit.", author: "Aristotle" },
-    { quote: "Strive not to be a success, but rather to be of value.", author: "Albert Einstein" },
-    { quote: "The only way to achieve the impossible is to believe it is possible.", author: "Charles Kingsleigh" },
-    { quote: "Dream big and dare to fail.", author: "Norman Vaughan" },
-    { quote: "What lies behind us and what lies before us are tiny matters.", author: "Ralph Waldo Emerson" }
-  ];
+  function loadQuotes() {
+    try {
+      const quotesPath = path.join(__dirname, '../data/quotes.txt');
+      const quotesContent = fs.readFileSync(quotesPath, 'utf8');
+      return quotesContent.trim().split('\n').map(line => {
+        const [quote, author] = line.split('|');
+        return { quote: quote.trim(), author: author.trim() };
+      });
+    } catch (error) {
+      console.error('Error loading quotes from file:', error);
+      return [{ quote: "Error loading quotes", author: "System" }];
+    }
+  }
+
+  const fallbackQuotes = loadQuotes();
   
   // Enhanced distribution algorithm combining multiple hash factors
   // This significantly improves quote distribution within classrooms
