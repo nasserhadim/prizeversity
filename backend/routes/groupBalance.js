@@ -184,18 +184,31 @@ router.post(
           }
 
           // Apply multipliers separately based on flags
-          let adjustedAmount = numericAmount;
-          let finalMultiplier = 1;
-          
+          // OLD multiplicative logic (replace)
+          // let finalMultiplier = 1;
+          // if (numericAmount > 0) {
+          //   if (applyGroupMultipliers) {
+          //     finalMultiplier *= (group.groupMultiplier || 1);
+          //   }
+          //   if (applyPersonalMultipliers) {
+          //     finalMultiplier *= (user.passiveAttributes?.multiplier || 1);
+          //   }
+          // }
+
+          // NEW additive logic
+          let finalMultiplier;
           if (numericAmount > 0) {
-            if (applyGroupMultipliers) {
-              finalMultiplier *= (group.groupMultiplier || 1);
-            }
-            if (applyPersonalMultipliers) {
-              finalMultiplier *= (user.passiveAttributes?.multiplier || 1);
-            }
-            adjustedAmount = Math.round(numericAmount * finalMultiplier);
+            finalMultiplier = 0;
+            if (applyGroupMultipliers) finalMultiplier += (group.groupMultiplier || 0);
+            if (applyPersonalMultipliers) finalMultiplier += (user.passiveAttributes?.multiplier || 0);
+            if (finalMultiplier === 0) finalMultiplier = 1;
+          } else {
+            finalMultiplier = 1;
           }
+
+          let adjustedAmount = numericAmount > 0 && (applyGroupMultipliers || applyPersonalMultipliers)
+            ? Math.round(numericAmount * finalMultiplier)
+            : numericAmount;
 
           // Update user balance using classroom-aware functions
           const classroomId = groupSet?.classroom ? groupSet.classroom._id || groupSet.classroom : group.classroom;

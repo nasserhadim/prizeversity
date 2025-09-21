@@ -238,7 +238,7 @@ const Challenge4Site = () => {
             <Shield className="text-green-600" size={24} />
             <div>
               <h1 className="text-xl font-bold text-green-400">Challenge 4: Digital Forensics Lab</h1>
-              <p className="text-gray-400 text-sm">Artifact Analysis & Investigation/p>
+              <p className="text-gray-400 text-sm">Artifact Analysis & Investigation</p>
             </div>
           </div>
           <div className="text-sm text-gray-500 bg-gray-800 px-3 py-1 rounded-full border border-gray-600">
