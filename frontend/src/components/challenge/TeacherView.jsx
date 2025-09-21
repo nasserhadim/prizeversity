@@ -349,9 +349,9 @@ const TeacherView = ({
         <div className="flex items-center gap-3 mb-4">
           <Shield className="w-8 h-8 text-red-500" />
           <h1 className="text-3xl font-bold text-base-content">
-            {challengeData?.title || (classroom?.name
-              ? `${classroom.name} (${classroom.code}) - Cyber Challenge`
-              : 'Cyber Challenge')}
+            {/* Prepend classroom name/code when available, then show configured title (or fallback) */}
+            {classroom?.name ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''} — ` : ''}
+            {challengeData?.title || 'Cyber Challenge'}
           </h1>
         </div>
         <p className={`${themeClasses.mutedText} text-lg mb-6`}>
