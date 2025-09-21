@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 
 // Categories available for filtering
-const CATEGORIES = ["All", "Attack", "Utility", "Passive", "Cosmetic", "Other"];
+const CATEGORIES = ["All", "Attack", "Defend", "Utility", "Passive"];
 
 // Debounce hook: delay updates until typing pauses for the given delay
 function useDebounced(value, delay = 350) {

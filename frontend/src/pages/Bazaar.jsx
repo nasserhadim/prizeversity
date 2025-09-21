@@ -49,6 +49,39 @@ const Bazaar = () => {
     }
   };
 
+  const fetchFilteredItems = async (filters = {}) => {
+    if (!bazaar?._id) return; // need bazaarId for this route
+
+    try {
+      setSearchLoading(true);
+      setSearchError("");
+
+      const params = new URLSearchParams();
+      if (
+        filters.category &&
+        ["Attack", "Defend", "Utility", "Passive"].includes(filters.category)
+      ) {
+        params.append("category", filters.category);
+      }
+      if (filters.q) {
+        params.append("q", filters.q);
+      }
+
+      // GET /classroom/:classroomId/bazaar/:bazaarId/items
+      const res = await apiBazaar.get(
+        `classroom/${classroomId}/bazaar/${bazaar._id}/items?${params.toString()}`
+      );
+
+      setFilteredItems(res.data.items || []);
+    } catch (err) {
+    console.error("[fetchFilteredItems] error:", err);
+    setSearchError("Failed to load items");
+    setFilteredItems([]);
+    } finally {
+    setSearchLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchClassroom();
     fetchBazaar();
