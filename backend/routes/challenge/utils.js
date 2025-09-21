@@ -97,9 +97,9 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
       const challengeName = CHALLENGE_NAMES[challengeIndex] || `Challenge ${challengeIndex + 1}`;
       
       const transactionDescription = usedHints > 0 
-        ? `Completed ${challengeName} (${baseBits} - ${baseBits - bitsAwarded} hint penalty)`
-        : `Completed ${challengeName}`;
-        
+        ? `Completed Challenge: ${challengeName} (${baseBits} - ${baseBits - bitsAwarded} hint penalty)`
+        : `Completed Challenge: ${challengeName}`;
+
       user.transactions = user.transactions || [];
       user.transactions.push({
         amount: bitsAwarded,
