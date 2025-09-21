@@ -26,6 +26,8 @@ const Bazaar = () => {
   const [filteredItems, setFilteredItems] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState("");
+  const PAGE_SIZE = 12;
+  const [page, setPage] = useState(1);
 
   // Fetch classroom details
   const fetchClassroom = async () => {
