@@ -215,6 +215,15 @@ const Support = () => {
             "• Some items may be non-refundable"
           ],
           role: ["student"]
+        },
+        {
+          question: "How are items purchased from the Bazaar redeemed/activated?",
+          answer: [
+            "• Items that grant active effects (Attack, Defend, Utility, Discount, etc.) must be redeemed from the Inventory section of the Bazaar.",
+            "• Open the Bazaar page, click Show Inventory, find the purchased item and click \"Use\" to activate its effect.",
+            "• Note that passive items without specified effects, such as extra credit items, should be presented to the teacher or relevant party for redemption."
+          ],
+          role: ["student"]
         }
       ]
     },
