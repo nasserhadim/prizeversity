@@ -19,6 +19,10 @@ router.get('/challenge3/:uniqueId', ensureAuthenticated, async (req, res) => {
       return res.status(404).json({ message: 'Challenge not found' });
     }
 
+    if (!challenge.isVisible) {
+      return res.status(403).json({ message: 'Challenge is temporarily unavailable' });
+    }
+
     const userChallenge = challenge.userChallenges.find(uc => uc.uniqueId === uniqueId);
     if (!userChallenge) {
       return res.status(404).json({ message: 'User challenge not found' });
@@ -218,14 +222,28 @@ router.get('/challenge6/:uniqueId', ensureAuthenticated, async (req, res) => {
   try {
     const { uniqueId } = req.params;
     const userId = req.user._id;
+    const userRole = req.user.role;
 
-    const challenge = await Challenge.findOne({
-      'userChallenges.uniqueId': uniqueId,
-      'userChallenges.userId': userId
-    });
+    let challenge;
+    
+    if (userRole === 'teacher') {
+      challenge = await Challenge.findOne({
+        'userChallenges.uniqueId': uniqueId,
+        'createdBy': userId
+      });
+    } else {
+      challenge = await Challenge.findOne({
+        'userChallenges.uniqueId': uniqueId,
+        'userChallenges.userId': userId
+      });
+    }
 
     if (!challenge) {
       return res.status(404).json({ message: 'Challenge not found' });
+    }
+
+    if (userRole !== 'teacher' && !challenge.isVisible) {
+      return res.status(403).json({ message: 'Challenge is temporarily unavailable' });
     }
 
     const userChallenge = challenge.userChallenges.find(uc => uc.uniqueId === uniqueId);
@@ -269,14 +287,28 @@ router.get('/challenge7/:uniqueId', ensureAuthenticated, async (req, res) => {
   try {
     const { uniqueId } = req.params;
     const userId = req.user._id;
+    const userRole = req.user.role;
 
-    const challenge = await Challenge.findOne({
-      'userChallenges.uniqueId': uniqueId,
-      'userChallenges.userId': userId
-    });
+    let challenge;
+    
+    if (userRole === 'teacher') {
+      challenge = await Challenge.findOne({
+        'userChallenges.uniqueId': uniqueId,
+        'createdBy': userId
+      });
+    } else {
+      challenge = await Challenge.findOne({
+        'userChallenges.uniqueId': uniqueId,
+        'userChallenges.userId': userId
+      });
+    }
 
     if (!challenge) {
       return res.status(404).json({ message: 'Challenge not found' });
+    }
+
+    if (userRole !== 'teacher' && !challenge.isVisible) {
+      return res.status(403).json({ message: 'Challenge is temporarily unavailable' });
     }
 
     const userChallenge = challenge.userChallenges.find(uc => uc.uniqueId === uniqueId);
@@ -295,11 +327,26 @@ router.get('/challenge7/:uniqueId', ensureAuthenticated, async (req, res) => {
     
     try {
       const hangmanData = await generateHangmanData(uniqueId);
+      const uniqueWords = [...new Set(hangmanData.words.map(w => w.toLowerCase()))];
+      
+      if (!userChallenge.challenge7Progress) {
+        userChallenge.challenge7Progress = {
+          revealedWords: [],
+          totalWords: uniqueWords.length
+        };
+        challenge.markModified('userChallenges');
+        await challenge.save();
+      } else if (userChallenge.challenge7Progress.totalWords !== uniqueWords.length) {
+        userChallenge.challenge7Progress.totalWords = uniqueWords.length;
+        challenge.markModified('userChallenges');
+        await challenge.save();
+      }
       
       console.log('📤 Sending Challenge 7 data for:', uniqueId, {
         hasProgress: !!userChallenge.challenge7Progress,
         progressData: userChallenge.challenge7Progress,
-        wordsCount: hangmanData.words.length
+        wordsCount: hangmanData.words.length,
+        uniqueWordsCount: uniqueWords.length
       });
       
       res.json({
@@ -310,7 +357,7 @@ router.get('/challenge7/:uniqueId', ensureAuthenticated, async (req, res) => {
         maskedQuote: hangmanData.maskedQuote,
         uniqueId: uniqueId,
         isCompleted: false,
-        challenge7Progress: userChallenge.challenge7Progress || null
+        challenge7Progress: userChallenge.challenge7Progress
       });
     } catch (error) {
       console.error('Error generating Challenge 7 data:', error);

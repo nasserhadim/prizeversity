@@ -154,7 +154,8 @@ const Bazaar = () => {
             <Store />
             {bazaar.name}
           </h2>
-          <p className="text-base-content opacity-70 text-base sm:text-lg">
+
+          <p className="text-base-content opacity-70 text-base sm:text-lg whitespace-pre-wrap">
             {bazaar.description}
           </p>
         </div>

@@ -57,11 +57,30 @@ export default function TeacherNewsfeed() {
         formData.append('content', draft);
         attachments.forEach(file => formData.append('attachments', file));
 
-        const res = await postNews(classId, formData);
-        setItems([res.data, ...items]);
-        setDraft('');
-        setAttachments([]);
-
+        try {
+            const res = await postNews(classId, formData);
+            setItems([res.data, ...items]);
+            setDraft('');
+            setAttachments([]);
+            toast.success('Announcement posted');
+        } catch (err) {
+            console.error('Post failed', err);
+            const data = err.response?.data;
+            let msg = 'Failed to post announcement';
+            // backend may return JSON { error } or { message }, otherwise HTML stack traces start with '<'
+            if (data) {
+              if (typeof data === 'string' && data.trim().startsWith('<')) {
+                msg = 'Server error while uploading (field too large or server problem). Try reducing content or attachments.';
+              } else if (data.error) {
+                msg = data.error;
+              } else if (data.message) {
+                msg = data.message;
+              } else if (typeof data === 'string') {
+                msg = data;
+              }
+            }
+            toast.error(msg);
+        }
     };
 
     // Confirm and handle deletion of an announcement

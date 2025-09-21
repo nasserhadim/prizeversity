@@ -33,6 +33,22 @@ async function canTAAssignBits({ taUser, classroomId }) {
   }
 }
 
+{
+  // Add top-level helper so all handlers can call it
+  function isBannedInClassroom(classroomDoc, studentId) {
+    if (!classroomDoc) return false;
+    const bannedIds = Array.isArray(classroomDoc.bannedStudents)
+      ? classroomDoc.bannedStudents.map(b => String(b._id || b))
+      : [];
+    const banLog = Array.isArray(classroomDoc.banLog)
+      ? classroomDoc.banLog
+      : (Array.isArray(classroomDoc.bannedRecords) ? classroomDoc.bannedRecords : []);
+    const isLegacy = bannedIds.includes(String(studentId));
+    const isLog = Array.isArray(banLog) && banLog.some(br => String(br.user?._id || br.user) === String(studentId));
+    return isLegacy || isLog;
+  };
+}
+
 // Gets total group multiplier for a student across groups in a classroom
 const getGroupMultiplierForStudentInClassroom = async (studentId, classroomId) => {
   const groupSets = await GroupSet.find({ classroom: classroomId }).select('groups');
@@ -364,8 +380,10 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
       }
     }
 
-    const results = { updated: 0, skipped: [] };
+    // resolve classroom once
+    const classroom = classroomId ? await Classroom.findById(classroomId).select('bannedStudents banLog bannedRecords') : null;
 
+    const results = { updated: 0, skipped: [] };
     for (const { studentId, amount } of updates) {
       const numericAmount = Number(amount);
       if (isNaN(numericAmount)) {
@@ -373,25 +391,46 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
         continue;
       }
 
-      const student = await User.findById(studentId);
-      if (!student) {
-        skipped.push({ studentId, reason: 'Student not found' });
+      // Check ban before doing anything
+      if (classroom && isBannedInClassroom(classroom, studentId)) {
+        results.skipped.push({ studentId, reason: 'Banned in classroom' });
         continue;
       }
+
+      const student = await User.findById(studentId);
+      if (!student) {
+        results.skipped.push({ studentId, reason: 'Student not found' });
+        continue;
+      }
+
+      // Ensure transactions array exists before push
+      if (!Array.isArray(student.transactions)) student.transactions = [];
 
       // Get all multipliers
       const groupMultiplier = await getGroupMultiplierForStudentInClassroom(studentId, classroomId);
       const passiveMultiplier = student.passiveAttributes?.multiplier || 1;
       
       // Apply multipliers separately based on flags
-      let finalMultiplier = 1;
+      // OLD multiplicative logic (replace)
+      // let finalMultiplier = 1;
+      // if (numericAmount >= 0) {
+      //   if (applyGroupMultipliers) {
+      //     finalMultiplier *= groupMultiplier;
+      //   }
+      //   if (applyPersonalMultipliers) {
+      //     finalMultiplier *= passiveMultiplier;
+      //   }
+      // }
+
+      // NEW additive logic
+      let finalMultiplier;
       if (numericAmount >= 0) {
-        if (applyGroupMultipliers) {
-          finalMultiplier *= groupMultiplier;
-        }
-        if (applyPersonalMultipliers) {
-          finalMultiplier *= passiveMultiplier;
-        }
+        finalMultiplier = 0;
+        if (applyGroupMultipliers) finalMultiplier += (groupMultiplier || 0);
+        if (applyPersonalMultipliers) finalMultiplier += (passiveMultiplier || 0);
+        if (finalMultiplier === 0) finalMultiplier = 1; // fallback to no-op
+      } else {
+        finalMultiplier = 1;
       }
 
       const adjustedAmount = (numericAmount >= 0 && (applyGroupMultipliers || applyPersonalMultipliers))
@@ -530,6 +569,16 @@ router.post(
     if (String(sender._id) === String(recipient._id)) {
       return res.status(400).json({ error: 'Cannot transfer to yourself' });
     }
+
+    // --- NEW: block transfers to banned students in the classroom ---
+    if (classroomId) {
+      const classroom = await Classroom.findById(classroomId).select('bannedStudents banLog bannedRecords').lean();
+      // `isBannedInClassroom` helper is defined earlier in this file
+      if (classroom && isBannedInClassroom(classroom, recipient._id)) {
+        return res.status(403).json({ error: 'Cannot transfer bits to a student who is banned from this classroom' });
+      }
+    }
+    // --- end new code ---
 
     // Update balances (use inside the transfer/assign handler where numericAmount/adjustedAmount/classroomId are available)
     const senderBalance = classroomId ? getClassroomBalance(sender, classroomId) : (sender.balance || 0);

@@ -1,7 +1,6 @@
 import React from 'react';
 
 export default function ClassroomBanner({ name, code, bgColor, backgroundImage }) {
-  // style applied to the centered inner box that contains the image/color
   const innerStyle = {};
   if (backgroundImage) {
     innerStyle.backgroundImage = `url("${backgroundImage}")`;
@@ -13,14 +12,30 @@ export default function ClassroomBanner({ name, code, bgColor, backgroundImage }
   }
 
   return (
-    // Outer wrapper keeps full-width spacing; inner box is limited to max-w-3xl
     <div className="py-6 px-4">
       <div
-        className="mx-auto w-full max-w-3xl rounded-lg overflow-hidden shadow-sm"
+        className="mx-auto w-full max-w-3xl rounded-lg overflow-hidden shadow-sm relative"
         style={innerStyle}
       >
-        <div className="py-10 px-6 text-white text-center">
-          <h1 className="text-3xl font-bold break-words">
+        {/* Overlay to improve text contrast on image backgrounds */}
+        {backgroundImage && (
+          <div
+            aria-hidden
+            className="absolute inset-0"
+            style={{
+              background:
+                'linear-gradient(to bottom, rgba(0,0,0,0.35), rgba(0,0,0,0.35))',
+              // fallback for older browsers
+              pointerEvents: 'none'
+            }}
+          />
+        )}
+
+        <div className="py-10 px-6 text-center relative z-10">
+          <h1
+            className="text-3xl font-bold break-words"
+            style={{ color: backgroundImage ? '#ffffff' : undefined, textShadow: backgroundImage ? '0 1px 2px rgba(0,0,0,0.6)' : undefined }}
+          >
             {name}
             {code ? ` (${code})` : ''}
           </h1>

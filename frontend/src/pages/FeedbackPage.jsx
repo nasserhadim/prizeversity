@@ -12,6 +12,7 @@ import { exportFeedbacksToCSV, exportFeedbacksToJSON } from '../utils/exportFeed
 import { useAuth } from '../context/AuthContext';
 import { subscribeToFeedbackEvents } from '../utils/socket';
 import useFeedbackRealtime from '../hooks/useFeedbackRealtime';
+import AverageRating from '../components/AverageRating';
  
 const FeedbackPage = () => {
   const { user } = useAuth();
@@ -90,6 +91,9 @@ const FeedbackPage = () => {
       await fetchSiteFeedback(1, false);
       // show the recent tab after successful submit
       setTab('recent');
+
+      // SAVE local fallback so anonymous submit still shows "Your rating"
+      try { localStorage.setItem('feedback_your_rating_site', String(rating)); } catch (e) { /* ignore */ }
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to submit feedback');
     }
@@ -178,6 +182,12 @@ const FeedbackPage = () => {
         <div className="card w-full max-w-3xl mx-auto shadow-xl bg-base-100">
           <div className="card-body">
             <h2 className="card-title text-primary mb-4">Site Feedback</h2>
+
+            <AverageRating
+              feedbacks={feedbacks}
+              user={user}
+              yourRatingLocal={Number(localStorage.getItem('feedback_your_rating_site')) || null}
+            />
 
             {/* shared distribution component (centralized) */}
             <RatingDistribution feedbacks={feedbacks} />

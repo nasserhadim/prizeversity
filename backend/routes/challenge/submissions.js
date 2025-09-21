@@ -23,6 +23,10 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
       return res.status(404).json({ success: false, message: 'No active challenge found' });
     }
 
+    if (!challenge.isVisible) {
+      return res.status(403).json({ success: false, message: 'Challenge is temporarily unavailable' });
+    }
+
     if (isChallengeExpired(challenge)) {
       return res.status(403).json({ 
         success: false, 
@@ -65,6 +69,14 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
     if (isCorrect) {
       userChallenge.completedChallenges[challengeIndex] = true;
       userChallenge.progress = userChallenge.completedChallenges.filter(Boolean).length;
+      
+      if (!userChallenge.challengeCompletedAt) {
+        userChallenge.challengeCompletedAt = [];
+      }
+      while (userChallenge.challengeCompletedAt.length <= challengeIndex) {
+        userChallenge.challengeCompletedAt.push(null);
+      }
+      userChallenge.challengeCompletedAt[challengeIndex] = new Date();
       
       const user = await User.findById(userId);
       let rewardsEarned = {
@@ -240,8 +252,21 @@ router.post('/complete-challenge/:level', ensureAuthenticated, async (req, res) 
       return res.status(401).json({ message: 'Incorrect solution' });
     }
 
-    userChallenge.progress = challengeLevel;
-    if (challengeLevel === 4) {
+    if (!userChallenge.completedChallenges) {
+      userChallenge.completedChallenges = [false, false, false, false, false, false, false];
+    }
+    userChallenge.completedChallenges[challengeLevel - 1] = true;
+    userChallenge.progress = userChallenge.completedChallenges.filter(Boolean).length;
+    
+    if (!userChallenge.challengeCompletedAt) {
+      userChallenge.challengeCompletedAt = [];
+    }
+    while (userChallenge.challengeCompletedAt.length <= challengeLevel - 1) {
+      userChallenge.challengeCompletedAt.push(null);
+    }
+    userChallenge.challengeCompletedAt[challengeLevel - 1] = new Date();
+    
+    if (userChallenge.progress >= 7) {
       userChallenge.completedAt = new Date();
     }
     
@@ -269,6 +294,10 @@ router.post('/:classroomId/start', ensureAuthenticated, async (req, res) => {
     const challenge = await Challenge.findOne({ classroomId, isActive: true });
     if (!challenge) {
       return res.status(404).json({ success: false, message: 'No active challenge found' });
+    }
+
+    if (!challenge.isVisible) {
+      return res.status(403).json({ success: false, message: 'Challenge is temporarily unavailable' });
     }
 
     const userChallenge = challenge.userChallenges.find(uc => uc.userId.toString() === userId.toString());
@@ -316,6 +345,10 @@ router.post('/:classroomId/hints/unlock', ensureAuthenticated, async (req, res) 
     const challenge = await Challenge.findOne({ classroomId, isActive: true });
     if (!challenge) {
       return res.status(404).json({ success: false, message: 'No active challenge found' });
+    }
+
+    if (!challenge.isVisible) {
+      return res.status(403).json({ success: false, message: 'Challenge is temporarily unavailable' });
     }
 
     const userChallenge = challenge.userChallenges.find(uc => uc.userId.toString() === userId.toString());
@@ -413,29 +446,50 @@ router.post('/submit-challenge6', ensureAuthenticated, async (req, res) => {
     const isCorrect = userTokens.some(token => validTokens.includes(token));
     
     if (isCorrect) {
-      const rewards = generateRewards(userId, uniqueId, challenge);
+      const challengeIndex = 5;
+      const user = await User.findById(userId);
+      let rewards = {
+        bits: 0,
+        multiplier: 0,
+        luck: 1.0,
+        discount: 0,
+        shield: false,
+      };
+
+      if (user) {
+        rewards = calculateChallengeRewards(user, challenge, challengeIndex, userChallenge);
+        await user.save();
+      }
       
       if (!userChallenge.completedChallenges) {
-        userChallenge.completedChallenges = {};
-      }
-      if (!userChallenge.challengeRewards) {
-        userChallenge.challengeRewards = {};
+        userChallenge.completedChallenges = [false, false, false, false, false, false, false];
       }
       
       userChallenge.completedChallenges[5] = true;
-      userChallenge.challengeRewards[5] = rewards;
-      userChallenge.lastCompletedAt = new Date();
+      userChallenge.progress = userChallenge.completedChallenges.filter(Boolean).length;
+      
+      if (!userChallenge.challengeCompletedAt) {
+        userChallenge.challengeCompletedAt = [];
+      }
+      while (userChallenge.challengeCompletedAt.length <= 5) {
+        userChallenge.challengeCompletedAt.push(null);
+      }
+      userChallenge.challengeCompletedAt[5] = new Date();
+      
+      if (userChallenge.progress >= 7) {
+        userChallenge.completedAt = new Date();
+      }
       
       await challenge.save();
-      
-      await User.findByIdAndUpdate(userId, {
-        $inc: { bits: rewards.bits, multiplier: rewards.multiplier }
-      });
       
       return res.json({
         success: true,
         message: 'Challenge completed successfully!',
-        rewards
+        challengeName: CHALLENGE_NAMES[5],
+        rewards: rewards,
+        progress: userChallenge.progress,
+        allCompleted: userChallenge.progress >= 7,
+        nextChallenge: userChallenge.progress < 6 ? CHALLENGE_NAMES[userChallenge.progress] : null
       });
     }
     
@@ -493,7 +547,7 @@ router.post('/submit-challenge7', ensureAuthenticated, async (req, res) => {
       });
     }
 
-    const { generateHangmanData } = require('../../utils/quoteGenerator');
+      const { generateHangmanData } = require('../../utils/quoteGenerator');
     const hangmanData = await generateHangmanData(uniqueId);
     const validTokens = hangmanData.wordTokens[word.toLowerCase()] || [];
 
@@ -502,11 +556,13 @@ router.post('/submit-challenge7', ensureAuthenticated, async (req, res) => {
     if (isCorrect) {
       console.log('✅ Correct submission for Challenge 7:', { word, uniqueId, userId });
       
+      const uniqueWords = [...new Set(hangmanData.words.map(w => w.toLowerCase()))];
+      
       if (!userChallenge.challenge7Progress) {
         console.log('🆕 Creating new Challenge 7 progress object');
         userChallenge.challenge7Progress = {
           revealedWords: [],
-          totalWords: hangmanData.words.length
+          totalWords: uniqueWords.length
         };
       }
       
@@ -514,7 +570,7 @@ router.post('/submit-challenge7', ensureAuthenticated, async (req, res) => {
         userChallenge.challenge7Progress.revealedWords = [];
       }
       
-      userChallenge.challenge7Progress.totalWords = hangmanData.words.length;
+      userChallenge.challenge7Progress.totalWords = uniqueWords.length;
       
       const wordLower = word.toLowerCase();
       if (!userChallenge.challenge7Progress.revealedWords.includes(wordLower)) {
@@ -526,11 +582,12 @@ router.post('/submit-challenge7', ensureAuthenticated, async (req, res) => {
       
       console.log('📊 Current progress after update:', {
         revealedWords: userChallenge.challenge7Progress.revealedWords,
-        totalWords: userChallenge.challenge7Progress.totalWords
+        totalWords: userChallenge.challenge7Progress.totalWords,
+        uniqueWordsTotal: uniqueWords.length
       });
       
       const revealedCount = userChallenge.challenge7Progress.revealedWords.length;
-      const totalCount = userChallenge.challenge7Progress.totalWords;
+      const totalCount = uniqueWords.length;
       const progressPercentage = (revealedCount / totalCount * 100).toFixed(1);
       const isCompletelyFinished = revealedCount >= totalCount;
       
@@ -545,7 +602,7 @@ router.post('/submit-challenge7', ensureAuthenticated, async (req, res) => {
         }
         
         if (!userChallenge.completedChallenges) {
-          userChallenge.completedChallenges = {};
+          userChallenge.completedChallenges = [false, false, false, false, false, false, false];
         }
         if (!userChallenge.challengeRewards) {
           userChallenge.challengeRewards = {};
@@ -553,8 +610,19 @@ router.post('/submit-challenge7', ensureAuthenticated, async (req, res) => {
         
         userChallenge.completedChallenges[6] = true;
         userChallenge.challengeRewards[6] = rewards;
-        userChallenge.lastCompletedAt = new Date();
         userChallenge.progress = userChallenge.completedChallenges.filter(Boolean).length;
+        
+        if (!userChallenge.challengeCompletedAt) {
+          userChallenge.challengeCompletedAt = [];
+        }
+        while (userChallenge.challengeCompletedAt.length <= 6) {
+          userChallenge.challengeCompletedAt.push(null);
+        }
+        userChallenge.challengeCompletedAt[6] = new Date();
+        
+        if (userChallenge.progress >= 7) {
+          userChallenge.completedAt = new Date();
+        }
         
         console.log('💰 Challenge 7 rewards calculated:', rewards);
       }
@@ -606,14 +674,15 @@ router.post('/submit-challenge7', ensureAuthenticated, async (req, res) => {
       });
     }
     
-    const currentProgress = userChallenge.challenge7Progress || { revealedWords: [], totalWords: hangmanData.words.length };
+    const uniqueWords = [...new Set(hangmanData.words.map(w => w.toLowerCase()))];
+    const currentProgress = userChallenge.challenge7Progress || { revealedWords: [], totalWords: uniqueWords.length };
     
     return res.json({
       success: false,
       message: 'Incorrect token for this word. Try again.',
       revealedWordsCount: currentProgress.revealedWords.length,
-      totalWordsCount: currentProgress.totalWords,
-      progressPercentage: (currentProgress.revealedWords.length / currentProgress.totalWords * 100).toFixed(1)
+      totalWordsCount: uniqueWords.length,
+      progressPercentage: (currentProgress.revealedWords.length / uniqueWords.length * 100).toFixed(1)
     });
 
   } catch (error) {

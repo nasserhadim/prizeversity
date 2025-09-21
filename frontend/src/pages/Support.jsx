@@ -17,7 +17,8 @@ import {
   Bell,
   ShoppingCart,
   GraduationCap,
-  UserCheck
+  UserCheck,
+  Lock
 } from 'lucide-react';
 import Footer from '../components/Footer';
 
@@ -74,6 +75,7 @@ const Support = () => {
             "",
             "**TAs (Assistant Admins) can:**",
             "• Help manage classroom activities such as assigning bits within classrooms (if allowed by the teacher)",
+            "• Assist with group management",
             "",
             "**Students can:**",
             "• Earn bits through participation and challenges",
@@ -138,6 +140,15 @@ const Support = () => {
             "• Special bonus activities such as associated club events endorsed by the teacher"
           ],
           role: ["student"]
+        },
+        {
+          question: "Why do transaction multipliers show 1.00x despite a student's multipliers being higher?",
+          answer: [
+            "• If a transaction shows something like (Base: 5₿, Personal: 1.00x, Group: 1.00x, Total: 1.00x) it usually means the instructor chose to bypass personal and/or group multipliers for that specific adjustment so the system records them as 1.00x and the math matches the flat amount shown.",
+            "• Teachers (and admins/TAs) can enable or disable applying group and personal multipliers when assigning or adjusting balances.",
+            "• Note that multipliers always apply to positive transactions (awards) but are ignored for negative transactions (deductions) to avoid penalizing students too harshly."
+          ],
+          role: ["all"]
         }
       ]
     },
@@ -204,6 +215,15 @@ const Support = () => {
             "• Some items may be non-refundable"
           ],
           role: ["student"]
+        },
+        {
+          question: "How are items purchased from the Bazaar redeemed/activated?",
+          answer: [
+            "• Items that grant active effects (Attack, Defend, Utility, Discount, etc.) must be redeemed from the Inventory section of the Bazaar.",
+            "• Open the Bazaar page, click Show Inventory, find the purchased item and click \"Use\" to activate its effect.",
+            "• Note that passive items without specified effects, such as extra credit items, should be presented to the teacher or relevant party for redemption."
+          ],
+          role: ["student"]
         }
       ]
     },
@@ -220,7 +240,7 @@ const Support = () => {
             "• Review and approve/reject student join requests",
             "• Configure group-specific settings and permissions",
             "• Suspend group members (if necessary)",
-            "• Transfer bits at the group level for bulk awards"
+            "• Adjust bits at the group level for bulk awards"
           ],
           role: ["teacher"]
         },
@@ -256,7 +276,7 @@ const Support = () => {
             "• If approved, bits are redistributed to cooperative members",
             "",
             "**Important limits:**",
-            "• Only one siphon request per 72 hours",
+            "• Only one siphon request per 72 hours (or as configured by teacher in people settings) per group",
             "• Prevents abuse of the system",
             "• Encourages genuine collaboration"
           ],
@@ -325,6 +345,39 @@ const Support = () => {
             "Your theme preference is saved automatically!"
           ],
           role: ["all"]
+        }
+      ]
+    },
+    {
+      category: "Bans & Classroom Access",
+      icon: <Lock size={20} />,
+      questions: [
+        {
+          question: "What does banning a student do?",
+          answer: [
+            "• Banning prevents a student from accessing the classroom and from receiving any balance adjustments for that classroom (credits/assignments/transfers).",
+            "• Banned students are blocked at the server level so they cannot bypass the ban by re-entering the classroom code.",
+            "• The system will also prevent any balance changes targeted at a banned student for the affected classroom."
+          ],
+          role: ["teacher","admin","student"]
+        },
+        {
+          question: "When should I Ban vs Remove a student?",
+          answer: [
+            "• **Remove**: takes a student out of the classroom but does not prevent them from rejoining via the classroom code.",
+            "• **Ban**: keeps the student listed as barred from the classroom so they cannot rejoin even if they have the classroom code.",
+            "• **Important**: If you both ban AND remove a student, the student entry may be permanently removed from the classroom roster and the teacher will lose the ability to unban—so only Remove if you are sure you never want them to reappear in the classroom list.",
+            "• **Recommendation**: Prefer Ban (without removing) when you want to temporarily or permanently block access while preserving the ability to unban later. Only Remove when you are certain you want the student gone from the roster entirely."
+          ],
+          role: ["teacher"]
+        },
+        {
+          question: "Can a teacher unban a student?",
+          answer: [
+            "• Yes — teachers can unban students and restore their ability to access the classroom and receive balance adjustments, provided the student record still exists in the classroom data (i.e. student was NOT removed).",
+            "• If the student was removed and the teacher expects to unban later, then unfortunately it wont be possible to unban the student as their record was permanently deleted from the classroom roster upon removal.",
+          ],
+          role: ["teacher"]
         }
       ]
     }

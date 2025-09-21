@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { Shield, Settings, Users, Eye, EyeOff, UserPlus } from 'lucide-react';
+import { Shield, Settings, Users, Eye, EyeOff, UserPlus, Edit3 } from 'lucide-react';
 import { getCurrentChallenge } from '../../utils/challengeUtils';
 import { getThemeClasses } from '../../utils/themeUtils';
-import { updateDueDate } from '../../API/apiChallenge';
+import { updateDueDate, toggleChallengeVisibility } from '../../API/apiChallenge';
+import ChallengeUpdateModal from './modals/ChallengeUpdateModal';
 import toast from 'react-hot-toast';
 import socket from '../../utils/socket';
+import Footer from '../Footer';
 
 const TeacherView = ({ 
   challengeData,
@@ -14,16 +16,36 @@ const TeacherView = ({
   handleShowDeactivateModal,
   initiating,
   classroomStudents = [],
-  classroom
+  classroom,
+  classroomId,
+  fetchChallengeData
 }) => {
   const [showPasswords, setShowPasswords] = useState({});
   const [showDueDateModal, setShowDueDateModal] = useState(false);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [showAssignDropdown, setShowAssignDropdown] = useState(false);
   const [studentNames, setStudentNames] = useState({});
   const [challenge6Data, setChallenge6Data] = useState({});
   const [challenge7Data, setChallenge7Data] = useState({});
+  const [localDueDate, setLocalDueDate] = useState('');
+  const [togglingVisibility, setTogglingVisibility] = useState(false);
   const dropdownRef = useRef(null);
   const themeClasses = getThemeClasses(isDark);
+
+  useEffect(() => {
+    if (challengeData?.settings?.dueDate) {
+      const utcDate = new Date(challengeData.settings.dueDate);
+      const year = utcDate.getFullYear();
+      const month = String(utcDate.getMonth() + 1).padStart(2, '0');
+      const day = String(utcDate.getDate()).padStart(2, '0');
+      const hours = String(utcDate.getHours()).padStart(2, '0');
+      const minutes = String(utcDate.getMinutes()).padStart(2, '0');
+      const localISOString = `${year}-${month}-${day}T${hours}:${minutes}`;
+      setLocalDueDate(localISOString);
+    } else {
+      setLocalDueDate('');
+    }
+  }, [challengeData?.settings?.dueDate]);
 
   // Use the userChallenge _id (uc._id) as the toggle key so each row is stable
   const togglePasswordVisibility = (ucId) => {
@@ -91,7 +113,14 @@ const TeacherView = ({
 
   const handleAssignStudent = async (studentId) => {
     try {
-      const response = await fetch(`/api/challenges/${challengeData._id}/assign-student`, {
+      const challengeId = challengeData?.challenge?._id || challengeData?._id;
+      
+      if (!challengeId) {
+        toast.error('Challenge ID not found');
+        return;
+      }
+
+      const response = await fetch(`/api/challenges/${challengeId}/assign-student`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -101,9 +130,10 @@ const TeacherView = ({
       if (response.ok) {
         toast.success('Student assigned to challenge successfully');
         setShowAssignDropdown(false);
-        window.location.reload();
+        await fetchChallengeData();
       } else {
-        toast.error('Failed to assign student');
+        const errorData = await response.json();
+        toast.error(errorData.message || 'Failed to assign student');
       }
     } catch (error) {
       toast.error('Error assigning student');
@@ -231,55 +261,104 @@ const TeacherView = ({
       for (const uc of challengeData.userChallenges) {
         if (uc.progress === 6 || uc.currentChallenge === 6) {
           try {
-            const response = await fetch(`/api/challenges/challenge7/${uc.uniqueId}`, {
-              credentials: 'include'
+            const timestamp = Date.now();
+            const response = await fetch(`/api/challenges/challenge7/${uc.uniqueId}?t=${timestamp}&bustCache=true`, {
+              credentials: 'include',
+              headers: {
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+              }
             });
             
             if (response.ok) {
               const data = await response.json();
+              
+              if (data.uniqueId && data.uniqueId !== uc.uniqueId) {
+                console.warn(`Challenge 7 data mismatch! Expected ${uc.uniqueId}, got ${data.uniqueId}`);
+                continue;
+              }
+              
+              const uniqueWords = [...new Set(data.words.map(w => w.toLowerCase()))];
               newChallenge7Data[uc.uniqueId] = {
                 quote: data.quote,
                 author: data.author,
                 words: data.words,
-                wordTokens: data.wordTokens
+                uniqueWords: uniqueWords,
+                wordTokens: data.wordTokens,
+                uniqueId: data.uniqueId || uc.uniqueId,
+                fetchedAt: timestamp
+              };
+            } else {
+              console.error(`Failed to fetch Challenge 7 data for ${uc.uniqueId}:`, response.status);
+              newChallenge7Data[uc.uniqueId] = {
+                quote: 'Error loading - please refresh',
+                author: 'Error',
+                words: [],
+                uniqueWords: [],
+                wordTokens: {},
+                uniqueId: uc.uniqueId,
+                error: true
               };
             }
           } catch (error) {
             console.error('Error fetching Challenge 7 data:', error);
             newChallenge7Data[uc.uniqueId] = {
-              quote: 'Error loading',
+              quote: 'Connection error - please refresh',
               author: 'Error',
               words: [],
-              wordTokens: {}
+              uniqueWords: [],
+              wordTokens: {},
+              uniqueId: uc.uniqueId,
+              error: true
             };
           }
         }
       }
       
-      setChallenge7Data(newChallenge7Data);
+      setChallenge7Data(prevData => {
+        const hasChanges = Object.keys(newChallenge7Data).some(uniqueId => 
+          !prevData[uniqueId] || 
+          prevData[uniqueId].quote !== newChallenge7Data[uniqueId].quote ||
+          prevData[uniqueId].error !== newChallenge7Data[uniqueId].error
+        );
+        
+        return hasChanges ? { ...prevData, ...newChallenge7Data } : prevData;
+      });
     };
 
     fetchChallenge7Data();
   }, [challengeData?.userChallenges]);
 
-
+  const handleToggleVisibility = async () => {
+    try {
+      setTogglingVisibility(true);
+      const result = await toggleChallengeVisibility(classroomId);
+      toast.success(result.message);
+      await fetchChallengeData();
+    } catch (error) {
+      toast.error(error.message || 'Failed to toggle challenge visibility');
+    } finally {
+      setTogglingVisibility(false);
+    }
+  };
 
   return (
-    <div className="p-6 space-y-8">
+    <div className="min-h-screen flex flex-col">
+      <div className="flex-1 p-6 space-y-8">
       <div className={themeClasses.cardBase}>
         <div className="flex items-center gap-3 mb-4">
           <Shield className="w-8 h-8 text-red-500" />
           <h1 className="text-3xl font-bold text-base-content">
-            {classroom?.name
-              ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''} - Cyber Challenge`
-              : 'Cyber Challenge'}
+            {/* Prepend classroom name/code when available, then show configured title (or fallback) */}
+            {classroom?.name ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''} — ` : ''}
+            {challengeData?.title || 'Cyber Challenge'}
           </h1>
         </div>
         <p className={`${themeClasses.mutedText} text-lg mb-6`}>
           Initiate the complete Cyber Challenge Series. Students will progress through multiple cybersecurity challenges, each with unique encrypted data and passwords to discover.
         </p>
         
-        <div className="flex gap-4">
+        <div className="flex flex-col sm:flex-row gap-4">
           {!challengeData || !challengeData.isActive ? (
             <button
               onClick={handleShowConfigModal}
@@ -289,18 +368,45 @@ const TeacherView = ({
               Configure & Launch Challenge Series
             </button>
           ) : (
-            <button
-              onClick={handleShowDeactivateModal}
-              disabled={initiating}
-              className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
-            >
-              {initiating ? (
-                <span className="loading loading-spinner loading-sm"></span>
-              ) : (
-                <Shield className="w-5 h-5" />
-              )}
-              Delete Challenge
-            </button>
+            <>
+              <button
+                onClick={handleToggleVisibility}
+                disabled={togglingVisibility}
+                className={`btn btn-lg gap-2 flex-wrap text-sm sm:text-base ${
+                  challengeData.isVisible 
+                    ? 'btn-warning' 
+                    : 'btn-success'
+                }`}
+              >
+                {togglingVisibility ? (
+                  <span className="loading loading-spinner loading-sm"></span>
+                ) : challengeData.isVisible ? (
+                  <EyeOff className="w-5 h-5" />
+                ) : (
+                  <Eye className="w-5 h-5" />
+                )}
+                {challengeData.isVisible ? 'Hide from Students' : 'Show to Students'}
+              </button>
+              <button
+                onClick={() => setShowUpdateModal(true)}
+                className="btn btn-primary btn-lg gap-2 flex-wrap text-sm sm:text-base"
+              >
+                <Edit3 className="w-5 h-5" />
+                Update Challenge
+              </button>
+              <button
+                onClick={handleShowDeactivateModal}
+                disabled={initiating}
+                className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
+              >
+                {initiating ? (
+                  <span className="loading loading-spinner loading-sm"></span>
+                ) : (
+                  <Shield className="w-5 h-5" />
+                )}
+                Delete Challenge
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -350,7 +456,7 @@ const TeacherView = ({
             )}
           </div>
           
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
             <div className={`stat ${isDark ? 'bg-base-300 border border-base-700' : 'bg-base-200'} rounded-lg p-4`}>
               <div className="stat-title">Status</div>
               <div className={`stat-value text-lg ${challengeData.isActive ? 'text-success' : 'text-warning'}`}>
@@ -402,16 +508,17 @@ const TeacherView = ({
           {challengeData.isActive && challengeData.userChallenges && challengeData.userChallenges.length > 0 && (
             <div className="mt-6">
               <h3 className="text-xl font-semibold mb-4">Student Challenge Progress</h3>
-              <div className="overflow-x-auto">
-                <table className="table table-zebra w-full">
+              <div className="overflow-x-auto -mx-6 px-6 sm:mx-0 sm:px-0">
+                <table className="table table-zebra w-full table-auto text-sm md:text-base">
                   <thead>
                     <tr>
-                      <th>Student</th>
-                      <th>Current Challenge</th>
-                      <th>Challenge Data</th>
-                      <th>Solution</th>
-                      <th>Started At</th>
-                      <th>Status</th>
+                      <th className="whitespace-nowrap">Student</th>
+                      <th className="whitespace-nowrap">Current Challenge</th>
+                      <th className="hidden md:table-cell whitespace-nowrap">Challenge Data</th>
+                      <th className="whitespace-nowrap">Solution</th>
+                      <th className="hidden sm:table-cell whitespace-nowrap">Started At</th>
+                      <th className="hidden lg:table-cell whitespace-nowrap">Completed At</th>
+                      <th className="whitespace-nowrap">Status</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -430,20 +537,20 @@ const TeacherView = ({
                       const currentChallenge = getCurrentChallenge(workingOnChallenge);
                       
                       return (
-                        <tr key={uc._id}>
-                          <td className="font-medium">
+                        <tr key={uc._id} className="align-top">
+                          <td className="font-medium whitespace-normal break-words">
                             {uc.userId.firstName} {uc.userId.lastName}
                             <br />
-                            <span className="text-sm text-gray-500">{uc.userId.email}</span>
+                            <span className="text-xs md:text-sm text-gray-500 break-words">{uc.userId.email}</span>
                           </td>
                           <td>
                             <div className="flex flex-col">
                               <span className="font-semibold">Challenge {workingOnChallenge + 1}</span>
-                              <span className="text-sm text-gray-600">{workingOnTitle}</span>
+                              <span className="text-xs md:text-sm text-gray-600">{workingOnTitle}</span>
                               <span className="text-xs text-gray-500">{currentChallenge.method}</span>
                             </div>
                           </td>
-                          <td>
+                          <td className="hidden md:table-cell">
                             {workingOnChallenge === 0 && (
                               <div className="space-y-1">
                                 <code className="bg-red-100 px-2 py-1 rounded text-sm font-mono text-red-700">
@@ -513,18 +620,24 @@ const TeacherView = ({
                                 ) : (
                                   <>
                                     <div className="text-sm text-red-600 font-medium">
-                                      Quote: "{challenge7Data[uc.uniqueId]?.quote || 'Loading...'}"
+                                      {challenge7Data[uc.uniqueId]?.error ? (
+                                        <span className="text-orange-600">⚠️ {challenge7Data[uc.uniqueId]?.quote}</span>
+                                      ) : (
+                                        <>Quote: "{challenge7Data[uc.uniqueId]?.quote || 'Loading...'}"</>
+                                      )}
                                     </div>
-                                    <div className="text-xs text-gray-500">
-                                      By: {challenge7Data[uc.uniqueId]?.author || 'Loading...'}
-                                    </div>
-                                    {uc.challenge7Progress && (
+                                    {!challenge7Data[uc.uniqueId]?.error && (
+                                      <div className="text-xs text-gray-500">
+                                        By: {challenge7Data[uc.uniqueId]?.author || 'Loading...'}
+                                      </div>
+                                    )}
+                                    {uc.challenge7Progress && !challenge7Data[uc.uniqueId]?.error && (
                                       <div className="text-xs text-blue-600 font-medium">
-                                        Progress: {uc.challenge7Progress.revealedWords?.length || 0}/{uc.challenge7Progress.totalWords || challenge7Data[uc.uniqueId]?.words?.length || '?'} words revealed ({((uc.challenge7Progress.revealedWords?.length || 0) / (uc.challenge7Progress.totalWords || challenge7Data[uc.uniqueId]?.words?.length || 1) * 100).toFixed(1)}%)
+                                        Progress: {uc.challenge7Progress.revealedWords?.length || 0}/{uc.challenge7Progress.totalWords || challenge7Data[uc.uniqueId]?.uniqueWords?.length || '?'} unique words revealed ({((uc.challenge7Progress.revealedWords?.length || 0) / (uc.challenge7Progress.totalWords || challenge7Data[uc.uniqueId]?.uniqueWords?.length || 1) * 100).toFixed(1)}%)
                                       </div>
                                     )}
                                     <div className="text-xs text-gray-500">
-                                      Hangman Challenge
+                                      Hangman Challenge {challenge7Data[uc.uniqueId]?.uniqueId ? `(ID: ${challenge7Data[uc.uniqueId].uniqueId})` : ''}
                                     </div>
                                   </>
                                 )}
@@ -606,21 +719,30 @@ const TeacherView = ({
                                   <div className="text-sm text-green-600 font-semibold">
                                     ✅ Hangman Complete - All words revealed
                                   </div>
+                                ) : challenge7Data[uc.uniqueId]?.error ? (
+                                  <div className="text-sm text-orange-600 font-semibold">
+                                    ⚠️ Data loading error - please refresh page
+                                  </div>
                                 ) : (
                                   <div className="space-y-2">
                                     <div className="bg-gray-50 border border-gray-200 rounded p-2">
                                       <div className="text-xs font-semibold text-gray-700 mb-1">
-                                        Progress: {uc.challenge7Progress?.revealedWords?.length || 0}/{challenge7Data[uc.uniqueId]?.words?.length || '?'} words 
-                                        ({((uc.challenge7Progress?.revealedWords?.length || 0) / (challenge7Data[uc.uniqueId]?.words?.length || 1) * 100).toFixed(0)}%)
+                                        Progress: {uc.challenge7Progress?.revealedWords?.length || 0}/{challenge7Data[uc.uniqueId]?.uniqueWords?.length || '?'} unique words 
+                                        ({((uc.challenge7Progress?.revealedWords?.length || 0) / (challenge7Data[uc.uniqueId]?.uniqueWords?.length || 1) * 100).toFixed(0)}%)
                                       </div>
                                       <div className="w-full bg-gray-200 rounded-full h-2">
                                         <div 
                                           className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
                                           style={{
-                                            width: `${((uc.challenge7Progress?.revealedWords?.length || 0) / (challenge7Data[uc.uniqueId]?.words?.length || 1) * 100)}%`
+                                            width: `${((uc.challenge7Progress?.revealedWords?.length || 0) / (challenge7Data[uc.uniqueId]?.uniqueWords?.length || 1) * 100)}%`
                                           }}
                                         ></div>
                                       </div>
+                                      {challenge7Data[uc.uniqueId]?.uniqueId && (
+                                        <div className="text-xs text-gray-500 mt-1">
+                                          Challenge ID: {challenge7Data[uc.uniqueId].uniqueId}
+                                        </div>
+                                      )}
                                     </div>
                                     
                                     <details className="bg-gray-50 border border-gray-200 rounded">
@@ -629,51 +751,55 @@ const TeacherView = ({
                                       </summary>
                                       <div className="p-2 border-t border-gray-200 max-h-40 overflow-y-auto">
                                         <div className="grid grid-cols-1 gap-1">
-                                          {challenge7Data[uc.uniqueId]?.words?.map((word, idx) => {
-                                            const isRevealed = uc.challenge7Progress?.revealedWords?.includes(word.toLowerCase());
-                                            const teacherRevealKey = `${uc._id}-${word.toLowerCase()}`;
-                                            const isTeacherRevealed = showPasswords[teacherRevealKey];
-                                            const shouldShowTokens = isRevealed || isTeacherRevealed;
-                                            
-                                            return (
-                                              <div key={idx} className={`flex items-center justify-between p-2 rounded text-xs ${isRevealed ? 'bg-green-50 border border-green-200' : shouldShowTokens ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50 border border-gray-200'}`}>
-                                                <div className="flex items-center gap-2">
-                                                  <span className={`font-mono ${isRevealed ? 'text-green-700 font-semibold' : shouldShowTokens ? 'text-blue-700 font-semibold' : 'text-gray-500'}`}>
-                                                    {isRevealed ? '✅' : shouldShowTokens ? '👁️' : '⬜'} "{word}"
-                                                  </span>
-                                                  {isRevealed && (
-                                                    <span className="text-xs text-green-600 bg-green-100 px-1 py-0.5 rounded">Student solved</span>
-                                                  )}
+                                          {challenge7Data[uc.uniqueId]?.uniqueWords?.length > 0 ? (
+                                            challenge7Data[uc.uniqueId].uniqueWords.map((word, idx) => {
+                                              const isRevealed = uc.challenge7Progress?.revealedWords?.includes(word.toLowerCase());
+                                              const teacherRevealKey = `${uc._id}-${word.toLowerCase()}`;
+                                              const isTeacherRevealed = showPasswords[teacherRevealKey];
+                                              const shouldShowTokens = isRevealed || isTeacherRevealed;
+                                              
+                                              return (
+                                                <div key={`${uc.uniqueId}-${word}-${idx}`} className={`flex items-center justify-between p-2 rounded text-xs ${isRevealed ? 'bg-green-50 border border-green-200' : shouldShowTokens ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50 border border-gray-200'}`}>
+                                                  <div className="flex items-center gap-2">
+                                                    <span className={`font-mono ${isRevealed ? 'text-green-700 font-semibold' : shouldShowTokens ? 'text-blue-700 font-semibold' : 'text-gray-500'}`}>
+                                                      {isRevealed ? '✅' : shouldShowTokens ? '👁️' : '⬜'} "{word}"
+                                                    </span>
+                                                    {isRevealed && (
+                                                      <span className="text-xs text-green-600 bg-green-100 px-1 py-0.5 rounded">Student solved</span>
+                                                    )}
+                                                  </div>
+                                                  <div className="flex items-center gap-1">
+                                                    {shouldShowTokens ? (
+                                                      <code className={`px-2 py-1 rounded text-xs font-mono border ${isRevealed ? 'bg-green-100 text-green-700 border-green-200' : 'bg-blue-100 text-blue-700 border-blue-200'}`}>
+                                                        {challenge7Data[uc.uniqueId]?.wordTokens?.[word.toLowerCase()]?.join(', ') || 'Loading...'}
+                                                      </code>
+                                                    ) : (
+                                                      <button
+                                                        onClick={() => togglePasswordVisibility(teacherRevealKey)}
+                                                        className="btn btn-xs btn-outline btn-primary gap-1 hover:btn-primary"
+                                                        title="Reveal token for this word"
+                                                      >
+                                                        <Eye className="w-3 h-3" />
+                                                        Reveal
+                                                      </button>
+                                                    )}
+                                                    {shouldShowTokens && (
+                                                      <button
+                                                        onClick={() => togglePasswordVisibility(teacherRevealKey)}
+                                                        className="btn btn-xs btn-ghost gap-1"
+                                                        title="Hide token"
+                                                      >
+                                                        <EyeOff className="w-3 h-3" />
+                                                      </button>
+                                                    )}
+                                                  </div>
                                                 </div>
-                                                <div className="flex items-center gap-1">
-                                                  {shouldShowTokens ? (
-                                                    <code className={`px-2 py-1 rounded text-xs font-mono border ${isRevealed ? 'bg-green-100 text-green-700 border-green-200' : 'bg-blue-100 text-blue-700 border-blue-200'}`}>
-                                                      {challenge7Data[uc.uniqueId]?.wordTokens?.[word.toLowerCase()]?.join(', ') || 'Loading...'}
-                                                    </code>
-                                                  ) : (
-                                                    <button
-                                                      onClick={() => togglePasswordVisibility(teacherRevealKey)}
-                                                      className="btn btn-xs btn-outline btn-primary gap-1 hover:btn-primary"
-                                                      title="Reveal token for this word"
-                                                    >
-                                                      <Eye className="w-3 h-3" />
-                                                      Reveal
-                                                    </button>
-                                                  )}
-                                                  {shouldShowTokens && (
-                                                    <button
-                                                      onClick={() => togglePasswordVisibility(teacherRevealKey)}
-                                                      className="btn btn-xs btn-ghost gap-1"
-                                                      title="Hide token"
-                                                    >
-                                                      <EyeOff className="w-3 h-3" />
-                                                    </button>
-                                                  )}
-                                                </div>
-                                              </div>
-                                            );
-                                          }) || (
-                                            <div className="text-xs text-gray-500 p-2">Loading word data...</div>
+                                              );
+                                            })
+                                          ) : (
+                                            <div className="text-xs text-gray-500 p-2">
+                                              {challenge7Data[uc.uniqueId]?.error ? 'Error loading word data' : 'Loading word data...'}
+                                            </div>
                                           )}
                                         </div>
                                       </div>
@@ -683,25 +809,42 @@ const TeacherView = ({
                               </div>
                             )}
                           </td>
-                          <td>
+                          <td className="hidden sm:table-cell">
                             {uc.startedAt ? (
-                              <div className="text-sm">
+                              <div className="text-xs md:text-sm">
                                 <div>{new Date(uc.startedAt).toLocaleDateString()}</div>
                                 <div className="text-xs text-gray-500">
                                   {new Date(uc.startedAt).toLocaleTimeString()}
                                 </div>
-                                {uc.currentChallenge !== undefined && (
-                                  <div className="badge badge-info badge-xs mt-1">
-                                    Working on #{uc.currentChallenge + 1}
-                                  </div>
-                                )}
                               </div>
                             ) : (
                               <span className="text-sm text-gray-400">Not started</span>
                             )}
                           </td>
+                          <td className="hidden lg:table-cell">
+                            {uc.completedChallenges?.[workingOnChallenge] && uc.challengeCompletedAt?.[workingOnChallenge] ? (
+                              <div className="text-xs md:text-sm">
+                                <div>{new Date(uc.challengeCompletedAt[workingOnChallenge]).toLocaleDateString()}</div>
+                                <div className="text-xs text-gray-500">
+                                  {new Date(uc.challengeCompletedAt[workingOnChallenge]).toLocaleTimeString()}
+                                </div>
+                              </div>
+                            ) : uc.progress >= 7 && uc.completedAt ? (
+                              <div className="text-xs md:text-sm">
+                                <div>{new Date(uc.completedAt).toLocaleDateString()}</div>
+                                <div className="text-xs text-gray-500">
+                                  {new Date(uc.completedAt).toLocaleTimeString()}
+                                </div>
+                                <div className="text-xs text-blue-600 font-medium">
+                                  Series Complete
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-sm text-gray-400">Not completed</span>
+                            )}
+                          </td>
                           <td>
-                            <div className={`badge ${uc.completedChallenges?.[workingOnChallenge] ? 'badge-success' : 'badge-warning'}`}>
+                            <div className={`badge ${uc.completedChallenges?.[workingOnChallenge] ? 'badge-success' : 'badge-warning'} whitespace-nowrap`}>
                               {uc.completedChallenges?.[workingOnChallenge] ? 'Completed' : 'In Progress'}
                             </div>
                           </td>
@@ -730,16 +873,22 @@ const TeacherView = ({
                     checked={challengeData?.settings?.dueDateEnabled || false}
                     onChange={async (e) => {
                       try {
+                        const defaultDate = new Date();
+                        defaultDate.setDate(defaultDate.getDate() + 7);
                         const response = await updateDueDate(
-                          challengeData._id, 
+                          classroomId, 
                           e.target.checked, 
-                          e.target.checked ? (challengeData?.settings?.dueDate || new Date().toISOString().slice(0, 16)) : null
+                          e.target.checked ? (challengeData?.settings?.dueDate || defaultDate.toISOString()) : null
                         );
-                        setChallengeData(response.challenge);
+                        setChallengeData(prev => ({
+                          ...prev,
+                          settings: {
+                            ...prev?.settings,
+                            dueDateEnabled: response.challenge.settings.dueDateEnabled,
+                            dueDate: response.challenge.settings.dueDate
+                          }
+                        }));
                         toast.success('Due date settings updated');
-                        if (!e.target.checked) {
-                          setShowDueDateModal(false);
-                        }
                       } catch (error) {
                         toast.error(error.message || 'Failed to update due date');
                       }
@@ -757,19 +906,11 @@ const TeacherView = ({
                   <input
                     type="datetime-local"
                     className="input input-bordered w-full"
-                    value={challengeData?.settings?.dueDate ? new Date(challengeData.settings.dueDate).toISOString().slice(0, 16) : ''}
-                    onChange={async (e) => {
-                      if (e.target.value) {
-                        try {
-                          const response = await updateDueDate(challengeData._id, true, e.target.value);
-                          setChallengeData(response.challenge);
-                          toast.success('Due date updated');
-                        } catch (error) {
-                          toast.error(error.message || 'Failed to update due date');
-                        }
-                      }
+                    value={localDueDate}
+                    onChange={(e) => {
+                      setLocalDueDate(e.target.value);
                     }}
-                    min={new Date().toISOString().slice(0, 16)}
+                    min={new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)}
                   />
                   <div className="text-sm text-gray-500 mt-1">
                     Students will not be able to submit answers after this time
@@ -778,17 +919,62 @@ const TeacherView = ({
               )}
 
               <div className="card-actions justify-end gap-2">
+                {challengeData?.settings?.dueDateEnabled && localDueDate && (
+                  <button
+                    className="btn btn-primary"
+                    onClick={async () => {
+                      try {
+                        const [datePart, timePart] = localDueDate.split('T');
+                        const [year, month, day] = datePart.split('-').map(Number);
+                        const [hours, minutes] = timePart.split(':').map(Number);
+                        
+                        const localDate = new Date(year, month - 1, day, hours, minutes);
+                        const utcISOString = localDate.toISOString();
+                        
+                        const response = await updateDueDate(classroomId, true, utcISOString);
+                        setChallengeData(prev => ({
+                          ...prev,
+                          settings: {
+                            ...prev?.settings,
+                            dueDateEnabled: response.challenge.settings.dueDateEnabled,
+                            dueDate: response.challenge.settings.dueDate
+                          }
+                        }));
+                        toast.success('Due date updated');
+                        setLocalDueDate('');
+                        await fetchChallengeData();
+                      } catch (error) {
+                        toast.error(error.message || 'Failed to update due date');
+                      }
+                    }}
+                  >
+                    Save Due Date
+                  </button>
+                )}
                 <button
                   className="btn btn-ghost"
-                  onClick={() => setShowDueDateModal(false)}
+                  onClick={() => {
+                    setShowDueDateModal(false);
+                    setLocalDueDate('');
+                  }}
                 >
-                  Close
+                  Cancel
                 </button>
               </div>
             </div>
           </div>
         </div>
       )}
+
+      <ChallengeUpdateModal
+        showUpdateModal={showUpdateModal}
+        setShowUpdateModal={setShowUpdateModal}
+        challengeData={challengeData}
+        fetchChallengeData={fetchChallengeData}
+        classroomId={classroomId}
+      />
+      </div>
+      <Footer />
     </div>
   );
 };

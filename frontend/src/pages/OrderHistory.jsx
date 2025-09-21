@@ -36,44 +36,91 @@ export default function OrderHistory() {
 
     // compute filtered + sorted list (visibleOrders)
     const visibleOrders = useMemo(() => {
-        const q = search.trim().toLowerCase();
-        let list = orders.slice();
+    const qRaw = (search || '').trim().toLowerCase();
+    const tokens = qRaw.split(/\s+/).filter(Boolean);
+    const isNumericQuery = qRaw !== '' && !Number.isNaN(Number(qRaw));
 
-        if (classroomFilter !== 'all') {
-            list = list.filter(o => o.items?.[0]?.bazaar?.classroom?._id === classroomFilter);
-        }
+    // start from a shallow copy
+    let list = (orders || []).slice();
 
-        if (q) {
-            list = list.filter(o => {
-                // match order id
-                if ((o._id || '').toString().toLowerCase().includes(q)) return true;
-                // match classroom name/code
-                if ((classroomLabel(o) || '').toLowerCase().includes(q)) return true;
-                // match any item name
-                if ((o.items || []).some(i => (i.name || '').toLowerCase().includes(q))) return true;
-                // match total
-                if ((o.total || '').toString().toLowerCase().includes(q)) return true;
-                return false;
-            });
-        }
+    // classroom filter (string ids)
+    if (classroomFilter && classroomFilter !== 'all') {
+      list = list.filter(o => {
+        const orderClassroomId = String(
+          o.items?.[0]?.bazaar?.classroom?._id ||
+          o.classroom?._id ||
+          o.classroom ||
+          ''
+        );
+        return orderClassroomId === String(classroomFilter);
+      });
+    }
 
-        // sort
-        list.sort((a, b) => {
-            if (sortField === 'date') {
-                const da = new Date(a.createdAt).getTime();
-                const db = new Date(b.createdAt).getTime();
-                return sortDirection === 'asc' ? da - db : db - da;
-            }
-            if (sortField === 'total') {
-                const ta = Number(a.total || 0);
-                const tb = Number(b.total || 0);
-                return sortDirection === 'asc' ? ta - tb : tb - ta;
-            }
-            return 0;
+    if (!qRaw) {
+      // no search — just sort below
+    } else {
+      list = list.filter(o => {
+        // build haystack from order + items + bazaar/classroom metadata
+        const parts = [];
+        parts.push(o._id || '');
+        parts.push(o.orderId || '');
+        parts.push(String(o.total || ''));
+        parts.push(o.createdAt || '');
+        parts.push(classroomLabel(o) || '');
+        parts.push(o.description || '');
+
+        (o.items || []).forEach(it => {
+          parts.push(it.name || '');
+          parts.push(it.description || '');
+          parts.push(String(it.price || ''));
+          parts.push(it.category || '');
+          parts.push(it.primaryEffect || '');
+          parts.push(String(it.primaryEffectValue || ''));
+          if (Array.isArray(it.secondaryEffects)) parts.push(it.secondaryEffects.join(' '));
+
+          // include human-friendly effect text where available
+          try {
+            parts.push(getEffectDescription(it) || '');
+            const { main, effect } = splitDescriptionEffect(it.description || '');
+            parts.push(main || '');
+            parts.push(effect || '');
+          } catch (e) {
+            // ignore
+          }
+
+          if (it.bazaar?.name) parts.push(it.bazaar.name);
+          if (it.bazaar?.classroom?.name) parts.push(it.bazaar.classroom.name);
+          if (it.bazaar?.classroom?.code) parts.push(it.bazaar.classroom.code);
         });
 
-        return list;
-    }, [orders, search, classroomFilter, sortField, sortDirection]);
+        const hay = parts.join(' ').toLowerCase();
+
+        if (isNumericQuery) {
+          return hay.includes(qRaw);
+        }
+
+        return tokens.every(t => hay.includes(t));
+      });
+    }
+
+    // sort by selected field/direction
+    list.sort((a, b) => {
+      let aVal, bVal;
+      if (sortField === 'date') {
+        aVal = new Date(a.createdAt).getTime();
+        bVal = new Date(b.createdAt).getTime();
+      } else {
+        aVal = a[sortField];
+        bVal = b[sortField];
+      }
+      const order = sortDirection === 'asc' ? 1 : -1;
+      if (aVal < bVal) return -order;
+      if (aVal > bVal) return order;
+      return 0;
+    });
+
+    return list;
+  }, [orders, search, classroomFilter, sortField, sortDirection]);
 
     // use shared pagination hook (consumes the filtered list)
     const {

@@ -27,7 +27,8 @@ function formatRemainingMs(ms) {
 router.post('/', ensureAuthenticated, async (req, res) => {
   try {
     const { rating, comment, classroomId, anonymous } = req.body;
-    const resolvedUserId = req.user._id;
+    // If the client requested anonymous, do not attach the authenticated user's id
+    const resolvedUserId = anonymous ? undefined : req.user._id;
 
     // Rate limit: per-user, scoped separately for site vs each classroom.
     // Submitting feedback in one classroom should not block submitting in other classrooms or site feedback.
@@ -59,7 +60,7 @@ router.post('/', ensureAuthenticated, async (req, res) => {
       rating,
       comment,
       classroom: classroomId || undefined,
-      userId: resolvedUserId,
+      userId: resolvedUserId, // will be undefined for anonymous submissions
       anonymous: !!anonymous
     });
     await feedback.save();
@@ -93,7 +94,8 @@ router.post('/', ensureAuthenticated, async (req, res) => {
 router.post('/classroom', ensureAuthenticated, async (req, res) => {
   try {
     const { rating, comment, classroomId, userId: bodyUserId, anonymous } = req.body;
-    const resolvedUserId = (req.user) ? req.user._id : (bodyUserId || undefined);
+    // Respect anonymous flag here as well
+    const resolvedUserId = anonymous ? undefined : ((req.user) ? req.user._id : (bodyUserId || undefined));
 
     // Rate limit (per-classroom). Signed-in users limited by userId; unauthenticated by IP.
     const cooldownDays = Number(process.env.FEEDBACK_COOLDOWN_DAYS || 7);

@@ -88,7 +88,7 @@ const Challenge7Site = () => {
         .filter(t => !isNaN(t));
       
       if (userTokens.length === 0) {
-        setSubmitMessage('❌ Please enter valid token ID numbers');
+        setSubmitMessage('❌ Please enter valid numbers');
         setSubmitting(false);
         return;
       }
@@ -144,7 +144,7 @@ const Challenge7Site = () => {
           }, 500);
         }
       } else {
-        setSubmitMessage(`❌ INCORRECT token for "${selectedWord}". Try again.`);
+        setSubmitMessage(`❌ Incorrect value for "${selectedWord}". Try again.`);
       }
     } catch (error) {
       setSubmitMessage('⚠️ Connection error. Please try again.');
@@ -355,26 +355,35 @@ const Challenge7Site = () => {
             HANGMAN_7
           </h1>
           <div className="text-sm font-mono text-gray-500">
-            TOKENIZATION CHALLENGE
+            DECODE THE QUOTE
+          </div>
+          
+          {/* Warning Notice */}
+          <div className="bg-yellow-900/30 border border-yellow-600 rounded-lg p-3 max-w-2xl mx-auto">
+            <div className="text-yellow-400 font-mono text-xs font-bold text-center mb-1">
+              ⚠️ NOTICE
+            </div>
+            <div className="text-yellow-300 font-mono text-xs text-center leading-relaxed">
+              There is a known issue with load states for the quote. You may need to refresh your browser 
+              a few times to ensure the quote is consistent and accurate.
+            </div>
+            <br />
+            <div className="text-yellow-300 font-mono text-xs text-center leading-relaxed">
+              However, even if the quote changes, the solution you arrive at is the main key to decode the quote(s)!
+            </div>
           </div>
         </div>
         
         <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 space-y-6">
           <div className="bg-black border border-green-400 rounded p-4">
             <div className="text-green-400 font-mono text-lg text-center mb-2">
-              🎯 DECODE THE QUOTE
+              🎯 QUOTE
             </div>
-            <div className="text-gray-300 font-mono text-sm text-center">
-              By {challengeData?.author}
+            <div className="text-gray-300 font-mono text-sm text-center mb-3">
+              By {challengeData?.author}:
             </div>
-          </div>
-          
-          <div className="bg-gray-800 border border-gray-600 rounded-lg p-4">
-            <div className="text-center">
-              <div className="text-orange-300 font-mono text-sm font-bold mb-3">QUOTE TO DECODE</div>
-              <div className="text-left bg-black border border-gray-700 rounded p-4 font-mono text-sm">
-                {challengeData?.words?.map((word, index) => renderWord(word, index))}
-              </div>
+            <div className="text-green-300 font-mono text-sm text-center italic">
+              "{challengeData?.quote}"
             </div>
           </div>
           
@@ -384,21 +393,19 @@ const Challenge7Site = () => {
               <div className="text-gray-300 font-mono text-xs space-y-1">
                 <div className="flex items-center justify-center gap-2">
                   <Target className="w-3 h-3 text-cyan-400" />
-                  <span>Select a word to reveal by finding its token ID</span>
+                  <span>Select a word to reveal by entering its matching value</span>
                 </div>
                 <div className="flex items-center justify-center gap-2">
                   <Lightbulb className="w-3 h-3 text-cyan-400" />
-                  <span>Enter the correct token ID(s) for the selected word</span>
+                  <span>Enter the correct value(s) for the selected word</span>
                 </div>
                 <div className="text-yellow-400">
-                  Multiple valid tokens accepted - enter any or all separated by commas
+                  Multiple answers accepted - enter any or all separated by commas
                 </div>
               </div>
             </div>
           </div>
-        </div>
-        
-        <div className="space-y-4">
+
           {selectedWord && (
             <div className="bg-gray-800 border border-yellow-600 rounded-lg p-4">
               <div className="text-center">
@@ -412,8 +419,20 @@ const Challenge7Site = () => {
             </div>
           )}
           
+          <div className="bg-gray-800 border border-gray-600 rounded-lg p-4">
+            <div className="text-center">
+              <div className="text-orange-300 font-mono text-sm font-bold mb-3">QUOTE TO DECODE</div>
+              <div className="text-left bg-black border border-gray-700 rounded p-4 font-mono text-sm">
+                {challengeData?.words?.map((word, index) => renderWord(word, index))}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div className="space-y-4">
+          
           <div className="text-sm font-mono text-gray-500">
-            {selectedWord ? 'ENTER TOKEN ID(S):' : 'SELECT A WORD ABOVE FIRST'}
+            {selectedWord ? 'ENTER VALUE(S):' : 'SELECT A WORD ABOVE FIRST'}
           </div>
           
           <input
@@ -427,7 +446,7 @@ const Challenge7Site = () => {
                 ? 'border-gray-700 text-gray-500' 
                 : 'border-gray-600 text-red-400 focus:border-red-400'
             }`}
-            placeholder={selectedWord ? "TOKEN ID(S)" : "SELECT WORD FIRST"}
+            placeholder={selectedWord ? "VALUE(S)" : "Please Select a word first to enter its value!"}
           />
           
           <button
@@ -441,14 +460,14 @@ const Challenge7Site = () => {
                   VERIFYING...
                 </span>
               ) : (
-                'SUBMIT TOKEN'
+                'SUBMIT'
               )}
           </button>
           
           <div className="text-xs font-mono text-gray-500 space-y-1">
             <div className="flex items-center justify-center gap-2">
               <span className="text-green-400">⏎</span>
-              <span>Press ENTER to submit token</span>
+              <span>Press ENTER to submit</span>
             </div>
             {submitMessage && (
               <div className={`text-center ${

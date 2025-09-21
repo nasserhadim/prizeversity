@@ -4,6 +4,10 @@ import { Search, Clock, Shield, CheckCircle, AlertTriangle, FileText, Coins, Zap
 import toast from 'react-hot-toast';
 import { API_BASE } from '../config/api';
 
+// Challenge timing constants
+const CHALLENGE_DURATION_SEC = 60 * 60 * 2; // 2 hours
+const HURRY_THRESHOLD_SEC = CHALLENGE_DURATION_SEC - 5 * 60; // last 5 minutes
+
 const Challenge3Site = () => {
   const { uniqueId } = useParams();
   const [loading, setLoading] = useState(true);
@@ -21,6 +25,8 @@ const Challenge3Site = () => {
   const [isCompleted, setIsCompleted] = useState(false);
   const [checkingCompletion, setCheckingCompletion] = useState(true);
   const [rewardData, setRewardData] = useState(null);
+  const [expiredNotified, setExpiredNotified] = useState(false);
+  const isExpired = timeElapsed >= CHALLENGE_DURATION_SEC;
 
   useEffect(() => {
     const checkCompletion = async () => {
@@ -57,14 +63,14 @@ const Challenge3Site = () => {
         const elapsed = Math.floor((new Date() - startTime) / 1000);
         setTimeElapsed(elapsed);
         
-        // Check if 30 minutes (1800 seconds) have passed
-        if (elapsed >= 1800) {
+        if (elapsed >= CHALLENGE_DURATION_SEC && !expiredNotified) {
+          setExpiredNotified(true);
           toast.error('Time limit exceeded! Investigation has expired.');
         }
       }, 1000);
       return () => clearInterval(timer);
     }
-  }, [startTime, showSuccess, challengeStarted]);
+  }, [startTime, showSuccess, challengeStarted, expiredNotified]);
 
   const startChallenge = async () => {
     try {
@@ -79,7 +85,7 @@ const Challenge3Site = () => {
       if (data.success) {
         setStartTime(new Date(data.startTime));
         setChallengeStarted(true);
-        toast.success('🔍 Investigation started! You have 30 minutes to crack the case.');
+        toast.success('🔍 Investigation started! You have 2 hours to crack the case.');
       } else {
         toast.error('Failed to start investigation');
       }
@@ -350,9 +356,9 @@ const Challenge3Site = () => {
             <div className="text-sm text-gray-400">
               Badge: {studentData?.badgeNumber} | {studentData?.clearanceLevel}
             </div>
-            <div className={`text-sm ${timeElapsed > 1500 ? 'text-red-400 animate-pulse' : 'text-yellow-400'}`}>
-              Time: {Math.floor(timeElapsed / 60)}:{(timeElapsed % 60).toString().padStart(2, '0')} / 30:00
-              {timeElapsed > 1500 && <span className="ml-2">⚠️ HURRY!</span>}
+            <div className={`text-sm ${timeElapsed > HURRY_THRESHOLD_SEC ? 'text-red-400 animate-pulse' : 'text-yellow-400'}`}>
+              Time: {Math.floor(timeElapsed / 60)}:{(timeElapsed % 60).toString().padStart(2, '0')} / 120:00
+              {timeElapsed > HURRY_THRESHOLD_SEC && <span className="ml-2">⚠️ HURRY!</span>}
             </div>
             <div className="text-sm text-red-400">
               Attempts: {attempts}/{maxAttempts}
@@ -372,14 +378,15 @@ const Challenge3Site = () => {
                 onContextMenu={(e) => e.preventDefault()}
                 autoComplete="off"
                 spellCheck={false}
+                disabled={isExpired}
               />
               <button
                 onClick={submitAnswer}
-                disabled={isSubmitting || !answer.trim() || attempts >= maxAttempts}
+                disabled={isSubmitting || !answer.trim() || attempts >= maxAttempts || isExpired}
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 rounded-lg transition-colors"
               >
                 <Shield size={16} />
-                {isSubmitting ? 'Verifying...' : attempts >= maxAttempts ? 'Locked' : 'Submit'}
+                {isExpired ? 'Expired' : isSubmitting ? 'Verifying...' : attempts >= maxAttempts ? 'Locked' : 'Submit'}
               </button>
             </div>
           </div>
@@ -427,9 +434,6 @@ const Challenge3Site = () => {
               <p className="text-blue-200 text-sm">
                 ⚡ <strong>SUCCESS:</strong> Enter the exact numeric output the program produces
               </p>
-              <p className="text-yellow-200 text-sm">
-                💡 <strong>HINT:</strong> {cppChallenge?.hint}
-              </p>
             </div>
           </div>
         </div>
@@ -447,11 +451,11 @@ const Challenge3Site = () => {
                 </div>
                 <div className="flex justify-between">
                   <span>Time:</span>
-                  <span className={timeElapsed > 1500 ? 'text-red-400 animate-pulse' : 'text-yellow-400'}>
-                    {Math.floor(timeElapsed / 60)}:{(timeElapsed % 60).toString().padStart(2, '0')} / 30:00
+                  <span className={timeElapsed > HURRY_THRESHOLD_SEC ? 'text-red-400 animate-pulse' : 'text-yellow-400'}>
+                    {Math.floor(timeElapsed / 60)}:{(timeElapsed % 60).toString().padStart(2, '0')} / 120:00
                   </span>
                 </div>
-                {timeElapsed > 1500 && (
+                {timeElapsed > HURRY_THRESHOLD_SEC && (
                   <div className="p-2 bg-red-900 border border-red-600 rounded text-red-300 text-sm text-center animate-pulse">
                     ⚠️ Less than 5 minutes remaining!
                   </div>

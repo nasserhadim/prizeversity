@@ -5,9 +5,19 @@ const Group = require('../models/Group');
 const GroupSet = require('../models/GroupSet');
 const Classroom = require('../models/Classroom');
 const { populateNotification } = require('./notifications');
+const mongoose = require('mongoose');
+const { getIO } = require('./io');
+
+const CLEAN_INTERVAL_MS = Number(process.env.SIPHON_CLEAN_INTERVAL_MS || 1 * 60 * 1000); // default: 1 minute
 
 async function cleanupExpiredSiphons() {
   try {
+    // guard: don't try DB queries until mongoose is connected
+    if (mongoose.connection.readyState !== 1) {
+      console.log('[siphonCleanup] mongoose not connected, skipping cleanup run');
+      return;
+    }
+
     const expiredSiphons = await SiphonRequest.find({
       status: 'pending',
       expiresAt: { $lt: new Date() }
@@ -28,7 +38,33 @@ async function cleanupExpiredSiphons() {
       try {
         group = await Group.findById(siphon.group).populate('members._id', 'email');
         groupSet = group ? await GroupSet.findOne({ groups: group._id }).populate('classroom') : null;
-        classroom = groupSet?.classroom ? await Classroom.findById(groupSet.classroom) : null;
+
+        // Debug logging to help trace why teacher notifications may be skipped
+        console.log('[siphonCleanup] context lookup', {
+          siphonId: siphon._id,
+          siphonGroup: siphon.group,
+          siphonClassroom: siphon.classroom,
+          groupId: group?._id,
+          groupSetId: groupSet?._id,
+          groupSetClassroomType: typeof groupSet?.classroom
+        });
+
+        // Prefer populated classroom document, otherwise fetch by id.
+        if (groupSet?.classroom) {
+          classroom = (groupSet.classroom && groupSet.classroom._id)
+            ? groupSet.classroom
+            : await Classroom.findById(groupSet.classroom);
+        } else if (siphon.classroom) {
+          // fallback: if the siphon itself stored a classroom id
+          classroom = await Classroom.findById(siphon.classroom).catch(() => null);
+        } else {
+          classroom = null;
+        }
+        // Ensure classroom is a full document (helpful for teacher field)
+        if (classroom && !(classroom.teacher || classroom.teacher === null)) {
+          // try to refresh
+          classroom = await Classroom.findById(classroom._id).catch(() => classroom);
+        }
       } catch (err) {
         console.error('[siphonCleanup] Failed to populate context:', err);
       }
@@ -48,8 +84,7 @@ async function cleanupExpiredSiphons() {
 
         // emit realtime if io available
         try {
-          const srv = require('../server');
-          const io = srv?.getIO ? srv.getIO() : srv?.io;
+          const io = getIO && getIO();
           if (io) io.to(`user-${siphon.targetUser}`).emit('notification', populatedTarget);
         } catch (e) {
           // server may not export io; ignore
@@ -78,8 +113,7 @@ async function cleanupExpiredSiphons() {
             const populated = await populateNotification(n._id);
 
             try {
-              const srv = require('../server');
-              const io = srv?.getIO ? srv.getIO() : srv?.io;
+              const io = getIO && getIO();
               if (io) io.to(`user-${memberId}`).emit('notification', populated);
             } catch (e) {}
           } catch (err) {
@@ -89,33 +123,39 @@ async function cleanupExpiredSiphons() {
 
         // Emit group-level update
         try {
-          const srv = require('../server');
-          const io = srv?.getIO ? srv.getIO() : srv?.io;
+          const io = getIO && getIO();
           if (io) io.to(`group-${group._id}`).emit('siphon_update', siphon);
         } catch (e) {}
       }
 
       // Notify classroom teacher(s) if we have classroom
       if (classroom) {
-        const teacherId = classroom.teacher;
-        try {
-          const tn = await Notification.create({
-            user: teacherId,
-            type: 'siphon_rejected',
-            message: `A siphon request in group "${group?.name || 'unknown'}" expired without teacher action.`,
-            group: group?._id,
-            siphon: siphon._id,
-            classroom: classroom._id,
-            actionBy: null
-          });
-          const populatedT = await populateNotification(tn._id);
-          try {
-            const srv = require('../server');
-            const io = srv?.getIO ? srv.getIO() : srv?.io;
-            if (io) io.to(`user-${teacherId}`).emit('notification', populatedT);
-          } catch (e) {}
-        } catch (err) {
-          console.error('[siphonCleanup] Failed to notify teacher:', err);
+        // Support classroom.teacher being a single id or an array of ids
+        const teachers = Array.isArray(classroom.teacher) ? classroom.teacher : [classroom.teacher];
+        if (!teachers || teachers.length === 0 || teachers.every(t => !t)) {
+          console.log('[siphonCleanup] classroom has no teacher to notify', { classroomId: classroom._id });
+        } else {
+          for (const teacherId of teachers) {
+            if (!teacherId) continue;
+            try {
+              const tn = await Notification.create({
+                user: teacherId,
+                type: 'siphon_rejected',
+                message: `A siphon request in group "${group?.name || 'unknown'}" expired without teacher action.`,
+                group: group?._id,
+                siphon: siphon._id,
+                classroom: classroom._id,
+                actionBy: null
+              });
+              const populatedT = await populateNotification(tn._id);
+              try {
+                const io = getIO && getIO();
+                if (io) io.to(`user-${teacherId}`).emit('notification', populatedT);
+              } catch (e) {}
+            } catch (err) {
+              console.error('[siphonCleanup] Failed to notify teacher:', teacherId, err);
+            }
+          }
         }
       }
 
@@ -130,7 +170,20 @@ async function cleanupExpiredSiphons() {
   }
 }
 
-// Run every 10 minutes
-setInterval(cleanupExpiredSiphons, 10 * 60 * 1000);
+/* Replace immediate setInterval startup with a connection-aware starter */
+let _janitorStarted = false;
+function startJanitorOnce() {
+  if (_janitorStarted) return;
+  if (mongoose.connection.readyState === 1) {
+    // Run an immediate pass and then schedule interval
+    cleanupExpiredSiphons().catch(e => console.error('[siphonCleanup] startup run failed:', e));
+    setInterval(cleanupExpiredSiphons, CLEAN_INTERVAL_MS);
+    _janitorStarted = true;
+    console.log('[siphonCleanup] janitor started (interval ms):', CLEAN_INTERVAL_MS);
+  }
+}
 
-module.exports = { cleanupExpiredSiphons };
+// Do NOT auto-start on require; listen for connection open and export starter
+mongoose.connection.once && mongoose.connection.once('open', startJanitorOnce);
+
+module.exports = { cleanupExpiredSiphons, startJanitorOnce };

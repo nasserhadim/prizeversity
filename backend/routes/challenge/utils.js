@@ -77,7 +77,19 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
   }
 
   if (bitsAwarded > 0) {
-    user.balance = (user.balance || 0) + bitsAwarded;
+    const classroomId = challenge.classroomId;
+    
+    if (classroomId) {
+      const classroomBalance = user.classroomBalances.find(cb => cb.classroom.toString() === classroomId.toString());
+      if (classroomBalance) {
+        classroomBalance.balance = (classroomBalance.balance || 0) + bitsAwarded;
+      } else {
+        user.classroomBalances.push({ classroom: classroomId, balance: bitsAwarded });
+      }
+    } else {
+      user.balance = (user.balance || 0) + bitsAwarded;
+    }
+    
     rewardsEarned.bits = bitsAwarded;
     
     if (options.addTransactionEntry !== false) {
@@ -85,9 +97,9 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
       const challengeName = CHALLENGE_NAMES[challengeIndex] || `Challenge ${challengeIndex + 1}`;
       
       const transactionDescription = usedHints > 0 
-        ? `Completed ${challengeName} (${baseBits} - ${baseBits - bitsAwarded} hint penalty)`
-        : `Completed ${challengeName}`;
-        
+        ? `Completed Challenge: ${challengeName} (${baseBits} - ${baseBits - bitsAwarded} hint penalty)`
+        : `Completed Challenge: ${challengeName}`;
+
       user.transactions = user.transactions || [];
       user.transactions.push({
         amount: bitsAwarded,
@@ -95,6 +107,8 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
         type: 'challenge_completion',
         challengeIndex: challengeIndex,
         challengeName: challengeName,
+        classroom: classroomId,
+        assignedBy: challenge.createdBy,
         calculation: hintsEnabled && usedHints > 0 ? {
           baseAmount: baseBits,
           hintsUsed: usedHints,
@@ -110,6 +124,7 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
     const multiplier = (challenge.settings.challengeMultipliers || [])[challengeIndex] || 1.0;
     if (multiplier > 1.0) {
       const multiplierIncrease = multiplier - 1.0;
+      if (!user.passiveAttributes) user.passiveAttributes = {};
       user.passiveAttributes.multiplier = (user.passiveAttributes.multiplier || 1.0) + multiplierIncrease;
       rewardsEarned.multiplier = multiplierIncrease;
     }
@@ -118,6 +133,7 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
   if (challenge.settings.luckMode === 'individual') {
     const luck = (challenge.settings.challengeLuck || [])[challengeIndex] || 1.0;
     if (luck > 1.0) {
+      if (!user.passiveAttributes) user.passiveAttributes = {};
       user.passiveAttributes.luck = (user.passiveAttributes.luck || 1.0) * luck;
       rewardsEarned.luck = luck;
     }

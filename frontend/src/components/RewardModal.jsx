@@ -109,10 +109,6 @@ const RewardModal = ({ isOpen, onClose, rewards, challengeName, allCompleted, ne
           <div className="mt-6 pt-4 border-t border-gray-200">
             {allCompleted ? (
               <div className="text-center">
-                <p className="text-lg font-semibold text-green-600 mb-2">
-                  🎊 All Challenges Completed!
-                </p>
-                <p className="text-gray-600">Congratulations on completing the entire challenge series!</p>
               </div>
             ) : null}
           </div>

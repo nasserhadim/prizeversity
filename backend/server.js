@@ -35,7 +35,7 @@ const challengeTemplateRoutes = require('./routes/challengeTemplate');
 const challengeVerifyRoutes = require('./routes/challengeVerify');
 const { redirectBase, isProd } = require('./config/domain');
 const { cleanTrash } = require('./utils/cleanupTrash');
-require('./utils/siphonCleanup'); // Add this line
+// require('./utils/siphonCleanup'); // Add this line
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -45,12 +45,17 @@ console.log("✅ Socket.IO CORS origin set to:", redirectBase);
 // Initialize Socket.IO with CORS settings
 // This allows the frontend to connect to the Socket.IO server from the specified origin
 
+const { setIO } = require('./utils/io'); // <-- new import
+
 const io = new Server(httpServer, {
   cors: {
     origin: redirectBase,
     methods: ["GET", "POST"]
   }
 });
+
+// register io for other modules
+setIO(io);
 
 // Middleware
 app.use(cors({
@@ -96,6 +101,13 @@ mongoose.connect(process.env.MONGO_URI, {})
       console.error('❌ Error checking indexes:', err.message);
     });
 
+    // Start siphon janitor now that mongoose is connected
+    try {
+      const siphonCleanup = require('./utils/siphonCleanup');
+      siphonCleanup.startJanitorOnce && siphonCleanup.startJanitorOnce();
+    } catch (e) {
+      console.error('Failed to start siphonCleanup after DB connect:', e);
+    }
   })
   .catch(err => console.log(err));
 
@@ -136,6 +148,26 @@ const trashDir = path.join(uploadsDir, 'trash');
     console.error('Failed to schedule uploads/trash cleanup:', err);
   }
 })();
+
+// start siphon expiry janitor and ensure TTL/indexes
+try {
+  // load the cleanup (this runs the setInterval inside the module)
+  require('./utils/siphonCleanup');
+} catch (e) {
+  console.error('Failed to start siphonCleanup:', e);
+}
+
+// ensure SiphonRequest indexes (TTL) are created after mongoose opens
+// (use the mongoose already required at top of file)
+mongoose.connection.once('open', async () => {
+  try {
+    const SiphonRequest = require('./models/SiphonRequest');
+    await SiphonRequest.init();
+    console.log('SiphonRequest indexes ensured');
+  } catch (err) {
+    console.error('Failed to initialize SiphonRequest indexes:', err);
+  }
+});
 
 // Routes
 
@@ -218,7 +250,7 @@ io.on('connection', (socket) => {
   });
 });
 
-// Make io accessible to routes
+// Make io accessible to routes (optional / keep for compatibility)
 app.set('io', io);
 
 // Start Server

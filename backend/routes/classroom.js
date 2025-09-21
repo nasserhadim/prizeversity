@@ -148,14 +148,16 @@ router.post('/join', ensureAuthenticated, async (req, res) => {
     return res.status(400).json({ error: 'Classroom code is required' });
   }
   try {
+    // Join Classroom (use both banLog OR bannedRecords when checking)
     const classroom = await Classroom.findOne({ code: code.trim().toUpperCase(), archived: false });
     if (!classroom) {
       return res.status(404).json({ error: 'Invalid classroom code' });
     }
 
-    // Block join if user is banned (supports legacy bannedStudents array and optional banLog)
+    // Block join if user is banned (supports legacy bannedStudents array and optional banLog/bannedRecords)
     const isBannedLegacy = Array.isArray(classroom.bannedStudents) && classroom.bannedStudents.map(String).includes(String(req.user._id));
-    const isBannedLog = Array.isArray(classroom.banLog) && classroom.banLog.some(br => String(br.user || br) === String(req.user._id));
+    const isBannedLog = (Array.isArray(classroom.banLog) && classroom.banLog.some(br => String(br.user || br) === String(req.user._id)))
+      || (Array.isArray(classroom.bannedRecords) && classroom.bannedRecords.some(br => String(br.user || br) === String(req.user._id)));
     if (isBannedLegacy || isBannedLog) {
       return res.status(403).json({ error: 'You are banned from this classroom' });
     }
@@ -387,11 +389,19 @@ router.get('/:id', ensureAuthenticated, async (req, res) => {
     const classroom = await Classroom.findById(req.params.id)
       .populate('teacher', 'email role firstName lastName shortId createdAt')
       .populate('students', 'email role firstName lastName shortId createdAt')
-      .populate('bannedStudents', 'email role firstName lastName shortId createdAt')
-      .populate({ path: 'banLog.user', select: 'email role firstName lastName shortId createdAt', strictPopulate: false });
+      .populate('bannedStudents', 'email role firstName lastName shortId createdAt');
     if (!classroom) {
       return res.status(404).json({ error: 'Classroom not found' });
     }
+
+    // Ensure bannedRecords exists, then populate its user refs
+    classroom.bannedRecords = classroom.bannedRecords || [];
+    await classroom.populate({ path: 'bannedRecords.user', select: 'email role firstName lastName shortId createdAt', strictPopulate: false });
+
+    // Keep banLog alias for older frontend code
+    classroom.banLog = classroom.banLog || classroom.bannedRecords || [];
+
+    console.log('[Fetch Classroom] bannedRecords after populate:', classroom.bannedRecords);
 
     // Normalize id checks (handles populated objects or raw ObjectId strings)
     const userIdStr = String(req.user._id);
@@ -422,6 +432,18 @@ router.get('/:id', ensureAuthenticated, async (req, res) => {
     // Ensure a canonical banLog is present (backend historically used banLog or bannedRecords)
     const classroomObj = classroom && classroom.toObject ? classroom.toObject() : classroom;
     classroomObj.banLog = classroomObj.banLog || classroomObj.bannedRecords || [];
+    console.log('Fetched classroom banLog:', classroomObj.banLog);
+
+    // Sanitize banLog for non-privileged viewers: remove the 'reason' field for students/others
+    if (!['teacher', 'admin'].includes(req.user.role)) {
+      classroomObj.banLog = (classroomObj.banLog || []).map(br => {
+        return {
+          user: br.user,
+          bannedAt: br.bannedAt
+          // intentionally omit `reason`
+        };
+      });
+    }
     res.status(200).json(classroomObj);
   } catch (err) {
     console.error('[Fetch Classroom] error:', err);
@@ -869,10 +891,23 @@ router.post('/:id/students/:studentId/ban', ensureAuthenticated, async (req, res
     await classroom.save();
 
     // Persist minimal ban record (reason + timestamp) using atomic update so it's stored even if schema isn't updated.
-    await Classroom.updateOne(
-      { _id: classroom._id },
-      { $push: { banLog: { user: studentId, reason: reason || '', bannedAt: new Date() } } }
-    );
+    classroom.banLog = classroom.banLog || [];
+    console.log('[Ban] banLog before push:', classroom.banLog);
+    classroom.banLog.push({ user: studentId, reason: reason || '', bannedAt: new Date() });
+    console.log('[Ban] banLog after push:', classroom.banLog);
+    await classroom.save();  // This now saves both bannedStudents and banLog
+    console.log('[Ban] banLog after save:', classroom.banLog);
+
+    // Ban a student — persist into the schema field 'bannedRecords' (and mirror to banLog)
+    classroom.bannedRecords = classroom.bannedRecords || [];
+    classroom.bannedRecords.push({ user: studentId, reason: reason || '', bannedAt: new Date() });
+    console.log('[Ban] bannedRecords after push:', classroom.bannedRecords);
+
+    // keep legacy alias in-memory so emits/readers that expect banLog still work
+    classroom.banLog = classroom.banLog || classroom.bannedRecords;
+
+    await classroom.save();
+    console.log('[Ban] bannedRecords after save:', classroom.bannedRecords);
 
     // Create and emit notification to the banned student
     const notification = await Notification.create({
@@ -890,6 +925,7 @@ router.post('/:id/students/:studentId/ban', ensureAuthenticated, async (req, res
     try {
       req.app.get('io').to(`user-${studentId}`).emit('classroom_removal', {
         classroomId: classroom._id.toString(),
+        userId: studentId, // Add this to identify the recipient
         message: `You have been banned from classroom "${classroom.name}"` + (reason ? ` — Reason: ${reason}` : '')
       });
     } catch (e) { /* ignore */ }
@@ -936,7 +972,7 @@ router.post('/:id/students/:studentId/unban', ensureAuthenticated, async (req, r
     // Remove any banLog entries for this user
     await Classroom.updateOne(
       { _id: classroom._id },
-      { $pull: { banLog: { user: studentId } } }
+      { $pull: { banLog: { user: studentId }, bannedRecords: { user: studentId } } }
     );
 
     // Notify the student they have been unbanned

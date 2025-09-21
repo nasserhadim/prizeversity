@@ -415,76 +415,99 @@ router.get('/user/:userId/balance', async (req, res) => {
 });
 
 
-// Retrieve all orders for a user *which must be the user themself or a teacher)
-router.get(
-  '/orders/user/:userId',
-  ensureAuthenticated,
-  async (req, res) => {
-    try {
-      const { userId } = req.params;
-      // only allow the student themself or any teacher
-      if (req.user._id.toString() !== userId && req.user.role !== 'teacher') {
-        return res.status(403).json({ error: 'Not authorized' });
-      }
-      
-      let orders;
-      
-      // If teacher is requesting, filter by their classrooms only
-      if (req.user.role === 'teacher' && req.user._id.toString() !== userId) {
-        // Get all classrooms taught by this teacher
-        const Classroom = require('../models/Classroom');
-        const teacherClassrooms = await Classroom.find({ 
-          teacher: req.user._id 
-        }).select('_id');
-        
-        const teacherClassroomIds = teacherClassrooms.map(c => c._id);
-        
-        // Fetch orders and populate to get classroom info
-        const allOrders = await Order.find({ user: userId })
-          .populate('items')
-          .populate({
-            path: 'items',
-            populate: {
-              path: 'bazaar',
-              populate: {
-                path: 'classroom',
-                select: '_id name code'
-              }
-            }
-          })
-          .sort({ createdAt: -1 });
-        
-        // Filter orders to only include those from teacher's classrooms
-        orders = allOrders.filter(order => {
-          return order.items.some(item => {
-            const classroomId = item.bazaar?.classroom?._id;
-            return classroomId && teacherClassroomIds.some(tcId => tcId.equals(classroomId));
-          });
-        });
-      } else {
-        // Student viewing their own orders - return all
-        orders = await Order.find({ user: userId })
-          .populate('items')
-          .populate({
-            path: 'items',
-            populate: {
-              path: 'bazaar',
-              populate: {
-                path: 'classroom',
-                select: '_id name code'
-              }
-            }
-          })
-          .sort({ createdAt: -1 });
-      }
-      
-      res.json(orders);
-    } catch (err) {
-      console.error('Failed to fetch orders:', err);
-      res.status(500).json({ error: 'Failed to fetch orders' });
+// Retrieve all orders for a user *which must be the user themself or a teacher/admin (admins limited to their classrooms)
+router.get('/orders/user/:userId', ensureAuthenticated, async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // Only the user themself, teachers, or admins may proceed
+    if (req.user._id.toString() !== userId && !['teacher', 'admin'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Not authorized' });
     }
+
+    let orders;
+
+    // TEACHER: same behavior as before — teacher sees orders for their own classrooms
+    if (req.user.role === 'teacher' && req.user._id.toString() !== userId) {
+      const Classroom = require('../models/Classroom');
+      const teacherClassrooms = await Classroom.find({ teacher: req.user._id }).select('_id');
+      const teacherClassroomIds = teacherClassrooms.map(c => c._id);
+
+      const allOrders = await Order.find({ user: userId })
+        .populate('items')
+        .populate({
+          path: 'items',
+          populate: {
+            path: 'bazaar',
+            populate: {
+              path: 'classroom',
+              select: '_id name code'
+            }
+          }
+        })
+        .sort({ createdAt: -1 });
+
+      // Filter orders to only include those from teacher's classrooms
+      orders = allOrders.filter(order =>
+        order.items.some(item => {
+          const classroomId = item.bazaar?.classroom?._id;
+          return classroomId && teacherClassroomIds.some(tcId => tcId.equals(classroomId));
+        })
+      );
+
+    // ADMIN/TA: allow viewing student's orders only for classrooms where the admin/TA is a member
+    } else if (req.user.role === 'admin' && req.user._id.toString() !== userId) {
+      const Classroom = require('../models/Classroom');
+
+      // Find classrooms where this admin/TA is a member (i.e., in classroom.students)
+      const adminClassrooms = await Classroom.find({ students: req.user._id }).select('_id');
+      const adminClassroomIds = adminClassrooms.map(c => c._id);
+
+      // Fetch all orders for the target user, then filter by the admin's classroom membership
+      const allOrders = await Order.find({ user: userId })
+        .populate('items')
+        .populate({
+          path: 'items',
+          populate: {
+            path: 'bazaar',
+            populate: {
+              path: 'classroom',
+              select: '_id name code'
+            }
+          }
+        })
+        .sort({ createdAt: -1 });
+
+      orders = allOrders.filter(order =>
+        order.items.some(item => {
+          const classroomId = item.bazaar?.classroom?._id;
+          return classroomId && adminClassroomIds.some(acId => acId.equals(classroomId));
+        })
+      );
+
+    } else {
+      // Self (student) or admin/teacher viewing own orders: return all orders for that user
+      orders = await Order.find({ user: userId })
+        .populate('items')
+        .populate({
+          path: 'items',
+          populate: {
+            path: 'bazaar',
+            populate: {
+              path: 'classroom',
+              select: '_id name code'
+            }
+          }
+        })
+        .sort({ createdAt: -1 });
+    }
+
+    res.json(orders);
+  } catch (err) {
+    console.error('Failed to fetch orders:', err);
+    res.status(500).json({ error: 'Failed to fetch orders' });
   }
-);
+});
 
 // Allow frontend to fetch a saved order (populated items) by id
 router.get('/orders/:orderId', async (req, res) => {

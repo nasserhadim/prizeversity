@@ -147,111 +147,151 @@ router.post(
 
       if (!group) return res.status(404).json({ error: 'Group not found' });
 
-      const results = [];
+      // Compose the transaction description once (in outer scope) so it's available
+      // everywhere: per-user transactions, notifications, and emitted events.
+      const roleLabel = req.user.role === 'admin' ? 'Admin/TA' : 'Teacher';
+      const userName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email || String(req.user._id);
+      const baseDesc = (description && String(description).trim()) ? `: ${String(description).trim()}` : '';
+      const txDescription = `Group adjust (${group.name})${baseDesc} by ${roleLabel} (${userName})`;
+      
+      // Keep successful entries and skipped entries as separate arrays.
+      const results = []; // detailed per-student success entries
+      const skipped = []; // skipped entries (e.g. banned / not found)
       const membersToUpdate = memberIds 
         ? group.members.filter(m => memberIds.includes(m._id._id.toString()))
         : group.members;
       
-      // Will loop through each group member and apply balance adjustment
-      for (const member of membersToUpdate) {
-        // Ensure we have a full user doc. member._id may be populated or may be an ObjectId.
-        let user = member._id;
-        if (!user || !user._id) {
-          // fallback: fetch user document
-          user = await User.findById(member._id).select('balance passiveAttributes transactions role classroomBalances');
-        }
-        if (!user || user.role !== 'student' || !memberIds.includes(user._id.toString())) continue;
+      { 
+        // Add: get classroom banned set (groupSet populated earlier)
+        const classroomBannedSet = new Set(
+          (groupSet.classroom?.bannedStudents || []).map(b => String(b._id || b))
+        );
 
-        // Apply multipliers separately based on flags
-        let adjustedAmount = numericAmount;
-        let finalMultiplier = 1;
+        // Will loop through each group member and apply balance adjustment
+        for (const member of membersToUpdate) {
+          // Ensure we have a full user doc. member._id may be populated or may be an ObjectId.
+          let user = member._id;
+          if (!user || !user._id) {
+            // fallback: fetch user document
+            user = await User.findById(member._id).select('balance passiveAttributes transactions role classroomBalances');
+          }
+
+          // Skip teachers (teachers shouldn't be adjusted). Allow admins/TAs who are group members.
+          if (!user || user.role === 'teacher' || !memberIds.includes(String(user._id))) continue;
+         if (classroomBannedSet.has(String(user._id))) {
+           skipped.push({ id: String(user._id), reason: 'User is banned in this classroom' });
+           continue;
+         }
+
+          // Apply multipliers separately based on flags
+          // OLD multiplicative logic (replace)
+          // let finalMultiplier = 1;
+          // if (numericAmount > 0) {
+          //   if (applyGroupMultipliers) {
+          //     finalMultiplier *= (group.groupMultiplier || 1);
+          //   }
+          //   if (applyPersonalMultipliers) {
+          //     finalMultiplier *= (user.passiveAttributes?.multiplier || 1);
+          //   }
+          // }
+
+          // NEW additive logic
+          let finalMultiplier;
+          if (numericAmount > 0) {
+            finalMultiplier = 0;
+            if (applyGroupMultipliers) finalMultiplier += (group.groupMultiplier || 0);
+            if (applyPersonalMultipliers) finalMultiplier += (user.passiveAttributes?.multiplier || 0);
+            if (finalMultiplier === 0) finalMultiplier = 1;
+          } else {
+            finalMultiplier = 1;
+          }
+
+          let adjustedAmount = numericAmount > 0 && (applyGroupMultipliers || applyPersonalMultipliers)
+            ? Math.round(numericAmount * finalMultiplier)
+            : numericAmount;
+
+          // Update user balance using classroom-aware functions
+          const classroomId = groupSet?.classroom ? groupSet.classroom._id || groupSet.classroom : group.classroom;
         
-        if (numericAmount > 0) {
-          if (applyGroupMultipliers) {
-            finalMultiplier *= (group.groupMultiplier || 1);
+          if (classroomId) {
+            const currentBalance = getClassroomBalance(user, classroomId);
+            const newBalance = Math.max(0, currentBalance + adjustedAmount);
+            updateClassroomBalance(user, classroomId, newBalance);
+          } else {
+            user.balance = Math.max(0, user.balance + adjustedAmount);
           }
-          if (applyPersonalMultipliers) {
-            finalMultiplier *= (user.passiveAttributes?.multiplier || 1);
-          }
-          adjustedAmount = Math.round(numericAmount * finalMultiplier);
-        }
 
-        // Update user balance using classroom-aware functions
-        const classroomId = groupSet?.classroom ? groupSet.classroom._id || groupSet.classroom : group.classroom;
-        
-        if (classroomId) {
-          const currentBalance = getClassroomBalance(user, classroomId);
-          const newBalance = Math.max(0, currentBalance + adjustedAmount);
-          updateClassroomBalance(user, classroomId, newBalance);
-        } else {
-          user.balance = Math.max(0, user.balance + adjustedAmount);
-        }
+          // Ensure transactions array exists before pushing
+          if (!Array.isArray(user.transactions)) user.transactions = [];
 
-        user.transactions.push({
-          amount: adjustedAmount,
-          description: description || `Group adjust (${group.name})`,
-          assignedBy: req.user._id,
-          classroom: classroomId || null,
-          calculation: (numericAmount > 0 && (applyGroupMultipliers || applyPersonalMultipliers)) ? {
+          user.transactions.push({
+            amount: adjustedAmount,
+            description: txDescription,
+            assignedBy: req.user._id,
+            classroom: classroomId || null,
+            calculation: (numericAmount > 0 && (applyGroupMultipliers || applyPersonalMultipliers)) ? {
+              baseAmount: numericAmount,
+              personalMultiplier: applyPersonalMultipliers ? (user.passiveAttributes?.multiplier || 1) : 1,
+              groupMultiplier: applyGroupMultipliers ? (group.groupMultiplier || 1) : 1,
+              totalMultiplier: finalMultiplier,
+            } : {
+              baseAmount: numericAmount,
+              personalMultiplier: 1,
+              groupMultiplier: 1,
+              totalMultiplier: 1,
+              note: getMultiplierNote(applyGroupMultipliers, applyPersonalMultipliers)
+            },
+          });
+          await user.save();
+ 
+          // Add result summary for the student
+          results.push({ 
+            id: user._id, 
+            newBalance: classroomId ? getClassroomBalance(user, classroomId) : user.balance,
             baseAmount: numericAmount,
-            personalMultiplier: applyPersonalMultipliers ? (user.passiveAttributes?.multiplier || 1) : 1,
-            groupMultiplier: applyGroupMultipliers ? (group.groupMultiplier || 1) : 1,
-            totalMultiplier: finalMultiplier,
-          } : {
-            baseAmount: numericAmount,
-            personalMultiplier: 1,
-            groupMultiplier: 1,
-            totalMultiplier: 1,
-            note: getMultiplierNote(applyGroupMultipliers, applyPersonalMultipliers)
-          },
-        });
-        await user.save();
-
-        // Add result summary for the student
-        results.push({ 
-          id: user._id, 
-          newBalance: classroomId ? getClassroomBalance(user, classroomId) : user.balance,
-          baseAmount: numericAmount,
-          adjustedAmount: adjustedAmount,
-          multipliersApplied: {
-            group: applyGroupMultipliers ? (group.groupMultiplier || 1) : 1,
-            personal: applyPersonalMultipliers ? (user.passiveAttributes?.multiplier || 1) : 1,
-            total: finalMultiplier
-          }
-        });
-
-        // Create notification for this student
-        const notification = await Notification.create({
-          user: user._id,
-          type: 'wallet_transaction',
-          message: `You were ${amount >= 0 ? 'credited' : 'debited'} ${Math.abs(adjustedAmount)} ₿ in ${group.name}.`,
-          amount: adjustedAmount,
-          description: description || `Group adjust (${group.name})`,
-          group: group._id,
-          groupSet: req.params.groupSetId,
-          classroom: classroomId,
-          actionBy: req.user._id,
-        });
-        const populated = await populateNotification(notification._id);
-        req.app.get('io').to(`user-${user._id}`).emit('notification', populated);
+            adjustedAmount: adjustedAmount,
+            multipliersApplied: {
+              group: applyGroupMultipliers ? (group.groupMultiplier || 1) : 1,
+              personal: applyPersonalMultipliers ? (user.passiveAttributes?.multiplier || 1) : 1,
+              total: finalMultiplier
+            }
+          });
+ 
+         // Create notification for this student
+         const notification = await Notification.create({
+           user: user._id,
+           type: 'wallet_transaction',
+           message: `You were ${amount >= 0 ? 'credited' : 'debited'} ${Math.abs(adjustedAmount)} ₿ in ${group.name}.`,
+           amount: adjustedAmount,
+           description: txDescription,
+           group: group._id,
+           groupSet: req.params.groupSetId,
+           classroom: classroomId,
+           actionBy: req.user._id,
+         });
+         const populated = await populateNotification(notification._id);
+         req.app.get('io').to(`user-${user._id}`).emit('notification', populated);
+        }
       }
 
-      // Emit classroom-aware event including classroomId
+      // Emit classroom-aware event including classroomId, use composed description
       const classroomId = groupSet?.classroom ? groupSet.classroom._id || groupSet.classroom : group.classroom;
       
       req.app.get('io').to(`group-${group._id}`).emit('balance_adjust', {
         groupId: group._id,
         classroomId,
         amount: numericAmount,
-        description,
-        results
+        description: txDescription,
+        results,
+        skipped
       });
-
-      // Respond with success and detailed result
+      
+       // Respond with success and detailed result
       res.json({ 
         success: true,
         message: `${results.length} students updated`,
         results,
+        skipped,
         groupMultiplier: group.groupMultiplier || 1
       });
     } catch (err) {
