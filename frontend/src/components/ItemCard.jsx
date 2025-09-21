@@ -49,7 +49,7 @@ const ItemCard = ({ item, role, classroomId, onUpdated, onDeleted }) => {
     setSaving(true);
     try {
       const { data } = await api.put(
-        `/classroom/${classroomId}/bazaar/items/${item._id}`,
+        `/items/${item._id}`, // assuming this is the correct endpoint for updating an item in the bazaar
         form
       );
       const updated = data.item ?? data; // support either shape
@@ -67,7 +67,7 @@ const ItemCard = ({ item, role, classroomId, onUpdated, onDeleted }) => {
   const confirmDelete = async () => {
     if (!window.confirm('Delete this item? This cannot be undone.')) return;
     try {
-      await api.delete(`/classroom/${classroomId}/bazaar/items/${item._id}`);
+      await api.delete(`/items/${item._id}`); // assuming this is the correct endpoint for deleting an item in the bazaar
       onDeleted?.(item._id);
       toast.success('Item deleted');
     } catch (err) {

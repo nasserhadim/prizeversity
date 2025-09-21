@@ -183,6 +183,9 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
+app.use('/api/items', require('./routes/itemsAdmin')); //testing another way. comment this out if does not work after. 
+
+app.use('/api/items', require('./routes/items')); //mount item router. 9/21
 //app.use('/api/shops', require('./routes/shops'));   // mounts all Shop CRUD at /api/shops  NEW 9/16 Retaj 
 
 
@@ -200,8 +203,6 @@ app.use('/api/challenges', challengeRoutes);
 app.use('/api/challenge-templates', challengeTemplateRoutes);
 app.use('/api', challengeVerifyRoutes);
 
-//mew 9/21 
-app.use('/api/something', require('./routes/something'));
 
 app.use('/api/attack', attackItems);
 app.use('/api/defend', defendItems);
