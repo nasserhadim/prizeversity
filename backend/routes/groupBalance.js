@@ -176,26 +176,39 @@ router.post(
             user = await User.findById(member._id).select('balance passiveAttributes transactions role classroomBalances');
           }
 
-          // Skip non-students & skip banned users
-          if (!user || user.role !== 'student' || !memberIds.includes(user._id.toString())) continue;
-          if (classroomBannedSet.has(String(user._id))) {
-            skipped.push({ id: String(user._id), reason: 'User is banned in this classroom' });
-            continue;
-          }
+          // Skip teachers (teachers shouldn't be adjusted). Allow admins/TAs who are group members.
+          if (!user || user.role === 'teacher' || !memberIds.includes(String(user._id))) continue;
+         if (classroomBannedSet.has(String(user._id))) {
+           skipped.push({ id: String(user._id), reason: 'User is banned in this classroom' });
+           continue;
+         }
 
           // Apply multipliers separately based on flags
-          let adjustedAmount = numericAmount;
-          let finalMultiplier = 1;
-          
+          // OLD multiplicative logic (replace)
+          // let finalMultiplier = 1;
+          // if (numericAmount > 0) {
+          //   if (applyGroupMultipliers) {
+          //     finalMultiplier *= (group.groupMultiplier || 1);
+          //   }
+          //   if (applyPersonalMultipliers) {
+          //     finalMultiplier *= (user.passiveAttributes?.multiplier || 1);
+          //   }
+          // }
+
+          // NEW additive logic
+          let finalMultiplier;
           if (numericAmount > 0) {
-            if (applyGroupMultipliers) {
-              finalMultiplier *= (group.groupMultiplier || 1);
-            }
-            if (applyPersonalMultipliers) {
-              finalMultiplier *= (user.passiveAttributes?.multiplier || 1);
-            }
-            adjustedAmount = Math.round(numericAmount * finalMultiplier);
+            finalMultiplier = 0;
+            if (applyGroupMultipliers) finalMultiplier += (group.groupMultiplier || 0);
+            if (applyPersonalMultipliers) finalMultiplier += (user.passiveAttributes?.multiplier || 0);
+            if (finalMultiplier === 0) finalMultiplier = 1;
+          } else {
+            finalMultiplier = 1;
           }
+
+          let adjustedAmount = numericAmount > 0 && (applyGroupMultipliers || applyPersonalMultipliers)
+            ? Math.round(numericAmount * finalMultiplier)
+            : numericAmount;
 
           // Update user balance using classroom-aware functions
           const classroomId = groupSet?.classroom ? groupSet.classroom._id || groupSet.classroom : group.classroom;
