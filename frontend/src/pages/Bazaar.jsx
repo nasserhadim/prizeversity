@@ -84,6 +84,11 @@ const Bazaar = () => {
     }
   };
 
+  // Derive current page of items
+  const totalPages = Math.max(1, Math.ceil((filteredItems.length || 0) / PAGE_SIZE));
+  const start = (page - 1) * PAGE_SIZE;
+  const currentPageItems = (filteredItems || []).slice(start, start + PAGE_SIZE);
+
   useEffect(() => {
     fetchClassroom();
     fetchBazaar();
@@ -207,107 +212,127 @@ const Bazaar = () => {
           </div>
         )}
 
-        {!searchLoading && !searchError && filteredItems.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-            {filteredItems.map((item) => (
-              <ItemCard
-                key={item._id}
-                item={item}
-                role={user.role}
-                classroomId={classroomId}
-              />
-            ))}
+        {!searchLoading && !searchError && currentPageItems.length > 0 && (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+              {currentPageItems.map((item) => (
+                <ItemCard
+                  key={item._id}
+                  item={item}
+                  role={user.role}
+                  classroomId={classroomId}
+                />
+              ))}
+            </div>
+
+            {/* Pagination controls */}
+            <div className="flex items-center justify-between mt-4">
+              <button
+                className="btn btn-sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+              >
+                Previous
+              </button>
+              <div className="text-sm opacity-70">Page {page} of {totalPages}</div>
+              <button
+                className="btn btn-sm"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+              >
+                Next
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* Teacher Create Item */}
+        {user.role === 'teacher' && (
+          <div className="card card-compact bg-base-100 shadow p-4 border border-base-200">
+            <CreateItem
+              bazaarId={bazaar._id}
+              classroomId={classroomId}
+              onAdd={(newItem) =>
+                setBazaar((prev) => ({
+                  ...prev,
+                  items: [...(prev.items || []), newItem],
+                }))
+              }
+            />
           </div>
         )}
-      </div>
 
-      {/* Teacher Create Item */}
-      {user.role === 'teacher' && (
-        <div className="card card-compact bg-base-100 shadow p-4 border border-base-200">
-          <CreateItem
-            bazaarId={bazaar._id}
-            classroomId={classroomId}
-            onAdd={(newItem) =>
-              setBazaar((prev) => ({
-                ...prev,
-                items: [...(prev.items || []), newItem],
-              }))
-            }
-          />
-        </div>
-      )}
-
-      {/* Items for Sale Section */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-2xl font-bold text-success flex items-center gap-2">
-            <HandCoins />
-            Items for Sale
-          </h3>
-          <span className="badge badge-outline text-sm hidden md:inline">
-            {bazaar.items?.length || 0} item{bazaar.items?.length === 1 ? '' : 's'}
-          </span>
-        </div>
-
-        <div className="divider my-0"></div>
-
-        {bazaar.items?.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-            {bazaar.items.map((item) => (
-              <ItemCard
-                key={item._id}
-                item={item}
-                role={user.role}
-                classroomId={classroomId}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center py-10 text-center text-gray-500">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="w-12 h-12 mb-2 opacity-40"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M20 13V9a2 2 0 00-2-2h-1V5a2 2 0 00-2-2H9a2 2 0 00-2 2v2H6a2 2 0 00-2 2v4M3 17h18M9 21h6"
-              />
-            </svg>
-            <p className="italic">Nothing is for sale yet. Please check back later!</p>
-          </div>
-        )}
-      </div>
-
-
-      {/* Inventory Section with Button in Header */}
-      <div className="card bg-base-200 shadow-inner border border-base-300">
-        <div className="card-body p-4">
-          <div className="flex items-center justify-between mb-2">
-            <button
-              onClick={() => setShowInventory(!showInventory)}
-              className={`btn btn-sm transition-all duration-200 ${showInventory ? 'btn-outline btn-error' : 'btn-success'
-                }`}
-            >
-              {showInventory ? 'Hide' : 'Show'} Inventory
-            </button>
+        {/* Items for Sale Section */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-2xl font-bold text-success flex items-center gap-2">
+              <HandCoins />
+              Items for Sale
+            </h3>
+            <span className="badge badge-outline text-sm hidden md:inline">
+              {bazaar.items?.length || 0} item{bazaar.items?.length === 1 ? '' : 's'}
+            </span>
           </div>
 
-          {/* Inventory Section */}
-          {showInventory && (
-            <div className="mt-4">
-              <InventorySection userId={user._id} classroomId={classroomId} />
+          <div className="divider my-0"></div>
+
+          {bazaar.items?.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+              {bazaar.items.map((item) => (
+                <ItemCard
+                  key={item._id}
+                  item={item}
+                  role={user.role}
+                  classroomId={classroomId}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-10 text-center text-gray-500">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="w-12 h-12 mb-2 opacity-40"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M20 13V9a2 2 0 00-2-2h-1V5a2 2 0 00-2-2H9a2 2 0 00-2 2v2H6a2 2 0 00-2 2v4M3 17h18M9 21h6"
+                />
+              </svg>
+              <p className="italic">Nothing is for sale yet. Please check back later!</p>
             </div>
           )}
         </div>
+
+
+        {/* Inventory Section with Button in Header */}
+        <div className="card bg-base-200 shadow-inner border border-base-300">
+          <div className="card-body p-4">
+            <div className="flex items-center justify-between mb-2">
+              <button
+                onClick={() => setShowInventory(!showInventory)}
+                className={`btn btn-sm transition-all duration-200 ${showInventory ? 'btn-outline btn-error' : 'btn-success'
+                  }`}
+              >
+                {showInventory ? 'Hide' : 'Show'} Inventory
+              </button>
+            </div>
+
+            {/* Inventory Section */}
+            {showInventory && (
+              <div className="mt-4">
+                <InventorySection userId={user._id} classroomId={classroomId} />
+              </div>
+            )}
+          </div>
+        </div>
+        <Footer />
       </div>
-      <Footer />
-    </div>
-  );
+      );
 };
 
-export default Bazaar;
+      export default Bazaar;
