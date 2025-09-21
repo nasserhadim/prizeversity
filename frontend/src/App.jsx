@@ -35,8 +35,6 @@ import Support from './pages/Support';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
 import AdminModeration from './pages/AdminModeration';
-import Shops from './pages/Shops'; //new line for the shops.jxs 
-
 
 const App = () => {
   const { user } = useContext(AuthContext);
@@ -94,7 +92,7 @@ const App = () => {
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/terms" element={<Terms />} />
 
-          <Route path="/shops" element={<Shops />} />    {/*new line for shops 9/16*/}
+
 
         </Routes>
       </div>

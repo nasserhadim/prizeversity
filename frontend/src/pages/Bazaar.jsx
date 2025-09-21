@@ -3,17 +3,30 @@ import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Store, HandCoins  } from 'lucide-react';
 import { Image as ImageIcon } from 'lucide-react';
-// import axios from 'axios'
+import axios from 'axios'
 //import apiBazaar from '../API/apiBazaar.js'
 import CreateBazaar from '../components/CreateBazaar';
 import CreateItem from '../components/CreateItem';
 import ItemCard from '../components/ItemCard';
-import apiBazaar from '../API/apiBazaar';
 import apiClassroom from '../API/apiClassroom';
 import InventorySection from '../components/InventorySection';
 import toast from 'react-hot-toast';
 import Footer from '../components/Footer';
 import { resolveBannerSrc } from '../utils/image';
+
+
+// local axios instance for Bazaar-related calls
+const apiBazaar = axios.create({
+  baseURL: '/api',        // change if your API prefix is different
+  withCredentials: true,  // keep if you rely on auth cookies/sessions
+});
+
+//updating item api call 
+const updateItemApi = (classroomId, itemId, data) =>
+  apiBazaar.put(`/classroom/${classroomId}/bazaar/items/${itemId}`, data);
+
+const deleteItemApi = (classroomId, itemId) =>
+  apiBazaar.delete(`/classroom/${classroomId}/bazaar/items/${itemId}`);
 
 const Bazaar = () => {
   const { classroomId } = useParams();
@@ -23,6 +36,25 @@ const Bazaar = () => {
   const [loading, setLoading] = useState(true);
   const [showInventory, setShowInventory] = useState(false);
 
+
+// keep bazaar.items in sync after an update
+const handleItemUpdated = (updatedItem) => {
+  setBazaar(prev => ({
+    ...prev,
+    items: (prev.items || []).map(it => it._id === updatedItem._id ? updatedItem : it),
+  }));
+};
+
+// remove from bazaar.items after delete
+const handleItemDeleted = (itemId) => {
+  setBazaar(prev => ({
+    ...prev,
+    items: (prev.items || []).filter(it => it._id !== itemId),
+  }));
+};
+
+
+  
   // Fetch classroom details
   const fetchClassroom = async () => {
     try {
@@ -155,7 +187,9 @@ const Bazaar = () => {
                 item={item}
                 role={user.role}
                 classroomId={classroomId}
-              />
+                onUpdated={handleItemUpdated}
+                onDeleted={handleItemDeleted}
+                />
             ))}
           </div>
         ) : (

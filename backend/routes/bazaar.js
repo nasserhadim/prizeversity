@@ -5,6 +5,7 @@ const User = require('../models/User');
 const Classroom = require('../models/Classroom');
 const { ensureAuthenticated } = require('../config/auth');
 const router = express.Router();
+
 const Order = require('../models/Order');
 const blockIfFrozen = require('../middleware/blockIfFrozen');
 const upload = require('../middleware/upload'); // reuse existing upload middleware
@@ -68,6 +69,99 @@ router.get('/classroom/:classroomId/bazaar', ensureAuthenticated, async (req, re
     res.status(500).json({ error: 'Failed to fetch bazaar' });
   }
 });
+
+// PUT classroomID
+router.put('/classroom/:classroomId/bazaar/:bazaarId',
+  ensureAuthenticated, ensureTeacher,
+  async (req, res) => {
+    try {
+      const bazaar = await Bazaar.findByIdAndUpdate(
+        req.params.bazaarId,
+        req.body,
+        { new: true, runValidators: true }
+      );
+      if (!bazaar) return res.status(404).json({ error: 'Bazaar not found' });
+      res.json({ bazaar });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
+
+//DELETEEE
+
+router.delete('/classroom/:classroomId/bazaar/:bazaarId',
+  ensureAuthenticated, ensureTeacher,
+  async (req, res) => {
+    try {
+      const bazaar = await Bazaar.findByIdAndDelete(req.params.bazaarId);
+      if (!bazaar) return res.status(404).json({ error: 'Bazaar not found' });
+
+      // cascade delete all items in this bazaar
+      await Item.deleteMany({ bazaar: bazaar._id });
+
+      res.status(204).end();
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
+//GET listing items 
+
+router.get('/classroom/:classroomId/bazaar/:bazaarId/items',
+  ensureAuthenticated,
+  async (req, res) => {
+    const items = await Item.find({ bazaar: req.params.bazaarId }).lean();
+    res.json({ data: items, total: items.length, page: 1, limit: items.length || 0 });
+  }
+);
+
+//getone item
+router.get('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId',
+  ensureAuthenticated,
+  async (req, res) => {
+    const item = await Item.findOne({ _id: req.params.itemId, bazaar: req.params.bazaarId }).lean();
+    if (!item) return res.status(404).json({ error: 'Item not found' });
+    res.json({ item });
+  }
+);
+
+//update the item
+router.put('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId',
+  ensureAuthenticated, ensureTeacher,
+  async (req, res) => {
+    try {
+      const item = await Item.findOneAndUpdate(
+        { _id: req.params.itemId, bazaar: req.params.bazaarId },
+        req.body,
+        { new: true, runValidators: true }
+      );
+      if (!item) return res.status(404).json({ error: 'Item not found' });
+      res.json({ item });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
+//delete item
+router.delete('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId',
+  ensureAuthenticated, ensureTeacher,
+  async (req, res) => {
+    try {
+      const item = await Item.findOneAndDelete({
+        _id: req.params.itemId,
+        bazaar: req.params.bazaarId
+      });
+      if (!item) return res.status(404).json({ error: 'Item not found' });
+      res.status(204).end();
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
 
 // Add Item to Bazaar (teacher only) — accept file upload "image"
 router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticated, ensureTeacher, upload.single('image'), async (req, res) => {

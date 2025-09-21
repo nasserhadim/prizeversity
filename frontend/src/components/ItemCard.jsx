@@ -1,15 +1,21 @@
 import { useState } from 'react';
-import { Image as ImageIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
-// import axios from 'axios'
-import apiBazaar from '../API/apiBazaar.js'
+import { Image as ImageIcon, Pencil, Trash2 } from 'lucide-react';
+import axios from 'axios'
 import { ShoppingCart } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext.jsx';
 import { resolveImageSrc } from '../utils/image';
 import { splitDescriptionEffect, getEffectDescription } from '../utils/itemHelpers';
 
-const ItemCard = ({ item, role, classroomId }) => {
+// local axios instance for Bazaar-related calls
+const api = axios.create({
+  baseURL: '/api',
+  withCredentials: true,
+});
+
+// ItemCard component with buy option removed and discount logic added
+const ItemCard = ({ item, role, classroomId, onUpdated, onDeleted }) => {
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(false);
   const { addToCart } = useCart();
@@ -17,12 +23,67 @@ const ItemCard = ({ item, role, classroomId }) => {
 
   const imgSrc = resolveImageSrc(item?.image);
 
+
+  //adding local UI for edit and form 
+  //edit UI
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    name: item.name || '',
+    description: item.description || '',
+    price: item.price || 0,
+    stock: item.stock || 0,
+    image: item.image || '',
+  });
+
+
+  //adding handlers:
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    const numeric = ['price', 'stock'];
+    setForm((f) => ({ ...f, [name]: numeric.includes(name) ? Number(value) : value }));
+  };
+
+  const submitEdit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const { data } = await api.put(
+        `/classroom/${classroomId}/bazaar/items/${item._id}`,
+        form
+      );
+      const updated = data.item ?? data; // support either shape
+      onUpdated?.(updated);
+      toast.success('Item updated');
+      setOpen(false);
+    } catch (err) {
+      console.error(err);
+      toast.error(err?.response?.data?.error || 'Failed to update');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!window.confirm('Delete this item? This cannot be undone.')) return;
+    try {
+      await api.delete(`/classroom/${classroomId}/bazaar/items/${item._id}`);
+      onDeleted?.(item._id);
+      toast.success('Item deleted');
+    } catch (err) {
+      console.error(err);
+      toast.error(err?.response?.data?.error || 'Failed to delete');
+    }
+  };
+
+
+
   // The buy option is not included here
   const handleBuy = async () => {
     if (quantity < 1) return toast.error('Quantity must be at least 1');
     setLoading(true);
     try {
-      await apiBazaar.post(
+      await api.post(
         `classroom/${classroomId}/bazaar/${item.bazaar}/items/${item._id}/buy`,
         { quantity: Number(quantity) }
       );
@@ -108,6 +169,99 @@ const ItemCard = ({ item, role, classroomId }) => {
         <p className="text-base-content font-bold text-base">
            {calculatePrice()}
          </p>
+
+         {role === 'teacher' && (
+  <div className="flex gap-2 mt-2">
+    <button className="btn btn-sm btn-outline" onClick={() => setOpen(true)}>
+      <Pencil className="w-4 h-4" />
+      Edit
+    </button>
+    <button className="btn btn-sm btn-error" onClick={confirmDelete}>
+      <Trash2 className="w-4 h-4" />
+      Delete
+    </button>
+  </div>
+)}
+        
+{/* Edit Modal */}
+{open && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div className="card w-full max-w-md bg-base-100 shadow-xl">
+      <div className="card-body gap-4">
+        <h3 className="text-xl font-bold">Edit Item</h3>
+        <form onSubmit={submitEdit} className="space-y-3">
+          <label className="form-control">
+            <span className="label-text">Name</span>
+            <input
+              name="name"
+              value={form.name}
+              onChange={handleChange}
+              className="input input-bordered"
+              required
+            />
+          </label>
+
+          <label className="form-control">
+            <span className="label-text">Description</span>
+            <textarea
+              name="description"
+              value={form.description}
+              onChange={handleChange}
+              className="textarea textarea-bordered"
+              rows={3}
+            />
+          </label>
+
+          <div className="grid grid-cols-2 gap-3">
+            <label className="form-control">
+              <span className="label-text">Price</span>
+              <input
+                type="number"
+                step="0.01"
+                name="price"
+                value={form.price}
+                onChange={handleChange}
+                className="input input-bordered"
+                required
+              />
+            </label>
+            <label className="form-control">
+              <span className="label-text">Stock</span>
+              <input
+                type="number"
+                name="stock"
+                value={form.stock}
+                onChange={handleChange}
+                className="input input-bordered"
+                min={0}
+              />
+            </label>
+          </div>
+
+          <label className="form-control">
+            <span className="label-text">Image URL</span>
+            <input
+              name="image"
+              value={form.image}
+              onChange={handleChange}
+              className="input input-bordered"
+              placeholder="/uploads/xyz.jpg or https://…"
+            />
+          </label>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" className="btn btn-ghost" onClick={() => setOpen(false)}>
+              Cancel
+            </button>
+            <button type="submit" className={`btn btn-success ${saving ? 'btn-disabled' : ''}`}>
+              {saving ? <span className="loading loading-spinner loading-sm" /> : 'Save'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+)}
 
         {role === 'student' && (
           <button

@@ -183,9 +183,15 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
-app.use('/api/shops', require('./routes/shops'));   // mounts all Shop CRUD at /api/shops  NEW 9/16 Retaj 
+//app.use('/api/shops', require('./routes/shops'));   // mounts all Shop CRUD at /api/shops  NEW 9/16 Retaj 
 
-// app.use('/api/items', itemRoutes);
+
+//checking 
+const somethingRouter = require('./routes/something'); // <-- offending import
+console.log('typeof somethingRouter =', typeof somethingRouter);
+app.use('/api/something', somethingRouter);
+
+app.use('/api/items', itemRoutes);
 app.use('/api/stats', statsRouter);
 app.use('/api', groupBalanceRoutes);
 app.use('/api/feedback', feedbackRoutes); // Use the Feedback model for classroom feedback
@@ -193,6 +199,9 @@ app.use('/api/pending-assignments', require('./routes/pendingAssignments'));
 app.use('/api/challenges', challengeRoutes);
 app.use('/api/challenge-templates', challengeTemplateRoutes);
 app.use('/api', challengeVerifyRoutes);
+
+//mew 9/21 
+app.use('/api/something', require('./routes/something'));
 
 app.use('/api/attack', attackItems);
 app.use('/api/defend', defendItems);
