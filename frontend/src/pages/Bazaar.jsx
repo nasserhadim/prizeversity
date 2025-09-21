@@ -156,8 +156,7 @@ const Bazaar = () => {
       {/* Search & filter controls for the Bazaar items */}
       <BazaarSearch
         onFiltersChange={(filters) => {
-          // This will be used on the next pass to fetch filtered items
-          console.log("Bazaar filters:", filters);
+          fetchFilteredItems(filters);
         }}
       />
 
