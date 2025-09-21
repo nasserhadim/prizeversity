@@ -176,12 +176,12 @@ router.post(
             user = await User.findById(member._id).select('balance passiveAttributes transactions role classroomBalances');
           }
 
-          // Skip non-students & skip banned users
-          if (!user || user.role !== 'student' || !memberIds.includes(user._id.toString())) continue;
-          if (classroomBannedSet.has(String(user._id))) {
-            skipped.push({ id: String(user._id), reason: 'User is banned in this classroom' });
-            continue;
-          }
+          // Skip teachers (teachers shouldn't be adjusted). Allow admins/TAs who are group members.
+          if (!user || user.role === 'teacher' || !memberIds.includes(String(user._id))) continue;
+         if (classroomBannedSet.has(String(user._id))) {
+           skipped.push({ id: String(user._id), reason: 'User is banned in this classroom' });
+           continue;
+         }
 
           // Apply multipliers separately based on flags
           // OLD multiplicative logic (replace)
