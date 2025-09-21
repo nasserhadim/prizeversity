@@ -1,4 +1,4 @@
-import BazaarSearch from "components/BazaarSearch";
+import BazaarSearch from "../components/BazaarSearch.jsx";
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
