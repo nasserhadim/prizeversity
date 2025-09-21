@@ -320,6 +320,14 @@ router.post('/:classroomId/start', ensureAuthenticated, async (req, res) => {
       userChallenge.startedAt = new Date();
     }
     
+    if (!userChallenge.challengeStartedAt) {
+      userChallenge.challengeStartedAt = [];
+    }
+    
+    if (!userChallenge.challengeStartedAt[challengeIndex]) {
+      userChallenge.challengeStartedAt[challengeIndex] = new Date();
+    }
+    
     userChallenge.currentChallenge = challengeIndex;
     await challenge.save();
 

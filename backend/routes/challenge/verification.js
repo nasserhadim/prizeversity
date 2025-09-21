@@ -146,6 +146,18 @@ router.post('/verify-challenge2-external', ensureAuthenticated, async (req, res)
       userChallenge.completedChallenges[1] = true;
       userChallenge.progress = userChallenge.completedChallenges.filter(Boolean).length;
       
+      if (!userChallenge.challengeCompletedAt) {
+        userChallenge.challengeCompletedAt = [];
+      }
+      while (userChallenge.challengeCompletedAt.length <= 1) {
+        userChallenge.challengeCompletedAt.push(null);
+      }
+      userChallenge.challengeCompletedAt[1] = new Date();
+      
+      if (userChallenge.progress >= 7) {
+        userChallenge.completedAt = new Date();
+      }
+      
       const user = await User.findById(userId);
       let bitsAwarded = 0;
 
@@ -253,6 +265,10 @@ router.post('/challenge3/:uniqueId/verify', ensureAuthenticated, async (req, res
     const expectedAnswer = cppChallenge.actualOutput;
     const submittedAnswer = parseInt(password);
     
+    if (!userChallenge.challenge3ExpectedOutput) {
+      userChallenge.challenge3ExpectedOutput = expectedAnswer.toString();
+    }
+    
     const isCorrect = submittedAnswer === expectedAnswer;
 
     if (!isCorrect) {
@@ -279,6 +295,14 @@ router.post('/challenge3/:uniqueId/verify', ensureAuthenticated, async (req, res
     if (!userChallenge.completedChallenges[2]) {
       userChallenge.completedChallenges[2] = true;
       userChallenge.progress = userChallenge.completedChallenges.filter(Boolean).length;
+      
+      if (!userChallenge.challengeCompletedAt) {
+        userChallenge.challengeCompletedAt = [];
+      }
+      while (userChallenge.challengeCompletedAt.length <= 2) {
+        userChallenge.challengeCompletedAt.push(null);
+      }
+      userChallenge.challengeCompletedAt[2] = new Date();
       
       rewardsEarned = calculateChallengeRewards(user, challenge, 2, userChallenge);
       await user.save();
@@ -334,8 +358,24 @@ router.post('/verify-challenge5-external', ensureAuthenticated, async (req, res)
       return res.status(400).json({ message: 'Challenge already completed' });
     }
 
-    userChallenge.progress = 5;
-    userChallenge.completedAt = Date.now();
+    if (!userChallenge.completedChallenges) {
+      userChallenge.completedChallenges = [false, false, false, false, false, false, false];
+    }
+    
+    userChallenge.completedChallenges[4] = true;
+    userChallenge.progress = userChallenge.completedChallenges.filter(Boolean).length;
+    
+    if (!userChallenge.challengeCompletedAt) {
+      userChallenge.challengeCompletedAt = [];
+    }
+    while (userChallenge.challengeCompletedAt.length <= 4) {
+      userChallenge.challengeCompletedAt.push(null);
+    }
+    userChallenge.challengeCompletedAt[4] = new Date();
+    
+    if (userChallenge.progress >= 7) {
+      userChallenge.completedAt = new Date();
+    }
     
     const user = await User.findById(userId);
     let rewardsEarned = {

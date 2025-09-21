@@ -95,9 +95,13 @@ const ChallengeConfigModal = ({
       settings.dueDateEnabled = challengeConfig.dueDateEnabled || false;
       
       if (challengeConfig.dueDateEnabled && challengeConfig.dueDate) {
-        const localDate = new Date(challengeConfig.dueDate);
-        const utcDate = new Date(localDate.getTime() + localDate.getTimezoneOffset() * 60000);
-        settings.dueDate = utcDate.toISOString();
+        const [datePart, timePart] = challengeConfig.dueDate.split('T');
+        const [year, month, day] = datePart.split('-').map(Number);
+        const [hours, minutes] = timePart.split(':').map(Number);
+        
+        const localDate = new Date(year, month - 1, day, hours, minutes);
+        const utcISOString = localDate.toISOString();
+        settings.dueDate = utcISOString;
       } else {
         settings.dueDate = '';
       }
