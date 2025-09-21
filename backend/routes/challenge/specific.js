@@ -5,6 +5,55 @@ const User = require('../../models/User');
 const { ensureAuthenticated } = require('../../middleware/auth');
 const { generateCppDebuggingChallenge, generateAndUploadForensicsImage, uploadLocks } = require('./generators');
 
+router.get('/challenge3/:uniqueId/teacher', ensureAuthenticated, async (req, res) => {
+  try {
+    const { uniqueId } = req.params;
+    const teacherId = req.user._id;
+    
+    const challenge = await Challenge.findOne({ 
+      'userChallenges.uniqueId': uniqueId
+    });
+
+    if (!challenge) {
+      return res.status(404).json({ message: 'Challenge not found or not authorized' });
+    }
+
+    const userChallenge = challenge.userChallenges.find(uc => uc.uniqueId === uniqueId);
+    if (!userChallenge) {
+      return res.status(404).json({ message: 'User challenge not found' });
+    }
+
+    const studentUserId = userChallenge.userId;
+    const user = await User.findById(studentUserId);
+    
+    const crypto = require('crypto');
+    const studentHash = crypto.createHash('md5').update(studentUserId.toString() + uniqueId).digest('hex');
+    const hashNum = parseInt(studentHash.substring(0, 8), 16);
+    
+    const studentData = {
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      year: user.year || 1,
+      favoriteFood: user.favoriteFood || 'Pizza',
+      petName: user.petName || 'Buddy',
+      favoriteFruit: user.favoriteFruit || 'Apple',
+      hash: hashNum,
+      agentId: `AGENT-${studentHash.substring(0, 6).toUpperCase()}`
+    };
+    
+    const cppChallenge = generateCppDebuggingChallenge(studentData, uniqueId);
+    
+    res.json({
+      cppChallenge: cppChallenge,
+      studentData
+    });
+  } catch (error) {
+    console.error('Error in challenge3 teacher endpoint:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 router.get('/challenge3/:uniqueId', ensureAuthenticated, async (req, res) => {
   try {
     const { uniqueId } = req.params;
@@ -45,6 +94,11 @@ router.get('/challenge3/:uniqueId', ensureAuthenticated, async (req, res) => {
     };
 
     const cppChallenge = generateCppDebuggingChallenge(studentData, uniqueId);
+    
+    if (!userChallenge.challenge3ExpectedOutput) {
+      userChallenge.challenge3ExpectedOutput = cppChallenge.actualOutput.toString();
+      await challenge.save();
+    }
     
     res.json({
       studentData,
