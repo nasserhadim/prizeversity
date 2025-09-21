@@ -140,6 +140,15 @@ const Support = () => {
             "• Special bonus activities such as associated club events endorsed by the teacher"
           ],
           role: ["student"]
+        },
+        {
+          question: "Why do transaction multipliers show 1.00x despite a student's multipliers being higher?",
+          answer: [
+            "• If a transaction shows something like (Base: 5₿, Personal: 1.00x, Group: 1.00x, Total: 1.00x) it usually means the instructor chose to bypass personal and/or group multipliers for that specific adjustment so the system records them as 1.00x and the math matches the flat amount shown.",
+            "• Teachers (and admins/TAs) can enable or disable applying group and personal multipliers when assigning or adjusting balances.",
+            "• Note that multipliers always apply to positive transactions (awards) but are ignored for negative transactions (deductions) to avoid penalizing students too harshly."
+          ],
+          role: ["all"]
         }
       ]
     },
