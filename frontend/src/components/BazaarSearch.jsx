@@ -23,10 +23,9 @@ export default function BazaarSearch({ onFiltersChange }) {
   const qDebounced = useDebounced(q, 350);
 
   useEffect(() => {
-    // Map "All" to no category for the parent/API
-    const cat = category === "All" ? undefined : category;
-    onFiltersChange?.({ category: cat, q: qDebounced });
-  }, [category, qDebounced, onFiltersChange]);
+    const filters = { category, q: qDebounced };
+    onFiltersChange?.(filters);
+  }, [category, qDebounced]);
 
   return (
     <div className="max-w-5xl mx-auto p-4 space-y-4">
