@@ -31,7 +31,11 @@ export const getEffectDescription = (item) => {
   // Utility
   if (item.category === 'Utility') {
     if (item.primaryEffect === 'doubleEarnings') return '2x earnings multiplier';
-    if (item.primaryEffect === 'discountShop') return '20% shop discount';
+    if (item.primaryEffect === 'discountShop') {
+      // Use configured percent on the item (fallback to 20)
+      const pct = Number(item.primaryEffectValue) || 20;
+      return `${pct}% shop discount`;
+    }
   }
 
   return '';
@@ -95,7 +99,11 @@ export const describeEffectFromForm = (form) => {
   // Utility
   if (form.category === 'Utility') {
     if (form.primaryEffect === 'doubleEarnings') return '2x earnings multiplier';
-    if (form.primaryEffect === 'discountShop') return '20% shop discount';
+    if (form.primaryEffect === 'discountShop') {
+      // Use form value (teacher-entered) or fall back to 20%
+      const pct = Number(form.primaryEffectValue) || 20;
+      return `${pct}% shop discount`;
+    }
   }
 
   return '';

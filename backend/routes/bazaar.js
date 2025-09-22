@@ -284,7 +284,12 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
       }
     }
 
-    const total = items.reduce((sum, item) => sum + item.price, 0);
+    const pct = Number(user.discountPercent) || 0;
+    const discountMultiplier = pct > 0 ? (1 - pct / 100) : 1;
+    const total = items.reduce(
+    (sum, item) => sum + Math.floor(item.price * discountMultiplier),
+    0
+  );
     console.log(`Calculated total: ${total}, User per-classroom balance: ${getClassroomBalance(user, classroomId)}`);
 
     // Use per-classroom balance for check
