@@ -10,7 +10,9 @@ const ChallengeUpdateModal = ({
   setShowUpdateModal, 
   challengeData,
   fetchChallengeData,
-  classroomId
+  classroomId,
+  setShowHintModal,
+  setEditingHints
 }) => {
   const [updating, setUpdating] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -150,8 +152,10 @@ const ChallengeUpdateModal = ({
                   
                   <div className="space-y-4">
                     <div className="form-control">
-                      <label className="label justify-between py-1">
+                      <label className="label py-1">
                         <span className="label-text text-sm font-medium">Hints Enabled</span>
+                      </label>
+                      <div className="flex items-center gap-2">
                         <input
                           type="checkbox"
                           className="checkbox checkbox-sm checkbox-primary"
@@ -166,7 +170,22 @@ const ChallengeUpdateModal = ({
                             });
                           }}
                         />
-                      </label>
+                        {updateData.challengeHintsEnabled[activeChallengeIndex] && (
+                          <button
+                            type="button"
+                            className="btn btn-xs btn-outline btn-primary"
+                            onClick={() => {
+                              setEditingHints({ 
+                                challengeIndex: activeChallengeIndex, 
+                                challengeName: CHALLENGE_NAMES[activeChallengeIndex] 
+                              });
+                              setShowHintModal(true);
+                            }}
+                          >
+                            Configure ({(updateData.challengeHints[activeChallengeIndex]?.length || 0)})
+                          </button>
+                        )}
+                      </div>
                     </div>
                     
                     <div className="form-control">
@@ -528,6 +547,10 @@ const ChallengeUpdateModal = ({
                               <button
                                 type="button"
                                 className="btn btn-xs btn-outline btn-primary min-h-[24px] h-6"
+                                onClick={() => {
+                                  setEditingHints({ challengeIndex: index, challengeName: CHALLENGE_NAMES[index] });
+                                  setShowHintModal(true);
+                                }}
                               >
                                 {(updateData.challengeHints[index]?.length || 0)} hints
                               </button>

@@ -3,6 +3,7 @@ import { Shield, Settings, Users, Eye, EyeOff, UserPlus, Edit3 } from 'lucide-re
 import { getCurrentChallenge } from '../../utils/challengeUtils';
 import { getThemeClasses } from '../../utils/themeUtils';
 import { updateDueDate, toggleChallengeVisibility } from '../../API/apiChallenge';
+import { API_BASE } from '../../config/api';
 import ChallengeUpdateModal from './modals/ChallengeUpdateModal';
 import toast from 'react-hot-toast';
 import socket from '../../utils/socket';
@@ -27,8 +28,11 @@ const TeacherView = ({
   const [studentNames, setStudentNames] = useState({});
   const [challenge6Data, setChallenge6Data] = useState({});
   const [challenge7Data, setChallenge7Data] = useState({});
+  const [challenge3Data, setChallenge3Data] = useState({});
   const [localDueDate, setLocalDueDate] = useState('');
   const [togglingVisibility, setTogglingVisibility] = useState(false);
+  const [showHintModal, setShowHintModal] = useState(false);
+  const [editingHints, setEditingHints] = useState(null);
   const dropdownRef = useRef(null);
   const themeClasses = getThemeClasses(isDark);
 
@@ -71,7 +75,7 @@ const TeacherView = ({
       for (const studentId of unassignedStudentIds) {
         if (!studentNames[studentId]) {
           try {
-            const response = await fetch(`/api/profile/student/${studentId}`, {
+            const response = await fetch(`${API_BASE}/api/profile/student/${studentId}`, {
               credentials: 'include'
             });
             if (response.ok) {
@@ -120,7 +124,7 @@ const TeacherView = ({
         return;
       }
 
-      const response = await fetch(`/api/challenges/${challengeId}/assign-student`, {
+      const response = await fetch(`${API_BASE}/api/challenges/${challengeId}/assign-student`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -152,6 +156,36 @@ const TeacherView = ({
   }, [showAssignDropdown]);
 
   useEffect(() => {
+    const fetchChallenge3Data = async () => {
+      if (!challengeData?.userChallenges) return;
+      
+      const newChallenge3Data = {};
+      
+      for (const uc of challengeData.userChallenges) {
+        if (uc.progress === 2 || uc.currentChallenge === 2 || (uc.progress > 2 && uc.completedChallenges?.[2])) {
+          try {
+            const response = await fetch(`${API_BASE}/api/challenges/challenge3/${uc.uniqueId}/teacher`, {
+              credentials: 'include'
+            });
+            
+            if (response.ok) {
+              const data = await response.json();
+              newChallenge3Data[uc.uniqueId] = {
+                expectedOutput: data.cppChallenge?.actualOutput || 'Error'
+              };
+            }
+          } catch (error) {
+            console.error('Error fetching Challenge 3 data:', error);
+            newChallenge3Data[uc.uniqueId] = {
+              expectedOutput: 'Error'
+            };
+          }
+        }
+      }
+      
+      setChallenge3Data(newChallenge3Data);
+    };
+
     const fetchChallenge6Data = async () => {
       if (!challengeData?.userChallenges) return;
       
@@ -160,7 +194,7 @@ const TeacherView = ({
       for (const uc of challengeData.userChallenges) {
         if (uc.progress === 5 || uc.currentChallenge === 5) {
           try {
-            const response = await fetch(`/api/challenges/challenge6/${uc.uniqueId}`, {
+            const response = await fetch(`${API_BASE}/api/challenges/challenge6/${uc.uniqueId}`, {
               credentials: 'include'
             });
             
@@ -184,6 +218,7 @@ const TeacherView = ({
       setChallenge6Data(newChallenge6Data);
     };
 
+    fetchChallenge3Data();
     fetchChallenge6Data();
   }, [challengeData?.userChallenges]);
 
@@ -262,7 +297,7 @@ const TeacherView = ({
         if (uc.progress === 6 || uc.currentChallenge === 6) {
           try {
             const timestamp = Date.now();
-            const response = await fetch(`/api/challenges/challenge7/${uc.uniqueId}?t=${timestamp}&bustCache=true`, {
+            const response = await fetch(`${API_BASE}/api/challenges/challenge7/${uc.uniqueId}?t=${timestamp}&bustCache=true`, {
               credentials: 'include',
               headers: {
                 'Cache-Control': 'no-cache',
@@ -349,9 +384,9 @@ const TeacherView = ({
         <div className="flex items-center gap-3 mb-4">
           <Shield className="w-8 h-8 text-red-500" />
           <h1 className="text-3xl font-bold text-base-content">
-            {challengeData?.title || (classroom?.name
-              ? `${classroom.name} (${classroom.code}) - Cyber Challenge`
-              : 'Cyber Challenge')}
+            {/* Prepend classroom name/code when available, then show configured title (or fallback) */}
+            {classroom?.name ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''} — ` : ''}
+            {challengeData?.title || 'Cyber Challenge'}
           </h1>
         </div>
         <p className={`${themeClasses.mutedText} text-lg mb-6`}>
@@ -692,7 +727,20 @@ const TeacherView = ({
                               </div>
                             )}
                             {workingOnChallenge === 2 && (
-                              <span className="text-sm text-gray-500">Interactive Challenge</span>
+                              <div className="flex items-center gap-2">
+                                <code className="bg-green-100 px-2 py-1 rounded text-sm font-mono text-green-700">
+                                  {showPasswords[uc._id] 
+                                    ? (challenge3Data[uc.uniqueId]?.expectedOutput || 'Loading...')
+                                    : '••••••••'}
+                                </code>
+                                <button
+                                  onClick={() => togglePasswordVisibility(uc._id)}
+                                  className="btn btn-ghost btn-xs"
+                                  aria-label="Toggle answer visibility"
+                                >
+                                  {showPasswords[uc._id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                              </div>
                             )}
                             {workingOnChallenge === 4 && (
                               <span className="text-sm text-gray-500">WayneAWS Verification</span>
@@ -810,7 +858,14 @@ const TeacherView = ({
                             )}
                           </td>
                           <td className="hidden sm:table-cell">
-                            {uc.startedAt ? (
+                            {uc.challengeStartedAt?.[workingOnChallenge] ? (
+                              <div className="text-xs md:text-sm">
+                                <div>{new Date(uc.challengeStartedAt[workingOnChallenge]).toLocaleDateString()}</div>
+                                <div className="text-xs text-gray-500">
+                                  {new Date(uc.challengeStartedAt[workingOnChallenge]).toLocaleTimeString()}
+                                </div>
+                              </div>
+                            ) : uc.startedAt && workingOnChallenge === 0 ? (
                               <div className="text-xs md:text-sm">
                                 <div>{new Date(uc.startedAt).toLocaleDateString()}</div>
                                 <div className="text-xs text-gray-500">
@@ -972,7 +1027,79 @@ const TeacherView = ({
         challengeData={challengeData}
         fetchChallengeData={fetchChallengeData}
         classroomId={classroomId}
+        setShowHintModal={setShowHintModal}
+        setEditingHints={setEditingHints}
       />
+
+      {showHintModal && editingHints && challengeData && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="card bg-base-100 w-full max-w-2xl mx-4 shadow-xl">
+            <div className="card-body">
+              <h2 className="text-xl font-bold mb-4">
+                Configure Hints - {editingHints.challengeName}
+              </h2>
+              <p className="text-sm text-gray-600 mb-4">
+                Add custom hints that will help students when they're stuck. Hints will be revealed in order.
+              </p>
+              
+              <div className="space-y-3">
+                {Array.from({ length: challengeData.settings?.maxHintsPerChallenge || 2 }, (_, hintIndex) => (
+                  <div key={hintIndex}>
+                    <label className="label">
+                      <span className="label-text font-medium">Hint {hintIndex + 1}</span>
+                    </label>
+                    <textarea
+                      className="textarea textarea-bordered w-full"
+                      placeholder={`Enter hint ${hintIndex + 1}...`}
+                      value={challengeData.settings?.challengeHints?.[editingHints.challengeIndex]?.[hintIndex] || ''}
+                      onChange={(e) => {
+                        setChallengeData(prev => {
+                          const newData = { ...prev };
+                          if (!newData.settings) newData.settings = {};
+                          if (!newData.settings.challengeHints) newData.settings.challengeHints = [[], [], [], [], [], [], []];
+                          if (!newData.settings.challengeHints[editingHints.challengeIndex]) {
+                            newData.settings.challengeHints[editingHints.challengeIndex] = [];
+                          }
+                          newData.settings.challengeHints[editingHints.challengeIndex][hintIndex] = e.target.value;
+                          return newData;
+                        });
+                      }}
+                      rows={2}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className="alert alert-info mt-4">
+                <span className="text-sm">
+                  💡 <strong>Tip:</strong> Make hints progressively more specific. Start general, then get more detailed.
+                </span>
+              </div>
+
+              <div className="card-actions justify-end gap-2 mt-6">
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => {
+                    setShowHintModal(false);
+                    setEditingHints(null);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => {
+                    setShowHintModal(false);
+                    setEditingHints(null);
+                  }}
+                >
+                  Save Hints
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       </div>
       <Footer />
     </div>
