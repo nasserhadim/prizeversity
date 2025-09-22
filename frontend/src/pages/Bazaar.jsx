@@ -44,7 +44,7 @@ const [publicItems, setPublicItems] = useState([]);
 const [publicErr, setPublicErr] = useState(null);
 
 useEffect(() => {
-  fetch('http://localhost:5000/api/items/public', { credentials: 'include' })
+  fetch('/api/items/public', { credentials: 'include' })
     .then(r => {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.json();
