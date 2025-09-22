@@ -35,7 +35,7 @@ export default function BazaarSearch({ onFiltersChange }) {
       <div className="md:col-span-3">
         <label className="text-sm mb-1 block">Category</label>
         <select
-          className="border rounded-xl p-2 h-12 w-full"
+          className="select select-bordered w-full h-12 bg-base-200 text-base-content"
           value={category}
           onChange={(e) => setCategory(e.target.value)}
       >
@@ -48,7 +48,7 @@ export default function BazaarSearch({ onFiltersChange }) {
     <div className="md:col-span-9">
       <label className="text-sm mb-1 block">Search</label>
       <input
-        className="border rounded-xl p-2 h-12 w-full"
+        className="input input-bordered w-full h-12 bg-base-200 text-base-content"
         placeholder="Search items…"
         value={q}
         onChange={(e) => setQ(e.target.value)}

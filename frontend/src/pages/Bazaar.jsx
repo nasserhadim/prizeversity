@@ -91,9 +91,21 @@ const Bazaar = () => {
   const currentPageItems = (filteredItems || []).slice(start, start + PAGE_SIZE);
 
   useEffect(() => {
+    const tp = Math.max(1, Math.ceil((filteredItems.length || 0) / PAGE_SIZE));
+    if (page > tp) setPage(tp);
+  }, [filteredItems, PAGE_SIZE, page]);
+
+  useEffect(() => {
     fetchClassroom();
     fetchBazaar();
   }, [classroomId]);
+
+  useEffect(() => {
+    if (bazaar?._id) {
+      fetchFilteredItems(filters);
+      setPage(1);
+    }
+  }, [bazaar?._id]);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-base-200">
     <span className="loading loading-ring loading-lg"></span>
@@ -165,6 +177,7 @@ const Bazaar = () => {
       {/* (JA) Search & filter controls for the Bazaar items */}
       <BazaarSearch
         onFiltersChange={(f) => {
+          setPage(1);
           setFilters(f);
           fetchFilteredItems(f);   
         }}
