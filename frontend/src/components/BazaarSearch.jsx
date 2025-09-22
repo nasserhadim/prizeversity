@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 
 const CATEGORIES = ["All", "Attack", "Defend", "Utility", "Passive"];
 
+// Using a debounced function to limit how often we trigger searches
 function useDebounced(value, delay = 350) {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {
@@ -12,17 +13,19 @@ function useDebounced(value, delay = 350) {
 }
 
 export default function BazaarSearch({ onFiltersChange }) {
-  // Guard window in case of SSR; fine on client
+  // Parse query string once
   const params = useMemo(() => {
     try { return new URLSearchParams(window.location.search); }
     catch { return new URLSearchParams(); }
   }, []);
 
+  // Initialize state from query string
   const [category, setCategory] = useState(params.get("category") || "All");
   const [q, setQ] = useState(params.get("q") || "");
   const qDebounced = useDebounced(q, 350);
 
   useEffect(() => {
+    //notify parent of filter changes
     const filters = { category, q: qDebounced };
     onFiltersChange?.(filters);
   }, [category, qDebounced]);
