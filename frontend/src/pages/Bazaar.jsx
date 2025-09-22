@@ -27,7 +27,7 @@ const Bazaar = () => {
   const [filters, setFilters] = useState({ category: undefined, q: "" });
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState("");
-  const PAGE_SIZE = 12;
+  const PAGE_SIZE = 9;
   const [page, setPage] = useState(1);
 
   // Fetch classroom details
