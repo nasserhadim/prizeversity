@@ -32,6 +32,7 @@ const UserChallengeSchema = new mongoose.Schema({
   progress: { type: Number, default: 0, min: 0, max: 5 }, 
   completedAt: { type: Date },
   challengeCompletedAt: { type: [Date], default: [] },
+  challengeStartedAt: { type: [Date], default: [] },
   bitsAwarded: { type: Number, default: 0 },
   hintsUsed: { type: [Number], default: [] },
   hintsUnlocked: { type: [[String]], default: [] },
