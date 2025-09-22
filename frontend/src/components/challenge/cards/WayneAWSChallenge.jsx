@@ -17,8 +17,15 @@ const WayneAWSChallenge = ({ userChallenge, isDark, onExternalLinkClick }) => {
         <p className={`text-sm ${themeClasses.bodyText} mb-3`}>
           Access the WayneAWS cloud authentication portal, and use your given AWS credentials to locate the secret password to complete this challenge.
         </p>
+        <a 
+          href="https://wayneaws.dev"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`${themeClasses.linkText} hover:underline text-sm mb-3 block`}
+          onClick={handleLinkClick}
+        > 🌐 Visit the AWS Student Hub here to start! </a>
         <div className="space-y-2">
-          <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>🌐 Cloud-based authentication system</p>
+          <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>☁️  Cloud-based authentication system</p>
           <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>🔑 Secure credential verification process</p>
           <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>⚡ Make sure to correctly configure your AWS credentials in the terminal!</p>
         </div>

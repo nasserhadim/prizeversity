@@ -31,11 +31,13 @@ const UserChallengeSchema = new mongoose.Schema({
   challenge4Password: { type: String },
   progress: { type: Number, default: 0, min: 0, max: 5 }, 
   completedAt: { type: Date },
+  challengeCompletedAt: { type: [Date], default: [] },
+  challengeStartedAt: { type: [Date], default: [] },
   bitsAwarded: { type: Number, default: 0 },
   hintsUsed: { type: [Number], default: [] },
   hintsUnlocked: { type: [[String]], default: [] },
   startedAt: { type: Date },
-  currentChallenge: { type: Number, default: 0 },
+  currentChallenge: { type: Number, default: undefined },
   completedChallenges: { type: [Boolean], default: [false, false, false, false, false, false] },
   challenge7Progress: {
     revealedWords: { type: [String], default: [] },
@@ -51,6 +53,7 @@ const ChallengeSchema = new mongoose.Schema({
   description: { type: String, default: 'Complete all challenges to earn maximum bits!' },
   isActive: { type: Boolean, default: false },
   isConfigured: { type: Boolean, default: false },
+  isVisible: { type: Boolean, default: true },
   
   settings: {
     rewardMode: { type: String, enum: ['individual', 'total'], default: 'individual' },

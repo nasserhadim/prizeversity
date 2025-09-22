@@ -140,6 +140,15 @@ const Support = () => {
             "• Special bonus activities such as associated club events endorsed by the teacher"
           ],
           role: ["student"]
+        },
+        {
+          question: "Why do transaction multipliers show 1.00x despite a student's multipliers being higher?",
+          answer: [
+            "• If a transaction shows something like (Base: 5₿, Personal: 1.00x, Group: 1.00x, Total: 1.00x) it usually means the instructor chose to bypass personal and/or group multipliers for that specific adjustment so the system records them as 1.00x and the math matches the flat amount shown.",
+            "• Teachers (and admins/TAs) can enable or disable applying group and personal multipliers when assigning or adjusting balances.",
+            "• Note that multipliers always apply to positive transactions (awards) but are ignored for negative transactions (deductions) to avoid penalizing students too harshly."
+          ],
+          role: ["all"]
         }
       ]
     },
@@ -204,6 +213,15 @@ const Support = () => {
             "Item returns depend on your teacher's policies",
             "• Check with your teacher about return policies",
             "• Some items may be non-refundable"
+          ],
+          role: ["student"]
+        },
+        {
+          question: "How are items purchased from the Bazaar redeemed/activated?",
+          answer: [
+            "• Items that grant active effects (Attack, Defend, Utility, Discount, etc.) must be redeemed from the Inventory section of the Bazaar.",
+            "• Open the Bazaar page, click Show Inventory, find the purchased item and click \"Use\" to activate its effect.",
+            "• Note that passive items without specified effects, such as extra credit items, should be presented to the teacher or relevant party for redemption."
           ],
           role: ["student"]
         }

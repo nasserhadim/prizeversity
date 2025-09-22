@@ -434,9 +434,6 @@ const Challenge3Site = () => {
               <p className="text-blue-200 text-sm">
                 ⚡ <strong>SUCCESS:</strong> Enter the exact numeric output the program produces
               </p>
-              <p className="text-yellow-200 text-sm">
-                💡 <strong>HINT:</strong> {cppChallenge?.hint}
-              </p>
             </div>
           </div>
         </div>

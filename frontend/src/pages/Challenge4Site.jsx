@@ -35,7 +35,6 @@ const Challenge4Site = () => {
     }
   }, [uniqueId]);
 
-  // Auto-generate evidence when component loads
   useEffect(() => {
     const generateEvidence = async () => {
       try {
@@ -53,7 +52,7 @@ const Challenge4Site = () => {
 
   const submitAnswer = async () => {
     if (!answer.trim()) {
-      toast.error('Please enter the artist name from the image metadata');
+      toast.error('Please enter the artist name...');
       return;
     }
 
@@ -69,7 +68,6 @@ const Challenge4Site = () => {
       const data = await response.json();
       
       if (data.success) {
-        // Store completion data with proper rewards structure
         localStorage.setItem('challengeCompleted', JSON.stringify({
           challengeIndex: 3,
           challengeName: data.challengeName || "Digital Forensics Lab",
@@ -144,7 +142,6 @@ const Challenge4Site = () => {
             <div className="bg-gray-800 border border-gray-600 rounded-lg p-4 space-y-2">
               <div className="text-green-300 font-mono text-sm">🕵️ EXIF metadata successfully extracted and analyzed</div>
               <div className="text-gray-400 font-mono text-xs space-y-1">
-                <div>Evidence analyzed: Image metadata</div>
                 <div>Investigation ID: {uniqueId.substring(0, 8)}</div>
               </div>
             </div>
@@ -241,7 +238,7 @@ const Challenge4Site = () => {
             <Shield className="text-green-600" size={24} />
             <div>
               <h1 className="text-xl font-bold text-green-400">Challenge 4: Digital Forensics Lab</h1>
-              <p className="text-gray-400 text-sm">Image Metadata Analysis & OSINT Investigation</p>
+              <p className="text-gray-400 text-sm">Artifact Analysis & Investigation</p>
             </div>
           </div>
           <div className="text-sm text-gray-500 bg-gray-800 px-3 py-1 rounded-full border border-gray-600">
