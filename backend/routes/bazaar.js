@@ -8,6 +8,7 @@ const router = express.Router();
 const Order = require('../models/Order');
 const blockIfFrozen = require('../middleware/blockIfFrozen');
 const upload = require('../middleware/upload'); // reuse existing upload middleware
+const escapeRx = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // Middleware: Only teachers allowed for certain actions
 function ensureTeacher(req, res, next) {
@@ -145,7 +146,41 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticate
   }
 });
 
-// Helper functions (add these at the top of the file, after imports)
+// (JA) List items in a bazaar with optional category and keyword filters
+router.get('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticated, async (req, res) => {
+  try {
+    const { classroomId, bazaarId } = req.params;
+    const { category, q } = req.query;
+
+    // Ensure this bazaar actually belongs to this classroom (prevents cross-class leaks)
+    const bazaar = await Bazaar.findOne({ _id: bazaarId, classroom: classroomId })
+      .select('_id')
+      .lean();
+    if (!bazaar) {
+      return res.status(404).json({ error: 'Bazaar not found for this classroom' });
+    }
+
+    const ALLOWED = ['Attack', 'Defend', 'Utility', 'Passive'];
+    const filter = { bazaar: bazaar._id };
+
+    if (category && ALLOWED.includes(category)) {
+      filter.category = category;
+    }
+
+    if (q && q.trim()) {
+      const rx = new RegExp(escapeRx(q.trim()), 'i'); // escape user input
+      filter.$or = [{ name: rx }, { description: rx }];
+    }
+
+    const items = await Item.find(filter).lean();
+    res.json({ items, count: items.length });
+  } catch (err) {
+    console.error('[List Bazaar Items] error:', err);
+    res.status(500).json({ error: 'Failed to fetch items' });
+  }
+});
+
+// Helper functions
 const getClassroomBalance = (user, classroomId) => {
   const classroomBalance = user.classroomBalances.find(cb => cb.classroom.toString() === classroomId.toString());
   return classroomBalance ? classroomBalance.balance : 0;
