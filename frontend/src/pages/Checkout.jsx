@@ -98,7 +98,7 @@ const Checkout = () => {
           _id: id,
           id: id,
           name: item.name,
-          price: Number(user?.discountShop ? Math.floor(item.price * 0.8) : item.price) || 0,
+          price: Number(calculatePrice(item.price)) || 0, //changed this to display the amount left over after discount, instead of hard coded to 20%
           category: item.category,
           primaryEffect: item.primaryEffect,
           secondaryEffects: item.secondaryEffects,
