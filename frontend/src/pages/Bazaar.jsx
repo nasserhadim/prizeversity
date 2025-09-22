@@ -44,8 +44,9 @@ const [publicItems, setPublicItems] = useState([]);
 const [publicErr, setPublicErr] = useState(null);
 
 useEffect(() => {
-  fetch('/api/items/public', { credentials: 'include' })
-    .then(r => {
+  //fetched public item,s so stidents are able to view bazaar items 
+  fetch('/api/items/public', { credentials: 'include' }) //had it hardcoded localhost:5000, changed it to relative path 9/22
+    .then(r => { 
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.json();
     })
@@ -53,6 +54,7 @@ useEffect(() => {
     .catch(e => setPublicErr(e.message));
 }, []);
 
+//changed from bazaar.items to publicItems so students can view items in bazaar filtered by bazaar id. 9/22
 const itemsToShow =
   user?.role === 'teacher'
     ? (bazaar?.items || [])

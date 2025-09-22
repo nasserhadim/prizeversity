@@ -83,6 +83,9 @@ const ItemCard = ({ item, role, classroomId, onUpdated, onDeleted }) => {
     if (quantity < 1) return toast.error('Quantity must be at least 1');
     setLoading(true);
     try {
+      //purchase ednpoitns for studentd 
+      //uses classroomid, bazaar id, itemid to ensure purahse is from right bazaar 
+      //didnt change anything, but confirmed it works. 
       await api.post(
         `classroom/${classroomId}/bazaar/${item.bazaar}/items/${item._id}/buy`,
         { quantity: Number(quantity) }
@@ -171,6 +174,7 @@ const ItemCard = ({ item, role, classroomId, onUpdated, onDeleted }) => {
          </p>
 
          {role === 'teacher' && (
+          //teachers can edit or delete items inside the bazaar
   <div className="flex gap-2 mt-2">
     <button className="btn btn-sm btn-outline" onClick={() => setOpen(true)}>
       <Pencil className="w-4 h-4" />
@@ -263,7 +267,7 @@ const ItemCard = ({ item, role, classroomId, onUpdated, onDeleted }) => {
   </div>
 )}
 
-        {role === 'student' && (
+        {role === 'student' && ( //stdeunts can see add to cart button instead of edit/delete 
           <button
             onClick={() => addToCart(item)}
             className="btn btn-success btn-sm w-full mt-2"

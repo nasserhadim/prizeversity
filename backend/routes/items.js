@@ -19,6 +19,7 @@ router.get('/public', async (req, res) => {
   }
 });
 
+// Get a single item (public)
 router.get('/public/:itemId', async (req, res) => {
   try {
     const item = await Item.findById(req.params.itemId);
@@ -49,6 +50,7 @@ router.put('/:itemId', ensureTeacher, async (req, res, next) => {
   }
 });
 
+// the put and delete were there, but ensured that only teachers could access them by editing and deletig.
 // Delete an item
 //router.delete('/:itemId', async (req, res, next) => { //commented out 9/22 to test new one below:
 router.delete('/:itemId', ensureTeacher, async (req, res, next) => {

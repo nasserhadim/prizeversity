@@ -2,12 +2,14 @@ const mongoose = require('mongoose');
 
 // ItemSchema is the document where all the information of the items created per bazaar is stored.
 
+
 const ItemSchema = new mongoose.Schema({
   name: { type: String, required: true },
   description: { type: String },
   price: { type: Number, required: true },
   image: { type: String, default: 'placeholder.jpg' },
-  bazaar: { type: mongoose.Schema.Types.ObjectId, ref: 'Bazaar', required: true },
+  bazaar: { type: mongoose.Schema.Types.ObjectId, ref: 'Bazaar', required: true }, //links each item to a speicifc bazzaar
+  //thiis allowed to filter item per calassroom bazaar on frontend, so stidents only see items for their classroom. 
   category: {
     type: String,
     enum: ['Attack', 'Defend', 'Utility', 'Passive'],
