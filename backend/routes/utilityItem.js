@@ -19,14 +19,32 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
         req.user.passiveAttributes.multiplier = (req.user.passiveAttributes.multiplier || 1) * 2;
         break;
       case 'discountShop':
-        req.user.discountShop = true;
-        // Set expiration after 24 hours
-        setTimeout(async () => {
-          req.user.discountShop = false;
-          await req.user.save();
-        }, 24 * 60 * 60 * 1000);
-        break;
+         const discountPct = Number(item.primaryEffectValue) || 20;
+         const durationHours = Number(item.primaryEffectDuration) || 24; // optional window
+         req.user.discountPercent = discountPct;
+      // this will keep the old boolean for backward compatibility anywhere even if it’s still checked
+         req.user.discountShop = discountPct > 0;
+         req.user.discountExpiresAt = new Date(Date.now() + durationHours * 3600 * 1000);
+
+  // Best-effort expiry; DB timestamp is the source of truth
+  setTimeout(async () => {
+    try {
+      const u = await User.findById(req.user._id);
+      if (!u) return;
+      if (u.discountExpiresAt && new Date() >= new Date(u.discountExpiresAt)) {
+        u.discountShop = false;
+        u.discountPercent = 0;
+        u.discountExpiresAt = null;
+        await u.save();
+        req.app.get('io')?.to(`user-${u._id}`).emit('discount_expired');
+      }
+    } catch (e) {
+      console.error('Failed to revert discount after timeout', e);
     }
+  }, durationHours * 3600 * 1000);
+
+  break;
+  }
 
     await req.user.save();
     await Item.findByIdAndDelete(item._id); // Remove after use
