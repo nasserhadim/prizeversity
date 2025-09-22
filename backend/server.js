@@ -183,9 +183,10 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
-app.use('/api/items', require('./routes/itemsAdmin')); //testing another way. comment this out if does not work after. 
+//app.use('/api/items', require('./routes/itemsAdmin')); //testing another way. comment this out if does not work after. 
+//app.use('/api/items-public', require('./routes/itemsPublic')); //studentw will be ale to view items 9/22 commented out 
 
-app.use('/api/items', require('./routes/items')); //mount item router. 9/21
+//app.use('/api/items', require('./routes/items')); //mount item router. 9/21 commented out 9/22 
 //app.use('/api/shops', require('./routes/shops'));   // mounts all Shop CRUD at /api/shops  NEW 9/16 Retaj 
 
 

@@ -17,7 +17,7 @@ import { resolveBannerSrc } from '../utils/image';
 
 // local axios instance for Bazaar-related calls
 const apiBazaar = axios.create({
-  baseURL: '/api',        // change if your API prefix is different
+  baseURL: '/api/bazaar',        // change if your API prefix is different
   withCredentials: true,  // keep if you rely on auth cookies/sessions
 });
 
@@ -35,6 +35,30 @@ const Bazaar = () => {
   const [classroom, setClassroom] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showInventory, setShowInventory] = useState(false);
+
+
+
+
+// ADDING THIS FOR TEESTINNNGGG 
+const [publicItems, setPublicItems] = useState([]);
+const [publicErr, setPublicErr] = useState(null);
+
+useEffect(() => {
+  fetch('http://localhost:5000/api/items/public', { credentials: 'include' })
+    .then(r => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    })
+    .then(data => setPublicItems(Array.isArray(data) ? data : []))
+    .catch(e => setPublicErr(e.message));
+}, []);
+
+const itemsToShow =
+  user?.role === 'teacher'
+    ? (bazaar?.items || [])
+    : publicItems.filter(it => String(it.bazaar) === String(bazaar?._id));
+
+
 
 
 // keep bazaar.items in sync after an update
@@ -68,7 +92,8 @@ const handleItemDeleted = (itemId) => {
   // Will fetch the bazaar from the classroom
   const fetchBazaar = async () => {
     try {
-      const res = await apiBazaar.get(`classroom/${classroomId}/bazaar`);
+      const res = await apiBazaar.get(`/classroom/${classroomId}/bazaar`);
+
       setBazaar(res.data.bazaar);
     } catch {
       setBazaar(null);
@@ -108,6 +133,11 @@ const handleItemDeleted = (itemId) => {
   // Case: Bazaar exists
   return (
     <div className="p-6 space-y-8">
+      
+
+
+
+
       <div className="text-center space-y-2">
         <h1 className="text-4xl font-bold text-success flex items-center justify-center gap-3">
           {/* <Store /> */}
@@ -173,15 +203,16 @@ const handleItemDeleted = (itemId) => {
             Items for Sale
           </h3>
           <span className="badge badge-outline text-sm hidden md:inline">
-            {bazaar.items?.length || 0} item{bazaar.items?.length === 1 ? '' : 's'}
+              {itemsToShow.length} item{itemsToShow.length === 1 ? '' : 's'} 
+
           </span>
         </div>
 
         <div className="divider my-0"></div>
 
-        {bazaar.items?.length > 0 ? (
+        {itemsToShow.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-            {bazaar.items.map((item) => (
+            {itemsToShow.map((item) => (
               <ItemCard
                 key={item._id}
                 item={item}
@@ -189,10 +220,13 @@ const handleItemDeleted = (itemId) => {
                 classroomId={classroomId}
                 onUpdated={handleItemUpdated}
                 onDeleted={handleItemDeleted}
-                />
+              />
             ))}
           </div>
         ) : (
+
+
+          
           <div className="flex flex-col items-center justify-center py-10 text-center text-gray-500">
             <svg
               xmlns="http://www.w3.org/2000/svg"
