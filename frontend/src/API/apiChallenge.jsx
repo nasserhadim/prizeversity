@@ -259,6 +259,53 @@ export const verifyChallenge2External = async (uniqueId, password) => {
   }
 };
 
+export const updateChallenge = async (classroomId, updates) => {
+  try {
+    const response = await fetch(`${API_BASE}/api/challenges/${classroomId}/update`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updates),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error updating challenge:', error);
+    throw error;
+  }
+};
+
+export const toggleChallengeVisibility = async (classroomId) => {
+  try {
+    const response = await fetch(`${API_BASE}/api/challenges/${classroomId}/toggle-visibility`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error toggling challenge visibility:', error);
+    throw error;
+  }
+};
+
 export const startChallenge = async (classroomId, challengeIndex) => {
   try {
     const response = await fetch(`${API_BASE}/api/challenges/${classroomId}/start`, {

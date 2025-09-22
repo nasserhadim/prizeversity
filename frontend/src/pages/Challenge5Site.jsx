@@ -272,6 +272,13 @@ const Challenge5Site = () => {
           <div className="bg-gray-800 border border-gray-600 rounded-lg p-4">
             <div className="text-center">
               <div className="text-green-300 font-mono text-sm font-bold mb-2">ENTER WAYNEAWS CREDENTIALS</div>
+              <div className="text-gray-400 font-mono text-xs">Visit the AWS Student Hub here</div>
+              <a
+                href="https://wayneaws.dev"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-400 font-mono text-xs underline hover:text-blue-500"
+              > https://wayneaws.dev</a>
             </div>
           </div>
           

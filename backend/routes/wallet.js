@@ -411,14 +411,26 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
       const passiveMultiplier = student.passiveAttributes?.multiplier || 1;
       
       // Apply multipliers separately based on flags
-      let finalMultiplier = 1;
+      // OLD multiplicative logic (replace)
+      // let finalMultiplier = 1;
+      // if (numericAmount >= 0) {
+      //   if (applyGroupMultipliers) {
+      //     finalMultiplier *= groupMultiplier;
+      //   }
+      //   if (applyPersonalMultipliers) {
+      //     finalMultiplier *= passiveMultiplier;
+      //   }
+      // }
+
+      // NEW additive logic
+      let finalMultiplier;
       if (numericAmount >= 0) {
-        if (applyGroupMultipliers) {
-          finalMultiplier *= groupMultiplier;
-        }
-        if (applyPersonalMultipliers) {
-          finalMultiplier *= passiveMultiplier;
-        }
+        finalMultiplier = 0;
+        if (applyGroupMultipliers) finalMultiplier += (groupMultiplier || 0);
+        if (applyPersonalMultipliers) finalMultiplier += (passiveMultiplier || 0);
+        if (finalMultiplier === 0) finalMultiplier = 1; // fallback to no-op
+      } else {
+        finalMultiplier = 1;
       }
 
       const adjustedAmount = (numericAmount >= 0 && (applyGroupMultipliers || applyPersonalMultipliers))
