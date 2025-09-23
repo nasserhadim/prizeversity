@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Store, HandCoins } from 'lucide-react';
 import { Image as ImageIcon } from 'lucide-react';
-// import axios from 'axios'
+//import axios from 'axios'
 //import apiBazaar from '../API/apiBazaar.js'
 import CreateBazaar from '../components/CreateBazaar';
 import CreateItem from '../components/CreateItem';
@@ -23,6 +23,70 @@ const Bazaar = () => {
   const [classroom, setClassroom] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showInventory, setShowInventory] = useState(false);
+
+  const [confirmDeleteBazaar, setConfirmDeleteBazaar] = useState(null);
+  const [EditBazaar, setEditBazaar] = useState(false);
+  const [BazaarImage, setBazaarImage] = useState('');
+  const [BazaarImageSource, setBazaarImageSource] = useState('url');
+  const [BazaarImageFile, setBazaarImageFile] = useState('placeholder.jpg');
+  const [BazaarImageUrl, setBazaarImageUrl] = useState('');
+  const [BazaarImageRemoved, setBazaarImageRemoved] = useState(false);
+  const BazaarFileInputRef = useState(null);
+
+  const [BazaarName, setBazaarName] = useState('');
+  const [BazaarDesc, setBazaarDesc] = useState('');
+    // delete bazaar
+    const handleDeleteBazaar = async () => {
+        if (!confirmDeleteBazaar) return;
+        try {
+            await apiBazaar.delete(`classroom/${classroomId}/bazaar/delete`);
+            toast.success('Bazaar deleted');
+            setConfirmDeleteBazaar(null);
+            setBazaar(null);
+        } catch(error) {
+            console.error(error);
+            toast.error(`Failed to delete bazaar: ${error.response?.data?.error || error.message}`);
+            setConfirmDeleteBazaar(null);
+        }
+    };
+    /*
+    const startEditBazaar = async () => {
+        setBazaarName(bazaar.name);
+        setBazaarDesc(bazaar.description);
+        setBazaarImageSource(bazaar.image);
+
+        setEditBazaar(bazaar);
+    }
+
+    const handleEditBazaar = async () => {
+        if (!EditBazaar) return;
+        try {
+
+
+            if (BazaarImageSource === 'file' && BazaarImageFile) {
+                const fd = new FormData();
+                fd.append('name', BazaarName);
+                fd.append('description', BazaarDesc);
+                fd.append('image', BazaarImageFile);
+                await apiBazaar.put(`classroom/${bazaar._id}/bazaar/edit`, fd, { headers: { 'Content-Type': 'multipart/form-data' }});
+            } else {
+                await apiBazaar.put(`classroom/${bazaar._id}/bazaar/edit`, {
+                    name: BazaarName,
+                    description: BazaarDesc,
+                    image: BazaarImageFile
+                });
+            }
+            toast.success('Bazaar edited');
+            setEditBazaar(null);
+        }  catch(error) {
+            console.error(error);
+            toast.error(`Failed to edit bazaar: ${error.response?.data?.error || error.message}`);
+            setEditBazaar(null);
+        }
+        
+    };*/
+
+
   const [filteredItems, setFilteredItems] = useState([]);
   const [filters, setFilters] = useState({ category: undefined, q: "" });
   const [searchLoading, setSearchLoading] = useState(false);
@@ -45,7 +109,9 @@ const Bazaar = () => {
     try {
       const res = await apiBazaar.get(`classroom/${classroomId}/bazaar`);
       setBazaar(res.data.bazaar);
-    } catch {
+    } catch (error){
+        console.error(error);
+        //toast.error(`Failed to fetch bazaar: ${error.response?.data?.error || error.message}`);
       setBazaar(null);
     } finally {
       setLoading(false);
@@ -99,6 +165,64 @@ const Bazaar = () => {
     fetchClassroom();
     fetchBazaar();
   }, [classroomId]);
+
+  // reset the Bazaar Form
+const resetBazaarForm = () => {
+    setBazaarName('');
+    setBazaarDesc('');
+    setBazaarImage('');
+    setBazaarImageFile('placeholder.jpg'); // ADD
+    setBazaarImageSource('url'); // ADD
+    setBazaarImageUrl(''); // ADD
+    if (BazaarFileInputRef.current) BazaarFileInputRef.current.value = ''; // clear native file input on reset
+};
+
+// Editing the Bazaar
+const handleEditBazaar = (bazaar) => {
+    setBazaarName(bazaar.name);
+    setBazaarDesc(bazaar.description);
+    setBazaarImage(bazaar.image);
+    setBazaarImageFile(null);
+    setBazaarImageSource('url');
+    setBazaarImageUrl('');
+    setEditBazaar(true);
+};
+
+// Update Bazaar (modified to handle file uploads + remove flag)
+const handleUpdateBazaar = async () => {
+    if (!BazaarName.trim()) return toast.error('Bazaar name is required');
+
+    try {
+        // If a new file was chosen, send multipart/form-data with the file
+        if (BazaarImageSource === 'file' && BazaarImageFile) {
+            const fd = new FormData();
+            fd.append('name', BazaarName);
+            fd.append('description', BazaarDesc);
+            fd.append('image', BazaarImageFile);
+            await apiBazaar.put(`classroom/bazaar/edit/${bazaar._id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' }});
+        } else {
+            await apiBazaar.put(`classroom/bazaar/edit/${bazaar._id}`, {
+            name: BazaarName,
+            description: BazaarDesc,
+            //image: BazaarImageRemoved ? 'placeholder.jpg' : (BazaarImageSource === 'url' ? BazaarImageUrl : undefined),
+            });
+        }
+
+        toast.success('Bazaar updated successfully');
+        // reset remove flag after successful update
+        setBazaarImageRemoved(false);
+        resetBazaarForm();
+        fetchBazaar();
+    } catch (err) {
+        if (err.response?.data?.message === 'No changes were made') {
+            toast.error('No changes were made');
+        } else {
+            toast.error('Failed to update group set');
+        }
+    }
+  };
+
+
 
   useEffect(() => {
     if (bazaar?._id) {
@@ -172,6 +296,14 @@ const Bazaar = () => {
             {bazaar.description}
           </p>
         </div>
+        {/* Modification Section */}
+        {(user.role === 'teacher' || user.role === 'admin') && (
+            <div className="flex gap-2">
+                <button className="btn btn-sm btn-info" onClick={() => handleEditBazaar(bazaar)}>Edit</button>
+                <button className="btn btn-sm btn-error" onClick={() => setConfirmDeleteBazaar(bazaar)}>Delete</button>
+            </div>
+        )}
+
       </div>
 
       {/* (JA) Search & filter controls for the Bazaar items */}
@@ -346,7 +478,136 @@ const Bazaar = () => {
             )}
           </div>
         </div>
-        <Footer />
+          {/* Edit Bazaar */}
+          {EditBazaar && (
+            <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+              <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-lg">
+                <h2 className="text-lg font-semibold mb-4 text-center">Edit Bazaar</h2>
+                
+                {/* Modify bazaar name & description */}
+                <div className="mb-4">
+                  <label className="label">
+                    <span className="label-text">Bazaar Name</span>
+                  </label>
+                <input
+                  type="text"
+                  placeholder= {bazaar.name}
+                  className="input input-bordered w-full mb-3"
+                  value={BazaarName}
+                  onCreate ={() => setBazaarName(bazaar.name)}
+                  onChange={(e) => setBazaarName(e.target.value)}
+                />
+                </div>
+                <div className="mb-4">
+                  <label className="label">
+                    <span className="label-text">Bazaar Description</span>
+                  </label>
+                <input
+                  type="text"
+                  placeholder= {bazaar.description}
+                  className="input input-bordered w-full mb-3"
+                  value={BazaarDesc}
+                  onCreate = {() => setBazaarDesc(bazaar.description)}
+                  onChange={(e) => setBazaarDesc(e.target.value)}
+                />
+                </div>
+    
+                
+    
+                {/* Image controls moved into modal so edit UI mirrors create form */}
+                <div className="mb-4">
+                  <label className="label">
+                    <span className="label-text">Image</span>
+                    <span className="label-text-alt">Optional</span>
+                  </label>
+    
+                  <div className="inline-flex rounded-full bg-gray-200 p-1">
+                    <button
+                      type="button"
+                      onClick={() => setBazaarImageSource('file')}
+                      className={`px-3 py-1 rounded-full text-sm transition ${BazaarImageSource === 'file' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
+                    >
+                      Upload
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBazaarImageSource('url')}
+                      className={`ml-1 px-3 py-1 rounded-full text-sm transition ${BazaarImageSource === 'url' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
+                    >
+                      Use image URL
+                    </button>
+                  </div>
+    
+                  {BazaarImageSource === 'file' ? (
+                    <>
+                      <input
+                        //ref={BazaarFileInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        onChange={e => setBazaarImageFile(e.target.files[0])}
+                        className="file-input file-input-bordered w-full max-w-xs mt-3"
+                      />
+                      <p className="text-xs text-gray-500">Allowed: jpg, png, webp, gif. Max: 5 MB.</p>
+                    </>
+                  ) : (
+                    <input
+                      type="url"
+                      placeholder="https://..."
+                      className="input input-bordered w-full mt-3 max-w-xs"
+                      value={BazaarImageUrl}
+                      onChange={(e) => setBazaarImageUrl(e.target.value)}
+                    />
+                  )}
+                </div>
+    
+                <div className="flex justify-center gap-4 mt-4">
+                  <button
+                    className="btn btn-success"
+                    onClick={handleUpdateBazaar}
+                  >
+                    Update Bazaar
+                  </button>
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => {
+                      setEditBazaar(false);
+                      // reset editing state like the existing reset logic
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          
+    {confirmDeleteBazaar && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
+            <h2 className="text-lg font-semibold mb-4 text-center">Delete Bazaar</h2>
+            <p className="text-sm text-center">
+              Are you sure you want to delete the Bazaar <strong>{confirmDeleteBazaar.name}</strong>?
+              <br />
+              This will also delete all its items.
+            </p>
+            <div className="mt-6 flex justify-center gap-4">
+              <button
+                onClick={() => setConfirmDeleteBazaar(null)}
+                className="btn btn-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteBazaar}
+                className="btn btn-sm btn-error"
+              >
+                Yes, Delete
+              </button>
+            </div>
+          </div>
+        </div>
+    )}
+      <Footer />
       </div>
     </div>
     );

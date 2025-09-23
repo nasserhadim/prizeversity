@@ -574,4 +574,68 @@ router.get('/inventory/:userId', async (req, res) => {
   }
 });
 
+// Delete Bazaar
+router.delete(
+    '/classroom/:classroomId/bazaar/delete',
+    ensureAuthenticated,
+    ensureTeacher,
+    async (req, res) => {
+        const { classroomId} = req.params;
+
+    try {
+        // finds bazaar connected to classroom - errors if not found
+        const bazaar = await Bazaar.findOne({ classroom: classroomId });
+        if (!bazaar) {
+            return res.status(404).json({ error: 'Bazaar not found' });
+        }
+        // deletes bazaar items
+        if (bazaar.items.length > 0) {
+            await Item.deleteMany({ _id: { $in: bazaar.items } });
+        }
+
+        //deletes bazaar
+        await Bazaar.deleteOne({ classroom: classroomId });
+        res.status(200).json({ message: 'Bazaar deleted successfully' });
+    
+  } catch (error) {
+    res.status(500).json({ error : 'Something went wrong'});
+  }
+});
+
+// Edit Bazaar
+router.put(
+    '/classroom/bazaar/edit/:bazaarId',
+    ensureAuthenticated,
+    ensureTeacher,
+    upload.single('image'),
+    async (req, res) => {
+        const { name, description, } = req.body;
+        const { bazaarId } = req.params;
+        const image = req.file ? `/uploads/${req.file.filename}` : (req.body.image !== undefined ? req.body.image : undefined);
+
+        try {
+            // finds bazaar connected to classroom - errors if not found
+            const bazaar = await Bazaar.findById(bazaarId);
+            if (!bazaar) {
+                return res.status(404).json({ error: `Bazaar not found ${bazaarId}` });
+            }
+            // determines changes to be made - errors if no changes
+            const changes = {};
+            if (name !== undefined && bazaar.name !== name) changes.name = name;
+            if (description !== undefined && bazaar.description !== description) changes.description = description;
+            if (image !== undefined && bazaar.image !== image) changes.image = image;
+            //return res.status(999).json({ message: 'No breaks until here' });
+            if (Object.keys(changes).length === 0) {
+                return res.status(400).json({ message: 'No changes were made' });
+            }
+            Object.assign(bazaar, changes);
+            await bazaar.save();
+
+            res.status(200).json(bazaar);
+        } catch (error) {
+            res.status(500).json({ error : 'Something went wrong'});
+        }
+});
+
+
 module.exports = router;

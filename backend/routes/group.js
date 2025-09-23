@@ -68,6 +68,21 @@ router.put('/groupset/:id', ensureAuthenticated, upload.single('image'), async (
       .populate('classroom');
     if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
 
+    // Prevent renaming to a name that already exists in the same classroom
+    if (name !== undefined) {
+      const trimmed = String(name).trim();
+      if (trimmed && trimmed !== groupSet.name) {
+        const conflict = await GroupSet.findOne({
+          classroom: groupSet.classroom,
+          name: trimmed,
+          _id: { $ne: groupSet._id }
+        });
+        if (conflict) {
+          return res.status(400).json({ error: 'A GroupSet with this name already exists in this classroom' });
+        }
+      }
+    }
+
     const oldName = groupSet.name;
     const changes = {};
     if (name !== undefined && groupSet.name !== name) changes.name = name;
