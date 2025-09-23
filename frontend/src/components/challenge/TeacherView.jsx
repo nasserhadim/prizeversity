@@ -582,7 +582,27 @@ const TeacherView = ({
                             <div className="flex flex-col">
                               <span className="font-semibold">Challenge {workingOnChallenge + 1}</span>
                               <span className="text-xs md:text-sm text-gray-600">{workingOnTitle}</span>
-                              <span className="text-xs text-gray-500">{currentChallenge.method}</span>
+                              <span className="text-xs text-gray-500 mt-1">{currentChallenge.method}</span>
+
+                              {/* Mobile-only: show Started / Completed info when table columns are hidden */}
+                              <div className="sm:hidden mt-2 text-xs text-gray-500">
+                                <div>
+                                  <strong>Started:</strong>{' '}
+                                  {uc.challengeStartedAt?.[workingOnChallenge]
+                                    ? new Date(uc.challengeStartedAt[workingOnChallenge]).toLocaleString()
+                                    : (uc.startedAt && workingOnChallenge === 0)
+                                      ? new Date(uc.startedAt).toLocaleString()
+                                      : 'Not started'}
+                                </div>
+                                <div className="mt-1">
+                                  <strong>Completed:</strong>{' '}
+                                  {uc.completedChallenges?.[workingOnChallenge] && uc.challengeCompletedAt?.[workingOnChallenge]
+                                    ? new Date(uc.challengeCompletedAt[workingOnChallenge]).toLocaleString()
+                                    : (uc.progress >= 7 && uc.completedAt)
+                                      ? new Date(uc.completedAt).toLocaleString()
+                                      : 'Not completed'}
+                                </div>
+                              </div>
                             </div>
                           </td>
                           <td className="hidden md:table-cell">
@@ -825,7 +845,7 @@ const TeacherView = ({
                                                       <button
                                                         onClick={() => togglePasswordVisibility(teacherRevealKey)}
                                                         className="btn btn-xs btn-outline btn-primary gap-1 hover:btn-primary"
-                                                        title="Reveal token for this word"
+                                                        title="Reveal value for this word"
                                                       >
                                                         <Eye className="w-3 h-3" />
                                                         Reveal
@@ -835,7 +855,7 @@ const TeacherView = ({
                                                       <button
                                                         onClick={() => togglePasswordVisibility(teacherRevealKey)}
                                                         className="btn btn-xs btn-ghost gap-1"
-                                                        title="Hide token"
+                                                        title="Hide value"
                                                       >
                                                         <EyeOff className="w-3 h-3" />
                                                       </button>
