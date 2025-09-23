@@ -311,10 +311,31 @@ router.get('/challenge6/:uniqueId', ensureAuthenticated, async (req, res) => {
     }
 
     if (userChallenge.completedChallenges && userChallenge.completedChallenges[5]) {
-      return res.json({
-        isCompleted: true,
-        message: 'Challenge 6 already completed'
-      });
+      const { generateChallengeData } = require('../../utils/tokenGenerator');
+      try {
+        const challengeData = await generateChallengeData(uniqueId);
+        
+        return res.json({
+          generatedWord: challengeData.generatedWord,
+          expectedTokenId: challengeData.expectedTokenId,
+          validTokens: challengeData.validTokens,
+          tokenData: challengeData.allTokenIds,
+          uniqueId: uniqueId,
+          sectorCode: uniqueId.substring(0, 8).toUpperCase(),
+          isCompleted: true,
+          message: 'Challenge 6 already completed'
+        });
+      } catch (error) {
+        console.error('Error generating completed Challenge 6 data:', error);
+        return res.json({
+          isCompleted: true,
+          message: 'Challenge 6 already completed',
+          generatedWord: 'Error loading word',
+          expectedTokenId: 'Error',
+          uniqueId: uniqueId,
+          sectorCode: uniqueId.substring(0, 8).toUpperCase()
+        });
+      }
     }
 
     const { generateChallengeData } = require('../../utils/tokenGenerator');
@@ -376,10 +397,37 @@ router.get('/challenge7/:uniqueId', ensureAuthenticated, async (req, res) => {
     }
 
     if (userChallenge.completedChallenges && userChallenge.completedChallenges[6]) {
-      return res.json({
-        isCompleted: true,
-        message: 'Challenge 7 already completed'
-      });
+      const { generateHangmanData } = require('../../utils/quoteGenerator');
+      try {
+        const hangmanData = await generateHangmanData(uniqueId);
+        const uniqueWords = [...new Set(hangmanData.words.map(w => w.toLowerCase()))];
+        
+        return res.json({
+          quote: hangmanData.quote,
+          author: hangmanData.author,
+          words: hangmanData.words,
+          wordTokens: hangmanData.wordTokens,
+          maskedQuote: hangmanData.maskedQuote,
+          uniqueId: uniqueId,
+          isCompleted: true,
+          message: 'Challenge 7 already completed',
+          challenge7Progress: userChallenge.challenge7Progress || {
+            revealedWords: uniqueWords,
+            totalWords: uniqueWords.length
+          }
+        });
+      } catch (error) {
+        console.error('Error generating completed Challenge 7 data:', error);
+        return res.json({
+          isCompleted: true,
+          message: 'Challenge 7 already completed',
+          quote: 'Error loading quote data',
+          author: 'Error',
+          words: [],
+          wordTokens: {},
+          uniqueId: uniqueId
+        });
+      }
     }
 
     const { generateHangmanData } = require('../../utils/quoteGenerator');
@@ -394,18 +442,52 @@ router.get('/challenge7/:uniqueId', ensureAuthenticated, async (req, res) => {
           totalWords: uniqueWords.length
         };
         challenge.markModified('userChallenges');
-        await challenge.save();
+        try {
+          await challenge.save();
+        } catch (saveError) {
+          if (saveError.name === 'VersionError') {
+            console.log('⚠️ Version conflict detected, refetching and retrying...');
+            const freshChallenge = await Challenge.findOne({
+              'userChallenges.uniqueId': uniqueId,
+              'createdBy': userRole === 'teacher' ? userId : undefined,
+              'userChallenges.userId': userRole !== 'teacher' ? userId : undefined
+            });
+            const freshUserChallenge = freshChallenge.userChallenges.find(uc => uc.uniqueId === uniqueId);
+            if (!freshUserChallenge.challenge7Progress) {
+              freshUserChallenge.challenge7Progress = {
+                revealedWords: [],
+                totalWords: uniqueWords.length
+              };
+              freshChallenge.markModified('userChallenges');
+              await freshChallenge.save();
+            }
+          } else {
+            throw saveError;
+          }
+        }
       } else if (userChallenge.challenge7Progress.totalWords !== uniqueWords.length) {
         userChallenge.challenge7Progress.totalWords = uniqueWords.length;
         challenge.markModified('userChallenges');
-        await challenge.save();
+        try {
+          await challenge.save();
+        } catch (saveError) {
+          if (saveError.name === 'VersionError') {
+            console.log('⚠️ Version conflict detected during update, continuing without save...');
+          } else {
+            throw saveError;
+          }
+        }
       }
       
       console.log('📤 Sending Challenge 7 data for:', uniqueId, {
         hasProgress: !!userChallenge.challenge7Progress,
         progressData: userChallenge.challenge7Progress,
         wordsCount: hangmanData.words.length,
-        uniqueWordsCount: uniqueWords.length
+        uniqueWordsCount: uniqueWords.length,
+        quote: hangmanData.quote,
+        author: hangmanData.author,
+        hasQuote: !!hangmanData.quote,
+        hasAuthor: !!hangmanData.author
       });
       
       res.json({
@@ -425,6 +507,126 @@ router.get('/challenge7/:uniqueId', ensureAuthenticated, async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching Challenge 7 data:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.post('/challenge6/:uniqueId/complete', ensureAuthenticated, async (req, res) => {
+  try {
+    const { uniqueId } = req.params;
+    const userId = req.user._id;
+    const userRole = req.user.role;
+
+    if (userRole !== 'teacher') {
+      return res.status(403).json({ message: 'Only teachers can complete challenges for students' });
+    }
+
+    const challenge = await Challenge.findOne({
+      'userChallenges.uniqueId': uniqueId,
+      'createdBy': userId
+    });
+
+    if (!challenge) {
+      return res.status(404).json({ message: 'Challenge not found' });
+    }
+
+    const userChallenge = challenge.userChallenges.find(uc => uc.uniqueId === uniqueId);
+    if (!userChallenge) {
+      return res.status(404).json({ message: 'User challenge not found' });
+    }
+
+    if (userChallenge.completedChallenges && userChallenge.completedChallenges[5]) {
+      return res.json({ message: 'Challenge 6 already completed' });
+    }
+
+    if (!userChallenge.completedChallenges) {
+      userChallenge.completedChallenges = {};
+    }
+    userChallenge.completedChallenges[5] = true;
+
+    if (!userChallenge.challengeCompletedAt) {
+      userChallenge.challengeCompletedAt = {};
+    }
+    userChallenge.challengeCompletedAt[5] = new Date();
+
+    if (userChallenge.progress === 5) {
+      userChallenge.progress = 6;
+    }
+
+    challenge.markModified('userChallenges');
+    await challenge.save();
+
+    res.json({ message: 'Challenge 6 completed successfully' });
+
+  } catch (error) {
+    console.error('Error completing Challenge 6:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.post('/challenge7/:uniqueId/complete', ensureAuthenticated, async (req, res) => {
+  try {
+    const { uniqueId } = req.params;
+    const userId = req.user._id;
+    const userRole = req.user.role;
+
+    if (userRole !== 'teacher') {
+      return res.status(403).json({ message: 'Only teachers can complete challenges for students' });
+    }
+
+    const challenge = await Challenge.findOne({
+      'userChallenges.uniqueId': uniqueId,
+      'createdBy': userId
+    });
+
+    if (!challenge) {
+      return res.status(404).json({ message: 'Challenge not found' });
+    }
+
+    const userChallenge = challenge.userChallenges.find(uc => uc.uniqueId === uniqueId);
+    if (!userChallenge) {
+      return res.status(404).json({ message: 'User challenge not found' });
+    }
+
+    if (userChallenge.completedChallenges && userChallenge.completedChallenges[6]) {
+      return res.json({ message: 'Challenge 7 already completed' });
+    }
+
+    const { generateHangmanData } = require('../../utils/quoteGenerator');
+    const hangmanData = await generateHangmanData(uniqueId);
+    const uniqueWords = [...new Set(hangmanData.words.map(w => w.toLowerCase()))];
+
+    if (!userChallenge.completedChallenges) {
+      userChallenge.completedChallenges = {};
+    }
+    userChallenge.completedChallenges[6] = true;
+
+    if (!userChallenge.challengeCompletedAt) {
+      userChallenge.challengeCompletedAt = {};
+    }
+    userChallenge.challengeCompletedAt[6] = new Date();
+
+    if (!userChallenge.challenge7Progress) {
+      userChallenge.challenge7Progress = {
+        revealedWords: uniqueWords,
+        totalWords: uniqueWords.length
+      };
+    } else {
+      userChallenge.challenge7Progress.revealedWords = uniqueWords;
+    }
+
+    if (userChallenge.progress === 6) {
+      userChallenge.progress = 7;
+      userChallenge.completedAt = new Date();
+    }
+
+    challenge.markModified('userChallenges');
+    await challenge.save();
+
+    res.json({ message: 'Challenge 7 completed successfully' });
+
+  } catch (error) {
+    console.error('Error completing Challenge 7:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

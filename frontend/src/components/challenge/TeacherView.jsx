@@ -308,18 +308,29 @@ const TeacherView = ({
             if (response.ok) {
               const data = await response.json();
               
+              console.log(`🔍 Received Challenge 7 data for ${uc.uniqueId}:`, {
+                hasQuote: !!data.quote,
+                hasAuthor: !!data.author,
+                hasWords: !!data.words,
+                quote: data.quote,
+                author: data.author,
+                wordsLength: data.words?.length
+              });
+              
               if (data.uniqueId && data.uniqueId !== uc.uniqueId) {
                 console.warn(`Challenge 7 data mismatch! Expected ${uc.uniqueId}, got ${data.uniqueId}`);
                 continue;
               }
               
-              const uniqueWords = [...new Set(data.words.map(w => w.toLowerCase()))];
+              const uniqueWords = data.words && Array.isArray(data.words) 
+                ? [...new Set(data.words.map(w => w.toLowerCase()))] 
+                : [];
               newChallenge7Data[uc.uniqueId] = {
-                quote: data.quote,
-                author: data.author,
-                words: data.words,
+                quote: data.quote || 'Quote not available',
+                author: data.author || 'Unknown author',
+                words: data.words || [],
                 uniqueWords: uniqueWords,
-                wordTokens: data.wordTokens,
+                wordTokens: data.wordTokens || {},
                 uniqueId: data.uniqueId || uc.uniqueId,
                 fetchedAt: timestamp
               };
@@ -650,52 +661,61 @@ const TeacherView = ({
                             )}
                             {workingOnChallenge === 5 && (
                               <div className="space-y-1">
-                                {uc.completedChallenges?.[5] ? (
-                                  <div className="text-sm text-green-600 font-semibold">
-                                    ✅ Digital Archaeology Complete
+                                <div className="text-sm text-orange-600 font-medium">
+                                  Word: "{challenge6Data[uc.uniqueId]?.word || 'Loading...'}"
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <div className="text-xs text-gray-500">
+                                    Digital Archaeology Challenge
                                   </div>
-                                ) : (
-                                  <>
-                                    <div className="text-sm text-orange-600 font-medium">
-                                      Word: "{challenge6Data[uc.uniqueId]?.word || 'Loading...'}"
-                                    </div>
-                                    <div className="text-xs text-gray-500">
-                                      Digital Archaeology Challenge
-                                    </div>
-                                  </>
-                                )}
+                                  {!uc.completedChallenges?.[5] && (
+                                    <button
+                                      onClick={async () => {
+                                        try {
+                                          const response = await fetch(`${API_BASE}/api/challenges/challenge6/${uc.uniqueId}/complete`, {
+                                            method: 'POST',
+                                            credentials: 'include'
+                                          });
+                                          if (response.ok) {
+                                            toast.success('Challenge 6 completed for student');
+                                            await fetchChallengeData();
+                                          } else {
+                                            toast.error('Failed to complete challenge');
+                                          }
+                                        } catch (error) {
+                                          toast.error('Error completing challenge');
+                                        }
+                                      }}
+                                      className="btn btn-xs btn-warning"
+                                    >
+                                      Skip to Completion
+                                    </button>
+                                  )}
+                                </div>
                               </div>
                             )}
                             {workingOnChallenge === 6 && (
                               <div className="space-y-1">
-                                {uc.completedChallenges?.[6] ? (
-                                  <div className="text-sm text-green-600 font-semibold">
-                                    ✅ Hangman Complete
+                                <div className="text-sm text-red-600 font-medium">
+                                  {challenge7Data[uc.uniqueId]?.error ? (
+                                    <span className="text-orange-600">⚠️ {challenge7Data[uc.uniqueId]?.quote}</span>
+                                  ) : (
+                                    <>Quote: "{challenge7Data[uc.uniqueId]?.quote || 'Loading...'}"</>
+                                  )}
+                                </div>
+                                {!challenge7Data[uc.uniqueId]?.error && (
+                                  <div className="text-xs text-gray-500">
+                                    By: {challenge7Data[uc.uniqueId]?.author || 'Loading...'}
                                   </div>
-                                ) : (
-                                  <>
-                                    <div className="text-sm text-red-600 font-medium">
-                                      {challenge7Data[uc.uniqueId]?.error ? (
-                                        <span className="text-orange-600">⚠️ {challenge7Data[uc.uniqueId]?.quote}</span>
-                                      ) : (
-                                        <>Quote: "{challenge7Data[uc.uniqueId]?.quote || 'Loading...'}"</>
-                                      )}
-                                    </div>
-                                    {!challenge7Data[uc.uniqueId]?.error && (
-                                      <div className="text-xs text-gray-500">
-                                        By: {challenge7Data[uc.uniqueId]?.author || 'Loading...'}
-                                      </div>
-                                    )}
-                                    {uc.challenge7Progress && !challenge7Data[uc.uniqueId]?.error && (
-                                      <div className="text-xs text-blue-600 font-medium">
-                                        Progress: {uc.challenge7Progress.revealedWords?.length || 0}/{uc.challenge7Progress.totalWords || challenge7Data[uc.uniqueId]?.uniqueWords?.length || '?'} unique words revealed ({((uc.challenge7Progress.revealedWords?.length || 0) / (uc.challenge7Progress.totalWords || challenge7Data[uc.uniqueId]?.uniqueWords?.length || 1) * 100).toFixed(1)}%)
-                                      </div>
-                                    )}
-                                    <div className="text-xs text-gray-500">
-                                      Hangman Challenge {challenge7Data[uc.uniqueId]?.uniqueId ? `(ID: ${challenge7Data[uc.uniqueId].uniqueId})` : ''}
-                                    </div>
-                                  </>
                                 )}
+                                {uc.challenge7Progress && !challenge7Data[uc.uniqueId]?.error && !uc.completedChallenges?.[6] && (
+                                  <div className="text-xs text-blue-600 font-medium">
+                                    Progress: {uc.challenge7Progress.revealedWords?.length || 0}/{uc.challenge7Progress.totalWords || challenge7Data[uc.uniqueId]?.uniqueWords?.length || '?'} unique words revealed ({((uc.challenge7Progress.revealedWords?.length || 0) / (uc.challenge7Progress.totalWords || challenge7Data[uc.uniqueId]?.uniqueWords?.length || 1) * 100).toFixed(1)}%)
+                                  </div>
+                                )}
+                                <div className="text-xs text-gray-500">
+                                  Hangman Challenge {challenge7Data[uc.uniqueId]?.uniqueId ? `(ID: ${challenge7Data[uc.uniqueId].uniqueId})` : ''}
+                                </div>
                               </div>
                             )}
                           </td>
@@ -783,35 +803,56 @@ const TeacherView = ({
                             )}
                             {workingOnChallenge === 6 && (
                               <div className="space-y-2">
-                                {uc.completedChallenges?.[6] ? (
-                                  <div className="text-sm text-green-600 font-semibold">
-                                    ✅ Hangman Complete - All words revealed
-                                  </div>
-                                ) : challenge7Data[uc.uniqueId]?.error ? (
+                                {challenge7Data[uc.uniqueId]?.error ? (
                                   <div className="text-sm text-orange-600 font-semibold">
                                     ⚠️ Data loading error - please refresh page
                                   </div>
                                 ) : (
                                   <div className="space-y-2">
-                                    <div className="bg-gray-50 border border-gray-200 rounded p-2">
-                                      <div className="text-xs font-semibold text-gray-700 mb-1">
-                                        Progress: {uc.challenge7Progress?.revealedWords?.length || 0}/{challenge7Data[uc.uniqueId]?.uniqueWords?.length || '?'} unique words 
-                                        ({((uc.challenge7Progress?.revealedWords?.length || 0) / (challenge7Data[uc.uniqueId]?.uniqueWords?.length || 1) * 100).toFixed(0)}%)
-                                      </div>
-                                      <div className="w-full bg-gray-200 rounded-full h-2">
-                                        <div 
-                                          className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
-                                          style={{
-                                            width: `${((uc.challenge7Progress?.revealedWords?.length || 0) / (challenge7Data[uc.uniqueId]?.uniqueWords?.length || 1) * 100)}%`
-                                          }}
-                                        ></div>
-                                      </div>
-                                      {challenge7Data[uc.uniqueId]?.uniqueId && (
-                                        <div className="text-xs text-gray-500 mt-1">
-                                          Challenge ID: {challenge7Data[uc.uniqueId].uniqueId}
+                                    {!uc.completedChallenges?.[6] && (
+                                      <div className="bg-gray-50 border border-gray-200 rounded p-2">
+                                        <div className="text-xs font-semibold text-gray-700 mb-1">
+                                          Progress: {uc.challenge7Progress?.revealedWords?.length || 0}/{challenge7Data[uc.uniqueId]?.uniqueWords?.length || '?'} unique words 
+                                          ({((uc.challenge7Progress?.revealedWords?.length || 0) / (challenge7Data[uc.uniqueId]?.uniqueWords?.length || 1) * 100).toFixed(0)}%)
                                         </div>
-                                      )}
-                                    </div>
+                                        <div className="w-full bg-gray-200 rounded-full h-2">
+                                          <div 
+                                            className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                                            style={{
+                                              width: `${((uc.challenge7Progress?.revealedWords?.length || 0) / (challenge7Data[uc.uniqueId]?.uniqueWords?.length || 1) * 100)}%`
+                                            }}
+                                          ></div>
+                                        </div>
+                                        <div className="flex justify-between items-center mt-2">
+                                          {challenge7Data[uc.uniqueId]?.uniqueId && (
+                                            <div className="text-xs text-gray-500">
+                                              Challenge ID: {challenge7Data[uc.uniqueId].uniqueId}
+                                            </div>
+                                          )}
+                                          <button
+                                            onClick={async () => {
+                                              try {
+                                                const response = await fetch(`${API_BASE}/api/challenges/challenge7/${uc.uniqueId}/complete`, {
+                                                  method: 'POST',
+                                                  credentials: 'include'
+                                                });
+                                                if (response.ok) {
+                                                  toast.success('Challenge 7 completed for student');
+                                                  await fetchChallengeData();
+                                                } else {
+                                                  toast.error('Failed to complete challenge');
+                                                }
+                                              } catch (error) {
+                                                toast.error('Error completing challenge');
+                                              }
+                                            }}
+                                            className="btn btn-xs btn-warning"
+                                          >
+                                            Skip to Completion
+                                          </button>
+                                        </div>
+                                      </div>
+                                    )}
                                     
                                     <details className="bg-gray-50 border border-gray-200 rounded">
                                       <summary className="cursor-pointer p-2 text-xs font-medium text-gray-700 hover:bg-gray-100">
