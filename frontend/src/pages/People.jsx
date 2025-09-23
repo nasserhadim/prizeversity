@@ -16,6 +16,19 @@ const ROLE_LABELS = {
   teacher: 'Teacher',
 };
 
+// add helper near the top (after imports / before component)
+const computeTotalSpent = (transactions = [], classroomId) => {
+  return (transactions || []).reduce((sum, t) => {
+    const amt = Number(t?.amount) || 0;
+    if (amt >= 0) return sum;
+    const assignerRole = t?.assignedBy?.role ? String(t.assignedBy.role).toLowerCase() : '';
+    // Exclude teacher/admin adjustments from "total spent"
+    if (assignerRole === 'teacher' || assignerRole === 'admin') return sum;
+    if (classroomId && t?.classroom && String(t.classroom) !== String(classroomId)) return sum;
+    return sum + Math.abs(amt);
+  }, 0);
+};
+
 const People = () => {
   // Get classroom ID from URL params
   const { id: classroomId } = useParams();
@@ -422,9 +435,14 @@ const getBanInfo = (student, classroomObj) => {
             .get(`/api/wallet/transactions/all?studentId=${id}&classroomId=${classroomId}`, { withCredentials: true })
             .then(res => {
               const txs = Array.isArray(res.data) ? res.data : (res.data?.transactions || []);
+              // Exclude teacher/admin adjustments and non-matching classroom txs
               const spent = txs.reduce((sum, t) => {
-                const amt = Number(t.amount) || 0;
-                return sum + (amt < 0 ? Math.abs(amt) : 0);
+                const amt = Number(t?.amount) || 0;
+                if (amt >= 0) return sum;
+                const assignerRole = t?.assignedBy?.role ? String(t.assignedBy.role).toLowerCase() : '';
+                if (assignerRole === 'teacher' || assignerRole === 'admin') return sum;
+                if (classroomId && t?.classroom && String(t.classroom) !== String(classroomId)) return sum;
+                return sum + Math.abs(amt);
               }, 0);
               return { id, spent };
             })
@@ -625,7 +643,13 @@ const getBanInfo = (student, classroomObj) => {
           role: student.role,
           balance: student.balance || 0,
           // include numeric totalSpent for JSON export
-          totalSpent: Number(totalSpentMap[student._id] || 0),
+          // Prefer server-side precomputed `totalSpentMap` but fall back to computing
+          // from per-student `transactions` if available (exclude teacher/admin adjustments)
+          totalSpent: Number(
+            (totalSpentMap && typeof totalSpentMap[student._id] !== 'undefined')
+              ? totalSpentMap[student._id]
+              : computeTotalSpent(student.transactions || [], classroomId)
+          ),
           joinedDate: student.joinedAt || student.createdAt || null,
           stats: {
             luck: stats.luck || 1,
