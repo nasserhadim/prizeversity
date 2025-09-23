@@ -553,9 +553,21 @@ useEffect(() => {
     const txs = classroomId
       ? transactions.filter(t => String(t.classroom) === String(classroomId))
       : transactions;
+
     return txs.reduce((sum, t) => {
       const amt = Number(t.amount) || 0;
-      return sum + (amt < 0 ? Math.abs(amt) : 0);
+      if (amt >= 0) return sum;
+
+      // Exclude teacher/admin adjustments from "total spent"
+      // `assignedBy` is populated by backend for the student's own transactions route:
+      // see router.get('/transactions') in backend/routes/wallet.js
+      const assignerRole = (t.assignedBy && t.assignedBy.role) ? String(t.assignedBy.role).toLowerCase() : '';
+      if (assignerRole === 'teacher' || assignerRole === 'admin') {
+        return sum;
+      }
+
+      // Otherwise count as spent (abs of the negative amount)
+      return sum + Math.abs(amt);
     }, 0);
   }, [transactions, classroomId]);
 
