@@ -12,7 +12,19 @@ const ensureTeacher = require('../middleware/ensureTeacher');
 // student can read all items  //9/22 added public routes
 router.get('/public', async (req, res) => {
   try {
-    const items = await Item.find().sort({ createdAt: -1 }); //newest first
+    const { bazaarId } = req.query; // NEW: require bazaarId so both teacher and student see the same items
+    if (!bazaarId) {
+      return res.status(400).json({ error: 'bazaarId required' });
+    }
+
+    const items = await Item.find({
+      bazaar: bazaarId,
+      // show only items for this bazaar that are NOT already owned
+      $or: [{ owner: { $exists: false } }, { owner: null }]
+      // isDeleted: { $ne: true }, // uncomment if you use a soft-delete flag
+      // isPublished: true,        // uncomment if you use a publish flag
+    }).sort({ createdAt: -1 }); //newest first
+
     res.json(items);//will send back to json format
   } catch (err) { //in case something goes wrong will send error
     res.status(500).json({ error: 'Failed to load items' });
@@ -24,6 +36,13 @@ router.get('/public/:itemId', async (req, res) => {
   try {
     const item = await Item.findById(req.params.itemId);
     if (!item) return res.status(404).json({ error: 'Not found' });
+
+    // If an item is owned, don’t expose it on the public route
+    if (item.owner != null) return res.status(404).json({ error: 'Not found' });
+
+    // If you use visibility flags, enforce them here too:
+    // if (item.isDeleted || !item.isPublished) return res.status(404).json({ error: 'Not found' });
+
     res.json(item);
   } catch (err) {
     res.status(500).json({ error: 'Failed to load item' });

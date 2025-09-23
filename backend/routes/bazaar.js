@@ -263,6 +263,11 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
     const item = await Item.findById(itemId);
     if (!item) return res.status(404).json({ error: 'Item not found' });
 
+    // NEW: block purchase if the item is no longer available (deleted/owned)
+    if (item.owner != null) {
+      return res.status(400).json({ error: 'This item is no longer available' });
+    }
+
     const user = await User.findById(req.user._id);
     const totalCost = item.price * quantity;
 
@@ -394,9 +399,14 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
       const item = await Item.findById(itemData._id || itemData.id);
       if (!item) {
         console.error("Item not found:", itemData._id);
-        continue;
+        // NEW: fail checkout if any cart item no longer exists
+        return res.status(400).json({ error: 'One or more items in your cart are no longer available' });
       }
 
+      // NEW: block if item became unavailable (owned/removed)
+      if (item.owner != null) {
+        return res.status(400).json({ error: `${item.name} is no longer available` });
+      }
       const ownedItem = await Item.create({
         name: item.name,
         description: item.description,
