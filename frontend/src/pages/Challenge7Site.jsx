@@ -273,7 +273,7 @@ const Challenge7Site = () => {
                 You've successfully decoded the complete quote!
               </div>
               <div className="text-green-300 font-mono text-xs mt-2">
-                Each word revealed through correct tokenization.
+                Each word revealed through correct decoding.
               </div>
             </div>
 

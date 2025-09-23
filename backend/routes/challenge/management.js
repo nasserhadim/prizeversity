@@ -46,6 +46,13 @@ router.get('/:classroomId', ensureAuthenticated, async (req, res) => {
 
     let needsSave = false;
     for (const userChallenge of challenge.userChallenges) {
+      // Skip invalid entries (e.g. user deleted -> userId may be null)
+      if (!userChallenge) continue;
+      if (!userChallenge.userId) {
+        console.warn(`[Challenge management] skipping userChallenge ${userChallenge.uniqueId} - missing userId`);
+        continue;
+      }
+
       if (!userChallenge.challenge2Password) {
         const { generateChallenge2Password } = require('./utils');
         userChallenge.challenge2Password = generateChallenge2Password(userChallenge.uniqueId);
@@ -54,7 +61,9 @@ router.get('/:classroomId', ensureAuthenticated, async (req, res) => {
       
       if (!userChallenge.challenge4Password) {
         const crypto = require('crypto');
-        const studentHash = crypto.createHash('md5').update(userChallenge.userId.toString() + userChallenge.uniqueId).digest('hex');
+        // userId may be populated object or raw id - normalize to string
+        const studentIdStr = userChallenge.userId._id ? userChallenge.userId._id.toString() : userChallenge.userId.toString();
+        const studentHash = crypto.createHash('md5').update(studentIdStr + userChallenge.uniqueId).digest('hex');
         userChallenge.challenge4Password = `FORENSICS_${studentHash.substring(0, 8).toUpperCase()}`;
         needsSave = true;
       }
@@ -65,7 +74,11 @@ router.get('/:classroomId', ensureAuthenticated, async (req, res) => {
     }
 
     const userChallenge = challenge.userChallenges.find(
-      uc => uc.userId._id.toString() === userId.toString()
+      uc => {
+        if (!uc || !uc.userId) return false;
+        const ucUserIdStr = uc.userId._id ? uc.userId._id.toString() : uc.userId.toString();
+        return ucUserIdStr === userId.toString();
+      }
     );
 
     if (isTeacher) {

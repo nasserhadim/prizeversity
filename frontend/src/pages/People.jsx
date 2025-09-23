@@ -407,7 +407,7 @@ const getBanInfo = (student, classroomObj) => {
     if (!classroomId) return;
 
     // Limit to first N visible students to avoid too many requests
-    const visible = Array.isArray(filteredStudents) ? filteredStudents.slice(0, 50) : [];
+    const visible = Array.isArray(students) ? students.slice(0, 50) : [];
     const ids = visible.map(s => s._id).filter(Boolean);
     if (!ids.length) {
       setTotalSpentMap({});
@@ -445,7 +445,7 @@ const getBanInfo = (student, classroomObj) => {
     })();
 
     return () => { cancelled = true; };
-  }, [user, classroomId, filteredStudents]);
+  }, [user, classroomId, students]);
   // ── end per-student totals effect ──
 
   // Handle bulk user upload via Excel file
