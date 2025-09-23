@@ -319,6 +319,7 @@ const handleUpdateBazaar = async () => {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-2xl font-bold text-success flex items-center gap-2">
+            <HandCoins />
             Items for Sale
           </h3>
           <span className="badge badge-outline text-sm hidden md:inline">
