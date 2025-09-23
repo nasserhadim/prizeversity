@@ -596,7 +596,7 @@ const Challenge = () => {
               challengeIndex={6}
               challengeName="Hangman"
               challengeIcon="🎯"
-              challengeDescription="Your mission: Reveal the complete quote by finding the correct token ID for each word."
+              challengeDescription="Your mission: Reveal the complete quote by finding the correct values for each word."
               userChallenge={userChallenge}
               challengeData={challengeData}
               isDark={isDark}

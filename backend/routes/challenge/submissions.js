@@ -201,7 +201,7 @@ router.post('/challenge4/:uniqueId/submit', ensureAuthenticated, async (req, res
     } else {
       res.json({
         success: false,
-        message: 'Incorrect answer. Make sure you\'re examining the metadata of YOUR specific image.'
+        message: 'Incorrect answer. Try again!'
       });
     }
 
@@ -687,7 +687,7 @@ router.post('/submit-challenge7', ensureAuthenticated, async (req, res) => {
     
     return res.json({
       success: false,
-      message: 'Incorrect token for this word. Try again.',
+      message: 'Incorrect value for this word. Try again.',
       revealedWordsCount: currentProgress.revealedWords.length,
       totalWordsCount: uniqueWords.length,
       progressPercentage: (currentProgress.revealedWords.length / uniqueWords.length * 100).toFixed(1)

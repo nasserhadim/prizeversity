@@ -25,6 +25,11 @@ router.get('/challenge3/:uniqueId/teacher', ensureAuthenticated, async (req, res
 
     const studentUserId = userChallenge.userId;
     const user = await User.findById(studentUserId);
+    if (!user) {
+      console.warn(`[challenge3 teacher] user not found for id: ${studentUserId} (userChallenge: ${userChallenge._id})`);
+      return res.status(404).json({ message: 'Student user not found for this challenge' });
+    }
+    // proceed safely now that user is confirmed non-null
     
     const crypto = require('crypto');
     const studentHash = crypto.createHash('md5').update(studentUserId.toString() + uniqueId).digest('hex');
@@ -195,7 +200,7 @@ router.post('/challenge4/:uniqueId/generate-image', ensureAuthenticated, async (
 
       res.json({ 
         imageUrl,
-        message: 'Digital forensics evidence generated successfully! Download and examine the metadata to find your answer.'
+        message: 'Digital forensics evidence generated successfully!'
       });
 
     } finally {

@@ -198,7 +198,7 @@ const Challenge6Site = () => {
         
         <div className="space-y-4">
           <div className="text-sm font-mono text-gray-500">
-            ENTER NUMERICAL LOCATION:
+            ENTER NUMERICAL VALUE:
           </div>
           <input
             type="text"

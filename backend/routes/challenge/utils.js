@@ -125,7 +125,8 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
     if (multiplier > 1.0) {
       const multiplierIncrease = multiplier - 1.0;
       if (!user.passiveAttributes) user.passiveAttributes = {};
-      user.passiveAttributes.multiplier = (user.passiveAttributes.multiplier || 1.0) + multiplierIncrease;
+      // round to 2 decimals to avoid floating point artifacts
+      user.passiveAttributes.multiplier = Math.round(((user.passiveAttributes.multiplier || 1.0) + multiplierIncrease) * 100) / 100;
       rewardsEarned.multiplier = multiplierIncrease;
     }
   }
