@@ -32,11 +32,17 @@ const CartDropdown = (props) => {
         };
     }, [user]);
 
-    // Calculating the discuonted price (only if discount is active)
+    // this is calculating the discuonted price (but only if discount is active)
     const calculatePrice = (price) => {
-        return user?.discountShop ? Math.floor(price * 0.8) : price;
-    };
+    const pct = Number(user?.discountPercent) || 0;
+    return pct > 0 ? Math.floor(price * (1 - pct / 100)) : price;
+};
 
+{Number(user?.discountPercent) > 0 && (
+  <div className="text-xs text-green-600 mb-2">
+    {Number(user.discountPercent)}% discount applied! {/* changed this so it isnt hard coded to 20%  instead it has the users input */}
+  </div>
+)}
     // use classroom-scoped cart
     const cartItems = getCart(classroomId);
 
@@ -45,11 +51,11 @@ const CartDropdown = (props) => {
             <h3 className="text-lg font-bold mb-2">Your Cart</h3>
             {hasDiscount && (
                 <div className='text-xs text-green-600 mb-2'>
-                    20% discount applied (expires soon)
+                    {Number(user.discountPercent)}% discount applied to all items! (expires soon)
                 </div>
             )}
             {user?.discountShop && (
-                <div className="text-xs text-green-600 mb-2">20% discount applied!</div>
+                <div className="text-xs text-green-600 mb-2">{Number(user.discountPercent)}% discount applied to all items!</div>
             )}
             {cartItems.length === 0 ? (
                 <p className="text-sm text-base-content/60">Cart is empty</p>

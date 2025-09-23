@@ -1,7 +1,8 @@
+import BazaarSearch from "../components/BazaarSearch.jsx";
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Store, HandCoins  } from 'lucide-react';
+import { Store, HandCoins } from 'lucide-react';
 import { Image as ImageIcon } from 'lucide-react';
 //import axios from 'axios'
 //import apiBazaar from '../API/apiBazaar.js'
@@ -86,6 +87,12 @@ const Bazaar = () => {
     };*/
 
 
+  const [filteredItems, setFilteredItems] = useState([]);
+  const [filters, setFilters] = useState({ category: undefined, q: "" });
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const PAGE_SIZE = 9;
+  const [page, setPage] = useState(1);
 
   // Fetch classroom details
   const fetchClassroom = async () => {
@@ -110,6 +117,49 @@ const Bazaar = () => {
       setLoading(false);
     }
   };
+
+  const fetchFilteredItems = async (filters = {}) => {
+    if (!bazaar?._id) return; // need bazaarId for this route
+
+    try {
+      setSearchLoading(true);
+      setSearchError("");
+
+      const params = new URLSearchParams();
+      if (
+        filters.category &&
+        ["Attack", "Defend", "Utility", "Passive"].includes(filters.category)
+      ) {
+        params.append("category", filters.category);
+      }
+      if (filters.q) {
+        params.append("q", filters.q);
+      }
+
+      // GET /classroom/:classroomId/bazaar/:bazaarId/items
+      const res = await apiBazaar.get(
+        `classroom/${classroomId}/bazaar/${bazaar._id}/items?${params.toString()}`
+      );
+
+      setFilteredItems(res.data.items || []);
+    } catch (err) {
+      console.error("[fetchFilteredItems] error:", err);
+      setSearchError("Failed to load items");
+      setFilteredItems([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  // Derive current page of items
+  const totalPages = Math.max(1, Math.ceil((filteredItems.length || 0) / PAGE_SIZE));
+  const start = (page - 1) * PAGE_SIZE;
+  const currentPageItems = (filteredItems || []).slice(start, start + PAGE_SIZE);
+
+  useEffect(() => {
+    const tp = Math.max(1, Math.ceil((filteredItems.length || 0) / PAGE_SIZE));
+    if (page > tp) setPage(tp);
+  }, [filteredItems, PAGE_SIZE, page]);
 
   useEffect(() => {
     fetchClassroom();
@@ -174,9 +224,16 @@ const handleUpdateBazaar = async () => {
 
 
 
+  useEffect(() => {
+    if (bazaar?._id) {
+      fetchFilteredItems(filters);
+      setPage(1);
+    }
+  }, [bazaar?._id]);
+
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-base-200">
-                        <span className="loading loading-ring loading-lg"></span>
-                      </div>
+    <span className="loading loading-ring loading-lg"></span>
+  </div>
 
   // Case: Bazaar not yet created
   if (!bazaar) {
@@ -249,48 +306,41 @@ const handleUpdateBazaar = async () => {
 
       </div>
 
-      {/* Teacher Create Item */}
-      {user.role === 'teacher' && (
-        <div className="card card-compact bg-base-100 shadow p-4 border border-base-200">
-          <CreateItem
-            bazaarId={bazaar._id}
-            classroomId={classroomId}
-            onAdd={(newItem) =>
-              setBazaar((prev) => ({
-                ...prev,
-                items: [...(prev.items || []), newItem],
-              }))
-            }
-          />
-        </div>
-      )}
+      {/* (JA) Search & filter controls for the Bazaar items */}
+      <BazaarSearch
+        onFiltersChange={(f) => {
+          setPage(1);
+          setFilters(f);
+          fetchFilteredItems(f);   
+        }}
+      />
 
-      {/* Items for Sale Section */}
+      {/* (JA) Filtered results section */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-2xl font-bold text-success flex items-center gap-2">
-            <HandCoins />
             Items for Sale
           </h3>
           <span className="badge badge-outline text-sm hidden md:inline">
-            {bazaar.items?.length || 0} item{bazaar.items?.length === 1 ? '' : 's'}
+            {filteredItems.length} item{filteredItems.length === 1 ? "" : "s"}
           </span>
         </div>
 
         <div className="divider my-0"></div>
 
-        {bazaar.items?.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-            {bazaar.items.map((item) => (
-              <ItemCard
-                key={item._id}
-                item={item}
-                role={user.role}
-                classroomId={classroomId}
-              />
-            ))}
+        {searchLoading && (
+          <div className="min-h-[80px] flex items-center text-sm opacity-70">
+            Loading items…
           </div>
-        ) : (
+        )}
+
+        {searchError && (
+          <div className="text-red-600 text-sm">
+            {searchError}
+          </div>
+        )}
+
+        {!searchLoading && !searchError && filteredItems.length === 0 && (
           <div className="flex flex-col items-center justify-center py-10 text-center text-gray-500">
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -306,35 +356,129 @@ const handleUpdateBazaar = async () => {
                 d="M20 13V9a2 2 0 00-2-2h-1V5a2 2 0 00-2-2H9a2 2 0 00-2 2v2H6a2 2 0 00-2 2v4M3 17h18M9 21h6"
               />
             </svg>
-            <p className="italic">Nothing is for sale yet. Please check back later!</p>
+            <p className="italic">No items match your filters.</p>
           </div>
         )}
-      </div>
 
+        {!searchLoading && !searchError && currentPageItems.length > 0 && (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+              {currentPageItems.map((item) => (
+                <ItemCard
+                  key={item._id}
+                  item={item}
+                  role={user.role}
+                  classroomId={classroomId}
+                />
+              ))}
+            </div>
 
-      {/* Inventory Section with Button in Header */}
-      <div className="card bg-base-200 shadow-inner border border-base-300">
-        <div className="card-body p-4">
-          <div className="flex items-center justify-between mb-2">
-            <button
-              onClick={() => setShowInventory(!showInventory)}
-              className={`btn btn-sm transition-all duration-200 ${
-                showInventory ? 'btn-outline btn-error' : 'btn-success'
-              }`}
-            >
-              {showInventory ? 'Hide' : 'Show'} Inventory
-            </button>
+            {/* Pagination controls */}
+            <div className="flex items-center justify-between mt-4">
+              <button
+                className="btn btn-sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+              >
+                Previous
+              </button>
+              <div className="text-sm opacity-70">Page {page} of {totalPages}</div>
+              <button
+                className="btn btn-sm"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+              >
+                Next
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* Teacher Create Item */}
+        {user.role === 'teacher' && (
+          <div className="card card-compact bg-base-100 shadow p-4 border border-base-200">
+            <CreateItem
+              bazaarId={bazaar._id}
+              classroomId={classroomId}
+              onAdd={(newItem) => {
+                setBazaar(prev => ({ ...prev, items: [...(prev.items || []), newItem] }));
+                fetchFilteredItems(filters);
+              }}
+            />
           </div>
+        )}
+
+        {/* Items for Sale Section
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-2xl font-bold text-success flex items-center gap-2">
+              <HandCoins />
+              Items for Sale
+            </h3>
+            <span className="badge badge-outline text-sm hidden md:inline">
+              {bazaar.items?.length || 0} item{bazaar.items?.length === 1 ? '' : 's'}
+            </span>
+          </div>
+
+          <div className="divider my-0"></div>
+
+          {bazaar.items?.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+              {bazaar.items.map((item) => (
+                <ItemCard
+                  key={item._id}
+                  item={item}
+                  role={user.role}
+                  classroomId={classroomId}
+                />
+              ))}
+            </div>
+          ) : (
           
-          {/* Inventory Section */}
-          {showInventory && (
-            <div className="mt-4">
-              <InventorySection userId={user._id} classroomId={classroomId} />
+            <div className="flex flex-col items-center justify-center py-10 text-center text-gray-500">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="w-12 h-12 mb-2 opacity-40"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M20 13V9a2 2 0 00-2-2h-1V5a2 2 0 00-2-2H9a2 2 0 00-2 2v2H6a2 2 0 00-2 2v4M3 17h18M9 21h6"
+                />
+              </svg>
+              <p className="italic">Nothing is for sale yet. Please check back later!</p>
             </div>
           )}
         </div>
-      </div>
-        {/* Edit Bazaar */}
+        */}
+
+
+        {/* Inventory Section with Button in Header */}
+        <div className="card bg-base-200 shadow-inner border border-base-300">
+          <div className="card-body p-4">
+            <div className="flex items-center justify-between mb-2">
+              <button
+                onClick={() => setShowInventory(!showInventory)}
+                className={`btn btn-sm transition-all duration-200 ${showInventory ? 'btn-outline btn-error' : 'btn-success'
+                  }`}
+              >
+                {showInventory ? 'Hide' : 'Show'} Inventory
+              </button>
+            </div>
+
+            {/* Inventory Section */}
+            {showInventory && (
+              <div className="mt-4">
+                <InventorySection userId={user._id} classroomId={classroomId} />
+              </div>
+            )}
+          </div>
+        </div>
+          {/* Edit Bazaar */}
           {EditBazaar && (
             <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
               <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-lg">
@@ -464,8 +608,9 @@ const handleUpdateBazaar = async () => {
         </div>
     )}
       <Footer />
+      </div>
     </div>
-  );
-};
+    );
+    };
 
-export default Bazaar;
+      export default Bazaar;

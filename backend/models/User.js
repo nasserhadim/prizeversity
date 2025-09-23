@@ -72,7 +72,9 @@ const UserSchema = new mongoose.Schema({
   isBanned: { type: Boolean, default: false },
   shieldActive: { type: Boolean, default: false },
   shieldCount: { type: Number, default: 0 },
-  discountShop: { type: Number, default: 0, min: 0, max: 100 },
+  discountShop: { type: Boolean, default: false }, // edited this line
+  discountPercent: { type: Number, default: 0 }, //addded this line            
+  discountExpiresAt: { type: Date, default: null }, //added this line
   attackPower: { type: Number, default: 0 },
   // New passive stat attributes
   passiveAttributes: {
