@@ -140,7 +140,7 @@ const Challenge4Site = () => {
             </div>
             
             <div className="bg-gray-800 border border-gray-600 rounded-lg p-4 space-y-2">
-              <div className="text-green-300 font-mono text-sm">🕵️ EXIF metadata successfully extracted and analyzed</div>
+              <div className="text-green-300 font-mono text-sm">🕵️ Metadata successfully extracted and analyzed</div>
               <div className="text-gray-400 font-mono text-xs space-y-1">
                 <div>Investigation ID: {uniqueId.substring(0, 8)}</div>
               </div>

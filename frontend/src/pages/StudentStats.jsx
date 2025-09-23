@@ -128,7 +128,9 @@ const StudentStats = () => {
               ✖️
             </div>
             <div className="stat-title">Multiplier</div>
-            <div className="stat-value">x{stats.multiplier || 1}</div>
+            <div className="stat-value">
+              x{Number(stats.multiplier || 1).toFixed(1)}
+            </div>
           </div>
           
           <div className="stat">

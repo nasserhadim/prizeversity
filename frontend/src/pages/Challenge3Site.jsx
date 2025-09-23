@@ -59,16 +59,31 @@ const Challenge3Site = () => {
   // Timer for elapsed time
   useEffect(() => {
     if (startTime && !showSuccess && challengeStarted) {
+      let mounted = true;
       const timer = setInterval(() => {
-        const elapsed = Math.floor((new Date() - startTime) / 1000);
-        setTimeElapsed(elapsed);
-        
-        if (elapsed >= CHALLENGE_DURATION_SEC && !expiredNotified) {
-          setExpiredNotified(true);
-          toast.error('Time limit exceeded! Investigation has expired.');
+        const now = Date.now();
+        const startMs = new Date(startTime).getTime();
+        let elapsed = Math.floor((now - startMs) / 1000);
+        if (elapsed < 0) elapsed = 0; // guard against future startTime
+
+        // Clamp and stop counting when expired
+        if (elapsed >= CHALLENGE_DURATION_SEC) {
+          elapsed = CHALLENGE_DURATION_SEC;
+          if (!expiredNotified) {
+            setExpiredNotified(true);
+            toast.error('Time limit exceeded! Investigation has expired.');
+          }
+          // stop the interval to avoid infinite counting
+          clearInterval(timer);
         }
+
+        if (mounted) setTimeElapsed(elapsed);
       }, 1000);
-      return () => clearInterval(timer);
+
+      return () => {
+        mounted = false;
+        clearInterval(timer);
+      };
     }
   }, [startTime, showSuccess, challengeStarted, expiredNotified]);
 

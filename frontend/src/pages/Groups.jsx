@@ -231,15 +231,18 @@ const Groups = () => {
         fd.append('image', groupSetImageFile);
         await axios.post('/api/group/groupset/create', fd, { headers: { 'Content-Type': 'multipart/form-data' }});
       } else {
-        await axios.post('/api/group/groupset/create', {
+        const payload = {
           name: groupSetName,
           classroomId: id,
           selfSignup: groupSetSelfSignup,
           joinApproval: groupSetJoinApproval,
           maxMembers: Math.max(0, groupSetMaxMembers || 0),
-          groupMultiplierIncrement: groupSetMultiplierIncrement, // Add this line
-          image: groupSetImageSource === 'url' ? groupSetImageUrl : undefined,
-        });
+          groupMultiplierIncrement: groupSetMultiplierIncrement
+        };
+        if (groupSetImageSource === 'url' && String(groupSetImageUrl).trim()) {
+          payload.image = String(groupSetImageUrl).trim();
+        }
+        await axios.post('/api/group/groupset/create', payload);
       }
       toast.success('GroupSet created successfully');
       resetGroupSetForm();
@@ -279,8 +282,16 @@ const Groups = () => {
     setGroupSetMultiplierIncrement(gs.groupMultiplierIncrement || 0); // Default to 0 if undefined
     setGroupSetImage(gs.image);
     setGroupSetImageFile(null);
-    setGroupSetImageSource('url');
-    setGroupSetImageUrl('');
+    // Preserve the current image value so we don't overwrite it with an empty string.
+    // If the existing image is not a known placeholder, populate the URL field so the
+    // update payload will omit image unless user changes/removes it.
+    if (gs.image && !isPlaceholderGroupSetImage(gs.image)) {
+      setGroupSetImageSource('url');
+      setGroupSetImageUrl(gs.image);
+    } else {
+      setGroupSetImageSource('url');
+      setGroupSetImageUrl('');
+    }
     // Open the centered edit modal so user doesn't need to scroll up
     setShowEditGroupSetModal(true);
   };
@@ -298,18 +309,28 @@ const Groups = () => {
         fd.append('selfSignup', groupSetSelfSignup);
         fd.append('joinApproval', groupSetJoinApproval);
         fd.append('maxMembers', Math.max(0, groupSetMaxMembers || 0));
-        fd.append('groupMultiplierIncrement', groupSetMultiplierIncrement); // Add this line
+        fd.append('groupMultiplierIncrement', groupSetMultiplierIncrement);
         fd.append('image', groupSetImageFile);
         await axios.put(`/api/group/groupset/${editingGroupSetId}`, fd, { headers: { 'Content-Type': 'multipart/form-data' }});
       } else {
-        await axios.put(`/api/group/groupset/${editingGroupSetId}`, {
+        // Build payload and only include `image` when the user explicitly removed it
+        // or supplied a non-empty URL. Avoid sending empty string which would overwrite
+        // existing uploaded images.
+        const payload = {
           name: groupSetName,
           selfSignup: groupSetSelfSignup,
           joinApproval: groupSetJoinApproval,
           maxMembers: Math.max(0, groupSetMaxMembers || 0),
-          groupMultiplierIncrement: groupSetMultiplierIncrement, // Add this line
-          image: groupSetImageRemoved ? 'placeholder.jpg' : (groupSetImageSource === 'url' ? groupSetImageUrl : undefined),
-        });
+          groupMultiplierIncrement: groupSetMultiplierIncrement
+        };
+
+        if (groupSetImageRemoved) {
+          payload.image = 'placeholder.jpg';
+        } else if (groupSetImageSource === 'url' && String(groupSetImageUrl).trim()) {
+          payload.image = String(groupSetImageUrl).trim();
+        }
+
+        await axios.put(`/api/group/groupset/${editingGroupSetId}`, payload);
       }
 
       toast.success('GroupSet updated successfully');
@@ -318,10 +339,14 @@ const Groups = () => {
       resetGroupSetForm();
       fetchGroupSets();
     } catch (err) {
-      if (err.response?.data?.message === 'No changes were made') {
+      // Prefer backend error messages when available
+      const backendMsg = err.response?.data?.error || err.response?.data?.message;
+      if (backendMsg === 'No changes were made') {
         toast.error('No changes were made');
+      } else if (backendMsg === 'A GroupSet with this name already exists in this classroom') {
+        toast.error('GroupSet name already exists, choose a new one');
       } else {
-        toast.error('Failed to update group set');
+        toast.error(backendMsg || 'Failed to update group set');
       }
     }
   };
