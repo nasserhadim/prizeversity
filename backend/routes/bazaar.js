@@ -564,9 +564,10 @@ router.delete(
 
 // Edit Bazaar
 router.put(
-    '/classroom/:bazaarId/bazaar/edit',
+    '/classroom/bazaar/edit/:bazaarId',
     ensureAuthenticated,
     ensureTeacher,
+    upload.single('image'),
     async (req, res) => {
         const { name, description, } = req.body;
         const { bazaarId } = req.params;

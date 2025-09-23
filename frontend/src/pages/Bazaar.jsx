@@ -25,10 +25,13 @@ const Bazaar = () => {
 
   const [confirmDeleteBazaar, setConfirmDeleteBazaar] = useState(null);
   const [EditBazaar, setEditBazaar] = useState(false);
-  const [StartEdit, setStartEdit] = useState(null);
+  const [BazaarImage, setBazaarImage] = useState('');
   const [BazaarImageSource, setBazaarImageSource] = useState('url');
   const [BazaarImageFile, setBazaarImageFile] = useState('placeholder.jpg');
   const [BazaarImageUrl, setBazaarImageUrl] = useState('');
+  const [BazaarImageRemoved, setBazaarImageRemoved] = useState(false);
+  const BazaarFileInputRef = useState(null);
+
   const [BazaarName, setBazaarName] = useState('');
   const [BazaarDesc, setBazaarDesc] = useState('');
     // delete bazaar
@@ -45,6 +48,7 @@ const Bazaar = () => {
             setConfirmDeleteBazaar(null);
         }
     };
+    /*
     const startEditBazaar = async () => {
         setBazaarName(bazaar.name);
         setBazaarDesc(bazaar.description);
@@ -79,7 +83,9 @@ const Bazaar = () => {
             setEditBazaar(null);
         }
         
-    };
+    };*/
+
+
 
   // Fetch classroom details
   const fetchClassroom = async () => {
@@ -109,6 +115,64 @@ const Bazaar = () => {
     fetchClassroom();
     fetchBazaar();
   }, [classroomId]);
+
+  // reset the Bazaar Form
+const resetBazaarForm = () => {
+    setBazaarName('');
+    setBazaarDesc('');
+    setBazaarImage('');
+    setBazaarImageFile('placeholder.jpg'); // ADD
+    setBazaarImageSource('url'); // ADD
+    setBazaarImageUrl(''); // ADD
+    if (BazaarFileInputRef.current) BazaarFileInputRef.current.value = ''; // clear native file input on reset
+};
+
+// Editing the Bazaar
+const handleEditBazaar = (bazaar) => {
+    setBazaarName(bazaar.name);
+    setBazaarDesc(bazaar.description);
+    setBazaarImage(bazaar.image);
+    setBazaarImageFile(null);
+    setBazaarImageSource('url');
+    setBazaarImageUrl('');
+    setEditBazaar(true);
+};
+
+// Update Bazaar (modified to handle file uploads + remove flag)
+const handleUpdateBazaar = async () => {
+    if (!BazaarName.trim()) return toast.error('Bazaar name is required');
+
+    try {
+        // If a new file was chosen, send multipart/form-data with the file
+        if (BazaarImageSource === 'file' && BazaarImageFile) {
+            const fd = new FormData();
+            fd.append('name', BazaarName);
+            fd.append('description', BazaarDesc);
+            fd.append('image', BazaarImageFile);
+            await apiBazaar.put(`classroom/bazaar/edit/${bazaar._id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' }});
+        } else {
+            await apiBazaar.put(`classroom/bazaar/edit/${bazaar._id}`, {
+            name: BazaarName,
+            description: BazaarDesc,
+            //image: BazaarImageRemoved ? 'placeholder.jpg' : (BazaarImageSource === 'url' ? BazaarImageUrl : undefined),
+            });
+        }
+
+        toast.success('Bazaar updated successfully');
+        // reset remove flag after successful update
+        setBazaarImageRemoved(false);
+        resetBazaarForm();
+        fetchBazaar();
+    } catch (err) {
+        if (err.response?.data?.message === 'No changes were made') {
+            toast.error('No changes were made');
+        } else {
+            toast.error('Failed to update group set');
+        }
+    }
+  };
+
+
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-base-200">
                         <span className="loading loading-ring loading-lg"></span>
@@ -178,7 +242,7 @@ const Bazaar = () => {
         {/* Modification Section */}
         {(user.role === 'teacher' || user.role === 'admin') && (
             <div className="flex gap-2">
-                <button className="btn btn-sm btn-info" onClick={startEditBazaar}>Edit</button>
+                <button className="btn btn-sm btn-info" onClick={() => handleEditBazaar(bazaar)}>Edit</button>
                 <button className="btn btn-sm btn-error" onClick={() => setConfirmDeleteBazaar(bazaar)}>Delete</button>
             </div>
         )}
@@ -355,9 +419,9 @@ const Bazaar = () => {
                 <div className="flex justify-center gap-4 mt-4">
                   <button
                     className="btn btn-success"
-                    onClick={handleEditBazaar}
+                    onClick={handleUpdateBazaar}
                   >
-                    Update Group Set
+                    Update Bazaar
                   </button>
                   <button
                     className="btn btn-ghost"
