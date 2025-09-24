@@ -49,6 +49,8 @@ const Bazaar = () => {
             setConfirmDeleteBazaar(null);
         }
     };
+
+    
     /*
     const startEditBazaar = async () => {
         setBazaarName(bazaar.name);
@@ -231,6 +233,25 @@ const handleUpdateBazaar = async () => {
     }
   }, [bazaar?._id]);
 
+
+  // Keep bazaar.items in sync after an update
+const handleItemUpdated = (updatedItem) => {
+  setBazaar(prev => ({
+    ...prev,
+    items: (prev?.items || []).map(it =>
+      String(it._id) === String(updatedItem._id) ? updatedItem : it
+    ),
+  }));
+};
+
+// Remove an item from bazaar.items after delete
+const handleItemDeleted = (itemId) => {
+  setBazaar(prev => ({
+    ...prev,
+    items: (prev?.items || []).filter(it => String(it._id) !== String(itemId)),
+  }));
+};
+
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-base-200">
     <span className="loading loading-ring loading-lg"></span>
   </div>
@@ -370,6 +391,10 @@ const handleUpdateBazaar = async () => {
                   item={item}
                   role={user.role}
                   classroomId={classroomId}
+                  teacherId={classroom?.teacher?._id || classroom?.teacher} 
+                  bazaarIdProp={bazaar?._id}//always pass teacher ID, if classroom.teacher is populated object use _id else use as is
+                  onUpdated={handleItemUpdated} // pass down to update cart items if price/name changed
+                  onDeleted={handleItemDeleted} // pass down to remove from cart if item deleted
                 />
               ))}
             </div>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Image as ImageIcon } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-// import axios from 'axios'
+import axios from 'axios';
 import apiBazaar from '../API/apiBazaar.js'
 import { ShoppingCart } from 'lucide-react';
 import { useCart } from '../context/CartContext';
@@ -9,14 +9,60 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { resolveImageSrc } from '../utils/image';
 import { splitDescriptionEffect, getEffectDescription } from '../utils/itemHelpers';
 
-const ItemCard = ({ item, role, classroomId }) => {
+const ItemCard = ({ 
+  item, 
+  role, 
+  classroomId, 
+  teacherId, 
+  onUpdated, 
+  onDeleted, 
+  bazaarIdProp, }) => {
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(false);
   const { addToCart } = useCart();
   const { user } = useAuth();
+  
+  const bazaarId = item?.bazaar?._id ||  item?.bazaar || bazaarIdProp; // Handle populated or unpopulated bazaar field 
+
+
+  // Delete handler for Teacher
+const confirmDelete = async () => {
+  // Ask user for confirmation
+  if (!window.confirm('Delete this item? This cannot be undone.')) return; // if cancel, stop here
+
+  // Validate required IDs exist
+  if (!classroomId) return toast.error('Missing classroomId'); // show error if classroomId missing
+  if (!bazaarId)    return toast.error('Missing bazaarId');    // show error if bazaarId missing
+  if (!item?._id)   return toast.error('Missing item id');     // show error if item id missing
+
+  // Build DELETE URL (this matches backend route)
+  const url = `/classroom/${classroomId}/bazaar/${bazaarId}/items/${item._id}`; // final API path
+
+  // Debug log so we can check what IDs/URL are being used
+  console.log('DELETE →', `/api/bazaar${url}`, { classroomId, bazaarId, itemId: item._id }); // helpful debug info
+
+  try {
+    // Call backend to delete item
+    const resp = await apiBazaar.delete(url); // send DELETE request
+
+    // Debug log to verify response
+    console.log('DELETE OK:', resp?.status, resp?.data); // logs status and data on success
+
+    // Update parent UI so item disappears
+    onDeleted?.(item._id); // call parent handler if provided
+    toast.success('Item deleted'); // show success message
+  } catch (err) {
+    // If error, log exact details
+    const status = err?.response?.status; // HTTP status code
+    const data = err?.response?.data;     // server response JSON
+    console.error('DELETE ERR:', status, data); // log error info
+
+    // Default error fallback
+    toast.error(data?.error || 'Failed to delete'); // show error
+  }
+};
 
   const imgSrc = resolveImageSrc(item?.image);
-
   // The buy option is not included here
   const handleBuy = async () => {
     if (quantity < 1) return toast.error('Quantity must be at least 1');
@@ -65,6 +111,7 @@ const ItemCard = ({ item, role, classroomId }) => {
     return `${finalPrice} ₿`;
   };
 
+
   const { main, effect } = splitDescriptionEffect(item.description || '');
 
   return (
@@ -109,6 +156,17 @@ const ItemCard = ({ item, role, classroomId }) => {
            {calculatePrice()}
          </p>
 
+        {role === 'teacher' && user?._id === teacherId && (
+          // Only the teacher who owns this classroom sees Edit/Delete
+          <div className="flex gap-2 mt-2">
+            <button className="btn btn-sm btn-outline" onClick={() => setOpen(true)}> 
+              <Pencil className="w-4 h-4" /> Edit
+            </button>
+            <button className="btn btn-sm btn-error" onClick={confirmDelete}>
+              <Trash2 className="w-4 h-4" /> Delete
+            </button>
+          </div>
+        )}
         {role === 'student' && (
           <button
             onClick={() => addToCart(item)}
