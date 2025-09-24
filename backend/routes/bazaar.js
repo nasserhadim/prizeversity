@@ -180,6 +180,106 @@ router.get('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticated
   }
 });
 
+// Edit Bazaar Item (teacher only)
+router.patch(
+  '/classroom/:classroomId/bazaar/:bazaarId/items/:itemId',
+  ensureAuthenticated,
+  ensureTeacher,
+  upload.single('image'),
+  async (req, res) => {
+    const { classroomId, bazaarId, itemId } = req.params;
+    try {
+// Ensure this bazaar actually belongs to this classroom (prevents cross-class leaks). ensures verivication teacher owns this classroom
+      const classroom = await Classroom.findById(classroomId).select('teacher');
+      if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+      if (classroom.teacher.toString() !== req.user._id.toString()) {
+        return res.status(403).json({ error: 'Only the teacher can edit items' });
+      }   
+      const item = await Item.findById(itemId);
+      if (!item) return res.status(404).json({ error: 'Item not found' });
+
+// Parse JSON fields that may arrive as strings when using multipart/form-data
+      const {
+        name,
+        description,
+        price,
+        category,
+        primaryEffect,
+        primaryEffectValue,
+        secondaryEffects,
+        swapOptions
+      } = req.body;
+ 
+      if (req.file) {
+        item.image = `/uploads/${req.file.filename}`;
+      } else if (req.body.image !== undefined) {
+        item.image = req.body.image || item.image;
+      }
+ 
+      if (name !== undefined) item.name = name;
+      if (description !== undefined) item.description = description;
+      if (price !== undefined) item.price = Number(price);
+      if (category !== undefined) item.category = category;
+      if (primaryEffect !== undefined) item.primaryEffect = primaryEffect;
+      if (primaryEffectValue !== undefined) item.primaryEffectValue = Number(primaryEffectValue);
+
+      //parsing json arrays if strings (multipart)
+        try {
+        item.secondaryEffects = secondaryEffects ? JSON.parse(secondaryEffects) : item.secondaryEffects;
+      } catch (e) { /* ignore parse error, assume already array */ }
+ 
+      try {
+        item.swapOptions = swapOptions ? JSON.parse(swapOptions) : item.swapOptions;
+      } catch (e) { /* ignore parse error */ }
+ 
+      await item.save();
+      // Notify classroom clients item updated
+      req.app.get('io')?.to(`classroom-${classroomId}`).emit('bazaar_item_updated', { item });
+ 
+      res.json({ item });
+    } catch (err) {
+      console.error('[Edit Bazaar Item] error:', err);
+      res.status(500).json({ error: 'Failed to update item', details: err.message });
+    }
+  }
+);
+ 
+// Delete Bazaar Item (teacher only)
+router.delete(
+  '/classroom/:classroomId/bazaar/:bazaarId/items/:itemId',
+  ensureAuthenticated,
+  ensureTeacher,
+  async (req, res) => {
+    const { classroomId, bazaarId, itemId } = req.params;
+    try {
+      // Verify teacher owns this classroom
+      const classroom = await Classroom.findById(classroomId).select('teacher');
+      if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+      if (classroom.teacher.toString() !== req.user._id.toString()) {
+        return res.status(403).json({ error: 'Only the teacher can delete items' });
+      }
+ 
+      const item = await Item.findById(itemId);
+      if (!item) return res.status(404).json({ error: 'Item not found' });
+ 
+      await Item.deleteOne({ _id: itemId });
+ 
+      // Remove reference from bazaar
+      await Bazaar.findByIdAndUpdate(bazaarId, { $pull: { items: itemId } });
+ 
+      // Notify classroom clients that the item was deleted so frontends can remove it from carts
+      req.app.get('io')?.to(`classroom-${classroomId}`).emit('bazaar_item_deleted', { itemId });
+ 
+      res.json({ message: 'Item deleted', itemId });
+    } catch (err) {
+      console.error('[Delete Bazaar Item] error:', err);
+      res.status(500).json({ error: 'Failed to delete item', details: err.message });
+    }
+  }
+);
+
+
+
 // Helper functions
 const getClassroomBalance = (user, classroomId) => {
   const classroomBalance = user.classroomBalances.find(cb => cb.classroom.toString() === classroomId.toString());
@@ -286,6 +386,27 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
       console.error("Invalid checkout data:", { userId, items, classroomId });
       return res.status(400).json({ error: 'Invalid checkout data or missing classroomId' });
     }
+// Resolve actual items from DB and detect any missing/deleted items
+    const resolved = await Promise.all(items.map(it => Item.findById(it._id || it.id)));
+    const missingIndexes = [];
+    const missingIds = [];
+    const resolvedItems = [];
+    resolved.forEach((it, idx) => {
+      if (!it) {
+        missingIndexes.push(idx);
+        missingIds.push(items[idx]?._id || items[idx]?.id || null);
+      } else {
+        resolvedItems.push(it);
+      }
+    });
+ 
+    if (missingIds.length > 0) {
+      // Inform client that items were removed so frontend can remove them from the cart
+      return res.status(400).json({
+        error: 'Some items were removed from the bazaar and cannot be purchased',
+        removed: missingIds.filter(Boolean)
+      });
+    }
 
     const user = await User.findById(userId).select('balance classroomBalances classroomFrozen transactions');
     if (!user) {
@@ -321,10 +442,9 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
 
     const pct = Number(user.discountPercent) || 0;
     const discountMultiplier = pct > 0 ? (1 - pct / 100) : 1;
-    const total = items.reduce(
-    (sum, item) => sum + Math.floor(item.price * discountMultiplier),
-    0
-  );
+    //replaced const total 
+    const total = resolvedItems.reduce((sum, item) => sum + item.price, 0);
+
     console.log(`Calculated total: ${total}, User per-classroom balance: ${getClassroomBalance(user, classroomId)}`);
 
     // Use per-classroom balance for check
@@ -336,7 +456,8 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
 
     // Process each item (unchanged, but now with per-classroom context)
     const ownedItems = [];
-    for (const itemData of items) {
+    //changed loop condition 
+    for (const itemData of resolvedItems) {
       const item = await Item.findById(itemData._id || itemData.id);
       if (!item) {
         console.error("Item not found:", itemData._id);
@@ -372,7 +493,8 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
     // Push a single detailed purchase transaction
     user.transactions.push({
       amount: -total,
-      description: `Checkout: ${items.map(i => i.name).join(', ')}`,
+      //changed description so it shows all items being checked out
+      description: `Checkout: ${resolvedItems.map(i => i.name).join(', ')}`,
       assignedBy: req.user._id,
       classroom: classroomId,  // Add classroom reference
       type: 'purchase',
