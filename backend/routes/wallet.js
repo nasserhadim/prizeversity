@@ -425,10 +425,9 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
       // NEW additive logic
       let finalMultiplier;
       if (numericAmount >= 0) {
-        finalMultiplier = 0;
-        if (applyGroupMultipliers) finalMultiplier += (groupMultiplier || 0);
-        if (applyPersonalMultipliers) finalMultiplier += (passiveMultiplier || 0);
-        if (finalMultiplier === 0) finalMultiplier = 1; // fallback to no-op
+        finalMultiplier = 1;
+        if (applyGroupMultipliers) finalMultiplier += ((groupMultiplier || 1) - 1);
+        if (applyPersonalMultipliers) finalMultiplier += ((passiveMultiplier || 1) - 1);
       } else {
         finalMultiplier = 1;
       }

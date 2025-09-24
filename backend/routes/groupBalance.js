@@ -198,10 +198,10 @@ router.post(
           // NEW additive logic
           let finalMultiplier;
           if (numericAmount > 0) {
-            finalMultiplier = 0;
-            if (applyGroupMultipliers) finalMultiplier += (group.groupMultiplier || 0);
-            if (applyPersonalMultipliers) finalMultiplier += (user.passiveAttributes?.multiplier || 0);
-            if (finalMultiplier === 0) finalMultiplier = 1;
+            // Start from base 1 and add only the extra above 1.0 from each source
+            finalMultiplier = 1;
+            if (applyGroupMultipliers) finalMultiplier += ((group.groupMultiplier || 1) - 1);
+            if (applyPersonalMultipliers) finalMultiplier += ((user.passiveAttributes?.multiplier || 1) - 1);
           } else {
             finalMultiplier = 1;
           }
