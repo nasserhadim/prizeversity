@@ -49,6 +49,8 @@ const Bazaar = () => {
             setConfirmDeleteBazaar(null);
         }
     };
+
+    
     /*
     const startEditBazaar = async () => {
         setBazaarName(bazaar.name);
@@ -150,11 +152,11 @@ const Bazaar = () => {
       const toKeyPart = (v) =>
         typeof v === 'string' ? v.trim().toLowerCase() : String(v ?? '').trim().toLowerCase();
 
-      // collapse visually-identical items even if _id differs
+// collapse visually-identical items even if _id differs
       const sig = (it) => [
         toKeyPart(it?.name),
-        toKeyPart(it?.price),
-        toKeyPart(it?.image),    
+        String(it?.price ?? ''),
+        toKeyPart(it?.image),
         toKeyPart(it?.category),
       ].join('|');
 
@@ -168,7 +170,7 @@ const Bazaar = () => {
         }
       }
       setFilteredItems(unique);
-      
+
     } catch (err) {
       console.error("[fetchFilteredItems] error:", err);
       setSearchError("Failed to load items");
@@ -257,6 +259,44 @@ const handleUpdateBazaar = async () => {
       setPage(1);
     }
   }, [bazaar?._id]);
+
+
+// Keep bazaar.items in sync after an update
+const handleItemUpdated = (updatedItem) => {
+  // Update bazaar
+  setBazaar(prev => ({
+    ...prev,
+    items: prev?.items?.map(it =>
+      String(it._id) === String(updatedItem._id) ? updatedItem : it
+    ) || []
+  }));
+
+  // Update filteredItems (what your grid actually maps over)
+  setFilteredItems(prev =>
+    Array.isArray(prev)
+      ? prev.map(it =>
+          String(it._id) === String(updatedItem._id) ? updatedItem : it
+        )
+      : prev
+  );
+};
+
+// Remove an item from bazaar.items after delete
+const handleItemDeleted = (itemId) => { // itemId is the _id of the deleted item
+  // Update bazaar
+  setBazaar(prev => ({ 
+    ...prev,
+    items: prev?.items?.filter(it => String(it._id) !== String(itemId)) || [] // in case items was undefined (shouldn't happen
+  }));
+
+  // Update filteredItems (what your grid actually maps over)
+  setFilteredItems(prev =>
+    Array.isArray(prev)
+      ? prev.filter(it => String(it._id) !== String(itemId))
+      : prev
+  );
+};
+
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-base-200">
     <span className="loading loading-ring loading-lg"></span>
@@ -397,6 +437,10 @@ const handleUpdateBazaar = async () => {
                   item={item}
                   role={user.role}
                   classroomId={classroomId}
+                  teacherId={classroom?.teacher?._id || classroom?.teacher} 
+                  bazaarIdProp={bazaar?._id}//always pass teacher ID, if classroom.teacher is populated object use _id else use as is
+                  onUpdated={handleItemUpdated} // pass down to update cart items if price/name changed
+                  onDeleted={handleItemDeleted} // pass down to remove from cart if item deleted
                 />
               ))}
             </div>
@@ -428,6 +472,7 @@ const handleUpdateBazaar = async () => {
             <CreateItem
               bazaarId={bazaar._id}
               classroomId={classroomId}
+              //trying to fix this item duplication issue when student purchases/. 
               onAdd={(newItem) => {
                 setBazaar(prev => ({ ...prev, items: [...(prev.items || []), newItem] }));
                 fetchFilteredItems(filters);

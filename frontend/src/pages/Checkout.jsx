@@ -18,9 +18,7 @@ const Checkout = () => {
   const navigate = useNavigate(); // <-- add this so navigate(...) is defined
 
   // Use classroom-aware cart helpers
-  const { getCart, getTotal, clearCart, removeFromCart, addToCart } = useCart();
-  const cartItems = getCart(classroomId);
-
+  const { getCart, getTotal, clearCart, removeFromCart, addToCart, removeItemsById } = useCart();  const cartItems = getCart(classroomId); //removed item byId lets you remove items from a specific classroom cart by its id 
   const [balance, setBalance] = useState(0);
   const [hasDiscount, setHasDiscount] = useState(user?.discountShop || false);
   const [classroom, setClassroom] = useState(null);
@@ -130,6 +128,12 @@ const Checkout = () => {
       if (err.response?.data?.siphonActive) {
         toast.error(`Cannot checkout: ${err.response.data.error}`);
       } else {
+              const removed = err.response?.data?.removed; // items removed from bazaar backend says which item doesnt exist
+      if (Array.isArray(removed) && removed.length > 0) { //checks all empty arrays
+        removeItemsById(removed, classroomId); //clears id out of cart for a specific classroom
+        toast.error('Some items were removed from the bazaar and were removed from your cart.'); 
+        return;
+      }
         toast.error(err.response?.data?.error || 'Checkout failed');
       }
     }
