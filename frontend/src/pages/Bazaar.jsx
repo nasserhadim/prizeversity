@@ -141,7 +141,34 @@ const Bazaar = () => {
         `classroom/${classroomId}/bazaar/${bazaar._id}/items?${params.toString()}`
       );
 
-      setFilteredItems(res.data.items || []);
+      const raw = Array.isArray(res.data?.items)
+        ? res.data.items
+        : Array.isArray(res.data)
+        ? res.data
+        : [];
+
+      const toKeyPart = (v) =>
+        typeof v === 'string' ? v.trim().toLowerCase() : String(v ?? '').trim().toLowerCase();
+
+      // collapse visually-identical items even if _id differs
+      const sig = (it) => [
+        toKeyPart(it?.name),
+        toKeyPart(it?.price),
+        toKeyPart(it?.image),    
+        toKeyPart(it?.category),
+      ].join('|');
+
+      const seen = new Set();
+      const unique = [];
+      for (const it of raw) {
+        const key = sig(it);
+        if (!seen.has(key)) {
+          seen.add(key);
+          unique.push(it);
+        }
+      }
+      setFilteredItems(unique);
+      
     } catch (err) {
       console.error("[fetchFilteredItems] error:", err);
       setSearchError("Failed to load items");
