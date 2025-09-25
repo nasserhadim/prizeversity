@@ -8,6 +8,7 @@ import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext.jsx';
 import { resolveImageSrc } from '../utils/image';
 import { splitDescriptionEffect, getEffectDescription } from '../utils/itemHelpers';
+import { data } from 'react-router';
 
 const ItemCard = ({ 
   item, 
@@ -160,6 +161,7 @@ try {
         `classroom/${classroomId}/bazaar/${item.bazaar}/items/${item._id}/buy`,
         { quantity: Number(quantity) }
       );
+
       toast.success('Item purchased!');
     } catch (err) {
       toast.error(err.response?.data?.error || 'Purchase failed');
@@ -167,6 +169,9 @@ try {
       setLoading(false);
     }
   };
+
+
+
 
   // this is calculating the the discounted price if discount is active 
   // this will be adding the calculation of group multiplier

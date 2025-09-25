@@ -71,7 +71,7 @@ router.get('/classroom/:classroomId/bazaar', ensureAuthenticated, async (req, re
 });
 
 // Add Item to Bazaar (teacher only) — accept file upload "image"
-router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticated, ensureTeacher, upload.single('image'), async (req, res) => {
+router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticated, ensureTeacher, upload.single('image'), async (req, res) => { 
   const { bazaarId } = req.params;
   const { name, description, price, category, primaryEffect, primaryEffectValue } = req.body;
   // Prefer uploaded file, fallback to image URL
@@ -190,7 +190,7 @@ router.patch(
     const { classroomId, bazaarId, itemId } = req.params;
     try {
 // Ensure this bazaar actually belongs to this classroom (prevents cross-class leaks). ensures verivication teacher owns this classroom
-      const classroom = await Classroom.findById(classroomId).select('teacher');
+      const classroom = await Classroom.findById(classroomId).select('teacher'); // only need teacher field stops one teacher from editing another classroom 
       if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
       if (classroom.teacher.toString() !== req.user._id.toString()) {
         return res.status(403).json({ error: 'Only the teacher can edit items' });
@@ -265,7 +265,7 @@ router.delete(
       await Item.deleteOne({ _id: itemId });
  
       // Remove reference from bazaar
-      await Bazaar.findByIdAndUpdate(bazaarId, { $pull: { items: itemId } });
+      await Bazaar.findByIdAndUpdate(bazaarId, { $pull: { items: itemId } }); // remove item from bazaar's items array
  
       // Notify classroom clients that the item was deleted so frontends can remove it from carts
       req.app.get('io')?.to(`classroom-${classroomId}`).emit('bazaar_item_deleted', { itemId });
@@ -398,7 +398,7 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
       } else {
         resolvedItems.push(it);
       }
-    });
+    }); //collectes missig and keeps existing
  
     if (missingIds.length > 0) {
       // Inform client that items were removed so frontend can remove them from the cart

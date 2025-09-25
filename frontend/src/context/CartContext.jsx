@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import socket from '../utils/socket';
+import socket from '../utils/socket'; // ensure socket is initialized connexts tabs
 
 const CartContext = createContext();
 
@@ -22,7 +22,7 @@ export const CartProvider = ({ children }) => {
     }
   });
 
-  useEffect(() => {
+  useEffect(() => { //register c
     try {
       localStorage.setItem('pv:carts', JSON.stringify(carts));
     } catch (e) {
@@ -74,12 +74,12 @@ export const CartProvider = ({ children }) => {
   useEffect(() => {
     // Listen for server-side bazaar item deletions so we can cleanse carts
     const handleItemDeleted = ({ itemId }) => {
-      if (!itemId) return;
+      if (!itemId) return; //removes item fro everyclassroom cart, stuent cant chck out items that no longer exist
       setCarts(prev => {
         const copy = { ...prev };
         for (const key of Object.keys(copy)) {
           copy[key] = (copy[key] || []).filter(entry => {
-            const entryId = entry._id || entry.id || entry._entryId;
+            const entryId = entry._id || entry.id || entry._entryId; //
             return entryId && String(entryId) !== String(itemId);
           });
         }
@@ -87,7 +87,7 @@ export const CartProvider = ({ children }) => {
       });
     };
  
-    const handleItemUpdated = ({ item }) => {
+    const handleItemUpdated = ({ item }) => { 
       if (!item || !item._id) return;
       setCarts(prev => {
         const copy = { ...prev };
@@ -104,8 +104,8 @@ export const CartProvider = ({ children }) => {
       });
     };
  
-    socket.on('bazaar_item_deleted', handleItemDeleted);
-    socket.on('bazaar_item_updated', handleItemUpdated);
+    socket.on('bazaar_item_deleted', handleItemDeleted); // when an item is deleted from the bazaar, remove it from all carts
+    socket.on('bazaar_item_updated', handleItemUpdated); // when an item is updated in the bazaar, update it in all carts
  
     return () => {
       socket.off('bazaar_item_deleted', handleItemDeleted);
