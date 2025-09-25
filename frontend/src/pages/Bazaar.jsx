@@ -234,23 +234,42 @@ const handleUpdateBazaar = async () => {
   }, [bazaar?._id]);
 
 
-  // Keep bazaar.items in sync after an update
+// Keep bazaar.items in sync after an update
 const handleItemUpdated = (updatedItem) => {
+  // Update bazaar
   setBazaar(prev => ({
     ...prev,
-    items: (prev?.items || []).map(it =>
+    items: prev?.items?.map(it =>
       String(it._id) === String(updatedItem._id) ? updatedItem : it
-    ),
+    ) || []
   }));
+
+  // Update filteredItems (what your grid actually maps over)
+  setFilteredItems(prev =>
+    Array.isArray(prev)
+      ? prev.map(it =>
+          String(it._id) === String(updatedItem._id) ? updatedItem : it
+        )
+      : prev
+  );
 };
 
 // Remove an item from bazaar.items after delete
-const handleItemDeleted = (itemId) => {
-  setBazaar(prev => ({
+const handleItemDeleted = (itemId) => { // itemId is the _id of the deleted item
+  // Update bazaar
+  setBazaar(prev => ({ 
     ...prev,
-    items: (prev?.items || []).filter(it => String(it._id) !== String(itemId)),
+    items: prev?.items?.filter(it => String(it._id) !== String(itemId)) || [] // in case items was undefined (shouldn't happen
   }));
+
+  // Update filteredItems (what your grid actually maps over)
+  setFilteredItems(prev =>
+    Array.isArray(prev)
+      ? prev.filter(it => String(it._id) !== String(itemId))
+      : prev
+  );
 };
+
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-base-200">
     <span className="loading loading-ring loading-lg"></span>

@@ -17,16 +17,109 @@ const ItemCard = ({
   onUpdated, 
   onDeleted, 
   bazaarIdProp, }) => {
+  const [confirmDelete, setConfirmDelete] = useState(false); // controls delete confirmation
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(false);
   const { addToCart } = useCart();
   const { user } = useAuth();
+  const [open, setOpen] = useState(false); // controls modal visibility
+  const [saving, setSaving] = useState(false); // shows spinner when saving
+  const [form, setForm] = useState({
   
+  name: item.name || '',
+  description: item.description || '',
+  price: item.price || 0,
+});
+const [editOpen, setEditOpen] = useState(false); // controls edit modal visibility
+
+const handleChange = (e) => {
+  const { name, value } = e.target;
+  setForm(f => ({ ...f, [name]: value }));
+};
+
+const submitEdit = async (e) => {
+  e.preventDefault();
+  setSaving(true);
+  try {
+    // build FormData
+    const formData = new FormData();
+    formData.append("name", form.name);
+    formData.append("description", form.description);
+    formData.append("price", form.price);
+
+    // only include image if the teacher provided one
+    if (form.image instanceof File) {
+      formData.append("image", form.image);
+    } else if (form.image) {
+      formData.append("image", form.image); // in case it's still a URL string
+    }
+
+    const { data } = await apiBazaar.patch(
+      `/classroom/${classroomId}/bazaar/${bazaarId}/items/${item._id}`,
+      formData,
+      { headers: { "Content-Type": "multipart/form-data" } }
+    );
+
+    const updated = data.item ?? data;
+    onUpdated?.(updated);  // 🔥 this updates parent immediately
+    toast.success("Item updated");
+    setEditOpen(false); // close modal
+  } catch (err) {
+    console.error("EDIT ERR:", err.response?.data || err.message);
+    toast.error(err?.response?.data?.error || "Failed to update");
+  } finally {
+    setSaving(false);
+  }
+};
+
+
+
+
   const bazaarId = item?.bazaar?._id ||  item?.bazaar || bazaarIdProp; // Handle populated or unpopulated bazaar field 
+
+  // Edit handler
+const handleEdit = async () => {
+  const bazaarId = item?.bazaar?._id || item?.bazaar || bazaarIdProp;
+  if (!classroomId) return toast.error('Missing classroomId');
+  if (!bazaarId)    return toast.error('Missing bazaarId');
+  if (!item?._id)   return toast.error('Missing item id');
+
+  const newName = window.prompt('New name:', item.name ?? '');
+  if (newName === null) return; // cancelled
+
+  const newPriceStr = window.prompt('New price (number):', String(item.price ?? 0));
+  if (newPriceStr === null) return; // cancelled
+  const newPrice = Number(newPriceStr);
+  if (Number.isNaN(newPrice)) return toast.error('Price must be a number');
+
+  const newDesc = window.prompt('New description:', item.description ?? '');
+  if (newDesc === null) return; // cancelled
+
+  // send only changed fields
+  const payload = {};
+  if (newName !== item.name) payload.name = newName;
+  if (newPrice !== item.price) payload.price = newPrice;
+  if ((newDesc ?? '') !== (item.description ?? '')) payload.description = newDesc;
+
+  if (Object.keys(payload).length === 0) {
+    toast('No changes to save');
+    return;
+  }
+
+  const url = `/classroom/${classroomId}/bazaar/${bazaarId}/items/${item._id}`;
+  try {
+    const { data } = await apiBazaar.patch(url, payload);  // teacher-only PATCH
+    const updated = data.item ?? data;
+    onUpdated?.(updated);                                   // update UI immediately
+    toast.success('Item updated');
+  } catch (err) {
+    toast.error(err?.response?.data?.error || 'Failed to update');
+  }
+};
 
 
   // Delete handler for Teacher
-const confirmDelete = async () => {
+const confirmDeleteItem = async () => {
   // Ask user for confirmation
   if (!window.confirm('Delete this item? This cannot be undone.')) return; // if cancel, stop here
 
@@ -41,25 +134,20 @@ const confirmDelete = async () => {
   // Debug log so we can check what IDs/URL are being used
   console.log('DELETE →', `/api/bazaar${url}`, { classroomId, bazaarId, itemId: item._id }); // helpful debug info
 
-  try {
-    // Call backend to delete item
-    const resp = await apiBazaar.delete(url); // send DELETE request
+try {
+  const resp = await apiBazaar.delete(url); // send DELETE request
+  console.log('DELETE OK:', resp?.status, resp?.data); // debug: confirm server response
 
-    // Debug log to verify response
-    console.log('DELETE OK:', resp?.status, resp?.data); // logs status and data on success
+  onDeleted?.(item._id); // tell parent to remove this item from the list immediately
+  toast.success('Item deleted'); // show success
+} catch (err) {
+  const status = err?.response?.status; // HTTP code
+  const data = err?.response?.data;     // JSON payload
+  console.error('DELETE ERR:', status, data); // debug: log error
 
-    // Update parent UI so item disappears
-    onDeleted?.(item._id); // call parent handler if provided
-    toast.success('Item deleted'); // show success message
-  } catch (err) {
-    // If error, log exact details
-    const status = err?.response?.status; // HTTP status code
-    const data = err?.response?.data;     // server response JSON
-    console.error('DELETE ERR:', status, data); // log error info
-
-    // Default error fallback
-    toast.error(data?.error || 'Failed to delete'); // show error
-  }
+  // Show a readable error
+  toast.error(data?.error || 'Failed to delete'); // toast fallback
+}
 };
 
   const imgSrc = resolveImageSrc(item?.image);
@@ -158,15 +246,23 @@ const confirmDelete = async () => {
 
         {role === 'teacher' && user?._id === teacherId && (
           // Only the teacher who owns this classroom sees Edit/Delete
+          //we were using regular window pop up. 
           <div className="flex gap-2 mt-2">
-            <button className="btn btn-sm btn-outline" onClick={() => setOpen(true)}> 
+            <button className="btn btn-sm btn-outline" onClick={() => setEditOpen(true)}>
               <Pencil className="w-4 h-4" /> Edit
             </button>
-            <button className="btn btn-sm btn-error" onClick={confirmDelete}>
+
+            <button
+              className="btn btn-sm btn-error"
+              onClick={() => setConfirmDelete(true)}
+            >
               <Trash2 className="w-4 h-4" /> Delete
             </button>
+
           </div>
         )}
+
+        
         {role === 'student' && (
           <button
             onClick={() => addToCart(item)}
@@ -176,6 +272,110 @@ const confirmDelete = async () => {
           </button>
         )}
       </div>
+      {editOpen && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div className="card w-full max-w-md bg-base-100 shadow-xl rounded-2xl">
+      <div className="card-body gap-4">
+        <h3 className="text-xl font-bold">Edit Item</h3>
+        <form onSubmit={submitEdit} className="space-y-3">
+          <label className="form-control">
+            <span className="label-text">Name</span>
+            <input
+              name="name"
+              value={form.name}
+              onChange={handleChange}
+              className="input input-bordered"
+              required
+            />
+          </label>
+
+          <label className="form-control">
+            <span className="label-text">Description</span>
+            <textarea
+              name="description"
+              value={form.description}
+              onChange={handleChange}
+              className="textarea textarea-bordered"
+              rows={3}
+            />
+          </label>
+
+          <label className="form-control">
+            <span className="label-text">Price</span>
+            <input
+              type="number"
+              name="price"
+              value={form.price}
+              onChange={handleChange}
+              className="input input-bordered"
+              required
+            />
+          </label>
+
+          <label className="form-control">
+            <span className="label-text">Image</span>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files[0];
+                setForm(f => ({ ...f, image: file }));
+              }}
+            />
+
+          </label>
+  
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => setEditOpen(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className={`btn btn-success ${saving ? 'btn-disabled' : ''}`}
+            >
+              {saving ? <span className="loading loading-spinner loading-sm" /> : 'Save'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+)}
+{confirmDelete && (
+  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+    <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
+      <h2 className="text-lg font-semibold mb-4 text-center">Delete Item</h2>
+      <p className="text-sm text-center text-gray-600">
+        Are you sure you want to delete <strong>{item.name}</strong>? <br />
+        This action cannot be undone.
+      </p>
+      <div className="mt-6 flex justify-center gap-4">
+        <button
+          className="btn btn-sm"
+          onClick={() => setConfirmDelete(false)}
+        >
+          Cancel
+        </button>
+        <button
+          className="btn btn-sm btn-error"
+          onClick={() => {
+            confirmDeleteItem(); // call the delete function
+            setConfirmDelete(false);
+          }}
+        >
+          Yes, Delete
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+
     </div>
   );
 };
