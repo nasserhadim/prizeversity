@@ -693,6 +693,12 @@ const TeacherView = ({
                                     </button>
                                   )}
                                 </div>
+                                {uc.completedChallenges?.[5] && (
+                                  <div className="text-xs text-green-600 font-semibold">✅ Challenge Complete</div>
+                                )}
+                                {!uc.completedChallenges?.[5] && (uc.challenge6Attempts || 0) >= 3 && (
+                                  <div className="text-xs text-red-600 font-semibold">❌ Challenge Failed</div>
+                                )}
                               </div>
                             )}
                             {workingOnChallenge === 6 && (
@@ -717,6 +723,12 @@ const TeacherView = ({
                                 <div className="text-xs text-gray-500">
                                   Hangman Challenge {challenge7Data[uc.uniqueId]?.uniqueId ? `(ID: ${challenge7Data[uc.uniqueId].uniqueId})` : ''}
                                 </div>
+                                {uc.completedChallenges?.[6] && (
+                                  <div className="text-xs text-green-600 font-semibold">✅ Challenge Complete</div>
+                                )}
+                                {!uc.completedChallenges?.[6] && (uc.challenge7Attempts || 0) >= 3 && (
+                                  <div className="text-xs text-red-600 font-semibold">❌ Challenge Failed</div>
+                                )}
                               </div>
                             )}
                           </td>
@@ -961,9 +973,36 @@ const TeacherView = ({
                             )}
                           </td>
                           <td>
-                            <div className={`badge ${uc.completedChallenges?.[workingOnChallenge] ? 'badge-success' : 'badge-warning'} whitespace-nowrap`}>
-                              {uc.completedChallenges?.[workingOnChallenge] ? 'Completed' : 'In Progress'}
-                            </div>
+                            {(() => {
+                              if (uc.completedChallenges?.[workingOnChallenge]) {
+                                return (
+                                  <div className="badge badge-success whitespace-nowrap">
+                                    Completed
+                                  </div>
+                                );
+                              }
+                              // Right now, you can only "fail" on challenges 6 and 7
+                              let isFailed = false;
+                              if (workingOnChallenge === 5) { 
+                                isFailed = (uc.challenge6Attempts || 0) >= 3;
+                              } else if (workingOnChallenge === 6) {
+                                isFailed = (uc.challenge7Attempts || 0) >= 3;
+                              }
+                              
+                              if (isFailed) {
+                                return (
+                                  <div className="badge badge-error whitespace-nowrap">
+                                    Failed
+                                  </div>
+                                );
+                              }
+                              
+                              return (
+                                <div className="badge badge-warning whitespace-nowrap">
+                                  In Progress
+                                </div>
+                              );
+                            })()} 
                           </td>
                           <td>
                             <div className="dropdown dropdown-end">
