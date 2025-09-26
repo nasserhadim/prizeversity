@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Shield, Settings, Users, Eye, EyeOff, UserPlus, Edit3 } from 'lucide-react';
 import { getCurrentChallenge } from '../../utils/challengeUtils';
 import { getThemeClasses } from '../../utils/themeUtils';
-import { updateDueDate, toggleChallengeVisibility } from '../../API/apiChallenge';
+import { updateDueDate, toggleChallengeVisibility, resetStudentChallenge, resetSpecificChallenge } from '../../API/apiChallenge';
 import { API_BASE } from '../../config/api';
 import ChallengeUpdateModal from './modals/ChallengeUpdateModal';
 import toast from 'react-hot-toast';
@@ -565,6 +565,7 @@ const TeacherView = ({
                       <th className="hidden sm:table-cell whitespace-nowrap">Started At</th>
                       <th className="hidden lg:table-cell whitespace-nowrap">Completed At</th>
                       <th className="whitespace-nowrap">Status</th>
+                      <th className="whitespace-nowrap">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -962,6 +963,64 @@ const TeacherView = ({
                           <td>
                             <div className={`badge ${uc.completedChallenges?.[workingOnChallenge] ? 'badge-success' : 'badge-warning'} whitespace-nowrap`}>
                               {uc.completedChallenges?.[workingOnChallenge] ? 'Completed' : 'In Progress'}
+                            </div>
+                          </td>
+                          <td>
+                            <div className="dropdown dropdown-end">
+                              <div tabIndex={0} role="button" className="btn btn-xs btn-outline btn-warning gap-1 hover:btn-warning">
+                                🔄 Reset ▼
+                              </div>
+                              <ul tabIndex={0} className="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow border border-base-300">
+                                <li className="menu-title">
+                                  <span className="text-xs text-gray-500">Reset Options</span>
+                                </li>
+                                {[0, 1, 2, 3, 4, 5, 6].map((challengeIdx) => {
+                                  const challengeNames = ['Challenge 1: Caesar Cipher', 'Challenge 2: GitHub OSINT', 'Challenge 3: C++ Debug', 'Challenge 4: Forensics', 'Challenge 5: WayneAWS', 'Challenge 6: Haystack', 'Challenge 7: Hangman'];
+                                  const isCompleted = uc.completedChallenges?.[challengeIdx];
+                                  const isStarted = uc.challengeStartedAt?.[challengeIdx] || (challengeIdx === 0 && uc.startedAt);
+                                  
+                                  return (
+                                    <li key={challengeIdx}>
+                                      <button
+                                        className={`text-xs ${!isStarted ? 'text-gray-400' : isCompleted ? 'text-green-600' : 'text-blue-600'}`}
+                                        disabled={!isStarted}
+                                        onClick={async () => {
+                                          if (confirm(`Reset ${challengeNames[challengeIdx]} for ${uc.userId.firstName} ${uc.userId.lastName}? This will clear their progress for this specific challenge.`)) {
+                                            try {
+                                              await resetSpecificChallenge(classroomId, uc.userId._id, challengeIdx);
+                                              toast.success(`Reset ${challengeNames[challengeIdx]} for ${uc.userId.firstName} ${uc.userId.lastName}`);
+                                              await fetchChallengeData();
+                                            } catch (error) {
+                                              toast.error(`Failed to reset challenge: ${error.message}`);
+                                            }
+                                          }
+                                        }}
+                                      >
+                                        {isCompleted ? '✅' : isStarted ? '🔄' : '⏹️'} {challengeNames[challengeIdx]}
+                                      </button>
+                                    </li>
+                                  );
+                                })}
+                                <div className="divider my-1"></div>
+                                <li>
+                                  <button
+                                    className="text-xs text-red-600 font-semibold"
+                                    onClick={async () => {
+                                      if (confirm(`Are you sure you want to reset ALL challenges for ${uc.userId.firstName} ${uc.userId.lastName}? This will clear all their progress and they will start from Challenge 1.`)) {
+                                        try {
+                                          await resetStudentChallenge(classroomId, uc.userId._id);
+                                          toast.success(`Reset all challenges for ${uc.userId.firstName} ${uc.userId.lastName}`);
+                                          await fetchChallengeData();
+                                        } catch (error) {
+                                          toast.error(`Failed to reset all challenges: ${error.message}`);
+                                        }
+                                      }
+                                    }}
+                                  >
+                                    🗑️ Reset ALL Challenges
+                                  </button>
+                                </li>
+                              </ul>
                             </div>
                           </td>
                         </tr>

@@ -329,3 +329,51 @@ export const startChallenge = async (classroomId, challengeIndex) => {
     throw error;
   }
 };
+
+export const resetStudentChallenge = async (classroomId, studentId) => {
+  try {
+    const response = await fetch(`${API_BASE}/api/challenges/${classroomId}/reset-student`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ studentId }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error resetting student challenge:', error);
+    throw error;
+  }
+};
+
+export const resetSpecificChallenge = async (classroomId, studentId, challengeIndex) => {
+  try {
+    const response = await fetch(`${API_BASE}/api/challenges/${classroomId}/reset-student-challenge`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ studentId, challengeIndex }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error resetting specific challenge:', error);
+    throw error;
+  }
+};
