@@ -29,6 +29,8 @@ const UserChallengeSchema = new mongoose.Schema({
   challenge3Attempts: { type: Number, default: 0 },
   challenge3MaxAttempts: { type: Number, default: 5 },
   challenge4Password: { type: String },
+  challenge6Attempts: { type: Number, default: 0 },
+  challenge7Attempts: { type: Number, default: 0 },
   progress: { type: Number, default: 0, min: 0, max: 5 }, 
   completedAt: { type: Date },
   challengeCompletedAt: { type: [Date], default: [] },
@@ -41,7 +43,8 @@ const UserChallengeSchema = new mongoose.Schema({
   completedChallenges: { type: [Boolean], default: [false, false, false, false, false, false] },
   challenge7Progress: {
     revealedWords: { type: [String], default: [] },
-    totalWords: { type: Number, default: 0 }
+    totalWords: { type: Number, default: 0 },
+    wordAttempts: { type: Map, of: Number, default: new Map() } 
   },
 
 }, { _id: true });
