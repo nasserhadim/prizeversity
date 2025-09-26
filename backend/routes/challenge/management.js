@@ -619,8 +619,7 @@ router.post('/:classroomId/reset-student', ensureAuthenticated, ensureTeacher, a
     userChallenge.challenge7Attempts = 0;
     userChallenge.challenge7Progress = {
       revealedWords: [],
-      totalWords: 0,
-      wordAttempts: new Map()
+      totalWords: 0
     };
 
     await challenge.save();
@@ -715,8 +714,7 @@ router.post('/:classroomId/reset-student-challenge', ensureAuthenticated, ensure
         userChallenge.challenge7Attempts = 0;
         userChallenge.challenge7Progress = {
           revealedWords: [],
-          totalWords: 0,
-          wordAttempts: new Map()
+          totalWords: 0
         };
         break;
     }

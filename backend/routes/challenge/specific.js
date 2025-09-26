@@ -407,12 +407,8 @@ router.get('/challenge7/:uniqueId', ensureAuthenticated, async (req, res) => {
       return res.status(404).json({ message: 'User challenge not found' });
     }
 
-    if (userRole !== 'teacher' && userChallenge.challenge7Progress?.wordAttempts) {
-      for (const [word, attempts] of userChallenge.challenge7Progress.wordAttempts) {
-        if (attempts >= 3) {
-          return res.status(401).json({ message: 'Challenge failed - maximum attempts reached' });
-        }
-      }
+    if (userRole !== 'teacher' && userChallenge.challenge7Attempts >= 3 && (!userChallenge.completedChallenges || !userChallenge.completedChallenges[6])) {
+      return res.status(401).json({ message: 'Challenge failed - maximum attempts reached' });
     }
 
     if (userChallenge.completedChallenges && userChallenge.completedChallenges[6]) {
@@ -506,13 +502,6 @@ router.get('/challenge7/:uniqueId', ensureAuthenticated, async (req, res) => {
         hasQuote: !!hangmanData.quote,
         hasAuthor: !!hangmanData.author
       });
-      
-      const wordAttemptsObj = {};
-      if (userChallenge.challenge7Progress?.wordAttempts) {
-        for (const [word, attempts] of userChallenge.challenge7Progress.wordAttempts) {
-          wordAttemptsObj[word] = attempts;
-        }
-      }
 
       res.json({
         quote: hangmanData.quote,
@@ -522,7 +511,7 @@ router.get('/challenge7/:uniqueId', ensureAuthenticated, async (req, res) => {
         uniqueId: uniqueId,
         isCompleted: false,
         challenge7Progress: userChallenge.challenge7Progress,
-        wordAttempts: wordAttemptsObj, 
+        totalAttempts: userChallenge.challenge7Attempts || 0,
       });
     } catch (error) {
       console.error('Error generating Challenge 7 data:', error);
