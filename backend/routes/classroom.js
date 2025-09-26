@@ -1004,4 +1004,60 @@ router.post('/:id/students/:studentId/unban', ensureAuthenticated, async (req, r
   }
 });
 
+// GET classroom feedback reward config (teacher only)
+router.get('/:id/feedback-reward', ensureAuthenticated, async (req, res) => {
+  try {
+    const c = await Classroom.findById(req.params.id).select('teacher feedbackRewardEnabled feedbackRewardBits feedbackRewardApplyGroupMultipliers feedbackRewardApplyPersonalMultipliers feedbackRewardAllowAnonymous');
+    if (!c) return res.status(404).json({ error: 'Not found' });
+    // Only the teacher may view this config
+    if (c.teacher.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    res.json({
+      feedbackRewardEnabled: !!c.feedbackRewardEnabled,
+      feedbackRewardBits: c.feedbackRewardBits || 0,
+      feedbackRewardApplyGroupMultipliers: !!c.feedbackRewardApplyGroupMultipliers,
+      feedbackRewardApplyPersonalMultipliers: !!c.feedbackRewardApplyPersonalMultipliers,
+      feedbackRewardAllowAnonymous: !!c.feedbackRewardAllowAnonymous
+    });
+  } catch (err) {
+    console.error('[Get feedback-reward] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PATCH update classroom feedback reward config (teacher only)
+router.patch('/:id/feedback-reward', ensureAuthenticated, async (req, res) => {
+  try {
+    const { feedbackRewardEnabled, feedbackRewardBits, feedbackRewardApplyGroupMultipliers, feedbackRewardApplyPersonalMultipliers, feedbackRewardAllowAnonymous } = req.body;
+    const c = await Classroom.findById(req.params.id);
+    if (!c) return res.status(404).json({ error: 'Not found' });
+    if (c.teacher.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    if (feedbackRewardEnabled !== undefined) c.feedbackRewardEnabled = !!feedbackRewardEnabled;
+    if (feedbackRewardBits !== undefined) c.feedbackRewardBits = Math.max(0, Number(feedbackRewardBits) || 0);
+    if (feedbackRewardApplyGroupMultipliers !== undefined) c.feedbackRewardApplyGroupMultipliers = !!feedbackRewardApplyGroupMultipliers;
+    if (feedbackRewardApplyPersonalMultipliers !== undefined) c.feedbackRewardApplyPersonalMultipliers = !!feedbackRewardApplyPersonalMultipliers;
+    if (feedbackRewardAllowAnonymous !== undefined) c.feedbackRewardAllowAnonymous = !!feedbackRewardAllowAnonymous;
+
+    await c.save();
+    // emit classroom_update so frontends can react (consistent with other settings)
+    const populated = await Classroom.findById(c._id).populate('teacher', 'email').populate('students', 'email');
+    try { req.app.get('io').to(`classroom-${c._id}`).emit('classroom_update', populated); } catch(e){/*ignore*/}
+
+    res.json({
+      feedbackRewardEnabled: c.feedbackRewardEnabled,
+      feedbackRewardBits: c.feedbackRewardBits,
+      feedbackRewardApplyGroupMultipliers: c.feedbackRewardApplyGroupMultipliers,
+      feedbackRewardApplyPersonalMultipliers: c.feedbackRewardApplyPersonalMultipliers,
+      feedbackRewardAllowAnonymous: c.feedbackRewardAllowAnonymous
+    });
+  } catch (err) {
+    console.error('[Patch feedback-reward] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;
