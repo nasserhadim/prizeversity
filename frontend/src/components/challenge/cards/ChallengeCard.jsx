@@ -29,6 +29,31 @@ const ChallengeCard = ({
   const isCompleted = userChallenge?.completedChallenges?.[challengeIndex] || false;
   const isChallengeStarted = (userChallenge?.currentChallenge !== undefined && userChallenge?.currentChallenge === challengeIndex) || isCompleted;
   
+  const isFailed = (() => {
+    if (isCompleted) return false;
+    
+    if (challengeIndex === 2) {
+      const maxAttempts = userChallenge?.challenge3MaxAttempts || 5;
+      const maxAttemptsReached = (userChallenge?.challenge3Attempts || 0) >= maxAttempts;
+      
+      let timeExpired = false;
+      if (userChallenge?.challenge3StartTime) {
+        const startTime = new Date(userChallenge.challenge3StartTime);
+        const currentTime = new Date();
+        const timeElapsed = (currentTime - startTime) / (1000 * 60);
+        timeExpired = timeElapsed > 120;
+      }
+      
+      return maxAttemptsReached || timeExpired;
+    } else if (challengeIndex === 5) {
+      return (userChallenge?.challenge6Attempts || 0) >= 3;
+    } else if (challengeIndex === 6) {
+      return (userChallenge?.challenge7Attempts || 0) >= 3;
+    }
+    
+    return false;
+  })();
+  
   const challengeId = CHALLENGE_IDS[challengeIndex];
   const rewardData = getRewardDataForChallenge(challengeIndex, challengeData, userChallenge, CHALLENGE_NAMES);
   const challengeRewards = rewardData?.rewards;
@@ -124,7 +149,9 @@ const ChallengeCard = ({
       <div className={`collapse collapse-arrow ${
         isCompleted 
           ? colors.completedBg 
-          : colors.cardBg 
+          : isFailed 
+            ? isDark ? 'bg-red-900/20 border border-red-800' : 'bg-red-50 border border-red-200'
+            : colors.cardBg 
       }`}>
       <input type="checkbox" defaultChecked={false} className="peer" />
       
@@ -134,13 +161,15 @@ const ChallengeCard = ({
         <div className="flex flex-col gap-2 sm:hidden">
           <div className="flex items-center gap-2">
             <div className={`badge badge-sm ${
-              isCompleted ? 'badge-success' : 'badge-primary' 
+              isCompleted ? 'badge-success' : isFailed ? 'badge-error' : 'badge-primary' 
             }`}>
               Challenge {challengeIndex + 1}
             </div>
             <div className={`text-xs ${isDark ? 'text-base-content/50' : 'text-gray-400'}`}>
               {isCompleted 
                 ? '✅ Completed' 
+                : isFailed 
+                  ? '❌ Failed'
                 : isChallengeStarted 
                   ? '🔓 In Progress'
                   : '⏳ Not Started' 
@@ -175,7 +204,7 @@ const ChallengeCard = ({
         {/* Desktop layout - horizontal */}
         <div className="hidden sm:flex items-center gap-3 text-lg font-medium">
           <div className={`badge badge-lg ${
-            isCompleted ? 'badge-success' : 'badge-primary' 
+            isCompleted ? 'badge-success' : isFailed ? 'badge-error' : 'badge-primary' 
           }`}>
             Challenge {challengeIndex + 1}
           </div>
@@ -205,6 +234,8 @@ const ChallengeCard = ({
           <div className={`text-sm ${isDark ? 'text-base-content/50' : 'text-gray-400'}`}>
             {isCompleted 
               ? '✅ Completed' 
+              : isFailed 
+                ? '❌ Failed'
               : isChallengeStarted 
                 ? '🔓 In Progress'
                 : '⏳ Not Started' 
@@ -257,7 +288,7 @@ const ChallengeCard = ({
           </p>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            {!isCompleted && !isChallengeStarted && (
+            {!isCompleted && !isChallengeStarted && !isFailed && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -270,10 +301,16 @@ const ChallengeCard = ({
                 Start Challenge
               </button>
             )}
-            {isChallengeStarted && !isCompleted && (
+            {isChallengeStarted && !isCompleted && !isFailed && (
               <div className="badge badge-success gap-2 w-full sm:w-auto justify-center sm:justify-start">
                 <Play className="w-3 h-3" />
                 Working on this challenge
+              </div>
+            )}
+            {isFailed && (
+              <div className="badge badge-error gap-2 w-full sm:w-auto justify-center sm:justify-start">
+                <AlertTriangle className="w-3 h-3" />
+                Challenge Failed
               </div>
             )}
           </div>
