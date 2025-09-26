@@ -715,12 +715,6 @@ const TeacherView = ({
                                 {!uc.completedChallenges?.[5] && (uc.challenge6Attempts || 0) >= 3 && (
                                   <div className="text-xs text-red-600 font-semibold">❌ Challenge Failed</div>
                                 )}
-                                {uc.completedChallenges?.[5] && (
-                                  <div className="text-xs text-green-600 font-semibold">✅ Challenge Complete</div>
-                                )}
-                                {!uc.completedChallenges?.[5] && (uc.challenge6Attempts || 0) >= 3 && (
-                                  <div className="text-xs text-red-600 font-semibold">❌ Challenge Failed</div>
-                                )}
                               </div>
                             )}
                             {workingOnChallenge === 6 && (

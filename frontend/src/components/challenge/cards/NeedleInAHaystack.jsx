@@ -35,6 +35,7 @@ const NeedleInAHaystackChallenge = ({ userChallenge, isDark, onExternalLinkClick
         <div className="space-y-2 mt-4">
           <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>🎯 Locate your target word</p>
           <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>🔢 Determine its required number</p>
+          <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>🔄 <strong>Attempts:</strong> Maximum 3 tries</p>
           <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>🛠️ Use any resources at your disposal</p>
         </div>
       </div>
