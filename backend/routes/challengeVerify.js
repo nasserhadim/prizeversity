@@ -1,4 +1,5 @@
 const express = require('express');
+const axios = require('axios');
 const router = express.Router();
 
 // POST /verify-wayneaws - Proxy verification request to WayneAWS
@@ -15,25 +16,17 @@ router.post('/verify-wayneaws', async (req, res) => {
     }
 
     // Make request to WayneAWS API
-    const response = await fetch('http://wayneaws.dev/api/verify', {
-      method: 'POST',
+    const response = await axios.post('http://wayneaws.dev/api/verify', {
+      username: username.trim(),
+      secret: secret.trim()
+    }, {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        username: username.trim(),
-        secret: secret.trim()
-      })
+      timeout: 10000 // 10 second timeout
     });
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      return res.status(response.status).json({
-        success: false,
-        message: data.message || 'Verification failed'
-      });
-    }
+    const data = response.data;
 
     // Return the verification result
     res.json({
@@ -44,10 +37,23 @@ router.post('/verify-wayneaws', async (req, res) => {
 
   } catch (error) {
     console.error('Error verifying WayneAWS credentials:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error during verification'
-    });
+    
+    if (error.response) {
+      return res.status(error.response.status).json({
+        success: false,
+        message: error.response.data?.message || 'Verification failed'
+      });
+    } else if (error.request) {
+      return res.status(503).json({
+        success: false,
+        message: 'WayneAWS service unavailable'
+      });
+    } else {
+      return res.status(500).json({
+        success: false,
+        message: 'Internal server error during verification'
+      });
+    }
   }
 });
 
