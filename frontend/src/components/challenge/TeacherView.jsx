@@ -642,6 +642,22 @@ const TeacherView = ({
                                 {uc.completedChallenges?.[2] && (
                                   <div className="text-xs text-green-600 font-semibold">✅ Challenge Complete</div>
                                 )}
+                                {!uc.completedChallenges?.[2] && (() => {
+                                  const maxAttempts = uc.challenge3MaxAttempts || 5;
+                                  const maxAttemptsReached = (uc.challenge3Attempts || 0) >= maxAttempts;
+                                  
+                                  let timeExpired = false;
+                                  if (uc.challenge3StartTime) {
+                                    const startTime = new Date(uc.challenge3StartTime);
+                                    const currentTime = new Date();
+                                    const timeElapsed = (currentTime - startTime) / (1000 * 60);
+                                    timeExpired = timeElapsed > 120;
+                                  }
+                                  
+                                  return (maxAttemptsReached || timeExpired);
+                                })() && (
+                                  <div className="text-xs text-red-600 font-semibold">❌ Challenge Failed</div>
+                                )}
                               </div>
                             )}
                             {workingOnChallenge === 3 && (
@@ -981,13 +997,25 @@ const TeacherView = ({
                                   </div>
                                 );
                               }
-                              // Right now, you can only "fail" on challenges 6 and 7
-                              let isFailed = false;
-                              if (workingOnChallenge === 5) { 
-                                isFailed = (uc.challenge6Attempts || 0) >= 3;
-                              } else if (workingOnChallenge === 6) {
-                                isFailed = (uc.challenge7Attempts || 0) >= 3;
-                              }
+                                let isFailed = false;
+                                if (workingOnChallenge === 2) { 
+                                  const maxAttempts = uc.challenge3MaxAttempts || 5;
+                                  const maxAttemptsReached = (uc.challenge3Attempts || 0) >= maxAttempts;
+                                  
+                                  let timeExpired = false;
+                                  if (uc.challenge3StartTime) {
+                                    const startTime = new Date(uc.challenge3StartTime);
+                                    const currentTime = new Date();
+                                    const timeElapsed = (currentTime - startTime) / (1000 * 60);
+                                    timeExpired = timeElapsed > 120;
+                                  }
+                                  
+                                  isFailed = maxAttemptsReached || timeExpired;
+                                } else if (workingOnChallenge === 5) { 
+                                  isFailed = (uc.challenge6Attempts || 0) >= 3;
+                                } else if (workingOnChallenge === 6) { 
+                                  isFailed = (uc.challenge7Attempts || 0) >= 3;
+                                }
                               
                               if (isFailed) {
                                 return (
