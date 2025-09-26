@@ -1144,6 +1144,8 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
     };
 
     // Notify the student (targeted notification). Keep this simple & readable for the student.
+    const fullName = `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.email;
+
     const studentNotification = await Notification.create({
       user: student._id,
       actionBy: req.user._id,
@@ -1165,7 +1167,7 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
         user: classroom.teacher, // teacher receives the change record
         actionBy: req.user._id,
         type: 'stats_adjusted',
-        message: `Updated stats for ${student.firstName || student.email}: ${formatChangeSummary(changes) || ''}`,
+        message: `Updated stats for ${fullName}: ${formatChangeSummary(changes) || ''}`,
         targetUser: student._id,
         changes,
         classroom: classId,
