@@ -93,7 +93,10 @@ router.get('/student/:id', ensureAuthenticated, async (req, res) => {
       attackPower: attackCount,
       // Keep existing computed stats from items
       doubleEarnings: hasEffect('doubleEarnings'),
-      discountShop: hasEffect('discountShop') ? 20 : 0,
+      // Prefer teacher-applied discount stored on passiveAttributes.discount; fall back to item effects
+      discountShop: (user.passiveAttributes?.discount != null)
+        ? user.passiveAttributes.discount
+        : (hasEffect('discountShop') ? 20 : 0),
       passiveItemsCount: passiveItems.length
     });
   } catch (err) {

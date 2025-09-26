@@ -12,12 +12,20 @@ const Challenge6Site = () => {
   const [submitMessage, setSubmitMessage] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
   const [rewardData, setRewardData] = useState(null);
+  const [attemptsRemaining, setAttemptsRemaining] = useState(3);
+  const [maxAttemptsReached, setMaxAttemptsReached] = useState(false);
 
   useEffect(() => {
     const fetchChallengeData = async () => {
       try {
-        const response = await fetch(`/api/challenges/challenge6/${uniqueId}`, {
-          credentials: 'include'
+        const response = await fetch(`/api/challenges/challenge6/${uniqueId}?t=${Date.now()}`, {
+          credentials: 'include',
+          cache: 'no-cache',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          }
         });
         
         if (response.ok) {
@@ -29,6 +37,12 @@ const Challenge6Site = () => {
           }
           
           setChallengeData(data);
+          if (data.attemptsRemaining !== undefined) {
+            setAttemptsRemaining(data.attemptsRemaining);
+          }
+        } else if (response.status === 401) {
+          setError('Unauthorized - Maximum attempts reached');
+          setMaxAttemptsReached(true);
         } else {
           setError('Failed to load challenge data');
         }
@@ -83,8 +97,15 @@ const Challenge6Site = () => {
         setSubmitMessage('✅ CORRECT! Challenge completed successfully!');
         setIsSuccess(true);
         setRewardData(result.rewards);
+      } else if (result.maxAttemptsReached) {
+        setSubmitMessage('❌ MAXIMUM ATTEMPTS REACHED. Access denied.');
+        setMaxAttemptsReached(true);
       } else {
-        setSubmitMessage('❌ INCORRECT. Try again...');
+        const attemptsText = result.attemptsRemaining ? ` (${result.attemptsRemaining} attempts remaining)` : '';
+        setSubmitMessage(`❌ INCORRECT. Try again...${attemptsText}`);
+        if (result.attemptsRemaining !== undefined) {
+          setAttemptsRemaining(result.attemptsRemaining);
+        }
       }
     } catch (error) {
       setSubmitMessage('⚠️ Connection error. Please try again.');
@@ -216,7 +237,7 @@ const Challenge6Site = () => {
           
           <button
             onClick={handleSubmit}
-            disabled={submitting || !input.trim()}
+            disabled={submitting || !input.trim() || maxAttemptsReached}
             className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-mono py-3 px-4 rounded border border-green-500 transition-colors"
           >
             {submitting ? (
@@ -229,11 +250,16 @@ const Challenge6Site = () => {
             )}
           </button>
           
-          <div className="text-xs font-mono text-gray-500 space-y-1">
+            <div className="text-xs font-mono text-gray-500 space-y-1">
             <div className="flex items-center justify-center gap-2">
               <span className="text-green-400">⏎</span>
               <span>Press ENTER to submit</span>
             </div>
+            {!maxAttemptsReached && attemptsRemaining < 3 && (
+              <div className="text-center text-orange-400">
+                Attempts remaining: {attemptsRemaining}/3
+              </div>
+            )}
             {submitMessage && (
               <div className={`text-center ${
                 submitMessage.includes('✅') ? 'text-green-400' : 
