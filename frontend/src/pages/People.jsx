@@ -48,6 +48,7 @@ const People = () => {
   const [siphonTimeoutHours, setSiphonTimeoutHours] = useState(72);
   const [showUnassigned, setShowUnassigned] = useState(false);
   const [unassignedSearch, setUnassignedSearch] = useState('');
+  const [groupSearch, setGroupSearch] = useState(''); // New state for group search
 
   const navigate = useNavigate();
 
@@ -1334,7 +1335,18 @@ const visibleCount = filteredStudents.length;
 
         {tab === 'groups' && (
           <div className="space-y-6 w-full min-w-0">
-            {/* Add Unassigned Students Filter */}
+            {/* Add search input for groups */}
+    <div className="flex items-center gap-2 mb-4">
+      <input
+        type="text"
+        placeholder="Search groups..."
+        className="input input-bordered flex-1"
+        value={groupSearch}
+        onChange={(e) => setGroupSearch(e.target.value)}
+      />
+    </div>
+
+    {/* Add Unassigned Students Filter */}
     {(user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'student') && (
       <div className="card bg-base-100 shadow-sm border">
         <div className="card-body p-4">
@@ -1412,13 +1424,56 @@ const visibleCount = filteredStudents.length;
     {groupSets.length === 0 ? (
       <p>No groups available yet.</p>
     ) : (
-      groupSets.map((gs) => (
+      groupSets
+        // Keep a groupset if:
+        // - no query, OR groupset name matches, OR any group name matches, OR any member name/email matches
+        .filter(gs => {
+          const q = groupSearch.toLowerCase().trim(); // Define q here
+          if (!q) return true;
+          if ((gs.name || '').toLowerCase().includes(q)) return true;
+          if (Array.isArray(gs.groups) && gs.groups.some(g => (g.name || '').toLowerCase().includes(q))) return true;
+          if (Array.isArray(gs.groups) && gs.groups.some(g => (g.members || []).some(m => {
+            const memberUser = m._id || {};
+            const memberName = (typeof memberUser === 'object' && memberUser) ? `${memberUser.firstName || ''} ${memberUser.lastName || ''}`.trim() : '';
+            const memberEmail = (typeof memberUser === 'object' && memberUser) ? (memberUser.email || '') : '';
+            const hay = `${memberName || ''} ${memberEmail || ''}`.toLowerCase();
+            return hay.includes(q);
+          }))) return true;
+          return false;
+        })
+        .map((gs) => (
         <div key={gs._id} className="w-full min-w-0">
           <h2 className="text-xl font-semibold">{gs.name}</h2>
           <div className="mt-2 grid grid-cols-1 gap-4 w-full">
-            {gs.groups.map((group) => (
+            {gs.groups
+              // Keep a group if:
+              // - no query, OR group name matches, OR any member name/email matches
+              .filter(group => {
+                const q = groupSearch.toLowerCase().trim(); // Define q here
+                if (!q) return true;
+                if ((group.name || '').toLowerCase().includes(q)) return true;
+                if ((group.members || []).some(m => {
+                  const memberUser = m._id || {};
+                  const memberName = (typeof memberUser === 'object' && memberUser) ? `${memberUser.firstName || ''} ${memberUser.lastName || ''}`.trim() : '';
+                  const memberEmail = (typeof memberUser === 'object' && memberUser) ? (memberUser.email || '') : '';
+                  const hay = `${memberName || ''} ${memberEmail || ''}`.toLowerCase();
+                  return hay.includes(q);
+                })) return true;
+                return false;
+              })
+              .map((group) => (
               <div key={group._id} className="border p-4 rounded w-full min-w-0 bg-base-100">
                  <h3 className="text-lg font-bold">{group.name}</h3>
+                 {/* Add group multiplier display */}
+                 <p className="text-sm text-gray-600">
+                  Members: {group.members.filter(m => m._id && m.status === 'approved').length}/{group.maxMembers || 'No limit'} • 
+                  Multiplier: {group.groupMultiplier || 1}x
+                   {group.isAutoMultiplier ? (
+                     <span className="text-green-600 text-xs ml-1">(Auto)</span>
+                   ) : (
+                     <span className="text-orange-600 text-xs ml-1">(Manual)</span>
+                   )}
+                 </p>
                  {group.members.length === 0 ? (
                    <p className="text-gray-500">No members</p>
                 ) : (
@@ -1484,8 +1539,7 @@ const visibleCount = filteredStudents.length;
                          );
                        })}
                 </ul>
-              )}
-              </div>
+              )}</div>
              ))}
           </div>
         </div>
