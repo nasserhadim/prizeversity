@@ -1713,7 +1713,13 @@ const visibleCount = filteredStudents.length;
                             })()}
                           </div>
                           <div className="font-medium">
-                            {s.targetUser ? (s.targetUser.firstName || s.targetUser.email) : 'Unknown user'}
+                            {s.targetUser
+                              ? (
+                                  `${(s.targetUser.firstName || '').trim()} ${(s.targetUser.lastName || '').trim()}`.trim()
+                                  || s.targetUser.email
+                                )
+                              : 'Unknown user'
+                            }
                           </div>
                           <div className="mt-1">
                             {Array.isArray(s.changes) && s.changes.length ? (
