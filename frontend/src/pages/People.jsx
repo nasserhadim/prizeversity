@@ -9,6 +9,7 @@ import socket, { joinClassroom, joinUserRoom } from '../utils/socket';
 import Footer from '../components/Footer';
 import ExportButtons from '../components/ExportButtons';
 import formatExportFilename from '../utils/formatExportFilename';
+import StatsAdjustModal from '../components/StatsAdjustModal';
 
 const ROLE_LABELS = {
   student: 'Student',
@@ -35,6 +36,8 @@ const People = () => {
   const { user } = useAuth();
   const [studentSendEnabled, setStudentSendEnabled] = useState(null);
   const [tab, setTab] = useState('everyone');
+  const [statSearch, setStatSearch] = useState('');
+  const [statSort, setStatSort] = useState('desc'); // 'desc' | 'asc'
   const [taBitPolicy, setTaBitPolicy] = useState('full');
   const [studentsCanViewStats, setStudentsCanViewStats] = useState(true);
   const [students, setStudents] = useState([]);
@@ -49,8 +52,29 @@ const People = () => {
   const [showUnassigned, setShowUnassigned] = useState(false);
   const [unassignedSearch, setUnassignedSearch] = useState('');
   const [groupSearch, setGroupSearch] = useState(''); // New state for group search
+  // Stats adjust modal state (teacher-only)
+  const [statsModalOpen, setStatsModalOpen] = useState(false);
+  const [statsModalStudent, setStatsModalStudent] = useState(null);
+  // NEW: stat-change log (teacher view only)
+  const [statChanges, setStatChanges] = useState([]);
+  const [loadingStatChanges, setLoadingStatChanges] = useState(false);
 
   const navigate = useNavigate();
+
+  // Load stat-change log for teacher/admin viewers
+ useEffect(() => {
+   const viewerRole = (user?.role || '').toLowerCase();
+   if (!classroomId || !user || !['teacher', 'admin'].includes(viewerRole)) return;
+   let mounted = true;
+   (async () => {
+     try {
+       await fetchStatChanges();
+     } catch (e) {
+       if (mounted) console.debug('[People] failed to auto-load stat changes', e);
+     }
+   })();
+   return () => { mounted = false; };
+ }, [user, classroomId]);
 
   // Fetch classroom settings including students can view stats
   const fetchClassroom = async () => {
@@ -105,6 +129,21 @@ const People = () => {
     }
   };
 
+  // Fetch recent stat-change log for this classroom (teacher/admin only)
+  const fetchStatChanges = async () => {
+    if (!classroomId) return;
+    try {
+      setLoadingStatChanges(true);
+      const res = await axios.get(`/api/classroom/${classroomId}/stat-changes`, { withCredentials: true });
+      setStatChanges(res.data || []);
+    } catch (err) {
+      console.error('[People] fetchStatChanges failed', err);
+      setStatChanges([]);
+    } finally {
+      setLoadingStatChanges(false);
+    }
+  };
+
   // Initial data fetch + robust realtime handlers
   useEffect(() => {
     fetchClassroom();
@@ -112,6 +151,7 @@ const People = () => {
     fetchGroupSets();
     fetchTaBitPolicy();
     fetchSiphonTimeout();
+    fetchStatChanges(); // <-- NEW: fetch stat changes on mount
 
     // Add classroom removal handler
     const handleClassroomRemoval = (data) => {
@@ -853,27 +893,36 @@ const visibleCount = filteredStudents.length;
           </div>
         </div>
 
-        <div className="flex space-x-4 mb-6">
+        <div className="flex flex-wrap gap-4 mb-6 items-center">
           <button
-            className={`btn ${tab === 'everyone' ? 'btn-success' : 'btn-outline'}`}
+            className={`btn flex-shrink-0 ${tab === 'everyone' ? 'btn-success' : 'btn-outline'}`}
             onClick={() => setTab('everyone')}
           >
             Everyone
           </button>
           <button
-            className={`btn ${tab === 'groups' ? 'btn-success' : 'btn-outline'}`}
+            className={`btn flex-shrink-0 ${tab === 'groups' ? 'btn-success' : 'btn-outline'}`}
             onClick={() => setTab('groups')}
           >
             Groups
           </button>
-          {user?.role?.toLowerCase() === 'teacher' && (                    
-           <button
-             className={`btn ${tab === 'settings' ? 'btn-success' : 'btn-outline'}`}
-             onClick={() => setTab('settings')}
-           >
-             Settings
-           </button>
-         )}
+          {/* NEW: Stat Changes tab (teacher/admin only) */}
+          {(user?.role?.toLowerCase() === 'teacher' || user?.role?.toLowerCase() === 'admin') && (
+            <button
+              className={`btn flex-shrink-0 ${tab === 'stat-changes' ? 'btn-success' : 'btn-outline'}`}
+              onClick={() => setTab('stat-changes')}
+            >
+              Stat Changes
+            </button>
+          )}
+          {user?.role?.toLowerCase() === 'teacher' && (
+            <button
+              className={`btn flex-shrink-0 ${tab === 'settings' ? 'btn-success' : 'btn-outline'}`}
+              onClick={() => setTab('settings')}
+            >
+              Settings
+            </button>
+          )}
         </div>
 {/* ─────────────── Settings TAB ─────────────── */}
         {tab === 'settings' && (user?.role || '').toLowerCase() === 'teacher' && (
@@ -1214,6 +1263,16 @@ const visibleCount = filteredStudents.length;
                             })}
                           >
                             View Stats
+                          </button>
+                        )}
+
+                        {/* Teacher-only: open modal to adjust student stats */}
+                        {user?.role?.toLowerCase() === 'teacher' && String(student._id) !== String(user._id) && (
+                          <button
+                            className="btn btn-xs sm:btn-sm btn-outline ml-2"
+                            onClick={(e) => { e.stopPropagation(); setStatsModalStudent(student); setStatsModalOpen(true); }}
+                          >
+                            Adjust Stats
                           </button>
                         )}
 
@@ -1568,7 +1627,126 @@ const visibleCount = filteredStudents.length;
     )}
           </div>
         )}
+                  {/* NEW: Recent stat changes (teacher/admin view) — show only in Stat Changes tab */}
+          {tab === 'stat-changes' && (user?.role === 'teacher' || user?.role === 'admin') && (
+            <div className="bg-white border rounded p-4 mt-4">
+              <div className="flex items-center gap-2 mb-4">
+                <h3 className="font-medium flex-1">Recent stat changes</h3>
+                <div className="text-sm text-gray-600">{statChanges.length} records</div>
+              </div>
+
+              {/* Controls: deep search + sort */}
+              <div className="flex flex-col sm:flex-row gap-2 mb-4">
+                <input
+                  type="search"
+                  placeholder="Search by user, actor, field, or value..."
+                  className="input input-bordered flex-1 min-w-[220px]"
+                  value={statSearch}
+                  onChange={(e) => setStatSearch(e.target.value)}
+                />
+                <select
+                  className="select select-bordered max-w-xs"
+                  value={statSort}
+                  onChange={(e) => setStatSort(e.target.value)}
+                >
+                  <option value="desc">Date: Newest first</option>
+                  <option value="asc">Date: Oldest first</option>
+                </select>
+                <button
+                  className="btn btn-sm btn-ghost"
+                  onClick={() => { setStatSearch(''); setStatSort('desc'); }}
+                >
+                  Clear
+                </button>
+              </div>
+
+              {/* List */}
+              {loadingStatChanges ? (
+                <div className="text-sm text-gray-500">Loading…</div>
+              ) : statChanges.length === 0 ? (
+                <div className="text-sm text-gray-500">No recent stat changes</div>
+              ) : (
+                (() => {
+                  const q = (statSearch || '').toLowerCase().trim();
+                  const filtered = statChanges.filter(s => {
+                    if (!q) return true;
+                    // target user
+                    const target = s.targetUser || {};
+                    const targetName = `${target.firstName || ''} ${target.lastName || ''}`.trim().toLowerCase();
+                    const targetEmail = (target.email || '').toLowerCase();
+                    if (targetName.includes(q) || targetEmail.includes(q)) return true;
+                    // actionBy
+                    const actor = s.actionBy || {};
+                    const actorName = `${actor.firstName || ''} ${actor.lastName || ''}`.trim().toLowerCase();
+                    const actorEmail = (actor.email || '').toLowerCase();
+                    if (actorName.includes(q) || actorEmail.includes(q)) return true;
+                    // changes content
+                    if (Array.isArray(s.changes)) {
+                      for (const c of s.changes) {
+                        const field = String(c.field || '').toLowerCase();
+                        const from = String(c.from || '').toLowerCase();
+                        const to = String(c.to || '').toLowerCase();
+                        if (field.includes(q) || from.includes(q) || to.includes(q)) return true;
+                      }
+                    }
+                    // fallback: createdAt
+                    if ((s.createdAt || '').toLowerCase().includes(q)) return true;
+                    return false;
+                  });
+
+                  filtered.sort((a, b) => {
+                    const ad = new Date(a.createdAt || 0).getTime();
+                    const bd = new Date(b.createdAt || 0).getTime();
+                    return statSort === 'desc' ? bd - ad : ad - bd;
+                  });
+
+                  return (
+                    <ul className="space-y-2 text-sm">
+                      {filtered.map((s) => (
+                        <li key={s._id} className="p-2 border rounded">
+                          <div className="text-xs text-gray-600 mb-1">
+                            {new Date(s.createdAt).toLocaleString()} — by {(() => {
+                              const a = s.actionBy;
+                              if (!a) return 'System';
+                              const full = `${a.firstName || ''} ${a.lastName || ''}`.trim();
+                              return full || a.email || 'System';
+                            })()}
+                          </div>
+                          <div className="font-medium">
+                            {s.targetUser ? (s.targetUser.firstName || s.targetUser.email) : 'Unknown user'}
+                          </div>
+                          <div className="mt-1">
+                            {Array.isArray(s.changes) && s.changes.length ? (
+                              <ul className="list-disc ml-4">
+                                {s.changes.map((c, i) => (
+                                  <li key={i}>
+                                    {c.field}: {String(c.from)} → <strong>{String(c.to)}</strong>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <div className="text-xs text-gray-500">No details available</div>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  );
+                })()
+              )}
+            </div>
+          )}
       </main>
+
+      {/* Stats adjust modal (teacher only) */}
+      <StatsAdjustModal
+        isOpen={statsModalOpen}
+        onClose={() => setStatsModalOpen(false)}
+        student={statsModalStudent}
+        classroomId={classroomId}
+        onUpdated={async () => { await fetchStudents(); await fetchClassroom(); }}
+      />
+      
        <Footer />
      </div>
    );
