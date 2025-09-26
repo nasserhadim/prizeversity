@@ -23,52 +23,56 @@ const ItemCard = ({
   const [loading, setLoading] = useState(false);
   const { addToCart } = useCart();
   const { user } = useAuth();
-  const [open, setOpen] = useState(false); // controls modal visibility
+  const [open, setOpen] = useState(false); // controls visibility 
   const [saving, setSaving] = useState(false); // shows spinner when saving
-  const [form, setForm] = useState({
+  const [form, setForm] = useState({ //setting form to update values/items inside 
   
-  name: item.name || '',
+  name: item.name || '',  //hodling in values when editing. 
   description: item.description || '',
-  price: item.price || 0,
+  price: item.price || 0,  
 });
-const [editOpen, setEditOpen] = useState(false); // controls edit modal visibility
+const [editOpen, setEditOpen] = useState(false); // controls edit modal visibility, edit item to open or close
 
 const handleChange = (e) => {
-  const { name, value } = e.target;
-  setForm(f => ({ ...f, [name]: value }));
+  const { name, value } = e.target;   //get input name and value
+  setForm(f => ({ ...f, [name]: value }));   //changing updated values when editing
 };
 
-const submitEdit = async (e) => {
+const submitEdit = async (e) => {  //preventing the page to reload when submitting the form
   e.preventDefault();
-  setSaving(true);
+  setSaving(true);  //diables the save button 
   try {
-    // build FormData
-    const formData = new FormData();
+    // build FormData, needed for text and file upload
+    const formData = new FormData(); 
     formData.append("name", form.name);
     formData.append("description", form.description);
     formData.append("price", form.price);
 
     // only include image if the teacher provided one
     if (form.image instanceof File) {
-      formData.append("image", form.image);
+      formData.append("image", form.image); //if its a  brand new file 
     } else if (form.image) {
       formData.append("image", form.image); // in case it's still a URL string
     }
 
+    //validating backend to uodate the item
     const { data } = await apiBazaar.patch(
       `/classroom/${classroomId}/bazaar/${bazaarId}/items/${item._id}`,
       formData,
-      { headers: { "Content-Type": "multipart/form-data" } }
+      { headers: { "Content-Type": "multipart/form-data" } } //required for file upload
     );
-
+  
+    //extract updated item from response
     const updated = data.item ?? data;
-    onUpdated?.(updated);  // 🔥 this updates parent immediately
-    toast.success("Item updated");
-    setEditOpen(false); // close modal
+    onUpdated?.(updated);  // trouble with item uodating automatically, this updates parent immediately, UI wise. 
+    toast.success("Item updated"); //shows it was successfully updated!
+    setEditOpen(false); // close the edit modal
   } catch (err) {
-    console.error("EDIT ERR:", err.response?.data || err.message);
+    //log the error for debugging for the coder.
+    console.error("EDIT ERR:", err.response?.data || err.message); //show the error message to user
     toast.error(err?.response?.data?.error || "Failed to update");
   } finally {
+    //stops/ reenables the save button
     setSaving(false);
   }
 };
@@ -79,25 +83,26 @@ const submitEdit = async (e) => {
   const bazaarId = item?.bazaar?._id ||  item?.bazaar || bazaarIdProp; // Handle populated or unpopulated bazaar field 
 
   // Edit handler
-const handleEdit = async () => {
+const handleEdit = async () => { // Teacher-only edit function bazaar ID
   const bazaarId = item?.bazaar?._id || item?.bazaar || bazaarIdProp;
+  //validaite required IDs
   if (!classroomId) return toast.error('Missing classroomId');
   if (!bazaarId)    return toast.error('Missing bazaarId');
   if (!item?._id)   return toast.error('Missing item id');
 
-  const newName = window.prompt('New name:', item.name ?? '');
+  const newName = window.prompt('New name:', item.name ?? ''); //asking techer for new name
   if (newName === null) return; // cancelled
 
-  const newPriceStr = window.prompt('New price (number):', String(item.price ?? 0));
+  const newPriceStr = window.prompt('New price (number):', String(item.price ?? 0)); //asking teacher for new price
   if (newPriceStr === null) return; // cancelled
   const newPrice = Number(newPriceStr);
-  if (Number.isNaN(newPrice)) return toast.error('Price must be a number');
+  if (Number.isNaN(newPrice)) return toast.error('Price must be a number'); //validate price is a number
 
-  const newDesc = window.prompt('New description:', item.description ?? '');
+  const newDesc = window.prompt('New description:', item.description ?? ''); //asking teacher for new description
   if (newDesc === null) return; // cancelled
 
   // send only changed fields
-  const payload = {};
+  const payload = {}; //avoids to send unchanged fields.  
   if (newName !== item.name) payload.name = newName;
   if (newPrice !== item.price) payload.price = newPrice;
   if ((newDesc ?? '') !== (item.description ?? '')) payload.description = newDesc;
@@ -153,22 +158,46 @@ try {
 
   const imgSrc = resolveImageSrc(item?.image);
   // The buy option is not included here
-  const handleBuy = async () => {
-    if (quantity < 1) return toast.error('Quantity must be at least 1');
-    setLoading(true);
-    try {
-      await apiBazaar.post(
-        `classroom/${classroomId}/bazaar/${item.bazaar}/items/${item._id}/buy`,
-        { quantity: Number(quantity) }
-      );
 
-      toast.success('Item purchased!');
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Purchase failed');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // testing if teacher can edit item by adding new values and sending ony the changed values to backend aslo confirms before to delete button item. 
+  
+  
+  // const handleBuy = async () => {
+  //   if (quantity < 1) return toast.error('Quantity must be at least 1');
+  //   setLoading(true);
+  //   try {
+  //     await apiBazaar.post(
+  //       `classroom/${classroomId}/bazaar/${item.bazaar}/items/${item._id}/buy`,
+  //       { quantity: Number(quantity) }
+  //     );
+
+  //     toast.success('Item purchased!');
+  //   } catch (err) {
+  //     toast.error(err.response?.data?.error || 'Purchase failed');
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+const handleBuy = async () => {
+  if (quantity < 1) return toast.error('Quantity must be at least 1');
+  setLoading(true);
+  try {
+    const { data } = await apiBazaar.post(
+      `classroom/${classroomId}/bazaar/${item.bazaar}/items/${item._id}/buy`,
+      { quantity: Number(quantity) }
+    );
+
+    // backend should return updated item
+    const updated = data.item ?? data;
+     onUpdated?.(updated);
+
+    toast.success('Item purchased!');
+  } catch (err) {
+    toast.error(err.response?.data?.error || 'Purchase failed');
+  } finally {
+    setLoading(false);
+  }
+};
 
 
 
