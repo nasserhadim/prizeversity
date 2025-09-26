@@ -192,9 +192,9 @@ const TeacherView = ({
       const newChallenge6Data = {};
       
       for (const uc of challengeData.userChallenges) {
-        if (uc.progress === 5 || uc.currentChallenge === 5) {
+        if (uc.progress === 5 || uc.currentChallenge === 5 || (uc.progress > 5 && uc.completedChallenges?.[5])) {
           try {
-            const response = await fetch(`${API_BASE}/api/challenges/challenge6/${uc.uniqueId}`, {
+            const response = await fetch(`${API_BASE}/api/challenges/challenge6/${uc.uniqueId}/teacher`, {
               credentials: 'include'
             });
             
@@ -294,10 +294,10 @@ const TeacherView = ({
       const newChallenge7Data = {};
       
       for (const uc of challengeData.userChallenges) {
-        if (uc.progress === 6 || uc.currentChallenge === 6) {
+        if (uc.progress === 6 || uc.currentChallenge === 6 || (uc.progress > 6 && uc.completedChallenges?.[6])) {
           try {
             const timestamp = Date.now();
-            const response = await fetch(`${API_BASE}/api/challenges/challenge7/${uc.uniqueId}?t=${timestamp}&bustCache=true`, {
+            const response = await fetch(`${API_BASE}/api/challenges/challenge7/${uc.uniqueId}/teacher?t=${timestamp}&bustCache=true`, {
               credentials: 'include',
               headers: {
                 'Cache-Control': 'no-cache',
