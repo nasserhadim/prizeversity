@@ -36,6 +36,7 @@ const QuoteHangmanChallenge = ({ userChallenge, isDark, onExternalLinkClick }) =
         <div className="space-y-2 mt-4">
           <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>📜 View your assigned quote</p>
           <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>🎯 Select words to reveal</p>
+          <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>🔄 <strong>Attempts:</strong> Maximum 3 tries</p>
           <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>🔢 Reveal words by entering matching values</p>
           <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>✅ Complete the entire quote to win</p>
         </div>

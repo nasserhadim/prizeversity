@@ -287,7 +287,16 @@ const ClassroomFeedbackPage = ({ userId }) => {
                   { (classroom.feedbackRewardApplyGroupMultipliers || classroom.feedbackRewardApplyPersonalMultipliers) && (
                     <span className="ml-2 text-sm text-gray-600"> (multipliers apply)</span>
                   )}
-                  { classroom.feedbackRewardAllowAnonymous && <div className="text-xs text-gray-600 mt-1">Teacher allows awarding when submitting anonymously (signed-in users only).</div> }
+                  {/* SHOW NOTE ABOUT ANONYMOUS AWARDING */}
+                  { classroom.feedbackRewardAllowAnonymous ? (
+                    <div className="text-xs text-gray-600 mt-1">
+                      Teacher allows awarding when submitting anonymously (signed-in users only).
+                    </div>
+                  ) : (
+                    <div className="text-xs text-red-600 mt-1">
+                      Note: Anonymous submissions will NOT receive the feedback reward in this classroom. Uncheck "Submit as Anonymous" to be eligible.
+                    </div>
+                  ) }
                 </div>
               </div>
             )}
