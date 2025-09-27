@@ -1629,99 +1629,99 @@ const visibleCount = filteredStudents.length;
         )}
                   {/* NEW: Recent stat changes (teacher/admin view) — show only in Stat Changes tab */}
           {tab === 'stat-changes' && (user?.role === 'teacher' || user?.role === 'admin') && (
-            <div className="bg-white border rounded p-4 mt-4">
+            <div className="bg-base-100 border border-base-300 rounded p-4 mt-4">
               <div className="flex items-center gap-2 mb-4">
                 <h3 className="font-medium flex-1">Recent stat changes</h3>
-                <div className="text-sm text-gray-600">{statChanges.length} records</div>
+                <div className="text-sm text-base-content/70">{statChanges.length} records</div>
               </div>
-
-              {/* Controls: deep search + sort */}
-              <div className="flex flex-col sm:flex-row gap-2 mb-4">
-                <input
-                  type="search"
-                  placeholder="Search by user, actor, field, or value..."
+ 
+               {/* Controls: deep search + sort */}
+               <div className="flex flex-col sm:flex-row gap-2 mb-4">
+                 <input
+                   type="search"
+                   placeholder="Search by user, actor, field, or value..."
                   className="input input-bordered flex-1 min-w-[220px]"
-                  value={statSearch}
-                  onChange={(e) => setStatSearch(e.target.value)}
-                />
-                <select
-                  className="select select-bordered max-w-xs"
-                  value={statSort}
-                  onChange={(e) => setStatSort(e.target.value)}
-                >
-                  <option value="desc">Date: Newest first</option>
-                  <option value="asc">Date: Oldest first</option>
-                </select>
-                <button
-                  className="btn btn-sm btn-ghost"
-                  onClick={() => { setStatSearch(''); setStatSort('desc'); }}
-                >
-                  Clear
-                </button>
-              </div>
-
-              {/* List */}
-              {loadingStatChanges ? (
-                <div className="text-sm text-gray-500">Loading…</div>
-              ) : statChanges.length === 0 ? (
-                <div className="text-sm text-gray-500">No recent stat changes</div>
-              ) : (
-                (() => {
-                  const q = (statSearch || '').toLowerCase().trim();
-                  const filtered = statChanges.filter(s => {
-                    if (!q) return true;
-                    // target user
-                    const target = s.targetUser || {};
-                    const targetName = `${target.firstName || ''} ${target.lastName || ''}`.trim().toLowerCase();
-                    const targetEmail = (target.email || '').toLowerCase();
-                    if (targetName.includes(q) || targetEmail.includes(q)) return true;
-                    // actionBy
-                    const actor = s.actionBy || {};
-                    const actorName = `${actor.firstName || ''} ${actor.lastName || ''}`.trim().toLowerCase();
-                    const actorEmail = (actor.email || '').toLowerCase();
-                    if (actorName.includes(q) || actorEmail.includes(q)) return true;
-                    // changes content
-                    if (Array.isArray(s.changes)) {
-                      for (const c of s.changes) {
-                        const field = String(c.field || '').toLowerCase();
-                        const from = String(c.from || '').toLowerCase();
-                        const to = String(c.to || '').toLowerCase();
-                        if (field.includes(q) || from.includes(q) || to.includes(q)) return true;
-                      }
-                    }
-                    // fallback: createdAt
-                    if ((s.createdAt || '').toLowerCase().includes(q)) return true;
-                    return false;
-                  });
-
-                  filtered.sort((a, b) => {
-                    const ad = new Date(a.createdAt || 0).getTime();
-                    const bd = new Date(b.createdAt || 0).getTime();
-                    return statSort === 'desc' ? bd - ad : ad - bd;
-                  });
-
-                  return (
-                    <ul className="space-y-2 text-sm">
-                      {filtered.map((s) => (
-                        <li key={s._id} className="p-2 border rounded">
-                          <div className="text-xs text-gray-600 mb-1">
-                            {new Date(s.createdAt).toLocaleString()} — by {(() => {
-                              const a = s.actionBy;
-                              if (!a) return 'System';
-                              const full = `${a.firstName || ''} ${a.lastName || ''}`.trim();
-                              return full || a.email || 'System';
-                            })()}
-                          </div>
-                          <div className="font-medium">
-                            {s.targetUser
-                              ? (
-                                  `${(s.targetUser.firstName || '').trim()} ${(s.targetUser.lastName || '').trim()}`.trim()
-                                  || s.targetUser.email
-                                )
-                              : 'Unknown user'
-                            }
-                          </div>
-                          <div className="mt-1">
+                   value={statSearch}
+                   onChange={(e) => setStatSearch(e.target.value)}
+                 />
+                 <select
+                   className="select select-bordered max-w-xs"
+                   value={statSort}
+                   onChange={(e) => setStatSort(e.target.value)}
+                 >
+                   <option value="desc">Date: Newest first</option>
+                   <option value="asc">Date: Oldest first</option>
+                 </select>
+                 <button
+                   className="btn btn-sm btn-ghost"
+                   onClick={() => { setStatSearch(''); setStatSort('desc'); }}
+                 >
+                   Clear
+                 </button>
+               </div>
+ 
+               {/* List */}
+               {loadingStatChanges ? (
+                <div className="text-sm text-base-content/60">Loading…</div>
+               ) : statChanges.length === 0 ? (
+                <div className="text-sm text-base-content/60">No recent stat changes</div>
+               ) : (
+                 (() => {
+                   const q = (statSearch || '').toLowerCase().trim();
+                   const filtered = statChanges.filter(s => {
+                     if (!q) return true;
+                     // target user
+                     const target = s.targetUser || {};
+                     const targetName = `${target.firstName || ''} ${target.lastName || ''}`.trim().toLowerCase();
+                     const targetEmail = (target.email || '').toLowerCase();
+                     if (targetName.includes(q) || targetEmail.includes(q)) return true;
+                     // actionBy
+                     const actor = s.actionBy || {};
+                     const actorName = `${actor.firstName || ''} ${actor.lastName || ''}`.trim().toLowerCase();
+                     const actorEmail = (actor.email || '').toLowerCase();
+                     if (actorName.includes(q) || actorEmail.includes(q)) return true;
+                     // changes content
+                     if (Array.isArray(s.changes)) {
+                       for (const c of s.changes) {
+                         const field = String(c.field || '').toLowerCase();
+                         const from = String(c.from || '').toLowerCase();
+                         const to = String(c.to || '').toLowerCase();
+                         if (field.includes(q) || from.includes(q) || to.includes(q)) return true;
+                       }
+                     }
+                     // fallback: createdAt
+                     if ((s.createdAt || '').toLowerCase().includes(q)) return true;
+                     return false;
+                   });
+ 
+                   filtered.sort((a, b) => {
+                     const ad = new Date(a.createdAt || 0).getTime();
+                     const bd = new Date(b.createdAt || 0).getTime();
+                     return statSort === 'desc' ? bd - ad : ad - bd;
+                   });
+ 
+                   return (
+                     <ul className="space-y-2 text-sm">
+                       {filtered.map((s) => (
+                        <li key={s._id} className="p-2 border border-base-300 rounded bg-base-100">
+                          <div className="text-xs text-base-content/60 mb-1">
+                             {new Date(s.createdAt).toLocaleString()} — by {(() => {
+                               const a = s.actionBy;
+                               if (!a) return 'System';
+                               const full = `${a.firstName || ''} ${a.lastName || ''}`.trim();
+                               return full || a.email || 'System';
+                             })()}
+                           </div>
+                           <div className="font-medium">
+                             {s.targetUser
+                               ? (
+                                   `${(s.targetUser.firstName || '').trim()} ${(s.targetUser.lastName || '').trim()}`.trim()
+                                   || s.targetUser.email
+                                 )
+                               : 'Unknown user'
+                             }
+                           </div>
+                           <div className="mt-1">
                             {Array.isArray(s.changes) && s.changes.length ? (
                               <ul className="list-disc ml-4">
                                 {s.changes.map((c, i) => (
@@ -1731,17 +1731,17 @@ const visibleCount = filteredStudents.length;
                                 ))}
                               </ul>
                             ) : (
-                              <div className="text-xs text-gray-500">No details available</div>
+                              <div className="text-xs text-base-content/60">No details available</div>
                             )}
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  );
-                })()
-              )}
-            </div>
-          )}
+                           </div>
+                         </li>
+                       ))}
+                     </ul>
+                   );
+                 })()
+               )}
+             </div>
+           )}
       </main>
 
       {/* Stats adjust modal (teacher only) */}
