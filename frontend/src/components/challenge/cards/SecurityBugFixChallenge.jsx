@@ -4,6 +4,7 @@ import { getChallengeColors, getThemeClasses } from '../../../utils/themeUtils';
 const CppBugHuntChallenge = ({ userChallenge, isDark, onExternalLinkClick }) => {
   const colors = getChallengeColors(2, isDark);
   const themeClasses = getThemeClasses(isDark);
+  const isCompleted = userChallenge?.completedChallenges?.[2] || false;
 
   const handleLinkClick = (e) => {
     if (onExternalLinkClick) {
@@ -29,24 +30,43 @@ const CppBugHuntChallenge = ({ userChallenge, isDark, onExternalLinkClick }) => 
       </div>
       
       <div className={`${colors.sectionBg} rounded-lg p-4`}>
-        <h4 className={`font-semibold ${colors.textColor} mb-2`}>🎯 Debugging Challenge</h4>
-        <p className={`text-sm ${themeClasses.mutedText} mb-4`}>Ready to put your C++ skills to the test? Debug the code and trace through the execution!</p>
-        
-        <div className="flex justify-center">
-          <a
-            href={`/challenge-3-site/${userChallenge.uniqueId}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={handleLinkClick}
-            className="btn btn-primary btn-wide gap-2 hover:scale-105 transition-transform"
-          >
-            🔍 START DEBUGGING
-          </a>
-        </div>
-        
-        <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-500'} mt-3 text-center`}>
-          🎓 Opens the C++ debugging environment - perfect for practicing your programming skills!
-        </p>
+        {isCompleted ? (
+          <>
+            <h4 className={`font-semibold ${colors.textColor} mb-2 text-green-600`}>✅ Challenge Completed!</h4>
+            <p className={`text-sm ${themeClasses.mutedText} mb-4`}>Congratulations! You've successfully debugged the C++ program and found the correct output.</p>
+            
+            <div className="flex justify-center">
+              <div className="btn btn-success btn-wide gap-2 cursor-default">
+                🎉 DEBUGGING COMPLETE
+              </div>
+            </div>
+            
+            <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-500'} mt-3 text-center`}>
+              ✨ Your solution has been verified. Great work on your C++ debugging skills!
+            </p>
+          </>
+        ) : (
+          <>
+            <h4 className={`font-semibold ${colors.textColor} mb-2`}>🎯 Debugging Challenge</h4>
+            <p className={`text-sm ${themeClasses.mutedText} mb-4`}>Ready to put your C++ skills to the test? Debug the code and trace through the execution!</p>
+            
+            <div className="flex justify-center">
+              <a
+                href={`/challenge-3-site/${userChallenge.uniqueId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={handleLinkClick}
+                className="btn btn-primary btn-wide gap-2 hover:scale-105 transition-transform"
+              >
+                🔍 START DEBUGGING
+              </a>
+            </div>
+            
+            <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-500'} mt-3 text-center`}>
+              🎓 Opens the C++ debugging environment - perfect for practicing your programming skills!
+            </p>
+          </>
+        )}
       </div>
 
       {/* Mission modal removed to allow direct access */}
