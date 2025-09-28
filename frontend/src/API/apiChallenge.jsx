@@ -46,14 +46,15 @@ export const configureChallenge = async (classroomId, title, settings) => {
   }
 };
 
-export const initiateChallenge = async (classroomId) => {
+export const initiateChallenge = async (classroomId, password) => {
   try {
     const response = await fetch(`${API_BASE}/api/challenges/${classroomId}/initiate`, {
       method: 'POST',
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-      }
+      },
+      body: JSON.stringify({ password }),
     });
 
     if (!response.ok) {
