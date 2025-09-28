@@ -23,6 +23,8 @@ const ChallengeConfigModal = ({
 }) => {
   const [isMobile, setIsMobile] = useState(false);
   const [activeChallengeIndex, setActiveChallengeIndex] = useState(0);
+  const [challengePassword, setChallengePassword] = useState('');
+  const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
   
   useEffect(() => {
     const checkMobile = () => {
@@ -107,21 +109,93 @@ const ChallengeConfigModal = ({
       }
 
       await configureChallenge(classroomId, challengeConfig.title, settings);
-      toast.success('Challenge configured successfully');
       
-      const response = await initiateChallenge(classroomId);
-      toast.success(response.message);
-      setShowConfigModal(false);
-      await fetchChallengeData();
+      setShowPasswordPrompt(true);
     } catch (error) {
-      console.error('Error configuring/initiating challenge:', error);
+      console.error('Error configuring challenge:', error);
       toast.error(error.message || 'Failed to configure challenge');
     } finally {
       setConfiguring(false);
     }
   };
 
+  const handleInitiateWithPassword = async () => {
+    try {
+      setConfiguring(true);
+      const response = await initiateChallenge(classroomId, challengePassword);
+      toast.success(response.message);
+      setShowPasswordPrompt(false);
+      setShowConfigModal(false);
+      setChallengePassword('');
+      await fetchChallengeData();
+    } catch (error) {
+      console.error('Error initiating challenge:', error);
+      toast.error(error.message || 'Failed to initiate challenge');
+    } finally {
+      setConfiguring(false);
+    }
+  };
+
   if (!showConfigModal) return null;
+
+  if (showPasswordPrompt) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="card bg-base-100 w-full max-w-md shadow-xl">
+          <div className="card-body">
+            <h2 className="card-title text-warning">🔒 Challenge Authorization Required</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Please enter the challenge password to initiate the series.
+            </p>
+            <div className="form-control">
+              <input
+                type="password"
+                placeholder="Enter challenge password"
+                className="input input-bordered w-full"
+                value={challengePassword}
+                onChange={(e) => setChallengePassword(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter' && challengePassword.trim()) {
+                    handleInitiateWithPassword();
+                  }
+                }}
+                autoFocus
+              />
+            </div>
+            <div className="card-actions justify-end mt-4 gap-2">
+              <button
+                className="btn btn-ghost"
+                onClick={() => {
+                  setShowPasswordPrompt(false);
+                  setChallengePassword('');
+                }}
+                disabled={configuring}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-error"
+                onClick={handleInitiateWithPassword}
+                disabled={configuring || !challengePassword.trim()}
+              >
+                {configuring ? (
+                  <>
+                    <span className="loading loading-spinner loading-sm"></span>
+                    Launching...
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-4 h-4" />
+                    Launch Challenge
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 p-4 overflow-y-auto">
@@ -936,12 +1010,12 @@ const ChallengeConfigModal = ({
               {configuring ? (
                 <>
                   <span className="loading loading-spinner loading-sm"></span>
-                  Launching...
+                  Configuring...
                 </>
               ) : (
                 <>
                   <Zap className="w-4 h-4" />
-                  Launch Challenge Series
+                  Configure & Launch Series
                 </>
               )}
             </button>
