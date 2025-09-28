@@ -41,6 +41,7 @@ const TeacherView = ({
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [showAssignDropdown, setShowAssignDropdown] = useState(false);
   const [studentNames, setStudentNames] = useState({});
+  const [assignSearch, setAssignSearch] = useState('');
   const [challenge6Data, setChallenge6Data] = useState({});
   const [challenge7Data, setChallenge7Data] = useState({});
   const [challenge3Data, setChallenge3Data] = useState({});
@@ -168,6 +169,11 @@ const TeacherView = ({
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showAssignDropdown]);
+
+  // Clear assign search when dropdown closes
+  useEffect(() => {
+    if (!showAssignDropdown) setAssignSearch('');
   }, [showAssignDropdown]);
 
   useEffect(() => {
@@ -592,23 +598,47 @@ const TeacherView = ({
                 {showAssignDropdown && (
                   <div className="absolute right-0 top-full mt-1 w-64 bg-base-100 border border-base-300 rounded-lg shadow-lg z-50">
                     <div className="p-3">
-                      <div className="text-sm font-medium mb-2">Unassigned Students:</div>
-                      <div className="space-y-1 max-h-48 overflow-y-auto">
-                        {unassignedStudentIds.length > 0 ? (
-                          unassignedStudentIds.map((studentId, index) => (
-                            <button
-                              key={`unassigned-${studentId}-${index}`}
-                              onClick={() => handleAssignStudent(studentId)}
-                              className="w-full text-left p-2 text-sm hover:bg-base-200 rounded flex items-center justify-between"
-                            >
-                              <span>{studentNames[studentId] || 'Loading...'}</span>
-                              <UserPlus className="w-3 h-3" />
-                            </button>
-                          ))
-                        ) : (
-                          <div className="text-xs text-gray-500 p-2">All students are already assigned to this challenge</div>
-                        )}
-                      </div>
+                     <input
+                       type="text"
+                       placeholder="Search students..."
+                       className="input input-sm input-bordered w-full mb-2"
+                       value={assignSearch}
+                       onChange={(e) => setAssignSearch(e.target.value)}
+                       autoFocus
+                     />
+ 
+                     {/* filter unassigned by name / id */}
+                     {(() => {
+                       const q = (assignSearch || '').trim().toLowerCase();
+                       return (q === '')
+                         ? unassignedStudentIds
+                         : unassignedStudentIds.filter(id => {
+                             const name = (studentNames[id] || '').toLowerCase();
+                             return name.includes(q) || String(id).toLowerCase().includes(q);
+                           });
+                     })().length > 0 ? (
+                       (() => {
+                         const filtered = (assignSearch || '').trim() === ''
+                           ? unassignedStudentIds
+                           : unassignedStudentIds.filter(id => {
+                               const name = (studentNames[id] || '').toLowerCase();
+                               const q = (assignSearch || '').trim().toLowerCase();
+                               return name.includes(q) || String(id).toLowerCase().includes(q);
+                             });
+                         return filtered.map((studentId, index) => (
+                           <button
+                             key={`unassigned-${studentId}-${index}`}
+                             onClick={() => handleAssignStudent(studentId)}
+                             className="w-full text-left p-2 text-sm hover:bg-base-200 rounded flex items-center justify-between"
+                           >
+                             <span>{studentNames[studentId] || 'Loading...'}</span>
+                             <UserPlus className="w-3 h-3" />
+                           </button>
+                         ));
+                       })()
+                     ) : (
+                       <div className="text-xs text-gray-500 p-2">No matching students</div>
+                     )}
                     </div>
                   </div>
                 )}
