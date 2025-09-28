@@ -3,7 +3,7 @@ const axios = require('axios');
 const router = express.Router();
 
 // POST /verify-wayneaws - Proxy verification request to WayneAWS
-router.post('/verify-wayneaws', async (req, res) => {
+router.post('/verify', async (req, res) => {
   try {
     const { username, secret } = req.body;
 
@@ -16,7 +16,7 @@ router.post('/verify-wayneaws', async (req, res) => {
     }
 
     // Make request to WayneAWS API
-    const response = await axios.post('http://wayneaws.dev/api/verify', {
+    const response = await axios.post('https://wayneaws.dev/verify', {
       username: username.trim(),
       secret: secret.trim()
     }, {

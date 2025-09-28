@@ -46,7 +46,7 @@ const Challenge5Site = () => {
 
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE}/api/verify-wayneaws`, {
+      const response = await fetch(`${API_BASE}/verify`, {
         method: 'POST',
         credentials: 'include',
         headers: {
