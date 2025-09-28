@@ -589,13 +589,16 @@ DOMAIN=https://www.prizeversity.com
 # Cooldown resets per classroom (site feedback is separate).
 FEEDBACK_COOLDOWN_DAYS=30
 
+# Cyber Challenge Password
+CHALLENGE_PASSWORD=
+
 # GITHUB tokens and repo access (For Challenge #2 & Challenge #4)
 GITHUB_TOKEN=
 GITHUB_OWNER=
 GITHUB_REPO=
 
 # Keys for Caesar cipher challenge obfuscation
-# These values indicate the randomness in the shift values for the Caesar Cypher Challnege
+# These values indicate the randomness in the shift values for the Caesar Cypher Challenge
 # Salt is used for randomness, prevents predictable cipher outputs.
 CAESAR_BASE=<base-shift, e.g. 3>
 CAESAR_RANGE=<max-range, e.g. 9>
