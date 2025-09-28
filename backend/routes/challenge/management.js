@@ -225,7 +225,16 @@ router.post('/:classroomId/configure', ensureAuthenticated, ensureTeacher, async
 router.post('/:classroomId/initiate', ensureAuthenticated, ensureTeacher, async (req, res) => {
   try {
     const { classroomId } = req.params;
+    const { password } = req.body;
     const teacherId = req.user._id;
+
+    if (!process.env.CHALLENGE_PASSWORD) {
+      return res.status(500).json({ message: 'Challenge password not configured on server' });
+    }
+
+    if (!password || password !== process.env.CHALLENGE_PASSWORD) {
+      return res.status(403).json({ message: 'Invalid challenge password' });
+    }
 
     const classroom = await Classroom.findById(classroomId).populate('students');
     if (!classroom) {
