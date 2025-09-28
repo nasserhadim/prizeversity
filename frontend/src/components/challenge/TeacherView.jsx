@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
+import { useMemo } from 'react';
 import { Shield, Settings, Users, Eye, EyeOff, UserPlus, Edit3 } from 'lucide-react';
+import { CHALLENGE_NAMES } from '../../constants/challengeConstants';
 import { getCurrentChallenge } from '../../utils/challengeUtils';
 import { getThemeClasses } from '../../utils/themeUtils';
 import { updateDueDate, toggleChallengeVisibility, resetStudentChallenge, resetSpecificChallenge } from '../../API/apiChallenge';
@@ -21,6 +23,19 @@ const TeacherView = ({
   classroomId,
   fetchChallengeData
 }) => {
+  // Search state for deep filtering in the student table
+  const [search, setSearch] = useState('');
+  // New filter UI state
+  const [roleFilter, setRoleFilter] = useState('all'); // 'all' | 'student' | 'teacher'
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'inprogress' | 'completed' | 'failed'
+  const [challengeFilter, setChallengeFilter] = useState('all'); // 'all' or '0'..'6'
+  // Clear filters helper (reset search + selects)
+  const clearFilters = () => {
+    setSearch('');
+    setRoleFilter('all');
+    setStatusFilter('all');
+    setChallengeFilter('all');
+  };
   const [showPasswords, setShowPasswords] = useState({});
   const [showDueDateModal, setShowDueDateModal] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
@@ -388,6 +403,105 @@ const TeacherView = ({
     }
   };
 
+  // ---------- visibleUserChallenges (memoized, respects filters + deep search) ----------
+  const visibleUserChallenges = useMemo(() => {
+    const q = (search || '').trim().toLowerCase();
+    if (!challengeData?.userChallenges) return [];
+
+    return challengeData.userChallenges
+      .filter(uc => uc.userId) // must have a user
+      .filter(uc => {
+        // ensure user is still part of the classroom
+        const studentInClassroom = (classroomStudents || []).some(student =>
+          (typeof student === 'string' ? student : student._id) === uc.userId._id
+        );
+        if (!studentInClassroom) return false;
+
+        // role filter
+        if (roleFilter !== 'all') {
+          // Normalize role: prefer populated role, otherwise try to infer from classroom data
+          let role = '';
+          if (uc.userId && typeof uc.userId === 'object') {
+            role = String(uc.userId.role || '').toLowerCase();
+          } else {
+            role = '';
+          }
+  
+          // If not populated, attempt to infer by matching ids against classroom.teacher / classroom.students
+          if (!role) {
+            const uid = typeof uc.userId === 'object' ? (uc.userId._id || '') : uc.userId;
+            if (String(classroom?.teacher?._id || classroom?.teacher) === String(uid)) {
+              role = 'teacher';
+            } else if ((classroom?.students || []).some(s => String(s._id || s) === String(uid))) {
+              // classroom.students usually contains students and may include promoted Admin/TAs; treat as 'student' unless role is known
+              role = 'student';
+            } else {
+              // fallback: leave unknown empty so it won't incorrectly match 'student' or 'teacher'
+              role = '';
+            }
+          }
+  
+          if (role !== roleFilter) return false;
+        }
+
+        // challenge filter (workingOn = currentChallenge || progress)
+        const workingOn = uc.currentChallenge !== undefined ? uc.currentChallenge : uc.progress;
+        if (challengeFilter !== 'all' && Number(challengeFilter) !== workingOn) return false;
+
+        // status filter: compute completed / failed / in-progress for the working challenge
+        if (statusFilter !== 'all') {
+          const isCompleted = Boolean(uc.completedChallenges?.[workingOn]);
+          let isFailed = false;
+          if (workingOn === 2) {
+            const maxAttempts = uc.challenge3MaxAttempts || 5;
+            const maxAttemptsReached = (uc.challenge3Attempts || 0) >= maxAttempts;
+            let timeExpired = false;
+            if (uc.challenge3StartTime) {
+              const startTime = new Date(uc.challenge3StartTime);
+              const currentTime = new Date();
+              const timeElapsed = (currentTime - startTime) / (1000 * 60);
+              timeExpired = timeElapsed > 120;
+            }
+            isFailed = maxAttemptsReached || timeExpired;
+          } else if (workingOn === 5) {
+            isFailed = (uc.challenge6Attempts || 0) >= 3;
+          } else if (workingOn === 6) {
+            isFailed = (uc.challenge7Attempts || 0) >= 3;
+          }
+          const inProgress = !isCompleted && !isFailed;
+
+          if (statusFilter === 'completed' && !isCompleted) return false;
+          if (statusFilter === 'failed' && !isFailed) return false;
+          if (statusFilter === 'inprogress' && !inProgress) return false;
+        }
+
+        // deep search across user fields + challenge-specific fields
+        if (!q) return true;
+        const hay = [
+          `${uc.userId.firstName || ''} ${uc.userId.lastName || ''}`,
+          uc.userId.email || '',
+          uc.uniqueId || '',
+          challenge3Data[uc.uniqueId]?.expectedOutput || '',
+          challenge6Data[uc.uniqueId]?.word || '',
+          challenge7Data[uc.uniqueId]?.quote || '',
+          Object.values(challenge7Data[uc.uniqueId]?.wordTokens || {}).flat().join(' ')
+        ].join(' ').toLowerCase();
+
+        return hay.includes(q);
+      });
+  }, [
+    challengeData?.userChallenges,
+    classroomStudents,
+    search,
+    roleFilter,
+    statusFilter,
+    challengeFilter,
+    challenge3Data,
+    challenge6Data,
+    challenge7Data
+  ]);
+  // -------------------------------------------------------------------------------
+
   return (
     <div className="min-h-screen flex flex-col">
       <div className="flex-1 p-6 space-y-8">
@@ -553,7 +667,58 @@ const TeacherView = ({
 
           {challengeData.isActive && challengeData.userChallenges && challengeData.userChallenges.length > 0 && (
             <div className="mt-6">
-              <h3 className="text-xl font-semibold mb-4">Student Challenge Progress</h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xl font-semibold">Student Challenge Progress</h3>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 items-stretch w-full max-w-4xl">
+                  <input
+                    type="search"
+                    placeholder="Search students, email, unique id, challenge text..."
+                    className="input input-sm input-bordered w-full sm:flex-auto"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                  <div className="flex gap-2 flex-wrap sm:flex-nowrap items-center">
+                    <select
+                      className="select select-sm w-full sm:w-auto flex-shrink-0"
+                      value={roleFilter}
+                      onChange={(e) => setRoleFilter(e.target.value)}
+                      title="Filter by role"
+                    >
+                      <option value="all">All roles</option>
+                      <option value="student">Students</option>
+                    </select>
+                    <select
+                      className="select select-sm w-full sm:w-auto flex-shrink-0"
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      title="Filter by status"
+                    >
+                      <option value="all">All status</option>
+                      <option value="inprogress">In progress</option>
+                      <option value="completed">Completed</option>
+                      <option value="failed">Failed</option>
+                    </select>
+                    <select
+                      className="select select-sm w-full sm:w-auto flex-shrink-0"
+                      value={challengeFilter}
+                      onChange={(e) => setChallengeFilter(e.target.value)}
+                      title="Filter by challenge"
+                    >
+                      <option value="all">All challenges</option>
+                      {CHALLENGE_NAMES.map((n, i) => (
+                        <option key={i} value={String(i)}>{`Ch ${i + 1}: ${n}`}</option>
+                      ))}
+                    </select>
+                    <button
+                      className="btn btn-sm btn-ghost ml-0 sm:ml-2"
+                      onClick={clearFilters}
+                      title="Clear search and filters"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              </div>
               <div className="overflow-x-auto -mx-6 px-6 sm:mx-0 sm:px-0">
                 <table className="table table-zebra w-full table-auto text-sm md:text-base">
                   <thead>
@@ -569,15 +734,7 @@ const TeacherView = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {challengeData.userChallenges
-                      .filter(uc => uc.userId)
-                      .filter(uc => {
-                        const studentInClassroom = classroomStudents.some(studentId => 
-                          (typeof studentId === 'string' ? studentId : studentId._id) === uc.userId._id
-                        );
-                        return studentInClassroom;
-                      })
-                      .map((uc) => {
+                    {visibleUserChallenges.map((uc) => {
                       const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'C++ Bug Hunt', 'I Always Sign My Work...', 'Secrets in the Clouds', 'Needle in a Haystack', 'Hangman'];
                       const workingOnChallenge = uc.currentChallenge !== undefined ? uc.currentChallenge : uc.progress;
                       const workingOnTitle = challengeNames[workingOnChallenge] || 'Unknown Challenge';
