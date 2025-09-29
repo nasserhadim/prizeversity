@@ -235,6 +235,9 @@ const Navbar = () => {
     );
   }
 
+  // Use a slightly darker hover color in light mode so links remain readable
+  const hoverClass = theme === 'light' ? 'hover:text-gray-700' : 'hover:text-gray-300';
+
   return (
     <nav
       data-theme={theme}
@@ -248,8 +251,8 @@ const Navbar = () => {
         <div className="lg:hidden flex items-center gap-2">
           {/* Wallet Balance for Mobile */}
           {insideClassroom && (
-            <Link to={`/classroom/${classroomId}/wallet`} className="flex items-center gap-1 text-sm p-1 rounded-md hover:bg-base-200">
-              <Wallet size={20} className="text-green-500" />
+            <Link to={`/classroom/${classroomId}/wallet`} className={`flex items-center gap-2 ${hoverClass}`}>
+              <Wallet size={24} className="text-green-500" />
               <span className="font-semibold">Ƀ{balance}</span>
             </Link>
           )}
@@ -299,7 +302,7 @@ const Navbar = () => {
               <li>
                 <Link
                   to="/"
-                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname === '/' ? 'text-green-500' : ''}`}
+                  className={`flex items-center gap-2 ${hoverClass} ${location.pathname === '/' ? 'text-green-500' : ''}`}
                   title="Home"
                 >
                   <Home size={18} />
@@ -310,7 +313,7 @@ const Navbar = () => {
                 <li>
                   <Link
                     to="/classrooms"
-                    className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname === '/classrooms' ? 'text-green-500' : ''}`}
+                    className={`flex items-center gap-2 ${hoverClass} ${location.pathname === '/classrooms' ? 'text-green-500' : ''}`}
                     title="Classrooms"
                   >
                     <School size={18} />
@@ -326,7 +329,7 @@ const Navbar = () => {
               <li>
                 <Link
                   to={`/classroom/${classroomId}`}
-                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname === `/classroom/${classroomId}` ? 'text-green-500' : ''}`}
+                  className={`flex items-center gap-2 ${hoverClass} ${location.pathname === `/classroom/${classroomId}` ? 'text-green-500' : ''}`}
                 >
                   <School size={18} />
                   <span>Classroom</span>
@@ -335,7 +338,7 @@ const Navbar = () => {
               <li>
                 <Link
                   to={`/classroom/${classroomId}/bazaar`}
-                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/bazaar`) ? 'text-green-500' : ''}`}
+                  className={`flex items-center gap-2 ${hoverClass} ${location.pathname.startsWith(`/classroom/${classroomId}/bazaar`) ? 'text-green-500' : ''}`}
                 >
                   <Briefcase size={18} />
                   <span>Bazaar</span>
@@ -344,7 +347,7 @@ const Navbar = () => {
               <li>
                 <Link
                   to={`/classroom/${classroomId}/groups`}
-                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/groups`) ? 'text-green-500' : ''}`}
+                  className={`flex items-center gap-2 ${hoverClass} ${location.pathname.startsWith(`/classroom/${classroomId}/groups`) ? 'text-green-500' : ''}`}
                 >
                   <Users size={18} />
                   <span>Groups</span>
@@ -353,7 +356,7 @@ const Navbar = () => {
               <li>
                 <Link
                   to={`/classroom/${classroomId}/people`}
-                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/people`) ? 'text-green-500' : ''}`}
+                  className={`flex items-center gap-2 ${hoverClass} ${location.pathname.startsWith(`/classroom/${classroomId}/people`) ? 'text-green-500' : ''}`}
                 >
                   <UserRound size={18} />
                   <span>People</span>
@@ -362,7 +365,7 @@ const Navbar = () => {
               <li>
                 <Link
                   to={`/classroom/${classroomId}/leaderboard`}
-                  className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/leaderboard`) ? 'text-green-500' : ''}`}
+                  className={`flex items-center gap-2 ${hoverClass} ${location.pathname.startsWith(`/classroom/${classroomId}/leaderboard`) ? 'text-green-500' : ''}`}
                   title="Leaderboard"
                 >
                   <Trophy size={18} />
@@ -373,7 +376,7 @@ const Navbar = () => {
                 <div className="tooltip tooltip-bottom" data-tip="Challenge">
                   <Link
                     to={`/classroom/${classroomId}/challenge`}
-                    className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname.startsWith(`/classroom/${classroomId}/challenge`) ? 'text-green-500' : ''}`}
+                    className={`flex items-center gap-2 ${hoverClass} ${location.pathname.startsWith(`/classroom/${classroomId}/challenge`) ? 'text-green-500' : ''}`}
                   >
                     <Shield size={18} />
                     <span className="hidden lg:inline">Challenge</span>
@@ -383,7 +386,7 @@ const Navbar = () => {
               <li>
                 <Link 
                 to={`/classroom/${classroomId}/feedback`}
-                className={`flex items-center gap-2 hover:text-gray-300 ${location.pathname === `/classroom/${classroomId}/feedback` ? 'text-green-500' : ''}`}
+                className={`flex items-center gap-2 ${hoverClass} ${location.pathname === `/classroom/${classroomId}/feedback` ? 'text-green-500' : ''}`}
                 >
                   <Star size={18} />
                   <span>Feedback</span>
