@@ -350,12 +350,9 @@ router.post('/verify-challenge5-external', ensureAuthenticated, async (req, res)
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    if (userChallenge.progress < 4) {
-      return res.status(400).json({ message: 'Must complete Challenge 4 first' });
-    }
 
-    if (userChallenge.progress >= 7) {
-      return res.status(400).json({ message: 'Challenge already completed' });
+    if (userChallenge.completedChallenges && userChallenge.completedChallenges[4]) {
+      return res.status(400).json({ message: 'Challenge 5 already completed' });
     }
 
     if (!userChallenge.completedChallenges) {
@@ -399,7 +396,7 @@ router.post('/verify-challenge5-external', ensureAuthenticated, async (req, res)
     const notification = await Notification.create({
       user: user._id,
       actionBy: challenge.createdBy,
-      type: 'challenge_completed',
+      type: 'announcement',
       message: `You completed Challenge 5: "Secrets in the Cloud" and earned ${rewardsEarned.bits} bits!`,
       read: false,
       createdAt: new Date(),
