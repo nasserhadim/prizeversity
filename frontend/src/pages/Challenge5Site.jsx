@@ -46,7 +46,7 @@ const Challenge5Site = () => {
 
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE}/verify`, {
+      const response = await fetch('https://0jqaxbqaa2.execute-api.us-east-1.amazonaws.com/prod/verify', {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -81,19 +81,28 @@ const Challenge5Site = () => {
             }),
           });
 
+          console.log('Challenge response status:', challengeResponse.status);
+          
           if (challengeResponse.ok) {
             const challengeData = await challengeResponse.json();
-            console.log('Challenge completed, bits awarded:', challengeData.bitsAwarded);
+            console.log('Challenge completed successfully!', challengeData);
+            console.log('Rewards received:', challengeData.rewards);
             setRewardData(challengeData.rewards);
             
             // Store completion data for the main challenge page to pick up
             localStorage.setItem('challengeCompleted', JSON.stringify({
               challengeIndex: 4,
-              challengeName: "WayneAWS Verification",
+              challengeName: "WayneAWS Verification", 
               timestamp: Date.now(),
               rewards: challengeData.rewards,
-              allCompleted: true
+              needsRewards: true,
+              allCompleted: challengeData.allCompleted || false,
+              nextChallenge: challengeData.nextChallenge || null
             }));
+          } else {
+            const errorData = await challengeResponse.json();
+            console.error('Challenge completion failed:', errorData);
+            toast.error(errorData.message || 'Failed to complete challenge');
           }
         } catch (challengeError) {
           console.error('Error awarding challenge rewards:', challengeError);
@@ -237,6 +246,13 @@ const Challenge5Site = () => {
           
           <button
             onClick={() => {
+              localStorage.setItem('challengeCompleted', JSON.stringify({
+                challengeIndex: 4,
+                challengeName: "WayneAWS Verification",
+                timestamp: Date.now(),
+                rewards: rewardData,
+                needsRewards: true
+              }));
               window.close();
             }}
             className="w-full bg-green-600 hover:bg-green-700 text-white font-mono py-3 px-4 rounded border border-green-500 transition-colors"
