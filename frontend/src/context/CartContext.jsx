@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
+import socket from '../utils/socket'; // ensure socket is initialized connexts tabs
 
 const CartContext = createContext();
 
@@ -21,7 +22,7 @@ export const CartProvider = ({ children }) => {
     }
   });
 
-  useEffect(() => {
+  useEffect(() => { //register c
     try {
       localStorage.setItem('pv:carts', JSON.stringify(carts));
     } catch (e) {
@@ -70,6 +71,68 @@ export const CartProvider = ({ children }) => {
     });
   };
 
+  useEffect(() => {  //use effect to listen for server-side item deletions/updates
+    // Listen for server-side bazaar item deletions so we can cleanse carts
+    const handleItemDeleted = ({ itemId }) => {
+      if (!itemId) return; //removes item fro everyclassroom cart, stuent cant chck out items that no longer exist
+      setCarts(prev => {
+        const copy = { ...prev }; //copy the current cart per classrooms 
+        for (const key of Object.keys(copy)) {
+          copy[key] = (copy[key] || []).filter(entry => { //support different possible id fields
+            const entryId = entry._id || entry.id || entry._entryId; //keeps entries that dont match deleted item id
+            return entryId && String(entryId) !== String(itemId);
+          });
+        }
+        return copy; //gives new carts object with deleted item removed
+      });
+    };
+ 
+    const handleItemUpdated = ({ item }) => { 
+      if (!item || !item._id) return; //ignores if no item or no id
+      setCarts(prev => {
+        const copy = { ...prev };
+        for (const key of Object.keys(copy)) {
+          copy[key] = (copy[key] || []).map(entry => {
+            if (String(entry._id || entry.id) === String(item._id)) {
+              // Replace / merge fields so cart reflects new price/name/etc
+              return { ...entry, ...item };
+            }
+            return entry; //leaves unchanged if no match/unchanged
+          });
+        }
+        return copy;
+      });
+    };
+ 
+    socket.on('bazaar_item_deleted', handleItemDeleted); // when an item is deleted from the bazaar, remove it from all carts
+    socket.on('bazaar_item_updated', handleItemUpdated); // when an item is updated in the bazaar, update it in all carts
+ 
+    return () => {
+      //no duplicate event handlers
+      socket.off('bazaar_item_deleted', handleItemDeleted); 
+      socket.off('bazaar_item_updated', handleItemUpdated);
+    };
+  }, []);
+ 
+  // New helper: remove specific item ids from a classroom's cart(s)
+  const removeItemsById = (ids = [], classroomId = null) => {
+    if (!Array.isArray(ids)) ids = [ids]; //ensure ids is an array and allows single passing id 
+    const id = resolveId(classroomId);
+    setCarts(prev => {
+      const copy = { ...prev };
+      for (const cid of Object.keys(copy)) {
+        copy[cid] = (copy[cid] || []).filter(entry => {
+          const entryId = entry._id || entry.id; 
+          return !ids.some(rid => String(rid) === String(entryId)); //removes any entry whose id matchs one of the actual real id 
+        });
+      }
+      return copy;
+    });
+  };
+
+
+ 
+
   const context = {
     // classroom-aware helpers
     getCart,         // function: getCart(classroomId?)
@@ -78,6 +141,7 @@ export const CartProvider = ({ children }) => {
     getCount,        // function: getCount(classroomId?)
     addToCart,       // function: addToCart(item, classroomId?)
     removeFromCart,  // function: removeFromCart(index, classroomId?)
+    removeItemsById, // function: removeItemsById([itemId1, itemId2], classroomId?)
     clearCart,       // function: clearCart(classroomId?)
     // raw state if needed
     _allCarts: carts
