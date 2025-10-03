@@ -45,7 +45,7 @@ router.post('/groupset/create', ensureAuthenticated, upload.single('image'), asy
         path: 'groups',
         populate: {
           path: 'members._id',
-          select: 'email isFrozen firstName lastName'
+          select: 'email isFrozen firstName lastName classroomFrozen avatar profileImage'
         }
       });
 
@@ -143,7 +143,7 @@ router.put('/groupset/:id', ensureAuthenticated, upload.single('image'), async (
         path: 'groups',
         populate: {
           path: 'members._id',
-          select: 'email isFrozen firstName lastName'
+          select: 'email isFrozen firstName lastName classroomFrozen avatar profileImage'
         }
       });
     
@@ -223,7 +223,7 @@ router.get('/groupset/classroom/:classroomId', ensureAuthenticated, async (req, 
         populate: [
           { 
             path: 'members._id', 
-            select: 'email isFrozen firstName lastName'
+            select: 'email isFrozen firstName lastName classroomFrozen avatar profileImage'
           },
           { 
             path: 'siphonRequests', 
@@ -303,7 +303,7 @@ router.post('/groupset/:groupSetId/group/create', ensureAuthenticated, upload.si
         path: 'groups',
         populate: {
           path: 'members._id',
-          select: 'email isFrozen firstName lastName'
+          select: 'email isFrozen firstName lastName classroomFrozen avatar profileImage'
         }
       });
 
@@ -381,7 +381,7 @@ router.post('/groupset/:groupSetId/group/:groupId/join', ensureAuthenticated, as
     await group.updateMultiplier();
 
     const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email isFrozen firstName lastName classroomFrozen');
+      .populate('members._id', 'email isFrozen firstName lastName classroomFrozen avatar profileImage');
 
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', {
       groupSet: groupSet._id,
@@ -449,7 +449,7 @@ router.put('/groupset/:groupSetId/group/:groupId', ensureAuthenticated, upload.s
 
     // Always emit the group update event with populated data
     const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email isFrozen firstName lastName classroomFrozen');
+      .populate('members._id', 'email isFrozen firstName lastName classroomFrozen avatar profileImage');
 
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', {
       groupSet: groupSet._id,
@@ -590,7 +590,7 @@ router.post('/groupset/:groupSetId/group/:groupId/add-members', ensureAuthentica
     await group.updateMultiplier();
     await group.save();
 
-    const populatedGroup = await Group.findById(group._id).populate('members._id', 'email isFrozen firstName lastName classroomFrozen');
+    const populatedGroup = await Group.findById(group._id).populate('members._id', 'email isFrozen firstName lastName classroomFrozen avatar profileImage');
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', {
       groupSet: groupSet._id,
       group: populatedGroup
@@ -670,7 +670,7 @@ router.post('/groupset/:groupSetId/group/:groupId/suspend', ensureAuthenticated,
 
     // After successful member status change (approve/reject/suspend)
     const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email firstName lastName classroomFrozen');
+      .populate('members._id', 'email firstName lastName classroomFrozen avatar profileImage');
 
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
       groupSet: groupSet._id, 
@@ -846,7 +846,7 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
 
     // After successful member status change
     const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email isFrozen firstName lastName classroomFrozen');
+      .populate('members._id', 'email isFrozen firstName lastName classroomFrozen avatar profileImage');
 
     // Emit update immediately
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
@@ -931,7 +931,7 @@ router.post('/groupset/:groupSetId/group/:groupId/reject', ensureAuthenticated, 
 
     // After successful member status change (approve/reject/suspend)
     const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email firstName lastName classroomFrozen');
+      .populate('members._id', 'email firstName lastName classroomFrozen avatar profileImage');
 
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
       groupSet: groupSet._id, 
@@ -1089,7 +1089,7 @@ router.post('/groupset/:groupSetId/group/:groupId/suspend', ensureAuthenticated,
 
     // After successful member status change (approve/reject/suspend)
     const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email firstName lastName classroomFrozen');
+      .populate('members._id', 'email firstName lastName classroomFrozen avatar profileImage');
 
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
       groupSet: groupSet._id, 
@@ -1265,7 +1265,7 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
 
     // After successful member status change
     const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email isFrozen firstName lastName classroomFrozen');
+      .populate('members._id', 'email isFrozen firstName lastName classroomFrozen avatar profileImage');
 
     // Emit update immediately
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
@@ -1350,7 +1350,7 @@ router.post('/groupset/:groupSetId/group/:groupId/reject', ensureAuthenticated, 
 
     // After successful member status change (approve/reject/suspend)
     const populatedGroup = await Group.findById(group._id)
-      .populate('members._id', 'email firstName lastName classroomFrozen');
+      .populate('members._id', 'email firstName lastName classroomFrozen avatar profileImage');
 
     req.app.get('io').to(`classroom-${groupSet.classroom}`).emit('group_update', { 
       groupSet: groupSet._id, 
