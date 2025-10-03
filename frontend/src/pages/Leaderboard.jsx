@@ -7,6 +7,7 @@ import apiLeaderboard from '../API/apiLeaderboard.js';
 import apiClassroom from '../API/apiClassroom.js';
 import Footer from '../components/Footer';
 import { useAuth } from '../context/AuthContext'; // Add this import
+import Avatar from '../components/Avatar';
 
 const Leaderboard = () => {
   const { classId } = useParams();
@@ -176,7 +177,12 @@ const Leaderboard = () => {
                           {index === 2 && <span className="text-orange-600">🥉</span>}
                         </div>
                       </td>
-                      <td className="font-medium">{getDisplayName(student)}</td>
+                      <td className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <Avatar user={student} size={28} />
+                          {getDisplayName(student)}
+                        </div>
+                      </td>
                       <td>
                         <div className="flex flex-col sm:flex-row gap-2">
                           <button
