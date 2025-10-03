@@ -10,6 +10,7 @@ import Footer from '../components/Footer';
 import ExportButtons from '../components/ExportButtons';
 import formatExportFilename from '../utils/formatExportFilename';
 import StatsAdjustModal from '../components/StatsAdjustModal';
+import Avatar from '../components/Avatar';
 
 const ROLE_LABELS = {
   student: 'Student',
@@ -1181,6 +1182,10 @@ const visibleCount = filteredStudents.length;
                   return (
                     <div key={student._id} className="border p-3 rounded shadow flex justify-between items-center">
                       <div>
+                        <div className="flex items-center gap-3">
+                          {/* NEW: avatar next to the name */}
+                          <Avatar user={student} size={36} />
+                        </div>
                         <div className="font-medium text-lg">
                           {student.firstName || student.lastName
                             ? `${student.firstName || ''} ${student.lastName || ''}`.trim()
@@ -1439,37 +1444,39 @@ const visibleCount = filteredStudents.length;
                         return name.includes(query) || email.includes(query);
                       })
                       .map(student => {
-                      // NEW: determine ban status for unassigned student
-                      const banInfo = getBanInfo(student, classroom);
-                      const isBanned = Boolean(banInfo?.banned);
+                        const banInfo = getBanInfo(student, classroom);
+                        const isBanned = Boolean(banInfo?.banned);
 
-                      return (
-                        <div 
-                          key={student._id} 
-                          className="flex justify-between items-center p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800"
-                        >
-                          <span className="font-medium">
-                            {student.firstName || student.lastName
-                              ? `${student.firstName || ''} ${student.lastName || ''}`.trim()
-                              : student.email}
-                            {/* SHOW BANNED BADGE FOR UNASSIGNED STUDENTS */}
-                            {isBanned && <span className="badge badge-error ml-2">BANNED</span>}
-                          </span>
+                        return (
+                          <div 
+                            key={student._id} 
+                            className="flex justify-between items-center p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800"
+                          >
+                            {/* NEW: avatar + name */}
+                            <div className="flex items-center gap-2">
+                              <Avatar user={student} size={24} />
+                              <span className="font-medium">
+                                {student.firstName || student.lastName
+                                  ? `${student.firstName || ''} ${student.lastName || ''}`.trim()
+                                  : student.email}
+                                {isBanned && <span className="badge badge-error ml-2">BANNED</span>}
+                              </span>
+                            </div>
 
-                          <div className="flex items-center gap-2">
-                            <button
-                              className="btn btn-xs btn-outline"
-                              onClick={() => navigate(
-                                `/classroom/${classroomId}/profile/${student._id}`,
-                                { state: { from: 'people', classroomId } }
-                              )}
-                            >
-                              Profile
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                className="btn btn-xs btn-outline"
+                                onClick={() => navigate(
+                                  `/classroom/${classroomId}/profile/${student._id}`,
+                                  { state: { from: 'people', classroomId } }
+                                )}
+                              >
+                                Profile
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
                   </div>
                 </div>
               )}
@@ -1540,7 +1547,6 @@ const visibleCount = filteredStudents.length;
                     {group.members
                       .filter(m => m && m._id && m.status === 'approved') // Add status filter
                       .map((m) => {
-                        // avoid shadowing the outer `user` (viewer) from useAuth()
                         const memberUser = m._id;
                         const userId = memberUser._id || memberUser; // handle populated object or raw id
                         const displayName = memberUser && (memberUser.firstName || memberUser.lastName)
@@ -1583,20 +1589,27 @@ const visibleCount = filteredStudents.length;
  
                         return (
                           <li key={String(userId)} className="flex justify-between items-center w-full">
+                            {/* NEW: avatar + name + badges */}
                             <span className="flex items-center gap-2">
+                              <Avatar user={memberUser} size={24} />
                               <span>{displayName}</span>
                               {isBannedMember && <span className="badge badge-error">BANNED</span>}
                               {isSiphoned && canSeeSiphon && <span className="badge badge-warning">SIPHONED</span>}
                             </span>
-                             <button
-                               className="btn btn-sm btn-outline ml-4"
-                               onClick={() => navigate(`/classroom/${classroomId}/profile/${userId}`, { state: { from: 'people', classroomId } })}
-                             >
-                               View Profile
-                             </button>
-                           </li>
-                         );
-                       })}
+
+                            <button
+                              className="btn btn-sm btn-outline ml-4"
+                              onClick={() =>
+                                navigate(`/classroom/${classroomId}/profile/${userId}`, {
+                                  state: { from: 'people', classroomId }
+                                })
+                              }
+                            >
+                              View Profile
+                            </button>
+                          </li>
+                        );
+                      })}
                 </ul>
               )}</div>
              ))}

@@ -11,10 +11,10 @@ const router = express.Router();
 router.get('/:classroomId/leaderboard', ensureAuthenticated, async (req, res) => {
   try {
     const classroomId = req.params.classroomId;
-    const classroom = await Classroom.findById(classroomId).populate('students', 'email role firstName lastName');
+    const classroom = await Classroom.findById(classroomId).populate('students', 'email role firstName lastName avatar profileImage');
     if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
 
-    // Return students without balance information
+    // Return students with avatar information
     const leaderboard = classroom.students
       .filter(student => student.role === 'student')
       .map(student => ({
@@ -22,7 +22,9 @@ router.get('/:classroomId/leaderboard', ensureAuthenticated, async (req, res) =>
         email: student.email,
         firstName: student.firstName,
         lastName: student.lastName,
-        role: student.role
+        role: student.role,
+        avatar: student.avatar,
+        profileImage: student.profileImage
       }));
 
     res.json(leaderboard);

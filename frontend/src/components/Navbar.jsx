@@ -236,7 +236,11 @@ const Navbar = () => {
   }
 
   // Use a slightly darker hover color in light mode so links remain readable
-  const hoverClass = theme === 'light' ? 'hover:text-gray-700' : 'hover:text-gray-300';
+  // include a subtle background hover plus text color so hover is visible in both light/dark
+  const hoverClass =
+    theme === 'light'
+      ? 'hover:text-gray-700 hover:bg-base-200'
+      : 'hover:text-gray-300 hover:bg-base-300/10';
 
   return (
     <nav
@@ -400,7 +404,7 @@ const Navbar = () => {
         <div className="hidden lg:flex items-center gap-4">
           {/* Wallet Balance */}
           {insideClassroom && (
-            <Link to={`/classroom/${classroomId}/wallet`} className="flex items-center gap-2 hover:text-gray-300">
+            <Link to={`/classroom/${classroomId}/wallet`} className={`flex items-center gap-2 ${hoverClass}`}>
               <Wallet size={24} className="text-green-500" />
               <span className="font-semibold">Ƀ{balance}</span>
             </Link>
@@ -564,7 +568,7 @@ const Navbar = () => {
               <>
                 <Link
                   to="/"
-                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname === '/' ? 'bg-primary/10 text-primary' : 'hover:bg-base-200'}`}
+                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname === '/' ? 'bg-primary/10 text-primary' : ''} ${hoverClass}`}
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   <Home size={20} />
@@ -573,7 +577,7 @@ const Navbar = () => {
                 {showClassroomsTab && (
                   <Link
                     to="/classrooms"
-                    className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname === '/classrooms' ? 'bg-primary/10 text-primary' : 'hover:bg-base-200'}`}
+                    className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname === '/classrooms' ? 'bg-primary/10 text-primary' : ''} ${hoverClass}`}
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
                     <School size={20} />
@@ -587,7 +591,7 @@ const Navbar = () => {
               <>
                 <Link
                   to={`/classroom/${classroomId}`}
-                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname === `/classroom/${classroomId}` ? 'text-green-500' : ''}`}
+                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname === `/classroom/${classroomId}` ? 'text-green-500' : ''} ${hoverClass}`}
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   <School size={20} />
