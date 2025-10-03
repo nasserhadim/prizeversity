@@ -10,6 +10,7 @@ import ChallengeUpdateModal from './modals/ChallengeUpdateModal';
 import toast from 'react-hot-toast';
 import socket from '../../utils/socket';
 import Footer from '../Footer';
+import ExportButtons from '../ExportButtons';
 
 const TeacherView = ({ 
   challengeData,
@@ -508,6 +509,110 @@ const TeacherView = ({
   ]);
   // -------------------------------------------------------------------------------
 
+  // ---------------- Export helpers ----------------
+  const buildExportRows = () => {
+    if (!challengeData || !challengeData.userChallenges) return [];
+    const rows = [];
+
+    for (const uc of challengeData.userChallenges) {
+      const studentName = `${uc.userId?.firstName || ''} ${uc.userId?.lastName || ''}`.trim() || (uc.userId?.email || '');
+      const email = uc.userId?.email || '';
+      const uniqueId = uc.uniqueId || '';
+      for (let idx = 0; idx < 7; idx++) {
+        const challengeName = (CHALLENGE_NAMES && CHALLENGE_NAMES[idx]) || `Challenge ${idx + 1}`;
+        const completed = Boolean(uc.completedChallenges?.[idx]);
+        const attempts = Number(uc[`challenge${idx + 1}Attempts`] || 0);
+        
+        let maxAttemptsValue = uc[`challenge${idx + 1}MaxAttempts`] || '';
+        if (idx === 2 && !maxAttemptsValue) maxAttemptsValue = 5; // C++ Bug Hunt
+        if (idx === 5 && !maxAttemptsValue) maxAttemptsValue = 3; // Needle in a Haystack
+        if (idx === 6 && !maxAttemptsValue) maxAttemptsValue = 3; // Hangman
+
+        const startedAt = uc.challengeStartedAt?.[idx] || (idx === 0 ? uc.startedAt : null);
+        const completedAt = uc.challengeCompletedAt?.[idx] || null;
+        let status = 'Not Started';
+        if (completed) status = 'Completed';
+        else if (attempts > 0) status = 'In Progress';
+        
+        if ((maxAttemptsValue && attempts >= maxAttemptsValue) || ((idx === 5 || idx === 6) && attempts >= 3 && !completed)) {
+          status = 'Failed';
+        }
+
+        rows.push({
+          classroomId: String(challengeData.classroomId || classroomId || ''),
+          studentName,
+          email,
+          uniqueId,
+          challengeIndex: idx,
+          challengeName,
+          status,
+          attempts,
+          maxAttempts: maxAttemptsValue,
+          startedAt: startedAt ? new Date(startedAt).toISOString() : '',
+          completedAt: completedAt ? new Date(completedAt).toISOString() : '',
+        });
+      }
+    }
+
+    return rows;
+  };
+
+  const downloadBlob = (content, mimeType, filename) => {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportAsJSON = () => {
+    const rows = buildExportRows();
+    // Updated filename format: classroom + challenge + timestamp
+    const classroomPart = classroom?.name || 'classroom';
+    const codePart = classroom?.code ? `_${classroom.code}` : '';
+    const challengePart = challengeData?.title ? `_${challengeData.title.replace(/[^a-zA-Z0-9_-]/g, '_')}` : '_challenge';
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const filename = `${classroomPart}${codePart}${challengePart}_${timestamp}.json`;
+    downloadBlob(JSON.stringify(rows, null, 2), 'application/json;charset=utf-8', filename);
+    return filename;
+  };
+
+  const exportAsCSV = () => {
+    const rows = buildExportRows();
+    // Updated filename format: classroom + challenge + timestamp
+    const classroomPart = classroom?.name || 'classroom';
+    const codePart = classroom?.code ? `_${classroom.code}` : '';
+    const challengePart = challengeData?.title ? `_${challengeData.title.replace(/[^a-zA-Z0-9_-]/g, '_')}` : '_challenge';
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const filename = `${classroomPart}${codePart}${challengePart}_${timestamp}.csv`;
+    
+    if (!rows.length) {
+      downloadBlob('', 'text/csv;charset=utf-8', filename);
+      return filename;
+    }
+    const headers = Object.keys(rows[0]);
+    const escapeCell = (v) => {
+      if (v === null || v === undefined) return '';
+      const s = String(v);
+      if (s.includes('"') || s.includes(',') || s.includes('\n')) {
+        return `"${s.replace(/"/g, '""')}"`;
+      }
+      return s;
+    };
+    const csv = [
+      headers.join(','),
+      ...rows.map(r => headers.map(h => escapeCell(r[h])).join(','))
+    ].join('\n');
+
+    downloadBlob(csv, 'text/csv;charset=utf-8', filename);
+    return filename;
+  };
+  // --------------------------------------------------
+
   return (
     <div className="min-h-screen flex flex-col">
       <div className="flex-1 p-6 space-y-8">
@@ -707,7 +812,7 @@ const TeacherView = ({
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                   />
-                  <div className="flex gap-2 flex-wrap sm:flex-nowrap items-center">
+                  <div className="flex gap-2 flex-wrap items-center justify-start">
                     <select
                       className="select select-sm w-full sm:w-auto flex-shrink-0"
                       value={roleFilter}
@@ -746,6 +851,13 @@ const TeacherView = ({
                     >
                       Clear
                     </button>
+                    {/* Export buttons moved here */}
+                    <ExportButtons
+                      onExportCSV={exportAsCSV}
+                      onExportJSON={exportAsJSON}
+                      userName={classroom?.name || challengeData?.title || 'challenge'}
+                      exportLabel="challenge"
+                    />
                   </div>
                 </div>
               </div>
@@ -783,7 +895,7 @@ const TeacherView = ({
                               <span className="text-xs md:text-sm text-gray-600">{workingOnTitle}</span>
                               <span className="text-xs text-gray-500 mt-1">{currentChallenge.method}</span>
 
-                              {/* Mobile-only: show Started / Completed info when table columns are hidden */}
+                              {/* Mobile-only: show Started / Completed info when table columns arehidden */}
                               <div className="sm:hidden mt-2 text-xs text-gray-500">
                                 <div>
                                   <strong>Started:</strong>{' '}
