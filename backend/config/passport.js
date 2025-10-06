@@ -21,9 +21,16 @@ module.exports = (passport) => {
         const oauthFirstName = profile.name?.givenName || nameParts[0] || '';
         const oauthLastName = profile.name?.familyName || nameParts.slice(1).join(' ') || '';
 
+        // Safely extract email with fallback
+        const email = profile.emails?.[0]?.value || '';
+        
+        if (!email) {
+          return done(new Error('No email found in Google profile'), null);
+        }
+
         const newUser = {
           googleId: profile.id,
-          email: profile.emails[0].value,
+          email: email,
           profileImage: profile.photos?.[0]?.value,
           oauthFirstName,
           oauthLastName,
@@ -67,9 +74,16 @@ module.exports = (passport) => {
         const oauthFirstName = profile.name?.givenName || nameParts[0] || '';
         const oauthLastName = profile.name?.familyName || nameParts.slice(1).join(' ') || '';
 
+        // Safely extract email with fallback
+        const email = profile.emails?.[0]?.value || profile.mail || profile.userPrincipalName || '';
+        
+        if (!email) {
+          return done(new Error('No email found in Microsoft profile'), null);
+        }
+
         const newUser = {
           microsoftId: profile.id,
-          email: profile.emails[0].value,
+          email: email,
           profileImage: profile.photos?.[0]?.value,
           oauthFirstName,
           oauthLastName,

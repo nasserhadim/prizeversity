@@ -26,7 +26,7 @@ const NullifyModal = ({
             className="btn btn-block btn-outline hover:bg-red-50"
           >
             <div className="flex items-center justify-between w-full">
-              <span>💰 Bits (Set to 0)</span>
+              <span>💰 ₿ (Set to 0)</span>
               <span className="badge badge-error">Nullify</span>
             </div>
           </button>
