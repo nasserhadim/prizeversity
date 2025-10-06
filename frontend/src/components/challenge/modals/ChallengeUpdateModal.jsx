@@ -190,7 +190,7 @@ const ChallengeUpdateModal = ({
                     
                     <div className="form-control">
                       <label className="label py-1">
-                        <span className="label-text text-sm font-medium">Reward Bits</span>
+                        <span className="label-text text-sm font-medium">Reward ₿its</span>
                       </label>
                       <div className="flex gap-2 items-center">
                         <div className={`flex-1 ${updateData.rewardMode === 'individual' ? '' : 'opacity-50'}`}>
@@ -223,7 +223,7 @@ const ChallengeUpdateModal = ({
                       {updateData.rewardMode === 'total' && (
                         <div className="mt-2">
                           <label className="label py-1">
-                            <span className="label-text text-xs">Total Reward Bits</span>
+                            <span className="label-text text-xs">Total Reward ₿its</span>
                           </label>
                           <input
                             type="number"
@@ -563,7 +563,7 @@ const ChallengeUpdateModal = ({
                     <tr>
                       <td className="sticky left-0 bg-base-100 z-10">
                         <div className="flex items-center gap-3 flex-nowrap text-sm">
-                          <span className="font-semibold inline-block w-36 shrink-0">Bits</span>
+                          <span className="font-semibold inline-block w-36 shrink-0">₿its</span>
                           <IndivTotalToggle
                             value={updateData.rewardMode}
                             onChange={(mode) => setUpdateData(prev => ({ ...prev, rewardMode: mode }))}

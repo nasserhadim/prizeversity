@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useMemo } from 'react';
-import { Shield, Settings, Users, Eye, EyeOff, UserPlus, Edit3 } from 'lucide-react';
+import { Shield, Settings, Users, Eye, EyeOff, UserPlus, Edit3, Trophy, Coins, TrendingUp, Zap, Percent } from 'lucide-react';
 import { CHALLENGE_NAMES } from '../../constants/challengeConstants';
 import { getCurrentChallenge } from '../../utils/challengeUtils';
 import { getThemeClasses } from '../../utils/themeUtils';
@@ -518,6 +518,7 @@ const TeacherView = ({
       const studentName = `${uc.userId?.firstName || ''} ${uc.userId?.lastName || ''}`.trim() || (uc.userId?.email || '');
       const email = uc.userId?.email || '';
       const uniqueId = uc.uniqueId || '';
+      
       for (let idx = 0; idx < 7; idx++) {
         const challengeName = (CHALLENGE_NAMES && CHALLENGE_NAMES[idx]) || `Challenge ${idx + 1}`;
         const completed = Boolean(uc.completedChallenges?.[idx]);
@@ -538,6 +539,169 @@ const TeacherView = ({
           status = 'Failed';
         }
 
+        // Get challenge-specific data and solutions
+        let challengeData_specific = '';
+        let solution = '';
+        let rewardsEarned = '';
+        let rewardsAvailable = ''; // NEW: What rewards are available for this challenge
+        let hintsUsed = '';
+        let hintsAvailable = ''; // NEW: What hints are available for this challenge
+
+        switch (idx) {
+          case 0: // Caesar Cipher
+            challengeData_specific = uniqueId;
+            solution = uc.hashedPassword || '';
+            break;
+          case 1: // GitHub OSINT
+            challengeData_specific = `GitHub Branch: ${uniqueId}`;
+            solution = uc.challenge2Password || '';
+            break;
+          case 2: // C++ Bug Hunt
+            challengeData_specific = 'C++ Debugging Challenge';
+            solution = challenge3Data[uniqueId]?.expectedOutput || '';
+            break;
+          case 3: // Forensics
+            challengeData_specific = `Forensics Evidence: campus_${uniqueId}.jpg`;
+            solution = uc.challenge4Password || '';
+            break;
+          case 4: // WayneAWS
+            challengeData_specific = 'WayneAWS Authentication Portal';
+            solution = 'External Verification Required';
+            break;
+          case 5: // Needle in Haystack
+            challengeData_specific = `Search Word: "${challenge6Data[uniqueId]?.word || 'N/A'}"`;
+            solution = challenge6Data[uniqueId]?.tokenId || '';
+            break;
+          case 6: // Hangman
+            const challenge7Info = challenge7Data[uniqueId];
+            if (challenge7Info && !challenge7Info.error) {
+              challengeData_specific = `Quote: "${challenge7Info.quote}" - ${challenge7Info.author}`;
+              const wordTokens = challenge7Info.wordTokens || {};
+              const tokenSolutions = Object.entries(wordTokens)
+                .map(([word, tokens]) => `${word}: [${tokens.join(', ')}]`)
+                .join('; ');
+              solution = tokenSolutions;
+            
+              // Add progress info for Challenge 7
+              const revealedCount = uc.challenge7Progress?.revealedWords?.length || 0;
+              const totalCount = challenge7Info.uniqueWords?.length || 0;
+              if (totalCount > 0) {
+                challengeData_specific += ` | Progress: ${revealedCount}/${totalCount} words (${((revealedCount / totalCount) * 100).toFixed(1)}%)`;
+              }
+            } else {
+              challengeData_specific = 'Hangman Challenge - Data loading error';
+              solution = 'Error loading solution data';
+            }
+            break;
+        }
+
+        // NEW: Get available rewards for this challenge (what could be earned)
+        if (challengeData?.settings) {
+          const availableRewards = [];
+        
+          if (challengeData.settings.rewardMode === 'individual') {
+            const baseBits = challengeData.settings.challengeBits?.[idx] || 0;
+            if (baseBits > 0) availableRewards.push(`${baseBits} ₿`);
+          } else if (challengeData.settings.rewardMode === 'total' && idx === 6) {
+            const totalBits = challengeData.settings.totalRewardBits || 0;
+            if (totalBits > 0) availableRewards.push(`${totalBits} ₿ (series completion)`);
+          }
+        
+          if (challengeData.settings.multiplierMode === 'individual') {
+            const multiplier = challengeData.settings.challengeMultipliers?.[idx] || 1.0;
+            if (multiplier > 1.0) availableRewards.push(`${multiplier}x Multiplier`);
+          }
+        
+          if (challengeData.settings.luckMode === 'individual') {
+            const luck = challengeData.settings.challengeLuck?.[idx] || 1.0;
+            if (luck > 1.0) availableRewards.push(`${luck}x Luck`);
+          }
+        
+          if (challengeData.settings.discountMode === 'individual') {
+            const discount = challengeData.settings.challengeDiscounts?.[idx] || 0;
+            if (discount > 0) availableRewards.push(`${discount}% Discount`);
+          }
+        
+          if (challengeData.settings.shieldMode === 'individual') {
+            const shield = challengeData.settings.challengeShields?.[idx];
+            if (shield) availableRewards.push('Shield');
+          }
+        
+          rewardsAvailable = availableRewards.join(', ') || 'No rewards configured';
+        }
+
+        // NEW: Get available hints for this challenge
+        if (challengeData?.settings?.challengeHintsEnabled?.[idx]) {
+          const challengeHints = challengeData.settings.challengeHints?.[idx] || [];
+          const nonEmptyHints = challengeHints.filter(hint => hint && hint.trim());
+          if (nonEmptyHints.length > 0) {
+            hintsAvailable = nonEmptyHints.map((hint, i) => `Hint ${i + 1}: ${hint}`).join(' | ');
+          } else {
+            hintsAvailable = 'Hints enabled but not configured';
+          }
+        } else {
+          hintsAvailable = 'No hints available';
+        }
+
+        // Calculate earned rewards for completed challenges
+        if (completed && challengeData?.settings) {
+          const earnedRewards = [];
+        
+          // Bits calculation with hint penalty
+          if (challengeData.settings.rewardMode === 'individual') {
+            let baseBits = challengeData.settings.challengeBits?.[idx] || 0;
+            const hintsUsedCount = uc.hintsUsed?.[idx] || 0;
+            const hintsEnabled = challengeData.settings.challengeHintsEnabled?.[idx];
+            
+            if (hintsEnabled && baseBits > 0 && hintsUsedCount > 0) {
+              const penaltyPercent = challengeData.settings.hintPenaltyPercent ?? 25;
+              const totalPenalty = (penaltyPercent * hintsUsedCount) / 100;
+              const cappedPenalty = Math.min(totalPenalty, 0.8);
+              const originalBits = baseBits;
+              baseBits = Math.round(baseBits * (1 - cappedPenalty));
+              hintsUsed = `${hintsUsedCount} hints used (${originalBits} → ${baseBits} ₿ after ${(penaltyPercent * hintsUsedCount)}% penalty)`;
+            } else if (hintsUsedCount > 0) {
+              hintsUsed = `${hintsUsedCount} hints used (no penalty)`;
+            }
+            
+            if (baseBits > 0) earnedRewards.push(`${baseBits} ₿`);
+          }
+        
+          // Other earned rewards
+          if (challengeData.settings.multiplierMode === 'individual') {
+            const multiplier = challengeData.settings.challengeMultipliers?.[idx] || 1.0;
+            if (multiplier > 1.0) earnedRewards.push(`${multiplier}x Multiplier`);
+          }
+        
+          if (challengeData.settings.luckMode === 'individual') {
+            const luck = challengeData.settings.challengeLuck?.[idx] || 1.0;
+            if (luck > 1.0) earnedRewards.push(`${luck}x Luck`);
+          }
+        
+          if (challengeData.settings.discountMode === 'individual') {
+            const discount = challengeData.settings.challengeDiscounts?.[idx] || 0;
+            if (discount > 0) earnedRewards.push(`${discount}% Discount`);
+          }
+        
+          if (challengeData.settings.shieldMode === 'individual') {
+            const shield = challengeData.settings.challengeShields?.[idx];
+            if (shield) earnedRewards.push('Shield');
+          }
+        
+          rewardsEarned = earnedRewards.join(', ') || 'No rewards earned';
+        } else if (completed) {
+          rewardsEarned = 'Completed (rewards data unavailable)';
+        } else {
+          rewardsEarned = 'Not completed';
+        }
+
+        // Add hints used info if not already set
+        if (!hintsUsed && uc.hintsUsed?.[idx]) {
+          hintsUsed = `${uc.hintsUsed[idx]} hints used`;
+        } else if (!hintsUsed) {
+          hintsUsed = 'No hints used';
+        }
+
         rows.push({
           classroomId: String(challengeData.classroomId || classroomId || ''),
           studentName,
@@ -550,6 +714,19 @@ const TeacherView = ({
           maxAttempts: maxAttemptsValue,
           startedAt: startedAt ? new Date(startedAt).toISOString() : '',
           completedAt: completedAt ? new Date(completedAt).toISOString() : '',
+          challengeData: challengeData_specific,
+          solution: solution,
+          rewardsAvailable: rewardsAvailable, // NEW
+          rewardsEarned: rewardsEarned,
+          hintsAvailable: hintsAvailable, // NEW
+          hintsUsed: hintsUsed,
+          // Additional useful fields
+          timeToComplete: startedAt && completedAt ? 
+            Math.round((new Date(completedAt) - new Date(startedAt)) / (1000 * 60)) + ' minutes' : '',
+          failureReason: status === 'Failed' ? 
+            (idx === 2 ? 'Max attempts or time limit exceeded' : 
+             idx === 5 || idx === 6 ? 'Max attempts exceeded' : 'Unknown') : '',
+          hintPenaltyPercent: challengeData.settings?.hintPenaltyPercent || 0
         });
       }
     }
@@ -613,6 +790,41 @@ const TeacherView = ({
   };
   // --------------------------------------------------
 
+  // Add this helper function near the top of the component
+
+  const getRewardsForChallenge = (challengeIdx) => {
+    if (!challengeData?.settings) return 'No rewards configured';
+    
+    const rewards = [];
+    
+    if (challengeData.settings.rewardMode === 'individual') {
+      const baseBits = challengeData.settings.challengeBits?.[challengeIdx] || 0;
+      if (baseBits > 0) rewards.push(`${baseBits} ₿`);
+    }
+    
+    if (challengeData.settings.multiplierMode === 'individual') {
+      const multiplier = challengeData.settings.challengeMultipliers?.[challengeIdx] || 1.0;
+      if (multiplier > 1.0) rewards.push(`${multiplier}x Multiplier`);
+    }
+    
+    if (challengeData.settings.luckMode === 'individual') {
+      const luck = challengeData.settings.challengeLuck?.[challengeIdx] || 1.0;
+      if (luck > 1.0) rewards.push(`${luck}x Luck`);
+    }
+    
+    if (challengeData.settings.discountMode === 'individual') {
+      const discount = challengeData.settings.challengeDiscounts?.[challengeIdx] || 0;
+      if (discount > 0) rewards.push(`${discount}% Discount`);
+    }
+    
+    if (challengeData.settings.shieldMode === 'individual') {
+      const shield = challengeData.settings.challengeShields?.[challengeIdx];
+      if (shield) rewards.push('Shield');
+    }
+    
+    return rewards.length > 0 ? rewards.join(', ') : 'No rewards';
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       <div className="flex-1 p-6 space-y-8">
@@ -626,7 +838,7 @@ const TeacherView = ({
           </h1>
         </div>
         <p className={`${themeClasses.mutedText} text-lg mb-6`}>
-          Initiate the complete Cyber Challenge Series. Students will progress through multiple cybersecurity challenges, each with unique encrypted data and passwords to discover.
+          The Exciting Cyber Challenge Series! Students progress through multiple cybersecurity-oriented, OSINT-inspired challenges, each with unique encrypted data and pass phrases to uncover.
         </p>
         
         <div className="flex flex-col sm:flex-row gap-4">
@@ -869,6 +1081,7 @@ const TeacherView = ({
                       <th className="whitespace-nowrap">Current Challenge</th>
                       <th className="hidden md:table-cell whitespace-nowrap">Challenge Data</th>
                       <th className="whitespace-nowrap">Solution</th>
+                      <th className="hidden xl:table-cell whitespace-nowrap">Available Rewards</th> {/* NEW */}
                       <th className="hidden sm:table-cell whitespace-nowrap">Started At</th>
                       <th className="hidden lg:table-cell whitespace-nowrap">Completed At</th>
                       <th className="whitespace-nowrap">Status</th>
@@ -1246,6 +1459,33 @@ const TeacherView = ({
                               </div>
                             )}
                           </td>
+                          <td className="hidden xl:table-cell">
+                            <div className="space-y-1">
+                              <div className="text-xs font-medium text-blue-600">
+                                {getRewardsForChallenge(workingOnChallenge)}
+                              </div>
+                              {/* hint penalty / count */}
+                              {challengeData?.settings?.challengeHintsEnabled?.[workingOnChallenge] && (
+                                <>
+                                  <div className="text-xs text-orange-600">
+                                    -{challengeData.settings.hintPenaltyPercent || 25}% per hint
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    {(() => {
+                                      const hints = challengeData.settings.challengeHints?.[workingOnChallenge] || [];
+                                      const nonEmpty = hints.filter(h => h && h.trim()).length;
+                                      return nonEmpty > 0 ? `${nonEmpty} hint(s) available` : 'Hints enabled (not configured)';
+                                    })()}
+                                  </div>
+                                </>
+                              )}
+                              {uc.hintsUsed?.[workingOnChallenge] > 0 && (
+                                <div className="text-xs text-red-600 font-medium">
+                                  Used: {uc.hintsUsed[workingOnChallenge]} hint(s)
+                                </div>
+                              )}
+                            </div>
+                          </td>
                           <td className="hidden sm:table-cell">
                             {uc.challengeStartedAt?.[workingOnChallenge] ? (
                               <div className="text-xs md:text-sm">
@@ -1575,6 +1815,7 @@ const TeacherView = ({
                 <button
                   className="btn btn-primary"
                   onClick={() => {
+                   
                     setShowHintModal(false);
                     setEditingHints(null);
                   }}

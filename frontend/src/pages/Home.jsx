@@ -430,7 +430,7 @@ const Home = () => {
                 {/* Floating stat labels (no lines) */}
                 <div className="absolute left-0 top-0 w-full h-full pointer-events-none" style={{ zIndex: 2 }}>
                   <div className="stat-label stat-label-bits stat-badge bits">
-                    <div className="stat-label-title">Bits</div>
+                    <div className="stat-label-title">₿its</div>
                     <div className="stat-label-sub">Powers the Bazaar</div>
                   </div>
 

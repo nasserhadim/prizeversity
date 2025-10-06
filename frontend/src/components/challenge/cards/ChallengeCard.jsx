@@ -344,7 +344,7 @@ const ChallengeCard = ({
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
                   <span>💰 Cost: -{challengeData.settings.hintPenaltyPercent || 25}% per hint</span>
                   <span className="text-xs bg-orange-100 dark:bg-orange-900/20 px-2 py-1 rounded w-fit">
-                    -{Math.floor((challengeData?.settings?.challengeBits?.[challengeIndex] || 0) * (challengeData.settings.hintPenaltyPercent || 25) / 100)} bits each
+                    -{Math.floor((challengeData?.settings?.challengeBits?.[challengeIndex] || 0) * (challengeData.settings.hintPenaltyPercent || 25) / 100)} ₿its each
                   </span>
                 </div>
               </div>

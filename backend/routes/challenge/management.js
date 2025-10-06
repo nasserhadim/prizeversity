@@ -228,11 +228,21 @@ router.post('/:classroomId/initiate', ensureAuthenticated, ensureTeacher, async 
     const { password } = req.body;
     const teacherId = req.user._id;
 
-    if (!process.env.CHALLENGE_PASSWORD) {
+    // Robust validation of server-side challenge password:
+    // - Must be defined in env (not undefined/null)
+    // - Must be non-empty after trimming
+    const serverChallengePassword = process.env.CHALLENGE_PASSWORD;
+    if (typeof serverChallengePassword === 'undefined' || serverChallengePassword === null) {
+      console.error('CHALLENGE_PASSWORD is not defined in environment');
+      return res.status(500).json({ message: 'Challenge password not configured on server' });
+    }
+    if (String(serverChallengePassword).trim() === '') {
+      console.error('CHALLENGE_PASSWORD is empty in environment');
       return res.status(500).json({ message: 'Challenge password not configured on server' });
     }
 
-    if (!password || password !== process.env.CHALLENGE_PASSWORD) {
+    const provided = password ? String(password).trim() : '';
+    if (!provided || provided !== String(serverChallengePassword).trim()) {
       return res.status(403).json({ message: 'Invalid challenge password' });
     }
 
