@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -22,6 +22,17 @@ export default function ClassroomPage() {
   const { user } = useAuth();
   const [role, setRole] = useState(user?.role || '');
   const [classrooms, setClassrooms] = useState([]);
+  // Search state + derived filtered list
+  const [searchClassrooms, setSearchClassrooms] = useState('');
+  const filteredClassrooms = useMemo(() => {
+    const q = (searchClassrooms || '').trim().toLowerCase();
+    if (!q) return classrooms;
+    return (classrooms || []).filter(c =>
+      (c.name || '').toLowerCase().includes(q) ||
+      (c.code || '').toLowerCase().includes(q)
+    );
+  }, [classrooms, searchClassrooms]);
+
   const [classroomName, setClassroomName] = useState('');
   const [classroomCode, setClassroomCode] = useState('');
   const [color, setColor] = useState('#22c55e');
@@ -270,6 +281,18 @@ export default function ClassroomPage() {
             {studentTab === 'classrooms' && (
               <div>
                 <h2 className="text-xl font-semibold text-center mb-4">My Classrooms</h2>
+
+                {/* Search bar */}
+                <div className="max-w-md mx-auto mb-4">
+                  <input
+                    type="search"
+                    placeholder="Search by classroom name or code..."
+                    className="input input-bordered w-full"
+                    value={searchClassrooms}
+                    onChange={e => setSearchClassrooms(e.target.value)}
+                  />
+                </div>
+
                 <div className="grid gap-4 md:grid-cols-2">
                   {loading ? (
                     Array.from({ length: 4 }).map((_, i) => (
@@ -280,39 +303,35 @@ export default function ClassroomPage() {
                         </div>
                       </div>
                     ))
-                  ) : classrooms.length === 0 ? (
-                    <div className="col-span-full text-center text-gray-500 py-8">
-                      You haven't joined any classrooms yet. Use a classroom code to join!
-                    </div>
                   ) : (
-                    classrooms.map(c => {
-                      const style = {};
-                      let textClass = 'text-black';
-                      if (c.color && c.color.toLowerCase() !== '#ffffff') {
-                        style.backgroundColor = c.color;
-                        textClass = 'text-white';
-                      }
-                      if (c.backgroundImage) {
-                        const imageUrl = resolveBannerSrc(c.backgroundImage);
-                        style.backgroundImage = `url(${imageUrl})`;
-                        style.backgroundSize = 'cover';
-                        style.backgroundPosition = 'center';
-                        textClass = 'text-white';
-                      }
+                    filteredClassrooms.map(c => {
+                       const style = {};
+                       let textClass = 'text-black';
+                       if (c.color && c.color.toLowerCase() !== '#ffffff') {
+                         style.backgroundColor = c.color;
+                         textClass = 'text-white';
+                       }
+                       if (c.backgroundImage) {
+                         const imageUrl = resolveBannerSrc(c.backgroundImage);
+                         style.backgroundImage = `url(${imageUrl})`;
+                         style.backgroundSize = 'cover';
+                         style.backgroundPosition = 'center';
+                         textClass = 'text-white';
+                       }
 
-                      return (
-                        <div
-                          key={c._id}
-                          className={`card bg-base-100 shadow cursor-pointer hover:shadow-lg transition-shadow ${textClass}`}
-                          style={style}
-                          onClick={() => handleCardClick(c._id)}
-                        >
-                          <div className="card-body">
-                            <h2 className="card-title">{c.name}</h2>
-                            <p className="text-sm opacity-75">Code: {c.code}</p>
-                          </div>
-                        </div>
-                      );
+                       return (
+                         <div
+                           key={c._id}
+                           className={`card bg-base-100 shadow cursor-pointer hover:shadow-lg transition-shadow ${textClass}`}
+                           style={style}
+                           onClick={() => handleCardClick(c._id)}
+                         >
+                           <div className="card-body">
+                             <h2 className="card-title">{c.name}</h2>
+                             <p className="text-sm opacity-75">Code: {c.code}</p>
+                           </div>
+                         </div>
+                       );
                     })
                   )}
                 </div>
@@ -458,6 +477,18 @@ export default function ClassroomPage() {
             {teacherTab === 'classrooms' && (
               <div>
                 <h2 className="text-xl font-semibold text-center mb-4">My Classrooms</h2>
+
+                {/* Search bar */}
+                <div className="max-w-md mx-auto mb-4">
+                  <input
+                    type="search"
+                    placeholder="Search by classroom name or code..."
+                    className="input input-bordered w-full"
+                    value={searchClassrooms}
+                    onChange={e => setSearchClassrooms(e.target.value)}
+                  />
+                </div>
+
                 <div className="grid gap-4 md:grid-cols-2">
                   {loading ? (
                     Array.from({ length: 8 }).map((_, i) => (
@@ -468,39 +499,39 @@ export default function ClassroomPage() {
                         </div>
                       </div>
                     ))
-                  ) : classrooms.length === 0 ? (
+                  ) : filteredClassrooms.length === 0 ? (
                     <div className="col-span-full text-center text-gray-500 py-8">
-                      You haven't created any classrooms yet. Create your first classroom to get started!
+                      {searchClassrooms ? 'No classrooms match your search.' : "You haven't created any classrooms yet. Create your first classroom to get started!"}
                     </div>
                   ) : (
-                    classrooms.map(c => {
-                      const style = {};
-                      let textClass = 'text-black';
-                      if (c.color && c.color.toLowerCase() !== '#ffffff') {
-                        style.backgroundColor = c.color;
-                        textClass = 'text-white';
-                      }
-                      if (c.backgroundImage) {
-                        const imageUrl = resolveBannerSrc(c.backgroundImage);
-                        style.backgroundImage = `url(${imageUrl})`;
-                        style.backgroundSize = 'cover';
-                        style.backgroundPosition = 'center';
-                        textClass = 'text-white';
-                      }
+                    filteredClassrooms.map(c => {
+                       const style = {};
+                       let textClass = 'text-black';
+                       if (c.color && c.color.toLowerCase() !== '#ffffff') {
+                         style.backgroundColor = c.color;
+                         textClass = 'text-white';
+                       }
+                       if (c.backgroundImage) {
+                         const imageUrl = resolveBannerSrc(c.backgroundImage);
+                         style.backgroundImage = `url(${imageUrl})`;
+                         style.backgroundSize = 'cover';
+                         style.backgroundPosition = 'center';
+                         textClass = 'text-white';
+                       }
 
-                      return (
-                        <div
-                          key={c._id}
-                          className={`card bg-base-100 shadow cursor-pointer hover:shadow-lg transition-shadow ${textClass}`}
-                          style={style}
-                          onClick={() => handleCardClick(c._id)}
-                        >
-                          <div className="card-body">
-                            <h2 className="card-title">{c.name}</h2>
-                            <p className="text-sm opacity-75">Code: {c.code}</p>
-                          </div>
-                        </div>
-                      );
+                       return (
+                         <div
+                           key={c._id}
+                           className={`card bg-base-100 shadow cursor-pointer hover:shadow-lg transition-shadow ${textClass}`}
+                           style={style}
+                           onClick={() => handleCardClick(c._id)}
+                         >
+                           <div className="card-body">
+                             <h2 className="card-title">{c.name}</h2>
+                             <p className="text-sm opacity-75">Code: {c.code}</p>
+                           </div>
+                         </div>
+                       );
                     })
                   )}
                 </div>

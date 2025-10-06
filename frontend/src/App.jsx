@@ -35,6 +35,7 @@ import Support from './pages/Support';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
 import AdminModeration from './pages/AdminModeration';
+import NotFound from './pages/NotFound';
 
 const App = () => {
   const { user } = useContext(AuthContext);
@@ -91,6 +92,8 @@ const App = () => {
           <Route path="/support" element={<Support />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/terms" element={<Terms />} />
+          {/* Wildcard / catch-all */}
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </div>
     </CartProvider>
