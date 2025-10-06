@@ -225,7 +225,16 @@ router.post('/:classroomId/configure', ensureAuthenticated, ensureTeacher, async
 router.post('/:classroomId/initiate', ensureAuthenticated, ensureTeacher, async (req, res) => {
   try {
     const { classroomId } = req.params;
+    const { password } = req.body;
     const teacherId = req.user._id;
+
+    if (!process.env.CHALLENGE_PASSWORD) {
+      return res.status(500).json({ message: 'Challenge password not configured on server' });
+    }
+
+    if (!password || password !== process.env.CHALLENGE_PASSWORD) {
+      return res.status(403).json({ message: 'Invalid challenge password' });
+    }
 
     const classroom = await Classroom.findById(classroomId).populate('students');
     if (!classroom) {
@@ -559,6 +568,189 @@ router.post('/:challengeId/assign-student', ensureAuthenticated, ensureTeacher, 
 
   } catch (error) {
     console.error('Error assigning student to challenge:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.post('/:classroomId/reset-student', ensureAuthenticated, ensureTeacher, async (req, res) => {
+  try {
+    const { classroomId } = req.params;
+    const { studentId } = req.body;
+    const userId = req.user._id;
+
+    if (!studentId) {
+      return res.status(400).json({ message: 'Student ID is required' });
+    }
+
+    const classroom = await Classroom.findById(classroomId);
+    if (!classroom) {
+      return res.status(404).json({ message: 'Classroom not found' });
+    }
+
+    if (classroom.teacher.toString() !== userId.toString()) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const challenge = await Challenge.findOne({ classroomId });
+    if (!challenge) {
+      return res.status(404).json({ message: 'Challenge not found' });
+    }
+
+    const userChallengeIndex = challenge.userChallenges.findIndex(
+      uc => uc.userId.toString() === studentId.toString()
+    );
+
+    if (userChallengeIndex === -1) {
+      return res.status(404).json({ message: 'Student not found in challenge' });
+    }
+
+    const userChallenge = challenge.userChallenges[userChallengeIndex];
+    
+    userChallenge.progress = 0;
+    userChallenge.currentChallenge = undefined;
+    userChallenge.completedAt = undefined;
+    userChallenge.startedAt = undefined;
+    userChallenge.completedChallenges = [false, false, false, false, false, false, false];
+    userChallenge.challengeCompletedAt = [];
+    userChallenge.challengeStartedAt = [];
+    userChallenge.bitsAwarded = 0;
+    userChallenge.hintsUsed = [];
+    userChallenge.hintsUnlocked = [];
+    
+    userChallenge.challenge2Password = undefined;
+    userChallenge.challenge3Code = undefined;
+    userChallenge.challenge3ExpectedOutput = undefined;
+    userChallenge.challenge3BugDescription = undefined;
+    userChallenge.challenge3StartTime = undefined;
+    userChallenge.challenge3Attempts = 0;
+    userChallenge.challenge4Password = undefined;
+    userChallenge.challenge6Attempts = 0;
+    userChallenge.challenge7Attempts = 0;
+    userChallenge.challenge7Progress = {
+      revealedWords: [],
+      totalWords: 0
+    };
+
+    await challenge.save();
+
+    res.json({ 
+      success: true, 
+      message: 'Student challenge progress reset successfully' 
+    });
+
+  } catch (error) {
+    console.error('Error resetting student challenge:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.post('/:classroomId/reset-student-challenge', ensureAuthenticated, ensureTeacher, async (req, res) => {
+  try {
+    const { classroomId } = req.params;
+    const { studentId, challengeIndex } = req.body;
+    const userId = req.user._id;
+
+    if (!studentId) {
+      return res.status(400).json({ message: 'Student ID is required' });
+    }
+
+    if (challengeIndex === undefined || challengeIndex < 0 || challengeIndex > 6) {
+      return res.status(400).json({ message: 'Valid challenge index (0-6) is required' });
+    }
+
+    const classroom = await Classroom.findById(classroomId);
+    if (!classroom) {
+      return res.status(404).json({ message: 'Classroom not found' });
+    }
+
+    if (classroom.teacher.toString() !== userId.toString()) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const challenge = await Challenge.findOne({ classroomId });
+    if (!challenge) {
+      return res.status(404).json({ message: 'Challenge not found' });
+    }
+
+    const userChallengeIndex = challenge.userChallenges.findIndex(
+      uc => uc.userId.toString() === studentId.toString()
+    );
+
+    if (userChallengeIndex === -1) {
+      return res.status(404).json({ message: 'Student not found in challenge' });
+    }
+
+    const userChallenge = challenge.userChallenges[userChallengeIndex];
+    
+    if (!userChallenge.completedChallenges) {
+      userChallenge.completedChallenges = [false, false, false, false, false, false, false];
+    }
+    
+    userChallenge.completedChallenges[challengeIndex] = false;
+    
+    if (userChallenge.challengeCompletedAt && userChallenge.challengeCompletedAt[challengeIndex]) {
+      userChallenge.challengeCompletedAt[challengeIndex] = null;
+    }
+    if (userChallenge.challengeStartedAt && userChallenge.challengeStartedAt[challengeIndex]) {
+      userChallenge.challengeStartedAt[challengeIndex] = null;
+    }
+    
+    if (userChallenge.hintsUsed && userChallenge.hintsUsed[challengeIndex]) {
+      userChallenge.hintsUsed[challengeIndex] = 0;
+    }
+    if (userChallenge.hintsUnlocked && userChallenge.hintsUnlocked[challengeIndex]) {
+      userChallenge.hintsUnlocked[challengeIndex] = [];
+    }
+    
+    switch (challengeIndex) {
+      case 1: 
+        userChallenge.challenge2Password = undefined;
+        break;
+      case 2: 
+        userChallenge.challenge3Code = undefined;
+        userChallenge.challenge3ExpectedOutput = undefined;
+        userChallenge.challenge3BugDescription = undefined;
+        userChallenge.challenge3StartTime = undefined;
+        userChallenge.challenge3Attempts = 0;
+        break;
+      case 3: 
+        userChallenge.challenge4Password = undefined;
+        break;
+      case 5: 
+        userChallenge.challenge6Attempts = 0;
+        break;
+      case 6: 
+        userChallenge.challenge7Attempts = 0;
+        userChallenge.challenge7Progress = {
+          revealedWords: [],
+          totalWords: 0
+        };
+        break;
+    }
+    
+    
+    userChallenge.progress = userChallenge.completedChallenges.filter(Boolean).length;
+    
+    const firstIncompleteIndex = userChallenge.completedChallenges.findIndex(completed => !completed);
+    if (firstIncompleteIndex !== -1) {
+      userChallenge.currentChallenge = firstIncompleteIndex;
+    }
+    
+    if (userChallenge.progress < 7) {
+      userChallenge.completedAt = undefined;
+    }
+
+    await challenge.save();
+
+    const challengeNames = ['Challenge 1', 'Challenge 2', 'Challenge 3', 'Challenge 4', 'Challenge 5', 'Challenge 6', 'Challenge 7'];
+    
+    res.json({ 
+      success: true, 
+      message: `${challengeNames[challengeIndex]} reset successfully for student` 
+    });
+
+  } catch (error) {
+    console.error('Error resetting specific student challenge:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

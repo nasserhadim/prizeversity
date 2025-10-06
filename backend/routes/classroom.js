@@ -1004,4 +1004,225 @@ router.post('/:id/students/:studentId/unban', ensureAuthenticated, async (req, r
   }
 });
 
+// GET classroom feedback reward config (teacher only)
+router.get('/:id/feedback-reward', ensureAuthenticated, async (req, res) => {
+  try {
+    const c = await Classroom.findById(req.params.id).select('teacher feedbackRewardEnabled feedbackRewardBits feedbackRewardApplyGroupMultipliers feedbackRewardApplyPersonalMultipliers feedbackRewardAllowAnonymous');
+    if (!c) return res.status(404).json({ error: 'Not found' });
+    // Only the teacher may view this config
+    if (c.teacher.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    res.json({
+      feedbackRewardEnabled: !!c.feedbackRewardEnabled,
+      feedbackRewardBits: c.feedbackRewardBits || 0,
+      feedbackRewardApplyGroupMultipliers: !!c.feedbackRewardApplyGroupMultipliers,
+      feedbackRewardApplyPersonalMultipliers: !!c.feedbackRewardApplyPersonalMultipliers,
+      feedbackRewardAllowAnonymous: !!c.feedbackRewardAllowAnonymous
+    });
+  } catch (err) {
+    console.error('[Get feedback-reward] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PATCH update classroom feedback reward config (teacher only)
+router.patch('/:id/feedback-reward', ensureAuthenticated, async (req, res) => {
+  try {
+    const { feedbackRewardEnabled, feedbackRewardBits, feedbackRewardApplyGroupMultipliers, feedbackRewardApplyPersonalMultipliers, feedbackRewardAllowAnonymous } = req.body;
+    const c = await Classroom.findById(req.params.id);
+    if (!c) return res.status(404).json({ error: 'Not found' });
+    if (c.teacher.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    if (feedbackRewardEnabled !== undefined) c.feedbackRewardEnabled = !!feedbackRewardEnabled;
+    if (feedbackRewardBits !== undefined) c.feedbackRewardBits = Math.max(0, Number(feedbackRewardBits) || 0);
+    if (feedbackRewardApplyGroupMultipliers !== undefined) c.feedbackRewardApplyGroupMultipliers = !!feedbackRewardApplyGroupMultipliers;
+    if (feedbackRewardApplyPersonalMultipliers !== undefined) c.feedbackRewardApplyPersonalMultipliers = !!feedbackRewardApplyPersonalMultipliers;
+    if (feedbackRewardAllowAnonymous !== undefined) c.feedbackRewardAllowAnonymous = !!feedbackRewardAllowAnonymous;
+
+    await c.save();
+    // emit classroom_update so frontends can react (consistent with other settings)
+    const populated = await Classroom.findById(c._id).populate('teacher', 'email').populate('students', 'email');
+    try { req.app.get('io').to(`classroom-${c._id}`).emit('classroom_update', populated); } catch(e){/*ignore*/}
+
+    res.json({
+      feedbackRewardEnabled: c.feedbackRewardEnabled,
+      feedbackRewardBits: c.feedbackRewardBits,
+      feedbackRewardApplyGroupMultipliers: c.feedbackRewardApplyGroupMultipliers,
+      feedbackRewardApplyPersonalMultipliers: c.feedbackRewardApplyPersonalMultipliers,
+      feedbackRewardAllowAnonymous: c.feedbackRewardAllowAnonymous
+    });
+  } catch (err) {
+    console.error('[Patch feedback-reward] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Patch: allow teacher to set per-student stats (multiplier, luck, discount)
+router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, res) => {
+  try {
+    const { classId, userId } = req.params;
+    const { multiplier, luck, discount } = req.body; // discount = percent (e.g. 20) or 0/null to clear
+
+    const classroom = await Classroom.findById(classId);
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+    if (classroom.teacher.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Only the teacher can update student stats' });
+    }
+
+    const student = await User.findById(userId);
+    if (!student) return res.status(404).json({ error: 'Student not found' });
+    if (student.role === 'teacher') return res.status(400).json({ error: 'Cannot adjust teacher stats' });
+
+    if (!student.passiveAttributes) student.passiveAttributes = {};
+
+    // Capture previous values for change log
+    const prev = {
+      multiplier: student.passiveAttributes.multiplier ?? 1,
+      luck: student.passiveAttributes.luck ?? 1,
+      discount: student.passiveAttributes.discount ?? null
+    };
+
+    // Apply updates
+    if (typeof multiplier !== 'undefined') {
+      student.passiveAttributes.multiplier = Number(multiplier) || 1;
+    }
+    if (typeof luck !== 'undefined') {
+      student.passiveAttributes.luck = Number(luck) || 1;
+    }
+    if (typeof discount !== 'undefined') {
+      const d = Number(discount);
+      if (!d) {
+        delete student.passiveAttributes.discount;
+      } else {
+        student.passiveAttributes.discount = d;
+      }
+    }
+
+    // Build changes array
+    const changes = [];
+    const now = new Date();
+    const curr = {
+      multiplier: student.passiveAttributes.multiplier ?? 1,
+      luck: student.passiveAttributes.luck ?? 1,
+      discount: student.passiveAttributes.discount ?? null
+    };
+    ['multiplier', 'luck', 'discount'].forEach((f) => {
+      const before = prev[f];
+      const after = curr[f];
+      // treat null/undefined === null
+      if (String(before) !== String(after)) {
+        changes.push({ field: f, from: before, to: after });
+      }
+    });
+
+    await student.save();
+
+    // after changes array has been built and student.save() completed
+    // Helper to render a readable value (fall back to sensible defaults for known stat fields)
+    const renderValue = (field, v) => {
+      if (v === null || v === undefined) {
+        // sensible defaults per-field (matches how stats are displayed elsewhere)
+        if (field === 'multiplier' || field === 'luck') return 1;
+        if (field === 'discount') return 0;
+        return 0;
+      }
+      return v;
+    };
+
+    const formatChangeSummary = (changes) => {
+      if (!Array.isArray(changes) || changes.length === 0) return '';
+      return changes
+        .map(c => {
+          const from = renderValue(c.field, c.from);
+          const to = renderValue(c.field, c.to);
+          return `${c.field}: ${String(from)} → ${String(to)}`;
+        })
+        .join('; ');
+    };
+
+    // Notify the student (targeted notification). Keep this simple & readable for the student.
+    const fullName = `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.email;
+
+    const studentNotification = await Notification.create({
+      user: student._id,
+      actionBy: req.user._id,
+      type: 'stats_adjusted',
+      message: `Your stats were updated: ${formatChangeSummary(changes) || 'updated by teacher'}.`,
+      classroom: classId,
+      read: false,
+      changes,
+      // don't set targetUser here (this is the student's notification)
+      createdAt: now
+    });
+ 
+    const populated = await populateNotification(studentNotification._id);
+    try { req.app.get('io').to(`user-${student._id}`).emit('notification', populated); } catch(e){/*ignore*/}
+ 
+    // Also create a record for the teacher (so they have a durable change-log entry)
+    try {
+      const teacherNotification = await Notification.create({
+        user: classroom.teacher, // teacher receives the change record
+        actionBy: req.user._id,
+        type: 'stats_adjusted',
+        message: `Updated stats for ${fullName}: ${formatChangeSummary(changes) || ''}`,
+        targetUser: student._id,
+        changes,
+        classroom: classId,
+        read: false,
+        createdAt: now
+      });
+      const populatedTeacherNotif = await populateNotification(teacherNotification._id);
+      try { req.app.get('io').to(`user-${classroom.teacher}`).emit('notification', populatedTeacherNotif); } catch(e){/*ignore*/}
+    } catch (e) {
+      console.error('Failed to create teacher stat-change notification:', e);
+    }
+
+    // Existing socket emit so clients can update UI
+    req.app.get('io').to(`user-${student._id}`).emit('user_stats_update', { userId: student._id, passiveAttributes: student.passiveAttributes });
+
+    res.json({ message: 'Stats updated', passiveAttributes: student.passiveAttributes, changes });
+  } catch (err) {
+    console.error('[Patch student stats] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// NEW: Fetch recent stat-change notifications for a classroom (teacher/admin access)
+router.get('/:id/stat-changes', ensureAuthenticated, async (req, res) => {
+  try {
+    const classroomId = req.params.id;
+    const classroom = await Classroom.findById(classroomId);
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+
+    // allow classroom teacher or platform admins
+    if (String(classroom.teacher) !== String(req.user._id) && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    // Only return the teacher-facing stat-change records:
+    // - notifications that explicitly record a targetUser (teacher log entries)
+    // - OR notifications whose user is the classroom teacher (durable teacher log)
+    const logs = await Notification.find({
+      classroom: classroomId,
+      type: 'stats_adjusted',
+      $or: [
+        { targetUser: { $exists: true, $ne: null } },
+        { user: classroom.teacher }
+      ]
+    })
+      .sort({ createdAt: -1 })
+      .limit(200)
+      .populate('actionBy', 'firstName lastName email')
+      .populate('targetUser', 'firstName lastName email');
+
+    res.json(logs);
+  } catch (err) {
+    console.error('[Get stat-changes] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;

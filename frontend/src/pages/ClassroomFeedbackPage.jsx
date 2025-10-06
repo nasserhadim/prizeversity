@@ -33,7 +33,18 @@ const ClassroomFeedbackPage = ({ userId }) => {
   const [reportReason, setReportReason] = useState('');
   const [reporterEmail, setReporterEmail] = useState('');
   const [total, setTotal] = useState(null);
- 
+
+  // --- NEW: feedback reward config (teacher-only) ---
+  const [feedbackRewardConfig, setFeedbackRewardConfig] = useState({
+    feedbackRewardEnabled: false,
+    feedbackRewardBits: 0,
+    feedbackRewardApplyGroupMultipliers: true,
+    feedbackRewardApplyPersonalMultipliers: true,
+    feedbackRewardAllowAnonymous: false
+  });
+  const [loadingRewardConfig, setLoadingRewardConfig] = useState(false);
+  const [savingRewardConfig, setSavingRewardConfig] = useState(false);
+
   useEffect(() => {
     const fetchClass = async () => {
       try {
@@ -45,6 +56,32 @@ const ClassroomFeedbackPage = ({ userId }) => {
     };
     if (classroomId) fetchClass();
   }, [classroomId]);
+  
+  // --- NEW: load feedback reward config for teachers ---
+  useEffect(() => {
+    if (!classroomId || !user || user.role !== 'teacher') return;
+    let mounted = true;
+    setLoadingRewardConfig(true);
+    axios.get(`/api/classroom/${classroomId}/feedback-reward`, { withCredentials: true })
+      .then(res => {
+        if (!mounted) return;
+        setFeedbackRewardConfig({
+          feedbackRewardEnabled: !!res.data.feedbackRewardEnabled,
+          feedbackRewardBits: Number(res.data.feedbackRewardBits) || 0,
+          feedbackRewardApplyGroupMultipliers: !!res.data.feedbackRewardApplyGroupMultipliers,
+          feedbackRewardApplyPersonalMultipliers: !!res.data.feedbackRewardApplyPersonalMultipliers,
+          feedbackRewardAllowAnonymous: !!res.data.feedbackRewardAllowAnonymous
+        });
+      })
+      .catch(err => {
+        console.error('Failed to load feedback reward config', err);
+        toast.error('Failed to load feedback reward config');
+      })
+      .finally(() => {
+        if (mounted) setLoadingRewardConfig(false);
+      });
+    return () => { mounted = false; };
+  }, [classroomId, user]);
  
   const fetchClassroomFeedback = async (nextPage = 1, append = false) => {
     if (!classroomId) return;
@@ -90,13 +127,16 @@ const ClassroomFeedbackPage = ({ userId }) => {
       return;
     }
     try {
-      await axios.post(`${API_BASE}/api/feedback`, {
-        classroomId,
+      const payload = {
         rating,
         comment,
-        anonymous,
-        userId: anonymous ? null : userId,
-      }, { withCredentials: true });
+        classroomId,
+        anonymous: !!anonymous
+      };
+
+      // IMPORTANT: use the classroom-specific endpoint so backend reward flow runs
+      await axios.post(`${API_BASE}/api/feedback/classroom`, payload, { withCredentials: true });
+
       setRating(null);
       setComment("");
       setAnonymous(false);
@@ -110,7 +150,7 @@ const ClassroomFeedbackPage = ({ userId }) => {
       // SAVE local fallback so anonymous submit still shows "Your rating"
       try { localStorage.setItem(`feedback_your_rating_classroom_${classroomId}`, String(rating)); } catch (e) { /* ignore */ }
     } catch (err) {
-      console.error("Error submitting feedback:", err);
+      console.error("Error submitting classroom feedback:", err);
       toast.error(err.response?.data?.error || 'Failed to submit feedback');
     }
   };
@@ -123,6 +163,30 @@ const ClassroomFeedbackPage = ({ userId }) => {
       toast.success(hide ? 'Feedback hidden' : 'Feedback unhidden');
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to update feedback visibility');
+    }
+  };
+
+  // --- NEW: Save handler for feedback reward settings (fixes missing function) ---
+  const handleSaveFeedbackReward = async () => {
+    if (!classroomId) return;
+    setSavingRewardConfig(true);
+    try {
+      const payload = {
+        feedbackRewardEnabled: !!feedbackRewardConfig.feedbackRewardEnabled,
+        feedbackRewardBits: Math.max(0, Math.round(Number(feedbackRewardConfig.feedbackRewardBits) || 0)),
+        feedbackRewardApplyGroupMultipliers: !!feedbackRewardConfig.feedbackRewardApplyGroupMultipliers,
+        feedbackRewardApplyPersonalMultipliers: !!feedbackRewardConfig.feedbackRewardApplyPersonalMultipliers,
+        feedbackRewardAllowAnonymous: !!feedbackRewardConfig.feedbackRewardAllowAnonymous
+      };
+      await axios.patch(`/api/classroom/${classroomId}/feedback-reward`, payload, { withCredentials: true });
+      toast.success('Feedback reward settings updated');
+      // update local state in case backend normalized values
+      setFeedbackRewardConfig(prev => ({ ...prev, feedbackRewardBits: payload.feedbackRewardBits }));
+    } catch (err) {
+      console.error('Failed to save feedback reward config', err);
+      toast.error(err.response?.data?.error || 'Failed to update reward settings');
+    } finally {
+      setSavingRewardConfig(false);
     }
   };
  
@@ -214,6 +278,125 @@ const ClassroomFeedbackPage = ({ userId }) => {
             />
 
             <RatingDistribution feedbacks={feedbacks} />
+
+            {/* STUDENT: show reward badge if enabled */}
+            {classroom && classroom.feedbackRewardEnabled && (
+              <div className="alert alert-info mt-4 max-w-3xl mx-auto">
+                <div>
+                  <strong>Feedback reward:</strong> {Number(classroom.feedbackRewardBits) || feedbackRewardConfig.feedbackRewardBits} bits
+                  { (classroom.feedbackRewardApplyGroupMultipliers || classroom.feedbackRewardApplyPersonalMultipliers) && (
+                    <span className="ml-2 text-sm text-gray-600"> (multipliers apply)</span>
+                  )}
+                  {/* SHOW NOTE ABOUT ANONYMOUS AWARDING */}
+                  { classroom.feedbackRewardAllowAnonymous ? (
+                    <div className="text-xs text-gray-600 mt-1">
+                      Teacher allows awarding when submitting anonymously (signed-in users only).
+                    </div>
+                  ) : (
+                    <div className="text-xs text-red-600 mt-1">
+                      Note: Anonymous submissions will NOT receive the feedback reward in this classroom. Uncheck "Submit as Anonymous" to be eligible.
+                    </div>
+                  ) }
+                </div>
+              </div>
+            )}
+
+            {/* TEACHER: Feedback reward settings */}
+            {user && user.role === 'teacher' && (
+              <div className="card bg-base-100 border border-base-200 p-4 mt-4 max-w-3xl mx-auto">
+                <h4 className="font-semibold mb-2">Feedback Reward (bits)</h4>
+                {loadingRewardConfig ? (
+                  <div className="text-sm text-gray-500">Loading...</div>
+                ) : (
+                  <div className="space-y-3">
+                    <label className="flex items-center justify-between">
+                      <span>Enable reward for submitting feedback</span>
+                      <input
+                        type="checkbox"
+                        className="toggle toggle-success"
+                        checked={feedbackRewardConfig.feedbackRewardEnabled}
+                        onChange={(e) => setFeedbackRewardConfig(prev => ({ ...prev, feedbackRewardEnabled: e.target.checked }))}
+                      />
+                    </label>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
+                      <div>
+                        <label className="label"><span className="label-text">Allow awarding anonymous submissions</span></label>
+                        <input
+                          type="checkbox"
+                          className="toggle toggle-secondary"
+                          checked={feedbackRewardConfig.feedbackRewardAllowAnonymous}
+                          onChange={(e) => setFeedbackRewardConfig(prev => ({ ...prev, feedbackRewardAllowAnonymous: e.target.checked }))}
+                        />
+                      </div>
+                      <div>
+                        <label className="label"><span className="label-text">Bits (base)</span></label>
+                        <input
+                          type="number"
+                          min={0}
+                          className="input input-bordered w-full"
+                          value={feedbackRewardConfig.feedbackRewardBits}
+                          onChange={(e) => setFeedbackRewardConfig(prev => ({ ...prev, feedbackRewardBits: Number(e.target.value || 0) }))}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="label"><span className="label-text">Apply group multipliers</span></label>
+                        <input
+                          type="checkbox"
+                          className="toggle toggle-primary"
+                          checked={feedbackRewardConfig.feedbackRewardApplyGroupMultipliers}
+                          onChange={(e) => setFeedbackRewardConfig(prev => ({ ...prev, feedbackRewardApplyGroupMultipliers: e.target.checked }))}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="label"><span className="label-text">Apply personal multipliers</span></label>
+                        <input
+                          type="checkbox"
+                          className="toggle toggle-primary"
+                          checked={feedbackRewardConfig.feedbackRewardApplyPersonalMultipliers}
+                          onChange={(e) => setFeedbackRewardConfig(prev => ({ ...prev, feedbackRewardApplyPersonalMultipliers: e.target.checked }))}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        className="btn btn-ghost"
+                        onClick={() => {
+                          // reload config
+                          setLoadingRewardConfig(true);
+                          axios.get(`/api/classroom/${classroomId}/feedback-reward`, { withCredentials: true })
+                            .then(res => setFeedbackRewardConfig({
+                              feedbackRewardEnabled: !!res.data.feedbackRewardEnabled,
+                              feedbackRewardBits: Number(res.data.feedbackRewardBits) || 0,
+                              feedbackRewardApplyGroupMultipliers: !!res.data.feedbackRewardApplyGroupMultipliers,
+                              feedbackRewardApplyPersonalMultipliers: !!res.data.feedbackRewardApplyPersonalMultipliers,
+                              feedbackRewardAllowAnonymous: !!res.data.feedbackRewardAllowAnonymous
+                            }))
+                            .catch(() => toast.error('Failed to reload'))
+                            .finally(() => setLoadingRewardConfig(false));
+                        }}
+                      >
+                        Reload
+                      </button>
+                      <button
+                        className="btn btn-primary"
+                        onClick={handleSaveFeedbackReward}
+                        disabled={savingRewardConfig}
+                      >
+                        {savingRewardConfig ? 'Saving...' : 'Save'}
+                      </button>
+                    </div>
+
+                    <p className="text-xs text-gray-500">
+                      Note: students can only be rewarded once per classroom. Anonymous submissions are counted but the backend prevents duplicate rewards per student/IP.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="flex items-center mb-4">
               <div className="ml-auto">

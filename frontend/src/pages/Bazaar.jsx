@@ -9,7 +9,7 @@ import { Image as ImageIcon } from 'lucide-react';
 import CreateBazaar from '../components/CreateBazaar';
 import CreateItem from '../components/CreateItem';
 import ItemCard from '../components/ItemCard';
-import apiBazaar from '../API/apiBazaar';
+import apiBazaar from '../API/apiBazaar'; 
 import apiClassroom from '../API/apiClassroom';
 import InventorySection from '../components/InventorySection';
 import toast from 'react-hot-toast';
@@ -143,6 +143,7 @@ const Bazaar = () => {
         `classroom/${classroomId}/bazaar/${bazaar._id}/items?${params.toString()}`
       );
 
+      //setFilteredItems(res.data.items || []);
       const raw = Array.isArray(res.data?.items)
         ? res.data.items
         : Array.isArray(res.data)
@@ -151,15 +152,15 @@ const Bazaar = () => {
 
       const toKeyPart = (v) =>
         typeof v === 'string' ? v.trim().toLowerCase() : String(v ?? '').trim().toLowerCase();
-
-// collapse visually-identical items even if _id differs
+ 
+      // collapse visually-identical items even if _id differs
       const sig = (it) => [
         toKeyPart(it?.name),
-        String(it?.price ?? ''),
-        toKeyPart(it?.image),
+        toKeyPart(it?.price),
+        toKeyPart(it?.image),    
         toKeyPart(it?.category),
       ].join('|');
-
+ 
       const seen = new Set();
       const unique = [];
       for (const it of raw) {
@@ -265,19 +266,20 @@ const handleUpdateBazaar = async () => {
 const handleItemUpdated = (updatedItem) => {
   // Update bazaar
   setBazaar(prev => ({
-    ...prev,
+    ...prev, //keeps all other prev fields
     items: prev?.items?.map(it =>
+    // if the current item id matches the updated one, replace it
       String(it._id) === String(updatedItem._id) ? updatedItem : it
-    ) || []
+    ) || [] // fallback to empty array if items was undefined
   }));
 
-  // Update filteredItems (what your grid actually maps over)
+  // Update filteredItems (what your grid actually maps over/show)
   setFilteredItems(prev =>
     Array.isArray(prev)
-      ? prev.map(it =>
+      ? prev.map(it => //replaces the matching item with the new updated one 
           String(it._id) === String(updatedItem._id) ? updatedItem : it
         )
-      : prev
+      : prev //make susre it wasnt an array, if its not, it returns unchanged 
   );
 };
 
@@ -291,7 +293,7 @@ const handleItemDeleted = (itemId) => { // itemId is the _id of the deleted item
 
   // Update filteredItems (what your grid actually maps over)
   setFilteredItems(prev =>
-    Array.isArray(prev)
+    Array.isArray(prev) //removes teh item from filtered items if it exists with id 
       ? prev.filter(it => String(it._id) !== String(itemId))
       : prev
   );

@@ -30,6 +30,7 @@ const NotificationSchema = new mongoose.Schema({
       'announcement', // New type for announcements
       'attack', // New type for attack notification
       'defend',
+      'stats_adjusted', // <-- added so classroom route can create this notification
       // Ban/unban notifications for classrooms
       'classroom_ban',
       'classroom_unban',
@@ -44,10 +45,16 @@ const NotificationSchema = new mongoose.Schema({
   groupSet: { type: mongoose.Schema.Types.ObjectId, ref: 'GroupSet' },
   group: { type: mongoose.Schema.Types.ObjectId, ref: 'Group' },
   actionBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // allow null/system actions
+  targetUser: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // user the change targets (teacher log)
+  changes: [{
+    field: String,
+    from: mongoose.Schema.Types.Mixed,
+    to: mongoose.Schema.Types.Mixed
+  }],
   // When true, frontend should not display the actor's name (privacy)
   anonymized: { type: Boolean, default: false },
   read: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
-
+ 
 module.exports = mongoose.model('Notification', NotificationSchema);

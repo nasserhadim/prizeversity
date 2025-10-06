@@ -105,9 +105,21 @@ router.get('/challenge3/:uniqueId', ensureAuthenticated, async (req, res) => {
       await challenge.save();
     }
     
+    const safeCppChallenge = {
+      missionId: cppChallenge.missionId,
+      scenario: cppChallenge.scenario,
+      agentId: cppChallenge.agentId,
+      studentName: cppChallenge.studentName,
+      cppCode: cppChallenge.cppCode,
+      task: cppChallenge.task,
+      securityNote: cppChallenge.securityNote,
+      difficulty: cppChallenge.difficulty,
+      timeLimit: cppChallenge.timeLimit
+    };
+
     res.json({
       studentData,
-      cppChallenge: cppChallenge,
+      cppChallenge: safeCppChallenge,
       startTime: userChallenge.challenge3StartTime || null,
       attempts: userChallenge.challenge3Attempts || 0,
       maxAttempts: userChallenge.challenge3MaxAttempts || 5
@@ -310,6 +322,10 @@ router.get('/challenge6/:uniqueId', ensureAuthenticated, async (req, res) => {
       return res.status(404).json({ message: 'User challenge not found' });
     }
 
+    if (userRole !== 'teacher' && userChallenge.challenge6Attempts >= 3 && (!userChallenge.completedChallenges || !userChallenge.completedChallenges[5])) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
     if (userChallenge.completedChallenges && userChallenge.completedChallenges[5]) {
       const { generateChallengeData } = require('../../utils/tokenGenerator');
       try {
@@ -317,9 +333,6 @@ router.get('/challenge6/:uniqueId', ensureAuthenticated, async (req, res) => {
         
         return res.json({
           generatedWord: challengeData.generatedWord,
-          expectedTokenId: challengeData.expectedTokenId,
-          validTokens: challengeData.validTokens,
-          tokenData: challengeData.allTokenIds,
           uniqueId: uniqueId,
           sectorCode: uniqueId.substring(0, 8).toUpperCase(),
           isCompleted: true,
@@ -331,7 +344,6 @@ router.get('/challenge6/:uniqueId', ensureAuthenticated, async (req, res) => {
           isCompleted: true,
           message: 'Challenge 6 already completed',
           generatedWord: 'Error loading word',
-          expectedTokenId: 'Error',
           uniqueId: uniqueId,
           sectorCode: uniqueId.substring(0, 8).toUpperCase()
         });
@@ -345,12 +357,11 @@ router.get('/challenge6/:uniqueId', ensureAuthenticated, async (req, res) => {
       
       res.json({
         generatedWord: challengeData.generatedWord,
-        expectedTokenId: challengeData.expectedTokenId,
-        validTokens: challengeData.validTokens,
-        tokenData: challengeData.allTokenIds,
         uniqueId: uniqueId,
         sectorCode: uniqueId.substring(0, 8).toUpperCase(),
-        isCompleted: false
+        isCompleted: false,
+        attemptsUsed: userChallenge.challenge6Attempts || 0,
+        attemptsRemaining: Math.max(0, 3 - (userChallenge.challenge6Attempts || 0))
       });
     } catch (error) {
       console.error('Error generating Challenge 6 data:', error);
@@ -359,6 +370,57 @@ router.get('/challenge6/:uniqueId', ensureAuthenticated, async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching Challenge 6 data:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.get('/challenge6/:uniqueId/teacher', ensureAuthenticated, async (req, res) => {
+  try {
+    const { uniqueId } = req.params;
+    const userId = req.user._id;
+    const userRole = req.user.role;
+
+    if (userRole !== 'teacher') {
+      return res.status(403).json({ message: 'Access denied - teachers only' });
+    }
+
+    const challenge = await Challenge.findOne({
+      'userChallenges.uniqueId': uniqueId,
+      'createdBy': userId
+    });
+
+    if (!challenge) {
+      return res.status(404).json({ message: 'Challenge not found' });
+    }
+
+    const userChallenge = challenge.userChallenges.find(uc => uc.uniqueId === uniqueId);
+    if (!userChallenge) {
+      return res.status(404).json({ message: 'User challenge not found' });
+    }
+
+    const { generateChallengeData } = require('../../utils/tokenGenerator');
+    
+    try {
+      const challengeData = await generateChallengeData(uniqueId);
+      
+      res.json({
+        generatedWord: challengeData.generatedWord,
+        expectedTokenId: challengeData.expectedTokenId,
+        allTokenIds: challengeData.allTokenIds,
+        validTokens: challengeData.validTokens,
+        uniqueId: uniqueId,
+        sectorCode: uniqueId.substring(0, 8).toUpperCase(),
+        isCompleted: userChallenge.completedChallenges?.[5] || false,
+        attemptsUsed: userChallenge.challenge6Attempts || 0,
+        attemptsRemaining: Math.max(0, 3 - (userChallenge.challenge6Attempts || 0))
+      });
+    } catch (error) {
+      console.error('Error generating Challenge 6 teacher data:', error);
+      res.status(500).json({ message: 'Failed to generate challenge data' });
+    }
+
+  } catch (error) {
+    console.error('Error fetching Challenge 6 teacher data:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -396,6 +458,10 @@ router.get('/challenge7/:uniqueId', ensureAuthenticated, async (req, res) => {
       return res.status(404).json({ message: 'User challenge not found' });
     }
 
+    if (userRole !== 'teacher' && userChallenge.challenge7Attempts >= 3 && (!userChallenge.completedChallenges || !userChallenge.completedChallenges[6])) {
+      return res.status(401).json({ message: 'Challenge failed - maximum attempts reached' });
+    }
+
     if (userChallenge.completedChallenges && userChallenge.completedChallenges[6]) {
       const { generateHangmanData } = require('../../utils/quoteGenerator');
       try {
@@ -406,7 +472,6 @@ router.get('/challenge7/:uniqueId', ensureAuthenticated, async (req, res) => {
           quote: hangmanData.quote,
           author: hangmanData.author,
           words: hangmanData.words,
-          wordTokens: hangmanData.wordTokens,
           maskedQuote: hangmanData.maskedQuote,
           uniqueId: uniqueId,
           isCompleted: true,
@@ -424,7 +489,6 @@ router.get('/challenge7/:uniqueId', ensureAuthenticated, async (req, res) => {
           quote: 'Error loading quote data',
           author: 'Error',
           words: [],
-          wordTokens: {},
           uniqueId: uniqueId
         });
       }
@@ -489,16 +553,16 @@ router.get('/challenge7/:uniqueId', ensureAuthenticated, async (req, res) => {
         hasQuote: !!hangmanData.quote,
         hasAuthor: !!hangmanData.author
       });
-      
+
       res.json({
         quote: hangmanData.quote,
         author: hangmanData.author,
         words: hangmanData.words,
-        wordTokens: hangmanData.wordTokens,
         maskedQuote: hangmanData.maskedQuote,
         uniqueId: uniqueId,
         isCompleted: false,
-        challenge7Progress: userChallenge.challenge7Progress
+        challenge7Progress: userChallenge.challenge7Progress,
+        totalAttempts: userChallenge.challenge7Attempts || 0,
       });
     } catch (error) {
       console.error('Error generating Challenge 7 data:', error);
@@ -507,6 +571,59 @@ router.get('/challenge7/:uniqueId', ensureAuthenticated, async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching Challenge 7 data:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.get('/challenge7/:uniqueId/teacher', ensureAuthenticated, async (req, res) => {
+  try {
+    const { uniqueId } = req.params;
+    const userId = req.user._id;
+    const userRole = req.user.role;
+
+    if (userRole !== 'teacher') {
+      return res.status(403).json({ message: 'Access denied - teachers only' });
+    }
+
+    const challenge = await Challenge.findOne({
+      'userChallenges.uniqueId': uniqueId,
+      'createdBy': userId
+    });
+
+    if (!challenge) {
+      return res.status(404).json({ message: 'Challenge not found' });
+    }
+
+    const userChallenge = challenge.userChallenges.find(uc => uc.uniqueId === uniqueId);
+    if (!userChallenge) {
+      return res.status(404).json({ message: 'User challenge not found' });
+    }
+
+    const { generateHangmanData } = require('../../utils/quoteGenerator');
+    
+    try {
+      const hangmanData = await generateHangmanData(uniqueId);
+      const uniqueWords = [...new Set(hangmanData.words.map(w => w.toLowerCase()))];
+      
+      res.json({
+        quote: hangmanData.quote,
+        author: hangmanData.author,
+        words: hangmanData.words,
+        wordTokens: hangmanData.wordTokens,
+        uniqueWords: uniqueWords,
+        maskedQuote: hangmanData.maskedQuote,
+        uniqueId: uniqueId,
+        isCompleted: userChallenge.completedChallenges?.[6] || false,
+        challenge7Progress: userChallenge.challenge7Progress,
+        totalAttempts: userChallenge.challenge7Attempts || 0
+      });
+    } catch (error) {
+      console.error('Error generating Challenge 7 teacher data:', error);
+      res.status(500).json({ message: 'Failed to generate challenge data' });
+    }
+
+  } catch (error) {
+    console.error('Error fetching Challenge 7 teacher data:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

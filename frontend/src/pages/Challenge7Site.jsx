@@ -14,6 +14,8 @@ const Challenge7Site = () => {
   const [isSuccess, setIsSuccess] = useState(false);
   const [rewardData, setRewardData] = useState(null);
   const [revealedWords, setRevealedWords] = useState(new Set());
+  const [totalAttempts, setTotalAttempts] = useState(0);
+  const [blockedWords, setBlockedWords] = useState(new Set());
 
   const fetchChallengeData = async (retryCount = 0) => {
     try {
@@ -37,6 +39,15 @@ const Challenge7Site = () => {
           
           setChallengeData(data);
           
+          if (data.totalAttempts !== undefined) {
+            setTotalAttempts(data.totalAttempts);
+            
+            if (data.totalAttempts >= 3) {
+              setError('Challenge failed - maximum attempts reached');
+              return;
+            }
+          }
+          
           if (data.challenge7Progress?.revealedWords) {
             setRevealedWords(new Set(data.challenge7Progress.revealedWords));
             
@@ -50,6 +61,8 @@ const Challenge7Site = () => {
             }
           } else {
           }
+        } else if (response.status === 401) {
+          setError('Challenge failed - maximum attempts reached');
         } else {
           setError('Failed to load challenge data');
         }
@@ -67,7 +80,8 @@ const Challenge7Site = () => {
   }, [uniqueId, challengeData]);
 
   const handleWordSelect = (word) => {
-    if (!revealedWords.has(word.toLowerCase())) {
+    const wordLower = word.toLowerCase();
+    if (!revealedWords.has(wordLower) && totalAttempts < 3) {
       setSelectedWord(word);
       setSubmitMessage('');
     }
@@ -143,9 +157,18 @@ const Challenge7Site = () => {
             }
           }, 500);
         }
-      } else {
-        setSubmitMessage(`❌ Incorrect value for "${selectedWord}". Try again.`);
-      }
+        } else if (result.maxAttemptsReached) {
+          setSubmitMessage(`❌ CHALLENGE FAILED - Maximum attempts reached. No more submissions allowed.`);
+          setError('Challenge failed - maximum attempts reached');
+        } else {
+          if (result.totalAttempts !== undefined) {
+            setTotalAttempts(result.totalAttempts);
+          }
+          
+          const attemptsText = result.attemptsRemaining !== undefined ? 
+            ` (${result.attemptsRemaining} attempts remaining)` : '';
+          setSubmitMessage(`❌ Incorrect value for "${selectedWord}". Try again.${attemptsText}`);
+        }
     } catch (error) {
       setSubmitMessage('⚠️ Connection error. Please try again.');
     } finally {
@@ -188,25 +211,30 @@ const Challenge7Site = () => {
   };
 
   const renderWord = (word, index) => {
-    const isRevealed = revealedWords.has(word.toLowerCase());
+    const wordLower = word.toLowerCase();
+    const isRevealed = revealedWords.has(wordLower);
+    const isBlocked = totalAttempts >= 3;
     const isSelected = selectedWord === word;
     
     return (
       <button
         key={index}
         onClick={() => handleWordSelect(word)}
-        disabled={isRevealed || submitting}
+        disabled={isRevealed || isBlocked || submitting}
         className={`
-          inline-block m-1 px-3 py-2 font-mono text-sm border-2 rounded transition-all
+          inline-block m-1 px-3 py-2 font-mono text-sm border-2 rounded transition-all relative
           ${isRevealed 
             ? 'bg-green-900 border-green-400 text-green-200 cursor-default' 
-            : isSelected 
-              ? 'bg-yellow-900 border-yellow-400 text-yellow-200 cursor-pointer hover:bg-yellow-800' 
-              : 'bg-gray-800 border-gray-600 text-gray-300 cursor-pointer hover:bg-gray-700 hover:border-gray-500'
+            : isBlocked
+              ? 'bg-red-900 border-red-400 text-red-200 cursor-not-allowed'
+              : isSelected 
+                ? 'bg-yellow-900 border-yellow-400 text-yellow-200 cursor-pointer hover:bg-yellow-800' 
+                : 'bg-gray-800 border-gray-600 text-gray-300 cursor-pointer hover:bg-gray-700 hover:border-gray-500'
           }
         `}
+        title={isBlocked ? `Max attempts reached (${totalAttempts}/3)` : isRevealed ? 'Revealed' : `Total attempts: ${totalAttempts}/3`}
       >
-        {isRevealed ? word : '_'.repeat(word.length)}
+        {isRevealed ? word : isBlocked ? '✗'.repeat(word.length) : '_'.repeat(word.length)}
       </button>
     );
   };
@@ -425,9 +453,9 @@ const Challenge7Site = () => {
             value={tokenInput}
             onChange={(e) => setTokenInput(e.target.value)}
             onKeyPress={handleKeyPress}
-            disabled={submitting || !selectedWord}
+            disabled={submitting || !selectedWord || totalAttempts >= 3}
             className={`w-full bg-transparent border px-4 py-3 font-mono text-center focus:outline-none transition-colors text-lg ${
-              submitting || !selectedWord
+              submitting || !selectedWord || totalAttempts >= 3
                 ? 'border-gray-700 text-gray-500' 
                 : 'border-gray-600 text-red-400 focus:border-red-400'
             }`}
@@ -436,7 +464,7 @@ const Challenge7Site = () => {
           
           <button
             onClick={handleSubmit}
-            disabled={submitting || !selectedWord || !tokenInput.trim()}
+            disabled={submitting || !selectedWord || !tokenInput.trim() || totalAttempts >= 3}
             className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-mono py-3 px-4 rounded border border-green-500 transition-colors"
           >
                           {submitting ? (
@@ -449,10 +477,13 @@ const Challenge7Site = () => {
               )}
           </button>
           
-          <div className="text-xs font-mono text-gray-500 space-y-1">
+            <div className="text-xs font-mono text-gray-500 space-y-1">
             <div className="flex items-center justify-center gap-2">
               <span className="text-green-400">⏎</span>
               <span>Press ENTER to submit</span>
+            </div>
+            <div className="text-center text-gray-400">
+              Total Attempts: {totalAttempts}/3
             </div>
             {submitMessage && (
               <div className={`text-center ${
@@ -468,6 +499,7 @@ const Challenge7Site = () => {
         <div className="text-xs font-mono text-gray-700 space-y-1">
           <div>STATUS: GAME IN PROGRESS</div>
           <div>PROGRESS: {revealedWords.size}/{challengeData?.words?.length || 0} WORDS REVEALED</div>
+          <div>ATTEMPTS: {totalAttempts}/3 USED</div>
           <div>PLAYER: {uniqueId?.substring(0, 6).toUpperCase()}</div>
         </div>
       </div>

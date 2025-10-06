@@ -38,6 +38,16 @@ const ClassroomSchema = new mongoose.Schema({
   },
   studentSendEnabled: { type: Boolean, default: false },
   studentsCanViewStats: { type: Boolean, default: true }, // Add this line
+
+  // --- FEEDBACK REWARD CONFIG ---
+  // Enable teacher to configure a small bit reward for submitting classroom feedback.
+  feedbackRewardEnabled: { type: Boolean, default: false },
+  feedbackRewardBits: { type: Number, default: 0, min: 0 },
+  feedbackRewardApplyGroupMultipliers: { type: Boolean, default: true },
+  feedbackRewardApplyPersonalMultipliers: { type: Boolean, default: true },
+  // NEW: whether teacher allows awarding even when student chose "anonymous"
+  feedbackRewardAllowAnonymous: { type: Boolean, default: false },
+
   createdAt: { type: Date, default: Date.now }
 });
 

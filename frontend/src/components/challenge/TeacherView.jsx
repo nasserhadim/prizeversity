@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
+import { useMemo } from 'react';
 import { Shield, Settings, Users, Eye, EyeOff, UserPlus, Edit3 } from 'lucide-react';
+import { CHALLENGE_NAMES } from '../../constants/challengeConstants';
 import { getCurrentChallenge } from '../../utils/challengeUtils';
 import { getThemeClasses } from '../../utils/themeUtils';
-import { updateDueDate, toggleChallengeVisibility } from '../../API/apiChallenge';
+import { updateDueDate, toggleChallengeVisibility, resetStudentChallenge, resetSpecificChallenge } from '../../API/apiChallenge';
 import { API_BASE } from '../../config/api';
 import ChallengeUpdateModal from './modals/ChallengeUpdateModal';
 import toast from 'react-hot-toast';
@@ -21,11 +23,25 @@ const TeacherView = ({
   classroomId,
   fetchChallengeData
 }) => {
+  // Search state for deep filtering in the student table
+  const [search, setSearch] = useState('');
+  // New filter UI state
+  const [roleFilter, setRoleFilter] = useState('all'); // 'all' | 'student' | 'teacher'
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'inprogress' | 'completed' | 'failed'
+  const [challengeFilter, setChallengeFilter] = useState('all'); // 'all' or '0'..'6'
+  // Clear filters helper (reset search + selects)
+  const clearFilters = () => {
+    setSearch('');
+    setRoleFilter('all');
+    setStatusFilter('all');
+    setChallengeFilter('all');
+  };
   const [showPasswords, setShowPasswords] = useState({});
   const [showDueDateModal, setShowDueDateModal] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [showAssignDropdown, setShowAssignDropdown] = useState(false);
   const [studentNames, setStudentNames] = useState({});
+  const [assignSearch, setAssignSearch] = useState('');
   const [challenge6Data, setChallenge6Data] = useState({});
   const [challenge7Data, setChallenge7Data] = useState({});
   const [challenge3Data, setChallenge3Data] = useState({});
@@ -155,6 +171,11 @@ const TeacherView = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showAssignDropdown]);
 
+  // Clear assign search when dropdown closes
+  useEffect(() => {
+    if (!showAssignDropdown) setAssignSearch('');
+  }, [showAssignDropdown]);
+
   useEffect(() => {
     const fetchChallenge3Data = async () => {
       if (!challengeData?.userChallenges) return;
@@ -192,9 +213,9 @@ const TeacherView = ({
       const newChallenge6Data = {};
       
       for (const uc of challengeData.userChallenges) {
-        if (uc.progress === 5 || uc.currentChallenge === 5) {
+        if (uc.progress === 5 || uc.currentChallenge === 5 || (uc.progress > 5 && uc.completedChallenges?.[5])) {
           try {
-            const response = await fetch(`${API_BASE}/api/challenges/challenge6/${uc.uniqueId}`, {
+            const response = await fetch(`${API_BASE}/api/challenges/challenge6/${uc.uniqueId}/teacher`, {
               credentials: 'include'
             });
             
@@ -294,10 +315,10 @@ const TeacherView = ({
       const newChallenge7Data = {};
       
       for (const uc of challengeData.userChallenges) {
-        if (uc.progress === 6 || uc.currentChallenge === 6) {
+        if (uc.progress === 6 || uc.currentChallenge === 6 || (uc.progress > 6 && uc.completedChallenges?.[6])) {
           try {
             const timestamp = Date.now();
-            const response = await fetch(`${API_BASE}/api/challenges/challenge7/${uc.uniqueId}?t=${timestamp}&bustCache=true`, {
+            const response = await fetch(`${API_BASE}/api/challenges/challenge7/${uc.uniqueId}/teacher?t=${timestamp}&bustCache=true`, {
               credentials: 'include',
               headers: {
                 'Cache-Control': 'no-cache',
@@ -387,6 +408,105 @@ const TeacherView = ({
       setTogglingVisibility(false);
     }
   };
+
+  // ---------- visibleUserChallenges (memoized, respects filters + deep search) ----------
+  const visibleUserChallenges = useMemo(() => {
+    const q = (search || '').trim().toLowerCase();
+    if (!challengeData?.userChallenges) return [];
+
+    return challengeData.userChallenges
+      .filter(uc => uc.userId) // must have a user
+      .filter(uc => {
+        // ensure user is still part of the classroom
+        const studentInClassroom = (classroomStudents || []).some(student =>
+          (typeof student === 'string' ? student : student._id) === uc.userId._id
+        );
+        if (!studentInClassroom) return false;
+
+        // role filter
+        if (roleFilter !== 'all') {
+          // Normalize role: prefer populated role, otherwise try to infer from classroom data
+          let role = '';
+          if (uc.userId && typeof uc.userId === 'object') {
+            role = String(uc.userId.role || '').toLowerCase();
+          } else {
+            role = '';
+          }
+  
+          // If not populated, attempt to infer by matching ids against classroom.teacher / classroom.students
+          if (!role) {
+            const uid = typeof uc.userId === 'object' ? (uc.userId._id || '') : uc.userId;
+            if (String(classroom?.teacher?._id || classroom?.teacher) === String(uid)) {
+              role = 'teacher';
+            } else if ((classroom?.students || []).some(s => String(s._id || s) === String(uid))) {
+              // classroom.students usually contains students and may include promoted Admin/TAs; treat as 'student' unless role is known
+              role = 'student';
+            } else {
+              // fallback: leave unknown empty so it won't incorrectly match 'student' or 'teacher'
+              role = '';
+            }
+          }
+  
+          if (role !== roleFilter) return false;
+        }
+
+        // challenge filter (workingOn = currentChallenge || progress)
+        const workingOn = uc.currentChallenge !== undefined ? uc.currentChallenge : uc.progress;
+        if (challengeFilter !== 'all' && Number(challengeFilter) !== workingOn) return false;
+
+        // status filter: compute completed / failed / in-progress for the working challenge
+        if (statusFilter !== 'all') {
+          const isCompleted = Boolean(uc.completedChallenges?.[workingOn]);
+          let isFailed = false;
+          if (workingOn === 2) {
+            const maxAttempts = uc.challenge3MaxAttempts || 5;
+            const maxAttemptsReached = (uc.challenge3Attempts || 0) >= maxAttempts;
+            let timeExpired = false;
+            if (uc.challenge3StartTime) {
+              const startTime = new Date(uc.challenge3StartTime);
+              const currentTime = new Date();
+              const timeElapsed = (currentTime - startTime) / (1000 * 60);
+              timeExpired = timeElapsed > 120;
+            }
+            isFailed = maxAttemptsReached || timeExpired;
+          } else if (workingOn === 5) {
+            isFailed = (uc.challenge6Attempts || 0) >= 3;
+          } else if (workingOn === 6) {
+            isFailed = (uc.challenge7Attempts || 0) >= 3;
+          }
+          const inProgress = !isCompleted && !isFailed;
+
+          if (statusFilter === 'completed' && !isCompleted) return false;
+          if (statusFilter === 'failed' && !isFailed) return false;
+          if (statusFilter === 'inprogress' && !inProgress) return false;
+        }
+
+        // deep search across user fields + challenge-specific fields
+        if (!q) return true;
+        const hay = [
+          `${uc.userId.firstName || ''} ${uc.userId.lastName || ''}`,
+          uc.userId.email || '',
+          uc.uniqueId || '',
+          challenge3Data[uc.uniqueId]?.expectedOutput || '',
+          challenge6Data[uc.uniqueId]?.word || '',
+          challenge7Data[uc.uniqueId]?.quote || '',
+          Object.values(challenge7Data[uc.uniqueId]?.wordTokens || {}).flat().join(' ')
+        ].join(' ').toLowerCase();
+
+        return hay.includes(q);
+      });
+  }, [
+    challengeData?.userChallenges,
+    classroomStudents,
+    search,
+    roleFilter,
+    statusFilter,
+    challengeFilter,
+    challenge3Data,
+    challenge6Data,
+    challenge7Data
+  ]);
+  // -------------------------------------------------------------------------------
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -478,23 +598,47 @@ const TeacherView = ({
                 {showAssignDropdown && (
                   <div className="absolute right-0 top-full mt-1 w-64 bg-base-100 border border-base-300 rounded-lg shadow-lg z-50">
                     <div className="p-3">
-                      <div className="text-sm font-medium mb-2">Unassigned Students:</div>
-                      <div className="space-y-1 max-h-48 overflow-y-auto">
-                        {unassignedStudentIds.length > 0 ? (
-                          unassignedStudentIds.map((studentId, index) => (
-                            <button
-                              key={`unassigned-${studentId}-${index}`}
-                              onClick={() => handleAssignStudent(studentId)}
-                              className="w-full text-left p-2 text-sm hover:bg-base-200 rounded flex items-center justify-between"
-                            >
-                              <span>{studentNames[studentId] || 'Loading...'}</span>
-                              <UserPlus className="w-3 h-3" />
-                            </button>
-                          ))
-                        ) : (
-                          <div className="text-xs text-gray-500 p-2">All students are already assigned to this challenge</div>
-                        )}
-                      </div>
+                     <input
+                       type="text"
+                       placeholder="Search students..."
+                       className="input input-sm input-bordered w-full mb-2"
+                       value={assignSearch}
+                       onChange={(e) => setAssignSearch(e.target.value)}
+                       autoFocus
+                     />
+ 
+                     {/* filter unassigned by name / id */}
+                     {(() => {
+                       const q = (assignSearch || '').trim().toLowerCase();
+                       return (q === '')
+                         ? unassignedStudentIds
+                         : unassignedStudentIds.filter(id => {
+                             const name = (studentNames[id] || '').toLowerCase();
+                             return name.includes(q) || String(id).toLowerCase().includes(q);
+                           });
+                     })().length > 0 ? (
+                       (() => {
+                         const filtered = (assignSearch || '').trim() === ''
+                           ? unassignedStudentIds
+                           : unassignedStudentIds.filter(id => {
+                               const name = (studentNames[id] || '').toLowerCase();
+                               const q = (assignSearch || '').trim().toLowerCase();
+                               return name.includes(q) || String(id).toLowerCase().includes(q);
+                             });
+                         return filtered.map((studentId, index) => (
+                           <button
+                             key={`unassigned-${studentId}-${index}`}
+                             onClick={() => handleAssignStudent(studentId)}
+                             className="w-full text-left p-2 text-sm hover:bg-base-200 rounded flex items-center justify-between"
+                           >
+                             <span>{studentNames[studentId] || 'Loading...'}</span>
+                             <UserPlus className="w-3 h-3" />
+                           </button>
+                         ));
+                       })()
+                     ) : (
+                       <div className="text-xs text-gray-500 p-2">No matching students</div>
+                     )}
                     </div>
                   </div>
                 )}
@@ -553,7 +697,58 @@ const TeacherView = ({
 
           {challengeData.isActive && challengeData.userChallenges && challengeData.userChallenges.length > 0 && (
             <div className="mt-6">
-              <h3 className="text-xl font-semibold mb-4">Student Challenge Progress</h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xl font-semibold">Student Challenge Progress</h3>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 items-stretch w-full max-w-4xl">
+                  <input
+                    type="search"
+                    placeholder="Search students, email, unique id, challenge text..."
+                    className="input input-sm input-bordered w-full sm:flex-auto"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                  <div className="flex gap-2 flex-wrap sm:flex-nowrap items-center">
+                    <select
+                      className="select select-sm w-full sm:w-auto flex-shrink-0"
+                      value={roleFilter}
+                      onChange={(e) => setRoleFilter(e.target.value)}
+                      title="Filter by role"
+                    >
+                      <option value="all">All roles</option>
+                      <option value="student">Students</option>
+                    </select>
+                    <select
+                      className="select select-sm w-full sm:w-auto flex-shrink-0"
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      title="Filter by status"
+                    >
+                      <option value="all">All status</option>
+                      <option value="inprogress">In progress</option>
+                      <option value="completed">Completed</option>
+                      <option value="failed">Failed</option>
+                    </select>
+                    <select
+                      className="select select-sm w-full sm:w-auto flex-shrink-0"
+                      value={challengeFilter}
+                      onChange={(e) => setChallengeFilter(e.target.value)}
+                      title="Filter by challenge"
+                    >
+                      <option value="all">All challenges</option>
+                      {CHALLENGE_NAMES.map((n, i) => (
+                        <option key={i} value={String(i)}>{`Ch ${i + 1}: ${n}`}</option>
+                      ))}
+                    </select>
+                    <button
+                      className="btn btn-sm btn-ghost ml-0 sm:ml-2"
+                      onClick={clearFilters}
+                      title="Clear search and filters"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              </div>
               <div className="overflow-x-auto -mx-6 px-6 sm:mx-0 sm:px-0">
                 <table className="table table-zebra w-full table-auto text-sm md:text-base">
                   <thead>
@@ -565,18 +760,11 @@ const TeacherView = ({
                       <th className="hidden sm:table-cell whitespace-nowrap">Started At</th>
                       <th className="hidden lg:table-cell whitespace-nowrap">Completed At</th>
                       <th className="whitespace-nowrap">Status</th>
+                      <th className="whitespace-nowrap">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {challengeData.userChallenges
-                      .filter(uc => uc.userId)
-                      .filter(uc => {
-                        const studentInClassroom = classroomStudents.some(studentId => 
-                          (typeof studentId === 'string' ? studentId : studentId._id) === uc.userId._id
-                        );
-                        return studentInClassroom;
-                      })
-                      .map((uc) => {
+                    {visibleUserChallenges.map((uc) => {
                       const challengeNames = ['Little Caesar\'s Secret', 'Check Me Out', 'C++ Bug Hunt', 'I Always Sign My Work...', 'Secrets in the Clouds', 'Needle in a Haystack', 'Hangman'];
                       const workingOnChallenge = uc.currentChallenge !== undefined ? uc.currentChallenge : uc.progress;
                       const workingOnTitle = challengeNames[workingOnChallenge] || 'Unknown Challenge';
@@ -641,6 +829,22 @@ const TeacherView = ({
                                 {uc.completedChallenges?.[2] && (
                                   <div className="text-xs text-green-600 font-semibold">✅ Challenge Complete</div>
                                 )}
+                                {!uc.completedChallenges?.[2] && (() => {
+                                  const maxAttempts = uc.challenge3MaxAttempts || 5;
+                                  const maxAttemptsReached = (uc.challenge3Attempts || 0) >= maxAttempts;
+                                  
+                                  let timeExpired = false;
+                                  if (uc.challenge3StartTime) {
+                                    const startTime = new Date(uc.challenge3StartTime);
+                                    const currentTime = new Date();
+                                    const timeElapsed = (currentTime - startTime) / (1000 * 60);
+                                    timeExpired = timeElapsed > 120;
+                                  }
+                                  
+                                  return (maxAttemptsReached || timeExpired);
+                                })() && (
+                                  <div className="text-xs text-red-600 font-semibold">❌ Challenge Failed</div>
+                                )}
                               </div>
                             )}
                             {workingOnChallenge === 3 && (
@@ -692,6 +896,12 @@ const TeacherView = ({
                                     </button>
                                   )}
                                 </div>
+                                {uc.completedChallenges?.[5] && (
+                                  <div className="text-xs text-green-600 font-semibold">✅ Challenge Complete</div>
+                                )}
+                                {!uc.completedChallenges?.[5] && (uc.challenge6Attempts || 0) >= 3 && (
+                                  <div className="text-xs text-red-600 font-semibold">❌ Challenge Failed</div>
+                                )}
                               </div>
                             )}
                             {workingOnChallenge === 6 && (
@@ -716,6 +926,12 @@ const TeacherView = ({
                                 <div className="text-xs text-gray-500">
                                   Hangman Challenge {challenge7Data[uc.uniqueId]?.uniqueId ? `(ID: ${challenge7Data[uc.uniqueId].uniqueId})` : ''}
                                 </div>
+                                {uc.completedChallenges?.[6] && (
+                                  <div className="text-xs text-green-600 font-semibold">✅ Challenge Complete</div>
+                                )}
+                                {!uc.completedChallenges?.[6] && (uc.challenge7Attempts || 0) >= 3 && (
+                                  <div className="text-xs text-red-600 font-semibold">❌ Challenge Failed</div>
+                                )}
                               </div>
                             )}
                           </td>
@@ -960,8 +1176,105 @@ const TeacherView = ({
                             )}
                           </td>
                           <td>
-                            <div className={`badge ${uc.completedChallenges?.[workingOnChallenge] ? 'badge-success' : 'badge-warning'} whitespace-nowrap`}>
-                              {uc.completedChallenges?.[workingOnChallenge] ? 'Completed' : 'In Progress'}
+                            {(() => {
+                              if (uc.completedChallenges?.[workingOnChallenge]) {
+                                return (
+                                  <div className="badge badge-success whitespace-nowrap">
+                                    Completed
+                                  </div>
+                                );
+                              }
+                                let isFailed = false;
+                                if (workingOnChallenge === 2) { 
+                                  const maxAttempts = uc.challenge3MaxAttempts || 5;
+                                  const maxAttemptsReached = (uc.challenge3Attempts || 0) >= maxAttempts;
+                                  
+                                  let timeExpired = false;
+                                  if (uc.challenge3StartTime) {
+                                    const startTime = new Date(uc.challenge3StartTime);
+                                    const currentTime = new Date();
+                                    const timeElapsed = (currentTime - startTime) / (1000 * 60);
+                                    timeExpired = timeElapsed > 120;
+                                  }
+                                  
+                                  isFailed = maxAttemptsReached || timeExpired;
+                                } else if (workingOnChallenge === 5) { 
+                                  isFailed = (uc.challenge6Attempts || 0) >= 3;
+                                } else if (workingOnChallenge === 6) { 
+                                  isFailed = (uc.challenge7Attempts || 0) >= 3;
+                                }
+                              
+                              if (isFailed) {
+                                return (
+                                  <div className="badge badge-error whitespace-nowrap">
+                                    Failed
+                                  </div>
+                                );
+                              }
+                              
+                              return (
+                                <div className="badge badge-warning whitespace-nowrap">
+                                  In Progress
+                                </div>
+                              );
+                            })()} 
+                          </td>
+                          <td>
+                            <div className="dropdown dropdown-end">
+                              <div tabIndex={0} role="button" className="btn btn-xs btn-outline btn-warning gap-1 hover:btn-warning">
+                                🔄 Reset ▼
+                              </div>
+                              <ul tabIndex={0} className="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow border border-base-300">
+                                <li className="menu-title">
+                                  <span className="text-xs text-gray-500">Reset Options</span>
+                                </li>
+                                {[0, 1, 2, 3, 4, 5, 6].map((challengeIdx) => {
+                                  const challengeNames = ['Challenge 1: Caesar Cipher', 'Challenge 2: GitHub OSINT', 'Challenge 3: C++ Debug', 'Challenge 4: Forensics', 'Challenge 5: WayneAWS', 'Challenge 6: Haystack', 'Challenge 7: Hangman'];
+                                  const isCompleted = uc.completedChallenges?.[challengeIdx];
+                                  const isStarted = uc.challengeStartedAt?.[challengeIdx] || (challengeIdx === 0 && uc.startedAt);
+                                  
+                                  return (
+                                    <li key={challengeIdx}>
+                                      <button
+                                        className={`text-xs ${!isStarted ? 'text-gray-400' : isCompleted ? 'text-green-600' : 'text-blue-600'}`}
+                                        disabled={!isStarted}
+                                        onClick={async () => {
+                                          if (confirm(`Reset ${challengeNames[challengeIdx]} for ${uc.userId.firstName} ${uc.userId.lastName}? This will clear their progress for this specific challenge.`)) {
+                                            try {
+                                              await resetSpecificChallenge(classroomId, uc.userId._id, challengeIdx);
+                                              toast.success(`Reset ${challengeNames[challengeIdx]} for ${uc.userId.firstName} ${uc.userId.lastName}`);
+                                              await fetchChallengeData();
+                                            } catch (error) {
+                                              toast.error(`Failed to reset challenge: ${error.message}`);
+                                            }
+                                          }
+                                        }}
+                                      >
+                                        {isCompleted ? '✅' : isStarted ? '🔄' : '⏹️'} {challengeNames[challengeIdx]}
+                                      </button>
+                                    </li>
+                                  );
+                                })}
+                                <div className="divider my-1"></div>
+                                <li>
+                                  <button
+                                    className="text-xs text-red-600 font-semibold"
+                                    onClick={async () => {
+                                      if (confirm(`Are you sure you want to reset ALL challenges for ${uc.userId.firstName} ${uc.userId.lastName}? This will clear all their progress and they will start from Challenge 1.`)) {
+                                        try {
+                                          await resetStudentChallenge(classroomId, uc.userId._id);
+                                          toast.success(`Reset all challenges for ${uc.userId.firstName} ${uc.userId.lastName}`);
+                                          await fetchChallengeData();
+                                        } catch (error) {
+                                          toast.error(`Failed to reset all challenges: ${error.message}`);
+                                        }
+                                      }
+                                    }}
+                                  >
+                                    🗑️ Reset ALL Challenges
+                                  </button>
+                                </li>
+                              </ul>
                             </div>
                           </td>
                         </tr>

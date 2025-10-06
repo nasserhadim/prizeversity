@@ -178,6 +178,14 @@ router.post('/challenge4/:uniqueId/submit', ensureAuthenticated, async (req, res
         userChallenge.completedChallenges[3] = true;
         userChallenge.progress = userChallenge.completedChallenges.filter(Boolean).length;
         
+        if (!userChallenge.challengeCompletedAt) {
+          userChallenge.challengeCompletedAt = [];
+        }
+        while (userChallenge.challengeCompletedAt.length <= 3) {
+          userChallenge.challengeCompletedAt.push(null);
+        }
+        userChallenge.challengeCompletedAt[3] = new Date();
+        
         const user = await User.findById(userId);
         const rewardsEarned = calculateChallengeRewards(user, challenge, 3, userChallenge);
         await user.save();
@@ -451,9 +459,16 @@ router.post('/submit-challenge6', ensureAuthenticated, async (req, res) => {
     const challengeData = await generateChallengeData(uniqueId);
     const validTokens = challengeData.validTokens;
 
+    if (!userChallenge.challenge6Attempts) {
+      userChallenge.challenge6Attempts = 0;
+    }
+
     const isCorrect = userTokens.some(token => validTokens.includes(token));
     
     if (isCorrect) {
+      // Reset attempt counter on correct answer
+      userChallenge.challenge6Attempts = 0;
+      
       const challengeIndex = 5;
       const user = await User.findById(userId);
       let rewards = {
@@ -488,6 +503,7 @@ router.post('/submit-challenge6', ensureAuthenticated, async (req, res) => {
         userChallenge.completedAt = new Date();
       }
       
+      challenge.markModified('userChallenges');
       await challenge.save();
       
       return res.json({
@@ -501,9 +517,25 @@ router.post('/submit-challenge6', ensureAuthenticated, async (req, res) => {
       });
     }
     
+    userChallenge.challenge6Attempts++;
+    
+    if (userChallenge.challenge6Attempts >= 3) {
+      challenge.markModified('userChallenges');
+      await challenge.save();
+      return res.json({
+        success: false,
+        message: 'Maximum attempts reached. Access denied.',
+        maxAttemptsReached: true
+      });
+    }
+    
+    challenge.markModified('userChallenges');
+    await challenge.save();
+    
     return res.json({
       success: false,
-      message: 'Incorrect answer. Try again.'
+      message: 'Incorrect answer. Try again.',
+      attemptsRemaining: 3 - userChallenge.challenge6Attempts
     });
 
   } catch (error) {
@@ -555,9 +587,29 @@ router.post('/submit-challenge7', ensureAuthenticated, async (req, res) => {
       });
     }
 
-      const { generateHangmanData } = require('../../utils/quoteGenerator');
+    const { generateHangmanData } = require('../../utils/quoteGenerator');
     const hangmanData = await generateHangmanData(uniqueId);
     const validTokens = hangmanData.wordTokens[word.toLowerCase()] || [];
+    const wordLower = word.toLowerCase();
+
+    if (!userChallenge.challenge7Progress) {
+      userChallenge.challenge7Progress = {
+        revealedWords: [],
+        totalWords: 0
+      };
+    }
+    
+    if (!userChallenge.challenge7Attempts) {
+      userChallenge.challenge7Attempts = 0;
+    }
+
+    if (userChallenge.challenge7Attempts >= 3) {
+      return res.json({
+        success: false,
+        message: 'Maximum attempts reached. Challenge failed.',
+        maxAttemptsReached: true
+      });
+    }
 
     const isCorrect = userTokens.some(token => validTokens.includes(token));
     
@@ -678,19 +730,29 @@ router.post('/submit-challenge7', ensureAuthenticated, async (req, res) => {
         isCompletelyFinished: isCompletelyFinished,
         progressPercentage: progressPercentage,
         revealedWordsCount: userChallenge.challenge7Progress.revealedWords.length,
-        totalWordsCount: userChallenge.challenge7Progress.totalWords
+        totalWordsCount: userChallenge.challenge7Progress.totalWords,
+        attemptsRemaining: 3 - userChallenge.challenge7Attempts
       });
     }
+    
+    userChallenge.challenge7Attempts++;
+    
+    challenge.markModified('userChallenges');
+    await challenge.save();
     
     const uniqueWords = [...new Set(hangmanData.words.map(w => w.toLowerCase()))];
     const currentProgress = userChallenge.challenge7Progress || { revealedWords: [], totalWords: uniqueWords.length };
     
     return res.json({
       success: false,
-      message: 'Incorrect value for this word. Try again.',
+      message: userChallenge.challenge7Attempts >= 3 
+        ? `Incorrect value for "${word}". Maximum attempts reached.`
+        : `Incorrect value for "${word}". Try again.`,
       revealedWordsCount: currentProgress.revealedWords.length,
       totalWordsCount: uniqueWords.length,
-      progressPercentage: (currentProgress.revealedWords.length / uniqueWords.length * 100).toFixed(1)
+      progressPercentage: (currentProgress.revealedWords.length / uniqueWords.length * 100).toFixed(1),
+      totalAttempts: userChallenge.challenge7Attempts,
+      attemptsRemaining: 3 - userChallenge.challenge7Attempts
     });
 
   } catch (error) {
