@@ -283,7 +283,7 @@ const ClassroomFeedbackPage = ({ userId }) => {
             {classroom && classroom.feedbackRewardEnabled && (
               <div className="alert alert-info mt-4 max-w-3xl mx-auto">
                 <div>
-                  <strong>Feedback reward:</strong> {Number(classroom.feedbackRewardBits) || feedbackRewardConfig.feedbackRewardBits} bits
+                  <strong>Feedback reward:</strong> {Number(classroom.feedbackRewardBits) || feedbackRewardConfig.feedbackRewardBits} ₿
                   { (classroom.feedbackRewardApplyGroupMultipliers || classroom.feedbackRewardApplyPersonalMultipliers) && (
                     <span className="ml-2 text-sm text-gray-600"> (multipliers apply)</span>
                   )}
@@ -304,7 +304,7 @@ const ClassroomFeedbackPage = ({ userId }) => {
             {/* TEACHER: Feedback reward settings */}
             {user && user.role === 'teacher' && (
               <div className="card bg-base-100 border border-base-200 p-4 mt-4 max-w-3xl mx-auto">
-                <h4 className="font-semibold mb-2">Feedback Reward (bits)</h4>
+                <h4 className="font-semibold mb-2">Feedback Reward (₿its)</h4>
                 {loadingRewardConfig ? (
                   <div className="text-sm text-gray-500">Loading...</div>
                 ) : (
@@ -330,7 +330,7 @@ const ClassroomFeedbackPage = ({ userId }) => {
                         />
                       </div>
                       <div>
-                        <label className="label"><span className="label-text">Bits (base)</span></label>
+                        <label className="label"><span className="label-text">₿ (base)</span></label>
                         <input
                           type="number"
                           min={0}

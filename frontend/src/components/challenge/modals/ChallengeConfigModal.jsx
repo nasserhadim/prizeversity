@@ -333,7 +333,7 @@ const ChallengeConfigModal = ({
                     
                     <div className="form-control">
                       <label className="label py-1">
-                        <span className="label-text text-sm font-medium">Reward Bits</span>
+                        <span className="label-text text-sm font-medium">Reward ₿its</span>
                       </label>
                       <input
                         type="number"
@@ -465,7 +465,7 @@ const ChallengeConfigModal = ({
                       {challengeConfig.rewardMode === 'total' && (
                         <div className="mt-2">
                           <label className="label py-1">
-                            <span className="label-text text-xs">Total Reward Bits</span>
+                            <span className="label-text text-xs">Total Reward ₿its</span>
                           </label>
                           <input
                             type="number"
@@ -727,7 +727,7 @@ const ChallengeConfigModal = ({
                     <tr>
                       <td className="sticky left-0 bg-base-100 z-10">
                         <div className="flex items-center gap-3 flex-nowrap text-sm">
-                          <span className="font-semibold inline-block w-36 shrink-0">Bits</span>
+                          <span className="font-semibold inline-block w-36 shrink-0">₿its</span>
                           <IndivTotalToggle
                             value={challengeConfig.rewardMode}
                             onChange={(mode) => setChallengeConfig(prev => ({ ...prev, rewardMode: mode }))}
