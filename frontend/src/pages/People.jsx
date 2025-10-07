@@ -44,6 +44,9 @@ const People = () => {
   const [students, setStudents] = useState([]);
   // Map of studentId -> total spent (number)
   const [totalSpentMap, setTotalSpentMap] = useState({});
+  // per-student cached stats and loading flag
+  const [studentStatsMap, setStudentStatsMap] = useState({}); // NEW: per-student stats cache
+  const [studentStatsLoading, setStudentStatsLoading] = useState(false);
   const [groupSets, setGroupSets] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOption, setSortOption] = useState('default');
@@ -62,10 +65,10 @@ const People = () => {
 
   const navigate = useNavigate();
 
-  // Load stat-change log for teacher/admin viewers
+  // Load stat-change log for teacher/admin/student viewers
  useEffect(() => {
    const viewerRole = (user?.role || '').toLowerCase();
-   if (!classroomId || !user || !['teacher', 'admin'].includes(viewerRole)) return;
+   if (!classroomId || !user || !['teacher', 'admin', 'student'].includes(viewerRole)) return;
    let mounted = true;
    (async () => {
      try {
@@ -438,6 +441,67 @@ const getBanInfo = (student, classroomObj) => {
         const aVal = Number(totalSpentMap[a._id] || 0);
         const bVal = Number(totalSpentMap[b._id] || 0);
         return aVal - bVal;
+      } else if (sortOption === 'multiplierDesc') {
+        const aStats = studentStatsMap[a._id] || {};
+        const bStats = studentStatsMap[b._id] || {};
+        const aVal = Number(aStats.multiplier || aStats.multiplier || 1);
+        const bVal = Number(bStats.multiplier || bStats.multiplier || 1);
+        return bVal - aVal;
+      } else if (sortOption === 'multiplierAsc') {
+        const aStats = studentStatsMap[a._id] || {};
+        const bStats = studentStatsMap[b._id] || {};
+        const aVal = Number(aStats.multiplier || 1);
+        const bVal = Number(bStats.multiplier || 1);
+        return aVal - bVal;
+      } else if (sortOption === 'luckDesc') {
+        const aStats = studentStatsMap[a._id] || {};
+        const bStats = studentStatsMap[b._id] || {};
+        const aVal = Number(aStats.luck ?? 1);
+        const bVal = Number(bStats.luck ?? 1);
+        return bVal - aVal;
+      } else if (sortOption === 'luckAsc') {
+        const aStats = studentStatsMap[a._id] || {};
+        const bStats = studentStatsMap[b._id] || {};
+        const aVal = Number(aStats.luck ?? 1);
+        const bVal = Number(bStats.luck ?? 1);
+        return aVal - bVal;
+      } else if (sortOption === 'shieldDesc') {
+        // sort by shieldCount then boolean active
+        const aStats = studentStatsMap[a._id] || {};
+        const bStats = studentStatsMap[b._id] || {};
+        const aVal = Number(aStats.shieldCount || (aStats.shieldActive ? 1 : 0));
+        const bVal = Number(bStats.shieldCount || (bStats.shieldActive ? 1 : 0));
+        return bVal - aVal;
+      } else if (sortOption === 'shieldAsc') {
+        const aStats = studentStatsMap[a._id] || {};
+        const bStats = studentStatsMap[b._id] || {};
+        const aVal = Number(aStats.shieldCount || (aStats.shieldActive ? 1 : 0));
+        const bVal = Number(bStats.shieldCount || (bStats.shieldActive ? 1 : 0));
+        return aVal - bVal;
+      } else if (sortOption === 'attackDesc') {
+        const aStats = studentStatsMap[a._id] || {};
+        const bStats = studentStatsMap[b._id] || {};
+        const aVal = Number(aStats.attackPower || 0);
+        const bVal = Number(bStats.attackPower || 0);
+        return bVal - aVal;
+      } else if (sortOption === 'attackAsc') {
+        const aStats = studentStatsMap[a._id] || {};
+        const bStats = studentStatsMap[b._id] || {};
+        const aVal = Number(aStats.attackPower || 0);
+        const bVal = Number(bStats.attackPower || 0);
+        return aVal - bVal;
+      } else if (sortOption === 'discountDesc') {
+        const aStats = studentStatsMap[a._id] || {};
+        const bStats = studentStatsMap[b._id] || {};
+        const aVal = Number(aStats.discountShop || aStats.discount || 0);
+        const bVal = Number(bStats.discountShop || bStats.discount || 0);
+        return bVal - aVal;
+      } else if (sortOption === 'discountAsc') {
+        const aStats = studentStatsMap[a._id] || {};
+        const bStats = studentStatsMap[b._id] || {};
+        const aVal = Number(aStats.discountShop || aStats.discount || 0);
+        const bVal = Number(bStats.discountShop || bStats.discount || 0);
+        return aVal - bVal;
       } else if (sortOption === 'nameAsc') {
         const nameA = (a.firstName || a.name || '').toLowerCase();
         const nameB = (b.firstName || b.name || '').toLowerCase();
@@ -461,14 +525,13 @@ const getBanInfo = (student, classroomObj) => {
     if (!user || !['teacher', 'admin'].includes(viewerRole)) return;
     if (!classroomId) return;
 
-    // Limit to first N visible students to avoid too many requests
-    const visible = Array.isArray(students) ? students.slice(0, 50) : [];
-    const ids = visible.map(s => s._id).filter(Boolean);
+    // Fetch for all students in the classroom (not just first N)
+    const ids = Array.isArray(students) ? students.map(s => s._id).filter(Boolean) : [];
     if (!ids.length) {
       setTotalSpentMap({});
       return;
     }
-
+ 
     let cancelled = false;
     (async () => {
       try {
@@ -493,20 +556,78 @@ const getBanInfo = (student, classroomObj) => {
               return { id, spent: 0 };
             })
         );
-
+ 
         const results = await Promise.all(promises);
         if (cancelled) return;
         const map = {};
         results.forEach(r => { map[r.id] = r.spent; });
         setTotalSpentMap(map);
-      } catch (err) {
-        if (!cancelled) console.error('[People] failed to load per-student totals', err);
-      }
-    })();
-
-    return () => { cancelled = true; };
+       } catch (err) {
+         if (!cancelled) console.error('[People] failed to load per-student totals', err);
+       }
+     })();
+ 
+     return () => { cancelled = true; };
   }, [user, classroomId, students]);
   // ── end per-student totals effect ──
+
+  // ── Fetch per-student stats (all students) — debounced so rapid sort/select changes don't refire immediately ──
+  useEffect(() => {
+    const viewerRole = (user?.role || '').toLowerCase();
+    const statFields = ['multiplier','luck','shield','attack','discount'];
+    const statSortSelected = statFields.some(f => sortOption.includes(f));
+ 
+    // Only fetch stats if:
+    // - we have a classroom and students
+    // - and either viewer is teacher/admin, or student view is allowed, or a stat-based sort is active
+    const shouldFetch = classroomId &&
+      Array.isArray(students) && students.length > 0 &&
+      (viewerRole === 'teacher' || viewerRole === 'admin' || (viewerRole === 'student' && studentsCanViewStats) || statSortSelected);
+ 
+    if (!shouldFetch) {
+      setStudentStatsMap({});
+      setStudentStatsLoading(false);
+      return;
+    }
+ 
+    let cancelled = false;
+    setStudentStatsLoading(true);
+ 
+    // Debounce to avoid refiring many requests for quick select changes
+    const idsKey = students.map(s => s._id).join(',');
+    const timer = setTimeout(async () => {
+      try {
+        const ids = students.map(s => s._id).filter(Boolean);
+        const promises = ids.map(id =>
+          axios.get(`/api/stats/student/${id}?classroomId=${classroomId}`, { withCredentials: true })
+            .then(r => ({ id, stats: r.data || {} }))
+            .catch((err) => {
+              console.debug('[People] failed to fetch stats for', id, err?.message || err);
+              return { id, stats: {} };
+            })
+        );
+        const results = await Promise.all(promises);
+        if (cancelled) return;
+        const statsMap = {};
+        results.forEach(r => { statsMap[r.id] = r.stats || {}; });
+        setStudentStatsMap(statsMap);
+      } catch (err) {
+        if (!cancelled) console.error('[People] failed to fetch student stats', err);
+      } finally {
+        if (!cancelled) setStudentStatsLoading(false);
+      }
+    }, 350); // 350ms debounce
+ 
+    return () => { cancelled = true; clearTimeout(timer); setStudentStatsLoading(false); };
+  }, [
+    classroomId,
+    // watch student ids, sortOption, viewer role, and the classroom setting for student visibility
+    students.map(s => s._id).join(','),
+    sortOption,
+    (user?.role || '').toLowerCase(),
+    studentsCanViewStats
+  ]);
+  // ── end stats fetch effect ──
 
   // Handle bulk user upload via Excel file
   const handleExcelUpload = async (e) => {
@@ -908,12 +1029,12 @@ const visibleCount = filteredStudents.length;
             Groups
           </button>
           {/* NEW: Stat Changes tab (teacher/admin only) */}
-          {(user?.role?.toLowerCase() === 'teacher' || user?.role?.toLowerCase() === 'admin') && (
+          {(user?.role?.toLowerCase() === 'teacher' || user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'student') && (
             <button
               className={`btn flex-shrink-0 ${tab === 'stat-changes' ? 'btn-success' : 'btn-outline'}`}
               onClick={() => setTab('stat-changes')}
             >
-              Stat Changes
+              {user?.role?.toLowerCase() === 'student' ? 'My Stat Changes' : 'Stat Changes'}
             </button>
           )}
           {user?.role?.toLowerCase() === 'teacher' && (
@@ -1118,26 +1239,51 @@ const visibleCount = filteredStudents.length;
                 </select>
 
                 {/* Sort */}
+                <div className="flex items-center gap-2">
                 <select
                   className="select select-bordered"
                   value={sortOption}
                   onChange={(e) => setSortOption(e.target.value)}
                 >
-                  <option value="default">Sort By</option>
-                  {(user?.role === 'teacher' || user?.role === 'admin') && (
+                   <option value="default">Sort By</option>
+                   {(user?.role === 'teacher' || user?.role === 'admin') && (
+                     <>
+                       <option value="balanceDesc">Balance (High → Low)</option>
+                       <option value="balanceAsc">Balance (Low → High)</option>
+                       <option value="totalSpentDesc">Total Spent (High → Low)</option>
+                       <option value="totalSpentAsc">Total Spent (Low → High)</option>
+                     </>
+                   )}
+                {/* Stat-based sorting — only show if viewer allowed to see stats */}
+                {(() => {
+                  const canSeeStats = (user?.role === 'teacher' || user?.role === 'admin' || (user?.role === 'student' && studentsCanViewStats));
+                  if (!canSeeStats) return null;
+                  return (
                     <>
-                      <option value="balanceDesc">Balance (High → Low)</option>
-                      <option value="balanceAsc">Balance (Low → High)</option>
-                      <option value="totalSpentDesc">Total Spent (High → Low)</option>
-                      <option value="totalSpentAsc">Total Spent (Low → High)</option>
+                      <option value="multiplierDesc">Multiplier (High → Low)</option>
+                      <option value="multiplierAsc">Multiplier (Low → High)</option>
+                      <option value="luckDesc">Luck (High → Low)</option>
+                      <option value="luckAsc">Luck (Low → High)</option>
+                      <option value="shieldDesc">Shield (Most → Least)</option>
+                      <option value="shieldAsc">Shield (Least → Most)</option>
+                      <option value="attackDesc">Attack (High → Low)</option>
+                      <option value="attackAsc">Attack (Low → High)</option>
+                      <option value="discountDesc">Discount (High → Low)</option>
+                      <option value="discountAsc">Discount (Low → High)</option>
                     </>
-                  )}
-                  <option value="nameAsc">Name (A → Z)</option>
-                  <option value="joinDateDesc">Join Date (Newest)</option>
-                  <option value="joinDateAsc">Join Date (Oldest)</option>
+                  );
+                })()}
+                   <option value="nameAsc">Name (A → Z)</option>
+                   <option value="joinDateDesc">Join Date (Newest)</option>
+                   <option value="joinDateAsc">Join Date (Oldest)</option>
                 </select>
-
-                {/* Exports aligned to the right */}
+                {/* loading indicator when a stat-based sort is selected and stats are still loading */}
+                {studentStatsLoading && ['multiplier','luck','shield','attack','discount'].some(f => sortOption.includes(f)) && (
+                  <span className="loading loading-spinner loading-sm ml-2" title="Loading stats…"></span>
+                )}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
                 {(user?.role === 'teacher' || user?.role === 'admin') && (
                   <div className="ml-auto flex items-center">
                     <ExportButtons
@@ -1640,11 +1786,13 @@ const visibleCount = filteredStudents.length;
     )}
           </div>
         )}
-                  {/* NEW: Recent stat changes (teacher/admin view) — show only in Stat Changes tab */}
-          {tab === 'stat-changes' && (user?.role === 'teacher' || user?.role === 'admin') && (
+                  {/* NEW: Recent stat changes - show for teachers/admins (all changes) and students (their own changes) */}
+          {tab === 'stat-changes' && (user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'student') && (
             <div className="bg-base-100 border border-base-300 rounded p-4 mt-4">
               <div className="flex items-center gap-2 mb-4">
-                <h3 className="font-medium flex-1">Recent stat changes</h3>
+                <h3 className="font-medium flex-1">
+                  {user?.role?.toLowerCase() === 'student' ? 'My recent stat changes' : 'Recent stat changes'}
+                </h3>
                 <div className="text-sm text-base-content/70">{statChanges.length} records</div>
               </div>
  
@@ -1652,7 +1800,7 @@ const visibleCount = filteredStudents.length;
                <div className="flex flex-col sm:flex-row gap-2 mb-4">
                  <input
                    type="search"
-                   placeholder="Search by user, actor, field, or value..."
+                   placeholder={user?.role?.toLowerCase() === 'student' ? 'Search your stat changes...' : 'Search by user, actor, field, or value...'}
                   className="input input-bordered flex-1 min-w-[220px]"
                    value={statSearch}
                    onChange={(e) => setStatSearch(e.target.value)}
@@ -1677,11 +1825,18 @@ const visibleCount = filteredStudents.length;
                {loadingStatChanges ? (
                 <div className="text-sm text-base-content/60">Loading…</div>
                ) : statChanges.length === 0 ? (
-                <div className="text-sm text-base-content/60">No recent stat changes</div>
+                <div className="text-sm text-base-content/60">
+                  {user?.role?.toLowerCase() === 'student' ? 'No stat changes found for you' : 'No recent stat changes'}
+                </div>
                ) : (
                  (() => {
                    const q = (statSearch || '').toLowerCase().trim();
-                   const filtered = statChanges.filter(s => {
+                   let filtered = statChanges.filter(s => {
+                     // For students, only show their own stat changes
+                     if (user?.role?.toLowerCase() === 'student') {
+                       if (String(s.user) !== String(user._id)) return false;
+                     }
+
                      if (!q) return true;
                      // target user
                      const target = s.targetUser || {};
@@ -1695,62 +1850,61 @@ const visibleCount = filteredStudents.length;
                      if (actorName.includes(q) || actorEmail.includes(q)) return true;
                      // changes content
                      if (Array.isArray(s.changes)) {
-                       for (const c of s.changes) {
-                         const field = String(c.field || '').toLowerCase();
-                         const from = String(c.from || '').toLowerCase();
-                         const to = String(c.to || '').toLowerCase();
-                         if (field.includes(q) || from.includes(q) || to.includes(q)) return true;
-                       }
-                     }
-                     // fallback: createdAt
-                     if ((s.createdAt || '').toLowerCase().includes(q)) return true;
-                     return false;
-                   });
- 
-                   filtered.sort((a, b) => {
-                     const ad = new Date(a.createdAt || 0).getTime();
-                     const bd = new Date(b.createdAt || 0).getTime();
-                     return statSort === 'desc' ? bd - ad : ad - bd;
-                   });
- 
-                   return (
-                     <ul className="space-y-2 text-sm">
-                       {filtered.map((s) => (
-                        <li key={s._id} className="p-2 border border-base-300 rounded bg-base-100">
-                          <div className="text-xs text-base-content/60 mb-1">
-                             {new Date(s.createdAt).toLocaleString()} — by {(() => {
-                               const a = s.actionBy;
-                               if (!a) return 'System';
-                               const full = `${a.firstName || ''} ${a.lastName || ''}`.trim();
-                               return full || a.email || 'System';
-                             })()}
-                           </div>
-                           <div className="font-medium">
-                             {s.targetUser
-                               ? (
-                                   `${(s.targetUser.firstName || '').trim()} ${(s.targetUser.lastName || '').trim()}`.trim()
-                                   || s.targetUser.email
-                                 )
-                               : 'Unknown user'
-                             }
-                           </div>
-                           <div className="mt-1">
-                            {Array.isArray(s.changes) && s.changes.length ? (
-                              <ul className="list-disc ml-4">
-                                {s.changes.map((c, i) => (
-                                  <li key={i}>
-                                    {c.field}: {String(c.from)} → <strong>{String(c.to)}</strong>
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : (
-                              <div className="text-xs text-base-content/60">No details available</div>
+                          for (const c of s.changes) {
+                            const field = String(c.field || '').toLowerCase();
+                            const from = String(c.from || '').toLowerCase();
+                            const to = String(c.to || '').toLowerCase();
+                            if (field.includes(q) || from.includes(q) || to.includes(q)) return true;
+                          }
+                        }
+                        // fallback: createdAt
+                        if ((s.createdAt || '').toLowerCase().includes(q)) return true;
+                        return false;
+                    });
+
+                    filtered.sort((a, b) => {
+                      const ad = new Date(a.createdAt || 0).getTime();
+                      const bd = new Date(b.createdAt || 0).getTime();
+                      return statSort === 'desc' ? bd - ad : ad - bd;
+                    });
+
+                    return (
+                      <ul className="space-y-2 text-sm">
+                        {filtered.map((s) => (
+                          <li key={s._id} className="p-2 border border-base-300 rounded bg-base-100">
+                            <div className="text-xs text-base-content/60 mb-1">
+                              {new Date(s.createdAt).toLocaleString()}
+                              {s.actionBy && (s.message.includes('updated by your teacher') || s.message.includes('Updated stats for')) ? (
+                                ` — by ${s.actionBy.firstName || ''} ${s.actionBy.lastName || ''}`.trim()
+                              ) : (
+                                ` — from ${s.message.match(/from (.*?):/)?.[1] || 'System'}`
+                              )}
+                            </div>
+                            {/* For students, don't show target user name since it's always them */}
+                            {user?.role?.toLowerCase() !== 'student' && (
+                              <div className="font-semibold text-lg mt-1">
+                                {s.targetUser ? (
+                                  `${s.targetUser.firstName || ''} ${s.targetUser.lastName || ''}`.trim()
+                                ) : 'Unknown user'}
+                              </div>
                             )}
-                           </div>
-                         </li>
-                       ))}
-                     </ul>
-                   );
+                            <div className="mt-1">
+                              {Array.isArray(s.changes) && s.changes.length ? (
+                                <ul className="list-disc ml-4">
+                                  {s.changes.map((c, i) => (
+                                    <li key={i}>
+                                      {c.field}: {c.field === 'discount' && (c.from === null || c.from === undefined) ? 0 : String(c.from)} → <strong>{String(c.to)}</strong>
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : (
+                                <div className="text-xs text-base-content/60">No details available</div>
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    );
                  })()
                )}
              </div>
