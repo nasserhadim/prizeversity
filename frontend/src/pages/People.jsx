@@ -44,6 +44,9 @@ const People = () => {
   const [students, setStudents] = useState([]);
   // Map of studentId -> total spent (number)
   const [totalSpentMap, setTotalSpentMap] = useState({});
+  // per-student cached stats and loading flag
+  const [studentStatsMap, setStudentStatsMap] = useState({}); // NEW: per-student stats cache
+  const [studentStatsLoading, setStudentStatsLoading] = useState(false);
   const [groupSets, setGroupSets] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOption, setSortOption] = useState('default');
@@ -438,6 +441,67 @@ const getBanInfo = (student, classroomObj) => {
         const aVal = Number(totalSpentMap[a._id] || 0);
         const bVal = Number(totalSpentMap[b._id] || 0);
         return aVal - bVal;
+      } else if (sortOption === 'multiplierDesc') {
+        const aStats = studentStatsMap[a._id] || {};
+        const bStats = studentStatsMap[b._id] || {};
+        const aVal = Number(aStats.multiplier || aStats.multiplier || 1);
+        const bVal = Number(bStats.multiplier || bStats.multiplier || 1);
+        return bVal - aVal;
+      } else if (sortOption === 'multiplierAsc') {
+        const aStats = studentStatsMap[a._id] || {};
+        const bStats = studentStatsMap[b._id] || {};
+        const aVal = Number(aStats.multiplier || 1);
+        const bVal = Number(bStats.multiplier || 1);
+        return aVal - bVal;
+      } else if (sortOption === 'luckDesc') {
+        const aStats = studentStatsMap[a._id] || {};
+        const bStats = studentStatsMap[b._id] || {};
+        const aVal = Number(aStats.luck ?? 1);
+        const bVal = Number(bStats.luck ?? 1);
+        return bVal - aVal;
+      } else if (sortOption === 'luckAsc') {
+        const aStats = studentStatsMap[a._id] || {};
+        const bStats = studentStatsMap[b._id] || {};
+        const aVal = Number(aStats.luck ?? 1);
+        const bVal = Number(bStats.luck ?? 1);
+        return aVal - bVal;
+      } else if (sortOption === 'shieldDesc') {
+        // sort by shieldCount then boolean active
+        const aStats = studentStatsMap[a._id] || {};
+        const bStats = studentStatsMap[b._id] || {};
+        const aVal = Number(aStats.shieldCount || (aStats.shieldActive ? 1 : 0));
+        const bVal = Number(bStats.shieldCount || (bStats.shieldActive ? 1 : 0));
+        return bVal - aVal;
+      } else if (sortOption === 'shieldAsc') {
+        const aStats = studentStatsMap[a._id] || {};
+        const bStats = studentStatsMap[b._id] || {};
+        const aVal = Number(aStats.shieldCount || (aStats.shieldActive ? 1 : 0));
+        const bVal = Number(bStats.shieldCount || (bStats.shieldActive ? 1 : 0));
+        return aVal - bVal;
+      } else if (sortOption === 'attackDesc') {
+        const aStats = studentStatsMap[a._id] || {};
+        const bStats = studentStatsMap[b._id] || {};
+        const aVal = Number(aStats.attackPower || 0);
+        const bVal = Number(bStats.attackPower || 0);
+        return bVal - aVal;
+      } else if (sortOption === 'attackAsc') {
+        const aStats = studentStatsMap[a._id] || {};
+        const bStats = studentStatsMap[b._id] || {};
+        const aVal = Number(aStats.attackPower || 0);
+        const bVal = Number(bStats.attackPower || 0);
+        return aVal - bVal;
+      } else if (sortOption === 'discountDesc') {
+        const aStats = studentStatsMap[a._id] || {};
+        const bStats = studentStatsMap[b._id] || {};
+        const aVal = Number(aStats.discountShop || aStats.discount || 0);
+        const bVal = Number(bStats.discountShop || bStats.discount || 0);
+        return bVal - aVal;
+      } else if (sortOption === 'discountAsc') {
+        const aStats = studentStatsMap[a._id] || {};
+        const bStats = studentStatsMap[b._id] || {};
+        const aVal = Number(aStats.discountShop || aStats.discount || 0);
+        const bVal = Number(bStats.discountShop || bStats.discount || 0);
+        return aVal - bVal;
       } else if (sortOption === 'nameAsc') {
         const nameA = (a.firstName || a.name || '').toLowerCase();
         const nameB = (b.firstName || b.name || '').toLowerCase();
@@ -461,14 +525,13 @@ const getBanInfo = (student, classroomObj) => {
     if (!user || !['teacher', 'admin'].includes(viewerRole)) return;
     if (!classroomId) return;
 
-    // Limit to first N visible students to avoid too many requests
-    const visible = Array.isArray(students) ? students.slice(0, 50) : [];
-    const ids = visible.map(s => s._id).filter(Boolean);
+    // Fetch for all students in the classroom (not just first N)
+    const ids = Array.isArray(students) ? students.map(s => s._id).filter(Boolean) : [];
     if (!ids.length) {
       setTotalSpentMap({});
       return;
     }
-
+ 
     let cancelled = false;
     (async () => {
       try {
@@ -493,20 +556,78 @@ const getBanInfo = (student, classroomObj) => {
               return { id, spent: 0 };
             })
         );
-
+ 
         const results = await Promise.all(promises);
         if (cancelled) return;
         const map = {};
         results.forEach(r => { map[r.id] = r.spent; });
         setTotalSpentMap(map);
-      } catch (err) {
-        if (!cancelled) console.error('[People] failed to load per-student totals', err);
-      }
-    })();
-
-    return () => { cancelled = true; };
+       } catch (err) {
+         if (!cancelled) console.error('[People] failed to load per-student totals', err);
+       }
+     })();
+ 
+     return () => { cancelled = true; };
   }, [user, classroomId, students]);
   // ── end per-student totals effect ──
+
+  // ── Fetch per-student stats (all students) — debounced so rapid sort/select changes don't refire immediately ──
+  useEffect(() => {
+    const viewerRole = (user?.role || '').toLowerCase();
+    const statFields = ['multiplier','luck','shield','attack','discount'];
+    const statSortSelected = statFields.some(f => sortOption.includes(f));
+ 
+    // Only fetch stats if:
+    // - we have a classroom and students
+    // - and either viewer is teacher/admin, or student view is allowed, or a stat-based sort is active
+    const shouldFetch = classroomId &&
+      Array.isArray(students) && students.length > 0 &&
+      (viewerRole === 'teacher' || viewerRole === 'admin' || (viewerRole === 'student' && studentsCanViewStats) || statSortSelected);
+ 
+    if (!shouldFetch) {
+      setStudentStatsMap({});
+      setStudentStatsLoading(false);
+      return;
+    }
+ 
+    let cancelled = false;
+    setStudentStatsLoading(true);
+ 
+    // Debounce to avoid refiring many requests for quick select changes
+    const idsKey = students.map(s => s._id).join(',');
+    const timer = setTimeout(async () => {
+      try {
+        const ids = students.map(s => s._id).filter(Boolean);
+        const promises = ids.map(id =>
+          axios.get(`/api/stats/student/${id}?classroomId=${classroomId}`, { withCredentials: true })
+            .then(r => ({ id, stats: r.data || {} }))
+            .catch((err) => {
+              console.debug('[People] failed to fetch stats for', id, err?.message || err);
+              return { id, stats: {} };
+            })
+        );
+        const results = await Promise.all(promises);
+        if (cancelled) return;
+        const statsMap = {};
+        results.forEach(r => { statsMap[r.id] = r.stats || {}; });
+        setStudentStatsMap(statsMap);
+      } catch (err) {
+        if (!cancelled) console.error('[People] failed to fetch student stats', err);
+      } finally {
+        if (!cancelled) setStudentStatsLoading(false);
+      }
+    }, 350); // 350ms debounce
+ 
+    return () => { cancelled = true; clearTimeout(timer); setStudentStatsLoading(false); };
+  }, [
+    classroomId,
+    // watch student ids, sortOption, viewer role, and the classroom setting for student visibility
+    students.map(s => s._id).join(','),
+    sortOption,
+    (user?.role || '').toLowerCase(),
+    studentsCanViewStats
+  ]);
+  // ── end stats fetch effect ──
 
   // Handle bulk user upload via Excel file
   const handleExcelUpload = async (e) => {
@@ -1118,26 +1239,51 @@ const visibleCount = filteredStudents.length;
                 </select>
 
                 {/* Sort */}
+                <div className="flex items-center gap-2">
                 <select
                   className="select select-bordered"
                   value={sortOption}
                   onChange={(e) => setSortOption(e.target.value)}
                 >
-                  <option value="default">Sort By</option>
-                  {(user?.role === 'teacher' || user?.role === 'admin') && (
+                   <option value="default">Sort By</option>
+                   {(user?.role === 'teacher' || user?.role === 'admin') && (
+                     <>
+                       <option value="balanceDesc">Balance (High → Low)</option>
+                       <option value="balanceAsc">Balance (Low → High)</option>
+                       <option value="totalSpentDesc">Total Spent (High → Low)</option>
+                       <option value="totalSpentAsc">Total Spent (Low → High)</option>
+                     </>
+                   )}
+                {/* Stat-based sorting — only show if viewer allowed to see stats */}
+                {(() => {
+                  const canSeeStats = (user?.role === 'teacher' || user?.role === 'admin' || (user?.role === 'student' && studentsCanViewStats));
+                  if (!canSeeStats) return null;
+                  return (
                     <>
-                      <option value="balanceDesc">Balance (High → Low)</option>
-                      <option value="balanceAsc">Balance (Low → High)</option>
-                      <option value="totalSpentDesc">Total Spent (High → Low)</option>
-                      <option value="totalSpentAsc">Total Spent (Low → High)</option>
+                      <option value="multiplierDesc">Multiplier (High → Low)</option>
+                      <option value="multiplierAsc">Multiplier (Low → High)</option>
+                      <option value="luckDesc">Luck (High → Low)</option>
+                      <option value="luckAsc">Luck (Low → High)</option>
+                      <option value="shieldDesc">Shield (Most → Least)</option>
+                      <option value="shieldAsc">Shield (Least → Most)</option>
+                      <option value="attackDesc">Attack (High → Low)</option>
+                      <option value="attackAsc">Attack (Low → High)</option>
+                      <option value="discountDesc">Discount (High → Low)</option>
+                      <option value="discountAsc">Discount (Low → High)</option>
                     </>
-                  )}
-                  <option value="nameAsc">Name (A → Z)</option>
-                  <option value="joinDateDesc">Join Date (Newest)</option>
-                  <option value="joinDateAsc">Join Date (Oldest)</option>
+                  );
+                })()}
+                   <option value="nameAsc">Name (A → Z)</option>
+                   <option value="joinDateDesc">Join Date (Newest)</option>
+                   <option value="joinDateAsc">Join Date (Oldest)</option>
                 </select>
-
-                {/* Exports aligned to the right */}
+                {/* loading indicator when a stat-based sort is selected and stats are still loading */}
+                {studentStatsLoading && ['multiplier','luck','shield','attack','discount'].some(f => sortOption.includes(f)) && (
+                  <span className="loading loading-spinner loading-sm ml-2" title="Loading stats…"></span>
+                )}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
                 {(user?.role === 'teacher' || user?.role === 'admin') && (
                   <div className="ml-auto flex items-center">
                     <ExportButtons
