@@ -62,10 +62,10 @@ const People = () => {
 
   const navigate = useNavigate();
 
-  // Load stat-change log for teacher/admin viewers
+  // Load stat-change log for teacher/admin/student viewers
  useEffect(() => {
    const viewerRole = (user?.role || '').toLowerCase();
-   if (!classroomId || !user || !['teacher', 'admin'].includes(viewerRole)) return;
+   if (!classroomId || !user || !['teacher', 'admin', 'student'].includes(viewerRole)) return;
    let mounted = true;
    (async () => {
      try {
@@ -908,12 +908,12 @@ const visibleCount = filteredStudents.length;
             Groups
           </button>
           {/* NEW: Stat Changes tab (teacher/admin only) */}
-          {(user?.role?.toLowerCase() === 'teacher' || user?.role?.toLowerCase() === 'admin') && (
+          {(user?.role?.toLowerCase() === 'teacher' || user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'student') && (
             <button
               className={`btn flex-shrink-0 ${tab === 'stat-changes' ? 'btn-success' : 'btn-outline'}`}
               onClick={() => setTab('stat-changes')}
             >
-              Stat Changes
+              {user?.role?.toLowerCase() === 'student' ? 'My Stat Changes' : 'Stat Changes'}
             </button>
           )}
           {user?.role?.toLowerCase() === 'teacher' && (
@@ -1640,11 +1640,13 @@ const visibleCount = filteredStudents.length;
     )}
           </div>
         )}
-                  {/* NEW: Recent stat changes (teacher/admin view) — show only in Stat Changes tab */}
-          {tab === 'stat-changes' && (user?.role === 'teacher' || user?.role === 'admin') && (
+                  {/* NEW: Recent stat changes - show for teachers/admins (all changes) and students (their own changes) */}
+          {tab === 'stat-changes' && (user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'student') && (
             <div className="bg-base-100 border border-base-300 rounded p-4 mt-4">
               <div className="flex items-center gap-2 mb-4">
-                <h3 className="font-medium flex-1">Recent stat changes</h3>
+                <h3 className="font-medium flex-1">
+                  {user?.role?.toLowerCase() === 'student' ? 'My recent stat changes' : 'Recent stat changes'}
+                </h3>
                 <div className="text-sm text-base-content/70">{statChanges.length} records</div>
               </div>
  
@@ -1652,7 +1654,7 @@ const visibleCount = filteredStudents.length;
                <div className="flex flex-col sm:flex-row gap-2 mb-4">
                  <input
                    type="search"
-                   placeholder="Search by user, actor, field, or value..."
+                   placeholder={user?.role?.toLowerCase() === 'student' ? 'Search your stat changes...' : 'Search by user, actor, field, or value...'}
                   className="input input-bordered flex-1 min-w-[220px]"
                    value={statSearch}
                    onChange={(e) => setStatSearch(e.target.value)}
@@ -1677,11 +1679,18 @@ const visibleCount = filteredStudents.length;
                {loadingStatChanges ? (
                 <div className="text-sm text-base-content/60">Loading…</div>
                ) : statChanges.length === 0 ? (
-                <div className="text-sm text-base-content/60">No recent stat changes</div>
+                <div className="text-sm text-base-content/60">
+                  {user?.role?.toLowerCase() === 'student' ? 'No stat changes found for you' : 'No recent stat changes'}
+                </div>
                ) : (
                  (() => {
                    const q = (statSearch || '').toLowerCase().trim();
-                   const filtered = statChanges.filter(s => {
+                   let filtered = statChanges.filter(s => {
+                     // For students, only show their own stat changes
+                     if (user?.role?.toLowerCase() === 'student') {
+                       if (String(s.user) !== String(user._id)) return false;
+                     }
+
                      if (!q) return true;
                      // target user
                      const target = s.targetUser || {};
@@ -1695,58 +1704,61 @@ const visibleCount = filteredStudents.length;
                      if (actorName.includes(q) || actorEmail.includes(q)) return true;
                      // changes content
                      if (Array.isArray(s.changes)) {
-                       for (const c of s.changes) {
-                         const field = String(c.field || '').toLowerCase();
-                         const from = String(c.from || '').toLowerCase();
-                         const to = String(c.to || '').toLowerCase();
-                         if (field.includes(q) || from.includes(q) || to.includes(q)) return true;
-                       }
-                     }
-                     // fallback: createdAt
-                     if ((s.createdAt || '').toLowerCase().includes(q)) return true;
-                     return false;
-                   });
- 
-                   filtered.sort((a, b) => {
-                     const ad = new Date(a.createdAt || 0).getTime();
-                     const bd = new Date(b.createdAt || 0).getTime();
-                     return statSort === 'desc' ? bd - ad : ad - bd;
-                   });
- 
-                   return (
-                     <ul className="space-y-2 text-sm">
-                       {filtered.map((s) => (
-                        <li key={s._id} className="p-2 border border-base-300 rounded bg-base-100">
-                          <div className="text-xs text-base-content/60 mb-1">
-                             {new Date(s.createdAt).toLocaleString()}
-                            {s.actionBy && (s.message.includes('updated by your teacher') || s.message.includes('Updated stats for')) ? (
-                              ` — by ${s.actionBy.firstName || ''} ${s.actionBy.lastName || ''}`.trim()
-                            ) : (
-                              ` — from ${s.message.match(/from (.*?):/)?.[1] || 'System'}`
+                          for (const c of s.changes) {
+                            const field = String(c.field || '').toLowerCase();
+                            const from = String(c.from || '').toLowerCase();
+                            const to = String(c.to || '').toLowerCase();
+                            if (field.includes(q) || from.includes(q) || to.includes(q)) return true;
+                          }
+                        }
+                        // fallback: createdAt
+                        if ((s.createdAt || '').toLowerCase().includes(q)) return true;
+                        return false;
+                    });
+
+                    filtered.sort((a, b) => {
+                      const ad = new Date(a.createdAt || 0).getTime();
+                      const bd = new Date(b.createdAt || 0).getTime();
+                      return statSort === 'desc' ? bd - ad : ad - bd;
+                    });
+
+                    return (
+                      <ul className="space-y-2 text-sm">
+                        {filtered.map((s) => (
+                          <li key={s._id} className="p-2 border border-base-300 rounded bg-base-100">
+                            <div className="text-xs text-base-content/60 mb-1">
+                              {new Date(s.createdAt).toLocaleString()}
+                              {s.actionBy && (s.message.includes('updated by your teacher') || s.message.includes('Updated stats for')) ? (
+                                ` — by ${s.actionBy.firstName || ''} ${s.actionBy.lastName || ''}`.trim()
+                              ) : (
+                                ` — from ${s.message.match(/from (.*?):/)?.[1] || 'System'}`
+                              )}
+                            </div>
+                            {/* For students, don't show target user name since it's always them */}
+                            {user?.role?.toLowerCase() !== 'student' && (
+                              <div className="font-semibold text-lg mt-1">
+                                {s.targetUser ? (
+                                  `${s.targetUser.firstName || ''} ${s.targetUser.lastName || ''}`.trim()
+                                ) : 'Unknown user'}
+                              </div>
                             )}
-                          </div>
-                          <div className="font-semibold text-lg mt-1">
-                            {s.targetUser ? (
-                              `${s.targetUser.firstName || ''} ${s.targetUser.lastName || ''}`.trim()
-                            ) : 'Unknown user'}
-                          </div>
-                          <div className="mt-1">
-                            {Array.isArray(s.changes) && s.changes.length ? (
-                              <ul className="list-disc ml-4">
-                                {s.changes.map((c, i) => (
-                                  <li key={i}>
-                                    {c.field}: {c.field === 'discount' && (c.from === null || c.from === undefined) ? 0 : String(c.from)} → <strong>{String(c.to)}</strong>
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : (
-                              <div className="text-xs text-base-content/60">No details available</div>
-                            )}
-                           </div>
-                         </li>
-                       ))}
-                     </ul>
-                   );
+                            <div className="mt-1">
+                              {Array.isArray(s.changes) && s.changes.length ? (
+                                <ul className="list-disc ml-4">
+                                  {s.changes.map((c, i) => (
+                                    <li key={i}>
+                                      {c.field}: {c.field === 'discount' && (c.from === null || c.from === undefined) ? 0 : String(c.from)} → <strong>{String(c.to)}</strong>
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : (
+                                <div className="text-xs text-base-content/60">No details available</div>
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    );
                  })()
                )}
              </div>
