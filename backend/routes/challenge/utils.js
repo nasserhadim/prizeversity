@@ -1,4 +1,7 @@
 const crypto = require('crypto');
+const { CHALLENGE_NAMES } = require('./constants');
+const Notification = require('../../models/Notification');
+const { populateNotification } = require('../../utils/notifications');
 
 function isChallengeExpired(challenge) {
   if (!challenge.settings.dueDateEnabled || !challenge.settings.dueDate) {
@@ -27,32 +30,6 @@ function getChallengeIndex(challengeId) {
   else return 0;
 }
 
-async function awardChallengeBits(userId, challengeLevel, challenge) {
-  try {
-    const User = require('../../models/User');
-    const user = await User.findById(userId);
-    if (!user) return 0;
-
-    const bitsToAward = challenge.getBitsForChallenge(challengeLevel);
-    if (bitsToAward <= 0) return 0;
-
-    user.balance = (user.balance || 0) + bitsToAward;
-    await user.save();
-    
-    const userChallenge = challenge.userChallenges.find(
-      uc => uc.userId.toString() === userId.toString()
-    );
-    if (userChallenge) {
-      userChallenge.bitsAwarded += bitsToAward;
-    }
-    
-    return bitsToAward;
-  } catch (error) {
-    console.error('Error awarding challenge bits:', error);
-    return 0;
-  }
-}
-
 function calculateChallengeRewards(user, challenge, challengeIndex, userChallenge, options = {}) {
   const rewardsEarned = {
     bits: 0,
@@ -62,14 +39,30 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
     shield: false,
   };
 
-  const baseBits = (challenge.settings.challengeBits || [])[challengeIndex] || 0;
-  let bitsAwarded = baseBits;
+  if (!user) return rewardsEarned;
 
-  const hintsEnabled = (challenge.settings.challengeHintsEnabled || [])[challengeIndex];
-  const penaltyPercent = challenge.settings.hintPenaltyPercent ?? 25;
-  const maxHints = challenge.settings.maxHintsPerChallenge ?? 2;
+  // --- BEGIN: Track stat changes ---
+  const now = new Date();
+  const classroomId = challenge.classroomId;
+  const prevStats = {
+    multiplier: user.passiveAttributes?.multiplier || 1,
+    luck: user.passiveAttributes?.luck || 1,
+    discount: user.passiveAttributes?.discount || 0,
+    shield: user.shieldCount || 0,
+  };
+  // --- END: Track stat changes ---
+
+  let bitsAwarded = 0;
+  const settings = challenge.settings;
+
+  const hintsEnabled = (settings.challengeHintsEnabled || [])[challengeIndex];
+  const penaltyPercent = settings.hintPenaltyPercent ?? 25;
+  const maxHints = settings.maxHintsPerChallenge ?? 2;
   const usedHints = Math.min((userChallenge.hintsUsed?.[challengeIndex] || 0), maxHints);
   
+  const baseBits = (settings.challengeBits || [])[challengeIndex] || 0;
+  bitsAwarded = baseBits;
+
   if (hintsEnabled && bitsAwarded > 0 && usedHints > 0 && penaltyPercent > 0) {
     const totalPenalty = (penaltyPercent * usedHints) / 100;
     const cappedPenalty = Math.min(totalPenalty, 0.8); 
@@ -77,8 +70,6 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
   }
 
   if (bitsAwarded > 0) {
-    const classroomId = challenge.classroomId;
-    
     if (classroomId) {
       const classroomBalance = user.classroomBalances.find(cb => cb.classroom.toString() === classroomId.toString());
       if (classroomBalance) {
@@ -120,8 +111,8 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
     }
   }
 
-  if (challenge.settings.multiplierMode === 'individual') {
-    const multiplier = (challenge.settings.challengeMultipliers || [])[challengeIndex] || 1.0;
+  if (settings.multiplierMode === 'individual') {
+    const multiplier = (settings.challengeMultipliers || [])[challengeIndex] || 1.0;
     if (multiplier > 1.0) {
       const multiplierIncrease = multiplier - 1.0;
       if (!user.passiveAttributes) user.passiveAttributes = {};
@@ -131,36 +122,119 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
     }
   }
 
-  if (challenge.settings.luckMode === 'individual') {
-    const luck = (challenge.settings.challengeLuck || [])[challengeIndex] || 1.0;
+  if (settings.luckMode === 'individual') {
+    const luck = (settings.challengeLuck || [])[challengeIndex] || 1.0;
     if (luck > 1.0) {
       if (!user.passiveAttributes) user.passiveAttributes = {};
-      user.passiveAttributes.luck = (user.passiveAttributes.luck || 1.0) * luck;
+      const newLuck = (user.passiveAttributes.luck || 1.0) * luck;
+      user.passiveAttributes.luck = Math.round(newLuck * 10) / 10; // Round to 1 decimal place
       rewardsEarned.luck = luck;
     }
   }
 
-  if (challenge.settings.discountMode === 'individual') {
-    const discount = (challenge.settings.challengeDiscounts || [])[challengeIndex] || 0;
+  if (settings.discountMode === 'individual') {
+    const discount = (settings.challengeDiscounts || [])[challengeIndex] || 0;
     if (discount > 0) {
-      if (typeof user.discountShop === 'boolean') {
-        user.discountShop = user.discountShop ? 100 : 0;
-      }
-      user.discountShop = Math.min(100, (user.discountShop || 0) + discount);
+      if (!user.passiveAttributes) user.passiveAttributes = {};
+      const currentDiscount = user.passiveAttributes.discount || 0;
+      user.passiveAttributes.discount = Math.min(100, currentDiscount + discount);
       rewardsEarned.discount = discount;
     }
   }
 
-  if (challenge.settings.shieldMode === 'individual') {
-    const shield = (challenge.settings.challengeShields || [])[challengeIndex] || false;
-    if (shield) {
-      user.shieldCount = (user.shieldCount || 0) + 1;
+  if (settings.shieldMode === 'individual' && settings.challengeShields?.[challengeIndex]) {
+    if (!user.shieldActive) {
       user.shieldActive = true;
       rewardsEarned.shield = true;
     }
+    // Also increment shield count
+    user.shieldCount = (user.shieldCount || 0) + 1;
+    rewardsEarned.shield = true;
   }
 
+  // --- BEGIN: Create notifications for stat changes ---
+  const currStats = {
+    multiplier: user.passiveAttributes?.multiplier || 1,
+    luck: user.passiveAttributes?.luck || 1,
+    discount: user.passiveAttributes?.discount || 0,
+    shield: user.shieldCount || 0,
+  };
+
+  const statChanges = [];
+  ['multiplier', 'luck', 'discount', 'shield'].forEach((field) => {
+    const before = prevStats[field];
+    const after = currStats[field];
+    if (String(before) !== String(after)) {
+      statChanges.push({ field, from: before, to: after });
+    }
+  });
+
+  if (statChanges.length > 0 && classroomId) {
+    const challengeName = CHALLENGE_NAMES[challengeIndex] || `Challenge ${challengeIndex + 1}`;
+    const changeSummary = statChanges.map(c => `${c.field}: ${c.from} → ${c.to}`).join('; ');
+    const studentMessage = `You earned stat boosts from ${challenge.title} - ${challengeName}: ${changeSummary}.`;
+    const teacherMessage = `Earned stat boosts from ${challenge.title} - ${challengeName}: ${changeSummary}.`;
+
+    // 1. Notify student about their new stats
+    Notification.create({
+      user: user._id,
+      actionBy: challenge.createdBy,
+      type: 'stats_adjusted',
+      message: studentMessage,
+      classroom: classroomId,
+      changes: statChanges,
+      createdAt: now,
+      targetUser: user._id // Explicitly set targetUser for student's own notification
+    }).then(notification => {
+      populateNotification(notification._id).then(populated => {
+        if (populated) {
+          const io = challenge.db.model('User').base.io;
+          if (io) io.to(`user-${user._id}`).emit('notification', populated);
+        }
+      });
+    }).catch(e => console.error('Failed to create student stat-change notification from challenge:', e));
+
+    // 2. Create log entry for teacher (without sending a real-time notification)
+    Notification.create({
+      user: null, // Set user to null for a system-wide log entry not tied to a specific user's notifications
+      actionBy: challenge.createdBy, // Associate the teacher who created the challenge
+      type: 'stats_adjusted',
+      message: teacherMessage,
+      targetUser: user._id,
+      changes: statChanges,
+      classroom: classroomId,
+      createdAt: now
+    }).catch(e => console.error('Failed to create teacher stat-change log from challenge:', e));
+  }
+  // --- END: Create notifications for stat changes ---
+
   return rewardsEarned;
+}
+
+async function awardChallengeBits(userId, challengeIndex, challenge) {
+  try {
+    const User = require('../../models/User');
+    const user = await User.findById(userId);
+    if (!user) return 0;
+
+    const bitsToAward = challenge.getBitsForChallenge(challengeIndex);
+    if (bitsToAward <= 0) return 0;
+
+    user.balance = (user.balance || 0) + bitsToAward;
+    await user.save();
+    
+    const userChallenge = challenge.userChallenges.find(
+      uc => uc.userId.toString() === userId.toString()
+    );
+    if (userChallenge) {
+      userChallenge.bitsAwarded += bitsToAward;
+    }
+    
+    return bitsToAward;
+  } catch (error) {
+    console.error('Error awarding challenge bits:', error);
+    return 0;
+  }
 }
 
 module.exports = {

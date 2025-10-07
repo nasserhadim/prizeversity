@@ -1145,40 +1145,41 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
 
     // Notify the student (targeted notification). Keep this simple & readable for the student.
     const fullName = `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.email;
+    const summary = formatChangeSummary(changes) || 'updated by teacher';
 
+    // Create a notification for the student, which also serves as the log entry
     const studentNotification = await Notification.create({
       user: student._id,
       actionBy: req.user._id,
       type: 'stats_adjusted',
-      message: `Your stats were updated: ${formatChangeSummary(changes) || 'updated by teacher'}.`,
+      message: `Your stats were updated by your teacher: ${summary}.`,
       classroom: classId,
       read: false,
       changes,
-      // don't set targetUser here (this is the student's notification)
+      targetUser: student._id,
       createdAt: now
     });
+
+    // Create a separate notification for the teacher's real-time feedback
+    const teacherNotification = await Notification.create({
+      user: req.user._id, // Target the teacher
+      actionBy: req.user._id,
+      type: 'stats_adjusted',
+      message: `You updated stats for ${fullName}: ${summary}.`,
+      classroom: classId,
+      read: false,
+      changes,
+      targetUser: student._id,
+      isLogEntry: false // Flag to exclude from stat changes log
+    });
  
-    const populated = await populateNotification(studentNotification._id);
-    try { req.app.get('io').to(`user-${student._id}`).emit('notification', populated); } catch(e){/*ignore*/}
- 
-    // Also create a record for the teacher (so they have a durable change-log entry)
-    try {
-      const teacherNotification = await Notification.create({
-        user: classroom.teacher, // teacher receives the change record
-        actionBy: req.user._id,
-        type: 'stats_adjusted',
-        message: `Updated stats for ${fullName}: ${formatChangeSummary(changes) || ''}`,
-        targetUser: student._id,
-        changes,
-        classroom: classId,
-        read: false,
-        createdAt: now
-      });
-      const populatedTeacherNotif = await populateNotification(teacherNotification._id);
-      try { req.app.get('io').to(`user-${classroom.teacher}`).emit('notification', populatedTeacherNotif); } catch(e){/*ignore*/}
-    } catch (e) {
-      console.error('Failed to create teacher stat-change notification:', e);
-    }
+    // Notify the student in real-time
+    const populatedStudentNotification = await populateNotification(studentNotification._id);
+    try { req.app.get('io').to(`user-${student._id}`).emit('notification', populatedStudentNotification); } catch(e){/*ignore*/}
+
+    // Notify the teacher in real-time
+    const populatedTeacherNotification = await populateNotification(teacherNotification._id);
+    try { req.app.get('io').to(`user-${req.user._id}`).emit('notification', populatedTeacherNotification); } catch(e){/*ignore*/}
 
     // Existing socket emit so clients can update UI
     req.app.get('io').to(`user-${student._id}`).emit('user_stats_update', { userId: student._id, passiveAttributes: student.passiveAttributes });
@@ -1198,25 +1199,38 @@ router.get('/:id/stat-changes', ensureAuthenticated, async (req, res) => {
     if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
 
     // allow classroom teacher or platform admins
-    if (String(classroom.teacher) !== String(req.user._id) && req.user.role !== 'admin') {
+    const isTeacherOrAdmin = String(classroom.teacher) === String(req.user._id) || req.user.role === 'admin';
+
+    if (!isTeacherOrAdmin && req.user.role !== 'student') {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    // Only return the teacher-facing stat-change records:
-    // - notifications that explicitly record a targetUser (teacher log entries)
-    // - OR notifications whose user is the classroom teacher (durable teacher log)
-    const logs = await Notification.find({
-      classroom: classroomId,
-      type: 'stats_adjusted',
-      $or: [
-        { targetUser: { $exists: true, $ne: null } },
-        { user: classroom.teacher }
-      ]
-    })
+    let query;
+    if (isTeacherOrAdmin) {
+      // Teachers/Admins see all stat changes in the classroom
+      query = {
+        classroom: classroomId,
+        type: 'stats_adjusted',
+        isLogEntry: { $ne: false } // Exclude non-log entries
+      };
+    } else {
+      // Students only see their own stat changes
+      query = {
+        classroom: classroomId,
+        type: 'stats_adjusted',
+        $or: [
+          { user: req.user._id },
+          { targetUser: req.user._id }
+        ]
+      };
+    }
+
+    const logs = await Notification.find(query)
       .sort({ createdAt: -1 })
       .limit(200)
-      .populate('actionBy', 'firstName lastName email')
-      .populate('targetUser', 'firstName lastName email');
+      .populate('actionBy', 'firstName lastName')
+      .populate('targetUser', 'firstName lastName email') // This was missing
+      .lean();
 
     res.json(logs);
   } catch (err) {
