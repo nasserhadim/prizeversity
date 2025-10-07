@@ -139,9 +139,9 @@ const StudentStats = () => {
             </div>
             <div className="stat-title">Discount</div>
             <div className="stat-value">
-              {stats.discountShop ? `${stats.discountShop}%` : 'None'}
+              {stats.discount > 0 ? `${stats.discount}%` : 'None'}
             </div>
-            {stats.discountShop > 0 && (
+            {stats.discount > 0 && (
               <div className="stat-desc">Active in bazaar</div>
             )}
           </div>

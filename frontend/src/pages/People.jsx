@@ -1718,28 +1718,24 @@ const visibleCount = filteredStudents.length;
                        {filtered.map((s) => (
                         <li key={s._id} className="p-2 border border-base-300 rounded bg-base-100">
                           <div className="text-xs text-base-content/60 mb-1">
-                             {new Date(s.createdAt).toLocaleString()} — by {(() => {
-                               const a = s.actionBy;
-                               if (!a) return 'System';
-                               const full = `${a.firstName || ''} ${a.lastName || ''}`.trim();
-                               return full || a.email || 'System';
-                             })()}
-                           </div>
-                           <div className="font-medium">
-                             {s.targetUser
-                               ? (
-                                   `${(s.targetUser.firstName || '').trim()} ${(s.targetUser.lastName || '').trim()}`.trim()
-                                   || s.targetUser.email
-                                 )
-                               : 'Unknown user'
-                             }
-                           </div>
-                           <div className="mt-1">
+                             {new Date(s.createdAt).toLocaleString()}
+                            {s.actionBy && (s.message.includes('updated by your teacher') || s.message.includes('Updated stats for')) ? (
+                              ` — by ${s.actionBy.firstName || ''} ${s.actionBy.lastName || ''}`.trim()
+                            ) : (
+                              ` — from ${s.message.match(/from (.*?):/)?.[1] || 'System'}`
+                            )}
+                          </div>
+                          <div className="font-semibold text-lg mt-1">
+                            {s.targetUser ? (
+                              `${s.targetUser.firstName || ''} ${s.targetUser.lastName || ''}`.trim()
+                            ) : 'Unknown user'}
+                          </div>
+                          <div className="mt-1">
                             {Array.isArray(s.changes) && s.changes.length ? (
                               <ul className="list-disc ml-4">
                                 {s.changes.map((c, i) => (
                                   <li key={i}>
-                                    {c.field}: {String(c.from)} → <strong>{String(c.to)}</strong>
+                                    {c.field}: {c.field === 'discount' && (c.from === null || c.from === undefined) ? 0 : String(c.from)} → <strong>{String(c.to)}</strong>
                                   </li>
                                 ))}
                               </ul>
