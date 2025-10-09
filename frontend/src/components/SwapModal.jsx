@@ -27,7 +27,7 @@ const SwapModal = ({
             className="btn btn-block btn-outline hover:bg-green-50"
           >
             <div className="flex items-center justify-between w-full">
-              <span>💰 Bits (Balances)</span>
+              <span>💰 ₿ (Balances)</span>
               <span className="badge badge-info">Swap</span>
             </div>
           </button>
