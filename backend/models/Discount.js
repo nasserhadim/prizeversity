@@ -1,11 +1,13 @@
 const mongoose = require('mongoose');
 
+// This is the item schema representing discounts
 const DiscountSchema = new mongoose.Schema({
     classroom: { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom', required: true },
-    student: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true },
+    owner: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true },
     appliedAt: { type: Date, default: Date.now },
-    expiresAt: { type: Date, default: Date.now },
-    discountPercrnt: { type: Number, default: 10}
+    // the default expiration date is one hour after creation
+    expiresAt: { type: Date, default: Date.now + (60 * 60 * 1000)}, 
+    discountPercent: { type: Number, default: 20}
 });
 
 module.exports = mongoose.model('Discount', DiscountSchema);

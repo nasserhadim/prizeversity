@@ -20,6 +20,8 @@ const Checkout = () => {
   // Use classroom-aware cart helpers  - - added removeItemsById to remove multipe items from cart by ds 
   const { getCart, getTotal, clearCart, removeFromCart, addToCart, removeItemsById } = useCart();  const cartItems = getCart(classroomId); //removed item byId lets you remove items from a specific classroom cart by its id 
   const [balance, setBalance] = useState(0);
+  const [discounts, setDiscounts] = useState([]);
+  const [discountNum, setDiscountNum] = useState(0);
   const [hasDiscount, setHasDiscount] = useState(user?.discountShop || false);
   const [classroom, setClassroom] = useState(null);
 
@@ -44,7 +46,17 @@ const Checkout = () => {
       const response = await apiBazaar.get(`/user/${user._id}/balance${params}`);
       setBalance(response.data.balance);
     } catch (err) {
-      console.error('Failed to fetch balance:', err);
+      console.error('Failed to fetch balance:', err); // legacy code: isn't this meant to be toast.error?
+    }
+  };
+  const fetchDiscounts = async () => {
+    try {
+        const params = classroomId ? `?classroomId=${classroomId}` : '';
+        const response = await apiBazaar.get(`/user/${user._id}/discounts${params}`);
+        setDiscounts(response.data.discounts);
+        setDiscountNum(discounts.length);
+    } catch (err) {
+        toast.error("Failed to fetch discounts:", err)
     }
   };
 
@@ -71,7 +83,7 @@ const Checkout = () => {
     return () => { mounted = false; };
   }, [classroomId]);
 
-  // Calculating the discuonted price (only if discount is active)
+  // Calculating the discounted price (only if discount is active)
   const pct = Number(user?.discountPercent) || 0;
 
   const calculatePrice = (price) => {

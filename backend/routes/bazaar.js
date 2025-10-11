@@ -3,6 +3,7 @@ const Bazaar = require('../models/Bazaar');
 const Item = require('../models/Item');
 const User = require('../models/User');
 const Classroom = require('../models/Classroom');
+const Discount = require('../models/Discount')
 const { ensureAuthenticated } = require('../config/auth');
 const router = express.Router();
 const Order = require('../models/Order');
@@ -545,6 +546,25 @@ router.get('/user/:userId/balance', async (req, res) => {
       balance = getClassroomBalance(user, classroomId);
     }
     res.json({ balance });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch balance' });
+  }
+});
+
+// Get the discounts for a user (updated for per-classroom)
+router.get('/user/:userId/discounts', async (req, res) => {
+  try {
+    const { classroomId } = req.query;
+    const user = await User.findById(req.params.userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    let discounts = []; // Default to empty set
+    let num = 0; // default to no discounts
+    if (classroomId) {
+      discounts = await  discounts.find({owner : req.params.userId});
+    }
+    res.json({ discounts });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch balance' });
