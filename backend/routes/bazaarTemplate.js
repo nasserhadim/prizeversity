@@ -37,8 +37,8 @@ router.post('/import', async (req, res) => { //will update this once the apiBaza
         //this would pull all the of the items from the selected bazaar and copy them over to the new bazaar
         const selectedItems = await Item.find({bazaar: lookUpTemplate.bazaarId}).lean();
 
-        //this is making a list of the new items to copy over into the new bazaar
-        const newItems = selectedItems.map((item) => ({
+        //this is making a list of the selected items to copy over into the new bazaar
+        const itemsToCopy = selectedItems.map((item) => ({
             name: item.name, //will copy the name over
             description: item.description, //will copy the description over
             category: item.category, //will copy the category over
@@ -50,8 +50,8 @@ router.post('/import', async (req, res) => { //will update this once the apiBaza
 
         }));
 
-        if(newItems.length > 0){ //only add the items if there are any
-            await Item.insertMany(newItems);
+        if(itemsToCopy.length > 0){ //only add the items if there are any
+            await Item.insertMany(itemsToCopy);
         }
         //this will return the new bazaar that was created
         return res.json(newBazaar);
