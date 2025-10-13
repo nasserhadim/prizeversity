@@ -5,8 +5,25 @@ const BazaarTemplate = require('../models/BazaarTemplate');
 const Bazaar = require('../models/Bazaar');
 const Item = require('../models/Item');
 
+// GET /api/bazaarTemplates - Get all templates for the associated classroom
+router.get('/import', async (req, res) => { //will update this once the apiBazaarTemplate is done
+  try {
+    const classroomId = req.user._id;
+    const templateId = await BazaarTemplate.find({ classroomId })
+      .sort({ createdAt: -1 })
+      .select('name descriptiom price');
+
+    res.json({ templateId });
+  } catch (error) {
+    console.error('Error fetching bazaar templates:', error);
+    res.status(500).json({ message: 'Failed to fetch templates' });
+  }
+});
+
+
 //when an instructor wants to make a new bazaar template in their classroom, they wull click "Import Template"
 //then it will copy all the items from the selected bazaar into the new one the instructor created
+// POST /api/bazaarTemplates - Create a new template
 router.post('/import', async (req, res) => { //will update this once the apiBazaarTemplate is done
     try {
         const {
