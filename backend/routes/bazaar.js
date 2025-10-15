@@ -71,9 +71,19 @@ router.get('/classroom/:classroomId/bazaar', ensureAuthenticated, async (req, re
 });
 
 // Add Item to Bazaar (teacher only) — accept file upload "image"
-router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticated, ensureTeacher, upload.single('image'), async (req, res) => { 
+router.post('/classroom/:classroomId/bazaar/:bazaarId/items', 
+  ensureAuthenticated, 
+  ensureTeacher, 
+  upload.single('image'), 
+  async (req, res) => { 
   const { bazaarId } = req.params;
-  const { name, description, price, category, primaryEffect, primaryEffectValue } = req.body;
+  const { name, 
+    description, 
+    price, 
+    category, 
+    primaryEffect, 
+    primaryEffectValue 
+  } = req.body;
   // Prefer uploaded file, fallback to image URL
   const image = req.file
     ? `/uploads/${req.file.filename}`
@@ -114,19 +124,28 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticate
       price: Number(price),
       image: image?.trim(),
       category,
-      primaryEffect: category !== 'Passive' ? primaryEffect : undefined,
-      primaryEffectValue: category !== 'Passive' ? Number(primaryEffectValue) : undefined,
+      primaryEffect: (category !== 'Passive' && category !== 'Mystery') ? primaryEffect : undefined,
+      primaryEffectValue: (category !== 'Passive' && category !== 'Mystery') ? Number(primaryEffectValue) : undefined,
+
       secondaryEffects: (parsedSecondaryEffects || []).map(se => ({
         effectType: se.effectType,
         value: Number(se.value)
       })),
+
       swapOptions: parsedSwapOptions && parsedSwapOptions.length ? parsedSwapOptions : undefined,
-      bazaar: bazaarId
+      bazaar: bazaarId,
+      kind: category === 'Mystery' ? 'mystery_box' : undefined,
+
     });
+    if (item.category === 'Mystery' && item.kind !== 'mystery_box') {
+      item.kind = 'mystery_box';
+    }
+    console.log('[CreateItem] about to save:', { category: item.category, kind: item.kind });
+
 
     await item.save();
 
-    // Update bazaar
+    // Update bazaarS
     await Bazaar.findByIdAndUpdate(
       bazaarId,
       { $push: { items: item._id } },
@@ -142,7 +161,8 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticate
     res.status(201).json({ item });
   } catch (err) {
     console.error('[Add Bazaar Item] error:', err);
-    res.status(500).json({ error: 'Failed to add item', details: err.message });
+    return res.status(500).json({ error: err.message || 'Failed to add item' });
+
   }
 });
 
@@ -160,7 +180,7 @@ router.get('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticated
       return res.status(404).json({ error: 'Bazaar not found for this classroom' });
     }
 
-    const ALLOWED = ['Attack', 'Defend', 'Utility', 'Passive'];
+    const ALLOWED = ['Attack', 'Defend', 'Utility', 'Passive', 'Mystery'];
     const filter = { bazaar: bazaar._id };
 
     if (category && ALLOWED.includes(category)) {

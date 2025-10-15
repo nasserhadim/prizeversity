@@ -19,7 +19,8 @@ const CATEGORY_OPTIONS = {
     { label: 'Earnings Multiplier (2x)', value: 'doubleEarnings' },
     { label: 'Shop Discount', value: 'discountShop' }
   ],
-  Passive: [] // No primary effects for passive
+  Passive: [], // No primary effects for passive
+  Mystery: [] 
 };
 
 // helper: ensure URL has a scheme so browser won't treat it as invalid
@@ -354,7 +355,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
        </div>
  
        {/* Primary Effect (for non-passive categories) */}
-       {form.category && form.category !== 'Passive' && (
+       {form.category && !['Passive', 'Mystery'].includes(form.category) && (
          <div className="space-y-4">
            <div className="form-control">
              <label className="label">

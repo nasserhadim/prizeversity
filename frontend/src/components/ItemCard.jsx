@@ -8,7 +8,7 @@ import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext.jsx';
 import { resolveImageSrc } from '../utils/image';
 import { splitDescriptionEffect, getEffectDescription } from '../utils/itemHelpers';
-import { data } from 'react-router';
+//import { data } from 'react-router';
 
 const ItemCard = ({ 
   item, 
@@ -156,28 +156,32 @@ try {
 }
 };
 
+
+const handleOpenMystery = async (item) => {
+  try {
+    const res = await fetch(`/api/mystery/open/${item._id}`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ boxId: item._id })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      toast.success(`You opened a Mystery Box and got: ${data.awardedItem?.name || 'a surprise!'}`);
+    } else {
+      toast.error(data.error || 'Failed to open Mystery Box');
+    }
+  } catch (err) {
+    console.error('Mystery open failed:', err);
+    toast.error('Mystery box opening failed');
+  }
+};
+
   const imgSrc = resolveImageSrc(item?.image);
-  // The buy option is not included here
 
-  // testing if teacher can edit item by adding new values and sending ony the changed values to backend aslo confirms before to delete button item. 
-  
-  
-  // const handleBuy = async () => {
-  //   if (quantity < 1) return toast.error('Quantity must be at least 1');
-  //   setLoading(true);
-  //   try {
-  //     await apiBazaar.post(
-  //       `classroom/${classroomId}/bazaar/${item.bazaar}/items/${item._id}/buy`,
-  //       { quantity: Number(quantity) }
-  //     );
 
-  //     toast.success('Item purchased!');
-  //   } catch (err) {
-  //     toast.error(err.response?.data?.error || 'Purchase failed');
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
+
+
 const handleBuy = async () => {
   if (quantity < 1) return toast.error('Quantity must be at least 1');
   setLoading(true);
@@ -296,8 +300,14 @@ const handleBuy = async () => {
           </div>
         )}
 
-        
-        {role === 'student' && (
+
+{/*  10/14 notes: Before, all students items used the add to cart button by default. 
+now, im commenting it out and replacing it with a conditional block
+this maakes sure the mustery box item shown a uniqie open mustery box button
+wich will call the mystery box API route, while all other items still show add to cart
+this will prevent duplication or inccorect buttons from appearing 
+
+         {role === 'student' && (
           <button
             onClick={() => addToCart(item)}
             className="btn btn-success btn-sm w-full mt-2"
@@ -305,6 +315,31 @@ const handleBuy = async () => {
             Add to Cart
           </button>
         )}
+  */}
+
+
+
+
+  
+        {role === 'student' && (
+          item.category === 'Mystery' ? (
+            <button
+              onClick={() => handleOpenMystery(item)}
+              className="btn btn-warning btn-sm w-full mt-2"
+            >
+              Open Mystery Box ({item.price} ₿)
+            </button>
+          ) : (
+            <button
+              onClick={() => addToCart(item)}
+              className="btn btn-success btn-sm w-full mt-2"
+            >
+              Add to Cart
+            </button>
+          )
+        )}
+
+
       </div>
       {editOpen && (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">

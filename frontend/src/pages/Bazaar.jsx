@@ -130,7 +130,7 @@ const Bazaar = () => {
       const params = new URLSearchParams();
       if (
         filters.category &&
-        ["Attack", "Defend", "Utility", "Passive"].includes(filters.category)
+        ["Attack", "Defend", "Utility", "Passive", "Mystery"].includes(filters.category)
       ) {
         params.append("category", filters.category);
       }
@@ -149,7 +149,29 @@ const Bazaar = () => {
         : Array.isArray(res.data)
         ? res.data
         : [];
- 
+
+        //loads mystery boxes and merges when it needs
+      try {
+        const wantMystery =
+          !filters.category || filters.category === 'All' || filters.category === 'Mystery';
+
+        if (wantMystery) {
+          const qs = new URLSearchParams({ bazaarId: String(bazaar._id) });
+          const resp = await fetch(`/api/mystery/boxes?${qs.toString()}`, {
+            credentials: 'include'
+          });
+          if (resp.ok) {
+            const boxes = await resp.json();
+            // boxes already have {category:'Mystery', kind:'mystery_box'} and same shape as items
+            if (Array.isArray(boxes) && boxes.length) {
+              // merge into the raw array
+              raw.push(...boxes);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Mystery boxes fetch failed (non-fatal):', e);
+}
       const toKeyPart = (v) =>
         typeof v === 'string' ? v.trim().toLowerCase() : String(v ?? '').trim().toLowerCase();
  
@@ -171,45 +193,8 @@ const Bazaar = () => {
         }
       }
       setFilteredItems(unique);
- 
-      //jake helped me with this part, to stop duplications. 
-      
-      // const raw = Array.isArray(res.data?.items)
-      //   ? res.data.items
-      //   : Array.isArray(res.data)
-      //   ? res.data
-      //   : [];
- 
-      // const toKeyPart = (v) =>
-      //   typeof v === 'string' ? v.trim().toLowerCase() : String(v ?? '').trim().toLowerCase();
- 
-      // collapse visually-identical items even if _id differs
-      
-      // const sig = (it) => [
-      //   toKeyPart(it?.name),
-      //   toKeyPart(it?.price),
-      //   toKeyPart(it?.image),    
-      //   toKeyPart(it?.category),
-      // ].join('|');
- 
-    // const sig = (it) => String(it?._id || '').trim();
+       
 
-    //   const seen = new Set();
-    //   const unique = [];
-    //   for (const it of raw) {
-    //     const key = sig(it);
-    //     if (!seen.has(key)) {
-    //       seen.add(key);
-    //       unique.push(it);
-    //     }
-    //   }
-    //   setFilteredItems(unique); 
-
-
-      // trying to figure out why duplication is still hapening. uncokmnet this later if doesnt work 
-  
-        //top block is all new for testing pruposes. 
-        
 
     } catch (err) {
       console.error("[fetchFilteredItems] error:", err);
