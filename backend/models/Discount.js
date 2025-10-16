@@ -7,7 +7,7 @@ const DiscountSchema = new mongoose.Schema({
     appliedAt: { type: Date, default: Date.now },
     // the default expiration date is one hour after creation
     expiresAt: { type: Date, default: Date.now + (60 * 60 * 1000)}, 
-    discountPercent: { type: Number, default: 20}
+    discountPercent: { type: Number, default: 20, min: 0, max: 100}
 });
 
 module.exports = mongoose.model('Discount', DiscountSchema);
