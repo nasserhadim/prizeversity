@@ -157,25 +157,26 @@ try {
 };
 
 
-const handleOpenMystery = async (item) => {
-  try {
-    const res = await fetch(`/api/mystery/open/${item._id}`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ boxId: item._id })
-    });
-    const data = await res.json();
-    if (res.ok) {
-      toast.success(`You opened a Mystery Box and got: ${data.awardedItem?.name || 'a surprise!'}`);
-    } else {
-      toast.error(data.error || 'Failed to open Mystery Box');
-    }
-  } catch (err) {
-    console.error('Mystery open failed:', err);
-    toast.error('Mystery box opening failed');
-  }
-};
+// const handleOpenMystery = async (item) => {
+//   try {
+//     const res = await fetch(`/api/mystery/open/${item._id}`, {
+//       method: 'POST',
+//       credentials: 'include',
+//       headers: { 'Content-Type': 'application/json' },
+//       body: JSON.stringify({ boxId: item._id })
+//     });
+//     const data = await res.json();
+//     if (res.ok) {
+//       toast.success(`You opened a Mystery Box and got: ${data.awardedItem?.name || 'a surprise!'}`);
+//     } else {
+//       toast.error(data.error || 'Failed to open Mystery Box');
+//     }
+//   } catch (err) {
+//     console.error('Mystery open failed:', err);
+//     toast.error('Mystery box opening failed');
+//   }
+// }; //bazaar shoudlnt open teh box, thats an inventory job. and also because this was causing mongo transaction error i was getting 
+
 
   const imgSrc = resolveImageSrc(item?.image);
 
@@ -322,22 +323,14 @@ this will prevent duplication or inccorect buttons from appearing
 
   
         {role === 'student' && (
-          item.category === 'Mystery' ? (
-            <button
-              onClick={() => handleOpenMystery(item)}
-              className="btn btn-warning btn-sm w-full mt-2"
-            >
-              Open Mystery Box ({item.price} ₿)
-            </button>
-          ) : (
-            <button
-              onClick={() => addToCart(item)}
-              className="btn btn-success btn-sm w-full mt-2"
-            >
-              Add to Cart
-            </button>
-          )
+          <button
+            onClick={() => addToCart(item)}
+            className="btn btn-success btn-sm w-full mt-2"
+          >
+            Add to Cart
+          </button>
         )}
+
 
 
       </div>

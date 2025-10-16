@@ -1,5 +1,5 @@
 import BazaarSearch from "../components/BazaarSearch.jsx";
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Store, HandCoins } from 'lucide-react';
@@ -95,14 +95,17 @@ const Bazaar = () => {
   const [searchError, setSearchError] = useState("");
   const PAGE_SIZE = 9;
   const [page, setPage] = useState(1);
+  const fetchingRef = useRef(false);
 
   // Fetch classroom details
   const fetchClassroom = async () => {
     try {
       const response = await apiClassroom.get(`/${classroomId}`);
       setClassroom(response.data);
+      return response.data;
     } catch (err) {
       console.error('Failed to fetch classroom:', err);
+      return null;
     }
   };
 
@@ -111,10 +114,12 @@ const Bazaar = () => {
     try {
       const res = await apiBazaar.get(`classroom/${classroomId}/bazaar`);
       setBazaar(res.data.bazaar);
+      return res.data.bazaar;
     } catch (error){
         console.error(error);
         //toast.error(`Failed to fetch bazaar: ${error.response?.data?.error || error.message}`);
       setBazaar(null);
+      return null;
     } finally {
       setLoading(false);
     }
@@ -150,28 +155,7 @@ const Bazaar = () => {
         ? res.data
         : [];
 
-        //loads mystery boxes and merges when it needs
-      try {
-        const wantMystery =
-          !filters.category || filters.category === 'All' || filters.category === 'Mystery';
-
-        if (wantMystery) {
-          const qs = new URLSearchParams({ bazaarId: String(bazaar._id) });
-          const resp = await fetch(`/api/mystery/boxes?${qs.toString()}`, {
-            credentials: 'include'
-          });
-          if (resp.ok) {
-            const boxes = await resp.json();
-            // boxes already have {category:'Mystery', kind:'mystery_box'} and same shape as items
-            if (Array.isArray(boxes) && boxes.length) {
-              // merge into the raw array
-              raw.push(...boxes);
-            }
-          }
-        }
-      } catch (e) {
-        console.warn('Mystery boxes fetch failed (non-fatal):', e);
-}
+      
       const toKeyPart = (v) =>
         typeof v === 'string' ? v.trim().toLowerCase() : String(v ?? '').trim().toLowerCase();
  
@@ -210,15 +194,17 @@ const Bazaar = () => {
   const start = (page - 1) * PAGE_SIZE;
   const currentPageItems = (filteredItems || []).slice(start, start + PAGE_SIZE);
 
+
+  
   useEffect(() => {
     const tp = Math.max(1, Math.ceil((filteredItems.length || 0) / PAGE_SIZE));
     if (page > tp) setPage(tp);
   }, [filteredItems, PAGE_SIZE, page]);
 
-  useEffect(() => {
-    fetchClassroom();
-    fetchBazaar();
-  }, [classroomId]);
+ // useEffect(() => {
+   // fetchClassroom();
+    //fetchBazaar();
+  //}, [classroomId]);
 
   // reset the Bazaar Form
 const resetBazaarForm = () => {
@@ -278,12 +264,37 @@ const handleUpdateBazaar = async () => {
 
 
 
-  useEffect(() => {
-    if (bazaar?._id) {
-      fetchFilteredItems(filters);
-      setPage(1);
+  //useEffect(() => {
+    //if (bazaar?._id) {
+      //fetchFilteredItems(filters);
+    //  setPage(1);
+  //  }
+ // }, [bazaar?._id]);
+//commented out on 10/16 for testing to see why items arent loading on initial load
+
+
+useEffect(() => {
+  let cancelled = false; 
+  const loadAll = async () => {
+    if (fetchingRef.current) return; // already fetching
+    fetchingRef.current = true;
+    try {
+      //loading classroom and bazaar in parallel
+      const[, baz] = await Promise.all([fetchClassroom(), fetchBazaar()]);
+      //once bazaar id is loaded, load item ONLY ONCE
+      if(!cancelled && baz?._id) {
+        await fetchFilteredItems(filters);
+        setPage(1);
+      }
+    } finally {
+      fetchingRef.current = false;
     }
-  }, [bazaar?._id]);
+  };
+  loadAll();
+  return () => { cancelled = true; };
+}, [classroomId]); //depends only on classroomID
+
+
 
 
 // Keep bazaar.items in sync after an update
@@ -499,10 +510,17 @@ const handleItemDeleted = (itemId) => { // itemId is the _id of the deleted item
               bazaarId={bazaar._id}
               classroomId={classroomId}
               //trying to fix this item duplication issue when student purchases/. 
-              onAdd={(newItem) => {
-                setBazaar(prev => ({ ...prev, items: [...(prev.items || []), newItem] }));
-                fetchFilteredItems(filters);
-              }}
+             // onAdd={(newItem) => {
+                //setBazaar(prev => ({ ...prev, items: [...(prev.items || []), newItem] }));
+                //fetchFilteredItems(filters);
+             // }}  commented out on 10/16 for testing purposed, uncomnent if issue persists
+
+              onAdd={() => fetchFilteredItems(filters)
+
+              } // this removes the push and fetch double updates, had issues with items duplicating
+
+
+
             />
           </div>
         )}

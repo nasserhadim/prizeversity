@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import apiBazaar from '../API/apiBazaar';
 import apiClassroom from '../API/apiClassroom';
@@ -20,23 +20,48 @@ const InventorySection = ({ userId, classroomId }) => {
   const [selectedTarget, setSelectedTarget] = useState(null);
   const [nullifyModalOpen, setNullifyModalOpen] = useState(false);
 
+  const [openingId, setOpeningId] = useState(null); // ID of the mystery box being opened
+
+
+  //hoisted loader so bith effects and socetes can call it 
+  const load = useCallback(async () => {
+    if (!userId || !classroomId) return;
+    try {
+      const [invRes, studentRes] = await Promise.all([
+        apiBazaar.get(`/inventory/${userId}?classroomId=${classroomId}`), // Add classroomId query param
+        apiClassroom.get(`/${classroomId}/students`)
+      ]);
+      setItems(invRes.data.items);
+      setStudents(studentRes.data);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to load inventory or student list');
+    }
+  }, [userId, classroomId]);
+
   // Load inventory and student list when userId and classroomId are available
   useEffect(() => {
-    const load = async () => {
-      try {
-        const [invRes, studentRes] = await Promise.all([
-          apiBazaar.get(`/inventory/${userId}?classroomId=${classroomId}`), // Add classroomId query param
-          apiClassroom.get(`/${classroomId}/students`)
-        ]);
-        setItems(invRes.data.items);
-        setStudents(studentRes.data);
-      } catch (err) {
-        console.error(err);
-        toast.error('Failed to load inventory or student list');
-      }
-    };
-    if (userId && classroomId) load();
-  }, [userId, classroomId]);
+    load();
+  }, [userId, load]);
+   // const load = async () => {
+     // try {
+       // const [invRes, studentRes] = await Promise.all([
+         // apiBazaar.get(`/inventory/${userId}?classroomId=${classroomId}`), // Add classroomId query param
+          //apiClassroom.get(`/${classroomId}/students`)
+        //]);
+       // setItems(invRes.data.items);
+    //    setStudents(studentRes.data);
+      //} catch (err) {
+        //console.error(err);
+       // toast.error('Failed to load inventory or student list');
+     // }
+    //};
+    //if (userId && classroomId) load();
+  //}, [userId, classroomId]);
+
+// commented out abive block and replaced with hoisted load function so it can be called by socket listeners as well
+
+
 
   // Socket listeners for real-time updates
   useEffect(() => {
@@ -58,7 +83,7 @@ const InventorySection = ({ userId, classroomId }) => {
       socket.off('inventory_update');
       socket.off('item_used');
     };
-  }, [userId]);
+  }, [userId, load]);
 
   // When a swap attribute is selected in the modal
   const handleSwapSelection = async (swapAttribute) => {
@@ -155,6 +180,8 @@ const InventorySection = ({ userId, classroomId }) => {
 
   // When a nullify attribute is selected in the modal
   const handleNullifySelection = async (nullifyAttribute) => {
+    
+      
     setNullifyModalOpen(false);
     try {
       const response = await apiItem.post(`/attack/use/${currentItem._id}`, {
@@ -177,6 +204,31 @@ const InventorySection = ({ userId, classroomId }) => {
       }
     }
   };
+
+
+// Open a purchased Mystery Box (owned item)
+const openMystery = async (ownedId) => {
+  try {
+    setOpeningId(ownedId);
+    const { data } = await apiBazaar.post(`/inventory/${ownedId}/open`);
+    toast.success(`You received: ${data.item.name}!`);
+    setItems(prev => [
+      ...prev.filter(i => String(i._id) !== String(ownedId)),
+      data.awardedItemOwned
+    ]);
+  } catch (e) {
+    const msg = e?.response?.status
+      ? `${e.response.status}: ${e.response.data?.error || 'Failed to open box'}`
+      : 'Failed to open box';
+    toast.error(msg);
+    console.error('openMystery error:', e?.response?.data || e);
+  } finally {
+    setOpeningId(null);
+  }
+};
+
+
+      
 
   return (
     <div className="mt-6 space-y-6">
@@ -249,17 +301,33 @@ const InventorySection = ({ userId, classroomId }) => {
                   ))}
               </select>
             )}
-
-            <button
-              className="btn btn-success btn-sm w-full"
-              onClick={() => handleUse(item)}
-              disabled={item.active}
-            >
-              {item.active ? 'Active' : 'Use Item'}
-            </button>
+         {(() => {
+  const isMystery = item?.category === 'Mystery' || item?.kind === 'mystery_box';
+  if (isMystery) {
+    return (
+      <button
+        className="btn btn-warning btn-sm w-full"
+        onClick={() => openMystery(item._id)}
+        disabled={openingId === item._id}
+      >
+        {openingId === item._id ? 'Opening…' : 'Open Mystery Box'}
+      </button>
+    );
+  }
+  return (
+    <button
+      className="btn btn-success btn-sm w-full"
+      onClick={() => handleUse(item)}
+      disabled={item.active}
+    >
+      {item.active ? 'Active' : 'Use Item'}
+    </button>
+  );
+})()}
           </div>
         </div>
       ))}
+
 
       <SwapModal
         isOpen={swapModalOpen}
@@ -274,8 +342,12 @@ const InventorySection = ({ userId, classroomId }) => {
       onSelect={handleNullifySelection}
       targetName={getTargetName(selectedTarget)}
     />
+
+
     </div>
   );
+
+
 };
 
 export default InventorySection;

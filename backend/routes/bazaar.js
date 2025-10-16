@@ -59,7 +59,11 @@ router.get('/classroom/:classroomId/bazaar', ensureAuthenticated, async (req, re
   const { classroomId } = req.params;
 
   try {
-    const bazaar = await Bazaar.findOne({ classroom: classroomId }).populate('items');
+    const bazaar = await Bazaar.findOne({ classroom: classroomId }).populate({
+      path: 'items',
+      match: { deletedAt: null }, // only non-deleted items
+    });
+    // If no bazaar, return null with message so frontend knows it's not an error
     if (!bazaar) {
       return res.status(200).json({ bazaar: null, message: 'Bazaar not open yet' });
     }
@@ -181,7 +185,7 @@ router.get('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticated
     }
 
     const ALLOWED = ['Attack', 'Defend', 'Utility', 'Passive', 'Mystery'];
-    const filter = { bazaar: bazaar._id };
+    const filter = { bazaar: bazaar._id, deletedAt: null }; // only non-deleted items, and hides soft deleted
 
     if (category && ALLOWED.includes(category)) {
       filter.category = category;
@@ -263,6 +267,64 @@ router.patch(
     }
   }
 );
+
+
+// Set rewards for a Mystery Box (teacher only)
+router.put(
+  '/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/rewards',
+  ensureAuthenticated,
+  ensureTeacher,
+  async (req, res) => {
+    const { classroomId, bazaarId, itemId } = req.params;
+    const { rewards } = req.body; // [{ itemId, weight }, ...]
+
+    try {
+      // Verify teacher owns this classroom
+      const classroom = await Classroom.findById(classroomId).select('teacher');
+      if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+      if (String(classroom.teacher) !== String(req.user._id)) {
+        return res.status(403).json({ error: 'Only the teacher can configure rewards' });
+      }
+
+      // Box must exist, belong to this bazaar, and be a Mystery box
+      const box = await Item.findOne({ _id: itemId, bazaar: bazaarId });
+      if (!box) return res.status(404).json({ error: 'Mystery box not found' });
+      if (box.category !== 'Mystery' || box.kind !== 'mystery_box') {
+        return res.status(400).json({ error: 'Item is not a mystery box' });
+      }
+
+      if (!Array.isArray(rewards) || rewards.length === 0) {
+        return res.status(400).json({ error: 'Provide rewards as a non-empty array' });
+      }
+
+      // Validate rewards: positive weight and reward items exist
+      const rewardIds = rewards.map(r => r.itemId);
+      const foundRewards = await Item.find({ _id: { $in: rewardIds }, bazaar: bazaarId })
+        .select('_id category');
+      const foundSet = new Set(foundRewards.map(r => String(r._id)));
+      for (const r of rewards) {
+        if (!foundSet.has(String(r.itemId))) {
+          return res.status(400).json({ error: `Reward item not found in this bazaar: ${r.itemId}` });
+        }
+        if (!(Number(r.weight) > 0)) {
+          return res.status(400).json({ error: 'Each reward weight must be > 0' });
+        }
+      }
+
+      box.metadata = box.metadata || {};
+      box.metadata.rewards = rewards.map(r => ({
+        itemId: r.itemId,
+        weight: Number(r.weight)
+      }));
+
+      await box.save();
+      res.json({ box });
+    } catch (err) {
+      console.error('[Set Mystery Rewards] error:', err);
+      res.status(500).json({ error: 'Failed to set rewards', details: err.message });
+    }
+  }
+);
  
 // Delete Bazaar Item (teacher only)
 router.delete(
@@ -282,7 +344,9 @@ router.delete(
       const item = await Item.findById(itemId);
       if (!item) return res.status(404).json({ error: 'Item not found' });
  
-      await Item.deleteOne({ _id: itemId });
+      
+      //soft delete the item, so not perfmently rmeove 
+      await Item.findByIdAndUpdate(itemId, { deletedAt: new Date() });
  
       // Remove reference from bazaar
       await Bazaar.findByIdAndUpdate(bazaarId, { $pull: { items: itemId } }); // remove item from bazaar's items array
@@ -680,6 +744,53 @@ router.get('/orders/:orderId', async (req, res) => {
   }
 });
 
+//open a purchased mustery box, in the inventory 
+router.post('/inventory/:ownedId/open', ensureAuthenticated, async (req, res) => {
+  const { ownedId } = req.params;
+  //find the owned item and validate it's a mystery box
+  const box = await Item.findOne({ _id: ownedId, owner: req.user._id, deletedAt: null });
+  if (!box) return res.status(404).json({ error: 'Box not found' });
+
+  const isMystery = box.category === 'Mystery' || box.kind === 'mystery_box';
+  if (!isMystery) return res.status(400).json({ error: 'Not a mystery box' });
+  if (box.openedAt) return res.status(400).json({ error: 'Box already opened' });
+
+  /// pick a reward from metadata.rewards (weighted)
+  const rewards = Array.isArray(box.metadata?.rewards) ? box.metadata.rewards : [];
+  const totalW = rewards.reduce((s, r) => s + Number(r.weight || 0), 0);
+  if (totalW <= 0) return res.status(400).json({ error: 'No rewards configured for this box' });
+
+  let roll = Math.random() * totalW;
+  let picked = rewards[0];
+  for (const r of rewards) {
+    roll -= Number(r.weight || 0);
+    if (roll <= 0) { picked = r; break; }
+  }
+  //create an owned copy of the awarded item
+  const base = await Item.findById(picked.itemId);
+  if (!base) return res.status(400).json({ error: 'Configured reward item is missing' });
+  const awardedItemOwned = await Item.create({
+    name: base.name,
+    description: base.description,
+    price: base.price,
+    image: base.image,
+    bazaar: base.bazaar,
+    category: base.category,
+    primaryEffect: base.primaryEffect,
+    primaryEffectValue: base.primaryEffectValue,
+    secondaryEffects: base.secondaryEffects,
+    owner: req.user._id
+  });
+  // mark box opened + hide it (soft delete)
+  await Item.findByIdAndUpdate(ownedId, { openedAt: new Date(), deletedAt: new Date() });
+  return res.json({
+    message: 'Box opened',
+    reward: { id: base._id, name: base.name },
+    awardedItemOwned
+  });
+});
+
+
 // Get the inventory page for the user to see what items they have
 router.get('/inventory/:userId', async (req, res) => {
   const { userId } = req.params;
@@ -716,6 +827,56 @@ router.get('/inventory/:userId', async (req, res) => {
   }
 });
 
+// open a prychased mystery bix (purchased item, award a prize, then remove the box)
+router.post('/inventory/:ownedId/open', ensureAuthenticated, async (req, res) => {
+  const { ownedId } = req.params;
+
+  //find the owned item and validate it's a mystery box
+  const box = await Item.findOne({ _id: ownedId, owner: req.user._id, deletedAt: null });
+  if (!box) return res.status(404).json({ error: 'Box not found' });
+
+  const isMystery = box.category === 'Mystery' || box.kind === 'mystery_box';
+  if (!isMystery) return res.status(400).json({ error: 'Not a mystery box' });
+  if (box.openedAt) return res.status(400).json({ error: 'Box already opened' });
+
+  // pick a reward from metadata.rewards (weighted)
+  const rewards = Array.isArray(box.metadata?.rewards) ? box.metadata.rewards : [];
+  const totalW = rewards.reduce((s, r) => s + Number(r.weight || 0), 0);
+  if (totalW <= 0) return res.status(400).json({ error: 'No rewards configured for this box' });
+
+  let roll = Math.random() * totalW;
+  let picked = rewards[0];
+  for (const r of rewards) {
+    roll -= Number(r.weight || 0);
+    if (roll <= 0) { picked = r; break; }
+  }
+
+  //create an owned copy of the awarded item
+  const base = await Item.findById(picked.itemId);
+  if (!base) return res.status(400).json({ error: 'Configured reward item is missing' });
+
+  const awardedItemOwned = await Item.create({
+    name: base.name,
+    description: base.description,
+    price: base.price,
+    image: base.image,
+    bazaar: base.bazaar,
+    category: base.category,
+    primaryEffect: base.primaryEffect,
+    primaryEffectValue: base.primaryEffectValue,
+    secondaryEffects: base.secondaryEffects,
+    owner: req.user._id
+  });
+
+  // mark box opened + hide it (soft delete)
+  await Item.findByIdAndUpdate(ownedId, { openedAt: new Date(), deletedAt: new Date() });
+  return res.json({
+    message: 'Box opened',
+    reward: { id: base._id, name: base.name },
+    awardedItemOwned
+  });
+
+});
 // Delete Bazaar
 router.delete(
     '/classroom/:classroomId/bazaar/delete',
@@ -731,9 +892,18 @@ router.delete(
             return res.status(404).json({ error: 'Bazaar not found' });
         }
         // deletes bazaar items
+        //if (bazaar.items.length > 0) {
+           // await Item.deleteMany({ _id: { $in: bazaar.items } });
+        //} commented this out on 10/16 for testing
+
+        //soft delete all items in the bazaar so history is kept
         if (bazaar.items.length > 0) {
-            await Item.deleteMany({ _id: { $in: bazaar.items } });
+          await Item.updateMany(
+            { _id: { $in: bazaar.items } },
+            { deletedAt: new Date() }
+          );
         }
+            
 
         //deletes bazaar
         await Bazaar.deleteOne({ classroom: classroomId });

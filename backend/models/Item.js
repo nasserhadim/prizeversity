@@ -46,6 +46,11 @@ kind: { type: String, enum: ['standard', 'mystery_box'], default: 'standard' },
     }
   },
   active: { type: Boolean, default: false },
+  //marking an ownerd mustery box as opened
+  openedAt: { type: Date, default: null },
+
+  //soft deleting filed 
+  deletedAt: { type: Date, default: null },
   
   //listing possible prizes, array of items with a weight that affects, so putting this list inside a nested sechema keeps it well orgnaized
   metadata: {
@@ -58,6 +63,13 @@ kind: { type: String, enum: ['standard', 'mystery_box'], default: 'standard' },
   createdAt: { type: Date, default: Date.now }
 });
 ItemSchema.index({ bazaar: 1, category: 1 });
+
+//automatically hide soft deleted items on all .find() queries and findone()
+ItemSchema.pre(/^find/, function (next) {
+  this.where({ deletedAt: null });
+  next();
+});
+
 
 //making sure teacher entering mystery box is all validated
 ItemSchema.pre('validate', function (next) {
