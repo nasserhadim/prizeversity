@@ -3,7 +3,7 @@ const Bazaar = require('../models/Bazaar');
 const Item = require('../models/Item');
 const User = require('../models/User');
 const Classroom = require('../models/Classroom');
-const Discount = require('../models/Discount')
+const Discount = require('../models/Discount');
 const { ensureAuthenticated } = require('../config/auth');
 const router = express.Router();
 const Order = require('../models/Order');
@@ -410,6 +410,8 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
     }
 
     const user = await User.findById(userId).select('balance classroomBalances classroomFrozen transactions');
+
+    
     if (!user) {
       console.error("User not found:", userId);
       return res.status(404).json({ error: 'User not found' });
@@ -441,8 +443,12 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
       }
     }
 
-    const pct = Number(user.discountPercent) || 0;
-    const discountMultiplier = pct > 0 ? (1 - pct / 100) : 1;
+    // determines the discount
+
+
+
+    //const pct = Number(user.discountPercent) || 0;
+    //const discountMultiplier = pct > 0 ? (1 - pct / 100) : 1;
     //replaced const total 
     const total = resolvedItems.reduce((sum, item) => sum + item.price, 0);
 

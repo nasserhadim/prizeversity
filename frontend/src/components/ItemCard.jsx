@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { resolveImageSrc } from '../utils/image';
 import { splitDescriptionEffect, getEffectDescription } from '../utils/itemHelpers';
 import { data } from 'react-router';
+import apiDiscount from '../API/apiDiscount';
 
 const ItemCard = ({ 
   item, 
@@ -25,13 +26,15 @@ const ItemCard = ({
   const { user } = useAuth();
   const [open, setOpen] = useState(false); // controls visibility 
   const [saving, setSaving] = useState(false); // shows spinner when saving
-  const [form, setForm] = useState({ //setting form to update values/items inside 
+  const [form, setForm] = useState({ //setting form to update values/items inside
   
   name: item.name || '',  //hodling in values when editing. 
   description: item.description || '',
   price: item.price || 0,  
 });
 const [editOpen, setEditOpen] = useState(false); // controls edit modal visibility, edit item to open or close
+
+const [discounts, setDiscounts] = useState([]);
 
 const handleChange = (e) => {
   const { name, value } = e.target;   //get input name and value
@@ -199,7 +202,20 @@ const handleBuy = async () => {
   }
 };
 
-
+//
+const getDiscounts = async () => {
+    try {
+        const res = await apiDiscount.get(`/classroom/${classroom._id}/user/${user._id}`);
+        const data = await res.json();
+        setDiscounts(data || []);
+        setDiscountPercent();
+        } catch (err) {
+            console.error("Failed to load discounts:", err);
+        }
+};
+const totalDiscount = () => {
+        return discounts.reduce((total, discount) => 100 - ((100 - total) * (100 - discount.percent) / 100));
+};
 
 
   // this is calculating the the discounted price if discount is active 
