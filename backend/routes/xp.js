@@ -100,5 +100,62 @@ router.put('/config/:classroomId', async (req, res) => {
   }
 });
 
+// Temporary test route to manually add XP
+// This is not permanent code, just for testing purposes during development
+router.post('/test/add', async (req, res) => {
+  try {
+    const { userId, classroomId, xpToAdd = 100 } = req.body;
+
+    // Find the user
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    // Find or create classroom data entry
+    let classroomData = user.classroomBalances.find(
+      c => c.classroom.toString() === classroomId.toString()
+    );
+
+    if (!classroomData) {
+      classroomData = {
+        classroom: classroomId,
+        balance: 0,
+        xp: 0,
+        level: 1
+      };
+      user.classroomBalances.push(classroomData);
+    }
+
+    // Add XP
+    classroomData.xp += xpToAdd;
+
+    // Handle level up
+    const xpNeeded = classroomData.level * 100;
+    let leveledUp = false;
+
+    if (classroomData.xp >= xpNeeded) {
+      classroomData.level += 1;
+      classroomData.xp -= xpNeeded;
+      leveledUp = true;
+    }
+
+    await user.save();
+
+    // Response
+    res.json({
+      message: leveledUp
+        ? `+${xpToAdd} XP — Level Up! You are now level ${classroomData.level}.`
+        : `+${xpToAdd} XP added successfully.`,
+      classroomData
+    });
+
+  } catch (err) {
+    console.error('Error in XP test/add route:', err.message);
+    res.status(500).json({ error: 'Server error adding XP for testing' });
+  }
+});
+
+
+
+
 
 module.exports = router;
