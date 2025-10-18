@@ -122,7 +122,7 @@ const InventorySection = ({ userId, classroomId }) => {
 
         
         case 'Utility':
-          endpoint = `/utility/use/${item._id}`;
+          endpoint = `/utility/use/${item._id}/${classroomId}`;
           break;
           
         case 'Passive':

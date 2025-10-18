@@ -6,7 +6,7 @@ const Discount = require('../models/Discount');
 const { ensureAuthenticated } = require('../config/auth');
 
 // Utility item is another category for items in the bazaar workign with a discount and multipleir
-router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
+router.post('/use/:itemId/:classroomId', ensureAuthenticated, async (req, res) => {
   try {
     const item = await Item.findById(req.params.itemId);
     if (!item || item.owner.toString() !== req.user._id.toString()) {
@@ -26,7 +26,7 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
          
         // Creates the discount
         Discount.insertOne({
-            classroom: req.user._id,
+            classroom: req.params.classroomId,
             owner: req.user._id,
             appliedAt: apply,
             expiresAt: expire, 
