@@ -317,9 +317,43 @@ const Home = () => {
             </p>
           </div>
         )}
+
         {user && role === 'student' && (
+          <>
           <XPBar userId={user._id} classroomId={user.currentClassroomId || ''} />
-        )}
+          {/* Temporary XP Testing Buttons */}
+          <div style={{ marginTop: '10px', textAlign: 'right', paddingRight: '20px' }}>
+            <button
+              onClick={handleAddXP}
+              style={{
+                marginRight: '8px',
+                backgroundColor: '#4CAF50',
+                color: 'white',
+                border: 'none',
+                padding: '6px 10px',
+                borderRadius: '6px',
+                cursor: 'pointer'
+              }}
+            >
+              +XP Test
+            </button>
+
+            <button
+              onClick={handleResetXP}
+              style={{
+                backgroundColor: '#f44336',
+                color: 'white',
+                border: 'none',
+                padding: '6px 10px',
+                borderRadius: '6px',
+                cursor: 'pointer'
+              }}
+            >
+              Reset XP
+            </button>
+          </div>
+        </>
+      )}
 
         {/* Profile Completion (if needed) */}
         {user && (!profileComplete || !role) && (
