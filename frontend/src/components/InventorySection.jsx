@@ -21,7 +21,11 @@ const InventorySection = ({ userId, classroomId }) => {
   const [nullifyModalOpen, setNullifyModalOpen] = useState(false);
 
   const [openingId, setOpeningId] = useState(null); // ID of the mystery box being opened
-
+  const [rewardPopup, setRewardPopup] = useState(null); // Reward popup state
+  const showReward = (name, image) => {
+    setRewardPopup({ name, image });
+    setTimeout(() => setRewardPopup(null), 5000);
+  };
 
   //hoisted loader so bith effects and socetes can call it 
   const load = useCallback(async () => {
@@ -204,31 +208,47 @@ const InventorySection = ({ userId, classroomId }) => {
       }
     }
   };
+  // Function to open a mystery box
 
-
-// Open a purchased Mystery Box (owned item)
 const openMystery = async (ownedId) => {
   try {
     setOpeningId(ownedId);
+
+  
     const { data } = await apiBazaar.post(`/inventory/${ownedId}/open`);
-    toast.success(`You received: ${data.item.name}!`);
-    setItems(prev => [
-      ...prev.filter(i => String(i._id) !== String(ownedId)),
-      data.awardedItemOwned
-    ]);
+
+    // Treat both first open and “already opened” (double click) as success
+    const ok = data?.ok || data?.message === 'Box opened' || data?.alreadyOpened;
+
+    if (ok) {
+      // backend may send both; prefer the fully created owned prize if present
+      const prize = data.awardedItemOwned || data.item || null;
+      const prizeName = data?.reward?.name || prize?.name || 'a prize';
+      //toast.success(`You received: ${prizeName}!`);
+      showReward(prizeName, prize?.image || null);
+
+      //remove the box from inventory
+      setItems(prev => {
+        const withoutBox = prev.filter(i => String(i._id) !== String(ownedId));
+        return prize ? [...withoutBox, prize] : withoutBox;
+      });
+
+      return;
+    }
+    
+    //if we got error 200 bu
+    throw new Error(data?.error || 'Failed to open box');
   } catch (e) {
-    const msg = e?.response?.status
-      ? `${e.response.status}: ${e.response.data?.error || 'Failed to open box'}`
-      : 'Failed to open box';
+    const msg =
+      e?.response?.data?.error ||
+      e?.message ||
+      'Cannot open box';
     toast.error(msg);
     console.error('openMystery error:', e?.response?.data || e);
   } finally {
     setOpeningId(null);
   }
-};
-
-
-      
+};    
 
   return (
     <div className="mt-6 space-y-6">
@@ -344,10 +364,50 @@ const openMystery = async (ownedId) => {
     />
 
 
+
+
+ {rewardPopup && (
+        <div className="fixed inset-0 z-[60] grid place-items-center bg-black/40">
+          <div className="card bg-base-100 border border-base-300 shadow-2xl rounded-2xl p-6 w-[min(92vw,420px)] animate-in fade-in duration-200">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-xl overflow-hidden bg-base-200 border">
+                {rewardPopup.image ? (
+                  <img
+                    src={resolveImageSrc(rewardPopup.image)}
+                    alt={rewardPopup.name}
+                    className="object-cover w-full h-full"
+                    onError={(e) => {
+                      e.currentTarget.src = '/images/item-placeholder.svg';
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full grid place-items-center text-base-content/50">
+                    <span className="text-lg">Reward</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex-1">
+                <p className="text-sm text-base-content/60 mb-1">Congratulations!</p>
+                <h4 className="text-xl font-bold leading-tight">
+                  You received <span className="text-success">{rewardPopup.name}</span>
+                </h4>
+              </div>
+            </div>
+
+            <div className="mt-4 text-right">
+              <button
+                className="btn btn-sm btn-ghost"
+                onClick={() => setRewardPopup(null)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
-
-
 };
 
 export default InventorySection;

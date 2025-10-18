@@ -144,8 +144,60 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items',
     if (item.category === 'Mystery' && item.kind !== 'mystery_box') {
       item.kind = 'mystery_box';
     }
-    console.log('[CreateItem] about to save:', { category: item.category, kind: item.kind });
 
+    //allowing rewards to be passed on create from the teacher view 
+    if (item.category === 'Mystery' ) {
+      let rewardFromBody = [];
+      try{ 
+        if (Array.isArray(req.body.rewards)) {
+          rewardFromBody = req.body.rewards;
+        } else if (typeof req.body.rewards === 'string' && req.body.rewards.trim()) {
+          rewardFromBody = JSON.parse(req.body.rewards);
+        }
+      } catch (err) {
+        rewardFromBody = []; }
+
+        if (rewardFromBody.length >0){
+          //validating the item ID is the same bazaar and has a postive weight 
+          const rewardIds = rewardFromBody.map(r => r.itemId);
+          const count = await Item.countDocuments({
+            _id: { $in: rewardIds },
+            bazaar: bazaarId,
+            deletedAt: null
+          });
+          if (count !== rewardIds.length) {
+            return res.status(400).json({ error: 'Some rewards are invalid or not in this bazaar' });
+          }
+          for (const r of rewardFromBody) {
+            if (!(Number(r.weight) > 0)) {
+              return res.status(400).json({ error: 'Each reward weight must be > 0' });
+            }
+          }
+          //asign rewards to item so they save
+          item.metadata = item.metadata || {};
+          item.metadata.rewards = rewardFromBody.map(r => ({
+            itemId: r.itemId,
+            weight: Number(r.weight)
+          }));
+
+
+        } else {
+          //if teacher did not pick any rewards, this will auto add all regular items
+        const regulars = await Item.find({
+          bazaar: bazaarId,
+          deletedAt: null,
+          $or: [{ kind: { $ne: 'mystery_box' } }, { kind: { $exists: false } }],
+          category: { $ne: 'Mystery' }
+        }).select('_id').lean();
+
+        if (regulars.length > 0) {
+          item.metadata = item.metadata || {};
+          item.metadata.rewards = regulars.map(r => ({ itemId: r._id, weight: 1 }));
+        }
+        // If there are no regular items yet, the buy/checkout guards you added will still prevent purchase.
+      }          
+    }
+    console.log('[CreateItem] about to save:', { category: item.category, kind: item.kind });
 
     await item.save();
 
@@ -388,6 +440,17 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
     const item = await Item.findById(itemId);
     if (!item) return res.status(404).json({ error: 'Item not found' });
 
+    //guarding, block purchase of a mystery box with no prizes 
+    if (item.kind === 'mystery_box' || item.category === 'Mystery') {
+      const pool = Array.isArray(item.metadata?.rewards) ? item.metadata.rewards : [];
+      if (!pool.some(r => Number(r.weight) > 0)) {
+        return res.status(409).json({
+          code: 'EMPTY_REWARDS',
+          error: 'This Mystery Box has no prizes configured yet.'
+        });
+      }
+    }
+
     const user = await User.findById(req.user._id);
     const totalCost = item.price * quantity;
 
@@ -400,7 +463,7 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
     // Create owned copies for quantity and collect summaries (unchanged, but now with per-classroom context)
     const ownedItems = [];
     for (let i = 0; i < quantity; i++) {
-      const ownedItem = await Item.create({
+      const ownedData = {
         name: item.name,
         description: item.description,
         price: item.price,
@@ -411,7 +474,16 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
         primaryEffectValue: item.primaryEffectValue,
         secondaryEffects: item.secondaryEffects,
         owner: user._id
-      });
+      };
+
+      //if this is a mystery box, we need to draw a reward now and create that as the owned item instead
+      if (item.kind === 'mystery_box' || item.category === 'Mystery') {
+        ownedData.kind = 'mystery_box';
+        ownedData.category = 'Mystery';
+        ownedData.metadata = { ...item.metadata || {} }; //copies metadata.rewards
+        ownedData.openedAt = null; // not opened yet
+      }
+      const ownedItem = await Item.create(ownedData);
       ownedItems.push(ownedItem);
     }
 
@@ -492,6 +564,20 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
       });
     }
 
+    //blocking any mystery boxes without rewards
+    const emptyMystery = resolvedItems.filter(it =>
+      (it.kind === 'mystery_box' || it.category === 'Mystery') &&
+      !(Array.isArray(it.metadata?.rewards) && it.metadata.rewards.some(r => Number(r.weight) > 0))
+    );
+
+    if (emptyMystery.length > 0) {
+      return res.status(409).json({
+        code: 'EMPTY_REWARDS',
+        error: 'One or more Mystery Boxes have no prizes configured.',
+        items: emptyMystery.map(i => i._id) // let frontend remove/flag these
+      });
+    }
+
     const user = await User.findById(userId).select('balance classroomBalances classroomFrozen transactions');
     if (!user) {
       console.error("User not found:", userId);
@@ -548,7 +634,7 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
         continue;
       }
 
-      const ownedItem = await Item.create({
+      const ownedData = {
         name: item.name,
         description: item.description,
         price: item.price,
@@ -559,10 +645,19 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
         primaryEffectValue: item.primaryEffectValue,
         secondaryEffects: item.secondaryEffects,
         owner: userId
-      });
+      };
 
+      if (item.kind === 'mystery_box' || item.category === 'Mystery'){
+        ownedData.kind = 'mystery_box';
+        ownedData.category = 'Mystery';
+        ownedData.metadata = { ...item.metadata || {} };
+        ownedData.openedAt = null; // not opened yet
+      }
+      const ownedItem = await Item.create(ownedData);
       ownedItems.push(ownedItem);
+    
     }
+
 
     // Deduct from per-classroom balance and create order/transaction
     updateClassroomBalance(user, classroomId, userBalance - total);
@@ -748,12 +843,25 @@ router.get('/orders/:orderId', async (req, res) => {
 router.post('/inventory/:ownedId/open', ensureAuthenticated, async (req, res) => {
   const { ownedId } = req.params;
   //find the owned item and validate it's a mystery box
-  const box = await Item.findOne({ _id: ownedId, owner: req.user._id, deletedAt: null });
+  const box = await Item.findOne({ _id: ownedId, owner: req.user._id})
+  .setOptions({ withDeleted: true }); // allow finding soft-deleted (opened) boxes
+
   if (!box) return res.status(404).json({ error: 'Box not found' });
 
   const isMystery = box.category === 'Mystery' || box.kind === 'mystery_box';
+
   if (!isMystery) return res.status(400).json({ error: 'Not a mystery box' });
-  if (box.openedAt) return res.status(400).json({ error: 'Box already opened' });
+  if (box.openedAt) return res.status(200).json({ ok: true, alreadyOpened: true, message: 'Box already opened' });
+  // Atomically mark this box as opened; only the first request will succeed
+  const claim = await Item.updateOne(
+    { _id: ownedId, owner: req.user._id, openedAt: null },
+    { $set: { openedAt: new Date(), deletedAt: new Date() } }
+  );
+
+  if (claim.modifiedCount === 0) {
+    // A prior request already opened it (likely a double click); treat as success so UI doesn't show an error
+    return res.status(200).json({ ok: true, alreadyOpened: true, message: 'Box already opened' });
+  }
 
   /// pick a reward from metadata.rewards (weighted)
   const rewards = Array.isArray(box.metadata?.rewards) ? box.metadata.rewards : [];
@@ -767,7 +875,7 @@ router.post('/inventory/:ownedId/open', ensureAuthenticated, async (req, res) =>
     if (roll <= 0) { picked = r; break; }
   }
   //create an owned copy of the awarded item
-  const base = await Item.findById(picked.itemId);
+  const base = await Item.findById(picked.itemId).setOptions({ withDeleted: true });
   if (!base) return res.status(400).json({ error: 'Configured reward item is missing' });
   const awardedItemOwned = await Item.create({
     name: base.name,
@@ -784,9 +892,11 @@ router.post('/inventory/:ownedId/open', ensureAuthenticated, async (req, res) =>
   // mark box opened + hide it (soft delete)
   await Item.findByIdAndUpdate(ownedId, { openedAt: new Date(), deletedAt: new Date() });
   return res.json({
+    ok: true,
     message: 'Box opened',
     reward: { id: base._id, name: base.name },
-    awardedItemOwned
+    awardedItemOwned,
+    item: awardedItemOwned // for backward compatibility
   });
 });
 
@@ -826,57 +936,8 @@ router.get('/inventory/:userId', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch inventory' });
   }
 });
+// below was deleted because its above.
 
-// open a prychased mystery bix (purchased item, award a prize, then remove the box)
-router.post('/inventory/:ownedId/open', ensureAuthenticated, async (req, res) => {
-  const { ownedId } = req.params;
-
-  //find the owned item and validate it's a mystery box
-  const box = await Item.findOne({ _id: ownedId, owner: req.user._id, deletedAt: null });
-  if (!box) return res.status(404).json({ error: 'Box not found' });
-
-  const isMystery = box.category === 'Mystery' || box.kind === 'mystery_box';
-  if (!isMystery) return res.status(400).json({ error: 'Not a mystery box' });
-  if (box.openedAt) return res.status(400).json({ error: 'Box already opened' });
-
-  // pick a reward from metadata.rewards (weighted)
-  const rewards = Array.isArray(box.metadata?.rewards) ? box.metadata.rewards : [];
-  const totalW = rewards.reduce((s, r) => s + Number(r.weight || 0), 0);
-  if (totalW <= 0) return res.status(400).json({ error: 'No rewards configured for this box' });
-
-  let roll = Math.random() * totalW;
-  let picked = rewards[0];
-  for (const r of rewards) {
-    roll -= Number(r.weight || 0);
-    if (roll <= 0) { picked = r; break; }
-  }
-
-  //create an owned copy of the awarded item
-  const base = await Item.findById(picked.itemId);
-  if (!base) return res.status(400).json({ error: 'Configured reward item is missing' });
-
-  const awardedItemOwned = await Item.create({
-    name: base.name,
-    description: base.description,
-    price: base.price,
-    image: base.image,
-    bazaar: base.bazaar,
-    category: base.category,
-    primaryEffect: base.primaryEffect,
-    primaryEffectValue: base.primaryEffectValue,
-    secondaryEffects: base.secondaryEffects,
-    owner: req.user._id
-  });
-
-  // mark box opened + hide it (soft delete)
-  await Item.findByIdAndUpdate(ownedId, { openedAt: new Date(), deletedAt: new Date() });
-  return res.json({
-    message: 'Box opened',
-    reward: { id: base._id, name: base.name },
-    awardedItemOwned
-  });
-
-});
 // Delete Bazaar
 router.delete(
     '/classroom/:classroomId/bazaar/delete',
