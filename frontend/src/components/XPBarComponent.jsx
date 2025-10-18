@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 
-const XPBar = ({ userId, classroomId }) => {
+const XPBar = ({ userId, classroomId, xpRefresh }) => {
   const [xp, setXP] = useState(0);
   const [level, setLevel] = useState(1);
   const [xpNeeded, setXpNeeded] = useState(100);
@@ -9,12 +9,12 @@ const XPBar = ({ userId, classroomId }) => {
   useEffect(() => {
     const fetchXPData = async () => {
       try {
-        const res = await axios.get(`/api/users/${userId}`);
+        const res = await axios.get(`/api/users/${userId}/xp`);
         const user = res.data;
 
         // Find classroom-specific XP data
         const classroom = user.classroomBalances.find(
-          c => c.classroom === classroomId
+          c => c.classroom?.toString() === classroomId?.toString()
         );
 
         if (classroom) {
@@ -28,7 +28,7 @@ const XPBar = ({ userId, classroomId }) => {
     };
 
     fetchXPData();
-  }, [userId, classroomId]);
+  }, [userId, classroomId, xpRefresh]);
 
   const progressPercent = Math.min((xp / xpNeeded) * 100, 100);
 

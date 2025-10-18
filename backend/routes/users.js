@@ -46,6 +46,21 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// Get full XP and level data for a user
+router.get('/:id/xp', async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select('classroomBalances');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    res.json({
+      classroomBalances: user.classroomBalances || []
+    });
+  } catch (err) {
+    console.error('Error fetching XP data:', err);
+    res.status(500).json({ error: 'Server error fetching XP data' });
+  }
+});
+
 // Bulk assign balances to mulitpler students
 router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
   if (req.user.role !== 'teacher' && req.user.role !== 'admin') {

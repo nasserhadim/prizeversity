@@ -111,10 +111,13 @@ router.post('/test/add', async (req, res) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     // If no classroomId provided, use the first classroom the user is in
-    if (!classroomId && user.classroomBalances.length > 0) {
-      classroomId = user.classroomBalances[0].classroom;
+    if (!classroomId) {
+      if (user.classroomBalances.length > 0) {
+        classroomId = user.classroomBalances[0].classroom;
+      } else {
+        return res.status(400).json({ error: 'User is not part of any classroom.' });
+      }
     }
-
     // Find or create classroom data entry
     let classroomData = user.classroomBalances.find(
       c => c.classroom.toString() === classroomId.toString()
@@ -170,9 +173,13 @@ router.post('/test/reset', async (req, res) => {
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    // Fallback: if no classroomId provided, use the first classroom the user is in
-    if (!classroomId && user.classroomBalances.length > 0) {
-      classroomId = user.classroomBalances[0].classroom;
+    // if no classroomId provided, use the first classroom the user is in
+    if (!classroomId) {
+      if (user.classroomBalances.length > 0) {
+        classroomId = user.classroomBalances[0].classroom;
+      } else {
+        return res.status(400).json({ error: 'User is not part of any classroom.' });
+      }
     }
 
     // Find classroom data

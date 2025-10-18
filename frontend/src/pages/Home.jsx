@@ -48,6 +48,8 @@ const Home = () => {
   const [carouselGroup, setCarouselGroup] = useState('education');
   const scrollRef = useRef(null);
 
+  const [xpRefreshKey, setXpRefresh] = useState(0);
+
   const navigate = useNavigate();
 
   // for the carousel
@@ -146,6 +148,7 @@ const Home = () => {
         xpToAdd: 150 // test amount
       });
       toast.success('Added test XP!');
+      setXpRefresh(prev => prev + 1);
     } catch (err) {
       console.error('Error adding test XP:', err);
       toast.error('Failed to add XP');
@@ -159,6 +162,7 @@ const Home = () => {
         classroomId: user.currentClassroomId
       });
       toast.success('XP reset!');
+      setXpRefresh(prev => prev + 1);
     } catch (err) {
       console.error('Error resetting XP:', err);
       toast.error('Failed to reset XP');
@@ -349,7 +353,10 @@ const Home = () => {
 
         {user && role === 'student' && (
           <>
-          <XPBar userId={user._id} classroomId={user.currentClassroomId || ''} />
+          <XPBar userId={user._id} 
+          classroomId={user.currentClassroomId || ''}
+          key={xpRefreshKey} 
+          />
           {/* Temporary XP Testing Buttons */}
           <div style={{ marginTop: '10px', textAlign: 'right', paddingRight: '20px' }}>
             <button
