@@ -104,11 +104,16 @@ router.put('/config/:classroomId', async (req, res) => {
 // This is not permanent code, just for testing purposes during development
 router.post('/test/add', async (req, res) => {
   try {
-    const { userId, classroomId, xpToAdd = 100 } = req.body;
+    let { userId, classroomId, xpToAdd = 100 } = req.body;
 
     // Find the user
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
+
+    // If no classroomId provided, use the first classroom the user is in
+    if (!classroomId && user.classroomBalances.length > 0) {
+      classroomId = user.classroomBalances[0].classroom;
+    }
 
     // Find or create classroom data entry
     let classroomData = user.classroomBalances.find(
@@ -153,6 +158,51 @@ router.post('/test/add', async (req, res) => {
     res.status(500).json({ error: 'Server error adding XP for testing' });
   }
 });
+
+
+// Temporary test route to reset XP and level
+// This is not permanent code, just for testing purposes during development
+router.post('/test/reset', async (req, res) => {
+  try {
+    let { userId, classroomId } = req.body;
+
+    // Find the user
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    // Fallback: if no classroomId provided, use the first classroom the user is in
+    if (!classroomId && user.classroomBalances.length > 0) {
+      classroomId = user.classroomBalances[0].classroom;
+    }
+
+    // Find classroom data
+    const classroomData = user.classroomBalances.find(
+      c => c.classroom.toString() === classroomId.toString()
+    );
+
+    if (!classroomData) {
+      return res
+        .status(400)
+        .json({ error: 'User not found in specified classroom' });
+    }
+
+    // Reset XP and level
+    classroomData.xp = 0;
+    classroomData.level = 1;
+
+    await user.save();
+
+    res.json({
+      message: 'XP and level reset successfully.',
+      classroomData
+    });
+  } catch (err) {
+    console.error('Error in XP test/reset route:', err.message);
+    res.status(500).json({ error: 'Server error resetting XP' });
+  }
+});
+
+
 
 
 

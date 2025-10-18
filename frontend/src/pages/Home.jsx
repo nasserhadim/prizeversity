@@ -136,6 +136,35 @@ const Home = () => {
     }
   }, []);
 
+  // Temporary XP Testing Functions
+  // These functions are temporary for development testing only
+  const handleAddXP = async () => {
+    try {
+      await axios.post('http://localhost:5000/api/xp/test/add', {
+        userId: user._id,
+        classroomId: user.currentClassroomId,
+        xpToAdd: 150 // test amount
+      });
+      toast.success('Added test XP!');
+    } catch (err) {
+      console.error('Error adding test XP:', err);
+      toast.error('Failed to add XP');
+    }
+  };
+
+  const handleResetXP = async () => {
+    try {
+      await axios.post('http://localhost:5000/api/xp/test/reset', {
+        userId: user._id,
+        classroomId: user.currentClassroomId
+      });
+      toast.success('XP reset!');
+    } catch (err) {
+      console.error('Error resetting XP:', err);
+      toast.error('Failed to reset XP');
+    }
+  };
+
   // Handler to submit user role and profile update
   const handleRoleAndProfileSubmit = async () => {
     if (!role || !firstName.trim() || !lastName.trim()) {
