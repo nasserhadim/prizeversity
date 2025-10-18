@@ -35,6 +35,9 @@ import rpgSchoolChars from '../assets/Education/rpg-school-chars.svg';
 
 import './Home.css';
 
+import XPBar from '../components/XPBarComponent.jsx';
+
+
 const Home = () => {
   const { user, logout, setUser } = useAuth();
   const [role, setRole] = useState(user?.role || '');
@@ -313,6 +316,9 @@ const Home = () => {
                 : 'Ready to join your next learning adventure?'}
             </p>
           </div>
+        )}
+        {user && role === 'student' && (
+          <XPBar userId={user._id} classroomId={user.currentClassroomId || ''} />
         )}
 
         {/* Profile Completion (if needed) */}

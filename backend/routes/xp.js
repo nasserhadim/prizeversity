@@ -1,0 +1,104 @@
+const express = require('express');
+const router = express.Router();
+const User = require('../models/User');
+const Classroom = require('../models/Classroom');
+
+// Simple test route to confirm XP route is connected
+router.get('/test', (req, res) => {
+  res.json({ message: 'XP route connected successfully' });
+});
+
+// Add XP to a student with validation and improved error handling
+router.post('/add', async (req, res) => {
+  try {
+    const { userId, classroomId, xpToAdd } = req.body;
+
+    // Validate request data
+    if (!userId || !classroomId || typeof xpToAdd !== 'number' || xpToAdd <= 0) {
+      return res.status(400).json({ error: 'Invalid input data' });
+    }
+
+    // Find the student
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    // Find or create classroom balance entry
+    let classroomData = user.classroomBalances.find(
+      c => c.classroom.toString() === classroomId.toString()
+    );
+
+    if (!classroomData) {
+      classroomData = {
+        classroom: classroomId,
+        balance: 0,
+        xp: 0,
+        level: 1
+      };
+      user.classroomBalances.push(classroomData);
+    }
+
+    // Add XP
+    classroomData.xp += xpToAdd;
+
+    // Determine if the student leveled up
+    let leveledUp = false;
+    const xpNeeded = classroomData.level * 100;
+
+    if (classroomData.xp >= xpNeeded) {
+      classroomData.level += 1;
+      classroomData.xp -= xpNeeded;
+      leveledUp = true;
+    }
+
+    await user.save();
+
+    // Return result
+    res.json({
+      message: leveledUp
+        ? `Level up! You are now level ${classroomData.level}`
+        : 'XP updated successfully',
+      classroomData
+    });
+
+  } catch (err) {
+    console.error('Error updating XP:', err.message);
+    res.status(500).json({ error: 'Server error updating XP' });
+  }
+});
+
+// Update classroom XP settings (Teacher only)
+router.put('/config/:classroomId', async (req, res) => {
+  try {
+    const { classroomId } = req.params;
+    const { dailyLogin, groupJoin } = req.body;
+
+    const classroom = await Classroom.findById(classroomId);
+    if (!classroom) {
+      return res.status(404).json({ error: 'Classroom not found' });
+    }
+
+    // Validation
+    if (dailyLogin && (typeof dailyLogin !== 'number' || dailyLogin < 0)) {
+      return res.status(400).json({ error: 'Invalid XP value for dailyLogin' });
+    }
+    if (groupJoin && (typeof groupJoin !== 'number' || groupJoin < 0)) {
+      return res.status(400).json({ error: 'Invalid XP value for groupJoin' });
+    }
+
+    if (dailyLogin !== undefined) classroom.xpConfig.dailyLogin = dailyLogin;
+    if (groupJoin !== undefined) classroom.xpConfig.groupJoin = groupJoin;
+
+    await classroom.save();
+
+    res.json({
+      message: 'XP configuration updated successfully',
+      xpConfig: classroom.xpConfig,
+    });
+  } catch (err) {
+    console.error('Error updating XP config:', err.message);
+    res.status(500).json({ error: 'Server error updating XP config' });
+  }
+});
+
+
+module.exports = router;
