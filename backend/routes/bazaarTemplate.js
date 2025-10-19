@@ -1,3 +1,4 @@
+// backend/routes/bazaarTemplate.js
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
@@ -5,77 +6,112 @@ const BazaarTemplate = require('../models/BazaarTemplate');
 const Bazaar = require('../models/Bazaar');
 const Item = require('../models/Item');
 
-// GET /api/bazaarTemplates - Get all templates for the associated classroom
-router.get('/import', async (req, res) => { //will update this once the apiBazaarTemplate is done
-  try {
-    const classroomId = req.user._id;
-    const templateId = await BazaarTemplate.find({ classroomId })
-      .sort({ createdAt: -1 })
-      .select('name descriptiom price');
+// If you have an auth middleware, apply it here so req.user exists
+// router.use(require('../middleware/auth')); // example
 
-    res.json({ templateId });
+// GET /api/classrooms/:classroomId/bazaar-templates
+router.get('/classrooms/:classroomId/bazaar-templates', async (req, res) => {
+  try {
+    const { classroomId } = req.params;
+    const { scope = 'all', searchText } = req.query;
+
+    if (!mongoose.isValidObjectId(classroomId)) {
+      return res.status(400).json({ message: 'Invalid classroomId' });
+    }
+    const clsId = new mongoose.Types.ObjectId(classroomId);
+    const userId = req.user?._id ? new mongoose.Types.ObjectId(req.user._id) : null;
+
+    // Build query by scope
+    let query = { classroomId: clsId };
+    if (scope === 'mine') {
+      if (!userId) return res.status(401).json({ message: 'Not authenticated' });
+      query.madeBy = userId;
+    } else if (scope === 'public') {
+      query.isPublic = true;
+    } else {
+      // 'all': show public + mine in this classroom
+      if (userId) {
+        query.$or = [{ isPublic: true }, { madeBy: userId }];
+      } else {
+        query.isPublic = true;
+      }
+    }
+
+    // Full-text search
+    if (searchText && searchText.trim()) {
+      query.$text = { $search: searchText.trim() };
+    }
+
+    const templateDocs = await BazaarTemplate.find(query)
+      .sort({ createdAt: -1 })
+      .select('_id name description madeBy isPublic tags createdAt updatedAt')
+      .lean();
+
+    return res.json({ bazaarTemplates: templateDocs });
   } catch (error) {
-    console.error('Error fetching bazaar templates:', error);
-    res.status(500).json({ message: 'Failed to fetch templates' });
+    console.error('GET bazaar-templates error:', error);
+    return res.status(500).json({ message: 'There was an error while fetching the bazaar templates.' });
   }
 });
 
 
-//when an instructor wants to make a new bazaar template in their classroom, they wull click "Import Template"
-//then it will copy all the items from the selected bazaar into the new one the instructor created
-// POST /api/bazaarTemplates - Create a new template
-router.post('/import', async (req, res) => { //will update this once the apiBazaarTemplate is done
-    try {
-        const {
-            sourceClassroomId, //this is for which classroom the template belongs to
-            bazaarTemplateId, //this is for which template to import from
-            newBazaarName //this is if the user wants to rename the bazaar when importing
-        } = req.body;
+router.post('/classrooms/:classroomId/bazaar-templates', async (req, res) => {
+  const session = await mongoose.startSession();
+  try {
+    const { classroomId } = req.params;
+    const { bazaarTemplateId, newBazaarName } = req.body;
 
-        //this will find the saved template to figure out which original bazaar it references
-        const lookUpTemplate = await BazaarTemplate.findById(bazaarTemplateId);
-        if(!lookUpTemplate){
-            return res.status(404).json({message: "The bazaar template requested does not exist"});
-        }
-
-        //this will get the original bazaar’s details like the name, description and the price to copy into the new one
-        const selectedBazaar = await Bazaar.findById(lookUpTemplate.bazaarId).lean();
-        if(!selectedBazaar){
-            return res.status(404).json({message: "The bazaar that the template is from on does not exist"});
-        }
-
-        //this will create a new bazaar for the classroom that the user selected
-        const newBazaar = await Bazaar.create({
-            name: (newBazaarName && newBazaarName.trim()) || lookUpTemplate.name,
-            classroom: sourceClassroomId,
-            description: lookqUpTemplate.description || selectedBazaar.description || ''
-        });
-
-        //this would pull all the of the items from the selected bazaar and copy them over to the new bazaar
-        const selectedItems = await Item.find({bazaar: lookUpTemplate.bazaarId}).lean();
-
-        //this is making a list of the selected items to copy over into the new bazaar
-        const itemsToCopy = selectedItems.map((item) => ({
-            name: item.name, //will copy the name over
-            description: item.description, //will copy the description over
-            category: item.category, //will copy the category over
-            price: item.price, //will copy the price over
-            primaryEffect: item.primaryEffect, //will copy the primary effect over
-            secondaryEffect: item.secondaryEffect, //will copy the secondary effect over
-            bazaar: newBazaar._id, //will set the bazaar to the new bazaar
-            imageLink: item.imageUrl ?? {} //will copy the image over if there is one
-
-        }));
-
-        if(itemsToCopy.length > 0){ //only add the items if there are any
-            await Item.insertMany(itemsToCopy);
-        }
-        //this will return the new bazaar that was created
-        return res.json(newBazaar);
-    }   catch (error) { //if anything that went wrong it will return a error message
-        console.error(error);
-        return res.status(500).json({message: "There was an error when attempting to import the bazaar template"});
+    if (!mongoose.isValidObjectId(classroomId)) {
+      return res.status(400).json({ message: 'Invalid classroomId' });
+    }
+    if (!bazaarTemplateId || !mongoose.isValidObjectId(bazaarTemplateId)) {
+      return res.status(400).json({ message: 'bazaarTemplateId is required' });
     }
 
+    await session.withTransaction(async () => {
+      const loadBazaarTemplate = await BazaarTemplate.findById(bazaarTemplateId).session(session);
+      if (!loadBazaarTemplate) {
+        return res.status(404).json({ message: 'Template not found' });
+      }
+
+      const sourceBazaar = await Bazaar.findById(loadBazaarTemplate.bazaarId).lean().session(session);
+      if (!sourceBazaar) {
+        return res.status(404).json({ message: 'Source bazaar not found' });
+      }
+
+      const [newBazaar] = await Bazaar.create([{
+        name: (newBazaarName && newBazaarName.trim()) || loadBazaarTemplate.name || sourceBazaar.name || 'Imported Bazaar Template',
+        classroom: classroomId,
+        description: (loadBazaarTemplate.description || sourceBazaar.description || '').trim(),
+        image: sourceBazaar.image || null,
+      }], { session });
+
+      const sourceItems = await Item.find({ bazaar: loadBazaarTemplate.bazaarId }).lean().session(session);
+      if (Array.isArray(sourceItems) && sourceItems.length) {
+        const itemsToAdd = sourceItems.map((item) => ({
+          name: item.name,
+          description: item.description || '',
+          category: item.category,
+          price: item.price,
+          primaryEffect: item.primaryEffect,
+          secondaryEffect: item.secondaryEffect,
+          image: item.image ?? undefined,
+          imageUrl: item.imageUrl ?? undefined,
+          bazaar: newBazaar._id,
+        }));
+        await Item.insertMany(itemsToAdd, { session, ordered: false });
+      }
+
+      return res.json({ bazaar: newBazaar });
+    });
+  } catch (error) {
+    console.error('POST bazaar-templates error:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ message: 'There was an error while importing the bazaar template.' });
+    }
+  } finally {
+    session.endSession();
+  }
 });
+
 module.exports = router;

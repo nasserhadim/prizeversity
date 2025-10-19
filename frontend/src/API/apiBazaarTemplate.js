@@ -1,39 +1,42 @@
+// src/API/apiBazaarTemplate.js
 import { API_BASE } from '../config/api';
 
-export const getBazaarTemplates = async () => {
-    const response = await fetch(`${API_BASE}/api/bazaarTemplates/import`, {
-        credentials: 'include'
-    });
-    if (!response.ok) {
-        throw new Error('Failed to fetch the requested templates');
-    }
-    return response.json();
+// in src/API/apiBazaarTemplate.js
+export const getBazaarTemplates = async (classroomId, { scope='all', searchText='' } = {}) => {
+  const params = new URLSearchParams();
+  if (scope) params.set('scope', scope);
+  if (searchText) params.set('searchText', searchText);
+
+  const res = await fetch(`${API_BASE}/api/classrooms/${classroomId}/bazaar-templates?${params}`, {
+    credentials: 'include'
+  });
+
+  let data = null;
+  try { data = await res.json(); } catch {}
+
+  if (!res.ok) {
+    // include status for easier debugging in UI/toast
+    const msg = data?.message || `Failed to fetch bazaar templates (HTTP ${res.status})`;
+    throw new Error(msg);
+  }
+  return data;
 };
 
-export const saveBazaarTemplate = async (sourceClassroomId, bazaarTemplateId, newBazaarName) =>{
-    const response = await fetch(`${API_BASE}/api/bazaarTemplates/import`, {
-        method: 'POST', 
-        credentials: 'include',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ sourceClassroomId, bazaarTemplateId, newBazaarName })
-    });
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to save the template');
-    }
-    return response.json();
-};
 
-export const deleteBazaarTemplate = async (templateId) => {
-    const response = await fetch(`${API_BASE}/api/bazaarTemplates/${templateId}`, {
-        method: 'DELETE',
-        credentials: 'include'
-    });
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to delete the template');
+export const importBazaarTemplate = async (classroomId, { bazaarTemplateId, newBazaarName }) => {
+  const response = await fetch(
+    `${API_BASE}/api/classrooms/${classroomId}/bazaar-templates`,  // <-- FIXED
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bazaarTemplateId, newBazaarName }),
     }
-    return response.json();
+  );
+
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(data?.message || 'Failed to import bazaar template');
+  }
+  return data; // { bazaar: {...} }
 };
