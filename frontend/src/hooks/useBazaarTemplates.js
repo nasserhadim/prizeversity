@@ -1,4 +1,4 @@
-// src/hooks/useBazaarTemplate.js (your file name)
+// the src/hooks/useBazaarTemplate.js (your file name)
 import { useState, useCallback } from 'react';
 import { getBazaarTemplates, importBazaarTemplate } from '../API/apiBazaarTemplate';
 import toast from 'react-hot-toast';
