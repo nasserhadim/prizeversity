@@ -31,7 +31,7 @@ const UserChallengeSchema = new mongoose.Schema({
   challenge4Password: { type: String },
   challenge6Attempts: { type: Number, default: 0 },
   challenge7Attempts: { type: Number, default: 0 },
-  progress: { type: Number, default: 0, min: 0, max: 5 }, 
+  progress: { type: Number, default: 0, min: 0, max: 7 }, 
   completedAt: { type: Date },
   challengeCompletedAt: { type: [Date], default: [] },
   challengeStartedAt: { type: [Date], default: [] },
@@ -40,7 +40,7 @@ const UserChallengeSchema = new mongoose.Schema({
   hintsUnlocked: { type: [[String]], default: [] },
   startedAt: { type: Date },
   currentChallenge: { type: Number, default: undefined },
-  completedChallenges: { type: [Boolean], default: [false, false, false, false, false, false] },
+  completedChallenges: { type: [Boolean], default: [false, false, false, false, false, false, false] },
   challenge7Progress: {
     revealedWords: { type: [String], default: [] },
     totalWords: { type: Number, default: 0 },
