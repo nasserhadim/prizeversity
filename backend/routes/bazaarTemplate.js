@@ -1,117 +1,204 @@
-// backend/routes/bazaarTemplate.js
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
+
 const BazaarTemplate = require('../models/BazaarTemplate');
 const Bazaar = require('../models/Bazaar');
+const Classroom = require('../models/Classroom')
 const Item = require('../models/Item');
 
-// If you have an auth middleware, apply it here so req.user exists
-// router.use(require('../middleware/auth')); // example
+async function copyBazaarIntoClassroom({ sourceBazaarId, targetClassroomId}) {
+  const bazaarSource = await Bazaar.findById(sourceBazaarId).populate('items').lean();
+  if(!bazaarSource) {
+    throw new Error('The source bazaar was not found.');
+  };
 
-// GET /api/classrooms/:classroomId/bazaar-templates
-router.get('/classrooms/:classroomId/bazaar-templates', async (req, res) => {
+  const newBazaar = await Bazaar.create({
+    name: bazaarSource.name,
+    description: bazaarSource.description,
+    image: bazaarSource.image,
+    classroom: new mongoose.Types.ObjectId(targetClassroomId),
+  });
+
+  const newItems = await Item.insertMany(
+    (bazaarSource || []).map((i) => ({
+      name: i.name,
+      description: i.description,
+      price: i.price,
+      image: i.image,
+      category: i.category,
+      primaryEffect: i.primaryEffect,
+      secondaryEffect: i.secondaryEffect,
+      usesRemaining: i.usesRemaining,
+      active: i.active,
+      bazaar: newBazaar._id,
+      createdAt: new Date(),
+    }))
+  );
+
+  await Bazaar.findByIdAndUpdate(newBazaar._id, { $set: { items: newItems.map(i => i._id)} });
+  return newBazaar;
+}
+
+router.get('/', async (req, res) => {
   try {
-    const { classroomId } = req.params;
-    const { scope = 'all', searchText } = req.query;
+    const ownerId = req.user?._id;
+    if(!ownderId)
+      return res.status(401).json({ message: 'Not Approved' });
 
-    if (!mongoose.isValidObjectId(classroomId)) {
-      return res.status(400).json({ message: 'Invalid classroomId' });
+    const templateQuery = BazaarTemplate.find({ ownder: ownderId}).sort({ createdAt: -1});
+    if (req.query.AddClassroomName === 'true')
+      q.populate('sourceClassroom', 'name code');
+
+    const templates = await templateQuery.lean();
+    res.json({ templates });
+  } catch(err) {
+    console.error('[GET /api/templates]', err);
+    res.status(500).json({ message: 'There was an error to list the templates'});
+  }
+});
+
+router.post('/save/:bazaarId', async (req, res) => {
+  try {
+    const ownerId = req.user?._id;
+    if(!ownerId)
+      return res.status(401).json({ message: 'Not Approved'});
+
+    const { bazaarId } = req.params;
+    if(!mongoose.isValidObjectId(bazaarId))
+      return res.status(400).json({ message: 'That is not a valid bazaarId'});
+
+    const bazaar = await Bazaar.findById(bazaarId).populate('classroom').lean();
+    if(!bazaar)
+      return res.status(404).json({ message: 'The bazaar could not be found'});
+
+    const countItem = await Item.countDocuments({ bazaar: bazaar._id});
+    const template = await BazaarTemplate.create({
+      name: bazaar.name,
+      description: bazaar.description,
+      owner: ownerId,
+      sourceBazaar: bazaar._id,
+      sourceClassroom: bazaar.classroom,
+      countItem,
+    });
+
+    res.json({ template })
+  } catch(err) {
+      console.error('[POST /api/templates/save/: bazaarId]', err);
+      res.status(500).json({ message: 'Could not save the template'})
+  }
+});
+
+router.post('/apply/:templateId', async (req, res) => {
+  try {
+    const ownerId = req.user?._id;
+    if(!ownerId)
+      return res.status(401).json({ message: 'Not Approved'});
+
+    const { templateId } = req.params;
+    const { targetClassroomId } = req.body;
+
+    if(!mongoose.isValidObjectId(templateId) || !mongoose.isValidObjectId(targetClassroomId)) {
+      return res.status(400).json({ message: 'THis is an invalid ID'})
     }
-    const clsId = new mongoose.Types.ObjectId(classroomId);
-    const userId = req.user?._id ? new mongoose.Types.ObjectId(req.user._id) : null;
 
-    // Build query by scope
-    let query = { classroomId: clsId };
-    if (scope === 'mine') {
-      if (!userId) return res.status(401).json({ message: 'Not authenticated' });
-      query.madeBy = userId;
-    } else if (scope === 'public') {
-      query.isPublic = true;
-    } else {
-      // 'all': show public + mine in this classroom
-      if (userId) {
-        query.$or = [{ isPublic: true }, { madeBy: userId }];
-      } else {
-        query.isPublic = true;
-      }
+    const template = await BazaarTemplate.findOne({ _id: templateId, owner: ownderId}).lean();
+    if(!template)
+      return res.status(404).json({ message: 'The template could not be found'});
+
+    const newBazaar = await copyBazaarIntoClassroom({
+      sourceBazaarId: template.sourceBazaar,
+      targetClassroomId,
+    });
+
+    res.json({ bazaar: newBazaar});
+  } catch (err) {
+    console.error('[POST /api/templates/apply/: templateId]', err);
+    res.status(500).json({ message: 'Could not apply the template '});
+  }
+});
+
+router.delete('/:templateId', async (req, res) => {
+  try {
+    const ownerId = req.user?._id;
+    if (!ownerId) return res.status(401).json({ message: 'Unauthorized' });
+
+    const { templateId } = req.params;
+    if (!mongoose.isValidObjectId(templateId)) {
+      return res.status(400).json({ message: 'Invalid templateId' });
     }
 
-    // Full-text search
-    if (searchText && searchText.trim()) {
-      query.$text = { $search: searchText.trim() };
-    }
+    const template = await BazaarTemplate.findOne({ _id: templateId, owner: ownerId });
+    if (!template) return res.status(404).json({ message: 'Template not found' });
 
-    const templateDocs = await BazaarTemplate.find(query)
-      .sort({ createdAt: -1 })
-      .select('_id name description madeBy isPublic tags createdAt updatedAt')
-      .lean();
+    await template.deleteOne();
 
-    return res.json({ bazaarTemplates: templateDocs });
-  } catch (error) {
-    console.error('GET bazaar-templates error:', error);
-    return res.status(500).json({ message: 'There was an error while fetching the bazaar templates.' });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[DELETE /api/templates/:templateId]', err);
+    res.status(500).json({ message: 'Could not delete template' });
   }
 });
 
 
-router.post('/classrooms/:classroomId/bazaar-templates', async (req, res) => {
-  const session = await mongoose.startSession();
+router.get('/resuable-bazaars/:classroomId', async (req, res) => {
   try {
+    const ownerId = req.user?._id;
+    if(!ownerId)
+      return res.status(401).json({ message: 'Not Approved'});
+
     const { classroomId } = req.params;
-    const { bazaarTemplateId, newBazaarName } = req.body;
+    if(!mongoose.isValidObjectId(classroomId))
+      return res.status(400).json({ message: 'This is an invalid classroomId'});
 
-    if (!mongoose.isValidObjectId(classroomId)) {
-      return res.status(400).json({ message: 'Invalid classroomId' });
+    const myClassrooms = await Classroom.find({ teacher: ownerId}).select('_id name code').lean();
+    const myClassroomIds = new Set(myClassrooms.map(c => String(c._id)));
+
+    const bazaars = await Bazaar.find({
+      classroom: {$in: [...myClassroomIds].filter(id => id != classroomId)}
+    })
+
+    .populate('classroom', 'name code')
+    .populate('items', '_id')
+    .sort({ createdAt: -1 })
+    .lean();
+
+    const formed = (bazaars || []).map(b => ({
+      _id: b._id,
+      name: b.name,
+      description: b.description,
+      classroom: b.classroom,
+      countItem: (b.items || []).length,
+      createdAt: b.createdAt
+    }));
+    
+    res.json({ bazaars: formed});
+  } catch (err) {
+    console.error('[GET /api/templates/reusable-bazaars/:classroomId]', err);
+    res.status(500).json({ message: 'Could not load the resuable bazaars'});
+  }
+});
+
+router.post('/reusable-bazaars/:sourceBazaarId/apply', async (req, res) => {
+  try {
+    const ownerId = req.user?._id;
+    if (!ownerId)
+      return res.status(401).json({ message: 'Not Approved'});
+
+    const { sourceBazzarId } = req.params;
+    const { targetClassroomId } = req.body;
+
+    if(!mongoose.isValidObjectId(sourceBazzarId) || !mongoose.isValidObjectId(targetClassroomId)) {
+      return res.status(400).json({ message: 'This is an invalid Id'})
     }
-    if (!bazaarTemplateId || !mongoose.isValidObjectId(bazaarTemplateId)) {
-      return res.status(400).json({ message: 'bazaarTemplateId is required' });
-    }
 
-    await session.withTransaction(async () => {
-      const loadBazaarTemplate = await BazaarTemplate.findById(bazaarTemplateId).session(session);
-      if (!loadBazaarTemplate) {
-        return res.status(404).json({ message: 'Template not found' });
-      }
-
-      const sourceBazaar = await Bazaar.findById(loadBazaarTemplate.bazaarId).lean().session(session);
-      if (!sourceBazaar) {
-        return res.status(404).json({ message: 'Source bazaar not found' });
-      }
-
-      const [newBazaar] = await Bazaar.create([{
-        name: (newBazaarName && newBazaarName.trim()) || loadBazaarTemplate.name || sourceBazaar.name || 'Imported Bazaar Template',
-        classroom: classroomId,
-        description: (loadBazaarTemplate.description || sourceBazaar.description || '').trim(),
-        image: sourceBazaar.image || null,
-      }], { session });
-
-      const sourceItems = await Item.find({ bazaar: loadBazaarTemplate.bazaarId }).lean().session(session);
-      if (Array.isArray(sourceItems) && sourceItems.length) {
-        const itemsToAdd = sourceItems.map((item) => ({
-          name: item.name,
-          description: item.description || '',
-          category: item.category,
-          price: item.price,
-          primaryEffect: item.primaryEffect,
-          secondaryEffect: item.secondaryEffect,
-          image: item.image ?? undefined,
-          imageUrl: item.imageUrl ?? undefined,
-          bazaar: newBazaar._id,
-        }));
-        await Item.insertMany(itemsToAdd, { session, ordered: false });
-      }
-
-      return res.json({ bazaar: newBazaar });
-    });
-  } catch (error) {
-    console.error('POST bazaar-templates error:', error);
-    if (!res.headersSent) {
-      res.status(500).json({ message: 'There was an error while importing the bazaar template.' });
-    }
-  } finally {
-    session.endSession();
+    const newBazaar = await copyBazaarIntoClassroom({ sourceBazaarId, targetClassroomId});
+    res.json({ bazaar: newBazaar});
+  } catch (err) {
+    console.error('[POST /api/templates/reusable-bazaars/:sourceBazaarId/apply]', err);
+    res.status(500).json({ message: 'Could not apply the bazaar'});
   }
 });
 
 module.exports = router;
+

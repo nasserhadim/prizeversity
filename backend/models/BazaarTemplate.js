@@ -6,47 +6,39 @@ const BazaarTemplateSchema = new mongoose.Schema({
         type: String,
         required: true,
         trim: true,
-        maxLength: 100,
+        maxLength: 100
     },
     description: { //the description the instructor gives the bazaar template
         type: String,
         trim: true,
-        maxLength: 100,
+        maxLength: 300
     },
-    //This is the classroom that this bazaar template belongs to 
-    classroomId: {
-        type: mongoose.Types.ObjectId,
-        ref: 'Classroom',
-        required: true,
-        index: true,
-    },
-    //This is the bazaar template belongs to if it has been already made
-    bazaarId: {
-        type: mongoose.Types.ObjectId,
-        ref: 'Bazaar',
-        default: null,
-    },
-    //This is the person who made this bazaar template
-    madeBy: {
-        type: mongoose.Types.ObjectId,
+    owner: {
+        type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true,
-        index: true,
+        required: true
     },
-    isPublic: { //this is for if this bazaar template is public for other instructors to use
-        type: Boolean,
-        default: false,
-        index: true,
+    sourceBazaar: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Bazaar',
+        required: true
     },
-    tags: { //this is short labels to help with searching
-        type: [String],
-        deafault: [],
+    sourceClassroom: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Classroom',
+        required: true
     },
-}, 
-{ timestamps: true}
+    countItem: {
+        type: Number,
+        default: 0
+    },
+    createdAt: {
+        type: Date,
+        default: Date.now
+    },
     
-);
+});
 //these indexes with help when searching for bazaar templates
-BazaarTemplateSchema.index({name: 'text', tags: 'text'}); //search by the name or tags
+BazaarTemplateSchema.index({owner: 1, createdAt: -1}); //search by the name or tags
 
 module.exports = mongoose.model('BazaarTemplate', BazaarTemplateSchema);
