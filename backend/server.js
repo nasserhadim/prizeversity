@@ -13,6 +13,7 @@ const authRoutes = require('./routes/auth');
 const classroomRoutes = require('./routes/classroom');
 const bazaarRoutes = require('./routes/bazaar');
 const walletRoutes = require('./routes/wallet');
+const discountRoutes = require('./routes/discounts'); // adding this to get discounts working
 const groupRoutes = require('./routes/group');
 const siphonRouter = require('./routes/siphon');
 const notificationsRoutes = require('./routes/notifications');
@@ -177,6 +178,7 @@ app.use('/api/classroom', classroomRoutes);
 app.use('/api/classroom/:id/newsfeed', newsfeedRoutes);
 app.use('/api/bazaar', bazaarRoutes);
 app.use('/api/wallet', walletRoutes);
+app.use('/api/discounts', discountRoutes); // adding to fix discounts
 app.use('/api/group', groupRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/admin', adminRoutes);

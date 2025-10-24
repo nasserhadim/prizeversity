@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import axios from 'axios';
@@ -18,7 +18,7 @@ const ItemCard = ({
   teacherId, 
   onUpdated, 
   onDeleted, 
-  bazaarIdProp, }) => {
+  bazaarIdProp, }) => { 
   const [confirmDelete, setConfirmDelete] = useState(false); // controls delete confirmation
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -35,11 +35,20 @@ const ItemCard = ({
 const [editOpen, setEditOpen] = useState(false); // controls edit modal visibility, edit item to open or close
 
 const [discounts, setDiscounts] = useState([]);
+const [discountPercent, setDiscountPercent] = useState(0);
 
 const handleChange = (e) => {
   const { name, value } = e.target;   //get input name and value
   setForm(f => ({ ...f, [name]: value }));   //changing updated values when editing
 };
+
+// added to automatically get discounts
+useEffect(() => {
+  if (user?._id && classroomId) {
+    getDiscounts();
+  }
+  //console.log("Discounts loaded:", discounts);
+}, [user?._id, classroomId]);
 
 const submitEdit = async (e) => {  //preventing the page to reload when submitting the form
   e.preventDefault();
@@ -201,21 +210,45 @@ const handleBuy = async () => {
     setLoading(false);
   }
 };
-
-//
+/* Commenting out due to issue fixing
+// determines the total discounts
+const totalDiscount = () => {
+    letpercent = 0;
+    if (discounts.length)
+    {
+        const combined = discounts.reduce(
+            (acc, d) => acc * (1 - (d.percent || 0) / 100), 1
+        );
+        percent = (1 - combined) * 100;
+    }
+    setDiscountPercent(percent);
+};*/
+// gets and determinesthe discounts
 const getDiscounts = async () => {
     try {
-        const res = await apiDiscount.get(`/classroom/${classroom._id}/user/${user._id}`);
-        const data = await res.json();
-        setDiscounts(data || []);
-        setDiscountPercent();
-        } catch (err) {
-            console.error("Failed to load discounts:", err);
+        const res = await apiDiscount.get(`/classroom/${classroomId}/user/${user._id}`);
+        console.log("Discount API response:", res.data);
+        const discountData = res.data || [];
+        
+        setDiscounts(discountData);
+
+
+        let percent = 0;
+        console.log("Discounts: ", discountData.length)
+        if (discountData.length)
+        {
+            const combined = discountData.reduce(
+                (acc, d) => acc * (1 - (d.discountPercent || 0) / 100), 1
+            );
+            percent = (1 - combined) * 100;
         }
+        setDiscountPercent(percent);
+        console.log("Discount applied: ", percent)
+    } catch (err) {
+        console.error("Failed to load discounts:", err);
+    }
 };
-const totalDiscount = () => {
-        return discounts.reduce((total, discount) => 100 - ((100 - total) * (100 - discount.percent) / 100));
-};
+
 
 
   // this is calculating the the discounted price if discount is active 
@@ -225,10 +258,8 @@ const totalDiscount = () => {
     let finalPrice = basePrice;
     let discountApplied = false;
     let groupBonus = false;
-
-    if (role === 'student' && Number(user?.discountPercent) > 0) {
-    const pct = Number(user.discountPercent);
-    finalPrice = Math.floor(basePrice * (1 - pct / 100));
+    if (role === 'student' && discountPercent > 0) {
+    finalPrice = Math.floor(basePrice * (1 - discountPercent / 100));
     discountApplied = true;
 }
     if (user?.groups?.length > 0 && user?.groupMultiplier > 1) {
@@ -241,7 +272,10 @@ const totalDiscount = () => {
         <>
           <span className="line-through text-gray-400 mr-2">{basePrice} ₿</span>
           <span className="text-green-600">{finalPrice} ₿</span>
-          {discountApplied && <span className="text-xs text-green-600 ml-1">{Number(user.discountPercent)}% off</span>}
+          {discountApplied && (
+            <span className="text-xs text-green-600 ml-1">
+                {discountPercent.toFixed(1)}% off
+                </span>)}
           {groupBonus && <span className="text-xs text-blue-600 ml-1">(+{Math.round((user.groupMultiplier-1)*100)}% group bonus)</span>}
         </>
       );
