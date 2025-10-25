@@ -37,30 +37,17 @@ const XPBar = ({ userId, classroomId, xpRefresh }) => {
   const progressPercent = Math.min((xp / xpNeeded) * 100, 100);
 
   return (
-    <div style={{
-      position: 'absolute',
-      top: '70px',
-      right: '20px',
-      width: '200px',
-      backgroundColor: '#ccc',
-      borderRadius: '8px',
-      overflow: 'hidden'
-    }}>
-      <div
-        style={{
-          height: '12px',
-          width: `${progressPercent}%`,
-          backgroundColor: '#FFD700',
-          transition: 'width 0.3s ease'
-        }}
-      />
-      <p style={{
-        margin: '5px 0 0 0',
-        textAlign: 'center',
-        fontSize: '13px',
-        color: '#333'
-      }}>
-        Level {level} — {xp}/{xpNeeded} XP
+    <div className="flex flex-col items-center justify-center min-w-[150px]">
+
+      <div className="w-full bg-gray-300 rounded-full h-2 overflow-hidden">
+        <div
+          className="bg-yellow-400 h-2 transition-all duration-300"
+          style={{ width: `${progressPercent}%` }}
+        />
+      </div>
+
+      <p className="text-xs text-gray-700 mt-1 text-center">
+        Lv. {level} — {xp}/{xpNeeded} XP
       </p>
     </div>
   );

@@ -35,7 +35,6 @@ import rpgSchoolChars from '../assets/Education/rpg-school-chars.svg';
 
 import './Home.css';
 
-import XPBar from '../components/XPBarComponent.jsx';
 
 
 const Home = () => {
@@ -49,8 +48,6 @@ const Home = () => {
 
   const [carouselGroup, setCarouselGroup] = useState('education');
   const scrollRef = useRef(null);
-
-  const [xpRefreshKey, setXpRefresh] = useState(0);
 
   const navigate = useNavigate();
 
@@ -140,40 +137,7 @@ const Home = () => {
     }
   }, []);
 
-  // Temporary XP Testing Functions
-  // These functions are temporary for development testing only
-  const handleAddXP = async () => {
-    try {
-      console.log('Sending XP:', {
-        userId: user._id,
-        classroomId: user.currentClassroomId,
-      });
-      await axios.post('http://localhost:5000/api/xp/test/add', {
-        userId: user._id,
-        classroomId: user.classroomBalances?.[0]?.classroom,
-        xpToAdd: 150 // test amount
-      });
-      toast.success('Added test XP!');
-      setXpRefresh(prev => prev + 1);
-    } catch (err) {
-      console.error('Error adding test XP:', err);
-      toast.error('Failed to add XP');
-    }
-  };
-
-  const handleResetXP = async () => {
-    try {
-      await axios.post('http://localhost:5000/api/xp/test/reset', {
-        userId: user._id,
-        classroomId: user.currentClassroomId
-      });
-      toast.success('XP reset!');
-      setXpRefresh(prev => prev + 1);
-    } catch (err) {
-      console.error('Error resetting XP:', err);
-      toast.error('Failed to reset XP');
-    }
-  };
+  
 
   // Handler to submit user role and profile update
   const handleRoleAndProfileSubmit = async () => {
@@ -356,46 +320,6 @@ const Home = () => {
             </p>
           </div>
         )}
-
-        {user && role === 'student' && (
-          <>
-          <XPBar userId={user._id} 
-          classroomId={user.currentClassroomId || ''}
-          xpRefresh={xpRefreshKey} 
-          />
-          {/* Temporary XP Testing Buttons */}
-          <div style={{ marginTop: '10px', textAlign: 'right', paddingRight: '20px' }}>
-            <button
-              onClick={handleAddXP}
-              style={{
-                marginRight: '8px',
-                backgroundColor: '#4CAF50',
-                color: 'white',
-                border: 'none',
-                padding: '6px 10px',
-                borderRadius: '6px',
-                cursor: 'pointer'
-              }}
-            >
-              +XP Test
-            </button>
-
-            <button
-              onClick={handleResetXP}
-              style={{
-                backgroundColor: '#f44336',
-                color: 'white',
-                border: 'none',
-                padding: '6px 10px',
-                borderRadius: '6px',
-                cursor: 'pointer'
-              }}
-            >
-              Reset XP
-            </button>
-          </div>
-        </>
-      )}
 
         {/* Profile Completion (if needed) */}
         {user && (!profileComplete || !role) && (
