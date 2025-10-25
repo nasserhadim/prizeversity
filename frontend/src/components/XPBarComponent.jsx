@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 const XPBar = ({ userId, classroomId, xpRefresh }) => {
   const [xp, setXP] = useState(0);
   const [level, setLevel] = useState(1);
   const [xpNeeded, setXpNeeded] = useState(100);
+  const previousLevel = useRef(1);
 
   useEffect(() => {
     const fetchXPData = async () => {
@@ -19,8 +21,22 @@ const XPBar = ({ userId, classroomId, xpRefresh }) => {
 
         if (classroom) {
           setXP(classroom.xp || 0);
-          setLevel(classroom.level || 1);
-          setXpNeeded((classroom.level || 1) * 100);
+
+          const newLevel = classroom.level || 1;
+          if (newLevel > previousLevel.current) {
+            toast.success(`🎉 Level Up! You reached Level ${newLevel}!`, {
+              duration: 4000,
+              style: {
+                background: '#22c55e',
+                color: '#fff',
+                fontWeight: 'bold',
+              },
+            });
+          }
+          previousLevel.current = newLevel;
+
+          setLevel(newLevel);
+          setXpNeeded((newLevel || 1) * 100);
         } else {
           setXP(0);
           setLevel(1);
