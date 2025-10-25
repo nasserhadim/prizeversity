@@ -279,6 +279,49 @@ const Classroom = () => {
             </div>
           )}
 
+          {/* XP test buttons jsut for students (temporary) */}
+          {user.role === 'student' && (
+            <div className="flex gap-3 mb-6 justify-center">
+              <button
+                onClick={async () => {
+                  try {
+                    await axios.post('/api/xp/test/add', {
+                      userId: user._id,
+                      classroomId: id, // matches useParams
+                      xpToAdd: 50, // adjust XP value if needed
+                    });
+                    toast.success('Added 50 XP');
+                  } catch (err) {
+                    console.error('Error adding XP:', err);
+                    toast.error('Failed to add XP');
+                  }
+                }}
+                className="btn btn-success btn-sm"
+              >
+                +50 XP
+              </button>
+
+              <button
+                onClick={async () => {
+                  try {
+                    await axios.post('/api/xp/test/reset', {
+                      userId: user._id,
+                      classroomId: id,
+                    });
+                    toast.success('XP Reset');
+                  } catch (err) {
+                    console.error('Error resetting XP:', err);
+                    toast.error('Failed to reset XP');
+                  }
+                }}
+                className="btn btn-warning btn-sm"
+              >
+                Reset XP
+              </button>
+            </div>
+          )}
+
+
           {/* Announcements List */}
           <div className="space-y-6">
             <h3 className="text-center text-green-500 text-4xl font-bold mb-4">
