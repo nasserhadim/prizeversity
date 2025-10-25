@@ -522,9 +522,9 @@ const Navbar = () => {
             </div>
           </div>
           {/* XP Bar below the icons */}
-          {insideClassroom && (
+          {insideClassroom && user?.role === 'student' &&(
             <div className="w-56 mt-1">
-              <XPBar userId={user._id} classroomId={classroomId} />
+              <XPBar userId={user._id} classroomId={classroomId}/>
             </div>
           )}
         </div>

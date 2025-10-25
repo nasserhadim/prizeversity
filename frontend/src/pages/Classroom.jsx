@@ -29,6 +29,8 @@ const Classroom = () => {
   const [announcements, setAnnouncements] = useState([]);
   const [visibleCount, setVisibleCount] = useState(10);
   const [confirmModal, setConfirmModal] = useState(null);
+  const [xpRefresh, setXpRefresh] = useState(false);
+
 
   // Fetch classroom and student data on mount
   useEffect(() => {
@@ -291,6 +293,7 @@ const Classroom = () => {
                       xpToAdd: 50, // adjust XP value if needed
                     });
                     toast.success('Added 50 XP');
+                    setXpRefresh(prev => !prev);
                   } catch (err) {
                     console.error('Error adding XP:', err);
                     toast.error('Failed to add XP');
@@ -309,6 +312,7 @@ const Classroom = () => {
                       classroomId: id,
                     });
                     toast.success('XP Reset');
+                    setXpRefresh(prev => !prev);
                   } catch (err) {
                     console.error('Error resetting XP:', err);
                     toast.error('Failed to reset XP');
