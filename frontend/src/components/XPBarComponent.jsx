@@ -10,10 +10,10 @@ const XPBar = ({ userId, classroomId, xpRefresh }) => {
     const fetchXPData = async () => {
       try {
         const res = await axios.get(`/api/users/${userId}/xp`);
-        const user = res.data;
+        const classroomBalances = res.data.classroomBalances || [];
 
-        // Find classroom-specific XP data
-        const classroom = user.classroomBalances.find(
+        // Find classroom specific XP data
+        const classroom = classroomBalances.find(
           c => c.classroom?.toString() === classroomId?.toString()
         );
 
@@ -21,6 +21,10 @@ const XPBar = ({ userId, classroomId, xpRefresh }) => {
           setXP(classroom.xp || 0);
           setLevel(classroom.level || 1);
           setXpNeeded((classroom.level || 1) * 100);
+        } else {
+          setXP(0);
+          setLevel(1);
+          setXpNeeded(100);
         }
       } catch (err) {
         console.error('Error fetching XP data:', err);

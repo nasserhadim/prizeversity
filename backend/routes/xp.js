@@ -28,13 +28,20 @@ router.post('/add', async (req, res) => {
     );
 
     if (!classroomData) {
-      classroomData = {
+      console.log("⚠️ No classroom match for classroomId:", classroomId);
+      console.log("Existing classroomBalances:", user.classroomBalances.map(cb => cb.classroom?.toString()));
+    }
+
+    if (!classroomData) {
+      user.classroomBalances.push({
         classroom: classroomId,
         balance: 0,
         xp: 0,
         level: 1
-      };
-      user.classroomBalances.push(classroomData);
+      });
+      classroomData = user.classroomBalances.find(
+        c => c.classroom.toString() === classroomId.toString()
+      );
     }
 
     // Add XP

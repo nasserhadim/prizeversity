@@ -40,6 +40,8 @@ import XPBar from '../components/XPBarComponent.jsx';
 
 const Home = () => {
   const { user, logout, setUser } = useAuth();
+  console.log("Full user object:", user);
+
   const [role, setRole] = useState(user?.role || '');
   const [firstName, setFirstName] = useState(user?.firstName || '');
   const [lastName, setLastName] = useState(user?.lastName || '');
@@ -142,9 +144,13 @@ const Home = () => {
   // These functions are temporary for development testing only
   const handleAddXP = async () => {
     try {
-      await axios.post('http://localhost:5000/api/xp/test/add', {
+      console.log('Sending XP:', {
         userId: user._id,
         classroomId: user.currentClassroomId,
+      });
+      await axios.post('http://localhost:5000/api/xp/test/add', {
+        userId: user._id,
+        classroomId: user.classroomBalances?.[0]?.classroom,
         xpToAdd: 150 // test amount
       });
       toast.success('Added test XP!');
@@ -355,7 +361,7 @@ const Home = () => {
           <>
           <XPBar userId={user._id} 
           classroomId={user.currentClassroomId || ''}
-          key={xpRefreshKey} 
+          xpRefresh={xpRefreshKey} 
           />
           {/* Temporary XP Testing Buttons */}
           <div style={{ marginTop: '10px', textAlign: 'right', paddingRight: '20px' }}>
