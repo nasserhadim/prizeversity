@@ -1,8 +1,10 @@
 import { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { useAuth } from '../context/AuthContext';
 
 const XPBar = ({ userId, classroomId, xpRefresh }) => {
+  const { user } = useAuth();
   const [xp, setXP] = useState(0);
   const [level, setLevel] = useState(1);
   const [xpNeeded, setXpNeeded] = useState(100);
@@ -21,9 +23,13 @@ const XPBar = ({ userId, classroomId, xpRefresh }) => {
 
         if (classroom) {
           setXP(classroom.xp || 0);
-
           const newLevel = classroom.level || 1;
-          if (newLevel > previousLevel.current) {
+
+           if (
+            user?.role === 'student' &&
+            newLevel > previousLevel.current &&
+            previousLevel.current !== 1
+          ) {
             toast.success(`🎉 Level Up! You reached Level ${newLevel}!`, {
               duration: 4000,
               style: {
