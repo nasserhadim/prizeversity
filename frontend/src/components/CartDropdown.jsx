@@ -16,28 +16,22 @@ const CartDropdown = (props) => {
     const classroomId = getClassroomFromPath(location.pathname);
     const { getTotal, removeFromCart, getCart } = useCart();
     const { user } = useAuth();
-    const [hasDiscount, setHasDiscount] = useState(user?.discountShop || false);
+    //const [hasDiscount, setHasDiscount] = useState(user?.discountShop || false);
     const [discounts, setDiscounts] = useState([]);
+    const [discountPercent, setDiscountPercent] = useState(0);
 
 
     useEffect(() => {
-
+        if (user?._id && classroomId) {
+        getDiscounts();
+        }
+        
         socket.on('discount_expired', handleDiscountExpired);
 
         return () => {
             socket.off('discount_expired', handleDiscountExpired);
         };
         // new functionality to get discounts from specific collection
-        async function getDiscounts() {
-            try {
-                const res = await apiDiscount.get(`/classroom/${classroom._id}/user/${user._id}`);
-                const data = await res.json();
-                setDiscounts(data || []);
-                setDiscountPercent();
-            } catch (err) {
-                console.error("Failed to load discounts:", err);
-            }
-        };
     }, [user]);
 
     // this is calculating the discuonted price (but only if discount is active)
@@ -50,9 +44,34 @@ const CartDropdown = (props) => {
     return pct > 0 ? Math.floor(price * (1 - pct / 100)) : price;
 };
 
-{Number(totalDiscount()) > 0 && (
+const getDiscounts = async () => {
+    try {
+        const res = await apiDiscount.get(`/classroom/${classroomId}/user/${user._id}`);
+        console.log("Discount API response:", res.data);
+        const discountData = res.data || [];
+        
+        setDiscounts(discountData);
+
+
+        let percent = 0;
+        console.log("Discounts: ", discountData.length)
+        if (discountData.length)
+        {
+            const combined = discountData.reduce(
+                (acc, d) => acc * (1 - (d.discountPercent || 0) / 100), 1
+            );
+            percent = (1 - combined) * 100;
+        }
+        setDiscountPercent(percent);
+        console.log("Discount applied: ", percent);
+    } catch (err) {
+        console.error("Failed to load discounts:", err);
+    }
+};
+
+{discountPercent > 0 && (
   <div className="text-xs text-green-600 mb-2">
-    {Number(totalDiscount())}% discount applied! {/* changed this so it isnt hard coded to 20%  instead it has the users input
+    {discountPercent}% discount applied! {/* changed this so it isnt hard coded to 20%  instead it has the users input
                                                     changed again to use new discount system*/}
   </div>
 )}
@@ -62,13 +81,13 @@ const CartDropdown = (props) => {
     return (
         <div className="fixed top-20 right-4 bg-base-100 border border-base-300 shadow-lg w-80 z-[9999] p-4 rounded text-base-content">
             <h3 className="text-lg font-bold mb-2">Your Cart</h3>
-            {Number(totalDiscount()) > 0 && (
+            {discountPercent > 0 && (
                 <div className='text-xs text-green-600 mb-2'>
-                    {Number(totalDiscount())}% discount applied to all items! (expires soon)
+                    {discountPercent}% discount applied to all items! (expires soon)
                 </div>
             )}
-            {Number(totalDiscount()) > 0 && (
-                <div className="text-xs text-green-600 mb-2">{Number(totalDiscount())}% discount applied to all items!</div>
+            {discountPercent > 0 && (
+                <div className="text-xs text-green-600 mb-2">{discountPercent}% discount applied to all items!</div>
             )}
             {cartItems.length === 0 ? (
                 <p className="text-sm text-base-content/60">Cart is empty</p>
@@ -103,7 +122,7 @@ const CartDropdown = (props) => {
                         Total: Ƀ{getTotal(classroomId)}
                         {true && (
                             <span className="block text-xs text-green-600">
-                                You saved Ƀ{Math.floor(getTotal(classroomId) * totalDiscount())}!
+                                You save Ƀ{Math.floor(getTotal(classroomId) * totalDiscount())}!
                             </span>
                         )}
                      </div>

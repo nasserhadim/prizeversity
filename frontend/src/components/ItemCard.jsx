@@ -259,7 +259,7 @@ const getDiscounts = async () => {
     let discountApplied = false;
     let groupBonus = false;
     if (role === 'student' && discountPercent > 0) {
-    finalPrice = Math.floor(basePrice * (1 - discountPercent / 100));
+    finalPrice = Math.ceil(basePrice * (1 - discountPercent / 100));
     discountApplied = true;
 }
     if (user?.groups?.length > 0 && user?.groupMultiplier > 1) {
@@ -274,7 +274,7 @@ const getDiscounts = async () => {
           <span className="text-green-600">{finalPrice} ₿</span>
           {discountApplied && (
             <span className="text-xs text-green-600 ml-1">
-                {discountPercent.toFixed(1)}% off
+                {Math.floor(discountPercent)}% off
                 </span>)}
           {groupBonus && <span className="text-xs text-blue-600 ml-1">(+{Math.round((user.groupMultiplier-1)*100)}% group bonus)</span>}
         </>

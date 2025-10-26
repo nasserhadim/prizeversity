@@ -10,6 +10,7 @@ import { resolveImageSrc } from '../utils/image';
 import { getEffectDescription, splitDescriptionEffect } from '../utils/itemHelpers';
 import Footer from '../components/Footer';
 import apiClassroom from '../API/apiClassroom';
+import apiDiscount from '../API/apiDiscount';
 
 
 const Checkout = () => {
@@ -22,11 +23,15 @@ const Checkout = () => {
   const [balance, setBalance] = useState(0);
   const [discounts, setDiscounts] = useState([]);
   const [discountNum, setDiscountNum] = useState(0);
-  const [hasDiscount, setHasDiscount] = useState(user?.discountShop || false);
+  const [discountPercent, setDiscountPercent] = useState(0);
+  
   const [classroom, setClassroom] = useState(null);
 
   useEffect(() => {
-    setHasDiscount(user?.discountShop || false);
+    // gets the discount
+    if (user?._id && classroomId) {
+        getDiscounts();
+    }
 
     // Listen for discount expiration
     const handleDiscountExpired = () => {
@@ -84,15 +89,14 @@ const Checkout = () => {
   }, [classroomId]);
 
   // Calculating the discounted price (only if discount is active)
-  const pct = Number(user?.discountPercent) || 0;
 
   const calculatePrice = (price) => {
-  return pct > 0 ? Math.floor(price * (1 - pct / 100)) : price;
+    return discountPercent > 0 ? Math.ceil(price * (1 - discountPercent / 100)) : price;
   };
 
   const calculateTotal = () => {
-  const subtotal = cartItems.reduce((sum, item) => sum + item.price, 0);
-  return pct > 0 ? Math.floor(subtotal * (1 - pct / 100)) : subtotal;
+    const subtotal = cartItems.reduce((sum, item) => sum + item.price, 0);
+    return discountPercent > 0 ? Math.ceil(subtotal * (1 - discountPercent / 100)) : subtotal;
 };
 
   const handleCheckout = async () => {
@@ -151,6 +155,31 @@ const Checkout = () => {
     }
   };
 
+  const getDiscounts = async () => {
+    try {
+        const res = await apiDiscount.get(`/classroom/${classroomId}/user/${user._id}`);
+        console.log("Discount API response:", res.data);
+        const discountData = res.data || [];
+        
+        setDiscounts(discountData);
+
+
+        let percent = 0;
+        console.log("Discounts: ", discountData.length)
+        if (discountData.length)
+        {
+            const combined = discountData.reduce(
+                (acc, d) => acc * (1 - (d.discountPercent || 0) / 100), 1
+            );
+            percent = (1 - combined) * 100;
+        }
+        setDiscountPercent(percent);
+        console.log("Discount applied: ", percent);
+    } catch (err) {
+        console.error("Failed to load discounts:", err);
+    }
+};
+
   return (
     <div className="flex flex-col min-h-screen bg-base-200">
       <main className="flex-grow flex items-start justify-center p-6 pt-24 pb-12">
@@ -161,9 +190,9 @@ const Checkout = () => {
               : 'Checkout'}
           </h2>
 
-          {user?.discountShop && (
+          {discountPercent > 0 && (
               <div className="bg-success/10 text-success p-3 rounded mb-4 text-sm">
-                  🎉 {Number(user.discountPercent)}% discount applied to all items!
+                  🎉 {Math.floor(discountPercent)}% discount applied to all items!
               </div>
           )}
 
@@ -228,7 +257,7 @@ const Checkout = () => {
 
                               {/* Price */}
                               <div className="ml-4 text-right flex-shrink-0">
-                                  {user?.discountShop ? (
+                                  {discountPercent > 0 ? (
                                       <>
                                           <div className="text-xs line-through text-base-content/50">{item.price} ₿</div>
                                           <div className="text-success font-semibold">{calculatePrice(item.price)} ₿</div>

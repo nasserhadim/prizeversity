@@ -3,7 +3,7 @@ const Bazaar = require('../models/Bazaar');
 const Item = require('../models/Item');
 const User = require('../models/User');
 const Classroom = require('../models/Classroom');
-const Discount = require('../models/Discount');
+const Discounts = require('../models/Discount');
 const { ensureAuthenticated } = require('../config/auth');
 const router = express.Router();
 const Order = require('../models/Order');
@@ -443,14 +443,28 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
       }
     }
 
-    // determines the discount
+    // finds the discounts
+    const discounts = await Discounts.find(
+        { classroom: classroomId, owner: userId}
+    );
+    // determines the total discount
+    let percent = 0;
+    console.log("Discounts: ", discounts.length)
+    if (discounts.length)
+    {
+        const combined = discounts.reduce(
+            (acc, d) => acc * (1 - (d.discountPercent || 0) / 100), 1
+        );
+        percent = (1 - combined) * 100;
+    }
+    console.log("Discount applied: ", percent);
 
 
 
     //const pct = Number(user.discountPercent) || 0;
     //const discountMultiplier = pct > 0 ? (1 - pct / 100) : 1;
     //replaced const total 
-    const total = resolvedItems.reduce((sum, item) => sum + item.price, 0);
+    const total = Math.ceil(resolvedItems.reduce((sum, item) => sum + item.price, 0) * (1 - percent / 100));
 
     console.log(`Calculated total: ${total}, User per-classroom balance: ${getClassroomBalance(user, classroomId)}`);
 
