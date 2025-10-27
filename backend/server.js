@@ -12,6 +12,7 @@ const { Server } = require('socket.io');
 const authRoutes = require('./routes/auth');
 const classroomRoutes = require('./routes/classroom');
 const bazaarRoutes = require('./routes/bazaar');
+const bazaarTemplatesRoutes = require('./routes/bazaarTemplate');
 const walletRoutes = require('./routes/wallet');
 const discountRoutes = require('./routes/discounts'); // adding this to get discounts working
 const groupRoutes = require('./routes/group');
@@ -32,7 +33,6 @@ const defendItems = require('./routes/defendItem.js');
 const utilityItems = require('./routes/utilityItem.js');
 const passiveItems = require('./routes/passiveItem.js');
 const mysteryRoutes = require('./routes/mysteryItem.js');
-
 const challengeRoutes = require('./routes/challenge');
 const challengeTemplateRoutes = require('./routes/challengeTemplate');
 const challengeVerifyRoutes = require('./routes/challengeVerify');
@@ -49,6 +49,7 @@ console.log("✅ Socket.IO CORS origin set to:", redirectBase);
 // This allows the frontend to connect to the Socket.IO server from the specified origin
 
 const { setIO } = require('./utils/io'); // <-- new import
+//const { default: apiBazaarTemplate } = require('../frontend/src/API/apiBazaarTemplate.js');
 
 const io = new Server(httpServer, {
   cors: {
@@ -179,6 +180,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/classroom', classroomRoutes);
 app.use('/api/classroom/:id/newsfeed', newsfeedRoutes);
 app.use('/api/bazaar', bazaarRoutes);
+app.use('/api/bazaarTemplate', bazaarTemplatesRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/discounts', discountRoutes); // adding to fix discounts
 app.use('/api/group', groupRoutes);
