@@ -1,17 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
+import { ThemeContext } from '../context/ThemeContext'; // <-- added import
 import axios from 'axios';
 import socket from '../utils/socket.js';
 import { LoaderIcon, RefreshCw } from 'lucide-react';
 import Footer from '../components/Footer';
+import StatsRadar from '../components/StatsRadar'; // <-- add this import
+import { getThemeClasses } from '../utils/themeUtils'; // <-- new import
 
 const StudentStats = () => {
   const { classroomId, id: studentId } = useParams();
   const location = useLocation();
+  const { theme } = useContext(ThemeContext); // <-- read theme
+  const isDark = theme === 'dark';
+  const themeClasses = getThemeClasses(isDark); // <-- derive theme classes
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-
+  // Precompute group multiplier for rendering
+  const groupMultiplierValue = Number(stats?.groupMultiplier ?? stats?.student?.groupMultiplier ?? 1);
+  
   useEffect(() => {
     // Async function to fetch student stats from backend
     const fetchStats = async () => {
@@ -100,11 +108,27 @@ const StudentStats = () => {
 
   return (
     <>
-      <div className="max-w-md mx-auto p-6 mt-10 bg-white rounded-xl shadow space-y-6">
+      <div className={`${themeClasses.cardBase} max-w-md mx-auto mt-10 space-y-6`}>
         <h1 className="text-2xl font-bold text-center">{(stats.student.name || stats.student.email.split('@')[0])}'s Stats</h1>
-        {/* <p className="text-center text-gray-500">{stats.student.email}</p> */}
 
+        {/* radar + legend (unchanged) */}
+        <div className="flex justify-center">
+          <StatsRadar
+            isDark={isDark}
+            stats={{
+              multiplier: stats.multiplier || stats.student?.multiplier || 1,
+              groupMultiplier: stats.groupMultiplier ?? stats.student?.groupMultiplier ?? 1,
+              luck: stats.luck || stats.student?.luck || 1,
+              attackPower: stats.attackPower || stats.student?.attackPower || 0,
+              shieldCount: stats.shieldCount || stats.student?.shieldCount || 0,
+              discountShop: stats.discountShop || stats.student?.discountShop || 0
+            }}
+          />
+        </div>
+
+        {/* stats list */}
         <div className="stats stats-vertical shadow w-full">
+          {/* Attack, Shield, Multiplier (existing items) */}
           <div className="stat">
             <div className="stat-figure text-secondary">
               ⚔️
@@ -129,9 +153,23 @@ const StudentStats = () => {
             </div>
             <div className="stat-title">Multiplier</div>
             <div className="stat-value">
-              x{Number(stats.multiplier || 1).toFixed(1)}
+              x{Number(stats.multiplier || stats.student?.multiplier || 1).toFixed(1)}
             </div>
           </div>
+
+          {/* ONLY render Group Multiplier when > 1 */}
+          {groupMultiplierValue > 1 && (
+            <div className="stat">
+              <div className="stat-figure text-secondary">
+                👥
+              </div>
+              <div className="stat-title">Group Multiplier</div>
+              <div className="stat-value">
+                x{groupMultiplierValue.toFixed(1)}
+              </div>
+              <div className="stat-desc">Includes group bonus</div>
+            </div>
+          )}
           
           <div className="stat">
             <div className="stat-figure text-secondary">
@@ -139,9 +177,9 @@ const StudentStats = () => {
             </div>
             <div className="stat-title">Discount</div>
             <div className="stat-value">
-              {stats.discountShop ? `${stats.discountShop}%` : 'None'}
+              {stats.discount > 0 ? `${stats.discount}%` : 'None'}
             </div>
-            {stats.discountShop > 0 && (
+            {stats.discount > 0 && (
               <div className="stat-desc">Active in bazaar</div>
             )}
           </div>

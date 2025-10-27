@@ -15,85 +15,85 @@ const RewardModal = ({ isOpen, onClose, rewards, challengeName, allCompleted, ne
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl max-w-md w-full mx-4 overflow-hidden shadow-2xl">
+      <div className="bg-white rounded-2xl max-w-md w-full mx-auto overflow-hidden shadow-2xl">
         {/* Header */}
-        <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white p-6 text-center relative">
+        <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white p-4 text-center relative">
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 text-white hover:text-gray-200 transition-colors"
+            className="absolute top-3 right-3 text-white hover:text-gray-200 transition-colors"
           >
-            <X className="w-6 h-6" />
+            <X className="w-5 h-5" />
           </button>
-          <Trophy className="w-16 h-16 mx-auto mb-4 animate-bounce" />
-          <h2 className="text-2xl font-bold mb-2">Challenge Completed!</h2>
-          <p className="text-green-100">{challengeName}</p>
+          <Trophy className="w-12 h-12 mx-auto mb-2 animate-bounce" />
+          <h2 className="text-xl font-bold mb-1">Challenge Completed!</h2>
+          <p className="text-green-100 text-sm">{challengeName}</p>
         </div>
 
         {/* Rewards */}
-        <div className="p-6">
+        <div className="p-4">
           {hasRewards ? (
             <>
-              <h3 className="text-lg font-semibold text-gray-800 mb-4 text-center">
+              <h3 className="text-base font-semibold text-gray-800 mb-3 text-center">
                 🎉 Rewards Earned
               </h3>
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {rewards.bits > 0 && (
-                  <div className="flex items-center justify-between bg-yellow-50 p-3 rounded-lg border border-yellow-200">
-                    <div className="flex items-center gap-3">
-                      <Coins className="w-6 h-6 text-yellow-600" />
-                      <span className="font-medium text-gray-800">Bits</span>
+                  <div className="flex items-center justify-between bg-yellow-50 p-2 rounded-lg border border-yellow-200">
+                    <div className="flex items-center gap-2">
+                      <Coins className="w-5 h-5 text-yellow-600" />
+                      <span className="font-medium text-gray-800 text-sm">Bits</span>
                     </div>
-                    <span className="text-xl font-bold text-yellow-600">+{rewards.bits}</span>
+                    <span className="text-base font-bold text-yellow-600">+{rewards.bits}</span>
                   </div>
                 )}
 
                 {rewards.multiplier > 0 && (
-                  <div className="flex items-center justify-between bg-blue-50 p-3 rounded-lg border border-blue-200">
-                    <div className="flex items-center gap-3">
-                      <Zap className="w-6 h-6 text-blue-600" />
-                      <span className="font-medium text-gray-800">Multiplier Increase</span>
+                  <div className="flex items-center justify-between bg-blue-50 p-2 rounded-lg border border-blue-200">
+                    <div className="flex items-center gap-2">
+                      <Zap className="w-5 h-5 text-blue-600" />
+                      <span className="font-medium text-gray-800 text-sm">Multiplier Increase</span>
                     </div>
-                    <span className="text-xl font-bold text-blue-600">+{rewards.multiplier.toFixed(1)}</span>
+                    <span className="text-base font-bold text-blue-600">+{rewards.multiplier.toFixed(1)}</span>
                   </div>
                 )}
 
                 {rewards.luck > 1.0 && (
-                  <div className="flex items-center justify-between bg-green-50 p-3 rounded-lg border border-green-200">
-                    <div className="flex items-center gap-3">
-                      <Clover className="w-6 h-6 text-green-600" />
-                      <span className="font-medium text-gray-800">Luck Multiplier</span>
+                  <div className="flex items-center justify-between bg-green-50 p-2 rounded-lg border border-green-200">
+                    <div className="flex items-center gap-2">
+                      <Clover className="w-5 h-5 text-green-600" />
+                      <span className="font-medium text-gray-800 text-sm">Luck Multiplier</span>
                     </div>
-                    <span className="text-xl font-bold text-green-600">×{rewards.luck.toFixed(1)}</span>
+                    <span className="text-base font-bold text-green-600">×{rewards.luck.toFixed(2)}</span>
                   </div>
                 )}
 
                 {rewards.discount > 0 && (
-                  <div className="flex items-center justify-between bg-purple-50 p-3 rounded-lg border border-purple-200">
-                    <div className="flex items-center gap-3">
-                      <Percent className="w-6 h-6 text-purple-600" />
-                      <span className="font-medium text-gray-800">Shop Discount</span>
+                  <div className="flex items-center justify-between bg-purple-50 p-2 rounded-lg border border-purple-200">
+                    <div className="flex items-center gap-2">
+                      <Percent className="w-5 h-5 text-purple-600" />
+                      <span className="font-medium text-gray-800 text-sm">Shop Discount</span>
                     </div>
-                    <span className="text-xl font-bold text-purple-600">+{rewards.discount}%</span>
+                    <span className="text-base font-bold text-purple-600">+{rewards.discount}%</span>
                   </div>
                 )}
 
                 {rewards.shield && (
-                  <div className="flex items-center justify-between bg-cyan-50 p-3 rounded-lg border border-cyan-200">
-                    <div className="flex items-center gap-3">
-                      <Shield className="w-6 h-6 text-cyan-600" />
-                      <span className="font-medium text-gray-800">Shield Protection</span>
+                  <div className="flex items-center justify-between bg-cyan-50 p-2 rounded-lg border border-cyan-200">
+                    <div className="flex items-center gap-2">
+                      <Shield className="w-5 h-5 text-cyan-600" />
+                      <span className="font-medium text-gray-800 text-sm">Shield Protection</span>
                     </div>
-                    <span className="text-lg font-bold text-cyan-600">ACTIVATED</span>
+                    <span className="text-sm font-bold text-cyan-600">ACTIVATED</span>
                   </div>
                 )}
 
                 {rewards.attackBonus > 0 && (
-                  <div className="flex items-center justify-between bg-red-50 p-3 rounded-lg border border-red-200">
-                    <div className="flex items-center gap-3">
-                      <Sword className="w-6 h-6 text-red-600" />
-                      <span className="font-medium text-gray-800">Attack Power</span>
+                  <div className="flex items-center justify-between bg-red-50 p-2 rounded-lg border border-red-200">
+                    <div className="flex items-center gap-2">
+                      <Sword className="w-5 h-5 text-red-600" />
+                      <span className="font-medium text-gray-800 text-sm">Attack Power</span>
                     </div>
-                    <span className="text-xl font-bold text-red-600">+{rewards.attackBonus}</span>
+                    <span className="text-base font-bold text-red-600">+{rewards.attackBonus}</span>
                   </div>
                 )}
               </div>
@@ -116,7 +116,7 @@ const RewardModal = ({ isOpen, onClose, rewards, challengeName, allCompleted, ne
           {/* Close Button */}
           <button
             onClick={onClose}
-            className="w-full mt-6 bg-gradient-to-r from-green-500 to-emerald-600 text-white py-3 px-4 rounded-lg font-semibold hover:from-green-600 hover:to-emerald-700 transition-all duration-200 transform hover:scale-105"
+            className="w-full mt-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white py-3 px-4 font-semibold hover:from-green-600 hover:to-emerald-700 transition-all duration-200"
           >
             Continue
           </button>

@@ -10,6 +10,7 @@ import { Lock } from 'lucide-react';
 import Footer from '../components/Footer';
 import { API_BASE } from '../config/api'; // add
 import { resolveImageSrc, resolveGroupSetSrc, isPlaceholderGroupSetImage } from '../utils/image'; // OR import the helper
+import Avatar from '../components/Avatar';
 
 function getMemberId(member) {
   if (!member) return null;
@@ -1505,6 +1506,9 @@ const Groups = () => {
                                       />
                                     </td>
                                     <td>
+                                      <div className="flex items-center gap-2">
+                                        <Avatar user={member._id} size={24} />
+                                      </div>
                                       {`${member._id?.firstName || ''} ${member._id?.lastName || ''}`.trim() || member._id?.email || 'Unknown User'}
                                       
                                       {/* Show banned badge if user is banned in this classroom */}

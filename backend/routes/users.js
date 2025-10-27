@@ -168,20 +168,36 @@ console.log(`Student ${student._id}: oldBalance=${student.balance - adjustedAmou
 // Get Students in Classroom (updated for per-classroom balances)
 router.get('/students', ensureAuthenticated, async (req, res) => {
   const { classroomId } = req.query;
-  if (!classroomId || !req.user.classrooms.includes(classroomId)) {
+
+  if (!classroomId) {
+    return res.status(400).json({ error: 'classroomId is required' });
+  }
+
+  const classroomIdStr = String(classroomId);
+  const userClassrooms = Array.isArray(req.user.classrooms) ? req.user.classrooms.map(String) : [];
+
+  // Allow if:
+  // - user already has the classroom in their list, OR
+  // - user is the teacher of the classroom, OR
+  // - user is a student member of the classroom
+  const hasAccess =
+    userClassrooms.includes(classroomIdStr) ||
+    await Classroom.exists({ _id: classroomId, teacher: req.user._id }) ||
+    await Classroom.exists({ _id: classroomId, students: req.user._id });
+
+  if (!hasAccess) {
     return res.status(403).json({ error: 'Forbidden' });
   }
 
   const students = await User.find({
     role: 'student',
     classrooms: classroomId
-  }).select('_id email firstName lastName');
+  }).select('_id email firstName lastName avatar profileImage');
 
-  // Add per-classroom balances
   const studentsWithBalances = await Promise.all(
     students.map(async (student) => {
       const user = await User.findById(student._id).select('classroomBalances');
-      const classroomBalance = user.classroomBalances.find(cb => cb.classroom.toString() === classroomId);
+      const classroomBalance = user.classroomBalances?.find(cb => String(cb.classroom) === classroomIdStr);
       return {
         ...student.toObject(),
         balance: classroomBalance ? classroomBalance.balance : 0
@@ -193,25 +209,32 @@ router.get('/students', ensureAuthenticated, async (req, res) => {
 });
 
 // GET all users (not just students) in a classroom
- router.get('/all', ensureAuthenticated, async (req, res) => {
+router.get('/all', ensureAuthenticated, async (req, res) => {
   // Restrict to teacher/admin
-   if (!['teacher', 'admin'].includes(req.user.role)) {
-     return res.status(403).json({ error: 'Forbidden' });
-   }
-
+  if (!['teacher', 'admin'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
 
   const { classroomId } = req.query;
+  if (!classroomId) {
+    return res.status(400).json({ error: 'classroomId is required' });
+  }
 
-  // Check classroom access
- if (!classroomId || !req.user.classrooms.includes(classroomId)) {
-   return res.status(403).json({ error: 'Forbidden' });
+  const userClassrooms = Array.isArray(req.user.classrooms) ? req.user.classrooms.map(String) : [];
+  const owns =
+    userClassrooms.includes(String(classroomId)) ||
+    await Classroom.exists({ _id: classroomId, teacher: req.user._id });
+
+  // Allow admins broadly (or keep this check if you want to restrict admins too)
+  if (!owns && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Forbidden' });
   }
 
   const everyone = await User.find({
-   classrooms: classroomId
-  }).select('_id email balance role');
+    classrooms: classroomId
+  }).select('_id email balance role firstName lastName avatar profileImage classroomBalances joinedAt createdAt transactions classroomFrozen isFrozen');
 
-   res.json(everyone);
+  res.json(everyone);
  });
 
 // Get user balance (updated for per-classroom)

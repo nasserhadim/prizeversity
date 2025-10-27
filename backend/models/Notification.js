@@ -30,7 +30,7 @@ const NotificationSchema = new mongoose.Schema({
       'announcement', // New type for announcements
       'attack', // New type for attack notification
       'defend',
-      'stats_adjusted', // <-- added so classroom route can create this notification
+      'stats_adjusted', // for manual teacher adjustments AND challenge rewards
       // Ban/unban notifications for classrooms
       'classroom_ban',
       'classroom_unban',
@@ -38,6 +38,7 @@ const NotificationSchema = new mongoose.Schema({
       'bit_assignment_approved',
       'bit_assignment_rejected',
       'feedback_report', // added to support feedback report notifications
+      'challenge_series_completed',
     ],
     required: true 
   },
@@ -51,6 +52,7 @@ const NotificationSchema = new mongoose.Schema({
     from: mongoose.Schema.Types.Mixed,
     to: mongoose.Schema.Types.Mixed
   }],
+  isLogEntry: { type: Boolean, default: true }, // NEW: flag to control inclusion in logs
   // When true, frontend should not display the actor's name (privacy)
   anonymized: { type: Boolean, default: false },
   read: { type: Boolean, default: false },

@@ -13,6 +13,7 @@ import io from 'socket.io-client';
 import { API_BASE } from '../config/api';
 import ConfirmModal from '../components/ConfirmModal';
 import Footer from '../components/Footer';
+import Navbar from '../components/Navbar';
 
 const socket = io(); // no "/api" needed here
 
@@ -25,6 +26,8 @@ const Classroom = () => {
   // State variables
   const [classroom, setClassroom] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false); // { changed code }
+  const [redirectSecs, setRedirectSecs] = useState(5); // { changed code }
   const [students, setStudents] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [visibleCount, setVisibleCount] = useState(10);
@@ -48,12 +51,30 @@ const Classroom = () => {
           navigate('/?session_expired=true');
           return;
         }
+        // NEW: handle 404 with friendly message + redirect
+        if (err.response?.status === 404) {
+          console.warn('Classroom not found:', id);
+          setNotFound(true); // { changed code }
+          setLoading(false);
+          return;
+        }
         console.error('Error fetching classroom details:', err);
       }
     };
 
     fetchData();
   }, [id, user, navigate]);
+
+  // Auto-redirect countdown when notFound
+  useEffect(() => {
+    if (!notFound) return; // { changed code }
+    if (redirectSecs <= 0) {
+      navigate('/');
+      return;
+    }
+    const t = setTimeout(() => setRedirectSecs(s => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [notFound, redirectSecs, navigate]); // { changed code }
 
   useEffect(() => {
     const fetchAnnouncements = async () => {
@@ -68,40 +89,42 @@ const Classroom = () => {
   }, [id]);
 
   useEffect(() => {
-  if (!id) return;
-  socket.emit('join-classroom', id);
-  socket.emit('join-user', user._id);
-  console.log(`Joined user room: user-${user._id}`);
+    // If we don't yet have a user, skip socket joins to avoid reading user._id (fixes crash/white page)
+    if (!id || !user) return;
 
-  const handleNewAnnouncement = (announcement) => {
-    setAnnouncements(prev => [announcement, ...prev]);
-  };
+    socket.emit('join-classroom', id);
+    socket.emit('join-user', user._id);
+    console.log(`Joined user room: user-${user._id}`);
 
-  // Add classroom removal handler
-  const handleClassroomRemoval = (data) => {
-    if (String(data.classroomId) === String(id)) {
-      toast.error(data.message || 'You have been removed from this classroom');
-      setTimeout(() => {
-        navigate('/classrooms');
-      }, 2000);
-    }
-  };
+    const handleNewAnnouncement = (announcement) => {
+      setAnnouncements(prev => [announcement, ...prev]);
+    };
 
-  socket.on('receive-announcement', handleNewAnnouncement);
-  socket.on('classroom_removal', handleClassroomRemoval);
+    // Add classroom removal handler
+    const handleClassroomRemoval = (data) => {
+      if (String(data.classroomId) === String(id)) {
+        toast.error(data.message || 'You have been removed from this classroom');
+        setTimeout(() => {
+          navigate('/classrooms');
+        }, 2000);
+      }
+    };
 
-   // listen for personal notifications
-  const handleNotification = (notification) => {
-    console.log('Realtime notification:', notification);
-  };
-  socket.on('notification', handleNotification);
+    socket.on('receive-announcement', handleNewAnnouncement);
+    socket.on('classroom_removal', handleClassroomRemoval);
 
-  return () => {
-    socket.off('receive-announcement', handleNewAnnouncement);
-    socket.off('classroom_removal', handleClassroomRemoval);
-    socket.off('notification', handleNotification);
-  };
-}, [id, navigate]); // Add navigate to dependencies
+    // listen for personal notifications
+    const handleNotification = (notification) => {
+      console.log('Realtime notification:', notification);
+    };
+    socket.on('notification', handleNotification);
+
+    return () => {
+      socket.off('receive-announcement', handleNewAnnouncement);
+      socket.off('classroom_removal', handleClassroomRemoval);
+      socket.off('notification', handleNotification);
+    };
+  }, [id, navigate, user]); // include user so effect re-runs when user becomes available
 
   // Fetch classroom info and ensure user has access
   const fetchClassroomDetails = async () => {
@@ -208,19 +231,65 @@ const Classroom = () => {
   };
 
   // Render loading spinner
-  if (loading || !user) {
+  // 1) Show spinner while we are loading data
+  if (loading) {
     return (
-      <div className='min-h-screen bg-base-200 flex items-center justify-center'>
-        <LoaderIcon className='animate-spin size-10' />
+      <div style={{ paddingTop: user ? '5rem' : '4rem' }}>
+        <Navbar />
+        <div className="min-h-screen bg-base-200 flex items-center justify-center">
+          <LoaderIcon className="animate-spin size-10" />
+        </div>
+        <Footer />
       </div>
     );
   }
 
-  // Render empty state
-  if (!classroom) {
+  // 2) If user is not signed-in, show a helpful prompt instead of rendering classroom UI
+  if (!user) {
     return (
-      <div className='min-h-screen bg-base-200 flex items-center justify-center'>
-        <LoaderIcon className='animate-spin size-10' />
+      <div style={{ paddingTop: '4rem' }}>
+        <Navbar />
+        <div className="min-h-screen flex items-center justify-center bg-base-200 p-6">
+          <div className="max-w-xl text-center bg-base-100 dark:bg-base-300 rounded-lg shadow p-8 border border-base-300">
+            <h1 className="text-2xl font-bold mb-4 text-base-content">Sign in to view this classroom</h1>
+            <p className="text-base-content/70 mb-6">
+              You must be signed in and a member of the classroom to view this page.
+            </p>
+            <div className="flex justify-center gap-3">
+              {/* Stack on mobile, row on larger screens. full-width buttons on small screens to avoid overflow */}
+              <div className="w-full max-w-sm flex flex-col sm:flex-row items-center justify-center gap-3">
+                <a href="/api/auth/google" className="btn btn-primary w-full sm:w-auto">Sign in with Google</a>
+                <a href="/api/auth/microsoft" className="btn btn-outline w-full sm:w-auto">Sign in with Microsoft</a>
+                <button className="btn btn-outline w-full sm:w-auto" onClick={() => navigate('/')}>Go home</button>
+              </div>
+            </div>
+            <p className="text-xs text-base-content/50 mt-4">If you think this is an error, check the URL or contact support.</p>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+  
+  if (notFound) { // { changed code }
+    return (
+      <div style={{ paddingTop: user ? '5rem' : '4rem' }}>
+        <Navbar />
+        <div className="min-h-screen flex items-center justify-center bg-base-200 p-6">
+          <div className="max-w-xl text-center bg-base-100 dark:bg-base-300 rounded-lg shadow p-8 border border-base-300">
+            <h1 className="text-2xl font-bold mb-4 text-base-content">Classroom not found</h1>
+            <p className="text-base-content/70 mb-4">We couldn't find that classroom. You may have typed an incorrect URL or the classroom was removed.</p>
+            <p className="text-base-content/60 mb-6">Redirecting to the home page in {redirectSecs} second{redirectSecs !== 1 ? 's' : ''}…</p>
+            <div className="flex justify-center gap-3">
+              {/* Same responsive pattern for not-found actions */}
+              <div className="w-full max-w-sm flex flex-col sm:flex-row items-center justify-center gap-3">
+                <button className="btn btn-primary w-full sm:w-auto" onClick={() => navigate('/')}>Go home now</button>
+                <button className="btn btn-outline w-full sm:w-auto" onClick={() => navigate('/classrooms')}>View classrooms</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <Footer />
       </div>
     );
   }

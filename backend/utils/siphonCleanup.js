@@ -19,7 +19,7 @@ async function cleanupExpiredSiphons() {
     }
 
     const expiredSiphons = await SiphonRequest.find({
-      status: 'pending',
+      status: { $in: ['pending', 'group_approved'] },
       expiresAt: { $lt: new Date() }
     });
 
