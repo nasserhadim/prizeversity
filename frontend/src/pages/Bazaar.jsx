@@ -195,7 +195,7 @@ const Bazaar = () => {
     }
   };
 
-  // Derive current page of items
+  // this will get the current page of items
   const totalPages = Math.max(1, Math.ceil((filteredItems.length || 0) / PAGE_SIZE));
   const start = (page - 1) * PAGE_SIZE;
   const currentPageItems = (filteredItems || []).slice(start, start + PAGE_SIZE);
@@ -271,7 +271,7 @@ const Bazaar = () => {
     }
   }, [bazaar?._id]);
 
-  // Keep bazaar.items in sync after an update
+  // this will keep the bazaar.items in sync after an update
   const handleItemUpdated = (updatedItem) => {
     setBazaar(prev => ({
       ...prev,
