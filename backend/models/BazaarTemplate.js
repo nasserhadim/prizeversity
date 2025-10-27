@@ -6,35 +6,40 @@ const BazaarTemplateSchema = new mongoose.Schema({
         type: String,
         required: true,
         trim: true,
-        maxLength: 100
+        maxLength: 100,
     },
     description: { //the description the instructor gives the bazaar template
         type: String,
         trim: true,
-        maxLength: 300
+        maxLength: 300,
     },
     owner: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true
+        required: true,
+        index: true,
     },
     sourceBazaar: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Bazaar',
-        required: true
+        required: true,
     },
     sourceClassroom: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Classroom',
-        required: true
+        required: true,
     },
+
+    items: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Item' }],
+
     countItem: {
         type: Number,
-        default: 0
+        default: 0,
     },
     createdAt: {
         type: Date,
-        default: Date.now
+        default: Date.now,
+        index: true,
     },
     
 });

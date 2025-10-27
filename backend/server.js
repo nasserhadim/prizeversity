@@ -12,6 +12,7 @@ const { Server } = require('socket.io');
 const authRoutes = require('./routes/auth');
 const classroomRoutes = require('./routes/classroom');
 const bazaarRoutes = require('./routes/bazaar');
+const bazaarTemplatesRoutes = require('./routes/bazaarTemplate');
 const walletRoutes = require('./routes/wallet');
 const groupRoutes = require('./routes/group');
 const siphonRouter = require('./routes/siphon');
@@ -46,6 +47,7 @@ console.log("✅ Socket.IO CORS origin set to:", redirectBase);
 // This allows the frontend to connect to the Socket.IO server from the specified origin
 
 const { setIO } = require('./utils/io'); // <-- new import
+//const { default: apiBazaarTemplate } = require('../frontend/src/API/apiBazaarTemplate.js');
 
 const io = new Server(httpServer, {
   cors: {
@@ -176,6 +178,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/classroom', classroomRoutes);
 app.use('/api/classroom/:id/newsfeed', newsfeedRoutes);
 app.use('/api/bazaar', bazaarRoutes);
+app.use('/api/bazaarTemplate', bazaarTemplatesRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/group', groupRoutes);
 app.use('/api/notifications', notificationsRoutes);

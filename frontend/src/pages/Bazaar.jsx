@@ -1,5 +1,5 @@
+import { useEffect, useState, useRef} from 'react';
 import BazaarSearch from "../components/BazaarSearch.jsx";
-import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Store, HandCoins } from 'lucide-react';
@@ -15,6 +15,7 @@ import InventorySection from '../components/InventorySection';
 import toast from 'react-hot-toast';
 import Footer from '../components/Footer';
 import { resolveBannerSrc } from '../utils/image';
+import { useBazaarTemplates } from '../hooks/useBazaarTemplates';
 
 const Bazaar = () => {
   const { classroomId } = useParams();
@@ -31,10 +32,25 @@ const Bazaar = () => {
   const [BazaarImageFile, setBazaarImageFile] = useState('placeholder.jpg');
   const [BazaarImageUrl, setBazaarImageUrl] = useState('');
   const [BazaarImageRemoved, setBazaarImageRemoved] = useState(false);
-  const BazaarFileInputRef = useState(null);
+  const BazaarFileInputRef = useRef(null);
 
   const [BazaarName, setBazaarName] = useState('');
   const [BazaarDesc, setBazaarDesc] = useState('');
+
+  const {
+    loading: templateLoading,    
+    templates,
+    reusable,
+    showViewer,
+    setShowViewer,
+    fetchTemplates,
+    fetchReusableBazaarTemplates, 
+    saveBazaarTemplate,
+    applyTemplate,               
+    deleteTemplate,
+    applyReusable,
+} = useBazaarTemplates();
+
     // delete bazaar
     const handleDeleteBazaar = async () => {
         if (!confirmDeleteBazaar) return;
@@ -119,6 +135,14 @@ const Bazaar = () => {
       setLoading(false);
     }
   };
+/// this would load the templates when a teacher opens this page
+  useEffect(() => {
+  if (user?.role === 'teacher' && classroomId) {
+    fetchTemplates();
+    fetchReusableBazaarTemplates(classroomId);
+  }
+}, [user?.role, classroomId, fetchTemplates, fetchReusableBazaarTemplates]);
+
 
   const fetchFilteredItems = async (filters = {}) => {
     if (!bazaar?._id) return; // need bazaarId for this route
@@ -344,10 +368,109 @@ const handleItemDeleted = (itemId) => { // itemId is the _id of the deleted item
   </div>
 
   // Case: Bazaar not yet created
-  if (!bazaar) {
-    return user.role === 'teacher' ? (
+   if (!bazaar) {
+    return user?.role === "teacher" ? (
       <div className="flex flex-col min-h-screen bg-base-200">
-        <div className="flex-grow p-6">
+        <div className="flex-grow p-6 space-y-6">
+          {/* Apply Template Panel (when no bazaar yet) */}
+          <div className="card bg-base-100 border border-base-300 shadow-sm">
+            <div className="card-body">
+              <h2 className="text-xl font-semibold">Apply Template</h2>
+              <p className="text-sm opacity-70">
+                You can easily set your bazaar up with an already made template:
+              </p>
+
+              {templateLoading ? (
+                <div className="text-sm opacity-70 mt-3">Loading…</div>
+              ) : templates?.length ? (
+                <div className="space-y-3 mt-3">
+                  {templates.map((t) => (
+                    <div
+                      key={t._id}
+                      className="border border-base-300 rounded-lg p-3 flex items-center justify-between"
+                    >
+                      <div>
+                        <div className="font-medium">Template: “{t.name}”</div>
+                        <div className="text-sm opacity-70">
+                          From: {t.sourceClassroom?.name || "Classroom"}
+                          {t.sourceClassroom?.code ? ` (${t.sourceClassroom.code})` : ""}
+                          {" • "}
+                          {t.countItem} item{t.countItem === 1 ? "" : "s"} •{" "}
+                          {new Date(t.createdAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                      <div className="flex gap-3">
+                        <button
+                          className="btn btn-sm btn-success"
+                          onClick={async () => {
+                            const created = await applyTemplate(t._id, classroomId);
+                            if (created) {
+                              setBazaar(created);
+                              toast.success("Template applied");
+                            }
+                          }}
+                        >
+                          Apply
+                        </button>
+                        <button
+                          className="btn btn-sm btn-outline btn-error"
+                          onClick={() => deleteTemplate(t._id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm opacity-70 mt-3">
+                  There are no templates yet. Create a bazaar and click “Save as Template” to use it.
+                </div>
+              )}
+
+              {reusable?.length ? (
+                <>
+                  <div className="divider my-4">OR</div>
+                  <h3 className="font-semibold mb-2">
+                    Reusable Bazaars from Other Classrooms
+                  </h3>
+                  <div className="space-y-3">
+                    {reusable.map((b) => (
+                      <div
+                        key={b._id}
+                        className="border border-base-300 rounded-lg p-3 flex items-center justify-between"
+                      >
+                        <div>
+                          <div className="font-medium">“{b.name}”</div>
+                          <div className="text-sm opacity-70">
+                            From: {b.classroom?.name || "Classroom"}
+                            {b.classroom?.code ? ` (${b.classroom.code})` : ""}
+                            {" • "}
+                            {b.countItem} item{b.countItem === 1 ? "" : "s"} •{" "}
+                            {new Date(b.createdAt).toLocaleDateString()}
+                          </div>
+                        </div>
+                        <button
+                          className="btn btn-sm btn-success"
+                          onClick={async () => {
+                            const created = await applyReusable(b._id, classroomId);
+                            if (created) {
+                              setBazaar(created);
+                              toast.success("Reusable bazaar applied");
+                            }
+                          }}
+                        >
+                          Apply
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : null}
+            </div>
+          </div>
+
+          {/* Create form under the template panel */}
           <CreateBazaar classroomId={classroomId} onCreate={setBazaar} />
         </div>
         <Footer />
@@ -355,7 +478,7 @@ const handleItemDeleted = (itemId) => { // itemId is the _id of the deleted item
     ) : (
       <div className="flex flex-col min-h-screen bg-base-200">
         <div className="flex-grow p-6 text-center text-lg font-semibold text-base-content/70">
-          The marketplace is not open yet.
+          The bazaar is not open yet.
         </div>
         <Footer />
       </div>
@@ -405,11 +528,49 @@ const handleItemDeleted = (itemId) => { // itemId is the _id of the deleted item
           </p>
         </div>
         {/* Modification Section */}
-        {(user.role === 'teacher' || user.role === 'admin') && (
+       {(user?.role === "teacher" || user?.role === "admin") && (
+          <div className="flex flex-col gap-2 items-end">
             <div className="flex gap-2">
-                <button className="btn btn-sm btn-info" onClick={() => handleEditBazaar(bazaar)}>Edit</button>
-                <button className="btn btn-sm btn-error" onClick={() => setConfirmDeleteBazaar(bazaar)}>Delete</button>
+              <button
+                className="btn btn-sm btn-info"
+                onClick={() => handleEditBazaar(bazaar)}
+              >
+                Edit
+              </button>
+              <button
+                className="btn btn-sm btn-error"
+                onClick={() => setConfirmDeleteBazaar(bazaar)}
+              >
+                Delete
+              </button>
             </div>
+            <div className="flex gap-2 mt-2">
+              <button
+                className="btn btn-sm"
+                onClick={async () => {
+                  const created = await saveBazaarTemplate(bazaar._id);
+                  if (created) {
+                    await fetchTemplates();
+                    setShowViewer(true);
+                  }
+                }}
+                title="Save current bazaar (with items) as a reusable template"
+              >
+                Save as Template
+              </button>
+              <button
+                className="btn btn-sm btn-outline"
+                onClick={async () => {
+                  await fetchTemplates();
+                  await fetchReusableBazaarTemplates(classroomId);
+                  setShowViewer(true);
+                }}
+                title="View/apply/delete your templates"
+              >
+                View Templates
+              </button>
+            </div>
+          </div>
         )}
 
       </div>
@@ -476,7 +637,7 @@ const handleItemDeleted = (itemId) => { // itemId is the _id of the deleted item
                 <ItemCard
                   key={item._id}
                   item={item}
-                  role={user.role}
+                  role={user?.role}
                   classroomId={classroomId}
                   teacherId={classroom?.teacher?._id || classroom?.teacher} 
                   bazaarIdProp={bazaar?._id}//always pass teacher ID, if classroom.teacher is populated object use _id else use as is
@@ -508,7 +669,7 @@ const handleItemDeleted = (itemId) => { // itemId is the _id of the deleted item
         )}
 
         {/* Teacher Create Item */}
-        {user.role === 'teacher' && (
+        {user?.role === 'teacher' && (
           <div className="card card-compact bg-base-100 shadow p-4 border border-base-200">
             <CreateItem
               bazaarId={bazaar._id}
@@ -621,7 +782,7 @@ const handleItemDeleted = (itemId) => { // itemId is the _id of the deleted item
                   placeholder= {bazaar.description}
                   className="input input-bordered w-full mb-3"
                   value={BazaarDesc}
-                  onCreate = {() => setBazaarDesc(bazaar.description)}
+                  //onCreate = {() => setBazaarDesc(bazaar.description)}
                   onChange={(e) => setBazaarDesc(e.target.value)}
                 />
                 </div>
@@ -655,7 +816,7 @@ const handleItemDeleted = (itemId) => { // itemId is the _id of the deleted item
                   {BazaarImageSource === 'file' ? (
                     <>
                       <input
-                        //ref={BazaarFileInputRef}
+                        ref={BazaarFileInputRef}
                         type="file"
                         accept="image/png,image/jpeg,image/webp,image/gif"
                         onChange={e => setBazaarImageFile(e.target.files[0])}
@@ -685,7 +846,6 @@ const handleItemDeleted = (itemId) => { // itemId is the _id of the deleted item
                     className="btn btn-ghost"
                     onClick={() => {
                       setEditBazaar(false);
-                      // reset editing state like the existing reset logic
                     }}
                   >
                     Cancel
@@ -702,7 +862,7 @@ const handleItemDeleted = (itemId) => { // itemId is the _id of the deleted item
             <p className="text-sm text-center">
               Are you sure you want to delete the Bazaar <strong>{confirmDeleteBazaar.name}</strong>?
               <br />
-              This will also delete all its items.
+              This will also delete the items.
             </p>
             <div className="mt-6 flex justify-center gap-4">
               <button
@@ -721,6 +881,124 @@ const handleItemDeleted = (itemId) => { // itemId is the _id of the deleted item
           </div>
         </div>
     )}
+
+    {showViewer && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60]">
+          <div className="bg-base-100 w-[95%] max-w-3xl rounded-xl shadow-xl p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold">Your Bazaar Templates</h3>
+              <button className="btn btn-sm btn-ghost" onClick={() => setShowViewer(false)}>Close</button>
+            </div>
+
+            {/* the bazaar templates */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium">Saved Templates</h4>
+                <button
+                  className="btn btn-xs"
+                  onClick={async () => {
+                    await fetchTemplates();
+                    await fetchReusableBazaarTemplates(classroomId);
+                  }}
+                >
+                  Refresh
+                </button>
+              </div>
+
+              {templateLoading ? (
+                <div className="text-sm opacity-70">Loading…</div>
+              ) : (templates?.length ?? 0) > 0 ? (
+                <div className="space-y-2 max-h-60 overflow-auto pr-1">
+                  {templates.map((t) => (
+                    <div
+                      key={t._id}
+                      className="border border-base-300 rounded-lg p-3 flex items-center justify-between"
+                    >
+                      <div className="min-w-0">
+                        <div className="font-medium truncate">{t.name}</div>
+                        <div className="text-xs opacity-70 truncate">
+                          From: {t.sourceClassroom?.name || 'Classroom'}
+                          {t.sourceClassroom?.code ? ` (${t.sourceClassroom.code})` : ''}
+                          {" • "}
+                          {t.countItem ?? 0} item{(t.countItem ?? 0) === 1 ? '' : 's'} •{' '}
+                          {new Date(t.createdAt).toLocaleDateString()}
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 shrink-0">
+                        <button
+                          className="btn btn-xs btn-success"
+                          onClick={async () => {
+                            const created = await applyTemplate(t._id, classroomId);
+                            if (created) {
+                              setBazaar(created);
+                              setShowViewer(false);
+                              toast.success('Template applied');
+                            }
+                          }}
+                        >
+                          Apply
+                        </button>
+                        <button
+                          className="btn btn-xs btn-outline btn-error"
+                          onClick={() => deleteTemplate(t._id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm opacity-70">There are no templates yet.</div>
+              )}
+            </div>
+
+            <div className="divider my-4">OR</div>
+
+            {/* Reusable Bazaars */}
+            <div className="space-y-2">
+              <h4 className="font-medium">Reusable Bazaars from Other Classrooms</h4>
+              {(reusable?.length ?? 0) > 0 ? (
+                <div className="space-y-2 max-h-60 overflow-auto pr-1">
+                  {reusable.map((b) => (
+                    <div
+                      key={b._id}
+                      className="border border-base-300 rounded-lg p-3 flex items-center justify-between"
+                    >
+                      <div className="min-w-0">
+                        <div className="font-medium truncate">{b.name}</div>
+                        <div className="text-xs opacity-70 truncate">
+                          From: {b.classroom?.name || 'Classroom'}
+                          {b.classroom?.code ? ` (${b.classroom.code})` : ''}
+                          {" • "}
+                          {b.countItem ?? 0} item{(b.countItem ?? 0) === 1 ? '' : 's'} •{' '}
+                          {new Date(b.createdAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                      <button
+                        className="btn btn-xs btn-success"
+                        onClick={async () => {
+                          const created = await applyReusable(b._id, classroomId);
+                          if (created) {
+                            setBazaar(created);
+                            setShowViewer(false);
+                            toast.success('Reusable bazaar applied');
+                          }
+                        }}
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm opacity-70">No reusable bazaars found.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       <Footer />
       </div>
     </div>

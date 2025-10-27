@@ -1,87 +1,99 @@
 import { useState, useCallback } from 'react';
-import { listTemplates, saveTemplateFromBazaar, applyTemplateToClassroom, deleteTemplate, showReusableBazaars, applyReusableBazaar } from '../API/apiBazaarTemplate';
+import {
+  listTemplates,
+  saveTemplateFromBazaar,
+  applyTemplateToClassroom,
+  deleteTemplate as apiDeleteTemplate,
+  showReusableBazaars,
+  applyReusableBazaar
+} from '../API/apiBazaarTemplate';
 import toast from 'react-hot-toast';
 
-export const applyBazaarTemplates = () => {
+export function useBazaarTemplates() {
   const [templates, setTemplates] = useState([]);
   const [reusable, setReusable] = useState([]);
-  const [loadTemplate, setLoadTemplate] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [showViewer, setShowViewer] = useState(false);
 
   const fetchTemplates = useCallback(async () => {
-    setLoadTemplate(true);
-    try {
-      const res = await listTemplates({ AddClassroomName: true });
-      setTemplates(res.data.templates || []);
-    } catch (err) {
-      console.error(err);
-      toast.entry('Could not load templates')
-    } finally {
-      setLoadTemplate(false);
-    }
-  }, []);
+  setLoading(true);
+  try {
+    const res = await listTemplates({ includeClassroomNames: 'true' });
+    console.log('[listTemplates]', res.status, res.data);      
+    setTemplates(res.data.templates || []);
+  } catch (err) {
+    console.error('[listTemplates] failed', err);              
+    toast.error('Could not load templates');
+  } finally {
+    setLoading(false);
+  }
+}, []);
+
 
   const fetchReusableBazaarTemplates = useCallback(async (classroomId) => {
-    setLoadTemplate(true);
+    setLoading(true);
     try {
       const res = await showReusableBazaars(classroomId);
       setReusable(res.data.bazaars || []);
     } catch (err) {
       console.error(err);
-      toast.error('Unable to load the reusable templates');
+      toast.error('Unable to load reusable bazaars');
     } finally {
-      setLoadTemplate(false);
+      setLoading(false);
     }
   }, []);
 
-  const saveBazaarTemplate = useCallBack(async (bazaarId) => {
-    try {
-      await saveTemplateFromBazaar(bazaarId);
-      toast.success('Saved bazaar as template');
-      fetchTemplates();
-    } catch (err) {
-      console.error(err);
-      toast.error('Failed to save the bazaar as template')
-    }
-  }, [fetchTemplates]);
 
-  const addBazaarTemplate = useCallBack(async (templateId, targetClassroomId) => {
+const saveBazaarTemplate = useCallback(async (bazaarId) => {
+  try {
+    const { data } = await saveTemplateFromBazaar(bazaarId);  
+    toast.success(`Saved as template`);
+    await fetchTemplates();                                    
+    return data?.template || null;                              
+  } catch (err) {
+    console.error(err);
+    toast.error('Failed to save template');
+    return null;
+  }
+}, [fetchTemplates]);
+
+  const applyTemplate = useCallback(async (templateId, targetClassroomId) => {
     try {
       const res = await applyTemplateToClassroom(templateId, targetClassroomId);
-      toast.success('Template has been applied');
-      return res.data.bazaar;
+      toast.success('Template applied');
+      return res.data.bazaar; // new bazaar object
     } catch (err) {
       console.error(err);
-      toast.error('Failed tp apply bazaar template');
+      toast.error('Failed to apply template');
       return null;
     }
   }, []);
 
-  const deleteBazaarTemplate = useCallBack(async (templateId) => {
+  const deleteTemplate = useCallback(async (templateId) => {
     try {
-      await deleteTemplate(templateId);
-      toast.success('Template has been deleted');
+      await apiDeleteTemplate(templateId);
+      toast.success('Template deleted');
       fetchTemplates();
     } catch (err) {
       console.error(err);
-      toast.error('Failed to delete the bazaar template');
+      toast.error('Failed to delete template');
     }
-  })
+  }, [fetchTemplates]);
 
-  const applyReadyTemplate = useCallback(async (sourceBazaarId, targetClassroomId) => {
+  const applyReusable = useCallback(async (sourceBazaarId, targetClassroomId) => {
     try {
       const res = await applyReusableBazaar(sourceBazaarId, targetClassroomId);
-      toast.success('Imported bazzar from another classroom');
+      toast.success('Imported bazaar');
       return res.data.bazaar;
     } catch (err) {
       console.error(err);
-      toast.error('Failed to apply the bazaar template');
+      toast.error('Failed to import bazaar');
       return null;
     }
   }, []);
 
   return {
-    loadTemplate,
+    loading,
     templates,
     reusable,
     showViewer,
@@ -89,9 +101,8 @@ export const applyBazaarTemplates = () => {
     fetchTemplates,
     fetchReusableBazaarTemplates,
     saveBazaarTemplate,
-    addBazaarTemplate,
-    deleteBazaarTemplate,
-    applyReadyTemplate
+    applyTemplate,
+    deleteTemplate,
+    applyReusable,
   };
-
-};
+}

@@ -1,21 +1,33 @@
-import { API_BASE } from '../config/api';
+import axios from 'axios';
 
-const prefix = '/templates';
+const apiBazaarTemplate = axios.create({
+  baseURL: '/api/bazaarTemplate',
+  withCredentials: true,
+});
 
-export const listTemplates = (opts ={} ) =>
-  API_BASE.get(`${prefix}`, {params: { AddClassroomName: !!opts.AddClassroomName}});
+// ---- helpers ----
+export function listTemplates(params = {}) {
+  return apiBazaarTemplate.get('/', { params });
+}
 
-export const saveTemplateFromBazaar = (bazaarId) =>
-  API_BASE.post(`${prefix}/save/${bazaarId}`);
+export function saveTemplateFromBazaar(bazaarId) {
+  return apiBazaarTemplate.post(`/save/${bazaarId}`);
+}
 
-export const applyTemplateToClassroom = (templateId, targetClassroomId) =>
-  API_BASE.post(`${prefix}/apply/${templateId}`, {targetClassroomId});
+export function applyTemplateToClassroom(templateId, targetClassroomId) {
+  return apiBazaarTemplate.post(`/apply/${templateId}`, { targetClassroomId });
+}
 
-export const deleteTemplate = (templateId) =>
-  API_BASE.delete(`/templates/${templateId}`);
+export function deleteTemplate(templateId) {
+  return apiBazaarTemplate.delete(`/${templateId}`);
+}
 
-export const showReusableBazaars = (classroomId) =>
-  API_BASE.get(`${prefix}/reusable-bazaars/${classroomId}`);
+export function showReusableBazaars(classroomId) {
+  return apiBazaarTemplate.get(`/reusable-bazaars/${classroomId}`);
+}
 
-export const applyReusableBazaar = (sourceBazaarId, targetClassroomId) =>
-  API_BASE(`${prefix}/reusable-bazaars/${sourceBazaarId}/apply`, { targetClassroomId });
+export function applyReusableBazaar(sourceBazaarId, targetClassroomId) {
+  return apiBazaarTemplate.post(`/reusable-bazaars/${sourceBazaarId}/apply`, { targetClassroomId });
+}
+
+export default apiBazaarTemplate;
