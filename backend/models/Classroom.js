@@ -36,6 +36,12 @@ const ClassroomSchema = new mongoose.Schema({
     min: 1,
     max: 168 // Max 1 week
   },
+
+  xpConfig: {
+    dailyLogin: { type: Number, default: 10 },
+    groupJoin: { type: Number, default: 25 },
+  },
+
   studentSendEnabled: { type: Boolean, default: false },
   studentsCanViewStats: { type: Boolean, default: true }, // Add this line
 
