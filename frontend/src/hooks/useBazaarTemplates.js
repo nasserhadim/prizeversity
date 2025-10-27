@@ -30,19 +30,6 @@ export function useBazaarTemplates() {
 }, []);
 
 
-  const fetchReusableBazaarTemplates = useCallback(async (classroomId) => {
-    setLoading(true);
-    try {
-      const res = await showReusableBazaars(classroomId);
-      setReusable(res.data.bazaars || []);
-    } catch (err) {
-      console.error(err);
-      toast.error('Unable to load reusable bazaars');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
 
 const saveBazaarTemplate = useCallback(async (bazaarId) => {
   try {
@@ -95,14 +82,11 @@ const saveBazaarTemplate = useCallback(async (bazaarId) => {
   return {
     loading,
     templates,
-    reusable,
     showViewer,
     setShowViewer,
     fetchTemplates,
-    fetchReusableBazaarTemplates,
     saveBazaarTemplate,
     applyTemplate,
     deleteTemplate,
-    applyReusable,
   };
 }

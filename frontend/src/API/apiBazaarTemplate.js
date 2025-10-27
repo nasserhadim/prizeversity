@@ -22,12 +22,12 @@ export function deleteTemplate(templateId) {
   return apiBazaarTemplate.delete(`/${templateId}`);
 }
 
-export function showReusableBazaars(classroomId) {
+{/*export function showReusableBazaars(classroomId) {
   return apiBazaarTemplate.get(`/reusable-bazaars/${classroomId}`);
 }
 
 export function applyReusableBazaar(sourceBazaarId, targetClassroomId) {
   return apiBazaarTemplate.post(`/reusable-bazaars/${sourceBazaarId}/apply`, { targetClassroomId });
-}
+}*/}
 
 export default apiBazaarTemplate;
