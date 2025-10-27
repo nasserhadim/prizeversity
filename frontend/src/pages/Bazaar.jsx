@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef} from 'react';
+import { useEffect, useState, useRef } from 'react';
 import BazaarSearch from "../components/BazaarSearch.jsx";
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -38,72 +38,65 @@ const Bazaar = () => {
   const [BazaarDesc, setBazaarDesc] = useState('');
 
   const {
-    loading: templateLoading,    
+    loading: templateLoading,
     templates,
-    reusable,
     showViewer,
     setShowViewer,
     fetchTemplates,
-    fetchReusableBazaarTemplates, 
     saveBazaarTemplate,
-    applyTemplate,               
+    applyTemplate,
     deleteTemplate,
-    applyReusable,
-} = useBazaarTemplates();
+  } = useBazaarTemplates();
 
-    // delete bazaar
-    const handleDeleteBazaar = async () => {
-        if (!confirmDeleteBazaar) return;
-        try {
-            await apiBazaar.delete(`classroom/${classroomId}/bazaar/delete`);
-            toast.success('Bazaar deleted');
-            setConfirmDeleteBazaar(null);
-            setBazaar(null);
-        } catch(error) {
-            console.error(error);
-            toast.error(`Failed to delete bazaar: ${error.response?.data?.error || error.message}`);
-            setConfirmDeleteBazaar(null);
-        }
-    };
-
-    
-    /*
-    const startEditBazaar = async () => {
-        setBazaarName(bazaar.name);
-        setBazaarDesc(bazaar.description);
-        setBazaarImageSource(bazaar.image);
-
-        setEditBazaar(bazaar);
+  // delete bazaar
+  const handleDeleteBazaar = async () => {
+    if (!confirmDeleteBazaar) return;
+    try {
+      await apiBazaar.delete(`classroom/${classroomId}/bazaar/delete`);
+      toast.success('Bazaar deleted');
+      setConfirmDeleteBazaar(null);
+      setBazaar(null);
+    } catch (error) {
+      console.error(error);
+      toast.error(`Failed to delete bazaar: ${error.response?.data?.error || error.message}`);
+      setConfirmDeleteBazaar(null);
     }
+  };
 
-    const handleEditBazaar = async () => {
-        if (!EditBazaar) return;
-        try {
+  /*
+  const startEditBazaar = async () => {
+    setBazaarName(bazaar.name);
+    setBazaarDesc(bazaar.description);
+    setBazaarImageSource(bazaar.image);
 
+    setEditBazaar(bazaar);
+  }
 
-            if (BazaarImageSource === 'file' && BazaarImageFile) {
-                const fd = new FormData();
-                fd.append('name', BazaarName);
-                fd.append('description', BazaarDesc);
-                fd.append('image', BazaarImageFile);
-                await apiBazaar.put(`classroom/${bazaar._id}/bazaar/edit`, fd, { headers: { 'Content-Type': 'multipart/form-data' }});
-            } else {
-                await apiBazaar.put(`classroom/${bazaar._id}/bazaar/edit`, {
-                    name: BazaarName,
-                    description: BazaarDesc,
-                    image: BazaarImageFile
-                });
-            }
-            toast.success('Bazaar edited');
-            setEditBazaar(null);
-        }  catch(error) {
-            console.error(error);
-            toast.error(`Failed to edit bazaar: ${error.response?.data?.error || error.message}`);
-            setEditBazaar(null);
-        }
-        
-    };*/
-
+  const handleEditBazaar = async () => {
+    if (!EditBazaar) return;
+    try {
+      if (BazaarImageSource === 'file' && BazaarImageFile) {
+        const fd = new FormData();
+        fd.append('name', BazaarName);
+        fd.append('description', BazaarDesc);
+        fd.append('image', BazaarImageFile);
+        await apiBazaar.put(`classroom/${bazaar._id}/bazaar/edit`, fd, { headers: { 'Content-Type': 'multipart/form-data' }});
+      } else {
+        await apiBazaar.put(`classroom/${bazaar._id}/bazaar/edit`, {
+          name: BazaarName,
+          description: BazaarDesc,
+          image: BazaarImageFile
+        });
+      }
+      toast.success('Bazaar edited');
+      setEditBazaar(null);
+    }  catch(error) {
+      console.error(error);
+      toast.error(`Failed to edit bazaar: ${error.response?.data?.error || error.message}`);
+      setEditBazaar(null);
+    }
+  };
+  */
 
   const [filteredItems, setFilteredItems] = useState([]);
   const [filters, setFilters] = useState({ category: undefined, q: "" });
@@ -127,22 +120,21 @@ const Bazaar = () => {
     try {
       const res = await apiBazaar.get(`classroom/${classroomId}/bazaar`);
       setBazaar(res.data.bazaar);
-    } catch (error){
-        console.error(error);
-        //toast.error(`Failed to fetch bazaar: ${error.response?.data?.error || error.message}`);
+    } catch (error) {
+      console.error(error);
+      //toast.error(`Failed to fetch bazaar: ${error.response?.data?.error || error.message}`);
       setBazaar(null);
     } finally {
       setLoading(false);
     }
   };
-/// this would load the templates when a teacher opens this page
-  useEffect(() => {
-  if (user?.role === 'teacher' && classroomId) {
-    fetchTemplates();
-    fetchReusableBazaarTemplates(classroomId);
-  }
-}, [user?.role, classroomId, fetchTemplates, fetchReusableBazaarTemplates]);
 
+  /// load the templates when a teacher opens this page
+  useEffect(() => {
+    if (user?.role === 'teacher' && classroomId) {
+      fetchTemplates();
+    }
+  }, [user?.role, classroomId, fetchTemplates]);
 
   const fetchFilteredItems = async (filters = {}) => {
     if (!bazaar?._id) return; // need bazaarId for this route
@@ -167,24 +159,23 @@ const Bazaar = () => {
         `classroom/${classroomId}/bazaar/${bazaar._id}/items?${params.toString()}`
       );
 
-      //setFilteredItems(res.data.items || []);
       const raw = Array.isArray(res.data?.items)
         ? res.data.items
         : Array.isArray(res.data)
         ? res.data
         : [];
- 
+
       const toKeyPart = (v) =>
         typeof v === 'string' ? v.trim().toLowerCase() : String(v ?? '').trim().toLowerCase();
- 
+
       // collapse visually-identical items even if _id differs
       const sig = (it) => [
         toKeyPart(it?.name),
         toKeyPart(it?.price),
-        toKeyPart(it?.image),    
+        toKeyPart(it?.image),
         toKeyPart(it?.category),
       ].join('|');
- 
+
       const seen = new Set();
       const unique = [];
       for (const it of raw) {
@@ -195,46 +186,6 @@ const Bazaar = () => {
         }
       }
       setFilteredItems(unique);
- 
-      //jake helped me with this part, to stop duplications. 
-      
-      // const raw = Array.isArray(res.data?.items)
-      //   ? res.data.items
-      //   : Array.isArray(res.data)
-      //   ? res.data
-      //   : [];
- 
-      // const toKeyPart = (v) =>
-      //   typeof v === 'string' ? v.trim().toLowerCase() : String(v ?? '').trim().toLowerCase();
- 
-      // collapse visually-identical items even if _id differs
-      
-      // const sig = (it) => [
-      //   toKeyPart(it?.name),
-      //   toKeyPart(it?.price),
-      //   toKeyPart(it?.image),    
-      //   toKeyPart(it?.category),
-      // ].join('|');
- 
-    // const sig = (it) => String(it?._id || '').trim();
-
-    //   const seen = new Set();
-    //   const unique = [];
-    //   for (const it of raw) {
-    //     const key = sig(it);
-    //     if (!seen.has(key)) {
-    //       seen.add(key);
-    //       unique.push(it);
-    //     }
-    //   }
-    //   setFilteredItems(unique); 
-
-
-      // trying to figure out why duplication is still hapening. uncokmnet this later if doesnt work 
-  
-        //top block is all new for testing pruposes. 
-        
-
     } catch (err) {
       console.error("[fetchFilteredItems] error:", err);
       setSearchError("Failed to load items");
@@ -260,18 +211,18 @@ const Bazaar = () => {
   }, [classroomId]);
 
   // reset the Bazaar Form
-const resetBazaarForm = () => {
+  const resetBazaarForm = () => {
     setBazaarName('');
     setBazaarDesc('');
     setBazaarImage('');
-    setBazaarImageFile('placeholder.jpg'); // ADD
-    setBazaarImageSource('url'); // ADD
-    setBazaarImageUrl(''); // ADD
-    if (BazaarFileInputRef.current) BazaarFileInputRef.current.value = ''; // clear native file input on reset
-};
+    setBazaarImageFile('placeholder.jpg');
+    setBazaarImageSource('url');
+    setBazaarImageUrl('');
+    if (BazaarFileInputRef.current) BazaarFileInputRef.current.value = '';
+  };
 
-// Editing the Bazaar
-const handleEditBazaar = (bazaar) => {
+  // Editing the Bazaar
+  const handleEditBazaar = (bazaar) => {
     setBazaarName(bazaar.name);
     setBazaarDesc(bazaar.description);
     setBazaarImage(bazaar.image);
@@ -279,43 +230,39 @@ const handleEditBazaar = (bazaar) => {
     setBazaarImageSource('url');
     setBazaarImageUrl('');
     setEditBazaar(true);
-};
+  };
 
-// Update Bazaar (modified to handle file uploads + remove flag)
-const handleUpdateBazaar = async () => {
+  // Update Bazaar (modified to handle file uploads + remove flag)
+  const handleUpdateBazaar = async () => {
     if (!BazaarName.trim()) return toast.error('Bazaar name is required');
 
     try {
-        // If a new file was chosen, send multipart/form-data with the file
-        if (BazaarImageSource === 'file' && BazaarImageFile) {
-            const fd = new FormData();
-            fd.append('name', BazaarName);
-            fd.append('description', BazaarDesc);
-            fd.append('image', BazaarImageFile);
-            await apiBazaar.put(`classroom/bazaar/edit/${bazaar._id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' }});
-        } else {
-            await apiBazaar.put(`classroom/bazaar/edit/${bazaar._id}`, {
-            name: BazaarName,
-            description: BazaarDesc,
-            //image: BazaarImageRemoved ? 'placeholder.jpg' : (BazaarImageSource === 'url' ? BazaarImageUrl : undefined),
-            });
-        }
+      // If a new file was chosen, send multipart/form-data with the file
+      if (BazaarImageSource === 'file' && BazaarImageFile) {
+        const fd = new FormData();
+        fd.append('name', BazaarName);
+        fd.append('description', BazaarDesc);
+        fd.append('image', BazaarImageFile);
+        await apiBazaar.put(`classroom/bazaar/edit/${bazaar._id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' }});
+      } else {
+        await apiBazaar.put(`classroom/bazaar/edit/${bazaar._id}`, {
+          name: BazaarName,
+          description: BazaarDesc,
+        });
+      }
 
-        toast.success('Bazaar updated successfully');
-        // reset remove flag after successful update
-        setBazaarImageRemoved(false);
-        resetBazaarForm();
-        fetchBazaar();
+      toast.success('Bazaar updated successfully');
+      setBazaarImageRemoved(false);
+      resetBazaarForm();
+      fetchBazaar();
     } catch (err) {
-        if (err.response?.data?.message === 'No changes were made') {
-            toast.error('No changes were made');
-        } else {
-            toast.error('Failed to update group set');
-        }
+      if (err.response?.data?.message === 'No changes were made') {
+        toast.error('No changes were made');
+      } else {
+        toast.error('Failed to update group set');
+      }
     }
   };
-
-
 
   useEffect(() => {
     if (bazaar?._id) {
@@ -324,51 +271,44 @@ const handleUpdateBazaar = async () => {
     }
   }, [bazaar?._id]);
 
+  // Keep bazaar.items in sync after an update
+  const handleItemUpdated = (updatedItem) => {
+    setBazaar(prev => ({
+      ...prev,
+      items: prev?.items?.map(it =>
+        String(it._id) === String(updatedItem._id) ? updatedItem : it
+      ) || []
+    }));
 
-// Keep bazaar.items in sync after an update
-const handleItemUpdated = (updatedItem) => {
-  // Update bazaar
-  setBazaar(prev => ({
-    ...prev, //keeps all other prev fields
-    items: prev?.items?.map(it =>
-    // if the current item id matches the updated one, replace it
-      String(it._id) === String(updatedItem._id) ? updatedItem : it
-    ) || [] // fallback to empty array if items was undefined
-  }));
+    setFilteredItems(prev =>
+      Array.isArray(prev)
+        ? prev.map(it =>
+            String(it._id) === String(updatedItem._id) ? updatedItem : it
+          )
+        : prev
+    );
+  };
 
-  // Update filteredItems (what your grid actually maps over/show)
-  setFilteredItems(prev =>
-    Array.isArray(prev)
-      ? prev.map(it => //replaces the matching item with the new updated one 
-          String(it._id) === String(updatedItem._id) ? updatedItem : it
-        )
-      : prev //make susre it wasnt an array, if its not, it returns unchanged 
-  );
-};
+  // Remove an item from bazaar.items after delete
+  const handleItemDeleted = (itemId) => {
+    setBazaar(prev => ({ 
+      ...prev,
+      items: prev?.items?.filter(it => String(it._id) !== String(itemId)) || []
+    }));
 
-// Remove an item from bazaar.items after delete
-const handleItemDeleted = (itemId) => { // itemId is the _id of the deleted item
-  // Update bazaar
-  setBazaar(prev => ({ 
-    ...prev,
-    items: prev?.items?.filter(it => String(it._id) !== String(itemId)) || [] // in case items was undefined (shouldn't happen
-  }));
-
-  // Update filteredItems (what your grid actually maps over)
-  setFilteredItems(prev =>
-    Array.isArray(prev) //removes teh item from filtered items if it exists with id 
-      ? prev.filter(it => String(it._id) !== String(itemId))
-      : prev
-  );
-};
-
+    setFilteredItems(prev =>
+      Array.isArray(prev)
+        ? prev.filter(it => String(it._id) !== String(itemId))
+        : prev
+    );
+  };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-base-200">
     <span className="loading loading-ring loading-lg"></span>
-  </div>
+  </div>;
 
   // Case: Bazaar not yet created
-   if (!bazaar) {
+  if (!bazaar) {
     return user?.role === "teacher" ? (
       <div className="flex flex-col min-h-screen bg-base-200">
         <div className="flex-grow p-6 space-y-6">
@@ -424,51 +364,14 @@ const handleItemDeleted = (itemId) => { // itemId is the _id of the deleted item
                 </div>
               ) : (
                 <div className="text-sm opacity-70 mt-3">
-                  There are no templates yet. Create a bazaar and click “Save as Template” to use it.
+                  There are no templates yet, create a bazaar and click “Save as Template” to have one.
                 </div>
               )}
-
-              {reusable?.length ? (
-                <>
-                  <div className="divider my-4">OR</div>
-                  <h3 className="font-semibold mb-2">
-                    Reusable Bazaars from Other Classrooms
-                  </h3>
-                  <div className="space-y-3">
-                    {reusable.map((b) => (
-                      <div
-                        key={b._id}
-                        className="border border-base-300 rounded-lg p-3 flex items-center justify-between"
-                      >
-                        <div>
-                          <div className="font-medium">“{b.name}”</div>
-                          <div className="text-sm opacity-70">
-                            From: {b.classroom?.name || "Classroom"}
-                            {b.classroom?.code ? ` (${b.classroom.code})` : ""}
-                            {" • "}
-                            {b.countItem} item{b.countItem === 1 ? "" : "s"} •{" "}
-                            {new Date(b.createdAt).toLocaleDateString()}
-                          </div>
-                        </div>
-                        <button
-                          className="btn btn-sm btn-success"
-                          onClick={async () => {
-                            const created = await applyReusable(b._id, classroomId);
-                            if (created) {
-                              setBazaar(created);
-                              toast.success("Reusable bazaar applied");
-                            }
-                          }}
-                        >
-                          Apply
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : null}
             </div>
           </div>
+
+          {/* Divider between Apply Template and Create Bazaar */}
+          <div className="divider my-4">OR</div>
 
           {/* Create form under the template panel */}
           <CreateBazaar classroomId={classroomId} onCreate={setBazaar} />
@@ -528,7 +431,7 @@ const handleItemDeleted = (itemId) => { // itemId is the _id of the deleted item
           </p>
         </div>
         {/* Modification Section */}
-       {(user?.role === "teacher" || user?.role === "admin") && (
+        {(user?.role === "teacher" || user?.role === "admin") && (
           <div className="flex flex-col gap-2 items-end">
             <div className="flex gap-2">
               <button
@@ -562,7 +465,6 @@ const handleItemDeleted = (itemId) => { // itemId is the _id of the deleted item
                 className="btn btn-sm btn-outline"
                 onClick={async () => {
                   await fetchTemplates();
-                  await fetchReusableBazaarTemplates(classroomId);
                   setShowViewer(true);
                 }}
                 title="View/apply/delete your templates"
@@ -572,10 +474,9 @@ const handleItemDeleted = (itemId) => { // itemId is the _id of the deleted item
             </div>
           </div>
         )}
-
       </div>
 
-      {/* (JA) Search & filter controls for the Bazaar items */}
+      {/* Search & filter controls for the Bazaar items */}
       <BazaarSearch
         onFiltersChange={(f) => {
           setPage(1);
@@ -584,7 +485,7 @@ const handleItemDeleted = (itemId) => { // itemId is the _id of the deleted item
         }}
       />
 
-      {/* (JA) Filtered results section */}
+      {/* Filtered results section */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-2xl font-bold text-success flex items-center gap-2">
@@ -639,10 +540,10 @@ const handleItemDeleted = (itemId) => { // itemId is the _id of the deleted item
                   item={item}
                   role={user?.role}
                   classroomId={classroomId}
-                  teacherId={classroom?.teacher?._id || classroom?.teacher} 
-                  bazaarIdProp={bazaar?._id}//always pass teacher ID, if classroom.teacher is populated object use _id else use as is
-                  onUpdated={handleItemUpdated} // pass down to update cart items if price/name changed
-                  onDeleted={handleItemDeleted} // pass down to remove from cart if item deleted
+                  teacherId={classroom?.teacher?._id || classroom?.teacher}
+                  bazaarIdProp={bazaar?._id}
+                  onUpdated={handleItemUpdated}
+                  onDeleted={handleItemDeleted}
                 />
               ))}
             </div>
@@ -674,7 +575,6 @@ const handleItemDeleted = (itemId) => { // itemId is the _id of the deleted item
             <CreateItem
               bazaarId={bazaar._id}
               classroomId={classroomId}
-              //trying to fix this item duplication issue when student purchases/. 
               onAdd={(newItem) => {
                 setBazaar(prev => ({ ...prev, items: [...(prev.items || []), newItem] }));
                 fetchFilteredItems(filters);
@@ -683,63 +583,13 @@ const handleItemDeleted = (itemId) => { // itemId is the _id of the deleted item
           </div>
         )}
 
-        {/* Items for Sale Section
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-2xl font-bold text-success flex items-center gap-2">
-              <HandCoins />
-              Items for Sale
-            </h3>
-            <span className="badge badge-outline text-sm hidden md:inline">
-              {bazaar.items?.length || 0} item{bazaar.items?.length === 1 ? '' : 's'}
-            </span>
-          </div>
-
-          <div className="divider my-0"></div>
-
-          {bazaar.items?.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-              {bazaar.items.map((item) => (
-                <ItemCard
-                  key={item._id}
-                  item={item}
-                  role={user.role}
-                  classroomId={classroomId}
-                />
-              ))}
-            </div>
-          ) : (
-          
-            <div className="flex flex-col items-center justify-center py-10 text-center text-gray-500">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="w-12 h-12 mb-2 opacity-40"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M20 13V9a2 2 0 00-2-2h-1V5a2 2 0 00-2-2H9a2 2 0 00-2 2v2H6a2 2 0 00-2 2v4M3 17h18M9 21h6"
-                />
-              </svg>
-              <p className="italic">Nothing is for sale yet. Please check back later!</p>
-            </div>
-          )}
-        </div>
-        */}
-
-
         {/* Inventory Section with Button in Header */}
         <div className="card bg-base-200 shadow-inner border border-base-300">
           <div className="card-body p-4">
             <div className="flex items-center justify-between mb-2">
               <button
                 onClick={() => setShowInventory(!showInventory)}
-                className={`btn btn-sm transition-all duration-200 ${showInventory ? 'btn-outline btn-error' : 'btn-success'
-                  }`}
+                className={`btn btn-sm transition-all duration-200 ${showInventory ? 'btn-outline btn-error' : 'btn-success'}`}
               >
                 {showInventory ? 'Hide' : 'Show'} Inventory
               </button>
@@ -753,256 +603,210 @@ const handleItemDeleted = (itemId) => { // itemId is the _id of the deleted item
             )}
           </div>
         </div>
-          {/* Edit Bazaar */}
-          {EditBazaar && (
-            <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-              <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-lg">
-                <h2 className="text-lg font-semibold mb-4 text-center">Edit Bazaar</h2>
-                
-                {/* Modify bazaar name & description */}
-                <div className="mb-4">
-                  <label className="label">
-                    <span className="label-text">Bazaar Name</span>
-                  </label>
+
+        {/* This is for editing the Bazaar */}
+        {EditBazaar && (
+          <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-lg">
+              <h2 className="text-lg font-semibold mb-4 text-center">Edit Bazaar</h2>
+
+              {/* This is for modifying the bazaar name & description */}
+              <div className="mb-4">
+                <label className="label">
+                  <span className="label-text">Bazaar Name</span>
+                </label>
                 <input
                   type="text"
-                  placeholder= {bazaar.name}
+                  placeholder={bazaar.name}
                   className="input input-bordered w-full mb-3"
                   value={BazaarName}
-                  onCreate ={() => setBazaarName(bazaar.name)}
+                  onCreate={() => setBazaarName(bazaar.name)}
                   onChange={(e) => setBazaarName(e.target.value)}
                 />
-                </div>
-                <div className="mb-4">
-                  <label className="label">
-                    <span className="label-text">Bazaar Description</span>
-                  </label>
+              </div>
+              <div className="mb-4">
+                <label className="label">
+                  <span className="label-text">Bazaar Description</span>
+                </label>
                 <input
                   type="text"
-                  placeholder= {bazaar.description}
+                  placeholder={bazaar.description}
                   className="input input-bordered w-full mb-3"
                   value={BazaarDesc}
-                  //onCreate = {() => setBazaarDesc(bazaar.description)}
                   onChange={(e) => setBazaarDesc(e.target.value)}
                 />
-                </div>
-    
-                
-    
-                {/* Image controls moved into modal so edit UI mirrors create form */}
-                <div className="mb-4">
-                  <label className="label">
-                    <span className="label-text">Image</span>
-                    <span className="label-text-alt">Optional</span>
-                  </label>
-    
-                  <div className="inline-flex rounded-full bg-gray-200 p-1">
-                    <button
-                      type="button"
-                      onClick={() => setBazaarImageSource('file')}
-                      className={`px-3 py-1 rounded-full text-sm transition ${BazaarImageSource === 'file' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
-                    >
-                      Upload
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setBazaarImageSource('url')}
-                      className={`ml-1 px-3 py-1 rounded-full text-sm transition ${BazaarImageSource === 'url' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
-                    >
-                      Use image URL
-                    </button>
-                  </div>
-    
-                  {BazaarImageSource === 'file' ? (
-                    <>
-                      <input
-                        ref={BazaarFileInputRef}
-                        type="file"
-                        accept="image/png,image/jpeg,image/webp,image/gif"
-                        onChange={e => setBazaarImageFile(e.target.files[0])}
-                        className="file-input file-input-bordered w-full max-w-xs mt-3"
-                      />
-                      <p className="text-xs text-gray-500">Allowed: jpg, png, webp, gif. Max: 5 MB.</p>
-                    </>
-                  ) : (
-                    <input
-                      type="url"
-                      placeholder="https://..."
-                      className="input input-bordered w-full mt-3 max-w-xs"
-                      value={BazaarImageUrl}
-                      onChange={(e) => setBazaarImageUrl(e.target.value)}
-                    />
-                  )}
-                </div>
-    
-                <div className="flex justify-center gap-4 mt-4">
-                  <button
-                    className="btn btn-success"
-                    onClick={handleUpdateBazaar}
-                  >
-                    Update Bazaar
-                  </button>
-                  <button
-                    className="btn btn-ghost"
-                    onClick={() => {
-                      setEditBazaar(false);
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
               </div>
-            </div>
-          )}
-          
-    {confirmDeleteBazaar && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
-            <h2 className="text-lg font-semibold mb-4 text-center">Delete Bazaar</h2>
-            <p className="text-sm text-center">
-              Are you sure you want to delete the Bazaar <strong>{confirmDeleteBazaar.name}</strong>?
-              <br />
-              This will also delete the items.
-            </p>
-            <div className="mt-6 flex justify-center gap-4">
-              <button
-                onClick={() => setConfirmDeleteBazaar(null)}
-                className="btn btn-sm"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteBazaar}
-                className="btn btn-sm btn-error"
-              >
-                Yes, Delete
-              </button>
-            </div>
-          </div>
-        </div>
-    )}
 
-    {showViewer && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60]">
-          <div className="bg-base-100 w-[95%] max-w-3xl rounded-xl shadow-xl p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold">Your Bazaar Templates</h3>
-              <button className="btn btn-sm btn-ghost" onClick={() => setShowViewer(false)}>Close</button>
-            </div>
+              {/* Image controls */}
+              <div className="mb-4">
+                <label className="label">
+                  <span className="label-text">Image</span>
+                  <span className="label-text-alt">Optional</span>
+                </label>
 
-            {/* the bazaar templates */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h4 className="font-medium">Saved Templates</h4>
+                <div className="inline-flex rounded-full bg-gray-200 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setBazaarImageSource('file')}
+                    className={`px-3 py-1 rounded-full text-sm transition ${BazaarImageSource === 'file' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
+                  >
+                    Upload
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBazaarImageSource('url')}
+                    className={`ml-1 px-3 py-1 rounded-full text-sm transition ${BazaarImageSource === 'url' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
+                  >
+                    Use image URL
+                  </button>
+                </div>
+
+                {BazaarImageSource === 'file' ? (
+                  <>
+                    <input
+                      ref={BazaarFileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      onChange={e => setBazaarImageFile(e.target.files[0])}
+                      className="file-input file-input-bordered w-full max-w-xs mt-3"
+                    />
+                    <p className="text-xs text-gray-500">Allowed: jpg, png, webp, gif. Max: 5 MB.</p>
+                  </>
+                ) : (
+                  <input
+                    type="url"
+                    placeholder="https://..."
+                    className="input input-bordered w-full mt-3 max-w-xs"
+                    value={BazaarImageUrl}
+                    onChange={(e) => setBazaarImageUrl(e.target.value)}
+                  />
+                )}
+              </div>
+
+              <div className="flex justify-center gap-4 mt-4">
                 <button
-                  className="btn btn-xs"
-                  onClick={async () => {
-                    await fetchTemplates();
-                    await fetchReusableBazaarTemplates(classroomId);
+                  className="btn btn-success"
+                  onClick={handleUpdateBazaar}
+                >
+                  Update Bazaar
+                </button>
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => {
+                    setEditBazaar(false);
                   }}
                 >
-                  Refresh
+                  Cancel
                 </button>
               </div>
-
-              {templateLoading ? (
-                <div className="text-sm opacity-70">Loading…</div>
-              ) : (templates?.length ?? 0) > 0 ? (
-                <div className="space-y-2 max-h-60 overflow-auto pr-1">
-                  {templates.map((t) => (
-                    <div
-                      key={t._id}
-                      className="border border-base-300 rounded-lg p-3 flex items-center justify-between"
-                    >
-                      <div className="min-w-0">
-                        <div className="font-medium truncate">{t.name}</div>
-                        <div className="text-xs opacity-70 truncate">
-                          From: {t.sourceClassroom?.name || 'Classroom'}
-                          {t.sourceClassroom?.code ? ` (${t.sourceClassroom.code})` : ''}
-                          {" • "}
-                          {t.countItem ?? 0} item{(t.countItem ?? 0) === 1 ? '' : 's'} •{' '}
-                          {new Date(t.createdAt).toLocaleDateString()}
-                        </div>
-                      </div>
-
-                      <div className="flex gap-2 shrink-0">
-                        <button
-                          className="btn btn-xs btn-success"
-                          onClick={async () => {
-                            const created = await applyTemplate(t._id, classroomId);
-                            if (created) {
-                              setBazaar(created);
-                              setShowViewer(false);
-                              toast.success('Template applied');
-                            }
-                          }}
-                        >
-                          Apply
-                        </button>
-                        <button
-                          className="btn btn-xs btn-outline btn-error"
-                          onClick={() => deleteTemplate(t._id)}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-sm opacity-70">There are no templates yet.</div>
-              )}
-            </div>
-
-            <div className="divider my-4">OR</div>
-
-            {/* Reusable Bazaars */}
-            <div className="space-y-2">
-              <h4 className="font-medium">Reusable Bazaars from Other Classrooms</h4>
-              {(reusable?.length ?? 0) > 0 ? (
-                <div className="space-y-2 max-h-60 overflow-auto pr-1">
-                  {reusable.map((b) => (
-                    <div
-                      key={b._id}
-                      className="border border-base-300 rounded-lg p-3 flex items-center justify-between"
-                    >
-                      <div className="min-w-0">
-                        <div className="font-medium truncate">{b.name}</div>
-                        <div className="text-xs opacity-70 truncate">
-                          From: {b.classroom?.name || 'Classroom'}
-                          {b.classroom?.code ? ` (${b.classroom.code})` : ''}
-                          {" • "}
-                          {b.countItem ?? 0} item{(b.countItem ?? 0) === 1 ? '' : 's'} •{' '}
-                          {new Date(b.createdAt).toLocaleDateString()}
-                        </div>
-                      </div>
-                      <button
-                        className="btn btn-xs btn-success"
-                        onClick={async () => {
-                          const created = await applyReusable(b._id, classroomId);
-                          if (created) {
-                            setBazaar(created);
-                            setShowViewer(false);
-                            toast.success('Reusable bazaar applied');
-                          }
-                        }}
-                      >
-                        Apply
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-sm opacity-70">No reusable bazaars found.</div>
-              )}
             </div>
           </div>
-        </div>
-      )}
-      <Footer />
+        )}
+
+        {confirmDeleteBazaar && (
+          <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
+              <h2 className="text-lg font-semibold mb-4 text-center">Delete Bazaar</h2>
+              <p className="text-sm text-center">
+                Are you sure you want to delete the Bazaar <strong>{confirmDeleteBazaar.name}</strong>?
+                <br />
+                This will also delete the items.
+              </p>
+              <div className="mt-6 flex justify-center gap-4">
+                <button
+                  onClick={() => setConfirmDeleteBazaar(null)}
+                  className="btn btn-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteBazaar}
+                  className="btn btn-sm btn-error"
+                >
+                  Yes, Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showViewer && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60]">
+            <div className="bg-base-100 w-[95%] max-w-3xl rounded-xl shadow-xl p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-semibold">Your Bazaar Templates</h3>
+                <button className="btn btn-sm btn-ghost" onClick={() => setShowViewer(false)}>Close</button>
+              </div>
+
+              {/* this is for the bazaar templates */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium">Saved Templates</h4>
+                  <button
+                    className="btn btn-xs"
+                    onClick={async () => {
+                      await fetchTemplates();
+                    }}
+                  >
+                    Refresh
+                  </button>
+                </div>
+
+                {templateLoading ? (
+                  <div className="text-sm opacity-70">Loading…</div>
+                ) : (templates?.length ?? 0) > 0 ? (
+                  <div className="space-y-2 max-h-60 overflow-auto pr-1">
+                    {templates.map((t) => (
+                      <div
+                        key={t._id}
+                        className="border border-base-300 rounded-lg p-3 flex items-center justify-between"
+                      >
+                        <div className="min-w-0">
+                          <div className="font-medium truncate">{t.name}</div>
+                          <div className="text-xs opacity-70 truncate">
+                            From: {t.sourceClassroom?.name || 'Classroom'}
+                            {t.sourceClassroom?.code ? ` (${t.sourceClassroom.code})` : ''}
+                            {" • "}
+                            {t.countItem ?? 0} item{(t.countItem ?? 0) === 1 ? '' : 's'} •{' '}
+                            {new Date(t.createdAt).toLocaleDateString()}
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2 shrink-0">
+                          <button
+                            className="btn btn-xs btn-success"
+                            onClick={async () => {
+                              const created = await applyTemplate(t._id, classroomId);
+                              if (created) {
+                                setBazaar(created);
+                                setShowViewer(false);
+                                toast.success('Template applied');
+                              }
+                            }}
+                          >
+                            Apply
+                          </button>
+                          <button
+                            className="btn btn-xs btn-outline btn-error"
+                            onClick={() => deleteTemplate(t._id)}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-sm opacity-70">There are no templates yet.</div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+        <Footer />
       </div>
     </div>
-    );
-    };
+  );
+};
 
-      export default Bazaar;
+export default Bazaar;
