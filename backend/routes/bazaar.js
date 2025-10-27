@@ -497,6 +497,7 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
         primaryEffect: item.primaryEffect,
         primaryEffectValue: item.primaryEffectValue,
         secondaryEffects: item.secondaryEffects,
+        duration: item.duration,
         owner: userId
       });
 
@@ -531,6 +532,7 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
         primaryEffect: i.primaryEffect,
         primaryEffectValue: i.primaryEffectValue,
         secondaryEffects: i.secondaryEffects,
+        duration: i.duration,
         image: i.image || null
       })),
       orderId: order._id

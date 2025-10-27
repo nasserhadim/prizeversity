@@ -116,6 +116,7 @@ const Checkout = () => {
           category: item.category,
           primaryEffect: item.primaryEffect,
           secondaryEffects: item.secondaryEffects,
+          duration: Number(item.duration) || 1,
           image: item.image
         };
       });

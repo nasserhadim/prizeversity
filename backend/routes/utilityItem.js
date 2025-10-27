@@ -12,7 +12,6 @@ router.post('/use/:itemId/:classroomId', ensureAuthenticated, async (req, res) =
     if (!item || item.owner.toString() !== req.user._id.toString()) {
       return res.status(404).json({ error: 'Item not found' });
     }
-
     // Apply utility effect
     switch(item.primaryEffect) {
       case 'doubleEarnings':
@@ -20,12 +19,12 @@ router.post('/use/:itemId/:classroomId', ensureAuthenticated, async (req, res) =
         break;
       case 'discountShop':
          const discountPct = Number(item.primaryEffectValue) || 20;
-         const durationHours = Number(item.primaryEffectDuration) || 1; // optional window
+         const durationHours = Number(item.duration); // optional window
          const apply = new Date(Date.now());
          const expire = new Date(Date.now() + (60 * 60 * 1000 * durationHours));
          
         // Creates the discount
-        Discount.insertOne({
+        await Discount.create({
             classroom: req.params.classroomId,
             owner: req.user._id,
             appliedAt: apply,
