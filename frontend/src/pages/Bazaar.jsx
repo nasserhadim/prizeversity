@@ -48,6 +48,9 @@ const Bazaar = () => {
     deleteTemplate,
   } = useBazaarTemplates();
 
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [templateActionMode, setTemplateActionMode] = useState('apply-delete');
+
   // delete bazaar
   const handleDeleteBazaar = async () => {
     if (!confirmDeleteBazaar) return;
@@ -62,42 +65,7 @@ const Bazaar = () => {
       setConfirmDeleteBazaar(null);
     }
   };
-
-  /*
-  const startEditBazaar = async () => {
-    setBazaarName(bazaar.name);
-    setBazaarDesc(bazaar.description);
-    setBazaarImageSource(bazaar.image);
-
-    setEditBazaar(bazaar);
-  }
-
-  const handleEditBazaar = async () => {
-    if (!EditBazaar) return;
-    try {
-      if (BazaarImageSource === 'file' && BazaarImageFile) {
-        const fd = new FormData();
-        fd.append('name', BazaarName);
-        fd.append('description', BazaarDesc);
-        fd.append('image', BazaarImageFile);
-        await apiBazaar.put(`classroom/${bazaar._id}/bazaar/edit`, fd, { headers: { 'Content-Type': 'multipart/form-data' }});
-      } else {
-        await apiBazaar.put(`classroom/${bazaar._id}/bazaar/edit`, {
-          name: BazaarName,
-          description: BazaarDesc,
-          image: BazaarImageFile
-        });
-      }
-      toast.success('Bazaar edited');
-      setEditBazaar(null);
-    }  catch(error) {
-      console.error(error);
-      toast.error(`Failed to edit bazaar: ${error.response?.data?.error || error.message}`);
-      setEditBazaar(null);
-    }
-  };
-  */
-
+  
   const [filteredItems, setFilteredItems] = useState([]);
   const [filters, setFilters] = useState({ category: undefined, q: "" });
   const [searchLoading, setSearchLoading] = useState(false);
@@ -115,7 +83,7 @@ const Bazaar = () => {
     }
   };
 
-  // Will fetch the bazaar from the classroom
+  // this will fetch the bazaar from the classroom
   const fetchBazaar = async () => {
     try {
       const res = await apiBazaar.get(`classroom/${classroomId}/bazaar`);
@@ -308,11 +276,11 @@ const Bazaar = () => {
   </div>;
 
   // Case: Bazaar not yet created
-  if (!bazaar) { //edited this portion
+  if (!bazaar) { // edited to use card grid
     return user?.role === "teacher" ? (
       <div className="flex flex-col min-h-screen bg-base-200">
         <div className="flex-grow p-6 space-y-6">
-          {/* Apply Template Panel (when no bazaar yet) */}
+          {/* this would apply the Template Panel (when no bazaar yet) */}
           <div className="card bg-base-100 border border-base-300 shadow-sm">
             <div className="card-body">
               <h2 className="text-xl font-semibold">Apply Template</h2>
@@ -323,41 +291,64 @@ const Bazaar = () => {
               {templateLoading ? (
                 <div className="text-sm opacity-70 mt-3">Loading…</div>
               ) : templates?.length ? (
-                <div className="space-y-3 mt-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                   {templates.map((t) => (
                     <div
                       key={t._id}
-                      className="border border-base-300 rounded-lg p-3 flex items-center justify-between"
+                      className="card card-compact bg-base-100 border border-base-300 shadow-sm"
                     >
-                      <div>
-                        <div className="font-medium">Template: “{t.name}”</div>
-                        <div className="text-sm opacity-70">
-                          From: {t.sourceClassroom?.name || "Classroom"}
-                          {t.sourceClassroom?.code ? ` (${t.sourceClassroom.code})` : ""}
-                          {" • "}
-                          {t.countItem} item{t.countItem === 1 ? "" : "s"} •{" "}
-                          {new Date(t.createdAt).toLocaleDateString()}
+                      <div className="card-body">
+                        <div className="min-w-0">
+                          <h3 className="card-title text-base truncate">{t.name}</h3>
+                         <p className="text-xs text-black">
+                            From: {t.sourceClassroom?.name || "Classroom"}<br />
+                            Class Code: {t.sourceClassroom?.code ? ` (${t.sourceClassroom.code})` : ""}<br />
+                            Items: {t.countItem ?? 0} item{(t.countItem ?? 0) === 1 ? "" : "s"}<br />
+                            Template Saved: {new Date(t.createdAt).toLocaleDateString()}
+                        </p>
                         </div>
-                      </div>
-                      <div className="flex gap-3">
-                        <button
-                          className="btn btn-sm btn-success"
-                          onClick={async () => {
-                            const created = await applyTemplate(t._id, classroomId);
-                            if (created) {
-                              setBazaar(created);
-                              toast.success("Template applied");
-                            }
-                          }}
-                        >
-                          Apply
-                        </button>
-                        <button
-                          className="btn btn-sm btn-outline btn-error"
-                          onClick={() => deleteTemplate(t._id)}
-                        >
-                          Delete
-                        </button>
+                        <div className="card-actions justify-end mt-2">
+                          <button
+                            className="btn btn-sm btn-success"
+                            onClick={async () => {
+                              const created = await applyTemplate(t._id, classroomId);
+                              if (created) {
+                                setBazaar(created);
+                                toast.success("Template applied");
+                              }
+                            }}
+                          >
+                            Apply
+                          </button>
+                          {confirmDeleteId === t._id ? (
+                            <>
+                              <button
+                                className="btn btn-sm btn-error"
+                                onClick={async () => {
+                                  await deleteTemplate(t._id);
+                                  setConfirmDeleteId(null);
+                                  await fetchTemplates();
+                                  toast.success('Template deleted');
+                                }}
+                              >
+                                Confirm
+                              </button>
+                              <button
+                                className="btn btn-sm btn-ghost"
+                                onClick={() => setConfirmDeleteId(null)}
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              className="btn btn-sm btn-outline btn-error"
+                              onClick={() => setConfirmDeleteId(t._id)}
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -370,10 +361,9 @@ const Bazaar = () => {
             </div>
           </div>
 
-          {/* Divider between Apply Template and Create Bazaar */}
+          {/* this is the divider thats between Apply Template and Create Bazaar */}
           <div className="divider my-4">OR</div>
 
-          {/* Create form under the template panel */}
           <CreateBazaar classroomId={classroomId} onCreate={setBazaar} />
         </div>
         <Footer />
@@ -454,6 +444,7 @@ const Bazaar = () => {
                   const created = await saveBazaarTemplate(bazaar._id);
                   if (created) {
                     await fetchTemplates();
+                    setTemplateActionMode('none'); 
                     setShowViewer(true);
                   }
                 }}
@@ -465,6 +456,7 @@ const Bazaar = () => {
                 className="btn btn-sm btn-outline"
                 onClick={async () => {
                   await fetchTemplates();
+                  setTemplateActionMode('delete');
                   setShowViewer(true);
                 }}
                 title="View/apply/delete your templates"
@@ -476,7 +468,7 @@ const Bazaar = () => {
         )}
       </div>
 
-      {/* Search & filter controls for the Bazaar items */}
+      {/* This will search & filter the controls for the Bazaar items */}
       <BazaarSearch
         onFiltersChange={(f) => {
           setPage(1);
@@ -620,7 +612,6 @@ const Bazaar = () => {
                   placeholder={bazaar.name}
                   className="input input-bordered w-full mb-3"
                   value={BazaarName}
-                  onCreate={() => setBazaarName(bazaar.name)}
                   onChange={(e) => setBazaarName(e.target.value)}
                 />
               </div>
@@ -735,10 +726,15 @@ const Bazaar = () => {
             <div className="bg-base-100 w-[95%] max-w-3xl rounded-xl shadow-xl p-5">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-lg font-semibold">Your Bazaar Templates</h3>
-                <button className="btn btn-sm btn-ghost" onClick={() => setShowViewer(false)}>Close</button>
+                <button
+                  className="btn btn-sm btn-ghost"
+                  onClick={() => { setConfirmDeleteId(null); setShowViewer(false); }}
+                >
+                  Close
+                </button>
               </div>
 
-              {/* this is for the bazaar templates */}
+              {/* this is for the bazaar templates so that they can be in card form */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <h4 className="font-medium">Saved Templates</h4>
@@ -755,49 +751,114 @@ const Bazaar = () => {
                 {templateLoading ? (
                   <div className="text-sm opacity-70">Loading…</div>
                 ) : (templates?.length ?? 0) > 0 ? (
-                  <div className="space-y-2 max-h-60 overflow-auto pr-1">
-                    {templates.map((t) => (
-                      <div
-                        key={t._id}
-                        className="border border-base-300 rounded-lg p-3 flex items-center justify-between"
-                      >
-                        <div className="min-w-0">
-                          <div className="font-medium truncate">{t.name}</div>
-                          <div className="text-xs opacity-70 truncate">
-                            From: {t.sourceClassroom?.name || 'Classroom'}
-                            {t.sourceClassroom?.code ? ` (${t.sourceClassroom.code})` : ''}
-                            {" • "}
-                            {t.countItem ?? 0} item{(t.countItem ?? 0) === 1 ? '' : 's'} •{' '}
-                            {new Date(t.createdAt).toLocaleDateString()}
+                  <div className="max-h-60 overflow-auto pr-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {templates.map((t) => (
+                        <div
+                          key={t._id}
+                          className="card card-compact bg-base-100 border border-base-300 shadow-sm"
+                        >
+                          <div className="card-body">
+                            <div className="min-w-0">
+                              <div className="card-title text-sm truncate">{t.name}</div>
+                              <div className="text-xs opacity-70 truncate">
+                                From: {t.sourceClassroom?.name || 'Classroom'}
+                                {t.sourceClassroom?.code ? ` (${t.sourceClassroom.code})` : ''}
+                                {" • "}
+                                {t.countItem ?? 0} item{(t.countItem ?? 0) === 1 ? '' : 's'} •{' '}
+                                {new Date(t.createdAt).toLocaleDateString()}
+                              </div>
+                            </div>
+
+                            <div className="card-actions justify-end mt-2">
+                              {templateActionMode === 'none' ? (
+                                // there are actions for "Save as Template" viewer, only you can view
+                                null
+                              ) : templateActionMode === 'delete' ? (
+                                // this is the Delete button (with confirm)
+                                <>
+                                  {confirmDeleteId === t._id ? (
+                                    <>
+                                      <button
+                                        className="btn btn-xs btn-error"
+                                        onClick={async () => {
+                                          await deleteTemplate(t._id);
+                                          setConfirmDeleteId(null);
+                                          await fetchTemplates();
+                                          toast.success('Template deleted');
+                                        }}
+                                      >
+                                        Confirm
+                                      </button>
+                                      <button
+                                        className="btn btn-xs btn-ghost"
+                                        onClick={() => setConfirmDeleteId(null)}
+                                      >
+                                        Cancel
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <button
+                                      className="btn btn-xs btn-outline btn-error"
+                                      onClick={() => setConfirmDeleteId(t._id)}
+                                    >
+                                      Delete
+                                    </button>
+                                  )}
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    className="btn btn-xs btn-success"
+                                    onClick={async () => {
+                                      const created = await applyTemplate(t._id, classroomId);
+                                      if (created) {
+                                        setBazaar(created);
+                                        setShowViewer(false);
+                                        toast.success('Template applied');
+                                      }
+                                    }}
+                                  >
+                                    Apply
+                                  </button>
+                                  {confirmDeleteId === t._id ? (
+                                    <>
+                                      <button
+                                        className="btn btn-xs btn-error"
+                                        onClick={async () => {
+                                          await deleteTemplate(t._id);
+                                          setConfirmDeleteId(null);
+                                          await fetchTemplates();
+                                          toast.success('Template deleted');
+                                        }}
+                                      >
+                                        Confirm
+                                      </button>
+                                      <button
+                                        className="btn btn-xs btn-ghost"
+                                        onClick={() => setConfirmDeleteId(null)}
+                                      >
+                                        Cancel
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <button
+                                      className="btn btn-xs btn-outline btn-error"
+                                      onClick={() => setConfirmDeleteId(t._id)}
+                                    >
+                                      Delete
+                                    </button>
+                                  )}
+                                </>
+                              )}
+                            </div>
                           </div>
                         </div>
-
-                        <div className="flex gap-2 shrink-0">
-                          <button
-                            className="btn btn-xs btn-success"
-                            onClick={async () => {
-                              const created = await applyTemplate(t._id, classroomId);
-                              if (created) {
-                                setBazaar(created);
-                                setShowViewer(false);
-                                toast.success('Template applied');
-                              }
-                            }}
-                          >
-                            Apply
-                          </button>
-                          <button
-                            className="btn btn-xs btn-outline btn-error"
-                            onClick={() => deleteTemplate(t._id)}
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 ) : (
-                  <div className="text-sm opacity-70">There are no templates yet.</div>
+                  <div className="text-sm opacity-70">There are no that saved templates yet.</div>
                 )}
               </div>
             </div>
