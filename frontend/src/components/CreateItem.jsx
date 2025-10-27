@@ -19,7 +19,8 @@ const CATEGORY_OPTIONS = {
     { label: 'Earnings Multiplier (2x)', value: 'doubleEarnings' },
     { label: 'Shop Discount', value: 'discountShop' }
   ],
-  Passive: [] // No primary effects for passive
+  Passive: [], // No primary effects for passive
+  Mystery: [] 
 };
 
 // helper: ensure URL has a scheme so browser won't treat it as invalid
@@ -52,6 +53,8 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
   const [imageSource, setImageSource] = useState('url');
   const [imageFile, setImageFile] = useState(null);
   const [imageUrlLocal, setImageUrlLocal] = useState('');
+  const [allPrizes, setAllPrizes] = useState([]);// non mystery pitems
+  const [selectedRewards, setSelectedRewards] = useState({}); // { itemId: { checked, weight } }
   const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
   const fileInputRef = useRef(null); // ADD: to clear native file input after submit
  
@@ -62,6 +65,21 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
     setEffectPreview(gen);
   }, [form.category, form.primaryEffect, form.primaryEffectValue, form.duration, JSON.stringify(form.secondaryEffects), JSON.stringify(form.swapOptions)]);
 
+
+  // loadinf non mustery items so teacher can pick them as prizes
+  useEffect(() => {
+    if (!classroomId || !bazaarId) return;
+    (async () => {
+      try {
+        const res = await apiBazaar.get(`classroom/${classroomId}/bazaar/${bazaarId}/items?kind=standard`);
+        setAllPrizes(res.data.items || res.data);
+      } catch (err) {
+        console.error('Failed to load prizes for mystery box:', e);
+      }
+    })();
+  }, [classroomId, bazaarId]);
+
+        
   // Reset form to initial state
   const resetForm = () => {
     setForm({
@@ -171,6 +189,19 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
     );
   };
 
+  //helper will retun the teacher award selection into jason structure 
+
+  const buildRewardsPayload = () => {
+    if (form.category !== 'Mystery') return [];
+    return Object.entries(selectedRewards)
+      .filter(([, v]) => v?.checked)
+      .map(([id, v]) => ({
+        itemId: id,
+        weight: Number(v.weight) || 1
+      }));
+  };
+
+
   // Validate and submit form to backend
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -197,6 +228,8 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
         fd.append('duration', Number(form.duration));
         fd.append('bazaar', bazaarId);
         fd.append('image', imageFile);
+        fd.append('rewards', JSON.stringify(buildRewardsPayload()));
+
 
         const res = await apiBazaar.post(
           `classroom/${classroomId}/bazaar/${bazaarId}/items`,
@@ -225,10 +258,10 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
             })),
           swapOptions: form.primaryEffect === 'swapper' ? form.swapOptions : undefined,
           duration: form.primaryEffect === 'discountShop' ? Number(form.duration) : undefined,
-          bazaar: bazaarId
+          bazaar: bazaarId,
+          rewards: buildRewardsPayload()
         };
         console.log(payload);
-        // -----------------------------------------------------------------------------------------------------------------------------------------------------------------------
         const res = await apiBazaar.post(
           `classroom/${classroomId}/bazaar/${bazaarId}/items`,
           payload
@@ -359,7 +392,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
        </div>
  
        {/* Primary Effect (for non-passive categories) */}
-       {form.category && form.category !== 'Passive' && (
+       {form.category && !['Passive', 'Mystery'].includes(form.category) && (
          <div className="space-y-4">
            <div className="form-control">
              <label className="label">

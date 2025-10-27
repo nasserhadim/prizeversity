@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import apiBazaar from '../API/apiBazaar';
 import apiClassroom from '../API/apiClassroom';
@@ -20,23 +20,52 @@ const InventorySection = ({ userId, classroomId }) => {
   const [selectedTarget, setSelectedTarget] = useState(null);
   const [nullifyModalOpen, setNullifyModalOpen] = useState(false);
 
+  const [openingId, setOpeningId] = useState(null); // ID of the mystery box being opened
+  const [rewardPopup, setRewardPopup] = useState(null); // Reward popup state
+  const showReward = (name, image) => {
+    setRewardPopup({ name, image });
+    setTimeout(() => setRewardPopup(null), 5000);
+  };
+
+  //hoisted loader so bith effects and socetes can call it 
+  const load = useCallback(async () => {
+    if (!userId || !classroomId) return;
+    try {
+      const [invRes, studentRes] = await Promise.all([
+        apiBazaar.get(`/inventory/${userId}?classroomId=${classroomId}`), // Add classroomId query param
+        apiClassroom.get(`/${classroomId}/students`)
+      ]);
+      setItems(invRes.data.items);
+      setStudents(studentRes.data);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to load inventory or student list');
+    }
+  }, [userId, classroomId]);
+
   // Load inventory and student list when userId and classroomId are available
   useEffect(() => {
-    const load = async () => {
-      try {
-        const [invRes, studentRes] = await Promise.all([
-          apiBazaar.get(`/inventory/${userId}?classroomId=${classroomId}`), // Add classroomId query param
-          apiClassroom.get(`/${classroomId}/students`)
-        ]);
-        setItems(invRes.data.items);
-        setStudents(studentRes.data);
-      } catch (err) {
-        console.error(err);
-        toast.error('Failed to load inventory or student list');
-      }
-    };
-    if (userId && classroomId) load();
-  }, [userId, classroomId]);
+    load();
+  }, [userId, load]);
+   // const load = async () => {
+     // try {
+       // const [invRes, studentRes] = await Promise.all([
+         // apiBazaar.get(`/inventory/${userId}?classroomId=${classroomId}`), // Add classroomId query param
+          //apiClassroom.get(`/${classroomId}/students`)
+        //]);
+       // setItems(invRes.data.items);
+    //    setStudents(studentRes.data);
+      //} catch (err) {
+        //console.error(err);
+       // toast.error('Failed to load inventory or student list');
+     // }
+    //};
+    //if (userId && classroomId) load();
+  //}, [userId, classroomId]);
+
+// commented out abive block and replaced with hoisted load function so it can be called by socket listeners as well
+
+
 
   // Socket listeners for real-time updates
   useEffect(() => {
@@ -58,7 +87,7 @@ const InventorySection = ({ userId, classroomId }) => {
       socket.off('inventory_update');
       socket.off('item_used');
     };
-  }, [userId]);
+  }, [userId, load]);
 
   // When a swap attribute is selected in the modal
   const handleSwapSelection = async (swapAttribute) => {
@@ -155,6 +184,8 @@ const InventorySection = ({ userId, classroomId }) => {
 
   // When a nullify attribute is selected in the modal
   const handleNullifySelection = async (nullifyAttribute) => {
+    
+      
     setNullifyModalOpen(false);
     try {
       const response = await apiItem.post(`/attack/use/${currentItem._id}`, {
@@ -177,6 +208,47 @@ const InventorySection = ({ userId, classroomId }) => {
       }
     }
   };
+  // Function to open a mystery box
+
+const openMystery = async (ownedId) => {
+  try {
+    setOpeningId(ownedId);
+
+  
+    const { data } = await apiBazaar.post(`/inventory/${ownedId}/open`);
+
+    // Treat both first open and “already opened” (double click) as success
+    const ok = data?.ok || data?.message === 'Box opened' || data?.alreadyOpened;
+
+    if (ok) {
+      // backend may send both; prefer the fully created owned prize if present
+      const prize = data.awardedItemOwned || data.item || null;
+      const prizeName = data?.reward?.name || prize?.name || 'a prize';
+      //toast.success(`You received: ${prizeName}!`);
+      showReward(prizeName, prize?.image || null);
+
+      //remove the box from inventory
+      setItems(prev => {
+        const withoutBox = prev.filter(i => String(i._id) !== String(ownedId));
+        return prize ? [...withoutBox, prize] : withoutBox;
+      });
+
+      return;
+    }
+    
+    //if we got error 200 bu
+    throw new Error(data?.error || 'Failed to open box');
+  } catch (e) {
+    const msg =
+      e?.response?.data?.error ||
+      e?.message ||
+      'Cannot open box';
+    toast.error(msg);
+    console.error('openMystery error:', e?.response?.data || e);
+  } finally {
+    setOpeningId(null);
+  }
+};    
 
   return (
     <div className="mt-6 space-y-6">
@@ -249,17 +321,33 @@ const InventorySection = ({ userId, classroomId }) => {
                   ))}
               </select>
             )}
-
-            <button
-              className="btn btn-success btn-sm w-full"
-              onClick={() => handleUse(item)}
-              disabled={item.active}
-            >
-              {item.active ? 'Active' : 'Use Item'}
-            </button>
+         {(() => {
+  const isMystery = item?.category === 'Mystery' || item?.kind === 'mystery_box';
+  if (isMystery) {
+    return (
+      <button
+        className="btn btn-warning btn-sm w-full"
+        onClick={() => openMystery(item._id)}
+        disabled={openingId === item._id}
+      >
+        {openingId === item._id ? 'Opening…' : 'Open Mystery Box'}
+      </button>
+    );
+  }
+  return (
+    <button
+      className="btn btn-success btn-sm w-full"
+      onClick={() => handleUse(item)}
+      disabled={item.active}
+    >
+      {item.active ? 'Active' : 'Use Item'}
+    </button>
+  );
+})()}
           </div>
         </div>
       ))}
+
 
       <SwapModal
         isOpen={swapModalOpen}
@@ -274,6 +362,50 @@ const InventorySection = ({ userId, classroomId }) => {
       onSelect={handleNullifySelection}
       targetName={getTargetName(selectedTarget)}
     />
+
+
+
+
+ {rewardPopup && (
+        <div className="fixed inset-0 z-[60] grid place-items-center bg-black/40">
+          <div className="card bg-base-100 border border-base-300 shadow-2xl rounded-2xl p-6 w-[min(92vw,420px)] animate-in fade-in duration-200">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-xl overflow-hidden bg-base-200 border">
+                {rewardPopup.image ? (
+                  <img
+                    src={resolveImageSrc(rewardPopup.image)}
+                    alt={rewardPopup.name}
+                    className="object-cover w-full h-full"
+                    onError={(e) => {
+                      e.currentTarget.src = '/images/item-placeholder.svg';
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full grid place-items-center text-base-content/50">
+                    <span className="text-lg">Reward</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex-1">
+                <p className="text-sm text-base-content/60 mb-1">Congratulations!</p>
+                <h4 className="text-xl font-bold leading-tight">
+                  You received <span className="text-success">{rewardPopup.name}</span>
+                </h4>
+              </div>
+            </div>
+
+            <div className="mt-4 text-right">
+              <button
+                className="btn btn-sm btn-ghost"
+                onClick={() => setRewardPopup(null)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

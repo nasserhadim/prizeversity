@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 
-const CATEGORIES = ["All", "Attack", "Defend", "Utility", "Passive"];
+const CATEGORIES = ["All", "Attack", "Defend", "Utility", "Passive", "Mystery"];
 
 // Using a debounced function to limit how often we trigger searches
 function useDebounced(value, delay = 350) {
