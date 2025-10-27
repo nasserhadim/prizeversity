@@ -24,7 +24,16 @@ router.get('/classroom/:classroomId/user/:userId', ensureAuthenticated, async (r
     const discounts = await Discounts.find(
         { classroom: classroomId, owner: userId}
     );
-    res.status(200).json(discounts);
+    // deletes expired discounts
+    const now = new Date();
+    for (const discount of discounts) {
+      if (discount.expiresAt < now) {
+        await Discounts.deleteOne({ _id: discount._id });
+      }
+    }
+    // filters out the expired discounts
+    const validDiscounts = discounts.filter(discount => !discount.expiresAt || discount.expiresAt >= now);
+    res.status(200).json(validDiscounts);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch discounts' });
