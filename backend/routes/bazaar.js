@@ -72,9 +72,10 @@ router.get('/classroom/:classroomId/bazaar', ensureAuthenticated, async (req, re
 });
 
 // Add Item to Bazaar (teacher only) — accept file upload "image"
-router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticated, ensureTeacher, upload.single('image'), async (req, res) => { 
+router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticated, ensureTeacher, upload.single('image'), async (req, res) => {
+console.log("Got 1");
   const { bazaarId } = req.params;
-  const { name, description, price, category, primaryEffect, primaryEffectValue } = req.body;
+  const { name, description, price, category, primaryEffect, primaryEffectValue, duration } = req.body;
   // Prefer uploaded file, fallback to image URL
   const image = req.file
     ? `/uploads/${req.file.filename}`
@@ -122,6 +123,7 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticate
         value: Number(se.value)
       })),
       swapOptions: parsedSwapOptions && parsedSwapOptions.length ? parsedSwapOptions : undefined,
+      duration: Number(duration),
       bazaar: bazaarId
     });
 

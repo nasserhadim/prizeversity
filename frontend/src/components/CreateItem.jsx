@@ -43,7 +43,8 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
     primaryEffectValue: '', //changed this from 1 to ''
     primaryEffectDuration: '', //added this line
     secondaryEffects: [],
-    swapOptions: []
+    swapOptions: [],
+    duration: '' // added for discount duration
   });
   const [loading, setLoading] = useState(false);
   const [effectPreview, setEffectPreview] = useState('');
@@ -59,7 +60,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
     const gen = describeEffectFromForm(form);
     // only set when there's no manual edit yet, or regenerate on category/effect changes
     setEffectPreview(gen);
-  }, [form.category, form.primaryEffect, form.primaryEffectValue, JSON.stringify(form.secondaryEffects), JSON.stringify(form.swapOptions)]);
+  }, [form.category, form.primaryEffect, form.primaryEffectValue, form.duration, JSON.stringify(form.secondaryEffects), JSON.stringify(form.swapOptions)]);
 
   // Reset form to initial state
   const resetForm = () => {
@@ -73,7 +74,8 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
       primaryEffectValue: '', //changed this from 1 to ''
       primaryEffectDuration: '', //added this line
       secondaryEffects: [],
-      swapOptions: []
+      swapOptions: [],
+      duration: '' // added for discount duration
     });
     // reset image controls too
     setImageSource('url');
@@ -93,7 +95,8 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
         primaryEffectValue: '',
         primaryEffectDuration: '', //added this line
         secondaryEffects: [],
-        swapOptions: []
+        swapOptions: [],
+        duration: '' // added for discount duration
       } : {})
     }));
   };
@@ -177,7 +180,6 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
       // use the editable preview (teachers may have tweaked wording)
       const cleanedEffect = (effectPreview || '').trim();
       const combinedDescription = `${form.description?.trim() || ''}${cleanedEffect ? `\n\nEffect: ${cleanedEffect}` : ''}`.trim();
- 
       // If user chose file upload and selected a file, send multipart form
       if (imageSource === 'file' && imageFile) {
         if (imageFile.size > MAX_IMAGE_BYTES) {
@@ -192,6 +194,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
         fd.append('primaryEffectValue', form.category !== 'Passive' ? Number(form.primaryEffectValue) : '');
         fd.append('secondaryEffects', JSON.stringify(form.secondaryEffects || []));
         fd.append('swapOptions', JSON.stringify(form.swapOptions || []));
+        fd.append('duration', Number(form.duration));
         fd.append('bazaar', bazaarId);
         fd.append('image', imageFile);
 
@@ -221,9 +224,11 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
               value: Number(effect.value)
             })),
           swapOptions: form.primaryEffect === 'swapper' ? form.swapOptions : undefined,
+          duration: form.primaryEffect === 'discountShop' ? Number(form.duration) : undefined,
           bazaar: bazaarId
         };
-
+        console.log(payload);
+        // -----------------------------------------------------------------------------------------------------------------------------------------------------------------------
         const res = await apiBazaar.post(
           `classroom/${classroomId}/bazaar/${bazaarId}/items`,
           payload
@@ -442,6 +447,24 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                    max="100"
                  />
                  <span className="join-item bg-base-200 px-4 flex items-center">%</span>
+               </div>
+               <label className="label">
+                 <span className="label-text font-medium">Discount Duration (hours)</span>
+               </label>
+               <div className="join">
+                 <input
+                   type="number"
+                   className="input input-bordered join-item w-full"
+                   // modified to get duration to update
+                   //value={form.duration}
+                   onChange={(e) => setForm(prev => ({
+                     ...prev,
+                     duration: Math.min(8760, Math.max(1, e.target.value))
+                   }))}
+                   min="1"
+                   max="8760"
+                 />
+                 <span className="join-item bg-base-200 px-4 flex items-center"></span>
                </div>
              </div>
            )} 

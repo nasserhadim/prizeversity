@@ -33,6 +33,7 @@ const ItemSchema = new mongoose.Schema({
       return this.category === 'Defend' ? 1 : undefined;
     }
   },
+  duration: {type: Number, default: 0, min: 0, max: 8760 },
   active: { type: Boolean, default: false },
   
   owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
