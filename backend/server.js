@@ -31,6 +31,7 @@ const attackItems = require('./routes/attackItem.js');
 const defendItems = require('./routes/defendItem.js');
 const utilityItems = require('./routes/utilityItem.js');
 const passiveItems = require('./routes/passiveItem.js');
+const mysteryRoutes = require('./routes/mysteryItem.js');
 const challengeRoutes = require('./routes/challenge');
 const challengeTemplateRoutes = require('./routes/challengeTemplate');
 const challengeVerifyRoutes = require('./routes/challengeVerify');
@@ -186,7 +187,8 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
-// app.use('/api/items', itemRoutes);
+
+//app.use('/api/items', itemRoutes);
 app.use('/api/stats', statsRouter);
 app.use('/api', groupBalanceRoutes);
 app.use('/api/feedback', feedbackRoutes); // Use the Feedback model for classroom feedback
@@ -199,6 +201,10 @@ app.use('/api/attack', attackItems);
 app.use('/api/defend', defendItems);
 app.use('/api/utility', utilityItems);
 app.use('/api/passive', passiveItems);
+app.use('/api/mystery', mysteryRoutes);
+
+
+
 // Root Route
 app.get('/', (req, res) => {
   res.redirect(redirectBase);

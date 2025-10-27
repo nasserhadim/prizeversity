@@ -72,14 +72,17 @@ const Bazaar = () => {
   const [searchError, setSearchError] = useState("");
   const PAGE_SIZE = 9;
   const [page, setPage] = useState(1);
+  const fetchingRef = useRef(false);
 
   // Fetch classroom details
   const fetchClassroom = async () => {
     try {
       const response = await apiClassroom.get(`/${classroomId}`);
       setClassroom(response.data);
+      return response.data;
     } catch (err) {
       console.error('Failed to fetch classroom:', err);
+      return null;
     }
   };
 
@@ -88,10 +91,12 @@ const Bazaar = () => {
     try {
       const res = await apiBazaar.get(`classroom/${classroomId}/bazaar`);
       setBazaar(res.data.bazaar);
-    } catch (error) {
-      console.error(error);
-      //toast.error(`Failed to fetch bazaar: ${error.response?.data?.error || error.message}`);
+      return res.data.bazaar;
+    } catch (error){
+        console.error(error);
+        //toast.error(`Failed to fetch bazaar: ${error.response?.data?.error || error.message}`);
       setBazaar(null);
+      return null;
     } finally {
       setLoading(false);
     }
@@ -114,7 +119,7 @@ const Bazaar = () => {
       const params = new URLSearchParams();
       if (
         filters.category &&
-        ["Attack", "Defend", "Utility", "Passive"].includes(filters.category)
+        ["Attack", "Defend", "Utility", "Passive", "Mystery"].includes(filters.category)
       ) {
         params.append("category", filters.category);
       }
@@ -132,7 +137,7 @@ const Bazaar = () => {
         : Array.isArray(res.data)
         ? res.data
         : [];
-
+ 
       const toKeyPart = (v) =>
         typeof v === 'string' ? v.trim().toLowerCase() : String(v ?? '').trim().toLowerCase();
 
@@ -154,6 +159,46 @@ const Bazaar = () => {
         }
       }
       setFilteredItems(unique);
+ 
+      //jake helped me with this part, to stop duplications. 
+      
+      // const raw = Array.isArray(res.data?.items)
+      //   ? res.data.items
+      //   : Array.isArray(res.data)
+      //   ? res.data
+      //   : [];
+ 
+      // const toKeyPart = (v) =>
+      //   typeof v === 'string' ? v.trim().toLowerCase() : String(v ?? '').trim().toLowerCase();
+ 
+      // collapse visually-identical items even if _id differs
+      
+      // const sig = (it) => [
+      //   toKeyPart(it?.name),
+      //   toKeyPart(it?.price),
+      //   toKeyPart(it?.image),    
+      //   toKeyPart(it?.category),
+      // ].join('|');
+ 
+    // const sig = (it) => String(it?._id || '').trim();
+
+    //   const seen = new Set();
+    //   const unique = [];
+    //   for (const it of raw) {
+    //     const key = sig(it);
+    //     if (!seen.has(key)) {
+    //       seen.add(key);
+    //       unique.push(it);
+    //     }
+    //   }
+    //   setFilteredItems(unique); 
+
+
+      // trying to figure out why duplication is still hapening. uncokmnet this later if doesnt work 
+  
+        //top block is all new for testing pruposes. 
+        
+
     } catch (err) {
       console.error("[fetchFilteredItems] error:", err);
       setSearchError("Failed to load items");
@@ -168,15 +213,17 @@ const Bazaar = () => {
   const start = (page - 1) * PAGE_SIZE;
   const currentPageItems = (filteredItems || []).slice(start, start + PAGE_SIZE);
 
+
+  
   useEffect(() => {
     const tp = Math.max(1, Math.ceil((filteredItems.length || 0) / PAGE_SIZE));
     if (page > tp) setPage(tp);
   }, [filteredItems, PAGE_SIZE, page]);
 
-  useEffect(() => {
-    fetchClassroom();
-    fetchBazaar();
-  }, [classroomId]);
+ // useEffect(() => {
+   // fetchClassroom();
+    //fetchBazaar();
+  //}, [classroomId]);
 
   // reset the Bazaar Form
   const resetBazaarForm = () => {
@@ -232,12 +279,30 @@ const Bazaar = () => {
     }
   };
 
-  useEffect(() => {
-    if (bazaar?._id) {
-      fetchFilteredItems(filters);
-      setPage(1);
+
+
+useEffect(() => {
+  let cancelled = false; 
+  const loadAll = async () => {
+    if (fetchingRef.current) return; // already fetching
+    fetchingRef.current = true;
+    try {
+      //loading classroom and bazaar in parallel
+      const[, baz] = await Promise.all([fetchClassroom(), fetchBazaar()]);
+      //once bazaar id is loaded, load item ONLY ONCE
+      if(!cancelled && baz?._id) {
+        await fetchFilteredItems(filters);
+        setPage(1);
+      }
+    } finally {
+      fetchingRef.current = false;
     }
-  }, [bazaar?._id]);
+  };
+  loadAll();
+  return () => { cancelled = true; };
+}, [classroomId]); //depends only on classroomID
+
+
 
   // this will keep the bazaar.items in sync after an update
   const handleItemUpdated = (updatedItem) => {
@@ -567,6 +632,7 @@ const Bazaar = () => {
             <CreateItem
               bazaarId={bazaar._id}
               classroomId={classroomId}
+              //trying to fix this item duplication issue when student purchases/. 
               onAdd={(newItem) => {
                 setBazaar(prev => ({ ...prev, items: [...(prev.items || []), newItem] }));
                 fetchFilteredItems(filters);
