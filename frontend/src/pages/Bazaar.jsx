@@ -274,7 +274,7 @@ const Bazaar = () => {
       if (err.response?.data?.message === 'No changes were made') {
         toast.error('No changes were made');
       } else {
-        toast.error('Failed to update group set');
+        toast.error('Failed to edit Bazaar');
       }
     }
   };
