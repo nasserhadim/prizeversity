@@ -2,17 +2,16 @@ const express = require('express');
 const router = express.Router();
 const Item = require('../models/Item');
 const User = require('../models/User');
+const Discount = require('../models/Discount');
 const { ensureAuthenticated } = require('../config/auth');
 
 // Utility item is another category for items in the bazaar workign with a discount and multipleir
-router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
+router.post('/use/:itemId/:classroomId', ensureAuthenticated, async (req, res) => {
   try {
     const item = await Item.findById(req.params.itemId);
-    
     if (!item || item.owner.toString() !== req.user._id.toString()) {
       return res.status(404).json({ error: 'Item not found' });
     }
-
     // Apply utility effect
     switch(item.primaryEffect) {
       case 'doubleEarnings':
@@ -20,11 +19,27 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
         break;
       case 'discountShop':
          const discountPct = Number(item.primaryEffectValue) || 20;
-         const durationHours = Number(item.primaryEffectDuration) || 24; // optional window
+         const durationHours = Number(item.duration); // optional window
+         const apply = new Date(Date.now());
+         const expire = new Date(Date.now() + (60 * 60 * 1000 * durationHours));
+         
+        // Creates the discount
+        await Discount.create({
+            classroom: req.params.classroomId,
+            owner: req.user._id,
+            appliedAt: apply,
+            expiresAt: expire, 
+            discountPercent: discountPct
+         });
+         
+
+         /* Editing out this portion to replace with 'create discount' portion
          req.user.discountPercent = discountPct;
       // this will keep the old boolean for backward compatibility anywhere even if it’s still checked
          req.user.discountShop = discountPct > 0;
          req.user.discountExpiresAt = new Date(Date.now() + durationHours * 3600 * 1000);
+         */
+
 
   // Best-effort expiry; DB timestamp is the source of truth
   setTimeout(async () => {

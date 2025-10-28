@@ -34,7 +34,8 @@ export const getEffectDescription = (item) => {
     if (item.primaryEffect === 'discountShop') {
       // Use configured percent on the item (fallback to 20)
       const pct = Number(item.primaryEffectValue) || 20;
-      return `${pct}% shop discount`;
+      const time = Number(item.duration) || 1;
+      return `${pct}% shop discount for ${time} hours`;
     }
   }
 
@@ -102,7 +103,8 @@ export const describeEffectFromForm = (form) => {
     if (form.primaryEffect === 'discountShop') {
       // Use form value (teacher-entered) or fall back to 20%
       const pct = Number(form.primaryEffectValue) || 20;
-      return `${pct}% shop discount`;
+      const time = Number(form.duration) || 1;
+      return `${pct}% shop discount for ${time} hours`;
     }
   }
 

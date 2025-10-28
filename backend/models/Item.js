@@ -45,6 +45,7 @@ kind: { type: String, enum: ['standard', 'mystery_box'], default: 'standard' },
       return this.category === 'Defend' ? 1 : undefined;
     }
   },
+  duration: {type: Number, default: 0, min: 0, max: 8760 },
   active: { type: Boolean, default: false },
   //marking an ownerd mustery box as opened
   openedAt: { type: Date, default: null },

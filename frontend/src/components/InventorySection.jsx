@@ -144,13 +144,14 @@ const InventorySection = ({ userId, classroomId }) => {
           endpoint = `/attack/use/${item._id}`;
           data = { targetUserId };
           break;
-          
+           
         case 'Defend':
           endpoint = `/defend/activate/${item._id}`;
           break;
-          
+
+        
         case 'Utility':
-          endpoint = `/utility/use/${item._id}`;
+          endpoint = `/utility/use/${item._id}/${classroomId}`;
           break;
           
         case 'Passive':
@@ -161,11 +162,10 @@ const InventorySection = ({ userId, classroomId }) => {
           toast.error('Invalid item category');
           return;
       }
-
+      
       // Execute item usage
       const response = await apiItem.post(endpoint, data);
       toast.success(response.data.message || 'Item used successfully!');
-      
       // Refresh inventory
       const invRes = await apiBazaar.get(`/inventory/${userId}?classroomId=${classroomId}`); // Add classroomId query param
       setItems(invRes.data.items);

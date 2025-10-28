@@ -3,6 +3,7 @@ const Bazaar = require('../models/Bazaar');
 const Item = require('../models/Item');
 const User = require('../models/User');
 const Classroom = require('../models/Classroom');
+const Discounts = require('../models/Discount');
 const { ensureAuthenticated } = require('../config/auth');
 const router = express.Router();
 const Order = require('../models/Order');
@@ -86,8 +87,9 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items',
     price, 
     category, 
     primaryEffect, 
-    primaryEffectValue 
+    primaryEffectValue,
   } = req.body;
+  console.log("1");
   // Prefer uploaded file, fallback to image URL
   const image = req.file
     ? `/uploads/${req.file.filename}`
@@ -96,6 +98,7 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items',
   // Parse JSON fields that may arrive as strings when using multipart/form-data
   let parsedSecondaryEffects = [];
   let parsedSwapOptions = [];
+  let parsedDuration = null;
   try {
     if (Array.isArray(req.body.secondaryEffects)) {
       parsedSecondaryEffects = req.body.secondaryEffects;
@@ -113,6 +116,13 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items',
     }
   } catch (err) {
     parsedSwapOptions = [];
+  }
+  try {
+    if (req.body.duration) {
+      parsedDuration = req.body.duration;
+    }
+  } catch (err) {
+    parsedDuration = null;
   }
 
   // Basic validation
@@ -137,6 +147,7 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items',
       })),
 
       swapOptions: parsedSwapOptions && parsedSwapOptions.length ? parsedSwapOptions : undefined,
+      duration: parsedDuration || null,
       bazaar: bazaarId,
       kind: category === 'Mystery' ? 'mystery_box' : undefined,
 
@@ -579,6 +590,8 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
     }
 
     const user = await User.findById(userId).select('balance classroomBalances classroomFrozen transactions');
+
+    
     if (!user) {
       console.error("User not found:", userId);
       return res.status(404).json({ error: 'User not found' });
@@ -610,10 +623,28 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
       }
     }
 
-    const pct = Number(user.discountPercent) || 0;
-    const discountMultiplier = pct > 0 ? (1 - pct / 100) : 1;
+    // finds the discounts
+    const discounts = await Discounts.find(
+        { classroom: classroomId, owner: userId}
+    );
+    // determines the total discount
+    let percent = 0;
+    console.log("Discounts: ", discounts.length)
+    if (discounts.length)
+    {
+        const combined = discounts.reduce(
+            (acc, d) => acc * (1 - (d.discountPercent || 0) / 100), 1
+        );
+        percent = (1 - combined) * 100;
+    }
+    console.log("Discount applied: ", percent);
+
+
+
+    //const pct = Number(user.discountPercent) || 0;
+    //const discountMultiplier = pct > 0 ? (1 - pct / 100) : 1;
     //replaced const total 
-    const total = resolvedItems.reduce((sum, item) => sum + item.price, 0);
+    const total = Math.ceil(resolvedItems.reduce((sum, item) => sum + item.price, 0) * (1 - percent / 100));
 
     console.log(`Calculated total: ${total}, User per-classroom balance: ${getClassroomBalance(user, classroomId)}`);
 
@@ -644,6 +675,7 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
         primaryEffect: item.primaryEffect,
         primaryEffectValue: item.primaryEffectValue,
         secondaryEffects: item.secondaryEffects,
+        duration: item.duration,
         owner: userId
       };
 
@@ -687,6 +719,7 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
         primaryEffect: i.primaryEffect,
         primaryEffectValue: i.primaryEffectValue,
         secondaryEffects: i.secondaryEffects,
+        duration: i.duration,
         image: i.image || null
       })),
       orderId: order._id
@@ -724,6 +757,25 @@ router.get('/user/:userId/balance', async (req, res) => {
       balance = getClassroomBalance(user, classroomId);
     }
     res.json({ balance });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch balance' });
+  }
+});
+
+// Get the discounts for a user (updated for per-classroom)
+router.get('/user/:userId/discounts', async (req, res) => {
+  try {
+    const { classroomId } = req.query;
+    const user = await User.findById(req.params.userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    let discounts = []; // Default to empty set
+    let num = 0; // default to no discounts
+    if (classroomId) {
+      discounts = await  discounts.find({owner : req.params.userId});
+    }
+    res.json({ discounts });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch balance' });
