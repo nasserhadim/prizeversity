@@ -16,6 +16,9 @@ import Footer from '../components/Footer';
 import { resolveBannerSrc } from '../utils/image';
 import { getBazaarTemplates, saveBazaarTemplate, deleteBazaarTemplate, applyBazaarTemplate } from '../API/apiBazaarTemplate';
 import { Package, Save, Trash2 } from 'lucide-react';
+import CreateMysteryBox from '../components/CreateMysteryBox';
+import MysteryBoxCard from '../components/MysteryBoxCard';
+import { getMysteryBoxes } from '../API/apiMysteryBox';
 
 const Bazaar = () => {
   const { classroomId } = useParams();
@@ -29,6 +32,8 @@ const Bazaar = () => {
   const [showApplyModal, setShowApplyModal] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [savingTemplate, setSavingTemplate] = useState(false);
+  const [mysteryBoxes, setMysteryBoxes] = useState([]);
+  const [showMysteryBoxCreator, setShowMysteryBoxCreator] = useState(false);
 
   // Fetch classroom details
   const fetchClassroom = async () => {
@@ -63,10 +68,21 @@ const Bazaar = () => {
     }
   };
 
+  const fetchMysteryBoxes = async () => {
+    if (!bazaar) return;
+    try {
+      const res = await getMysteryBoxes(classroomId, bazaar._id);
+      setMysteryBoxes(res.data.mysteryBoxes || []);
+    } catch (err) {
+      console.error('Failed to fetch mystery boxes:', err);
+    }
+  };
+
   useEffect(() => {
     fetchClassroom();
     fetchBazaar();
     fetchTemplates();
+    fetchMysteryBoxes();
   }, [classroomId]);
 
   // Save current bazaar as template
@@ -327,6 +343,63 @@ const Bazaar = () => {
         )}
       </div>
 
+      {/* Mystery Boxes Section */}
+      {mysteryBoxes.length > 0 && (
+        <div className="card bg-base-200 shadow-inner border border-base-300">
+          <div className="card-body p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-2xl font-bold text-warning flex items-center gap-2">
+                <Package />
+                Mystery Boxes
+              </h3>
+            </div>
+
+            <div className="divider my-0"></div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+              {mysteryBoxes.map((box) => (
+                <MysteryBoxCard
+                  key={box._id}
+                  mysteryBox={box}
+                  classroomId={classroomId}
+                  userBalance={user.classroomBalances?.find(cb => cb.classroom === classroomId)?.balance || 0}
+                  userLuck={user.passiveAttributes?.luck || 1}
+                  onOpened={() => {
+                    fetchBazaar();
+                    fetchMysteryBoxes();
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Teacher Mystery Box Creator */}
+      {user.role === 'teacher' && (
+        <div className="card card-compact bg-base-100 shadow p-4 border border-base-200">
+          <button
+            className="btn btn-warning btn-block"
+            onClick={() => setShowMysteryBoxCreator(!showMysteryBoxCreator)}
+          >
+            <Package />
+            {showMysteryBoxCreator ? 'Hide' : 'Create'} Mystery Box
+          </button>
+
+          {showMysteryBoxCreator && bazaar && (
+            <div className="mt-4">
+              <CreateMysteryBox
+                classroomId={classroomId}
+                bazaarId={bazaar._id}
+                onCreated={() => {
+                  fetchMysteryBoxes();
+                  setShowMysteryBoxCreator(false);
+                }}
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Inventory Section with Button in Header */}
       <div className="card bg-base-200 shadow-inner border border-base-300">

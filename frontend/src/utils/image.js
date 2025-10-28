@@ -1,5 +1,6 @@
 export const ITEM_PLACEHOLDER = '/images/item-placeholder.svg';
 export const BANNER_PLACEHOLDER = '/images/bazaar-placeholder.svg';
+export const MYSTERY_BOX_PLACEHOLDER = '/images/mystery-box-placeholder.svg'; // ADD
 import { API_BASE } from '../config/api';
 
 /**
@@ -63,4 +64,18 @@ export function isPlaceholderGroupSetImage(src) {
   // Also treat empty /uploads/placeholder.* paths as placeholder
   if (s.startsWith('/uploads/') && /placeholder\.(jpg|png|svg)$/.test(s)) return true;
   return false;
+}
+
+/**
+ * Resolve mystery box image source
+ */
+export function resolveMysteryBoxSrc(src) {
+  const placeholder = MYSTERY_BOX_PLACEHOLDER;
+  if (!src || typeof src !== 'string') return placeholder;
+  const s = src.trim();
+  if (!s) return placeholder;
+  if (s.startsWith('http://') || s.startsWith('https://') || s.startsWith('data:')) return s;
+  if (s.startsWith('/uploads/')) return `${API_BASE}${s}`;
+  if (s.startsWith('/')) return s;
+  return placeholder;
 }
