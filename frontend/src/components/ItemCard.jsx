@@ -232,14 +232,12 @@ const totalDiscount = () => {
 const getDiscounts = async () => {
     try {
         const res = await apiDiscount.get(`/classroom/${classroomId}/user/${user._id}`);
-        console.log("Discount API response:", res.data);
         const discountData = res.data || [];
         
         setDiscounts(discountData);
 
 
         let percent = 0;
-        console.log("Discounts: ", discountData.length)
         if (discountData.length)
         {
             const combined = discountData.reduce(
@@ -248,7 +246,7 @@ const getDiscounts = async () => {
             percent = (1 - combined) * 100;
         }
         setDiscountPercent(percent);
-        console.log("Discount applied: ", percent)
+        //console.log("Discount applied: ", percent)
     } catch (err) {
         console.error("Failed to load discounts:", err);
     }

@@ -28,6 +28,7 @@ const Bazaar = () => {
   const [showDiscounts, setShowDiscounts] = useState(false);
   const [Discounts, setDiscounts] = useState([]);
   const [discountPercent, setDiscountPercent] = useState(0);
+  const [nextExpire, setNextExpire] = useState(0);
 
   const [confirmDeleteBazaar, setConfirmDeleteBazaar] = useState(null);
   const [EditBazaar, setEditBazaar] = useState(false);
@@ -352,23 +353,30 @@ useEffect(() => {
   const getDiscounts = async () => {
     try {
         const res = await apiDiscount.get(`/classroom/${classroomId}/user/${user._id}`);
-        console.log("Discount API response:", res.data);
         const discountData = res.data || [];
         
         setDiscounts(discountData);
 
 
         let percent = 0;
-        console.log("Discounts: ", discountData.length)
+        let timeLeft = 0;
         if (discountData.length)
         {
             const combined = discountData.reduce(
                 (acc, d) => acc * (1 - (d.discountPercent || 0) / 100), 1
             );
             percent = (1 - combined) * 100;
+            const nextGone = discountData.reduce(
+                (min, d) => { return (d.expiresAt < min.expiresAt) ? d : min;}
+            );
+            console.log("Time left variable: ", nextGone);
+            timeLeft = nextGone.expiresAt;
         }
         setDiscountPercent(percent);
-        console.log("Discount applied: ", percent)
+        setNextExpire(timeLeft);
+        console.log("Time left variable: ", timeLeft);
+        //console.log("Discount applied: ", percent)
+
     } catch (err) {
         console.error("Failed to load discounts:", err);
     }
@@ -580,10 +588,11 @@ useEffect(() => {
         }}
       />
       {/* Discount Section*/}
-      <div className="space-y-4">
+      {Discounts.length > 0 && (
+        <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-2xl font-bold text-success flex items-center gap-2">
-            Discounts
+            {discountPercent}% Discounts : Next expires in {nextExpire} 
           </h3>
           <div className="flex items-center justify-between mb-2">
             <button
@@ -602,6 +611,7 @@ useEffect(() => {
             )}
         </div>
        </div>
+      )}
 
       {/* Filtered results section */}
       <div className="space-y-4">
