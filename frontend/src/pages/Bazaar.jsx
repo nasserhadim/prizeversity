@@ -28,7 +28,8 @@ const Bazaar = () => {
   const [showDiscounts, setShowDiscounts] = useState(false);
   const [Discounts, setDiscounts] = useState([]);
   const [discountPercent, setDiscountPercent] = useState(0);
-  const [nextExpire, setNextExpire] = useState(0);
+  const [nextExpireInDHMS, setNextExpireDHMS] = useState([]); // Days, hours, minutes, seconds
+  
 
   const [confirmDeleteBazaar, setConfirmDeleteBazaar] = useState(null);
   const [EditBazaar, setEditBazaar] = useState(false);
@@ -360,6 +361,11 @@ useEffect(() => {
 
         let percent = 0;
         let timeLeft = 0;
+        let days = 0;
+        let hours = 0;
+        let minutes = 0;
+        let timeLeftInDHMS = [];
+        
         if (discountData.length)
         {
             const combined = discountData.reduce(
@@ -367,13 +373,30 @@ useEffect(() => {
             );
             percent = (1 - combined) * 100;
             const nextGone = discountData.reduce(
-                (min, d) => { return (d.expiresAt < min.expiresAt) ? d : min;}
+                (min, d) => { return (d.expiresAt < min.expiresAt) ? d : min, null}
             );
-            console.log("Time left variable: ", nextGone);
-            timeLeft = nextGone.expiresAt;
+            // determines time left in days, hours, minutes, seconds
+
+            console.log("Time left variable: ", nextGone.expiresAt);
+            timeLeft = Math.abs(new Date(nextGone.expiresAt) - Date.now()) / 1000;
+            console.log("Time left variable: ", timeLeft);
+
+            days = Math.floor(timeLeft / 86400);
+            timeLeft -= days * 86400;
+            console.log("Time left variable: ", timeLeft);
+
+            hours = Math.floor(timeLeft / 3600);
+            timeLeft -= hours * 3600;
+            console.log("Time left variable: ", timeLeft);
+
+            minutes = Math.floor(timeLeft / 60);
+            timeLeft -= minutes * 60;
+            console.log("Time left variable: ", timeLeft);
+
         }
+        timeLeftInDHMS = [days, hours, minutes, Math.floor(timeLeft)];
         setDiscountPercent(percent);
-        setNextExpire(timeLeft);
+        setNextExpireDHMS(timeLeftInDHMS);
         console.log("Time left variable: ", timeLeft);
         //console.log("Discount applied: ", percent)
 
@@ -592,7 +615,7 @@ useEffect(() => {
         <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-2xl font-bold text-success flex items-center gap-2">
-            {discountPercent}% Discounts : Next expires in {nextExpire} 
+            {discountPercent}% Discounts : Next expires in {nextExpireInDHMS[0]} days, {nextExpireInDHMS[1]} hours, {nextExpireInDHMS[2]} minutes, {nextExpireInDHMS[3]} seconds
           </h3>
           <div className="flex items-center justify-between mb-2">
             <button
