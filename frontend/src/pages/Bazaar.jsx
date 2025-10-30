@@ -11,6 +11,7 @@ import CreateItem from '../components/CreateItem';
 import ItemCard from '../components/ItemCard';
 import apiBazaar from '../API/apiBazaar'; 
 import apiClassroom from '../API/apiClassroom';
+import apiDiscount from '../API/apiDiscount.js';
 import InventorySection from '../components/InventorySection';
 import toast from 'react-hot-toast';
 import Footer from '../components/Footer';
@@ -24,6 +25,9 @@ const Bazaar = () => {
   const [classroom, setClassroom] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showInventory, setShowInventory] = useState(false);
+  const [showDiscounts, setShowDiscounts] = useState(false);
+  const [Discounts, setDiscounts] = useState([]);
+  const [discountPercent, setDiscountPercent] = useState(0);
 
   const [confirmDeleteBazaar, setConfirmDeleteBazaar] = useState(null);
   const [EditBazaar, setEditBazaar] = useState(false);
@@ -336,6 +340,40 @@ useEffect(() => {
     );
   };
 
+  // added to automatically get discounts
+useEffect(() => {
+  if (user?._id && classroomId) {
+    getDiscounts();
+  }
+  //console.log("Discounts loaded:", discounts);
+}, [user?._id, classroomId]);
+
+  // Gets the discounts for the student in the bazaar
+  const getDiscounts = async () => {
+    try {
+        const res = await apiDiscount.get(`/classroom/${classroomId}/user/${user._id}`);
+        console.log("Discount API response:", res.data);
+        const discountData = res.data || [];
+        
+        setDiscounts(discountData);
+
+
+        let percent = 0;
+        console.log("Discounts: ", discountData.length)
+        if (discountData.length)
+        {
+            const combined = discountData.reduce(
+                (acc, d) => acc * (1 - (d.discountPercent || 0) / 100), 1
+            );
+            percent = (1 - combined) * 100;
+        }
+        setDiscountPercent(percent);
+        console.log("Discount applied: ", percent)
+    } catch (err) {
+        console.error("Failed to load discounts:", err);
+    }
+};
+
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-base-200">
     <span className="loading loading-ring loading-lg"></span>
   </div>;
@@ -541,6 +579,29 @@ useEffect(() => {
           fetchFilteredItems(f);   
         }}
       />
+      {/* Discount Section*/}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-2xl font-bold text-success flex items-center gap-2">
+            Discounts
+          </h3>
+          <div className="flex items-center justify-between mb-2">
+            <button
+                onClick={() => setShowDiscounts(!showDiscounts)}
+                className={`btn btn-sm transition-all duration-200 ${showDiscounts ? 'btn-outline btn-error' : 'btn-success'}`}
+              >
+                {showDiscounts ? 'Hide' : 'Show'} Discounts
+            </button>
+           </div>
+            {/* Discount Section */}
+            {showDiscounts && (
+              <div className="mt-4">
+                {discountPercent}
+                <InventorySection userId={user._id} classroomId={classroomId} />
+              </div>
+            )}
+        </div>
+       </div>
 
       {/* Filtered results section */}
       <div className="space-y-4">
@@ -661,6 +722,8 @@ useEffect(() => {
             )}
           </div>
         </div>
+
+        
 
         {/* This is for editing the Bazaar */}
         {EditBazaar && (
