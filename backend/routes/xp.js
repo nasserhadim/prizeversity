@@ -266,7 +266,41 @@ router.post('/test/reset', async (req, res) => {
 
 
 
+// Temporary route to verify badges for a user (for testing)
+router.get('/test/badges/:userId/:classroomId', async (req, res) => {
+  try {
+    const { userId, classroomId } = req.params;
 
+    const user = await User.findById(userId)
+      .populate('classroomBalances.badges.badge');
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const classroomData = user.classroomBalances.find(
+      c => c.classroom.toString() === classroomId.toString()
+    );
+
+    if (!classroomData) {
+      return res.status(400).json({ error: 'No classroom data for this user' });
+    }
+
+    res.json({
+      classroom: classroomId,
+      level: classroomData.level,
+      badges: classroomData.badges.map(b => ({
+        badgeName: b.badge?.name,
+        levelRequired: b.badge?.levelRequired,
+        earnedAt: b.dateEarned
+      }))
+    });
+
+  } catch (err) {
+    console.error('Error fetching badges for testing:', err.message);
+    res.status(500).json({ error: 'Server error getting badges for testing' });
+  }
+});
 
 
 module.exports = router;
