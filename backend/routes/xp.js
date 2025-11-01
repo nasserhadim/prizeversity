@@ -3,6 +3,45 @@ const router = express.Router();
 const User = require('../models/User');
 const Classroom = require('../models/Classroom');
 
+const Badge = require('../models/Badge');
+
+// check and award level-based badges
+async function awardLevelBadges(user, classroomId) {
+  const classroomData = user.classroomBalances.find(
+    c => c.classroom.toString() === classroomId.toString()
+  );
+  if (!classroomData) return;
+
+  const currentLevel = classroomData.level;
+
+  // badges available for this classroom and level
+  const badges = await Badge.find({
+    classroom: classroomId,
+    levelRequired: { $lte: currentLevel }
+  });
+
+  // badges user already has
+  const earned = new Set(
+    classroomData.badges?.map(b => b.badge.toString())
+  );
+
+  const newBadges = badges.filter(b => !earned.has(b._id.toString()));
+
+  if (newBadges.length === 0) return;
+
+  // add new badges
+  newBadges.forEach(b => {
+    classroomData.badges.push({
+      badge: b._id,
+      dateEarned: new Date()
+    });
+  });
+
+  await user.save();
+
+  console.log('Awarded badges:', newBadges.map(b => b.name));
+}
+
 // Simple test route to confirm XP route is connected
 router.get('/test', (req, res) => {
   res.json({ message: 'XP route connected successfully' });
@@ -55,6 +94,10 @@ router.post('/add', async (req, res) => {
       classroomData.level += 1;
       classroomData.xp -= xpNeeded;
       leveledUp = true;
+    }
+
+    if (leveledUp) {
+      await awardLevelBadges(user, classroomId);
     }
 
     await user.save();
@@ -151,6 +194,10 @@ router.post('/test/add', async (req, res) => {
       classroomData.level += 1;
       classroomData.xp -= xpNeeded;
       leveledUp = true;
+    }
+
+    if (leveledUp) {
+      await awardLevelBadges(user, classroomId);
     }
 
     await user.save();
