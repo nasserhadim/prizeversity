@@ -40,6 +40,7 @@ const { redirectBase, isProd } = require('./config/domain');
 const { cleanTrash } = require('./utils/cleanupTrash');
 // XP routes for leveling system
 const xpRoutes = require('./routes/xp');
+const badgeRoutes = require('./routes/badges');
 // require('./utils/siphonCleanup'); // Add this line
 
 const app = express();
@@ -207,6 +208,8 @@ app.use('/api/defend', defendItems);
 app.use('/api/utility', utilityItems);
 app.use('/api/passive', passiveItems);
 app.use('/api/mystery', mysteryRoutes);
+
+app.use('/api/badges', badgeRoutes);
 
 
 
