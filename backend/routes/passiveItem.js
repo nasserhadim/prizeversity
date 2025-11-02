@@ -94,6 +94,17 @@ router.post('/equip/:itemId', ensureAuthenticated, async (req, res) => {
     };
     const prevWithGroup = { ...before, ...(groupEffectApplied ? { groupMultiplier: 1 } : {}) };
 
+    // Build effects text for passive item
+    const effects = [];
+    (item.secondaryEffects || []).forEach(se => {
+      if (se.effectType === 'grantsLuck') effects.push(`+${se.value} Luck`);
+      if (se.effectType === 'grantsMultiplier') effects.push(`+${se.value}x Multiplier`);
+      if (se.effectType === 'groupMultiplier') effects.push(`Group multiplier +${se.value || 1}`);
+    });
+    if (groupEffectApplied && !effects.some(t => /group multiplier/i.test(t))) {
+      effects.push('Group multiplier +1');
+    }
+
     await logStatChanges({
       io: req.app.get('io'),
       classroomId,
@@ -101,7 +112,8 @@ router.post('/equip/:itemId', ensureAuthenticated, async (req, res) => {
       actionBy: req.user._id,
       prevStats: prevWithGroup,
       currStats: after,
-      context: `Bazaar - Equipped ${item.name}`
+      context: `Bazaar - Equipped ${item.name}`,
+      details: { effectsText: effects.join(', ') || undefined } // remove image
     });
 
     res.json({

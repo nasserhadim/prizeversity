@@ -75,6 +75,14 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
       luck: req.user.passiveAttributes?.luck || 1,
       shield: req.user.shieldCount || 0
     };
+    // Describe utility effect
+    let effectsText;
+    if (item.primaryEffect === 'doubleEarnings') effectsText = 'Earnings x2';
+    if (item.primaryEffect === 'discountShop') {
+      const pct = req.user.passiveAttributes?.discount ?? item.primaryEffectValue ?? 20;
+      effectsText = `${pct}% shop discount`;
+    }
+
     await logStatChanges({
       io: req.app.get('io'),
       classroomId,
@@ -82,7 +90,8 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
       actionBy: req.user._id,
       prevStats: before,
       currStats: after,
-      context: `Bazaar - ${item.name}`
+      context: `Bazaar - ${item.name}`,
+      details: { effectsText }
     });
 
     res.json({ 

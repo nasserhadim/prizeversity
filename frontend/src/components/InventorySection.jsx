@@ -66,7 +66,8 @@ const InventorySection = ({ userId, classroomId }) => {
     try {
       const response = await apiItem.post(`/attack/use/${currentItem._id}`, {
         targetUserId: selectedTarget,
-        swapAttribute
+        swapAttribute,
+        classroomId,              // <- ensure classroomId is sent
       });
       
       toast.success(response.data.message || 'Swap successful!');
@@ -160,12 +161,13 @@ const InventorySection = ({ userId, classroomId }) => {
   const handleNullifySelection = async (nullifyAttribute) => {
     setNullifyModalOpen(false);
     try {
-      const response = await apiItem.post(`/attack/use/${currentItem._id}`, {
+      const res = await apiItem.post(`/attack/use/${currentItem._id}`, {
         targetUserId: selectedTarget,
-        nullifyAttribute // Make sure this matches what the backend expects
+        nullifyAttribute,
+        classroomId,              // <- ensure classroomId is sent
       });
       
-      toast.success(response.data.message || 'Nullify successful!');
+      toast.success(res.data.message || 'Nullify successful!');
       
       // Refresh inventory
       const invRes = await apiBazaar.get(`/inventory/${userId}?classroomId=${classroomId}`); // Add classroomId query param

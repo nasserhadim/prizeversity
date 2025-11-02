@@ -5,12 +5,13 @@ const User = require('../models/User');
 const { ensureAuthenticated } = require('../config/auth');
 const Classroom = require('../models/Classroom');
 const { awardXP } = require('../utils/awardXP');
+const { logStatChanges } = require('../utils/statChangeLog'); // NEW
 
 // attack item is one of the categories for the items that use effects that are used to 'hurt' damage the target's bits, luck, or multiplier
 
 router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
   try {
-    const { targetUserId, swapAttribute } = req.body; // Added swapAttribute parameter
+    const { targetUserId, swapAttribute } = req.body;
     const classroomId = req.body.classroomId || req.query.classroomId;
     const item = await Item.findById(req.params.itemId);
     
@@ -22,6 +23,26 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
     if (!targetUser) {
       return res.status(404).json({ error: 'Target user not found' });
     }
+
+    // Snapshot stats BEFORE any changes (for attacker and target)
+    const attackerPrev = {
+      multiplier: req.user.passiveAttributes?.multiplier || 1,
+      luck: req.user.passiveAttributes?.luck || 1,
+      discount: req.user.passiveAttributes?.discount || 0,
+      shield: req.user.shieldCount || 0,
+      groupMultiplier: req.user.passiveAttributes?.groupMultiplier || 1
+    };
+    const targetPrev = {
+      multiplier: targetUser.passiveAttributes?.multiplier || 1,
+      luck: targetUser.passiveAttributes?.luck || 1,
+      discount: targetUser.passiveAttributes?.discount || 0,
+      shield: targetUser.shieldCount || 0,
+      groupMultiplier: targetUser.passiveAttributes?.groupMultiplier || 1
+    };
+
+    // Helpful display names
+    const attackerName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email;
+    const targetName = `${targetUser.firstName || ''} ${targetUser.lastName || ''}`.trim() || targetUser.email;
 
     // Check if target has active shield
     if (targetUser.shieldActive) {
@@ -55,7 +76,40 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
         console.warn('[attackItem] awardXP failed:', e);
       }
 
-      return res.status(200).json({ 
+      // Target log (already present)
+      const targetAfterBlocked = {
+        multiplier: targetUser.passiveAttributes?.multiplier || 1,
+        luck: targetUser.passiveAttributes?.luck || 1,
+        discount: targetUser.passiveAttributes?.discount || 0,
+        shield: targetUser.shieldCount || 0,
+        groupMultiplier: targetUser.passiveAttributes?.groupMultiplier || 1
+      };
+      await logStatChanges({
+        io: req.app.get('io'),
+        classroomId,
+        user: targetUser,
+        actionBy: req.user._id,
+        prevStats: targetPrev,
+        currStats: targetAfterBlocked,
+        context: `Bazaar - Attack by ${attackerName} (${item.name}) was blocked`,
+        details: { effectsText: 'Shield -1 (blocked attack)' }
+      });
+
+      // NEW: Attacker log (forced even if no stat changed)
+      await logStatChanges({
+        io: req.app.get('io'),
+        classroomId,
+        user: req.user,
+        actionBy: req.user._id,
+        prevStats: attackerPrev,
+        currStats: attackerPrev, // unchanged
+        context: `Bazaar - Attack on ${targetName} (${item.name}) was blocked`,
+        details: { effectsText: `Blocked by ${targetName} (shield consumed)` },
+        forceLog: true,
+        extraChanges: [{ field: 'attackResult', from: 'attempted', to: `blocked by ${targetName}` }]
+      });
+
+      return res.status(200).json({
         message: 'Attack blocked by shield! Both shield and attack items were consumed.',
         newBalance: req.user.balance,
         targetBalance: targetUser.balance,
@@ -64,6 +118,8 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
     }
 
     // If no shield, proceed with attack
+    const effectNotes = []; // collect human-readable effect descriptions
+
     switch(item.primaryEffect) {
       case 'halveBits':
         targetUser.balance = Math.floor(targetUser.balance / 2);
@@ -73,7 +129,6 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
         targetUser.balance -= stealAmount;
         req.user.balance += stealAmount;
         break;
-      // In the swapper case section, update the validation:
       case 'swapper':  // New Swapper effect
         if (!swapAttribute) {
           return res.status(400).json({ 
@@ -99,10 +154,12 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
           case 'multiplier':
             [req.user.passiveAttributes.multiplier, targetUser.passiveAttributes.multiplier] = 
               [targetUser.passiveAttributes.multiplier, req.user.passiveAttributes.multiplier];
+            effectNotes.push('Swapped multiplier');
             break;
           case 'luck':
             [req.user.passiveAttributes.luck, targetUser.passiveAttributes.luck] = 
               [targetUser.passiveAttributes.luck, req.user.passiveAttributes.luck];
+            effectNotes.push('Swapped luck');
             break;
         }
         break;
@@ -139,12 +196,13 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
             break;
           case 'multiplier':
             targetUser.passiveAttributes.multiplier = 1;
+            effectNotes.push('Nullified multiplier');
             break;
           case 'luck':
             targetUser.passiveAttributes.luck = 1;
+            effectNotes.push('Nullified luck');
             break;
         }
-        
         // Add a transaction record for the nullification
         targetUser.transactions.push({
           amount: 0,
@@ -161,14 +219,17 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
         case 'attackLuck':
           targetUser.passiveAttributes.luck = Math.max(0, 
             (targetUser.passiveAttributes.luck || 1) - effect.value);
+          effectNotes.push(`-${effect.value} Luck`);
           break;
         case 'attackMultiplier':
           targetUser.passiveAttributes.multiplier = Math.max(1, 
             (targetUser.passiveAttributes.multiplier || 1) - effect.value);
+          effectNotes.push(`-${effect.value}x Multiplier`);
           break;
         case 'attackGroupMultiplier':
           targetUser.passiveAttributes.groupMultiplier = Math.max(1, 
             (targetUser.passiveAttributes.groupMultiplier || 1) - effect.value);
+          effectNotes.push(`-${effect.value}x Group Multiplier`);
           break;
       }
     });
@@ -190,7 +251,61 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
       console.warn('[attackItem] awardXP failed:', e);
     }
 
-    // Json notification for any successful or error commands
+    // NEW: log stat changes for attacker and target (only if any tracked fields changed)
+    const attackerAfter = {
+      multiplier: req.user.passiveAttributes?.multiplier || 1,
+      luck: req.user.passiveAttributes?.luck || 1,
+      discount: req.user.passiveAttributes?.discount || 0,
+      shield: req.user.shieldCount || 0,
+      groupMultiplier: req.user.passiveAttributes?.groupMultiplier || 1
+    };
+    const targetAfter = {
+      multiplier: targetUser.passiveAttributes?.multiplier || 1,
+      luck: targetUser.passiveAttributes?.luck || 1,
+      discount: targetUser.passiveAttributes?.discount || 0,
+      shield: targetUser.shieldCount || 0,
+      groupMultiplier: targetUser.passiveAttributes?.groupMultiplier || 1
+    };
+
+    // NEW: build effects text already collected; add human names in context
+    const effectsText = effectNotes.join(', ') || undefined;
+
+    // Attacker notification (e.g., swapped stats) – shows whom they targeted
+    await logStatChanges({
+      io: req.app.get('io'),
+      classroomId,
+      user: req.user,
+      actionBy: req.user._id,
+      prevStats: attackerPrev,
+      currStats: {
+        multiplier: req.user.passiveAttributes?.multiplier || 1,
+        luck: req.user.passiveAttributes?.luck || 1,
+        discount: req.user.passiveAttributes?.discount || 0,
+        shield: req.user.shieldCount || 0,
+        groupMultiplier: req.user.passiveAttributes?.groupMultiplier || 1
+      },
+      context: `Bazaar - Attack on ${targetName} (${item.name})`,
+      details: { effectsText }
+    });
+
+    // Target notification (they were attacked) – shows attacker
+    await logStatChanges({
+      io: req.app.get('io'),
+      classroomId,
+      user: targetUser,
+      actionBy: req.user._id,
+      prevStats: targetPrev,
+      currStats: {
+        multiplier: targetUser.passiveAttributes?.multiplier || 1,
+        luck: targetUser.passiveAttributes?.luck || 1,
+        discount: targetUser.passiveAttributes?.discount || 0,
+        shield: targetUser.shieldCount || 0,
+        groupMultiplier: targetUser.passiveAttributes?.groupMultiplier || 1
+      },
+      context: `Bazaar - Attacked by ${attackerName} (${item.name})`,
+      details: { effectsText }
+    });
+
     res.json({ 
       message: item.primaryEffect === 'swapper' 
         ? `Successfully swapped ${req.body.swapAttribute}! Item was consumed.`
@@ -213,11 +328,7 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
     });
   } catch (err) {
     console.error('Item use error:', err);
-    res.status(500).json({ 
-      error: 'Failed to use item',
-      details: err.message,
-      ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
-    });
+    res.status(500).json({ error: 'Server error' });
   }
 });
 

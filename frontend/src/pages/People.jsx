@@ -41,6 +41,12 @@ const getStatChangeSource = (message) => {
   return null;
 };
 
+// NEW: parse "Effects: ..." (image parsing removed)
+const getEffectsText = (message) => {
+  const m = String(message || '').match(/Effects:\s*(.+?)(?:\s*\[img:|$)/i);
+  return m?.[1]?.trim() || null;
+};
+
 // add helper near the top (after imports / before component)
 const computeTotalSpent = (transactions = [], classroomId) => {
   return (transactions || []).reduce((sum, t) => {
@@ -1687,6 +1693,8 @@ const visibleCount = filteredStudents.length;
         })
         .map((gs) => (
         <div key={gs._id} className="w-full min-w-0">
+
+
           <h2 className="text-xl font-semibold">{gs.name}</h2>
           <div className="mt-2 grid grid-cols-1 gap-4 w-full">
             {gs.groups
@@ -1870,29 +1878,40 @@ const visibleCount = filteredStudents.length;
                      }
 
                      if (!q) return true;
+
                      // target user
                      const target = s.targetUser || {};
                      const targetName = `${target.firstName || ''} ${target.lastName || ''}`.trim().toLowerCase();
                      const targetEmail = (target.email || '').toLowerCase();
                      if (targetName.includes(q) || targetEmail.includes(q)) return true;
+
                      // actionBy
                      const actor = s.actionBy || {};
                      const actorName = `${actor.firstName || ''} ${actor.lastName || ''}`.trim().toLowerCase();
                      const actorEmail = (actor.email || '').toLowerCase();
                      if (actorName.includes(q) || actorEmail.includes(q)) return true;
+
+                     // NEW: search the label shown in UI (“via …”) and the effects text
+                     const label = (getStatChangeSource(s.message) || '').toLowerCase();
+                     if (label && label.includes(q)) return true;
+
+                     const effects = (getEffectsText(s.message) || '').toLowerCase();
+                     if (effects && effects.includes(q)) return true;
+
                      // changes content
                      if (Array.isArray(s.changes)) {
-                          for (const c of s.changes) {
-                            const field = String(c.field || '').toLowerCase();
-                            const from = String(c.from || '').toLowerCase();
-                            const to = String(c.to || '').toLowerCase();
-                            if (field.includes(q) || from.includes(q) || to.includes(q)) return true;
-                          }
-                        }
-                        // fallback: createdAt
-                        if ((s.createdAt || '').toLowerCase().includes(q)) return true;
-                        return false;
-                    });
+                       for (const c of s.changes) {
+                         const field = String(c.field || '').toLowerCase();
+                         const from = String(c.from || '').toLowerCase();
+                         const to = String(c.to || '').toLowerCase();
+                         if (field.includes(q) || from.includes(q) || to.includes(q)) return true;
+                       }
+                     }
+
+                     // fallback: createdAt
+                     if ((s.createdAt || '').toLowerCase().includes(q)) return true;
+                     return false;
+                   });
 
                     filtered.sort((a, b) => {
                       const ad = new Date(a.createdAt || 0).getTime();
@@ -1935,6 +1954,19 @@ const visibleCount = filteredStudents.length;
                               ) : (
                                 <div className="text-xs text-base-content/60">No details available</div>
                               )}
+                            </div>
+                            <div className="mt-1">
+                              {(() => {
+                                const effects = getEffectsText(s.message);
+                                if (!effects) return null;
+                                return (
+                                  <div className="flex items-start gap-2 mt-1">
+                                    <div className="text-xs text-base-content/60 flex-1">
+                                      Effects: <span className="italic">{effects}</span>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
                             </div>
                           </li>
                         ))}

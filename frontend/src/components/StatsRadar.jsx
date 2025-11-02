@@ -164,10 +164,15 @@ const StatsRadar = ({ stats = {}, size = 220, maxOverrides = {}, isDark: propIsD
       {/* tiny legend / values */}
       <div style={{ fontSize: 12, color: isDark ? '#cbd5e1' : '#475569', marginTop: 6 }}>
         {axisConfig.map((a) => {
-          const v = a.key === 'discountShop' ? (stats[a.key] || 0) : (stats[a.key] ?? 0);
+          const raw = a.key === 'discountShop' ? (stats[a.key] || 0) : (stats[a.key] ?? 0);
+          const n = Number(raw);
+          const oneDec = (x) => (Math.round(x * 10) / 10).toFixed(1);
+          const fmt = ['multiplier','luck','groupMultiplier'].includes(a.key)
+            ? oneDec(n)
+            : String(Math.round(n || 0));
           return (
             <span key={a.key} style={{ marginRight: 10 }}>
-              <strong style={{ color: '#10b981' }}>{String(v ?? 0)}</strong> {a.label}
+              <strong style={{ color: '#10b981' }}>{fmt}</strong> {a.label}
             </span>
           );
         })}

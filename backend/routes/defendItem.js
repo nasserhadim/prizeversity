@@ -66,7 +66,8 @@ router.post('/activate/:itemId', ensureAuthenticated, async (req, res) => {
       actionBy: req.user._id,
       prevStats: prev,
       currStats: after,
-      context: `Bazaar - Shield activated`
+      context: `Bazaar - Shield activated`,
+      details: { effectsText: 'Shield +1 (blocks next attack)' }
     });
 
     res.json({
