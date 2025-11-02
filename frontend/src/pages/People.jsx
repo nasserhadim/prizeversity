@@ -52,10 +52,18 @@ const computeTotalSpent = (transactions = [], classroomId) => {
   return (transactions || []).reduce((sum, t) => {
     const amt = Number(t?.amount) || 0;
     if (amt >= 0) return sum;
-    const assignerRole = t?.assignedBy?.role ? String(t.assignedBy.role).toLowerCase() : '';
-    // Exclude teacher/admin adjustments from "total spent"
-    if (assignerRole === 'teacher' || assignerRole === 'admin') return sum;
+
+    // Skip attacks and siphons from "Total Spent"
+    const tType = String(t?.type || t?.metadata?.type || '').toLowerCase();
+    if (tType === 'attack' || tType === 'siphon') return sum;
+
+    // Keep classroom filter
     if (classroomId && t?.classroom && String(t.classroom) !== String(classroomId)) return sum;
+
+    // Exclude teacher/admin adjustments
+    const assignerRole = t?.assignedBy?.role ? String(t.assignedBy.role).toLowerCase() : '';
+    if (assignerRole === 'teacher' || assignerRole === 'admin') return sum;
+
     return sum + Math.abs(amt);
   }, 0);
 };

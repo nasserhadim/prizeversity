@@ -6,6 +6,26 @@ const { ensureAuthenticated } = require('../config/auth');
 const Classroom = require('../models/Classroom');
 const { awardXP } = require('../utils/awardXP');
 const { logStatChanges } = require('../utils/statChangeLog'); // NEW
+const Notification = require('../models/Notification');        // NEW
+const { populateNotification } = require('../utils/notifications'); // NEW
+
+// helpers for classroom-scoped balances
+function getClassroomBalance(user, classroomId) {
+  if (!classroomId) return user.balance || 0;
+  if (!Array.isArray(user.classroomBalances)) return user.balance || 0;
+  const entry = user.classroomBalances.find(cb => String(cb.classroom) === String(classroomId));
+  return entry ? entry.balance : (user.balance || 0);
+}
+function setClassroomBalance(user, classroomId, newBalance) {
+  if (!classroomId) { user.balance = newBalance; return; }
+  if (!Array.isArray(user.classroomBalances)) user.classroomBalances = [];
+  const idx = user.classroomBalances.findIndex(cb => String(cb.classroom) === String(classroomId));
+  if (idx >= 0) {
+    user.classroomBalances[idx].balance = newBalance;
+  } else {
+    user.classroomBalances.push({ classroom: classroomId, balance: newBalance });
+  }
+}
 
 // attack item is one of the categories for the items that use effects that are used to 'hurt' damage the target's bits, luck, or multiplier
 
@@ -43,6 +63,26 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
     // Helpful display names
     const attackerName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email;
     const targetName = `${targetUser.firstName || ''} ${targetUser.lastName || ''}`.trim() || targetUser.email;
+
+    // Small helper to compute normalized diffs like statChangeLog
+    const diffChanges = (prev, curr, prefix = '') => {
+      const fields = ['multiplier', 'luck', 'discount', 'shield', 'groupMultiplier'];
+      const norm = (f, v) => {
+        if (v == null) return v;
+        if (['multiplier','luck','groupMultiplier'].includes(f)) return Number(Number(v).toFixed(1));
+        if (f === 'discount') return Math.round(Number(v));
+        if (f === 'shield') return Math.max(0, parseInt(v, 10));
+        return v;
+      };
+      const out = [];
+      for (const f of fields) {
+        const b = norm(f, prev[f]);
+        const a = norm(f, curr[f]);
+        if (b === undefined && a === undefined) continue;
+        if (String(b) !== String(a)) out.push({ field: `${prefix}${f}`, from: b, to: a });
+      }
+      return out;
+    };
 
     // Check if target has active shield
     if (targetUser.shieldActive) {
@@ -84,6 +124,8 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
         shield: targetUser.shieldCount || 0,
         groupMultiplier: targetUser.passiveAttributes?.groupMultiplier || 1
       };
+
+      // Target gets the shield decrement entry
       await logStatChanges({
         io: req.app.get('io'),
         classroomId,
@@ -95,18 +137,19 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
         details: { effectsText: 'Shield -1 (blocked attack)' }
       });
 
-      // NEW: Attacker log (forced even if no stat changed)
+      // Attacker gets a forced log with target’s shield change as extraChanges
+      const targetDiffForAttacker = diffChanges(targetPrev, targetAfterBlocked, 'target.');
       await logStatChanges({
         io: req.app.get('io'),
         classroomId,
         user: req.user,
         actionBy: req.user._id,
         prevStats: attackerPrev,
-        currStats: attackerPrev, // unchanged
+        currStats: attackerPrev, // attacker stats unchanged on block
         context: `Bazaar - Attack on ${targetName} (${item.name}) was blocked`,
         details: { effectsText: `Blocked by ${targetName} (shield consumed)` },
         forceLog: true,
-        extraChanges: [{ field: 'attackResult', from: 'attempted', to: `blocked by ${targetName}` }]
+        extraChanges: [{ field: 'attackResult', from: 'attempted', to: `blocked by ${targetName}` }, ...targetDiffForAttacker]
       });
 
       return res.status(200).json({
@@ -118,18 +161,93 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
     }
 
     // If no shield, proceed with attack
-    const effectNotes = []; // collect human-readable effect descriptions
+    const effectNotes = [];
+    const walletLogs = [];
+
+    const formatArrow = (from, to) => `${from} → ${to}`;
 
     switch(item.primaryEffect) {
-      case 'halveBits':
-        targetUser.balance = Math.floor(targetUser.balance / 2);
+      case 'halveBits': {
+        const tBefore = getClassroomBalance(targetUser, classroomId);
+        const tAfter  = Math.floor(tBefore / 2);
+        setClassroomBalance(targetUser, classroomId, tAfter);
+        effectNotes.push('Halved bits');
+
+        const lost = tBefore - tAfter;
+        if (lost > 0) {
+          targetUser.transactions.push({
+            amount: -lost,
+            description: `Attack: ${item.name} by ${attackerName} (halved bits)`,
+            assignedBy: req.user._id,
+            classroom: classroomId || null,
+            createdAt: new Date(),
+            calculation: { prevBalance: tBefore, newBalance: tAfter },
+            type: 'attack' // NEW
+          });
+          walletLogs.push({
+            user: targetUser,
+            amount: -lost,
+            message: `You lost ${lost} ₿ due to attack by ${attackerName} (${item.name}). Balance: ${formatArrow(tBefore, tAfter)}`,
+            prevBalance: tBefore,
+            newBalance: tAfter
+          });
+        }
         break;
-      case 'stealBits':
-        const stealAmount = Math.floor(targetUser.balance * (item.primaryEffectValue / 100));
-        targetUser.balance -= stealAmount;
-        req.user.balance += stealAmount;
+      }
+
+      case 'stealBits': {
+        const tBefore = getClassroomBalance(targetUser, classroomId);
+        const stealAmount = Math.floor(tBefore * (Number(item.primaryEffectValue || 0) / 100));
+        const tAfter  = Math.max(0, tBefore - stealAmount);
+        setClassroomBalance(targetUser, classroomId, tAfter);
+
+        const aBefore = getClassroomBalance(req.user, classroomId);
+        const aAfter  = aBefore + stealAmount;
+        setClassroomBalance(req.user, classroomId, aAfter);
+
+        effectNotes.push(`Stole ${item.primaryEffectValue || 0}% bits`);
+
+        if (stealAmount > 0) {
+          // target (debit)
+          targetUser.transactions.push({
+            amount: -stealAmount,
+            description: `Attack: ${item.name} by ${attackerName} (stolen ${stealAmount} ₿)`,
+            assignedBy: req.user._id,
+            classroom: classroomId || null,
+            createdAt: new Date(),
+            calculation: { prevBalance: tBefore, newBalance: tAfter },
+            type: 'attack' // NEW
+          });
+          walletLogs.push({
+            user: targetUser,
+            amount: -stealAmount,
+            message: `You lost ${stealAmount} ₿ due to attack by ${attackerName} (${item.name}). Balance: ${formatArrow(tBefore, tAfter)}`,
+            prevBalance: tBefore,
+            newBalance: tAfter
+          });
+
+          // attacker (credit)
+          req.user.transactions.push({
+            amount: stealAmount,
+            description: `Attack: ${item.name} vs ${targetName} (received ${stealAmount} ₿)`,
+            assignedBy: req.user._id,
+            classroom: classroomId || null,
+            createdAt: new Date(),
+            calculation: { prevBalance: aBefore, newBalance: aAfter },
+            type: 'attack' // NEW
+          });
+          walletLogs.push({
+            user: req.user,
+            amount: stealAmount,
+            message: `You received ${stealAmount} ₿ from attack on ${targetName} (${item.name}). Balance: ${formatArrow(aBefore, aAfter)}`,
+            prevBalance: aBefore,
+            newBalance: aAfter
+          });
+        }
         break;
-      case 'swapper':  // New Swapper effect
+      }
+
+      case 'swapper': {
         if (!swapAttribute) {
           return res.status(400).json({ 
             error: 'Swap attribute is required',
@@ -148,9 +266,60 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
         
         // Perform the swap
         switch(swapAttribute) {
-          case 'bits':
-            [req.user.balance, targetUser.balance] = [targetUser.balance, req.user.balance];
+          case 'bits': {
+            const aBefore = getClassroomBalance(req.user, classroomId);
+            const tBefore = getClassroomBalance(targetUser, classroomId);
+
+            setClassroomBalance(req.user, classroomId, tBefore);
+            setClassroomBalance(targetUser, classroomId, aBefore);
+            effectNotes.push('Swapped bits');
+
+            const aAfter = tBefore;
+            const tAfter = aBefore;
+            const deltaAtt = aAfter - aBefore;
+            const deltaTar = tAfter - tBefore;
+
+            // attacker delta
+            if (deltaAtt !== 0) {
+              req.user.transactions.push({
+                amount: deltaAtt,
+                description: `Attack: ${item.name} swap with ${targetName} (${deltaAtt >= 0 ? '+' : ''}${deltaAtt} ₿)`,
+                assignedBy: req.user._id,
+                classroom: classroomId || null,
+                createdAt: new Date(),
+                calculation: { prevBalance: aBefore, newBalance: aAfter },
+                type: 'attack' // NEW
+              });
+              walletLogs.push({
+                user: req.user,
+                amount: deltaAtt,
+                message: `${deltaAtt >= 0 ? 'You received' : 'You lost'} ${Math.abs(deltaAtt)} ₿ from swap with ${targetName} (${item.name}). Balance: ${formatArrow(aBefore, aAfter)}`,
+                prevBalance: aBefore,
+                newBalance: aAfter
+              });
+            }
+
+            // target delta
+            if (deltaTar !== 0) {
+              targetUser.transactions.push({
+                amount: deltaTar,
+                description: `Attack: ${item.name} swap by ${attackerName} (${deltaTar >= 0 ? '+' : ''}${deltaTar} ₿)`,
+                assignedBy: req.user._id,
+                classroom: classroomId || null,
+                createdAt: new Date(),
+                calculation: { prevBalance: tBefore, newBalance: tAfter },
+                type: 'attack' // NEW
+              });
+              walletLogs.push({
+                user: targetUser,
+                amount: deltaTar,
+                message: `${deltaTar >= 0 ? 'You received' : 'You lost'} ${Math.abs(deltaTar)} ₿ from swap with ${attackerName} (${item.name}). Balance: ${formatArrow(tBefore, tAfter)}`,
+                prevBalance: tBefore,
+                newBalance: tAfter
+              });
+            }
             break;
+          }
           case 'multiplier':
             [req.user.passiveAttributes.multiplier, targetUser.passiveAttributes.multiplier] = 
               [targetUser.passiveAttributes.multiplier, req.user.passiveAttributes.multiplier];
@@ -163,7 +332,9 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
             break;
         }
         break;
-      case 'nullify':  // New Nullify effect
+      }
+
+      case 'nullify': {
         if (!req.body.nullifyAttribute) {
           return res.status(400).json({ 
             error: 'Nullify attribute is required',
@@ -191,9 +362,34 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
 
         // Perform the nullify
         switch(req.body.nullifyAttribute) {
-          case 'bits':
-            targetUser.balance = 0;
+          case 'bits': {
+            const tBefore = getClassroomBalance(targetUser, classroomId);
+            const tAfter = 0;
+            if (tBefore > 0) {
+              setClassroomBalance(targetUser, classroomId, 0);
+              effectNotes.push('Nullified bits');
+              targetUser.transactions.push({
+                amount: -tBefore,
+                description: `Attack: ${item.name} by ${attackerName} (reset to 0)`,
+                assignedBy: req.user._id,
+                classroom: classroomId || null,
+                createdAt: new Date(),
+                calculation: { prevBalance: tBefore, newBalance: tAfter },
+                type: 'attack' // NEW
+              });
+              walletLogs.push({
+                user: targetUser,
+                amount: -tBefore,
+                message: `Your bits were reset to 0 by ${attackerName} (${item.name}). Balance: ${formatArrow(tBefore, tAfter)}`,
+                prevBalance: tBefore,
+                newBalance: tAfter
+              });
+            } else {
+              setClassroomBalance(targetUser, classroomId, 0);
+              effectNotes.push('Nullified bits');
+            }
             break;
+          }
           case 'multiplier':
             targetUser.passiveAttributes.multiplier = 1;
             effectNotes.push('Nullified multiplier');
@@ -203,14 +399,8 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
             effectNotes.push('Nullified luck');
             break;
         }
-        // Add a transaction record for the nullification
-        targetUser.transactions.push({
-          amount: 0,
-          description: `Attribute nullified: ${req.body.nullifyAttribute}`,
-          assignedBy: req.user._id,
-          createdAt: new Date()
-        });
         break;
+      }
     }
 
     // Apply secondary effects
@@ -251,6 +441,34 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
       console.warn('[attackItem] awardXP failed:', e);
     }
 
+    // Create wallet notifications and emit balance updates
+    try {
+      const io = req.app.get('io');
+      for (const ev of walletLogs) {
+        const n = await Notification.create({
+          user: ev.user._id,
+          actionBy: req.user._id,
+          type: 'wallet_transaction',
+          message: ev.message,               // includes "Balance: X → Y"
+          classroom: classroomId || null,
+          amount: ev.amount,
+          prevBalance: ev.prevBalance,       // optional metadata
+          newBalance: ev.newBalance,         // optional metadata
+          createdAt: new Date()
+        });
+        const pop = await populateNotification(n._id);
+        if (io && pop) io.to(`user-${ev.user._id}`).emit('notification', pop);
+
+        const newBal = classroomId ? getClassroomBalance(ev.user, classroomId) : (ev.user.balance || 0);
+        if (io) {
+          io.to(`user-${ev.user._id}`).emit('balance_update', { userId: ev.user._id, classroomId, newBalance: newBal });
+          if (classroomId) io.to(`classroom-${classroomId}`).emit('balance_update', { studentId: ev.user._id, classroomId, newBalance: newBal });
+        }
+      }
+    } catch (e) {
+      console.warn('[attackItem] wallet notifications/emit failed:', e);
+    }
+
     // NEW: log stat changes for attacker and target (only if any tracked fields changed)
     const attackerAfter = {
       multiplier: req.user.passiveAttributes?.multiplier || 1,
@@ -270,38 +488,30 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
     // NEW: build effects text already collected; add human names in context
     const effectsText = effectNotes.join(', ') || undefined;
 
-    // Attacker notification (e.g., swapped stats) – shows whom they targeted
+    // Include target-side diffs in attacker’s log (prefixed as target.*)
+    const targetDiffForAttacker = diffChanges(targetPrev, targetAfter, 'target.');
+
+    // Attacker notification with own changes + target-side changes
     await logStatChanges({
       io: req.app.get('io'),
       classroomId,
       user: req.user,
       actionBy: req.user._id,
       prevStats: attackerPrev,
-      currStats: {
-        multiplier: req.user.passiveAttributes?.multiplier || 1,
-        luck: req.user.passiveAttributes?.luck || 1,
-        discount: req.user.passiveAttributes?.discount || 0,
-        shield: req.user.shieldCount || 0,
-        groupMultiplier: req.user.passiveAttributes?.groupMultiplier || 1
-      },
+      currStats: attackerAfter,
       context: `Bazaar - Attack on ${targetName} (${item.name})`,
-      details: { effectsText }
+      details: { effectsText },
+      extraChanges: targetDiffForAttacker
     });
 
-    // Target notification (they were attacked) – shows attacker
+    // Target notification (their own before/after already captured)
     await logStatChanges({
       io: req.app.get('io'),
       classroomId,
       user: targetUser,
       actionBy: req.user._id,
       prevStats: targetPrev,
-      currStats: {
-        multiplier: targetUser.passiveAttributes?.multiplier || 1,
-        luck: targetUser.passiveAttributes?.luck || 1,
-        discount: targetUser.passiveAttributes?.discount || 0,
-        shield: targetUser.shieldCount || 0,
-        groupMultiplier: targetUser.passiveAttributes?.groupMultiplier || 1
-      },
+      currStats: targetAfter,
       context: `Bazaar - Attacked by ${attackerName} (${item.name})`,
       details: { effectsText }
     });

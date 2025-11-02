@@ -30,7 +30,7 @@ export const getEffectDescription = (item) => {
 
   // Utility
   if (item.category === 'Utility') {
-    if (item.primaryEffect === 'doubleEarnings') return '2x earnings multiplier';
+    if (item.primaryEffect === 'doubleEarnings') return 'Double Earnings (2x multiplier)';
     if (item.primaryEffect === 'discountShop') return '20% shop discount';
   }
 
@@ -94,7 +94,7 @@ export const describeEffectFromForm = (form) => {
 
   // Utility
   if (form.category === 'Utility') {
-    if (form.primaryEffect === 'doubleEarnings') return '2x earnings multiplier';
+    if (form.primaryEffect === 'doubleEarnings') return 'Double Earnings (2x multiplier)';
     if (form.primaryEffect === 'discountShop') return '20% shop discount';
   }
 

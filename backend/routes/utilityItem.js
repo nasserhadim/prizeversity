@@ -77,7 +77,7 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
     };
     // Describe utility effect
     let effectsText;
-    if (item.primaryEffect === 'doubleEarnings') effectsText = 'Earnings x2';
+    if (item.primaryEffect === 'doubleEarnings') effectsText = 'Double Earnings (2x multiplier)';
     if (item.primaryEffect === 'discountShop') {
       const pct = req.user.passiveAttributes?.discount ?? item.primaryEffectValue ?? 20;
       effectsText = `${pct}% shop discount`;

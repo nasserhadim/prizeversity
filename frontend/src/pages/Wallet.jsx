@@ -562,7 +562,15 @@ useEffect(() => {
       // `assignedBy` is populated by backend for the student's own transactions route:
       // see router.get('/transactions') in backend/routes/wallet.js
       const assignerRole = (t.assignedBy && t.assignedBy.role) ? String(t.assignedBy.role).toLowerCase() : '';
+
+      // Exclude teacher/admin adjustments
       if (assignerRole === 'teacher' || assignerRole === 'admin') {
+        return sum;
+      }
+
+      // Exclude attacks and siphons from "spent"
+      const tType = String(t?.type || t?.metadata?.type || '').toLowerCase();
+      if (tType === 'attack' || tType === 'siphon') {
         return sum;
       }
 

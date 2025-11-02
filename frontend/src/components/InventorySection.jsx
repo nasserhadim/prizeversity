@@ -114,7 +114,7 @@ const InventorySection = ({ userId, classroomId }) => {
           
           // Default attack usage
           endpoint = `/attack/use/${item._id}`;
-          data = { targetUserId };
+          data = { targetUserId, classroomId };
           break;
           
         case 'Defend':

@@ -24,6 +24,10 @@ const StudentStats = () => {
   // Precompute group multiplier for rendering
   const groupMultiplierValue = Number(stats?.groupMultiplier ?? stats?.student?.groupMultiplier ?? 1);
 
+  // NEW: normalized/pretty display for Luck
+  const luckValue = Number(stats?.luck ?? stats?.student?.luck ?? 1);
+  const displayLuck = Number.isFinite(luckValue) ? luckValue.toFixed(1) : '1.0';
+
   // NEW: classroom details for header
   const [classroom, setClassroom] = useState(null);
 
@@ -284,7 +288,7 @@ const StudentStats = () => {
               🍀
             </div>
             <div className="stat-title">Luck</div>
-            <div className="stat-value">x{stats.luck || 1}</div>
+            <div className="stat-value">x{displayLuck}</div>
           </div>
         </div>
       </div>
