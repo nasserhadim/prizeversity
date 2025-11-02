@@ -8,6 +8,7 @@ const Notification = require('../models/Notification');
 const { populateNotification } = require('../utils/notifications');
 const { ensureAuthenticated } = require('../config/auth');
 const sendEmail = require('../../send-email'); // root-level send-email.js
+const { awardXP } = require('../utils/awardXP');
 
 // helper to format remaining milliseconds into "Xd Yh Zm"
 function formatRemainingMs(ms) {
@@ -143,7 +144,8 @@ router.post('/classroom', ensureAuthenticated, async (req, res) => {
     // --- NEW: feedback reward flow ---
     try {
       const ip = (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim();
-      const cls = await Classroom.findById(classroomId).select('feedbackRewardEnabled feedbackRewardBits feedbackRewardApplyGroupMultipliers feedbackRewardApplyPersonalMultipliers feedbackRewardAllowAnonymous teacher');
+      const cls = await Classroom.findById(classroomId)
+        .select('feedbackRewardEnabled feedbackRewardBits feedbackRewardApplyGroupMultipliers feedbackRewardApplyPersonalMultipliers feedbackRewardAllowAnonymous teacher xpSettings');
       console.log('[feedback] reward check:', { classroomId, clsEnabled: !!cls?.feedbackRewardEnabled, bits: cls?.feedbackRewardBits, allowAnonymous: !!cls?.feedbackRewardAllowAnonymous });
 
       if (cls && cls.feedbackRewardEnabled && Number(cls.feedbackRewardBits) > 0) {
@@ -263,7 +265,34 @@ router.post('/classroom', ensureAuthenticated, async (req, res) => {
                   });
 
                   await target.save();
+
+                  // Ensure classroom XP entry exists so /api/xp can read it
+                  try {
+                    if (!Array.isArray(target.classroomXP)) target.classroomXP = [];
+                    const hasEntry = target.classroomXP.some(cx => String(cx.classroom) === String(classroomId));
+                    if (!hasEntry) {
+                      target.classroomXP.push({ classroom: classroomId, xp: 0, level: 1, earnedBadges: [] });
+                    }
+                    await target.save();
+                  } catch (e) {
+                    console.warn('[feedback] classroomXP upsert failed:', e);
+                  }
+
                   console.log(`[feedback] awarded ${award} bits -> user ${target._id} (classroom ${classroomId})`);
+
+                  // Award XP for bits earned via feedback reward (unchanged)
+                  try {
+                    if (cls?.xpSettings?.enabled) {
+                      const xpRate = cls.xpSettings.bitsEarned || 0;
+                      const xpBits = (cls.xpSettings.bitsXPBasis === 'base') ? Math.abs(base) : Math.abs(award);
+                      const xpToAward = xpBits * xpRate;
+                      if (xpToAward > 0) {
+                        await awardXP(target._id, classroomId, xpToAward, 'earning bits (feedback reward)', cls.xpSettings);
+                      }
+                    }
+                  } catch (xpErr) {
+                    console.warn('[feedback] failed to award XP for feedback reward:', xpErr);
+                  }
 
                   // Emit socket events so frontend updates (emit to classroom and user rooms)
                   try {

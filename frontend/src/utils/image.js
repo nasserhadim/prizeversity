@@ -79,3 +79,16 @@ export function resolveMysteryBoxSrc(src) {
   if (s.startsWith('/')) return s;
   return placeholder;
 }
+
+/**
+ * Resolve badge image source
+ */
+export function resolveBadgeSrc(src) {
+  if (!src || typeof src !== 'string') return null;
+  const s = src.trim();
+  if (!s) return null;
+  if (s.startsWith('http://') || s.startsWith('https://') || s.startsWith('data:')) return s;
+  if (s.startsWith('/uploads/')) return `${API_BASE}${s}`;
+  if (s.startsWith('/')) return s;
+  return null;
+}

@@ -134,7 +134,10 @@ const InventorySection = ({ userId, classroomId }) => {
       }
 
       // Execute item usage
-      const response = await apiItem.post(endpoint, data);
+      const response = await apiItem.post(endpoint, { 
+        ...(data || {}), 
+        classroomId 
+      });
       toast.success(response.data.message || 'Item used successfully!');
       
       // Refresh inventory

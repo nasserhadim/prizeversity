@@ -3,7 +3,7 @@ import { useParams, Link, useLocation } from 'react-router-dom';
 import { ThemeContext } from '../context/ThemeContext'; // <-- added import
 import axios from 'axios';
 import socket from '../utils/socket.js';
-import { LoaderIcon, RefreshCw } from 'lucide-react';
+import { LoaderIcon, RefreshCw, TrendingUp } from 'lucide-react'; // Removed Award import
 import Footer from '../components/Footer';
 import StatsRadar from '../components/StatsRadar'; // <-- add this import
 import { getThemeClasses } from '../utils/themeUtils'; // <-- new import
@@ -14,12 +14,31 @@ const StudentStats = () => {
   const { theme } = useContext(ThemeContext); // <-- read theme
   const isDark = theme === 'dark';
   const themeClasses = getThemeClasses(isDark); // <-- derive theme classes
+  // Add a single helper for muted copy that respects theme
+  const subtleText = isDark ? 'text-base-content/70' : 'text-gray-600';
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [xpData, setXPData] = useState(null);
+  const [badges, setBadges] = useState([]);
   // Precompute group multiplier for rendering
   const groupMultiplierValue = Number(stats?.groupMultiplier ?? stats?.student?.groupMultiplier ?? 1);
-  
+
+  // NEW: classroom details for header
+  const [classroom, setClassroom] = useState(null);
+
+  useEffect(() => {
+    if (!classroomId) return;
+    (async () => {
+      try {
+        const res = await axios.get(`/api/classroom/${classroomId}`, { withCredentials: true });
+        setClassroom(res.data);
+      } catch (e) {
+        console.error('[StudentStats] failed to fetch classroom', e);
+      }
+    })();
+  }, [classroomId]);
+
   useEffect(() => {
     // Async function to fetch student stats from backend
     const fetchStats = async () => {
@@ -59,25 +78,36 @@ const StudentStats = () => {
     }
   }, [studentId, classroomId]);
 
+  // Simplified XP data fetch - only get XP info, not badges
+  useEffect(() => {
+    const fetchXPData = async () => {
+      if (!classroomId || !studentId) return;
+      
+      try {
+        const res = await axios.get(
+          `/api/xp/classroom/${classroomId}/user/${studentId}`,
+          { withCredentials: true, headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' } }
+        );
+        setXPData(res.data);
+      } catch (e) {
+        console.error('Failed to fetch XP data', e);
+      }
+    };
+    
+    fetchXPData();
+  }, [classroomId, studentId]);
+
   // Determine where we came from to customize the back button
   const backButton = (() => {
     const from = location.state?.from;
     if (from === 'leaderboard') {
-      return {
-        to: `/classroom/${classroomId}/leaderboard`,
-        label: '← Back to Leaderboard'
-      };
+      return { to: `/classroom/${classroomId}/leaderboard`, label: '← Back to Leaderboard' };
     } else if (from === 'people') {
-      return {
-        to: `/classroom/${classroomId}/people`,
-        label: '← Back to People'
-      };
+      return { to: `/classroom/${classroomId}/people`, label: '← Back to People' };
+    } else if (from === 'badges') {
+      return { to: `/classroom/${classroomId}/badges`, label: '← Back to Badges' };
     } else {
-      // Default fallback
-      return {
-        to: `/classroom/${classroomId}/people`,
-        label: '← Back to People'
-      };
+      return { to: `/classroom/${classroomId}/people`, label: '← Back to People' };
     }
   })();
 
@@ -109,9 +139,74 @@ const StudentStats = () => {
   return (
     <>
       <div className={`${themeClasses.cardBase} max-w-md mx-auto mt-10 space-y-6`}>
-        <h1 className="text-2xl font-bold text-center">{(stats.student.name || stats.student.email.split('@')[0])}'s Stats</h1>
+        <div className="text-center space-y-1">
+          {classroom && (
+            <div className="text-xl font-semibold">
+              {classroom.name}{classroom.code ? ` (${classroom.code})` : ''}
+            </div>
+          )}
+          <h1 className="text-2xl font-bold">
+            {(stats.student.name || stats.student.email.split('@')[0])}'s Stats
+          </h1>
+        </div>
 
-        {/* radar + legend (unchanged) */}
+        {/* XP and Level Progress - Simplified */}
+        {xpData && (
+          <div className="card bg-base-100 shadow-md">
+            <div className="card-body">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-3xl font-bold flex items-center gap-2">
+                    <TrendingUp className="w-8 h-8 text-primary" />
+                    Level {xpData.level}
+                  </h2>
+                  <p className={`text-sm ${subtleText}`}>
+                    {xpData.xp} / {xpData.nextLevelProgress.xpForNextLevel} XP
+                  </p>
+                </div>
+
+                {/*
+                  Compute percent locally as a fallback.
+                  Use it for both the label and the progress bar.
+                */}
+                {(() => {
+                  const xp = Number(xpData?.xp ?? 0);
+                  const cap = Number(xpData?.nextLevelProgress?.xpForNextLevel ?? 0);
+                  const pct = cap > 0 ? Math.min(100, Math.max(0, Math.round((xp / cap) * 100))) : 0;
+                  const xpNeeded = Math.max(0, cap - xp);
+                  return (
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-primary">{pct}%</p>
+                      <p className={`text-xs ${subtleText}`}>to next level</p>
+                      <progress className="progress progress-primary w-full mt-2" value={pct} max="100" />
+                      <p className={`text-sm mt-2 ${subtleText}`}>
+                        {xpNeeded} XP needed for Level {xpData.level + 1}
+                      </p>
+                    </div>
+                  );
+                })()}
+              </div>
+              
+              {/* Add link to badges page */}
+              {classroomId && (
+                <Link 
+                  to={`/classroom/${classroomId}/badges`}
+                  state={{ 
+                    studentId: studentId,
+                    view: 'collection',
+                    // carry where we came from (leaderboard | people), default to people
+                    source: location.state?.from || 'people'
+                  }}
+                  className="btn btn-outline btn-sm mt-4"
+                >
+                  🏅 View Badge Collection ({xpData.earnedBadges?.length || 0})
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Radar Chart */}
         <div className="flex justify-center">
           <StatsRadar
             isDark={isDark}
@@ -126,7 +221,7 @@ const StudentStats = () => {
           />
         </div>
 
-        {/* stats list */}
+        {/* Stats List */}
         <div className="stats stats-vertical shadow w-full">
           {/* Attack, Shield, Multiplier (existing items) */}
           <div className="stat">
@@ -192,7 +287,9 @@ const StudentStats = () => {
             <div className="stat-value">x{stats.luck || 1}</div>
           </div>
         </div>
+      </div>
 
+      <div className="max-w-md mx-auto mt-6 mb-6">
         {classroomId ? (
           <Link to={backButton.to} className="btn btn-outline w-full">
             {backButton.label}

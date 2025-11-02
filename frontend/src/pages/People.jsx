@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -11,11 +11,34 @@ import ExportButtons from '../components/ExportButtons';
 import formatExportFilename from '../utils/formatExportFilename';
 import StatsAdjustModal from '../components/StatsAdjustModal';
 import Avatar from '../components/Avatar';
+import XPSettings from '../components/XPSettings';
+import { ThemeContext } from '../context/ThemeContext'; // NEW
 
 const ROLE_LABELS = {
   student: 'Student',
   admin: 'Admin/TA',
   teacher: 'Teacher',
+};
+
+// Extract a human‑readable source from a stats_adjusted message
+const getStatChangeSource = (message) => {
+  if (!message) return null;
+  const text = String(message);
+
+  // Prefer "via ...:"
+  const via = text.match(/via\s+(.+?):/i);
+  if (via?.[1]) return via[1].trim();
+
+  // Fallback to "from ...:"
+  const from = text.match(/from\s+(.+?):/i);
+  if (from?.[1]) return from[1].trim();
+
+  // Last resort: detect Bazaar context like "Bazaar - Shield activated"
+  if (/bazaar/i.test(text)) {
+    const m = text.match(/Bazaar\s*-\s*([^-:]+)(?=$|[.:])/i);
+    return (m?.[1] || 'Bazaar').trim();
+  }
+  return null;
 };
 
 // add helper near the top (after imports / before component)
@@ -35,6 +58,12 @@ const People = () => {
   // Get classroom ID from URL params
   const { id: classroomId } = useParams();
   const { user } = useAuth();
+  // NEW: theme-aware muted text helpers
+  const { theme } = useContext(ThemeContext);
+  const isDark = theme === 'dark';
+  const subtleText = isDark ? 'text-base-content/70' : 'text-gray-600';
+  const extraSubtleText = isDark ? 'text-base-content/60' : 'text-gray-500';
+
   const [studentSendEnabled, setStudentSendEnabled] = useState(null);
   const [tab, setTab] = useState('everyone');
   const [statSearch, setStatSearch] = useState('');
@@ -1010,7 +1039,7 @@ const visibleCount = filteredStudents.length;
           </h1>
 
           {/* New: show counts */}
-          <div className="text-sm text-gray-600 mt-1">
+          <div className={`text-sm ${subtleText} mt-1`}>
             Showing {visibleCount} of {totalPeople} people
           </div>
         </div>
@@ -1207,6 +1236,9 @@ const visibleCount = filteredStudents.length;
     {taBitPolicy === 'approval' && (
       <PendingApprovals classroomId={classroomId} />
     )}
+
+    {/* XP & Leveling Settings */}
+    <XPSettings classroomId={classroomId} />
           </div>
         )}
         {/* ───────────────────────────────────────────── */}
@@ -1336,7 +1368,7 @@ const visibleCount = filteredStudents.length;
                           {student.firstName || student.lastName
                             ? `${student.firstName || ''} ${student.lastName || ''}`.trim()
                             : student.name || student.email}
-                        <span className="ml-2 text-gray-600 text-sm">
+                        <span className={`ml-2 ${subtleText} text-sm`}>
                           – Role: {ROLE_LABELS[student.role] || student.role}
                         </span>
                         </div>
@@ -1578,7 +1610,7 @@ const visibleCount = filteredStudents.length;
                 <p className="text-gray-500 italic">All students are assigned to groups!</p>
               ) : (
                 <div className="space-y-2">
-                  <p className="text-sm text-gray-600 mb-3">
+                  <p className={`text-sm ${subtleText} mb-3`}>
                     Students who haven't joined any group yet:
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -1677,7 +1709,7 @@ const visibleCount = filteredStudents.length;
               <div key={group._id} className="border p-4 rounded w-full min-w-0 bg-base-100">
                  <h3 className="text-lg font-bold">{group.name}</h3>
                  {/* Add group multiplier display */}
-                 <p className="text-sm text-gray-600">
+                 <p className={`text-sm ${subtleText}`}>
                   Members: {group.members.filter(m => m._id && m.status === 'approved').length}/{group.maxMembers || 'No limit'} • 
                   Multiplier: {group.groupMultiplier || 1}x
                    {group.isAutoMultiplier ? (
@@ -1874,10 +1906,13 @@ const visibleCount = filteredStudents.length;
                           <li key={s._id} className="p-2 border border-base-300 rounded bg-base-100">
                             <div className="text-xs text-base-content/60 mb-1">
                               {new Date(s.createdAt).toLocaleString()}
-                              {s.actionBy && (s.message.includes('updated by your teacher') || s.message.includes('Updated stats for')) ? (
+                              {s.actionBy && (s.message?.includes('updated by your teacher') || s.message?.includes('Updated stats for')) ? (
                                 ` — by ${s.actionBy.firstName || ''} ${s.actionBy.lastName || ''}`.trim()
                               ) : (
-                                ` — from ${s.message.match(/from (.*?):/)?.[1] || 'System'}`
+                                (() => {
+                                  const src = getStatChangeSource(s.message);
+                                  return src ? ` — via ${src}` : ' — from System';
+                                })()
                               )}
                             </div>
                             {/* For students, don't show target user name since it's always them */}

@@ -200,6 +200,12 @@ app.use('/api/utility', utilityItems);
 app.use('/api/passive', passiveItems);
 const mysteryBoxRoutes = require('./routes/mysteryBox');
 app.use('/api/mystery-box', mysteryBoxRoutes);
+
+const badgeRoutes = require('./routes/badge');
+const xpRoutes = require('./routes/xp');
+
+app.use('/api/badge', badgeRoutes);
+app.use('/api/xp', xpRoutes);
 // Root Route
 app.get('/', (req, res) => {
   res.redirect(redirectBase);

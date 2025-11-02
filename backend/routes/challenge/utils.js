@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const { CHALLENGE_NAMES } = require('./constants');
 const Notification = require('../../models/Notification');
 const { populateNotification } = require('../../utils/notifications');
+const { awardXP } = require('../../utils/awardXP'); // Changed from '../utils/awardXP'
 
 function isChallengeExpired(challenge) {
   if (!challenge.settings.dueDateEnabled || !challenge.settings.dueDate) {
@@ -194,17 +195,7 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
       });
     }).catch(e => console.error('Failed to create student stat-change notification from challenge:', e));
 
-    // 2. Create log entry for teacher (without sending a real-time notification)
-    Notification.create({
-      user: null, // Set user to null for a system-wide log entry not tied to a specific user's notifications
-      actionBy: challenge.createdBy, // Associate the teacher who created the challenge
-      type: 'stats_adjusted',
-      message: teacherMessage,
-      targetUser: user._id,
-      changes: statChanges,
-      classroom: classroomId,
-      createdAt: now
-    }).catch(e => console.error('Failed to create teacher stat-change log from challenge:', e));
+    // REMOVE the teacher log creation that used user: null (no bell spam, no schema violation)
   }
   // --- END: Create notifications for stat changes ---
 

@@ -87,6 +87,36 @@ const UserSchema = new mongoose.Schema({
     match: /^[A-Z]{2}\d{4}$/,
   },
 
+  // Add classroom-specific XP and levels
+  classroomXP: [{
+    classroom: { 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: 'Classroom' 
+    },
+    xp: { 
+      type: Number, 
+      default: 0,
+      min: 0
+    },
+    level: { 
+      type: Number, 
+      default: 1,
+      min: 1
+    },
+    lastDailyCheckIn: { 
+      type: Date 
+    },
+    earnedBadges: [{
+      badge: { 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'Badge' 
+      },
+      earnedAt: { 
+        type: Date, 
+        default: Date.now 
+      }
+    }]
+  }],
 }, { 
   timestamps: true  // This should be here to automatically add createdAt and updatedAt
 });

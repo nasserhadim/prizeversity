@@ -5,6 +5,11 @@ const User = require('../../models/User');
 const { ensureAuthenticated } = require('../../middleware/auth');
 const { isChallengeExpired, generateChallenge2Password, calculateChallengeRewards } = require('./utils');
 const { CHALLENGE_NAMES } = require('./constants');
+const Notification = require('../../models/Notification');
+const { populateNotification } = require('../../utils/notifications');
+// Add imports for XP
+const Classroom = require('../../models/Classroom');
+const { awardXP } = require('../../utils/awardXP');
 
 router.post('/verify-password', ensureAuthenticated, async (req, res) => {
   try {
@@ -67,6 +72,12 @@ router.post('/verify-password', ensureAuthenticated, async (req, res) => {
       if (user) {
         rewardsEarned = calculateChallengeRewards(user, challenge, 0, userChallenge);
         await user.save();
+        // NEW: award XP for rewards and completion
+        await awardChallengeXP({
+          userId: user._id,
+          classroomId: challenge.classroomId,
+          rewards: rewardsEarned
+        });
       }
       
       await challenge.save();
@@ -166,6 +177,12 @@ router.post('/verify-challenge2-external', ensureAuthenticated, async (req, res)
         Object.assign(rewardsEarned, rewards);
         bitsAwarded = rewards.bits;
         await user.save();
+        // NEW
+        await awardChallengeXP({
+          userId: user._id,
+          classroomId: challenge.classroomId,
+          rewards: rewardsEarned
+        });
       }
       
       await challenge.save();
@@ -306,6 +323,12 @@ router.post('/challenge3/:uniqueId/verify', ensureAuthenticated, async (req, res
       
       rewardsEarned = calculateChallengeRewards(user, challenge, 2, userChallenge);
       await user.save();
+      // NEW: award XP for Challenge 3
+      await awardChallengeXP({
+        userId: user._id,
+        classroomId: challenge.classroomId,
+        rewards: rewardsEarned
+      });
       await challenge.save();
     }
 
@@ -386,6 +409,12 @@ router.post('/verify-challenge5-external', ensureAuthenticated, async (req, res)
     if (user) {
       rewardsEarned = calculateChallengeRewards(user, challenge, 4, userChallenge);
       await user.save();
+      // NEW
+      await awardChallengeXP({
+        userId: user._id,
+        classroomId: challenge.classroomId,
+        rewards: rewardsEarned
+      });
     }
     
     await challenge.save();
@@ -422,5 +451,42 @@ router.post('/verify-challenge5-external', ensureAuthenticated, async (req, res)
     res.status(500).json({ message: 'Server error' });
   }
 });
+
+// Helper: award XP for challenge outcome (bits + stat increases + completion)
+async function awardChallengeXP({ userId, classroomId, rewards }) {
+  try {
+    const cls = await Classroom.findById(classroomId).select('xpSettings');
+    if (!cls?.xpSettings?.enabled) return;
+
+    // 1) Bits-earned XP
+    const bits = Number(rewards?.bits || 0);
+    const rateBits = cls.xpSettings.bitsEarned || 0;
+    if (bits > 0 && rateBits > 0) {
+      const xp = bits * rateBits; // challenge bits are already "final"
+      if (xp > 0) await awardXP(userId, classroomId, xp, 'earning bits (challenge reward)', cls.xpSettings);
+    }
+
+    // 2) Stat-increase XP (count changed stats: multiplier, luck, discount, shield)
+    const statCount =
+      (rewards?.multiplier > 0 ? 1 : 0) +
+      ((rewards?.luck || 1) > 1.0 ? 1 : 0) +
+      ((rewards?.discount || 0) > 0 ? 1 : 0) +
+      (rewards?.shield ? 1 : 0);
+
+    const rateStat = cls.xpSettings.statIncrease || 0;
+    if (statCount > 0 && rateStat > 0) {
+      const xp = statCount * rateStat;
+      await awardXP(userId, classroomId, xp, 'stat increase (challenge reward)', cls.xpSettings);
+    }
+
+    // 3) Challenge-completion XP
+    const rateCompletion = cls.xpSettings.challengeCompletion || 0;
+    if (rateCompletion > 0) {
+      await awardXP(userId, classroomId, rateCompletion, 'challenge completion', cls.xpSettings);
+    }
+  } catch (e) {
+    console.warn('[challenge] awardChallengeXP failed:', e);
+  }
+}
 
 module.exports = router;

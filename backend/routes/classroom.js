@@ -9,6 +9,7 @@ const User = require('../models/User');
 const { ensureAuthenticated } = require('../config/auth');
 const blockIfFrozen = require('../middleware/blockIfFrozen');
 const { populateNotification } = require('../utils/notifications');
+const { awardXP } = require('../utils/awardXP');
 
 const router = express.Router();
 
@@ -1235,6 +1236,86 @@ router.get('/:id/stat-changes', ensureAuthenticated, async (req, res) => {
     res.json(logs);
   } catch (err) {
     console.error('[Get stat-changes] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Add new endpoint for daily check-in
+router.post('/:classroomId/checkin', ensureAuthenticated, async (req, res) => {
+  try {
+    const { classroomId } = req.params;
+    const userId = req.user._id;
+
+    const user = await User.findById(userId);
+    const classroom = await Classroom.findById(classroomId).select('xpSettings students');
+    
+    if (!classroom) {
+      return res.status(404).json({ error: 'Classroom not found' });
+    }
+
+    if (!classroom.students.includes(userId)) {
+      return res.status(403).json({ error: 'Not a member of this classroom' });
+    }
+
+    if (!classroom.xpSettings?.enabled) {
+      return res.json({ message: 'XP system not enabled', xpAwarded: 0 });
+    }
+
+    // Find classroom XP entry
+    let classroomXP = user.classroomXP.find(
+      cx => cx.classroom.toString() === classroomId.toString()
+    );
+
+    if (!classroomXP) {
+      classroomXP = {
+        classroom: classroomId,
+        xp: 0,
+        level: 1,
+        earnedBadges: []
+      };
+      user.classroomXP.push(classroomXP);
+    }
+
+    // Check if already checked in today
+    const now = new Date();
+    const lastCheckIn = classroomXP.lastDailyCheckIn;
+    
+    if (lastCheckIn) {
+      const lastDate = new Date(lastCheckIn);
+      const isSameDay = 
+        lastDate.getFullYear() === now.getFullYear() &&
+        lastDate.getMonth() === now.getMonth() &&
+        lastDate.getDate() === now.getDate();
+
+      if (isSameDay) {
+        return res.json({ 
+          message: 'Already checked in today', 
+          xpAwarded: 0,
+          alreadyCheckedIn: true
+        });
+      }
+    }
+
+    // Award daily check-in XP
+    classroomXP.lastDailyCheckIn = now;
+    await user.save();
+
+    const xpToAward = classroom.xpSettings.dailyCheckIn || 5;
+    const result = await awardXP(
+      userId,
+      classroomId,
+      xpToAward,
+      'daily check-in',
+      classroom.xpSettings
+    );
+
+    res.json({
+      message: 'Daily check-in successful!',
+      xpAwarded: xpToAward,
+      ...result
+    });
+  } catch (err) {
+    console.error('Check-in error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

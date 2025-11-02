@@ -380,6 +380,81 @@ const Support = () => {
           role: ["teacher"]
         }
       ]
+    },
+    {
+      category: "Badges & Achievements",
+      icon: <Trophy size={20} />,
+      questions: [
+        {
+          question: "How do I view my badges?",
+          answer: [
+            "To view your badge collection:",
+            "• Navigate to any classroom you're enrolled in",
+            "• Click on the 'Badges' menu in the navigation bar",
+            "• You'll see:",
+            "  - Stats showing badges earned and completion percentage",
+            "  - Earned badges section with colorful, animated badges",
+            "  - Locked badges section showing what you still need to unlock",
+            "• Locked badges show:",
+            "  - The level requirement to unlock",
+            "  - How many more levels you need",
+            "",
+            "Badges are earned automatically when you reach the required level in that classroom."
+          ],
+          role: ["student"]
+        },
+        {
+          question: "How do I create and manage badges for my classroom?",
+          answer: [
+            "As a teacher, you can create and manage custom badges:",
+            "",
+            "**To create badges:**",
+            "• Go to the Badges page (from the navigation menu)",
+            "• Click 'Create Badge' and fill in:",
+            "  - Badge name and description",
+            "  - Level requirement (when students unlock it)",
+            "  - Icon/emoji representation",
+            "  - Optional: Upload a custom image",
+            "",
+            "**Badge Management Dashboard:**",
+            "The Badges page provides a comprehensive dashboard showing:",
+            "• All created badges with edit/delete options",
+            "• Student progress table showing:",
+            "  - Each student's current level and XP",
+            "  - Number of badges earned",
+            "  - Next badge they'll unlock",
+            "  - XP/levels needed for next badge",
+            "",
+            "**Filtering & Sorting:**",
+            "• Search students by name or email",
+            "• Filter by level or badge status",
+            "• Sort by name, level, XP, or badges earned",
+            "",
+            "**Export Data:**",
+            "• Export student badge progress to CSV or JSON",
+            "• Great for tracking class achievement over time",
+            "",
+            "Students automatically earn badges when they reach the required level!"
+          ],
+          role: ["teacher"]
+        },
+        {
+          question: "Can I see which students are close to earning badges?",
+          answer: [
+            "Yes! Teachers have full visibility into student badge progress:",
+            "",
+            "On the Badges page, you can:",
+            "• See exactly how much XP each student needs for their next badge",
+            "• View how many levels students need to reach the next badge",
+            "• Filter to see only students without any badges",
+            "• Sort by badges earned to identify students who may need encouragement",
+            "• Export this data for planning or parent communication",
+            "",
+            "This helps you identify students who are close to milestones and provide targeted motivation!"
+          ],
+          role: ["teacher"]
+        }
+      ]
     }
   ];
 

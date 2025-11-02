@@ -6,7 +6,8 @@ const User  = require('../models/User');
 const router = express.Router();
 const Notification = require('../models/Notification');
 const { populateNotification } = require('../utils/notifications');
-const Classroom = require('../models/Classroom'); // Import Classroom model
+const { awardXP } = require('../utils/awardXP');
+const Classroom = require('../models/Classroom');
 const PendingAssignment = require('../models/PendingAssignment'); // Import PendingAssignment model
 
 // Utility to check if a TA can assign bits based on classroom policy
@@ -243,7 +244,26 @@ router.post(
             },
           });
           await user.save();
- 
+          // NEW: grant XP for group/classroom adjustments (respect basis)
+          if (classroomId) {
+            const cls = await Classroom.findById(classroomId).select('xpSettings');
+            if (cls?.xpSettings?.enabled) {
+              const xpRate = adjustedAmount > 0
+                ? (cls.xpSettings.bitsEarned || 0)
+                : (cls.xpSettings.bitsSpent || 0);
+
+              const xpBits = (cls.xpSettings.bitsXPBasis === 'base')
+                ? Math.abs(numericAmount)
+                : Math.abs(adjustedAmount);
+
+              const xpToAward = xpBits * xpRate;
+              if (xpToAward > 0) {
+                const reason = adjustedAmount > 0 ? 'earning bits' : 'spending bits';
+                await awardXP(user._id, classroomId, xpToAward, reason, cls.xpSettings);
+              }
+            }
+          }
+
           // Add result summary for the student
           results.push({ 
             id: user._id, 

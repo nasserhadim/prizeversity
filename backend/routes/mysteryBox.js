@@ -6,6 +6,8 @@ const User = require('../models/User');
 const Bazaar = require('../models/Bazaar');
 const { ensureAuthenticated } = require('../config/auth');
 const blockIfFrozen = require('../middleware/blockIfFrozen');
+const Classroom = require('../models/Classroom');
+const { awardXP } = require('../utils/awardXP');
 
 // Middleware: Only teachers
 function ensureTeacher(req, res, next) {
@@ -330,6 +332,28 @@ router.post(
       });
 
       await user.save();
+
+      // ADD: award XP for using a mystery box (+ optional bits-spent XP)
+      try {
+        const cls = await Classroom.findById(classroomId).select('xpSettings');
+        if (cls?.xpSettings?.enabled) {
+          const useRate = cls.xpSettings.mysteryBox || 0;
+          if (useRate > 0) {
+            await awardXP(userId, classroomId, useRate, 'mystery box use', cls.xpSettings);
+          }
+
+          // Optional: also grant bits-spent XP for the price paid
+          const spendRate = cls.xpSettings.bitsSpent || 0;
+          if (spendRate > 0 && mysteryBox.price > 0) {
+            const xpToAward = Math.abs(mysteryBox.price) * spendRate;
+            if (xpToAward > 0) {
+              await awardXP(userId, classroomId, xpToAward, 'spending bits (mystery box)', cls.xpSettings);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[mysteryBox] awardXP failed:', e);
+      }
 
       // Notify classroom
       req.app.get('io').to(`classroom-${classroomId}`).emit('mystery_box_opened', {

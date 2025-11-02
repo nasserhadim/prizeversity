@@ -3,6 +3,7 @@ const Bazaar = require('../models/Bazaar');
 const Item = require('../models/Item');
 const User = require('../models/User');
 const Classroom = require('../models/Classroom');
+const { awardXP } = require('../utils/awardXP');
 const { ensureAuthenticated } = require('../config/auth');
 const router = express.Router();
 const Order = require('../models/Order');
@@ -221,6 +222,22 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
 
     await user.save();
 
+    // ADD: award XP for spending bits
+    try {
+      const cls = await Classroom.findById(classroomId).select('xpSettings');
+      if (cls?.xpSettings?.enabled) {
+        const xpRate = cls.xpSettings.bitsSpent || 0;
+        // final vs base: for purchases, base == final unless you later apply in-route discounts
+        const xpBits = Math.abs(totalCost);
+        const xpToAward = xpBits * xpRate;
+        if (xpToAward > 0) {
+          await awardXP(user._id, classroomId, xpToAward, 'spending bits (bazaar purchase)', cls.xpSettings);
+        }
+      }
+    } catch (e) {
+      console.warn('[bazaar] failed to award XP (buy):', e);
+    }
+
     // Notify classroom about the purchase (unchanged)
     req.app.get('io').to(`classroom-${classroomId}`).emit('bazaar_purchase', {
       itemId,
@@ -353,6 +370,21 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
 
     await user.save();
 
+    // ADD: award XP for spending bits at checkout
+    try {
+      const cls = await Classroom.findById(classroomId).select('xpSettings');
+      if (cls?.xpSettings?.enabled) {
+        const xpRate = cls.xpSettings.bitsSpent || 0;
+        const xpBits = Math.abs(total); // amount actually spent
+        const xpToAward = xpBits * xpRate;
+        if (xpToAward > 0) {
+          await awardXP(userId, classroomId, xpToAward, 'spending bits (bazaar checkout)', cls.xpSettings);
+        }
+      }
+    } catch (e) {
+      console.warn('[bazaar] failed to award XP (checkout):', e);
+    }
+
     console.log("Checkout successful for user:", userId, "order:", order._id);
     res.status(200).json({
       message: 'Purchase successful',
@@ -360,7 +392,6 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
       balance: getClassroomBalance(user, classroomId),  // Return per-classroom balance
       orderId: order._id
     });
-
   } catch (err) {
     console.error("Checkout failed:", err);
     res.status(500).json({ 

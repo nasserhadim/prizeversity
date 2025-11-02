@@ -39,6 +39,8 @@ const NotificationSchema = new mongoose.Schema({
       'bit_assignment_rejected',
       'feedback_report', // added to support feedback report notifications
       'challenge_series_completed',
+      'badge_earned',
+      'level_up' // Add this line
     ],
     required: true 
   },

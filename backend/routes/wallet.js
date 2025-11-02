@@ -10,6 +10,13 @@ const blockIfFrozen = require('../middleware/blockIfFrozen');
 const PendingAssignment = require('../models/PendingAssignment');
 const Notification = require('../models/Notification');
 const { populateNotification } = require('../utils/notifications');
+const { awardXP } = require('../utils/awardXP');
+
+// helper to select basis for XP from bits
+function computeXPBits({ numericAmount, adjustedAmount, xpSettings }) {
+  const basis = xpSettings?.bitsXPBasis || 'final';
+  return Math.abs(basis === 'base' ? Number(numericAmount || 0) : Number(adjustedAmount || 0));
+}
 
 // Utility to check if a Admin/TA can assign bits based on classroom policy
 async function canTAAssignBits({ taUser, classroomId }) {
@@ -268,9 +275,30 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
     }
 
     await student.save();
-    console.log(`Assigned ${adjustedAmount} ₿ to ${student.email}`);
-  
-      const notification = await Notification.create({
+
+    // Award XP for bits earned/spent (respect basis)
+    if (classroomId) {
+      const classroom = await Classroom.findById(classroomId).select('xpSettings');
+      if (classroom?.xpSettings?.enabled) {
+        const xpRate = numericAmount > 0 
+          ? (classroom.xpSettings.bitsEarned || 0)
+          : (classroom.xpSettings.bitsSpent || 0);
+
+        const xpBits = computeXPBits({
+          numericAmount,
+          adjustedAmount,
+          xpSettings: classroom.xpSettings
+        });
+        const xpToAward = xpBits * xpRate;
+
+        if (xpToAward > 0) {
+          const reason = numericAmount > 0 ? 'earning bits' : 'spending bits';
+          await awardXP(student._id, classroomId, xpToAward, reason, classroom.xpSettings);
+        }
+      }
+    }
+
+    const notification = await Notification.create({
           user: student._id,
           actionBy: req.user._id,
           type: 'wallet_topup',                                     //creating a notification for assigning balance
@@ -481,7 +509,52 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
           req.app.get('io').to(`user-${student._id}`).emit('notification', populatedNotification); 
 
     }
-  
+
+    // NEW: grant XP for bits earned/spent in bulk assign
+    if (classroomId) {
+      const classroom = await Classroom.findById(classroomId).select('xpSettings');
+      if (classroom?.xpSettings?.enabled) {
+        for (const { studentId, amount } of updates) {
+          const numericAmount = Number(amount);
+          if (isNaN(numericAmount)) continue;
+
+          // Recompute adjustedAmount exactly like the bulk update used above (additive logic)
+          const studentDoc = await User.findById(studentId).select('passiveAttributes');
+          if (!studentDoc) continue;
+
+          const groupMultiplier = await getGroupMultiplierForStudentInClassroom(studentId, classroomId);
+          const passiveMultiplier = studentDoc.passiveAttributes?.multiplier || 1;
+
+          let finalMultiplier = 1;
+          if (numericAmount > 0) {
+            if (applyGroupMultipliers) finalMultiplier += ((groupMultiplier || 1) - 1);
+            if (applyPersonalMultipliers) finalMultiplier += ((passiveMultiplier || 1) - 1);
+          }
+
+          const adjustedAmount = (numericAmount > 0 && (applyGroupMultipliers || applyPersonalMultipliers))
+            ? Math.round(numericAmount * finalMultiplier)
+            : numericAmount;
+
+          const xpRate = numericAmount > 0
+            ? (classroom.xpSettings.bitsEarned || 0)
+            : (classroom.xpSettings.bitsSpent || 0);
+
+          // Respect XP basis setting ("final" uses adjustedAmount, "base" uses numericAmount)
+          const xpBits = computeXPBits({
+            numericAmount,
+            adjustedAmount,
+            xpSettings: classroom.xpSettings
+          });
+
+          const xpToAward = xpBits * xpRate;
+          if (xpToAward > 0) {
+            const reason = numericAmount > 0 ? 'earning bits' : 'spending bits';
+            await awardXP(studentId, classroomId, xpToAward, reason, classroom.xpSettings);
+          }
+        }
+      }
+    }
+
     res.json({
       message: `Bulk balance assignment complete (${results.updated} updated, ${results.skipped.length} skipped)`,
       ...results,

@@ -73,6 +73,8 @@ export default function Profile() {
     if (navFrom === 'groups' && navClassroomId) return { to: `/classroom/${navClassroomId}/groups`, label: 'Groups' };
     // If opened from the Wallet, send users back to the classroom wallet view
     if (navFrom === 'wallet' && navClassroomId) return { to: `/classroom/${navClassroomId}/wallet`, label: 'Wallet' };
+    // NEW: return to badges dashboard
+    if (navFrom === 'badges' && navClassroomId) return { to: `/classroom/${navClassroomId}/badges`, label: 'Badges' };
     if (navClassroomId) return { to: `/classroom/${navClassroomId}`, label: 'Classroom' };
     return { to: '/classrooms', label: 'My Classrooms' };
   })();

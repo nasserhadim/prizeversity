@@ -7,6 +7,37 @@ const validators = require('../../validators/challenges');
 const { isChallengeExpired, getChallengeIndex, calculateChallengeRewards, awardChallengeBits } = require('./utils');
 const { CHALLENGE_NAMES } = require('./constants');
 const { generateChallengeData } = require('../../utils/tokenGenerator');
+const Classroom = require('../../models/Classroom');
+const { awardXP } = require('../../utils/awardXP');
+
+// helper reused here
+async function awardChallengeXP({ userId, classroomId, rewards }) {
+  try {
+    const cls = await Classroom.findById(classroomId).select('xpSettings');
+    if (!cls?.xpSettings?.enabled) return;
+
+    const bits = Number(rewards?.bits || 0);
+    if (bits > 0 && (cls.xpSettings.bitsEarned || 0) > 0) {
+      await awardXP(userId, classroomId, bits * (cls.xpSettings.bitsEarned || 0), 'earning bits (challenge reward)', cls.xpSettings);
+    }
+
+    const statCount =
+      (rewards?.multiplier > 0 ? 1 : 0) +
+      ((rewards?.luck || 1) > 1.0 ? 1 : 0) +
+      ((rewards?.discount || 0) > 0 ? 1 : 0) +
+      (rewards?.shield ? 1 : 0);
+
+    if (statCount > 0 && (cls.xpSettings.statIncrease || 0) > 0) {
+      await awardXP(userId, classroomId, statCount * cls.xpSettings.statIncrease, 'stat increase (challenge reward)', cls.xpSettings);
+    }
+
+    if ((cls.xpSettings.challengeCompletion || 0) > 0) {
+      await awardXP(userId, classroomId, cls.xpSettings.challengeCompletion, 'challenge completion', cls.xpSettings);
+    }
+  } catch (e) {
+    console.warn('[challenge6] awardChallengeXP failed:', e);
+  }
+}
 
 router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
   try {
@@ -90,6 +121,12 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
       if (user) {
         rewardsEarned = calculateChallengeRewards(user, challenge, challengeIndex, userChallenge);
         await user.save();
+        // NEW: award XP for challenge 6 rewards + completion
+        await awardChallengeXP({
+          userId: user._id,
+          classroomId: challenge.classroomId,
+          rewards: rewardsEarned
+        });
       }
 
       if (userChallenge.progress === 7) {
@@ -189,6 +226,12 @@ router.post('/challenge4/:uniqueId/submit', ensureAuthenticated, async (req, res
         const user = await User.findById(userId);
         const rewardsEarned = calculateChallengeRewards(user, challenge, 3, userChallenge);
         await user.save();
+        // NEW: award XP for Challenge 4
+        await awardChallengeXP({
+          userId: user._id,
+          classroomId: challenge.classroomId,
+          rewards: rewardsEarned
+        });
         await challenge.save();
         
         res.json({
@@ -482,6 +525,12 @@ router.post('/submit-challenge6', ensureAuthenticated, async (req, res) => {
       if (user) {
         rewards = calculateChallengeRewards(user, challenge, challengeIndex, userChallenge);
         await user.save();
+        // NEW: award XP for challenge 6 rewards + completion
+        await awardChallengeXP({
+          userId: user._id,
+          classroomId: challenge.classroomId,
+          rewards
+        });
       }
       
       if (!userChallenge.completedChallenges) {
@@ -659,6 +708,12 @@ router.post('/submit-challenge7', ensureAuthenticated, async (req, res) => {
         if (user) {
           rewards = calculateChallengeRewards(user, challenge, challengeIndex, userChallenge);
           await user.save();
+          // NEW: award XP for Challenge 7
+          await awardChallengeXP({
+            userId: user._id,
+            classroomId: challenge.classroomId,
+            rewards
+          });
         }
         
         if (!userChallenge.completedChallenges) {

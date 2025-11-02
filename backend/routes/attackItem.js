@@ -3,12 +3,15 @@ const router = express.Router();
 const Item = require('../models/Item');
 const User = require('../models/User');
 const { ensureAuthenticated } = require('../config/auth');
+const Classroom = require('../models/Classroom');
+const { awardXP } = require('../utils/awardXP');
 
 // attack item is one of the categories for the items that use effects that are used to 'hurt' damage the target's bits, luck, or multiplier
 
 router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
   try {
     const { targetUserId, swapAttribute } = req.body; // Added swapAttribute parameter
+    const classroomId = req.body.classroomId || req.query.classroomId;
     const item = await Item.findById(req.params.itemId);
     
     if (!item || item.owner.toString() !== req.user._id.toString()) {
@@ -38,6 +41,19 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
 
       // Delete the attack item (since it was used)
       await Item.findByIdAndDelete(item._id);
+
+      // Award XP for using an attack item (consumed even if blocked)
+      try {
+        if (classroomId) {
+          const cls = await Classroom.findById(classroomId).select('xpSettings');
+          const rate = cls?.xpSettings?.enabled ? (cls.xpSettings.statIncrease || 0) : 0;
+          if (rate > 0) {
+            await awardXP(req.user._id, classroomId, rate, 'stat increase (attack item used)', cls.xpSettings);
+          }
+        }
+      } catch (e) {
+        console.warn('[attackItem] awardXP failed:', e);
+      }
 
       return res.status(200).json({ 
         message: 'Attack blocked by shield! Both shield and attack items were consumed.',
@@ -161,6 +177,19 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
     await req.user.save();
     await Item.findByIdAndDelete(item._id); // Delete attack item after use
 
+    // Award XP for using an attack item
+    try {
+      if (classroomId) {
+        const cls = await Classroom.findById(classroomId).select('xpSettings');
+        const rate = cls?.xpSettings?.enabled ? (cls.xpSettings.statIncrease || 0) : 0;
+        if (rate > 0) {
+          await awardXP(req.user._id, classroomId, rate, 'stat increase (attack item used)', cls.xpSettings);
+        }
+      }
+    } catch (e) {
+      console.warn('[attackItem] awardXP failed:', e);
+    }
+
     // Json notification for any successful or error commands
     res.json({ 
       message: item.primaryEffect === 'swapper' 
@@ -178,9 +207,7 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
       }),
       ...(item.primaryEffect === 'nullify' && {
         nullifiedAttribute: req.body.nullifyAttribute,
-        targetNewValue: req.body.nullifyAttribute === 'bits' 
-          ? 0 
-          : 1
+        targetNewValue: req.body.nullifyAttribute === 'bits' ? 0 : 1
       }),
       shieldDestroyed: false
     });

@@ -4,7 +4,7 @@ import { useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { ThemeContext } from '../context/ThemeContext';
 import { useCart } from '../context/CartContext';
-import { ShoppingCart, Menu, X } from 'lucide-react';
+import { ShoppingCart, Menu, X, Award } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import NotificationBell from './NotificationBell';
 import Logo from './Logo'; // Import the new Logo component
@@ -396,6 +396,16 @@ const Navbar = () => {
                   <span>Feedback</span>
                 </Link>
               </li>
+              <li>
+                <Link
+                  to={`/classroom/${classroomId}/badges`}
+                  className={`flex items-center gap-2 ${hoverClass} ${location.pathname.startsWith(`/classroom/${classroomId}/badges`) ? 'text-green-500' : ''}`}
+                  title="Badges"
+                >
+                  <Award size={18} />
+                  <span>Badges</span>
+                </Link>
+              </li>
             </>
           )}
         </ul>
@@ -648,6 +658,14 @@ const Navbar = () => {
                 >
                   <Star size={20} />
                   <span>Feedback</span>
+                </Link>
+                <Link
+                  to={`/classroom/${classroomId}/badges`}
+                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname.startsWith(`/classroom/${classroomId}/badges`) ? 'text-green-500' : ''}`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <Award size={20} />
+                  <span>Badges</span>
                 </Link>
                 {/* ADMIN: link visible only to admins */}
                 {user?.role === 'admin' && (

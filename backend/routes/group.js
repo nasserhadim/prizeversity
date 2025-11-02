@@ -9,6 +9,7 @@ const router = express.Router();
 const io = require('socket.io')();
 const { populateNotification } = require('../utils/notifications');
 const upload = require('../middleware/upload'); // ADD: reuse existing upload middleware
+const { awardXP } = require('../utils/awardXP'); // <-- ADD THIS IMPORT
 
 // Create GroupSet
 router.post('/groupset/create', ensureAuthenticated, upload.single('image'), async (req, res) => {
@@ -380,6 +381,27 @@ router.post('/groupset/:groupSetId/group/:groupId/join', ensureAuthenticated, as
     // Update group multiplier after member joins
     await group.updateMultiplier();
 
+    // --- FIX: remove unconditional award; award only when not previously awarded in this GroupSet ---
+    groupSet.joinXPAwarded = Array.isArray(groupSet.joinXPAwarded) ? groupSet.joinXPAwarded : [];
+
+    if (status === 'approved') {
+      const classroom = await Classroom.findById(groupSet.classroom).select('xpSettings');
+      if (classroom?.xpSettings?.enabled && (classroom.xpSettings.groupJoin || 0) > 0) {
+        const already = groupSet.joinXPAwarded.some(id => String(id) === String(req.user._id));
+        if (!already) {
+          await awardXP(
+            req.user._id,
+            groupSet.classroom,
+            classroom.xpSettings.groupJoin,
+            'group join',
+            classroom.xpSettings
+          );
+          groupSet.joinXPAwarded.push(req.user._id);
+          await groupSet.save();
+        }
+      }
+    }
+
     const populatedGroup = await Group.findById(group._id)
       .populate('members._id', 'email isFrozen firstName lastName classroomFrozen avatar profileImage');
 
@@ -566,6 +588,9 @@ router.post('/groupset/:groupSetId/group/:groupId/add-members', ensureAuthentica
       return res.status(400).json({ error: errors.join(' ') });
     }
 
+    // prepare ledger
+    groupSet.joinXPAwarded = Array.isArray(groupSet.joinXPAwarded) ? groupSet.joinXPAwarded : [];
+    let gsDirty = false;
     // --- Add Members ---
     for (const memberId of membersToAdd) {
       group.members.push({
@@ -585,7 +610,19 @@ router.post('/groupset/:groupSetId/group/:groupId/add-members', ensureAuthentica
       });
       const populatedNotification = await populateNotification(notification._id);
       req.app.get('io').to(`user-${memberId}`).emit('notification', populatedNotification);
+
+      // --- ADD: one-time per GroupSet award ---
+      const cls = await Classroom.findById(groupSet.classroom).select('xpSettings');
+      if (cls?.xpSettings?.enabled && (cls.xpSettings.groupJoin || 0) > 0) {
+        const already = groupSet.joinXPAwarded.some(id => String(id) === String(memberId));
+        if (!already) {
+          await awardXP(memberId, groupSet.classroom, cls.xpSettings.groupJoin, 'group join', cls.xpSettings);
+          groupSet.joinXPAwarded.push(memberId);
+          gsDirty = true;
+        }
+      }
     }
+    if (gsDirty) await groupSet.save();
 
     await group.updateMultiplier();
     await group.save();
@@ -843,6 +880,23 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
       const populatedNotification = await populateNotification(notification._id);
       req.app.get('io').to(`user-${memberId}`).emit('notification', populatedNotification);
     }
+
+    // --- ADD: one-time per GroupSet award ---
+    const classroom = await Classroom.findById(groupSet.classroom).select('xpSettings');
+    groupSet.joinXPAwarded = Array.isArray(groupSet.joinXPAwarded) ? groupSet.joinXPAwarded : [];
+    let gsDirty = false;
+
+    if (classroom?.xpSettings?.enabled && (classroom.xpSettings.groupJoin || 0) > 0) {
+      for (const memberId of approved) {
+        const already = groupSet.joinXPAwarded.some(id => String(id) === String(memberId));
+        if (!already) {
+          await awardXP(memberId, groupSet.classroom, classroom.xpSettings.groupJoin, 'group join', classroom.xpSettings);
+          groupSet.joinXPAwarded.push(memberId);
+          gsDirty = true;
+        }
+      }
+    }
+    if (gsDirty) await groupSet.save();
 
     // After successful member status change
     const populatedGroup = await Group.findById(group._id)
@@ -1262,6 +1316,23 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
       const populatedNotification = await populateNotification(notification._id);
       req.app.get('io').to(`user-${memberId}`).emit('notification', populatedNotification);
     }
+
+    // --- ADD: one-time per GroupSet award ---
+    const classroom = await Classroom.findById(groupSet.classroom).select('xpSettings');
+    groupSet.joinXPAwarded = Array.isArray(groupSet.joinXPAwarded) ? groupSet.joinXPAwarded : [];
+    let gsDirty = false;
+
+    if (classroom?.xpSettings?.enabled && (classroom.xpSettings.groupJoin || 0) > 0) {
+      for (const memberId of approved) {
+        const already = groupSet.joinXPAwarded.some(id => String(id) === String(memberId));
+        if (!already) {
+          await awardXP(memberId, groupSet.classroom, classroom.xpSettings.groupJoin, 'group join', classroom.xpSettings);
+          groupSet.joinXPAwarded.push(memberId);
+          gsDirty = true;
+        }
+      }
+    }
+    if (gsDirty) await groupSet.save();
 
     // After successful member status change
     const populatedGroup = await Group.findById(group._id)
