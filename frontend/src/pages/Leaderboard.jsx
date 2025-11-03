@@ -30,7 +30,7 @@ const Leaderboard = () => {
     return student.email;
   };
   
-  //added these lines to get the level and to also get the xp
+  //added these lines to get the level and to also get the xp for the leaderboard
   const getLevel = (student) => student.level ?? student.stats?.level ?? 0;
   const getXP = (student) => student.xp ?? student.stats?.xp ?? 0;
 
