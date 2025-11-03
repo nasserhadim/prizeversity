@@ -13,6 +13,7 @@ import apiBazaar from '../API/apiBazaar';
 import apiClassroom from '../API/apiClassroom';
 import apiDiscount from '../API/apiDiscount.js';
 import InventorySection from '../components/InventorySection';
+import ActiveDiscountsSection from '../components/ActiveDiscountsSection';
 import toast from 'react-hot-toast';
 import Footer from '../components/Footer';
 import { resolveBannerSrc } from '../utils/image';
@@ -373,32 +374,24 @@ useEffect(() => {
             );
             percent = (1 - combined) * 100;
             const nextGone = discountData.reduce(
-                (min, d) => { return (d.expiresAt < min.expiresAt) ? d : min, null}
+                (min, d) => { return (d.expiresAt < min.expiresAt) ? d : min}
             );
             // determines time left in days, hours, minutes, seconds
-
-            console.log("Time left variable: ", nextGone.expiresAt);
             timeLeft = Math.abs(new Date(nextGone.expiresAt) - Date.now()) / 1000;
-            console.log("Time left variable: ", timeLeft);
 
             days = Math.floor(timeLeft / 86400);
             timeLeft -= days * 86400;
-            console.log("Time left variable: ", timeLeft);
 
             hours = Math.floor(timeLeft / 3600);
             timeLeft -= hours * 3600;
-            console.log("Time left variable: ", timeLeft);
 
             minutes = Math.floor(timeLeft / 60);
             timeLeft -= minutes * 60;
-            console.log("Time left variable: ", timeLeft);
 
         }
         timeLeftInDHMS = [days, hours, minutes, Math.floor(timeLeft)];
         setDiscountPercent(percent);
         setNextExpireDHMS(timeLeftInDHMS);
-        console.log("Time left variable: ", timeLeft);
-        //console.log("Discount applied: ", percent)
 
     } catch (err) {
         console.error("Failed to load discounts:", err);
@@ -629,7 +622,7 @@ useEffect(() => {
             {showDiscounts && (
               <div className="mt-4">
                 {discountPercent}
-                <InventorySection userId={user._id} classroomId={classroomId} />
+                <ActiveDiscountsSection userId={user._id} classroomId={classroomId} />
               </div>
             )}
         </div>
