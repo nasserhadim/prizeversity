@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Coins, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
@@ -13,7 +13,7 @@ const Leaderboard = () => {
   const { classId } = useParams();
   const { user } = useAuth(); // Add this
   const [students, setStudents] = useState([]);
-  const [filteredStudents, setFilteredStudents] = useState([]);
+  //const [filteredStudents, setFilteredStudents] = useState([]);
   const [classroom, setClassroom] = useState(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -29,6 +29,10 @@ const Leaderboard = () => {
     }
     return student.email;
   };
+  
+  //added these lines to get the level and to also get the xp
+  const getLevel = (student) => student.level ?? student.stats?.level ?? 0;
+  const getXP = (student) => student.xp ?? student.stats?.xp ?? 0;
 
   // Fetch classroom details
   const fetchClassroom = async () => {
@@ -76,25 +80,22 @@ const Leaderboard = () => {
   }, [classId]);
 
   // Filter and sort students
-  useEffect(() => {
-    let filtered = students.filter(student => {
-      const displayName = getDisplayName(student).toLowerCase();
-      return displayName.includes(searchTerm.toLowerCase());
-    });
+  const filteredStudents = useMemo(() => {
+    const term = searchTerm.toLowerCase();
+    const filtered = students.filter((s) =>
+      getDisplayName(s).toLowerCase().includes(term)
+    );
+    const dir = sortDirection === 'asc' ? 1 : -1;
 
-    // Sort students by name only (remove balance sorting)
-    filtered.sort((a, b) => {
-      const aValue = getDisplayName(a).toLowerCase();
-      const bValue = getDisplayName(b).toLowerCase();
-
-      if (sortDirection === 'asc') {
-        return aValue.localeCompare(bValue);
-      } else {
-        return bValue.localeCompare(aValue);
+    return filtered.sort((a, b) => {
+      if (sortField === 'name') {
+        return dir * getDisplayName(a).localeCompare(getDisplayName(b));
       }
+      if (sortField === 'level') {
+        return dir * (getLevel(a) - getLevel(b));
+      }
+      return dir * (getXP(a) - getXP(b));
     });
-
-    setFilteredStudents(filtered);
   }, [students, searchTerm, sortField, sortDirection]);
 
   const handleSort = (field) => {
@@ -104,6 +105,13 @@ const Leaderboard = () => {
       } else {
         setSortField(field);
         setSortDirection('asc');
+      }
+    } else if (field === 'level' || field === 'xp') {
+      if (sortField === field) {
+        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+      } else {
+        setSortField(field);
+        setSortDirection('desc');
       }
     }
   };
@@ -156,13 +164,30 @@ const Leaderboard = () => {
                       Name {getSortIcon('name')}
                     </button>
                   </th>
-                  <th>Actions</th>
+                  <th className="w-36">
+                    <button
+                      className="flex items-center gap-2 hover:text-primary transition-colors"
+                      onClick={() => handleSort('level')}
+                    >
+                      {/*added these lines because the level needed a section in this leaderboard nav bar*/}
+                      Level {getSortIcon('level')}
+                    </button>
+                  </th>
+                  <th className="w-36">
+                    <button
+                      className="flex items-center gap-2 hover:text-primary transition-colors"
+                      onClick={() => handleSort('xp')}
+                    > {/*added these lines because the XP needed a section in this leaderboard nav bar*/}
+                      XP {getSortIcon('xp')} 
+                    </button>
+                    </th>
+                  <th className="w-[220px]">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredStudents.length === 0 ? (
                   <tr>
-                    <td colSpan="3" className="text-center py-8 text-base-content/50">
+                    <td colSpan="5" className="text-center py-8 text-base-content/50">
                       {searchTerm ? 'No students found matching your search.' : 'No students in this classroom yet.'}
                     </td>
                   </tr>
@@ -183,6 +208,12 @@ const Leaderboard = () => {
                           {getDisplayName(student)}
                         </div>
                       </td>
+                      <td className="whitespace-nowrap">
+                        <span className="font-semibold">Level {getLevel(student) || 0}</span>
+                      </td>
+                      <td className="whitespace-nowrap">
+                        <span className="font-semibold">{getXP(student) || 0} XP</span>
+                      </td>
                       <td>
                         <div className="flex flex-col sm:flex-row gap-2">
                           <button
@@ -194,7 +225,7 @@ const Leaderboard = () => {
                           >
                             View Profile
                           </button>
-                          {/* Only show View Stats if teacher allows it OR user is teacher/admin */}
+                          {/* this will only show View Stats if teacher allows it OR user is teacher/admin */}
                           {(user?.role === 'teacher' || user?.role === 'admin' || 
                             (studentsCanViewStats && String(student._id) !== String(user?._id)) ||
                             String(student._id) === String(user?._id)) && (
