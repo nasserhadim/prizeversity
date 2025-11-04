@@ -19,7 +19,7 @@ function perLevelIncrease(level, baseXP, formula) {
     }
   }
 
-// requiredXpForLevel: total XP needed to have reached a level (cumulative)
+//requiredXPForLevel: this is the total XP that is needed to reach a level
 function requiredXpForLevel(targetLevel, baseXP, formula, caps = { maxLevel: 200 }) {
   let total = 0;
   const maxL = caps?.maxLevel ?? 200;
