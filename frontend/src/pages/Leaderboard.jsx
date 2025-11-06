@@ -22,6 +22,8 @@ const Leaderboard = () => {
   const [studentsCanViewStats, setStudentsCanViewStats] = useState(true); // Add this
   const navigate = useNavigate();
 
+  //const isTeacher = user?.role === 'teacher' || user?.role === 'admin'; // this is so instructors can only see certain things
+
   // Helper function to get display name (similar to other components)
   const getDisplayName = (student) => {
     if (student.firstName || student.lastName) {
@@ -46,10 +48,13 @@ const Leaderboard = () => {
   };
 
   // Fetch leaderboard with per-classroom balances
-  const fetchLeaderboard = async () => {
+   const fetchLeaderboard = async () => {
     try {
-      const response = await apiLeaderboard.get(`/${classId}/leaderboard`);
-      setStudents(response.data); // Now includes per-classroom balance
+      const res = await apiLeaderboard.get(`/${classId}/leaderboard`);
+      const sorted = [...res.data].sort(
+        (a, b) => (Number(b?.xp) || 0) - (Number(a?.xp) || 0)
+      );
+      setStudents(sorted);
     } catch (err) {
       console.error(err);
       toast.error('Failed to load leaderboard');
@@ -74,8 +79,8 @@ const Leaderboard = () => {
     });
     
     return () => {
-      socket.off('balance_update');
-      socket.off('classroom_update');
+      socket.off('balance_update', fetchLeaderboard);
+      socket.off('classroom_update', fetchLeaderboard);
     };
   }, [classId]);
 
@@ -94,25 +99,20 @@ const Leaderboard = () => {
       if (sortField === 'level') {
         return dir * (getLevel(a) - getLevel(b));
       }
-      return dir * (getXP(a) - getXP(b));
+      if (sortField === 'xp'){
+        return dir * (getXP(a) - getXP(b));
+      }
+      return dir * ((a.balance ?? 0) - (b.balance ?? 0));
     });
   }, [students, searchTerm, sortField, sortDirection]);
 
+  //this updates which column that we sort by and also the direction
   const handleSort = (field) => {
-    if (field === 'name') {
-      if (sortField === field) {
-        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-      } else {
-        setSortField(field);
-        setSortDirection('asc');
-      }
-    } else if (field === 'level' || field === 'xp') {
-      if (sortField === field) {
-        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-      } else {
-        setSortField(field);
-        setSortDirection('desc');
-      }
+    if (!user?.role === 'teacher' && (field === 'xp' || field === 'level')) return; // students can't toggle hidden columns
+    if (sortField === field) setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    else {
+      setSortField(field);
+      setSortDirection(field === 'name' ? 'asc' : 'desc');
     }
   };
 
@@ -164,30 +164,30 @@ const Leaderboard = () => {
                       Name {getSortIcon('name')}
                     </button>
                   </th>
-                  <th className="w-36">
-                    <button
-                      className="flex items-center gap-2 hover:text-primary transition-colors"
-                      onClick={() => handleSort('level')}
-                    >
-                      {/*added these lines because the level needed a section in this leaderboard nav bar*/}
-                      Level {getSortIcon('level')}
-                    </button>
-                  </th>
-                  <th className="w-36">
-                    <button
-                      className="flex items-center gap-2 hover:text-primary transition-colors"
-                      onClick={() => handleSort('xp')}
-                    > {/*added these lines because the XP needed a section in this leaderboard nav bar*/}
-                      XP {getSortIcon('xp')} 
-                    </button>
-                    </th>
+                 {/* this is what only the teachers/admins see Level and the XP columns */} 
+                 {user?.role === 'teacher' && (
+                    <>
+                      <th className="w-36">
+                        <button className="flex items-center gap-2 hover:text-primary" onClick={() => handleSort('level')}>
+                          Level {getSortIcon('level')}
+                        </button>
+                      </th>
+                      <th className="w-36">
+                        <button className="flex items-center gap-2 hover:text-primary" onClick={() => handleSort('xp')}>
+                          XP {getSortIcon('xp')}
+                        </button>
+                      </th>
+                    </>
+                  )}
+
                   <th className="w-[220px]">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredStudents.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="text-center py-8 text-base-content/50">
+                    {/* span depends on whether Level/XP headers were shown */}
+                    <td colSpan={user?.role === 'teacher' ? 5 : 3} className="text-center py-8 text-base-content/50">
                       {searchTerm ? 'No students found matching your search.' : 'No students in this classroom yet.'}
                     </td>
                   </tr>
@@ -208,13 +208,20 @@ const Leaderboard = () => {
                           {getDisplayName(student)}
                         </div>
                       </td>
-                      <td className="whitespace-nowrap">
-                        <span className="font-semibold">Level {getLevel(student) || 0}</span>
-                      </td>
-                      <td className="whitespace-nowrap">
-                        <span className="font-semibold">{getXP(student) || 0} XP</span>
-                      </td>
+                   
+                      {/* only teachers/admins see Level and the XP values */}
+                      {user?.role === 'teacher' && (
+                        <>
+                          <td className="whitespace-nowrap">
+                            <span className="font-semibold">Level {getLevel(student) || 0}</span>
+                          </td>
+                          <td className="whitespace-nowrap">
+                            <span className="font-semibold">{getXP(student) || 0} XP</span>
+                          </td>
+                        </>
+                      )}
                       <td>
+
                         <div className="flex flex-col sm:flex-row gap-2">
                           <button
                             className="btn btn-xs sm:btn-sm btn-outline whitespace-nowrap"
