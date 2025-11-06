@@ -691,13 +691,14 @@ useEffect(() => {
       />
       {/* Discount Section*/}
       {Discounts.length > 0 && (
-        <div className="space-y-4">
-            <h3 className="text-2xl font-bold text-success flex items-center gap-2">
-            Total Discount: {discountPercent}%
-            Next expires in {nextExpireDHMS}
-          </h3>
-        <div className="flex items-center justify-between">
-          
+        <div className="card bg-base-200 shadow-inner border border-base-300">
+            <div className="card-body p-4">
+                <h3 className="text-1xl font-bold text-success flex items-center gap-2">
+                Total Discount: {discountPercent}%
+                </h3>
+                <h3 className="text-1xl font-bold text-success flex items-center gap-2">
+                Next expires in {nextExpireDHMS}
+                </h3>
           <div className="flex items-center justify-between mb-2">
             <button
                 onClick={() => setShowDiscounts(!showDiscounts)}
@@ -706,13 +707,15 @@ useEffect(() => {
                 {showDiscounts ? 'Hide' : 'Show'} Discounts
             </button>
            </div>
+        <div className="flex items-center justify-between">
             {/* Discount Section */}
             {showDiscounts && (
-              <div className="mt-4">
+              <div>
                 <ActiveDiscountsSection userId={user._id} classroomId={classroomId} />
               </div>
             )}
         </div>
+       </div>
        </div>
       )}
 
