@@ -29,7 +29,7 @@ const Bazaar = () => {
   const [showDiscounts, setShowDiscounts] = useState(false);
   const [Discounts, setDiscounts] = useState([]);
   const [discountPercent, setDiscountPercent] = useState(0);
-  const [nextExpireInDHMS, setNextExpireDHMS] = useState([]); // Days, hours, minutes, seconds
+  const [nextExpireDHMS, setNextExpireDHMS] = useState(''); // Days, hours, minutes, seconds
   
 
   const [confirmDeleteBazaar, setConfirmDeleteBazaar] = useState(null);
@@ -351,6 +351,7 @@ useEffect(() => {
   //console.log("Discounts loaded:", discounts);
 }, [user?._id, classroomId]);
 
+
   // Gets the discounts for the student in the bazaar
   const getDiscounts = async () => {
     try {
@@ -389,14 +390,99 @@ useEffect(() => {
             timeLeft -= minutes * 60;
 
         }
-        timeLeftInDHMS = [days, hours, minutes, Math.floor(timeLeft)];
+        // sets output
+        let addHours = (hours > 0);
+        let addMin = (minutes > 0);
+        // days
+        if (days > 0)
+        {
+            timeLeftInDHMS.push(`${days} day${days > 1 ? "s" : ""}`); 
+            addHours = true;
+            addMin = true;
+        }
+        // hours
+        if (addHours)
+        {
+            timeLeftInDHMS.push(`${hours} hour${hours > 1 ? "s" : ""}`);
+            addMin = true;
+        }
+        if (addMin)
+        {
+            timeLeftInDHMS.push(`${minutes} min${minutes > 1 ? "s" : ""}`);
+            addMin = true;
+        }
+        timeLeftInDHMS.push(`${Math.floor(timeLeft)} sec`);
+    
         setDiscountPercent(percent);
-        setNextExpireDHMS(timeLeftInDHMS);
+        setNextExpireDHMS(timeLeftInDHMS.join(", "));
 
     } catch (err) {
         console.error("Failed to load discounts:", err);
     }
 };
+
+// Makes discount update in real-time
+useEffect(() => {
+    if (!Discounts.length) {
+        setDiscountPercent(0);
+        setNextExpireDHMS('');
+        return;
+    }
+
+    // makes it run each second
+    const interval = setInterval(() => {
+        // discount percentage
+        const combined = Discounts.reduce(
+            (acc, d) => acc * (1 - (d.discountPercent || 0) / 100), 1
+        );
+        const percent = (1 - combined) * 100;
+
+        // next to expire
+        const nextGone = Discounts.reduce(
+            (min, d) => (new Date(d.expiresAt) < new Date(min.expiresAt) ? d : min)
+        );
+
+        let timeLeft = Math.max(0, (new Date(nextGone.expiresAt) - Date.now()) / 1000);
+
+        let days = Math.floor(timeLeft / 86400);
+        timeLeft -= days * 86400;
+
+        let hours = Math.floor(timeLeft / 3600);
+        timeLeft -= hours * 3600;
+
+        let minutes = Math.floor(timeLeft / 60);
+        timeLeft -= minutes * 60;
+
+        // sets output
+        const timeLeftInDHMS = [];
+        let addHours = (hours > 0);
+        let addMin = (minutes > 0);
+        // days
+        if (days > 0)
+        {
+            timeLeftInDHMS.push(`${days} day${days > 1 ? "s" : ""}`); 
+            addHours = true;
+            addMin = true;
+        }
+        // hours
+        if (addHours)
+        {
+            timeLeftInDHMS.push(`${hours} hour${hours > 1 ? "s" : ""}`);
+            addMin = true;
+        }
+        if (addMin)
+        {
+            timeLeftInDHMS.push(`${minutes} min${minutes > 1 ? "s" : ""}`);
+            addMin = true;
+        }
+        timeLeftInDHMS.push(`${Math.floor(timeLeft)} sec`);
+
+    setDiscountPercent(percent);
+    setNextExpireDHMS(timeLeftInDHMS.join(", "));
+  }, 1000);
+
+  return () => clearInterval(interval);
+}, [Discounts]);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-base-200">
     <span className="loading loading-ring loading-lg"></span>
@@ -606,10 +692,12 @@ useEffect(() => {
       {/* Discount Section*/}
       {Discounts.length > 0 && (
         <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-2xl font-bold text-success flex items-center gap-2">
-            {discountPercent}% Discounts : Next expires in {nextExpireInDHMS[0]} days, {nextExpireInDHMS[1]} hours, {nextExpireInDHMS[2]} minutes, {nextExpireInDHMS[3]} seconds
+            <h3 className="text-2xl font-bold text-success flex items-center gap-2">
+            Total Discount: {discountPercent}%
+            Next expires in {nextExpireDHMS}
           </h3>
+        <div className="flex items-center justify-between">
+          
           <div className="flex items-center justify-between mb-2">
             <button
                 onClick={() => setShowDiscounts(!showDiscounts)}
@@ -621,7 +709,6 @@ useEffect(() => {
             {/* Discount Section */}
             {showDiscounts && (
               <div className="mt-4">
-                {discountPercent}
                 <ActiveDiscountsSection userId={user._id} classroomId={classroomId} />
               </div>
             )}
