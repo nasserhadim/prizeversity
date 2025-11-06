@@ -105,12 +105,6 @@ const Bazaar = () => {
       setSearchError("");
 
       const params = new URLSearchParams();
-
-      // =========================
-      // IMPORTANT CHANGE:
-      // Remove the hard-coded whitelist so categories like "Mystery"
-      // are allowed to pass through to the backend filter.
-      // =========================
       if (filters.category) {
         params.append("category", filters.category);
       }
