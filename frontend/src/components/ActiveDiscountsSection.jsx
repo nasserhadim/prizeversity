@@ -99,14 +99,14 @@ const ActiveDiscountSection = ({ userId, classroomId }) => {
 
   // determines expirations every second
   useEffect(() => {
-  const interval = setInterval(() => {
-    setExpirations(() => {
-      const updated = {};
-      discounts.forEach((d) => {
-        updated[d._id] = determineExpiration(d.expiresAt);
-      });
-      return updated;
-    });
+    const interval = setInterval(() => {
+        setExpirations(() => {
+            const updated = {};
+            discounts.forEach((d) => {
+                updated[d._id] = determineExpiration(d.expiresAt);
+            });
+            return updated;
+        });
   }, 1000);
 
   return () => clearInterval(interval);
@@ -121,7 +121,7 @@ const ActiveDiscountSection = ({ userId, classroomId }) => {
       {discounts.length === 0 && (
         <p className="italic text-base-content/60">You don't have any active discounts.</p>
       )}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             {discounts.map((discount) => (
                 <div
                     key={discount._id}

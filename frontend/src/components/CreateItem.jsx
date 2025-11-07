@@ -45,7 +45,8 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
     primaryEffectDuration: '', //added this line
     secondaryEffects: [],
     swapOptions: [],
-    duration: '' // added for discount duration
+    duration: '', // added for discount duration
+    prizeWeights: {} // added for the mystery box prize weights
   });
   const [loading, setLoading] = useState(false);
   const [effectPreview, setEffectPreview] = useState('');
@@ -63,10 +64,11 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
     const gen = describeEffectFromForm(form);
     // only set when there's no manual edit yet, or regenerate on category/effect changes
     setEffectPreview(gen);
-  }, [form.category, form.primaryEffect, form.primaryEffectValue, form.duration, JSON.stringify(form.secondaryEffects), JSON.stringify(form.swapOptions)]);
+  }, [form.category, form.primaryEffect, form.primaryEffectValue, form.duration, form.prizeWeights, JSON.stringify(form.secondaryEffects), JSON.stringify(form.swapOptions)]);
 
 
-  // loadinf non mustery items so teacher can pick them as prizes
+  // loading non mystery items so teacher can pick them as prizes
+
   useEffect(() => {
     if (!classroomId || !bazaarId) return;
     (async () => {
@@ -74,7 +76,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
         const res = await apiBazaar.get(`classroom/${classroomId}/bazaar/${bazaarId}/items?kind=standard`);
         setAllPrizes(res.data.items || res.data);
       } catch (err) {
-        console.error('Failed to load prizes for mystery box:', e);
+        console.error('Failed to load prizes for mystery box:', err);
       }
     })();
   }, [classroomId, bazaarId]);
@@ -93,7 +95,8 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
       primaryEffectDuration: '', //added this line
       secondaryEffects: [],
       swapOptions: [],
-      duration: '' // added for discount duration
+      duration: '', // added for discount duration
+      prizeWeights: {} // added for the mystery box prize weights
     });
     // reset image controls too
     setImageSource('url');
@@ -114,7 +117,8 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
         primaryEffectDuration: '', //added this line
         secondaryEffects: [],
         swapOptions: [],
-        duration: '' // added for discount duration
+        duration: '', // added for discount duration
+        prizeWeights: {} // added for the mystery box prize weights
       } : {})
     }));
   };
@@ -391,7 +395,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
          </select>
        </div>
  
-       {/* Primary Effect (for non-passive categories) */}
+       {/* Primary Effect (for non-passive categories and mystery box) */}
        {form.category && !['Passive', 'Mystery'].includes(form.category) && (
          <div className="space-y-4">
            <div className="form-control">
@@ -576,6 +580,10 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                </button>
              </div>
            ))}
+
+           
+
+           
  
            {/* Add Secondary Effect button */}
            {form.secondaryEffects.length < 3 && availableSecondaryEffects().length > 0 && (
@@ -594,6 +602,78 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
              </div>
            )}
          </div>
+       )}
+
+
+       {/* Mystery box */}
+       {(form.category === 'Mystery') && (
+            <div className="form-control space-y-2">
+                <label className="label">
+                    <span className="label-text font-medium">Item Pool</span>
+                        {(allPrizes.length > 0) && (
+                    <span className="label-text-alt">
+                        {Object.values(selectedRewards).filter(v => v.checked).length}/{allPrizes.length} selected
+                    </span>
+                        )}
+                </label>
+
+                {/* Prize Selecction portion */}
+                <div className="space-y-3 max-h-64 overflow-y-auto border rounded-md p-3">
+                    {allPrizes.map(item => {
+                        const reward = selectedRewards[item._id] || { checked: false, weight: 1 };
+                        return (
+                            <div key={item._id} className="flex items-center gap-3">
+                                <input
+                                    type="checkbox"
+                                    className="checkbox checkbox-sm"
+                                    checked={reward.checked}
+                                    onChange={() =>
+                                        setSelectedRewards(prev => ({
+                                            ...prev,
+                                            [item._id]: { ...reward, checked: !reward.checked }
+                                        }))
+                                    }
+                                />
+                                <span className="flex-1">{item.name}</span>
+
+                                {reward.checked && (
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        className="input input-bordered w-20"
+                                        value={reward.weight}
+                                        onChange={(e) =>
+                                            setSelectedRewards(prev => ({
+                                                ...prev,
+                                                [item._id]: { ...reward, weight: Number(e.target.value) }
+                                            }))
+                                        }
+                                    />
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+                {/* No items selected prompt */}
+                {Object.keys(selectedRewards).length === 0 && allPrizes.length > 0 && (
+                    <div className="text-sm text-gray-500">
+                        Select items above to assign prize chances.
+                    </div>
+                )}
+                {/* App items selected */}
+                {Object.keys(selectedRewards).length >= allPrizes.length && allPrizes.length > 0 && (
+                    <div className="text-sm text-gray-500">
+                        You've selected all items
+                    </div>
+                )}
+
+                {/* No items in bazaar */}
+                {allPrizes.length === 0 && (
+                    <div className="text-sm text-gray-500">
+                        No items created - create items to be added to the mystery box
+                    </div>
+                )}
+            </div>
        )}
  
        {/* Auto-generated Effect Preview */}
