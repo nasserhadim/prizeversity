@@ -208,6 +208,8 @@ app.use('/api/utility', utilityItems);
 app.use('/api/passive', passiveItems);
 app.use('/api/mystery', mysteryRoutes);
 
+app.use('/api/xpSettings', require('./routes/xpSettings'));
+app.use('/api/xpStudent', require('./routes/xpStudent'));
 
 
 // Root Route

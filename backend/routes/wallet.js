@@ -10,6 +10,7 @@ const blockIfFrozen = require('../middleware/blockIfFrozen');
 const PendingAssignment = require('../models/PendingAssignment');
 const Notification = require('../models/Notification');
 const { populateNotification } = require('../utils/notifications');
+const { xpOnBitsEarned } = require('../middleware/xpHooks');
 
 // Utility to check if a Admin/TA can assign bits based on classroom policy
 async function canTAAssignBits({ taUser, classroomId }) {
@@ -300,6 +301,20 @@ req.app.get('io').to(`classroom-${classroomId}`).emit('balance_update', {
   classroomId
 });
 
+//award xp for bits earned
+try {
+  if (numericAmount > 0 && classroomId) {
+    await xpOnBitsEarned({
+      userId: student._id,
+      classroomId,
+      bitsEarned: numericAmount,
+      bitsMode: 'final'
+    });
+  }
+} catch (xpErr) {
+  console.warn('[XP] Failed to award XP for earned Bits:', xpErr.message);
+}
+
 res.status(200).json({
   message: 'Balance assigned successfully',
   balance: perClassBalance
@@ -467,6 +482,20 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
 
       await student.save();
       results.updated += 1; 
+      //award xp for bits earned 
+      try {
+        if (numericAmount > 0 && classroomId) {
+          await xpOnBitsEarned({
+            userId: student._id,
+            classroomId,
+            bitsEarned: numericAmount,
+            bitsMode: 'final'
+          });
+        }
+      } catch (xpErr) {
+        console.warn('[XP] Bulk award XP failed for', student._id, xpErr.message);
+      }
+
       const notification = await Notification.create({
           user: student._id,
           actionBy: req.user._id,
