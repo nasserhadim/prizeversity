@@ -10,7 +10,7 @@ const Order = require('../models/Order');
 const blockIfFrozen = require('../middleware/blockIfFrozen');
 const upload = require('../middleware/upload'); // reuse existing upload middleware
 const escapeRx = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
+const { xpOnBitsSpentPurchase } = require('../middleware/xpHooks');
 // Middleware: Only teachers allowed for certain actions
 function ensureTeacher(req, res, next) {
   if (req.user.role !== 'teacher') {
@@ -530,6 +530,19 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
       buyerId: req.user._id,
       newStock: item.stock
     });
+
+    //award xp for bit spents on purchase
+    try {
+      const spentBits = totalCost;
+      await xpOnBitsSpentPurchase({
+        userId: req.user._id,
+        classroomId,
+        spentBits,
+        bitsMode: 'final'
+      });
+    } catch (xpErr) {
+      console.warn('[XP] Failed to award XP for purchase:', xpErr.message);
+    }
 
     res.status(200).json({
       message: 'Purchase successful',

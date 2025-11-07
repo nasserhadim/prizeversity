@@ -211,6 +211,8 @@ app.use('/api/mystery', mysteryRoutes);
 
 app.use('/api/badges', badgeRoutes);
 
+app.use('/api/xpSettings', require('./routes/xpSettings'));
+app.use('/api/xpStudent', require('./routes/xpStudent'));
 
 
 // Root Route
