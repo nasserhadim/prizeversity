@@ -9,6 +9,8 @@ const User = require('../models/User');
 const { ensureAuthenticated } = require('../config/auth');
 const blockIfFrozen = require('../middleware/blockIfFrozen');
 const { populateNotification } = require('../utils/notifications');
+const Badge = require('../models/Badge');
+
 
 const router = express.Router();
 
@@ -1238,5 +1240,62 @@ router.get('/:id/stat-changes', ensureAuthenticated, async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
+
+// Get all students' XP, level, and badges for a specific classroom
+router.get('/:classroomId/student-badge-progress', ensureAuthenticated, async (req, res) => {
+  try {
+    const { classroomId } = req.params;
+
+    // Only teachers or admins can view progress
+    const classroom = await Classroom.findById(classroomId).select('teacher');
+    if (!classroom) {
+      return res.status(404).json({ error: 'Classroom not found' });
+    }
+    if (
+      classroom.teacher.toString() !== req.user._id.toString() &&
+      req.user.role !== 'admin'
+    ) {
+      return res.status(403).json({ error: 'Only the teacher or admin can view this data' });
+    }
+
+    // Fetch all users in this classroom
+    const users = await User.find({ 'classroomBalances.classroom': classroomId })
+      .select('firstName lastName email classroomBalances');
+
+    // Get valid badges for this classroom
+    const validBadges = await Badge.find({ classroom: classroomId }).select('_id');
+    const validBadgeIds = validBadges.map(b => b._id.toString());
+
+    // Build the student list
+    const students = users.map(u => {
+      const balance = u.classroomBalances.find(
+        c => c.classroom.toString() === classroomId
+      );
+      if (!balance) return null;
+
+      // Only count badges that still exist in the current classroom
+      const badgeArray = balance.badges || [];
+      const filtered = badgeArray.filter(b => {
+        const badgeId = b.badge ? b.badge.toString() : b.toString();
+        return validBadgeIds.includes(badgeId);
+      });
+
+      return {
+        _id: u._id,
+        name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email,
+        email: u.email,
+        level: balance.level || 1,
+        xp: balance.xp || 0,
+        badgesEarned: filtered.length,
+      };
+    }).filter(Boolean);
+
+    res.json(students);
+  } catch (err) {
+    console.error('[Student Badge Progress] error:', err);
+    res.status(500).json({ error: 'Failed to load student badge progress' });
+  }
+});
+
 
 module.exports = router;

@@ -89,7 +89,13 @@ const UserSchema = new mongoose.Schema({
     classroom: { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom' },
     balance: { type: Number, default: 0, min: 0 },
     xp: { type: Number, default: 0, min: 0 }, // XP progress specific to the classroom
-    level: { type: Number, default: 1, min: 1 } // Level specific to the classroom
+    level: { type: Number, default: 1, min: 1 }, // Level specific to the classroom
+    badges: [
+      {
+        badge: { type: mongoose.Schema.Types.ObjectId, ref: 'Badge' },
+        dateEarned: { type: Date, default: Date.now }
+      }
+    ]
   }],
 
   shortId: {
