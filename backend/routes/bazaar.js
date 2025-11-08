@@ -892,7 +892,7 @@ router.get('/orders/:orderId', async (req, res) => {
   }
 });
 
-//open a purchased mustery box, in the inventory 
+//open a purchased mystery box, in the inventory 
 router.post('/inventory/:ownedId/open', ensureAuthenticated, async (req, res) => {
   const { ownedId } = req.params;
   //find the owned item and validate it's a mystery box
@@ -907,7 +907,7 @@ router.post('/inventory/:ownedId/open', ensureAuthenticated, async (req, res) =>
   if (box.openedAt) return res.status(200).json({ ok: true, alreadyOpened: true, message: 'Box already opened' });
 
   // find owners luck
-  const luck = req.user.passiveAttributes.luck;
+  const luck = req.user.passiveAttributes.luck - 1;
   // Atomically mark this box as opened; only the first request will succeed
   const claim = await Item.updateOne(
     { _id: ownedId, owner: req.user._id, openedAt: null },
@@ -919,15 +919,18 @@ router.post('/inventory/:ownedId/open', ensureAuthenticated, async (req, res) =>
     return res.status(200).json({ ok: true, alreadyOpened: true, message: 'Box already opened' });
   }
 
-  /// pick a reward from metadata.rewards (weighted)
+  /// pick a reward from metadata.rewards (weighted and luck-weighted)
   const rewards = Array.isArray(box.metadata?.rewards) ? box.metadata.rewards : [];
-  const totalW = rewards.reduce((s, r) => s + Number(r.weight || 0), 0);
+  const baseWeight = rewards.reduce((s, r) => s + Number(r.weight || 0), 0);
+  const luckWeight = rewards.reduce((s, r) => s + Number(r.luckWeight || 0), 0) * luck;
+  const totalW = baseWeight + luckWeight;
   if (totalW <= 0) return res.status(400).json({ error: 'No rewards configured for this box' });
 
   let roll = Math.random() * totalW;
   let picked = rewards[0];
   for (const r of rewards) {
     roll -= Number(r.weight || 0);
+    roll -= Number(r.luckWeight || 0) * luck;
     if (roll <= 0) { picked = r; break; }
   }
   //create an owned copy of the awarded item
