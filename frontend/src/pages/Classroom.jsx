@@ -39,6 +39,8 @@ const normalizePct = (p) => {
 const Classroom = () => {
   const { id } = useParams();
   const { user } = useAuth();
+  const isStudent = user?.role === 'student';
+
   const navigate = useNavigate();
   const BACKEND_URL = `${API_BASE}`;
 
@@ -388,7 +390,7 @@ const progress = React.useMemo(() => {
         />
 
         <div className="max-w-3xl mx-auto p-6 bg-green-50 rounded-lg space-y-6">
-        {xpSettings?.isXPEnabled === false ? null : (
+        {isStudent && xpSettings?.isXPEnabled && (
           (() => {
             const pct = normalizePct(progress?.pct);
             const need = Number(progress?.need) || 100;
