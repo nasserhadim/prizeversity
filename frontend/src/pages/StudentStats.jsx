@@ -68,31 +68,70 @@ const StudentStats = () => {
   }, [studentId, classroomId]);
 
 
-  useEffect(() => {
-    if (!classroomId) return;
-    (async () => {
-      try {
-        const r = await axios.get(`/api/xpSettings/${classroomId}`);
-        setXpSettings(r.data || {});
-      } catch (e) {
-        console.error('Failed to load xpSettings', e);
-        setXpSettings({});
-      }
-    })();
-  }, [classroomId, xpRefresh]);
+  // useEffect(() => {
+  //   if (!classroomId) return;
+  //   (async () => {
+  //     try {
+  //       const r = await axios.get(`/api/xpSettings/${classroomId}`);
+  //       setXpSettings(r.data || {});
+  //     } catch (e) {
+  //       console.error('Failed to load xpSettings', e);
+  //       setXpSettings({});
+  //     }
+  //   })();
+  // }, [classroomId, xpRefresh]);
+    useEffect(() => {
+      if (!classroomId) return;
+      (async () => {
+        try {
+          // try public (read-only) first
+          const r = await axios.get(`/api/xpSettings/${classroomId}/public`);
+          setXpSettings(r.data || {});
+        } catch (e1) {
+          try {
+            // fallback to teacher-only route if public not available
+            const r2 = await axios.get(`/api/xpSettings/${classroomId}`);
+            setXpSettings(r2.data || {});
+          } catch (e2) {
+            console.error('Failed to load xpSettings', e2);
+            setXpSettings({});
+          }
+        }
+      })();
+    }, [classroomId, xpRefresh]);
+
+
 
   //find student balance for classroom 
-  const myClassroomBalance = useMemo(() => {
-    const list = user?.classroomBalances || [];
-    const found = list.find(cb => String(cb.classroom) === String(classroomId));
-    return found || { xp: 0, level: 1 };
-  }, [user, classroomId, xpRefresh]);
+  // const myClassroomBalance = useMemo(() => {
+  //   const list = user?.classroomBalances || [];
+  //   const found = list.find(cb => String(cb.classroom) === String(classroomId));
+  //   return found || { xp: 0, level: 1 };
+  // }, [user, classroomId, xpRefresh]);
+
+
+  // use the viewed student's balance coming from backend stats
+    const viewedBalance = useMemo(() => {
+      if (stats?.classroomBalance) return stats.classroomBalance;
+
+      // Fallback if backend only embeds balances on the student object
+      const list = stats?.student?.classroomBalances || [];
+      const found = list.find(cb => String(cb.classroom) === String(classroomId));
+      return found || { xp: 0, level: 1 };
+    }, [stats, classroomId, xpRefresh]);
 
   //compute progress towards next level
-  const progress = useMemo(() => {
-    if (!xpSettings) return { need: 100, have: 0, pct: 0 };
-    return computeProgress(myClassroomBalance.xp, myClassroomBalance.level, xpSettings);
-  }, [myClassroomBalance, xpSettings]);
+  // const progress = useMemo(() => {
+  //   if (!xpSettings) return { need: 100, have: 0, pct: 0 };
+  //   return computeProgress(myClassroomBalance.xp, myClassroomBalance.level, xpSettings);
+  // }, [myClassroomBalance, xpSettings]);
+
+
+//compute progress towards next level
+    const progress = useMemo(() => {
+      if (!xpSettings) return { need: 100, have: 0, pct: 0 };
+      return computeProgress(viewedBalance.xp, viewedBalance.level, xpSettings);
+    }, [viewedBalance, xpSettings]);
 
 
 
@@ -148,24 +187,26 @@ const StudentStats = () => {
     <>
       <div className={`${themeClasses.cardBase} max-w-md mx-auto mt-10 space-y-6`}>
         <h1 className="text-2xl font-bold text-center">{(stats.student.name || stats.student.email.split('@')[0])}'s Stats</h1>
-        {xpSettings?.isXPEnabled ? (
-                  <div className="card bg-white border border-green-200 shadow-sm rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="font-semibold">
-                        Level {myClassroomBalance.level}
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        {progress.have} / {progress.need} XP
-                      </div>
-                    </div>
-                    <progress className="progress w-full" value={progress.pct} max="100"></progress>
-                    <div className="text-xs text-gray-500 mt-1">{progress.pct}% to next level</div>
-                  </div>
-                ) : xpSettings ? (
-                  <div className="alert alert-info text-sm">
-                    XP &amp; Leveling is currently disabled by your teacher.
-                  </div>
-                ) : null}
+          {/* Always show level/XP; banner simply informs if earning is disabled */}
+          <div className="card bg-white border border-green-200 shadow-sm rounded-lg p-4">
+            <div className="flex items-center justify-between mb-1">
+              <div className="font-semibold">
+                Level {viewedBalance.level}
+              </div>
+              <div className="text-sm text-gray-600">
+                {progress.have} / {progress.need} XP
+              </div>
+            </div>
+            <progress className="progress w-full" value={progress.pct} max="100"></progress>
+            <div className="text-xs text-gray-500 mt-1">{progress.pct}% to next level</div>
+          </div>
+
+          {xpSettings && xpSettings.isXPEnabled === false && (
+            <div className="alert alert-info text-sm">
+              XP earning is currently disabled by your teacher (your level &amp; history remain visible).
+            </div>
+          )}
+          
         {/* radar + legend (unchanged) */}
         <div className="flex justify-center">
           <StatsRadar
@@ -182,15 +223,19 @@ const StudentStats = () => {
         </div>
 
         {/* stats list */}
-        <div className="stats stats-vertical shadow w-full">
-          {/* Attack, Shield, Multiplier (existing items) */}
           <div className="stat">
             <div className="stat-figure text-secondary">
-              ⚔️
+              🏷️
             </div>
-            <div className="stat-title">Attack Bonus</div>
-            <div className="stat-value">{stats.attackPower || 0}</div>
+            <div className="stat-title">Discount</div>
+            <div className="stat-value">
+              {Number(stats.discountShop || 0) > 0 ? `${stats.discountShop}%` : 'None'}
+            </div>
+            {Number(stats.discountShop || 0) > 0 && (
+              <div className="stat-desc">Active in bazaar</div>
+            )}
           </div>
+
           
           <div className="stat">
             <div className="stat-figure text-secondary">
@@ -257,7 +302,7 @@ const StudentStats = () => {
             ← No Classroom Context
           </button>
         )}
-      </div>
+    
       <Footer />
     </>
   );

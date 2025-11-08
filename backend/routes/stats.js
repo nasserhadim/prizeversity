@@ -77,6 +77,24 @@ router.get('/student/:id', ensureAuthenticated, async (req, res) => {
       return passiveItems.some((item) => item.primaryEffect === effectName);
     }
 
+    const selectedClassroomId = classroomId || classroom?._id;
+        let classroomBalance = { level: 1, xp: 0 };
+
+        if (selectedClassroomId) {
+          const cb = (user.classroomBalances || []).find(
+            c => String(c.classroom) === String(selectedClassroomId)
+          );
+          if (cb) {
+            classroomBalance = {
+              level: typeof cb.level === 'number' ? cb.level : 1,
+              xp: typeof cb.xp === 'number' ? cb.xp : 0
+            };
+          }
+        }
+
+    const xpDisabled = !(classroom?.xpSettings?.isXPEnabled ?? true);
+
+
     // Keep the EXISTING return structure - don't change anything else
     return res.json({
       student: {
@@ -97,7 +115,9 @@ router.get('/student/:id', ensureAuthenticated, async (req, res) => {
       discountShop: (user.passiveAttributes?.discount != null)
         ? user.passiveAttributes.discount
         : (hasEffect('discountShop') ? 20 : 0),
-      passiveItemsCount: passiveItems.length
+      passiveItemsCount: passiveItems.length,
+      classroomBalance, 
+      xpDisabled
     });
   } catch (err) {
     console.error('Stats route error:', err);
