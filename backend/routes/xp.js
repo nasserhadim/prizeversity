@@ -33,7 +33,17 @@ router.post('/add', ensureTeacherOrAdmin, async (req, res) => {
       classroomId,
       opts: { rawXP: xpToAdd }
     });
-
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('xp:update', {
+        userId,
+        classroomId,
+        newXP: result.xp,
+        newLevel: result.level,
+        leveledUp: result.leveled
+      });
+    }
+    
     if (!result.ok) {
       return res.status(400).json({ error: result.reason || 'Failed to add XP' });
     }
@@ -95,6 +105,17 @@ router.post('/test/add', ensureTeacherOrAdmin, async (req, res) => {
       classroomId,
       opts: { rawXP: xpToAdd }
     });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('xp:update', {
+        userId,
+        classroomId,
+        newXP: result.xp,
+        newLevel: result.level,
+        leveledUp: result.leveled
+      });
+    }
 
     if (!result.ok) {
       return res.status(400).json({ error: result.reason || 'Failed to add XP' });

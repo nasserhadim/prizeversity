@@ -2,25 +2,54 @@ const Classroom = require('../models/Classroom');
 const User = require('../models/User');
 
 //calculate how much XP is needed to go from current level tp next level
-function xpNeededForNextLevel(level, { xpFormulaType = 'exponential', baseXPLevel2 = 100 }) {
-  const L = Math.max(1, Number(level || 1));
-  const base = Math.max(1, Number(baseXPLevel2 || 100));
+// function xpNeededForNextLevel(level, { xpFormulaType = 'exponential', baseXPLevel2 = 100 }) {
+//   const L = Math.max(1, Number(level || 1));
+//   const base = Math.max(1, Number(baseXPLevel2 || 100));
 
-  switch (xpFormulaType) {
+//   switch (xpFormulaType) {
+//     case 'linear':
+//       //same XP cost each level
+//       return base;
+
+//     case 'logarithmic':
+//       //easier early levels, slower later
+//       return Math.max(1, Math.round(base * L * Math.log10(L + 1)));
+
+//     case 'exponential':
+//     default:
+//       //standard: grows about 50% per level
+//       return Math.max(1, Math.round(base * Math.pow(1.5, L - 1)));
+//   }
+// }
+
+
+// XP needed to go from *current* level -> next level.
+// Uses teacher settings: baseXPLevel2 and xpFormulaType.
+// Matches frontend utils/xp.js exactly.
+function xpNeededForNextLevel(level, settings = {}) {
+  const base = Number(settings?.baseXPLevel2 ?? 100);
+  const formula = settings?.xpFormulaType ?? 'exponential';
+  const L = Math.max(1, Number(level) || 1);
+
+  if (L <= 1) return base; // L1 -> L2 uses base
+
+  switch (formula) {
     case 'linear':
-      //same XP cost each level
+      // same cost every level after 1
       return base;
 
     case 'logarithmic':
-      //easier early levels, slower later
-      return Math.max(1, Math.round(base * L * Math.log10(L + 1)));
+      // gentle growth
+      return Math.max(10, Math.floor(base * (1 + Math.log(L))));
 
     case 'exponential':
     default:
-      //standard: grows about 50% per level
-      return Math.max(1, Math.round(base * Math.pow(1.5, L - 1)));
+      // grows ~1.5x per level after L2
+      return Math.floor(base * Math.pow(1.5, L - 2));
   }
 }
+
+
 
 //only these XP reward keys are valid for bit-based XP
 const ALLOWED_REWARD_KEYS = new Set([
@@ -35,7 +64,7 @@ async function awardXP({ userId, classroomId, opts = {} }) {
   if (!classroom) return { ok: false, reason: 'no-classroom' };
 
   const settings = classroom.xpSettings || {};
-  if (!settings.isXPEnabled) return { ok: false, reason: 'xp-disabled' };
+  if (settings.isXPEnabled === false) return { ok: false, reason: 'xp-disabled' };
 
   const user = await User.findById(userId);
   if (!user) return { ok: false, reason: 'no-user' };
@@ -103,7 +132,9 @@ async function awardXP({ userId, classroomId, opts = {} }) {
   if (opts.oneTimeKey) cb.meta[opts.oneTimeKey] = true;
 
   await user.save();
-  return { ok: true, leveled, level: cb.level, xp: cb.xp, added: xpToAdd };
+  const need = xpNeededForNextLevel(cb.level, settings);
+  return { ok: true, leveled, level: cb.level, xp: cb.xp, need, added: xpToAdd };
+
 }
 
 module.exports = {

@@ -9,6 +9,23 @@ import StatsRadar from '../components/StatsRadar'; // <-- add this import
 import { getThemeClasses } from '../utils/themeUtils'; // <-- new import
 import { useAuth } from '../context/AuthContext';
 import { computeProgress } from '../utils/xp';
+
+
+//HEADER-STYLE PROGRESS (matches top badge: need = base * level) ---
+const computeHeaderProgress = (carryXP, level, settings = {}) => {
+  const base = Number(settings?.baseXPLevel2 ?? 100);
+  const lvl  = Math.max(1, Number(level) || 1);
+  const need = base * lvl;                 // e.g., L2 => 200 when base=100
+  const have = Math.max(0, Number(carryXP) || 0);
+  const pct  = need > 0 ? (have / need) * 100 : 0;
+  return {
+    have,
+    need,
+    pct: Math.max(0, Math.min(100, pct))
+  };
+};
+
+
 const StudentStats = () => {
   const { classroomId, id: studentId } = useParams();
   const location = useLocation();
@@ -128,10 +145,15 @@ const StudentStats = () => {
 
 
 //compute progress towards next level
-    const progress = useMemo(() => {
-      if (!xpSettings) return { need: 100, have: 0, pct: 0 };
-      return computeProgress(viewedBalance.xp, viewedBalance.level, xpSettings);
-    }, [viewedBalance, xpSettings]);
+    // const progress = useMemo(() => {
+    //   if (!xpSettings) return { need: 100, have: 0, pct: 0 };
+    //   return computeProgress(viewedBalance.xp, viewedBalance.level, xpSettings);
+    // }, [viewedBalance, xpSettings]);
+      const progress = useMemo(() => {
+        if (!xpSettings) return { need: 100, have: 0, pct: 0 };
+        // Use the same formula as the header badge
+        return computeHeaderProgress(viewedBalance.xp, viewedBalance.level, xpSettings);
+      }, [viewedBalance, xpSettings]);
 
 
 
@@ -197,8 +219,9 @@ const StudentStats = () => {
                 {progress.have} / {progress.need} XP
               </div>
             </div>
-            <progress className="progress w-full" value={progress.pct} max="100"></progress>
-            <div className="text-xs text-gray-500 mt-1">{progress.pct}% to next level</div>
+            <progress className="progress progress-success w-full" value={Math.min(100, Math.max(0, Math.round(progress.pct)))} max="100"></progress>
+
+            <div className="text-xs text-gray-500 mt-1">{Math.round(progress.pct)}% to next level</div>
           </div>
 
           {xpSettings && xpSettings.isXPEnabled === false && (

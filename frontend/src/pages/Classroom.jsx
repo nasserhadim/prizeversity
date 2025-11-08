@@ -16,6 +16,16 @@ import Footer from '../components/Footer';
 import Navbar from '../components/Navbar';
 import { computeProgress } from '../utils/xp';
 
+//HEADER-STYLE PROGRESS (matches top badge: need = base * level) ---
+const computeHeaderProgress = (carryXP, level, settings = {}) => {
+  const base = Number(settings?.baseXPLevel2 ?? 100);
+  const lvl  = Math.max(1, Number(level) || 1);
+  const need = base * lvl;                 // e.g., L2 => 200 when base=100
+  const have = Math.max(0, Number(carryXP) || 0);
+  const pct  = need > 0 ? (have / need) * 100 : 0;
+  return { have, need, pct: Math.max(0, Math.min(100, pct)) };
+};
+
 const socket = io(); // no "/api" needed here
 
 //normalize 0–1 or 0–100 to percent 0–100
@@ -53,30 +63,39 @@ const myClassroomBalance = React.useMemo(() => {
 }, [user, id, xpRefresh]);
 
 //compute progress values for the progress bar
+// const progress = React.useMemo(() => {
+//   if (xpSettings == null) {
+//     return { need: 100, have: Number(myClassroomBalance?.xp) || 0, pct: 0 };
+//   }
+//   try {
+//     const res = computeProgress(
+//       Number(myClassroomBalance?.xp) || 0,
+//       Number(myClassroomBalance?.level) || 1,
+//       xpSettings
+//     );
+//     const need = Number(res?.need) || 100;
+//     const have = Number(res?.have) || 0;
+//     let pct = Number(res?.pct);
+//     if (!Number.isFinite(pct)) {
+//       pct = need > 0 ? have / need : 0;
+//     }
+//     return { need, have, pct };
+//   } catch (e) {
+//     console.error('computeProgress failed:', e);
+//     const have = Number(myClassroomBalance?.xp) || 0;
+//     const need = 100;
+//     const pct = need > 0 ? have / need : 0;
+//     return { need, have, pct };
+//   }
+// }, [myClassroomBalance, xpSettings]);
+
 const progress = React.useMemo(() => {
-  if (xpSettings == null) {
-    return { need: 100, have: Number(myClassroomBalance?.xp) || 0, pct: 0 };
-  }
-  try {
-    const res = computeProgress(
-      Number(myClassroomBalance?.xp) || 0,
-      Number(myClassroomBalance?.level) || 1,
-      xpSettings
-    );
-    const need = Number(res?.need) || 100;
-    const have = Number(res?.have) || 0;
-    let pct = Number(res?.pct);
-    if (!Number.isFinite(pct)) {
-      pct = need > 0 ? have / need : 0;
-    }
-    return { need, have, pct };
-  } catch (e) {
-    console.error('computeProgress failed:', e);
-    const have = Number(myClassroomBalance?.xp) || 0;
-    const need = 100;
-    const pct = need > 0 ? have / need : 0;
-    return { need, have, pct };
-  }
+  // computeHeaderProgress already defaults base to 100 if settings missing
+  return computeHeaderProgress(
+    Number(myClassroomBalance?.xp) || 0,
+    Number(myClassroomBalance?.level) || 1,
+    xpSettings
+  );
 }, [myClassroomBalance, xpSettings]);
 
 //load xp settings when classroom changes or xpRefresh toggles
@@ -388,10 +407,14 @@ const progress = React.useMemo(() => {
                 {/* Primary progress (DaisyUI) */}
                 <progress
                   className="progress progress-success w-full"
-                  value={pct}
+                  value={Math.min(100, Math.max(0, Math.round(progress.pct)))}
                   max="100"
                 ></progress>
-                <div className="text-xs text-gray-500 mt-1">{Math.round(pct)}% to next level</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {Math.round(progress.pct)}% to next level
+                  </div>
+
+                  
 
                 {/* Fallback bar in case <progress> isn't styled */}
                 <div className="mt-2">
