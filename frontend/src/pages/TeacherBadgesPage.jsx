@@ -19,6 +19,20 @@ const TeacherBadgesPage = ({ classroomId }) => {
     icon: '',
   });
 
+  // Student Progress States
+  const [studentList, setStudentList] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [levelFilter, setLevelFilter] = useState('');
+
+  // Derived filtered students
+  const filteredStudents = studentList.filter((s) => {
+    const matchesSearch =
+      s.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      s.email?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesLevel = levelFilter ? s.level === Number(levelFilter) : true;
+    return matchesSearch && matchesLevel;
+  });
+
   // Fetch badges on load
   useEffect(() => {
     if (!classroomId) return;
@@ -45,6 +59,23 @@ const TeacherBadgesPage = ({ classroomId }) => {
     };
     fetchClassroom();
   }, [classroomId]);
+
+  // Fetch student list and progress
+  useEffect(() => {
+    const fetchStudents = async () => {
+      try {
+        const res = await axios.get(`/api/classroom/${classroomId}/student-badge-progress`, {
+          withCredentials: true,
+        });
+        setStudentList(res.data);
+      } catch (err) {
+        console.error('Error fetching student list:', err);
+      }
+    };
+
+    if (classroomId) fetchStudents();
+  }, [classroomId]);
+
 
 
   // Handle form input changes
@@ -282,6 +313,65 @@ const TeacherBadgesPage = ({ classroomId }) => {
           </div>
         </div>
       )}
+
+      {/* STUDENT BADGE PROGRESS SECTION */}
+      <div className="mt-10">
+        <h2 className="text-xl font-bold mb-4">Student Badge Progress</h2>
+
+        {/* Search + Level Filter */}
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          <input
+            type="text"
+            placeholder="Search students..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="border rounded px-3 py-1 flex-1 min-w-[200px]"
+          />
+          <select
+            value={levelFilter}
+            onChange={(e) => setLevelFilter(e.target.value)}
+            className="border rounded px-3 py-1"
+          >
+            <option value="">All Levels</option>
+            {[...new Set(studentList.map((s) => s.level))].map((lvl) => (
+              <option key={lvl} value={lvl}>
+                Level {lvl}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Student Table */}
+        <table className="w-full border rounded-md">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="p-2 border">Name</th>
+              <th className="p-2 border">Level</th>
+              <th className="p-2 border">XP</th>
+              <th className="p-2 border">Badges Earned</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredStudents.length === 0 ? (
+              <tr>
+                <td colSpan="4" className="p-4 text-center text-gray-500">
+                  No students found.
+                </td>
+              </tr>
+            ) : (
+              filteredStudents.map((s) => (
+                <tr key={s._id} className="hover:bg-gray-50">
+                  <td className="p-2 border">{s.name}</td>
+                  <td className="p-2 border text-center">{s.level}</td>
+                  <td className="p-2 border text-center">{s.xp}</td>
+                  <td className="p-2 border text-center">{s.badgesEarned}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
     </div>
   );
 };
