@@ -188,7 +188,8 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items',
           item.metadata = item.metadata || {};
           item.metadata.rewards = rewardFromBody.map(r => ({
             itemId: r.itemId,
-            weight: Number(r.weight)
+            weight: Number(r.weight),
+            luckWeight:Number(r.luckWeight)
           }));
 
 
@@ -904,6 +905,9 @@ router.post('/inventory/:ownedId/open', ensureAuthenticated, async (req, res) =>
 
   if (!isMystery) return res.status(400).json({ error: 'Not a mystery box' });
   if (box.openedAt) return res.status(200).json({ ok: true, alreadyOpened: true, message: 'Box already opened' });
+
+  // find owners luck
+  const luck = req.user.passiveAttributes.luck;
   // Atomically mark this box as opened; only the first request will succeed
   const claim = await Item.updateOne(
     { _id: ownedId, owner: req.user._id, openedAt: null },

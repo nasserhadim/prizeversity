@@ -74,9 +74,10 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
     (async () => {
       try {
         const res = await apiBazaar.get(`classroom/${classroomId}/bazaar/${bazaarId}/items?kind=standard`);
-        // filters out owned items
+        // filters out owned items and mystery boxes
         const items = res.data.items || res.data;
-        setAllPrizes(items.filter(item => !item.owner));
+        
+        setAllPrizes(items.filter(item => !item.owner && item.kind !== "mystery_box"));
       } catch (err) {
         console.error('Failed to load prizes for mystery box:', err);
       }
@@ -203,7 +204,8 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
       .filter(([, v]) => v?.checked)
       .map(([id, v]) => ({
         itemId: id,
-        weight: Number(v.weight) || 1
+        weight: Number(v.weight) || 10,
+        luckWeight: Number(v.luckWeight) || 1
       }));
   };
 
@@ -621,8 +623,20 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
 
                 {/* Prize Selecction portion */}
                 <div className="space-y-3 max-h-64 overflow-y-auto border rounded-md p-3">
+
+                    {/* Headers for the item pool */}
+                    <div className="flex items-center gap-3 px-1 text-sm">
+                        <span className="flex-1">Check item to add</span>
+                        <div className="flex items-center gap-2">
+                            <span className="w-20 text-center">Luck Weight</span>
+                            <span className="w-20 text-center">Base Weight</span>
+                        </div>
+                    </div>
+
+
+
                     {allPrizes.map(item => {
-                        const reward = selectedRewards[item._id] || { checked: false, weight: 1 };
+                        const reward = selectedRewards[item._id] || { checked: false, weight: 10, luckWeight: 1 };
                         return (
                             <div key={item._id} className="flex items-center gap-3">
                                 <input
@@ -639,6 +653,19 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                                 <span className="flex-1">{item.name}</span>
 
                                 {reward.checked && (
+                                    <div className="flex items-center gap-2">
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        className="input input-bordered w-20"
+                                        value={reward.luckWeight}
+                                        onChange={(e) =>
+                                            setSelectedRewards(prev => ({
+                                                ...prev,
+                                                [item._id]: { ...reward, luckWeight: Number(e.target.value) }
+                                            }))
+                                        }
+                                    />
                                     <input
                                         type="number"
                                         min="1"
@@ -651,6 +678,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                                             }))
                                         }
                                     />
+                                    </div>
                                 )}
                             </div>
                         );
