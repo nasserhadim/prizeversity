@@ -74,7 +74,9 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
     (async () => {
       try {
         const res = await apiBazaar.get(`classroom/${classroomId}/bazaar/${bazaarId}/items?kind=standard`);
-        setAllPrizes(res.data.items || res.data);
+        // filters out owned items
+        const items = res.data.items || res.data;
+        setAllPrizes(items.filter(item => !item.owner));
       } catch (err) {
         console.error('Failed to load prizes for mystery box:', err);
       }
