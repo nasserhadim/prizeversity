@@ -50,7 +50,6 @@ const Bazaar = () => {
 
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [templateActionMode, setTemplateActionMode] = useState('apply-delete');
-
   // delete bazaar
   const handleDeleteBazaar = async () => {
     if (!confirmDeleteBazaar) return;
@@ -379,7 +378,7 @@ useEffect(() => {
                               const created = await applyTemplate(t._id, classroomId);
                               if (created) {
                                 setBazaar(created);
-                                toast.success("Template applied");
+                                toast.success("Template applied", { id: "template-applied"});
                               }
                             }}
                           >
@@ -881,7 +880,7 @@ useEffect(() => {
                                       if (created) {
                                         setBazaar(created);
                                         setShowViewer(false);
-                                        toast.success('Template applied');
+                                        toast.success('Template applied', { id: "template-applied"});
                                       }
                                     }}
                                   >

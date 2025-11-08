@@ -45,9 +45,10 @@ const saveBazaarTemplate = useCallback(async (bazaarId) => {
 }, [fetchTemplates]);
 
   const applyTemplate = useCallback(async (templateId, targetClassroomId) => {
+    console.count('applyTemplate() called');
     try {
       const res = await applyTemplateToClassroom(templateId, targetClassroomId);
-      toast.success('Template applied');
+      toast.success('Template applied', {id: 'template-applied'});
       return res.data.bazaar; // new bazaar object
     } catch (err) {
       console.error(err);
