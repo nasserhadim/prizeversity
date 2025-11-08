@@ -1,51 +1,121 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { createBadge, getBadges, deleteBadge } from '../API/apiBadges';
+import { useAuth } from '../context/AuthContext';
+import axios from 'axios';
+import EmojiPicker from 'emoji-picker-react';
 
 const TeacherBadgesPage = ({ classroomId }) => {
+  const { user } = useAuth();
   const [badges, setBadges] = useState([]);
   const [showModal, setShowModal] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [classroom, setClassroom] = useState(null);
+  const [editingBadge, setEditingBadge] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     levelRequired: '',
     icon: '',
-    image: null,
   });
 
-  // Handle input changes
+  // Fetch badges on load
+  useEffect(() => {
+    if (!classroomId) return;
+    const fetchBadges = async () => {
+      try {
+        const res = await getBadges(classroomId);
+        setBadges(res.data);
+      } catch (err) {
+        console.error('Failed to fetch badges:', err);
+      }
+    };
+    fetchBadges();
+  }, [classroomId]);
+
+  useEffect(() => {
+    if (!classroomId) return;
+    const fetchClassroom = async () => {
+      try {
+        const res = await axios.get(`/api/classroom/${classroomId}`);
+        setClassroom(res.data);
+      } catch (err) {
+        console.error('Failed to fetch classroom info:', err);
+      }
+    };
+    fetchClassroom();
+  }, [classroomId]);
+
+
+  // Handle form input changes
   const handleChange = (e) => {
-    const { name, value, files } = e.target;
-    if (name === 'image') {
-      setFormData({ ...formData, image: files[0] });
-    } else {
-      setFormData({ ...formData, [name]: value });
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+  };
+
+  // Edit badge (opens modal prefilled)
+  const handleEditBadge = (badge) => {
+    setFormData({
+      name: badge.name,
+      description: badge.description,
+      levelRequired: badge.levelRequired,
+      icon: badge.icon || '',
+    });
+    setEditingBadge(badge); // track which badge is being edited
+    setShowModal(true);
+  };
+
+  // Create a new badge (real DB)
+  const handleCreateBadge = async (e) => {
+    e.preventDefault();
+    if (!user?._id) return alert('No teacher ID found');
+    setLoading(true);
+
+    try {
+      const data = {
+        ...formData,
+        classroomId,
+        teacherId: user._id,
+      };
+
+      if (editingBadge) {
+        // Update existing badge
+        const res = await axios.put(`/api/badges/${editingBadge._id}`, data);
+        setBadges((prev) =>
+          prev.map((b) => (b._id === editingBadge._id ? res.data : b))
+        );
+        setEditingBadge(null);
+      } else {
+        // Create new badge
+        const res = await createBadge(data);
+        setBadges((prev) => [...prev, res.data]);
+      }
+
+      setShowModal(false);
+      setFormData({ name: '', description: '', levelRequired: '', icon: '' });
+    } catch (err) {
+      console.error('Error saving badge:', err);
+      alert('Failed to save badge.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Handle badge creation (temporary local version)
-  const handleCreateBadge = (e) => {
-    e.preventDefault();
-
-    const newBadge = {
-      id: Date.now(),
-      ...formData,
-      imageUrl: formData.image ? URL.createObjectURL(formData.image) : null,
-    };
-
-    setBadges([...badges, newBadge]);
-    setShowModal(false);
-
-    // Reset form
-    setFormData({
-      name: '',
-      description: '',
-      levelRequired: '',
-      icon: '',
-      image: null,
-    });
+  // Delete badge
+  const handleDeleteBadge = async (badgeId) => {
+    if (!window.confirm('Are you sure you want to delete this badge?')) return;
+    try {
+      await deleteBadge(badgeId);
+      setBadges((prev) => prev.filter((b) => b._id !== badgeId));
+    } catch (err) {
+      console.error('Error deleting badge:', err);
+      alert('Failed to delete badge.');
+    }
   };
 
   return (
     <div className="p-6">
+      {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-bold">Badge Management</h2>
         <button
@@ -56,32 +126,64 @@ const TeacherBadgesPage = ({ classroomId }) => {
         </button>
       </div>
 
-      {/* All Badges Section */}
+      {/* Classroom info (name + ID) */}
+      <div className="mb-4">
+        {classroom ? (
+          <>
+            <p className="text-lg font-semibold">{classroom.name}</p>
+            <p className="text-sm text-gray-500">Code: {classroom.code}</p>
+          </>
+        ) : (
+          <p className="text-gray-400">Loading classroom info...</p>
+        )}
+      </div>
+      
+      {/* All Badges */}
       <h3 className="font-semibold mb-3">
         All Badges ({badges.length})
       </h3>
 
-      <div className="grid grid-cols-3 gap-4 mb-8">
-        {badges.map((badge) => (
-          <div
-            key={badge.id}
-            className="border rounded-md p-3 shadow hover:shadow-lg transition"
-          >
-            {badge.imageUrl && (
-              <img
-                src={badge.imageUrl}
-                alt={badge.name}
-                className="w-full h-32 object-cover mb-2 rounded"
-              />
-            )}
-            <p className="text-lg font-bold">{badge.icon} {badge.name}</p>
-            <p className="text-sm text-gray-600">{badge.description}</p>
-            <p className="text-sm mt-1">Level {badge.levelRequired} Required</p>
-          </div>
-        ))}
-      </div>
+      {badges.length === 0 ? (
+        <p className="text-gray-500">No badges created yet.</p>
+      ) : (
+        <div className="grid grid-cols-3 gap-4 mb-8">
+          {badges.map((badge) => (
+            <div
+              key={badge._id}
+              className="border rounded-md p-3 shadow hover:shadow-lg transition relative"
+            >
+              {/* Edit & Delete Buttons */}
+              <div className="absolute top-2 right-2 flex gap-3">
+                <button
+                  onClick={() => handleEditBadge(badge)}
+                  className="text-blue-500 hover:text-blue-700"
+                  title="Edit badge"
+                >
+                  ✎
+                </button>
+                <button
+                  onClick={() => handleDeleteBadge(badge._id)}
+                  className="text-red-500 hover:text-red-700"
+                  title="Delete badge"
+                >
+                  ✕
+                </button>
+              </div>
 
-      {/* Modal Popup */}
+              <p className="text-lg font-bold">
+                {badge.icon || '🏅'} {badge.name}
+              </p>
+              <p className="text-sm text-gray-600">{badge.description}</p>
+              <p className="text-sm mt-1">Level {badge.levelRequired} Required</p>
+              <p className="text-xs text-gray-400 mt-1">
+                Created {new Date(badge.createdAt).toLocaleDateString()}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
           <div className="bg-white p-6 rounded-md w-96 shadow-lg">
@@ -125,25 +227,35 @@ const TeacherBadgesPage = ({ classroomId }) => {
 
               <label className="text-sm font-semibold">
                 Icon (Emoji):
-                <input
-                  type="text"
-                  name="icon"
-                  value={formData.icon}
-                  onChange={handleChange}
-                  placeholder="⭐ or 🔥"
-                  className="border p-2 rounded w-full mt-1"
-                />
-              </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    name="icon"
+                    value={formData.icon}
+                    onChange={handleChange}
+                    placeholder="Select an emoji..."
+                    className="border p-2 rounded w-full mt-1"
+                    readOnly
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                    className="px-2 py-1 border rounded-md hover:bg-gray-100"
+                  >
+                    😀
+                  </button>
+                </div>
 
-              <label className="text-sm font-semibold">
-                Badge Image (Optional):
-                <input
-                  type="file"
-                  name="image"
-                  accept="image/*"
-                  onChange={handleChange}
-                  className="border p-2 rounded w-full mt-1"
-                />
+                {showEmojiPicker && (
+                  <div className="mt-2">
+                    <EmojiPicker
+                      onEmojiClick={(e) => {
+                        setFormData({ ...formData, icon: e.emoji });
+                        setShowEmojiPicker(false);
+                      }}
+                    />
+                  </div>
+                )}
               </label>
 
               <div className="flex justify-end gap-3 mt-4">
@@ -156,9 +268,14 @@ const TeacherBadgesPage = ({ classroomId }) => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  disabled={loading}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
                 >
-                  Create
+                  {loading
+                    ? (editingBadge ? 'Saving...' : 'Creating...')
+                    : editingBadge
+                    ? 'Save'
+                    : 'Create'}
                 </button>
               </div>
             </form>
