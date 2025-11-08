@@ -3,95 +3,6 @@ const router = express.Router();
 const User = require('../models/User');
 const Classroom = require('../models/Classroom');
 
-//limitToRange: keep a number between lower bound and the upper bound
-const limitToRange = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
-
-//perLevelIncrease: this XP is going from level 1 to the next level
-function perLevelIncrease(level, baseXP, formula) {
-  if (level <= 1) return 0; // level 1
-  switch ((formula || 'exponential').toLowerCase()) {
-    case 'linear':       
-      return baseXP * (level - 1); 
-    case 'logarithmic':  
-      return Math.max(0, Math.floor(baseXP * level * Math.log10(level + 1))); 
-    case 'exponential':
-      default: {
-        const powerUp = Math.pow(1.5, level - 2);     
-        return Math.max(0, Math.floor(baseXP * powerUp));
-    }
-  }
-}
-
-//requiredXPForLevel: this is the total XP that is needed to reach a level
-function requiredXpForLevel(targetLevel, baseXP, formula, caps = { maxLevel: 200 }) {
-  let total = 0;
-  const maxL = caps?.maxLevel ?? 200;
-  for (let l = 2; l <= Math.min(targetLevel, maxL); l++) total += perLevelIncrease(l, baseXP, formula);
-  return total;
-}
-
-//calculateLevelSummary: this will turn the total XP into level, range and progress
-function calculateLevelSummary(totalXP, baseXP, formula) {
-  const maxLevel = 200;
-  let level = 1;
-  let XPStartLevel = 0;
-  let XPEndLevel = requiredXpForLevel(2, baseXP, formula) || baseXP;
-
-  while (level < maxLevel && totalXP >= XPEndLevel) {
-    level += 1;
-    XPStartLevel = XPEndLevel;
-    XPEndLevel = requiredXpForLevel(level + 1, baseXP, formula);
-  }
-
-  const span = Math.max(1, XPEndLevel - XPStartLevel); //this is the size of the level
-  const progressPercent = limitToRange(((totalXP - XPStartLevel) /span ) * 100, 0, 100);
-  const XPRequired = Math.max(0, XPEndLevel - totalXP); //this is the xp points that are left to get to the next level
-
-  return {
-    level,
-    XPStartLevel,
-    XPEndLevel,
-    XPRequired,
-    progressPercent: Math.round(progressPercent),
-  };
-}
-
-//getClassroomRow: this makes sure that the user has a classroomBalances row for this class
-function getClassroomRow(user, classroomId) {
-  let row = user.classroomBalances.find(
-    (c) => c.classroom?.toString() === classroomId.toString()
-  );
-  if(!row) {
-    user.classroomBalances.push({
-      classroom: classroomId,
-      balance: 0,
-      xp: 0,
-      level: 1,
-    });
-    row = user.classroomBalances.find(
-      (c) => c.classroom?.toString() === classroomId.toString()
-    );
-  }
-  return row;
-}
-
-//loadClassroomConfigurations: this reads the classroom formula settings
-async function loadClassroomConfigurations(classroomId) {
-  const classroom = await Classroom.findById(classroomId);
-  if (!classroom) return {
-    baseXP: 100,
-    xpFormula: 'exponential'
-  };
-  const baseXP = Number(classroom.baseXP) > 0 ? Number(classroom.baseXP) : 100;
-  const xpFormula = classroom.xpFormula || 'exponential';
-  return {
-    baseXP,
-    xpFormula,
-    classroom
-  };
-}
-
-
 // Simple test route to confirm XP route is connected
 router.get('/test', (req, res) => {
   res.json({ message: 'XP route connected successfully' });
@@ -145,14 +56,40 @@ router.post('/add', async (req, res) => {
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const row = getClassroomRow(user, classroomId);
-    const { baseXP, xpFormula } = await loadClassroomConfigurations(classroomId);
+    // Find or create classroom balance entry
+    let classroomData = user.classroomBalances.find(
+      c => c.classroom.toString() === classroomId.toString()
+    );
 
-    row.xp = (Number(row.xp) || 0) + xpToAdd;                    // store TOTAL XP
+    if (!classroomData) {
+      console.log("⚠️ No classroom match for classroomId:", classroomId);
+      console.log("Existing classroomBalances:", user.classroomBalances.map(cb => cb.classroom?.toString()));
+    }
 
-    const summary = calculateLevelSummary(row.xp, baseXP, xpFormula);
-    const leveledUp = summary.level > (row.level || 1);          // check if level increased
-    row.level = summary.level;
+    if (!classroomData) {
+      user.classroomBalances.push({
+        classroom: classroomId,
+        balance: 0,
+        xp: 0,
+        level: 1
+      });
+      classroomData = user.classroomBalances.find(
+        c => c.classroom.toString() === classroomId.toString()
+      );
+    }
+
+    // Add XP
+    classroomData.xp += xpToAdd;
+
+    // Determine if the student leveled up
+    let leveledUp = false;
+    const xpNeeded = classroomData.level * 100;
+
+    if (classroomData.xp >= xpNeeded) {
+      classroomData.level += 1;
+      classroomData.xp -= xpNeeded;
+      leveledUp = true;
+    }
 
     await user.save();
 
@@ -219,18 +156,39 @@ router.post('/test/add', async (req, res) => {
 
     // if class not provided, use the first one on the user
     if (!classroomId) {
-      if (user.classroomBalances.length > 0) classroomId = user.classroomBalances[0].classroom;
-      else return res.status(400).json({ error: 'User is not part of any classroom.' });
+      if (user.classroomBalances.length > 0) {
+        classroomId = user.classroomBalances[0].classroom;
+      } else {
+        return res.status(400).json({ error: 'User is not part of any classroom.' });
+      }
+    }
+    // Find or create classroom data entry
+    let classroomData = user.classroomBalances.find(
+      c => c.classroom.toString() === classroomId.toString()
+    );
+
+    if (!classroomData) {
+      classroomData = {
+        classroom: classroomId,
+        balance: 0,
+        xp: 0,
+        level: 1
+      };
+      user.classroomBalances.push(classroomData);
     }
 
-    const row = getClassroomRow(user, classroomId);
-    const { baseXP, xpFormula } = await loadClassroomConfigurations(classroomId);
+    // Add XP
+    classroomData.xp += xpToAdd;
 
-    row.xp = (Number(row.xp) || 0) + xpToAdd;
+    // Handle level up
+    const xpNeeded = classroomData.level * 100;
+    let leveledUp = false;
 
-    const summary = calculateLevelSummary(row.xp, baseXP, xpFormula);
-    const leveledUp = summary.level > (row.level || 1);
-    row.level = summary.level;
+    if (classroomData.xp >= xpNeeded) {
+      classroomData.level += 1;
+      classroomData.xp -= xpNeeded;
+      leveledUp = true;
+    }
 
     await user.save();
 
@@ -267,7 +225,7 @@ router.post('/test/reset', async (req, res) => {
     }
 
     // Find classroom data
-    const row = user.classroomBalances.find(
+    const classroomData = user.classroomBalances.find(
       c => c.classroom.toString() === classroomId.toString()
     );
 
@@ -292,5 +250,11 @@ router.post('/test/reset', async (req, res) => {
     res.status(500).json({ error: 'Server error resetting XP' });
   }
 });
+
+
+
+
+
+
 
 module.exports = router;

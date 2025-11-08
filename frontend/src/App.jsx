@@ -36,6 +36,8 @@ import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
 import AdminModeration from './pages/AdminModeration';
 import NotFound from './pages/NotFound';
+import Badges from './pages/Badges';
+
 
 const App = () => {
   const { user } = useContext(AuthContext);
@@ -77,6 +79,7 @@ const App = () => {
           <Route path="/classroom/:id/groups" element={<Groups />} />
           <Route path="/classroom/:id/people" element={<People />} />
           <Route path="/classroom/:classId/leaderboard" element={<Leaderboard />} />
+          <Route path="/classroom/:classroomId/badges" element={<Badges />} />
           <Route path="/classroom/:classroomId/challenge" element={<Challenge />} />
           {/* Classroom-specific profile */}
           <Route path="/classroom/:classroomId/profile/:id" element={<Profile />} />
