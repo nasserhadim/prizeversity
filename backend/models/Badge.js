@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 // Badge schema per classroom
 const badgeSchema = new mongoose.Schema({
@@ -20,7 +20,7 @@ const badgeSchema = new mongoose.Schema({
     min: 1
   },
 
-  // Emoji/icon displayed with badge
+  // Emoji displayed with badge
   icon: {
     type: String,
     default: "🏅"
@@ -52,4 +52,4 @@ const badgeSchema = new mongoose.Schema({
   }
 });
 
-export default mongoose.model('Badge', badgeSchema);
+module.exports = mongoose.model('Badge', badgeSchema);
