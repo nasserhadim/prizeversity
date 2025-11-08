@@ -12,6 +12,7 @@ import { API_BASE } from '../config/api';
 import socket, { joinUserRoom, joinClassroom } from '../utils/socket'; // <-- updated import
 import axios from 'axios';
 import XPBar from './XPBarComponent.jsx';
+import toast, {Toaster} from 'react-hot-toast';
 
 
 import {
@@ -90,6 +91,22 @@ const Navbar = () => {
   const [showCart, setShowCart] = useState(false);
   const cartRef = useRef(null);
   const [balance, setBalance] = useState(0);
+
+  const cartMessage = useRef(cartCount);
+  useEffect(() => {
+    const prev = cartMessage.current ?? 0;
+    if (
+      typeof prev === 'number' &&
+      cartCount > prev &&
+      insideClassroom &&
+      user?.role !== 'teacher'
+    ) {
+      toast.success('Item has been added', {
+        duration: 2000 //the message will show for 2 seconds
+      });
+    }
+    cartMessage.current = cartCount;
+  }, [cartCount, insideClassroom, user?.role]);
 
   useEffect(() => {
     const fetchBalance = async () => {
