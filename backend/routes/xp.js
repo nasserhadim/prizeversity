@@ -7,40 +7,80 @@ const Badge = require('../models/Badge');
 
 // check and award level-based badges
 async function awardLevelBadges(user, classroomId) {
-  const classroomData = user.classroomBalances.find(
-    c => c.classroom.toString() === classroomId.toString()
-  );
-  if (!classroomData) return;
-
-  const currentLevel = classroomData.level;
-
-  // badges available for this classroom and level
-  const badges = await Badge.find({
-    classroom: classroomId,
-    levelRequired: { $lte: currentLevel }
+  // Find the classroom record for this user
+  const classroomData = user.classroomBalances.find(c => {
+    const cId = c.classroom?._id?.toString() || c.classroom?.toString();
+    return cId === classroomId.toString();
   });
 
-  // badges user already has
+  if (!classroomData) {
+    console.log("⚠️ No classroom data found for user:", user._id);
+    return;
+  }
+
+  const currentLevel = Number(classroomData.level) || 0;
+
+  // Make sure badges array exists
+  if (!Array.isArray(classroomData.badges)) {
+    classroomData.badges = [];
+  }
+
+  // 1) Get ALL badges for this classroom
+  const badges = await Badge.find({ classroom: classroomId });
+
+  console.log("🔎 Award check for user", user._id.toString());
+  console.log("   classroom:", classroomId.toString());
+  console.log("   current level:", currentLevel);
+  console.log("   badge levels:", badges.map(b => ({
+    id: b._id.toString(),
+    name: b.name,
+    levelRequired: b.levelRequired
+  })));
+
+  // 2) Build set of already-earned badge IDs
   const earned = new Set(
-    classroomData.badges?.map(b => b.badge.toString())
+    classroomData.badges
+      .filter(b => b.badge)
+      .map(b => b.badge.toString())
   );
 
-  const newBadges = badges.filter(b => !earned.has(b._id.toString()));
+  // 3) For each badge, award if:
+  //    - user level >= badge.levelRequired
+  //    - not already in earned set
+  const newlyAwarded = [];
 
-  if (newBadges.length === 0) return;
+  for (const badge of badges) {
+    const badgeIdStr = badge._id.toString();
+    const meetsLevel = currentLevel >= Number(badge.levelRequired);
+    const alreadyEarned = earned.has(badgeIdStr);
 
-  // add new badges
-  newBadges.forEach(b => {
-    classroomData.badges.push({
-      badge: b._id,
-      dateEarned: new Date()
-    });
-  });
+    if (meetsLevel && !alreadyEarned) {
+      console.log(
+        `✅ Awarding badge "${badge.name}" (req ${badge.levelRequired}, user lvl ${currentLevel})`
+      );
+      classroomData.badges.push({
+        badge: badge._id,
+        dateEarned: new Date()
+      });
+      earned.add(badgeIdStr);
+      newlyAwarded.push(badge.name);
+    } else {
+      console.log(
+        `   ❌ Not awarding "${badge.name}" — meetsLevel=${meetsLevel}, alreadyEarned=${alreadyEarned}`
+      );
+    }
+  }
 
-  await user.save();
-
-  console.log('Awarded badges:', newBadges.map(b => b.name));
+  if (newlyAwarded.length > 0) {
+    await user.save();
+    console.log("🏅 Saved user with new badges:", newlyAwarded);
+  } else {
+    console.log(
+      `ℹ️ No new badges awarded for user ${user._id} at level ${currentLevel}.`
+    );
+  }
 }
+
 
 // Simple test route to confirm XP route is connected
 router.get('/test', (req, res) => {
@@ -96,9 +136,7 @@ router.post('/add', async (req, res) => {
       leveledUp = true;
     }
 
-    if (leveledUp) {
-      await awardLevelBadges(user, classroomId);
-    }
+    await awardLevelBadges(user, classroomId);
 
     await user.save();
 
@@ -196,9 +234,7 @@ router.post('/test/add', async (req, res) => {
       leveledUp = true;
     }
 
-    if (leveledUp) {
-      await awardLevelBadges(user, classroomId);
-    }
+    await awardLevelBadges(user, classroomId);
 
     await user.save();
 
@@ -237,9 +273,10 @@ router.post('/test/reset', async (req, res) => {
     }
 
     // Find classroom data
-    const classroomData = user.classroomBalances.find(
-      c => c.classroom.toString() === classroomId.toString()
-    );
+    const classroomData = user.classroomBalances.find(c => {
+      const cId = c.classroom?._id?.toString() || c.classroom?.toString();
+      return cId === classroomId.toString();
+    });
 
     if (!classroomData) {
       return res
@@ -266,36 +303,80 @@ router.post('/test/reset', async (req, res) => {
 
 
 
-// Temporary route to verify badges for a user (for testing)
-router.get('/test/badges/:userId/:classroomId', async (req, res) => {
+router.get('/badges/:userId/:classroomId', async (req, res) => {
   try {
     const { userId, classroomId } = req.params;
 
-    const user = await User.findById(userId)
-      .populate('classroomBalances.badges.badge');
+    // Load user and populate badges
+    const user = await User.findById(userId).populate({
+      path: 'classroomBalances.badges.badge',
+      model: 'Badge',
+      select: 'name description icon levelRequired classroom',
+    });
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // Find classroom data for this user
     const classroomData = user.classroomBalances.find(
-      c => c.classroom.toString() === classroomId.toString()
+      c => c.classroom?.toString() === classroomId.toString()
     );
 
     if (!classroomData) {
       return res.status(400).json({ error: 'No classroom data for this user' });
     }
 
+    // Fetch all badges for this classroom 
+    const allBadges = await Badge.find({ classroom: classroomId }).sort({ levelRequired: 1 });
+
+    // Identify earned badge IDs
+    const earnedIds = new Set(
+      (classroomData.badges || []).map(b => b.badge?._id?.toString())
+    );
+
+    // Split badges into earned / locked arrays
+    const earnedBadges = allBadges.filter(b => earnedIds.has(b._id.toString()));
+    const lockedBadges = allBadges.filter(b => !earnedIds.has(b._id.toString()));
+
+    // Return detailed structured response
     res.json({
       classroom: classroomId,
-      level: classroomData.level,
-      badges: classroomData.badges.map(b => ({
-        badgeName: b.badge?.name,
-        levelRequired: b.badge?.levelRequired,
-        earnedAt: b.dateEarned
-      }))
+      user: {
+        id: user._id,
+        name: `${user.firstName} ${user.lastName}`,
+        level: classroomData.level || 1,
+        xp: classroomData.xp || 0
+      },
+      badges: {
+        earned: (classroomData.badges || [])
+          .filter(b => b.badge && earnedIds.has(b.badge._id.toString()))
+          .map(b => ({
+            id: b.badge._id,
+            name: b.badge.name,
+            description: b.badge.description,
+            icon: b.badge.icon,
+            levelRequired: b.badge.levelRequired,
+            dateEarned: b.dateEarned || null,
+            status: 'earned'
+          })),
+        locked: (lockedBadges || []).map(b => ({
+          id: b._id,
+          name: b.name,
+          description: b.description,
+          icon: b.icon,
+          levelRequired: b.levelRequired,
+          status: 'locked'
+        }))
+      },
+        
+      totalBadges: allBadges.length,
+      badgesEarnedCount: earnedBadges.length,
+      completionPercent:
+        allBadges.length > 0
+          ? Math.round((earnedBadges.length / allBadges.length) * 100)
+          : 0
     });
-
   } catch (err) {
     console.error('Error fetching badges for testing:', err.message);
     res.status(500).json({ error: 'Server error getting badges for testing' });
