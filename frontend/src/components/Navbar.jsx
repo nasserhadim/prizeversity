@@ -388,6 +388,20 @@ const Navbar = () => {
                 </Link>
               </li>
               <li>
+                <Link
+                  to={`/classroom/${classroomId}/badges`}
+                  className={`flex items-center gap-2 ${hoverClass} ${
+                    location.pathname.startsWith(`/classroom/${classroomId}/badges`)
+                      ? 'text-green-500'
+                      : ''
+                  }`}
+                  title="Badges"
+                >
+                  <Star size={18} />
+                  <span>Badges</span>
+                </Link>
+              </li>
+              <li>
                 <div className="tooltip tooltip-bottom" data-tip="Challenge">
                   <Link
                     to={`/classroom/${classroomId}/challenge`}
@@ -669,6 +683,19 @@ const Navbar = () => {
                 >
                   <Star size={20} />
                   <span>Feedback</span>
+                </Link>
+
+                <Link
+                  to={`/classroom/${classroomId}/badges`}
+                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${
+                    location.pathname.startsWith(`/classroom/${classroomId}/badges`)
+                      ? 'text-green-500'
+                      : ''
+                  } ${hoverClass}`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <Star size={20} />
+                  <span>Badges</span>
                 </Link>
                 {/* ADMIN: link visible only to admins */}
                 {user?.role === 'admin' && (
