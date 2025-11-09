@@ -11,6 +11,8 @@ import Logo from './Logo'; // Import the new Logo component
 import { API_BASE } from '../config/api';
 import socket, { joinUserRoom, joinClassroom } from '../utils/socket'; // <-- updated import
 import axios from 'axios';
+import XPBar from './XPBarComponent.jsx';
+
 
 import {
   Home,
@@ -143,7 +145,7 @@ const Navbar = () => {
     // Notifications may carry wallet changes
     const notificationHandler = (payload) => {
       console.debug('[socket] Navbar notification:', payload);
-      const walletTypes = new Set(['wallet_topup','wallet_transfer','wallet_adjustment','wallet_payment','wallet_transaction']);
+      const walletTypes = new Set(['wallet_topup', 'wallet_transfer', 'wallet_adjustment', 'wallet_payment', 'wallet_transaction']);
       if (!payload?.type || !walletTypes.has(payload.type)) return;
       const affectedId = payload?.user?._id || payload?.studentId || payload?.userId;
       if (String(affectedId) === String(user._id)) {
@@ -260,6 +262,15 @@ const Navbar = () => {
               <span className="font-semibold">Ƀ{balance}</span>
             </Link>
           )}
+
+
+          {/* XP progress bar (Mobile) */}
+          {insideClassroom && (
+            <div className="w-28">
+              <XPBar userId={user._id} classroomId={classroomId} />
+            </div>
+          )}
+
           {/* Cart Icon for Mobile (if in classroom and not teacher) */}
           {user?.role !== 'teacher' && insideClassroom && (
             <button
@@ -377,6 +388,20 @@ const Navbar = () => {
                 </Link>
               </li>
               <li>
+                <Link
+                  to={`/classroom/${classroomId}/badges`}
+                  className={`flex items-center gap-2 ${hoverClass} ${
+                    location.pathname.startsWith(`/classroom/${classroomId}/badges`)
+                      ? 'text-green-500'
+                      : ''
+                  }`}
+                  title="Badges"
+                >
+                  <Star size={18} />
+                  <span>Badges</span>
+                </Link>
+              </li>
+              <li>
                 <div className="tooltip tooltip-bottom" data-tip="Challenge">
                   <Link
                     to={`/classroom/${classroomId}/challenge`}
@@ -388,9 +413,9 @@ const Navbar = () => {
                 </div>
               </li>
               <li>
-                <Link 
-                to={`/classroom/${classroomId}/feedback`}
-                className={`flex items-center gap-2 ${hoverClass} ${location.pathname === `/classroom/${classroomId}/feedback` ? 'text-green-500' : ''}`}
+                <Link
+                  to={`/classroom/${classroomId}/feedback`}
+                  className={`flex items-center gap-2 ${hoverClass} ${location.pathname === `/classroom/${classroomId}/feedback` ? 'text-green-500' : ''}`}
                 >
                   <Star size={18} />
                   <span>Feedback</span>
@@ -401,117 +426,127 @@ const Navbar = () => {
         </ul>
 
         {/* Desktop Right Side */}
-        <div className="hidden lg:flex items-center gap-4">
-          {/* Wallet Balance */}
-          {insideClassroom && (
-            <Link to={`/classroom/${classroomId}/wallet`} className={`flex items-center gap-2 ${hoverClass}`}>
-              <Wallet size={24} className="text-green-500" />
-              <span className="font-semibold">Ƀ{balance}</span>
-            </Link>
-          )}
+        <div className="hidden lg:flex flex-col items-end gap-2">
+          <div className="flex items-center gap-4">
+            {/* Wallet Balance */}
+            {insideClassroom && (
+              <Link to={`/classroom/${classroomId}/wallet`} className="flex items-center gap-2 hover:text-gray-300">
+                <Wallet size={24} className="text-green-500" />
+                <span className="font-semibold">Ƀ{balance}</span>
+              </Link>
+            )}
 
-          {/* Desktop Cart Icon */}
-          {user?.role !== 'teacher' && insideClassroom && (
+
+            {/* Desktop Cart Icon */}
+            {user?.role !== 'teacher' && insideClassroom && (
+              <button
+                className="relative"
+                onClick={() => setShowCart(!showCart)}
+                title="Cart"
+                data-cart-toggle
+              >
+                <ShoppingCart size={24} className="text-green-500" />
+                {cartCount > 0 && (
+                  <span className="absolute -top-1 -right-2 bg-red-500 text-white rounded-full text-xs w-5 h-5 flex items-center justify-center">
+                    {cartCount}
+                  </span>
+                )}
+              </button>
+            )}
+
+            {/* Theme Toggle */}
             <button
-              className="relative"
-              onClick={() => setShowCart(!showCart)}
-              title="Cart"
-              data-cart-toggle
+              onClick={toggleTheme}
+              className="p-2 hover:bg-base-200 rounded-lg"
+              title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
             >
-              <ShoppingCart size={24} className="text-green-500" />
-              {cartCount > 0 && (
-                <span className="absolute -top-1 -right-2 bg-red-500 text-white rounded-full text-xs w-5 h-5 flex items-center justify-center">
-                  {cartCount}
-                </span>
-              )}
+              {theme === 'light' ? <Moon size={24} /> : <Sun size={24} />}
             </button>
-          )}
 
-          {/* Theme Toggle */}
-          <button
-            onClick={toggleTheme}
-            className="p-2 hover:bg-base-200 rounded-lg"
-            title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
-          >
-            {theme === 'light' ? <Moon size={24} /> : <Sun size={24} />}
-          </button>
+            {/* Desktop Notification Bell */}
+            <NotificationBell />
 
-          {/* Desktop Notification Bell */}
-          <NotificationBell />
+            {/* Desktop Profile Dropdown */}
+            <div className="dropdown dropdown-end">
+              <div tabIndex={0} role="button" className="btn btn-ghost btn-circle avatar">
+                <div className="w-10 h-10 rounded-full ring ring-success ring-offset-base-100 ring-offset-2 overflow-hidden">
+                  {(() => {
+                    // build avatar src safely and avoid calling .startsWith on null/undefined
+                    const getAvatarSrc = (u) => {
+                      if (!u) return null;
+                      if (u.avatar) {
+                        if (typeof u.avatar === 'string' && (u.avatar.startsWith('data:') || u.avatar.startsWith('http'))) return u.avatar;
+                        return `${BACKEND_URL}/uploads/${u.avatar}`;
+                      }
+                      if (u.profileImage) return u.profileImage;
+                      return null;
+                    };
 
-          {/* Desktop Profile Dropdown */}
-          <div className="dropdown dropdown-end">
-            <div tabIndex={0} role="button" className="btn btn-ghost btn-circle avatar">
-              <div className="w-10 h-10 rounded-full ring ring-success ring-offset-base-100 ring-offset-2 overflow-hidden">
-                {(() => {
-                  // build avatar src safely and avoid calling .startsWith on null/undefined
-                  const getAvatarSrc = (u) => {
-                    if (!u) return null;
-                    if (u.avatar) {
-                      if (typeof u.avatar === 'string' && (u.avatar.startsWith('data:') || u.avatar.startsWith('http'))) return u.avatar;
-                      return `${BACKEND_URL}/uploads/${u.avatar}`;
+                    const avatarSrc = getAvatarSrc(user);
+                    if (avatarSrc) {
+                      return (
+                        <img
+                          alt="User Avatar"
+                          src={avatarSrc}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            if (user.profileImage) {
+                              e.target.src = user.profileImage;
+                            } else {
+                              const initialsDiv = document.createElement('div');
+                              initialsDiv.className = 'w-full h-full bg-gray-200 flex items-center justify-center text-lg font-bold text-gray-600';
+                              initialsDiv.textContent = `${(user.firstName?.[0] || user.email?.[0] || 'U')}${(user.lastName?.[0] || '')}`.toUpperCase();
+                              e.target.parentNode.replaceChild(initialsDiv, e.target);
+                            }
+                          }}
+                        />
+                      );
                     }
-                    if (u.profileImage) return u.profileImage;
-                    return null;
-                  };
 
-                  const avatarSrc = getAvatarSrc(user);
-                  if (avatarSrc) {
                     return (
-                      <img
-                        alt="User Avatar"
-                        src={avatarSrc}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          if (user.profileImage) {
-                            e.target.src = user.profileImage;
-                          } else {
-                            const initialsDiv = document.createElement('div');
-                            initialsDiv.className = 'w-full h-full bg-gray-200 flex items-center justify-center text-lg font-bold text-gray-600';
-                            initialsDiv.textContent = `${(user.firstName?.[0] || user.email?.[0] || 'U')}${(user.lastName?.[0] || '')}`.toUpperCase();
-                            e.target.parentNode.replaceChild(initialsDiv, e.target);
-                          }
-                        }}
-                      />
+                      <div className="w-full h-full bg-base-300 flex items-center justify-center text-sm font-bold text-base-content/70">
+                        {`${(user.firstName?.[0] || user.email?.[0] || 'U')}${(user.lastName?.[0] || '')}`.toUpperCase()}
+                      </div>
                     );
-                  }
-
-                  return (
-                    <div className="w-full h-full bg-base-300 flex items-center justify-center text-sm font-bold text-base-content/70">
-                      {`${(user.firstName?.[0] || user.email?.[0] || 'U')}${(user.lastName?.[0] || '')}`.toUpperCase()}
-                    </div>
-                  );
-                })()}
+                  })()}
+                </div>
               </div>
+              <ul tabIndex={0} className="mt-3 z-[1] p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-52">
+                <li><Link to={`/profile/${user._id}`} className="flex items-center gap-2"><User size={16} />Profile</Link></li>
+                <li><Link to="/settings" className="flex items-center gap-2"><Settings size={16} />Settings</Link></li>
+                <li><Link to="/support" className="flex items-center gap-2"><HelpCircle size={16} />Help & Support</Link></li>
+                {user.role === 'student' && (
+                  <li><Link to="/orders" className="flex items-center gap-2"><History size={16} />Order History</Link></li>
+                )}
+                {user.role === 'teacher' && (
+                  <li>
+                    <button onClick={handleSwitchToStudent} className="flex items-center gap-2">
+                      <Replace size={16} />
+                      Switch to Student Profile
+                    </button>
+                  </li>
+                )}
+                {originalUser?.role === 'teacher' && user.role === 'student' && (
+                  <li>
+                    <button onClick={handleSwitchToTeacher} className="flex items-center gap-2">
+                      <Replace size={16} />
+                      Switch to Teacher Profile
+                    </button>
+                  </li>
+                )}
+                <li><button onClick={logout} className="flex items-center gap-2 text-error"><LogOut size={16} />Logout</button></li>
+              </ul>
             </div>
-            <ul tabIndex={0} className="mt-3 z-[1] p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-52">
-              <li><Link to={`/profile/${user._id}`} className="flex items-center gap-2"><User size={16} />Profile</Link></li>
-              <li><Link to="/settings" className="flex items-center gap-2"><Settings size={16} />Settings</Link></li>
-              <li><Link to="/support" className="flex items-center gap-2"><HelpCircle size={16} />Help & Support</Link></li>
-              {user.role === 'student' && (
-                <li><Link to="/orders" className="flex items-center gap-2"><History size={16} />Order History</Link></li>
-              )}
-              {user.role === 'teacher' && (
-                <li>
-                  <button onClick={handleSwitchToStudent} className="flex items-center gap-2">
-                    <Replace size={16} />
-                    Switch to Student Profile
-                  </button>
-                </li>
-              )}
-              {originalUser?.role === 'teacher' && user.role === 'student' && (
-                <li>
-                  <button onClick={handleSwitchToTeacher} className="flex items-center gap-2">
-                    <Replace size={16} />
-                    Switch to Teacher Profile
-                  </button>
-                </li>
-              )}
-              <li><button onClick={logout} className="flex items-center gap-2 text-error"><LogOut size={16} />Logout</button></li>
-            </ul>
           </div>
+          {/* XP Bar below the icons */}
+          {insideClassroom && user?.role === 'student' &&(
+            <div className="w-56 mt-1">
+              <XPBar userId={user._id} classroomId={classroomId}/>
+            </div>
+          )}
         </div>
+
 
         {/* Cart Dropdown */}
         {showCart && (
@@ -553,7 +588,7 @@ const Navbar = () => {
       <div className={`lg:hidden fixed top-0 right-0 h-screen w-80 max-w-[85vw] bg-base-100 border-l border-base-300 shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         {/* Add a solid overlay to ensure full opacity */}
         <div className="absolute inset-0 bg-base-100 opacity-100"></div>
-        
+
         <div className="relative p-4 bg-base-100 h-full overflow-y-auto">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-bold text-base-content">Menu</h2>
@@ -629,7 +664,7 @@ const Navbar = () => {
                   <Trophy size={20} />
                   <span>Leaderboard</span>
                 </Link>
-                
+
                 {/* ADD: Challenge link for mobile menu */}
                 <Link
                   to={`/classroom/${classroomId}/challenge`}
@@ -648,6 +683,19 @@ const Navbar = () => {
                 >
                   <Star size={20} />
                   <span>Feedback</span>
+                </Link>
+
+                <Link
+                  to={`/classroom/${classroomId}/badges`}
+                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${
+                    location.pathname.startsWith(`/classroom/${classroomId}/badges`)
+                      ? 'text-green-500'
+                      : ''
+                  } ${hoverClass}`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <Star size={20} />
+                  <span>Badges</span>
                 </Link>
                 {/* ADMIN: link visible only to admins */}
                 {user?.role === 'admin' && (

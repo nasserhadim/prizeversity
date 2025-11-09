@@ -38,6 +38,9 @@ const challengeTemplateRoutes = require('./routes/challengeTemplate');
 const challengeVerifyRoutes = require('./routes/challengeVerify');
 const { redirectBase, isProd } = require('./config/domain');
 const { cleanTrash } = require('./utils/cleanupTrash');
+// XP routes for leveling system
+const xpRoutes = require('./routes/xp');
+const badgeRoutes = require('./routes/badges');
 // require('./utils/siphonCleanup'); // Add this line
 
 const app = express();
@@ -198,12 +201,15 @@ app.use('/api/pending-assignments', require('./routes/pendingAssignments'));
 app.use('/api/challenges', challengeRoutes);
 app.use('/api/challenge-templates', challengeTemplateRoutes);
 app.use('/api', challengeVerifyRoutes);
+app.use('/api/xp', xpRoutes);
 
 app.use('/api/attack', attackItems);
 app.use('/api/defend', defendItems);
 app.use('/api/utility', utilityItems);
 app.use('/api/passive', passiveItems);
 app.use('/api/mystery', mysteryRoutes);
+
+app.use('/api/badges', badgeRoutes);
 
 
 

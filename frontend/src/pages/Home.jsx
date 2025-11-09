@@ -35,8 +35,12 @@ import rpgSchoolChars from '../assets/Education/rpg-school-chars.svg';
 
 import './Home.css';
 
+
+
 const Home = () => {
   const { user, logout, setUser } = useAuth();
+  console.log("Full user object:", user);
+
   const [role, setRole] = useState(user?.role || '');
   const [firstName, setFirstName] = useState(user?.firstName || '');
   const [lastName, setLastName] = useState(user?.lastName || '');
@@ -132,6 +136,8 @@ const Home = () => {
       window.history.replaceState({}, '', '/');
     }
   }, []);
+
+  
 
   // Handler to submit user role and profile update
   const handleRoleAndProfileSubmit = async () => {

@@ -7,6 +7,7 @@ import { LoaderIcon, RefreshCw } from 'lucide-react';
 import Footer from '../components/Footer';
 import StatsRadar from '../components/StatsRadar'; // <-- add this import
 import { getThemeClasses } from '../utils/themeUtils'; // <-- new import
+import { getUserBadges } from '../api/apiBadges';
 
 const StudentStats = () => {
   const { classroomId, id: studentId } = useParams();
@@ -20,6 +21,26 @@ const StudentStats = () => {
   // Precompute group multiplier for rendering
   const groupMultiplierValue = Number(stats?.groupMultiplier ?? stats?.student?.groupMultiplier ?? 1);
   
+  // --- Badge Collection Modal State ---
+const [badgeModalOpen, setBadgeModalOpen] = useState(false);
+const [badgeData, setBadgeData] = useState(null);
+const [badgeLoading, setBadgeLoading] = useState(false);
+
+// --- Function to open modal and fetch badges ---
+const handleViewBadges = async () => {
+  if (!studentId || !classroomId) return;
+  setBadgeModalOpen(true);
+  setBadgeLoading(true);
+  try {
+    const res = await getUserBadges(studentId, classroomId);
+    setBadgeData(res);
+  } catch (err) {
+    console.error('Error fetching badge data:', err);
+  } finally {
+    setBadgeLoading(false);
+  }
+};
+
   useEffect(() => {
     // Async function to fetch student stats from backend
     const fetchStats = async () => {
@@ -110,7 +131,15 @@ const StudentStats = () => {
     <>
       <div className={`${themeClasses.cardBase} max-w-md mx-auto mt-10 space-y-6`}>
         <h1 className="text-2xl font-bold text-center">{(stats.student.name || stats.student.email.split('@')[0])}'s Stats</h1>
-
+        {/* View Badge Collection button above radar */}
+        <div className="flex justify-center mt-4">
+          <button
+            onClick={handleViewBadges}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow transition-transform duration-150 active:scale-95"
+          >
+            View Badge Collection
+          </button>
+        </div>
         {/* radar + legend (unchanged) */}
         <div className="flex justify-center">
           <StatsRadar
@@ -203,6 +232,52 @@ const StudentStats = () => {
           </button>
         )}
       </div>
+
+      {/* Badge Collection Modal */}
+      {badgeModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div
+            className={`${
+              isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'
+            } rounded-lg shadow-lg w-11/12 max-w-lg p-6 relative`}
+          >
+            {/* Close Button */}
+            <button
+              onClick={() => setBadgeModalOpen(false)}
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+            >
+              ✖
+            </button>
+
+            <h2 className="text-xl font-bold mb-4 text-center">Badge Collection</h2>
+
+            {badgeLoading ? (
+              <p className="text-center text-gray-500">Loading badges...</p>
+            ) : !badgeData ? (
+              <p className="text-center text-gray-500">No badge data found.</p>
+            ) : (
+              <div className="space-y-4">
+                {badgeData.badges?.earned?.length > 0 ? (
+                  badgeData.badges.earned.map((badge) => (
+                    <div
+                      key={badge.id}
+                      className="border rounded-md p-3 shadow bg-green-100 border-green-400"
+                    >
+                      <p className="text-lg font-bold">
+                        {badge.icon || '🏅'} {badge.name}
+                      </p>
+                      <p className="text-sm text-gray-700">{badge.description}</p>
+                      <p className="text-sm mt-1">Level {badge.levelRequired} Required</p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-gray-500 text-center">No badges earned yet.</p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       <Footer />
     </>
   );

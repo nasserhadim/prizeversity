@@ -1,6 +1,9 @@
 const mongoose = require('mongoose');
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
+delete mongoose.models['User'];
+delete mongoose.connection.models['User'];
+
 function generateShortId() {
   const letters =
     ALPHABET[Math.floor(Math.random() * 26)] +
@@ -53,11 +56,6 @@ const UserSchema = new mongoose.Schema({
   role: { type: String, enum: ['admin', 'teacher', 'student']/*, default: 'student' */ },
   balance: { type: Number, default: 0, min: 0 },
   isFrozen: { type: Boolean, default: false }, // Add default: false here
-  // Per-classroom balances (new)
-  classroomBalances: [{
-    classroom: { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom' },
-    balance: { type: Number, default: 0, min: 0 }
-  }],
   // Add classroom join dates tracking
   classroomJoinDates: [{
     classroom: { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom' },
@@ -83,6 +81,23 @@ const UserSchema = new mongoose.Schema({
     multiplier: { type: Number, default: 1 },         // base 1x
     groupMultiplier: { type: Number, default: 1 }, // base 1x
   },
+
+  // Leveling System (Scoped Per Classroom)
+// Each student has a separate XP and Level record per classroom.
+// Teachers and admins will not use this system.
+  classroomBalances: [{
+    classroom: { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom' },
+    balance: { type: Number, default: 0, min: 0 },
+    xp: { type: Number, default: 0, min: 0 }, // XP progress specific to the classroom
+    level: { type: Number, default: 1, min: 1 }, // Level specific to the classroom
+    badges: [
+      {
+        badge: { type: mongoose.Schema.Types.ObjectId, ref: 'Badge' },
+        dateEarned: { type: Date, default: Date.now }
+      }
+    ]
+  }],
+
   shortId: {
     type: String,
     unique: true,
@@ -104,5 +119,6 @@ UserSchema.pre('validate', async function (next) {
   this.shortId = candidate;
   next();
 });
+console.log("✅ User model loaded. Fields:", Object.keys(UserSchema.paths));
 
 module.exports = mongoose.model('User', UserSchema);
