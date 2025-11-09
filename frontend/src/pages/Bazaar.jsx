@@ -9,7 +9,9 @@ import CreateItem from '../components/CreateItem';
 import ItemCard from '../components/ItemCard';
 import apiBazaar from '../API/apiBazaar'; 
 import apiClassroom from '../API/apiClassroom';
+import apiDiscount from '../API/apiDiscount.js';
 import InventorySection from '../components/InventorySection';
+import ActiveDiscountsSection from '../components/ActiveDiscountsSection';
 import toast from 'react-hot-toast';
 import Footer from '../components/Footer';
 import { resolveBannerSrc } from '../utils/image';
@@ -22,6 +24,11 @@ const Bazaar = () => {
   const [classroom, setClassroom] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showInventory, setShowInventory] = useState(false);
+  const [showDiscounts, setShowDiscounts] = useState(false);
+  const [Discounts, setDiscounts] = useState([]);
+  const [discountPercent, setDiscountPercent] = useState(0);
+  const [nextExpireDHMS, setNextExpireDHMS] = useState(''); // Days, hours, minutes, seconds
+  
 
   const [confirmDeleteBazaar, setConfirmDeleteBazaar] = useState(null);
   const [EditBazaar, setEditBazaar] = useState(false);
@@ -211,7 +218,7 @@ const Bazaar = () => {
       if (err.response?.data?.message === 'No changes were made') {
         toast.error('No changes were made');
       } else {
-        toast.error('Failed to update group set');
+        toast.error('Failed to edit Bazaar');
       }
     }
   };
@@ -252,6 +259,147 @@ const Bazaar = () => {
         : prev
     );
   };
+
+  // added to automatically get discounts
+useEffect(() => {
+  if (user?._id && classroomId) {
+    getDiscounts();
+  }
+  //console.log("Discounts loaded:", discounts);
+}, [user?._id, classroomId]);
+
+
+  // Gets the discounts for the student in the bazaar
+  const getDiscounts = async () => {
+    try {
+        const res = await apiDiscount.get(`/classroom/${classroomId}/user/${user._id}`);
+        const discountData = res.data || [];
+        
+        setDiscounts(discountData);
+
+
+        let percent = 0;
+        let timeLeft = 0;
+        let days = 0;
+        let hours = 0;
+        let minutes = 0;
+        let timeLeftInDHMS = [];
+        
+        if (discountData.length)
+        {
+            const combined = discountData.reduce(
+                (acc, d) => acc * (1 - (d.discountPercent || 0) / 100), 1
+            );
+            percent = (1 - combined) * 100;
+            const nextGone = discountData.reduce(
+                (min, d) => { return (d.expiresAt < min.expiresAt) ? d : min}
+            );
+            // determines time left in days, hours, minutes, seconds
+            timeLeft = Math.abs(new Date(nextGone.expiresAt) - Date.now()) / 1000;
+
+            days = Math.floor(timeLeft / 86400);
+            timeLeft -= days * 86400;
+
+            hours = Math.floor(timeLeft / 3600);
+            timeLeft -= hours * 3600;
+
+            minutes = Math.floor(timeLeft / 60);
+            timeLeft -= minutes * 60;
+
+        }
+        // sets output
+        let addHours = (hours > 0);
+        let addMin = (minutes > 0);
+        // days
+        if (days > 0)
+        {
+            timeLeftInDHMS.push(`${days} day${days > 1 ? "s" : ""}`); 
+            addHours = true;
+            addMin = true;
+        }
+        // hours
+        if (addHours)
+        {
+            timeLeftInDHMS.push(`${hours} hour${hours > 1 ? "s" : ""}`);
+            addMin = true;
+        }
+        if (addMin)
+        {
+            timeLeftInDHMS.push(`${minutes} min${minutes > 1 ? "s" : ""}`);
+            addMin = true;
+        }
+        timeLeftInDHMS.push(`${Math.floor(timeLeft)} sec`);
+    
+        setDiscountPercent(percent);
+        setNextExpireDHMS(timeLeftInDHMS.join(", "));
+
+    } catch (err) {
+        console.error("Failed to load discounts:", err);
+    }
+};
+
+// Makes discount update in real-time
+useEffect(() => {
+    if (!Discounts.length) {
+        setDiscountPercent(0);
+        setNextExpireDHMS('');
+        return;
+    }
+
+    // makes it run each second
+    const interval = setInterval(() => {
+        // discount percentage
+        const combined = Discounts.reduce(
+            (acc, d) => acc * (1 - (d.discountPercent || 0) / 100), 1
+        );
+        const percent = (1 - combined) * 100;
+
+        // next to expire
+        const nextGone = Discounts.reduce(
+            (min, d) => (new Date(d.expiresAt) < new Date(min.expiresAt) ? d : min)
+        );
+
+        let timeLeft = Math.max(0, (new Date(nextGone.expiresAt) - Date.now()) / 1000);
+
+        let days = Math.floor(timeLeft / 86400);
+        timeLeft -= days * 86400;
+
+        let hours = Math.floor(timeLeft / 3600);
+        timeLeft -= hours * 3600;
+
+        let minutes = Math.floor(timeLeft / 60);
+        timeLeft -= minutes * 60;
+
+        // sets output
+        const timeLeftInDHMS = [];
+        let addHours = (hours > 0);
+        let addMin = (minutes > 0);
+        // days
+        if (days > 0)
+        {
+            timeLeftInDHMS.push(`${days} day${days > 1 ? "s" : ""}`); 
+            addHours = true;
+            addMin = true;
+        }
+        // hours
+        if (addHours)
+        {
+            timeLeftInDHMS.push(`${hours} hour${hours > 1 ? "s" : ""}`);
+            addMin = true;
+        }
+        if (addMin)
+        {
+            timeLeftInDHMS.push(`${minutes} min${minutes > 1 ? "s" : ""}`);
+            addMin = true;
+        }
+        timeLeftInDHMS.push(`${Math.floor(timeLeft)} sec`);
+
+    setDiscountPercent(percent);
+    setNextExpireDHMS(timeLeftInDHMS.join(", "));
+  }, 1000);
+
+  return () => clearInterval(interval);
+}, [Discounts]);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-base-200">
     <span className="loading loading-ring loading-lg"></span>
@@ -449,6 +597,35 @@ const Bazaar = () => {
           fetchFilteredItems(f);   
         }}
       />
+      {/* Discount Section*/}
+      {Discounts.length > 0 && (
+        <div className="card bg-base-200 shadow-inner border border-base-300">
+            <div className="card-body p-4">
+                <h3 className="text-1xl font-bold text-success flex items-center gap-2">
+                Total Discount: {discountPercent}%
+                </h3>
+                <h3 className="text-1xl font-bold text-success flex items-center gap-2">
+                Next expires in {nextExpireDHMS}
+                </h3>
+          <div className="flex items-center justify-between mb-2">
+            <button
+                onClick={() => setShowDiscounts(!showDiscounts)}
+                className={`btn btn-sm transition-all duration-200 ${showDiscounts ? 'btn-outline btn-error' : 'btn-success'}`}
+              >
+                {showDiscounts ? 'Hide' : 'Show'} Discounts
+            </button>
+           </div>
+        <div className="flex items-center justify-between">
+            {/* Discount Section */}
+            {showDiscounts && (
+              <div>
+                <ActiveDiscountsSection userId={user._id} classroomId={classroomId} />
+              </div>
+            )}
+        </div>
+       </div>
+       </div>
+      )}
 
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -564,6 +741,9 @@ const Bazaar = () => {
           </div>
         </div>
 
+        
+
+        {/* This is for editing the Bazaar */}
         {EditBazaar && (
           <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
             <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-lg">
