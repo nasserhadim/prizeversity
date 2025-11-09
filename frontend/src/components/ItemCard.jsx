@@ -139,7 +139,7 @@ const handleEdit = async () => { // Teacher-only edit function bazaar ID
   // Delete handler for Teacher
 const confirmDeleteItem = async () => {
   // Ask user for confirmation
-  if (!window.confirm('Delete this item? This cannot be undone.')) return; // if cancel, stop here
+  //if (!window.confirm('Delete this item? This cannot be undone.')) return; // if cancel, stop here
 
   // Validate required IDs exist
   if (!classroomId) return toast.error('Missing classroomId'); // show error if classroomId missing
@@ -232,14 +232,12 @@ const totalDiscount = () => {
 const getDiscounts = async () => {
     try {
         const res = await apiDiscount.get(`/classroom/${classroomId}/user/${user._id}`);
-        console.log("Discount API response:", res.data);
         const discountData = res.data || [];
         
         setDiscounts(discountData);
 
 
         let percent = 0;
-        console.log("Discounts: ", discountData.length)
         if (discountData.length)
         {
             const combined = discountData.reduce(
@@ -248,7 +246,7 @@ const getDiscounts = async () => {
             percent = (1 - combined) * 100;
         }
         setDiscountPercent(percent);
-        console.log("Discount applied: ", percent)
+        //console.log("Discount applied: ", percent)
     } catch (err) {
         console.error("Failed to load discounts:", err);
     }
@@ -336,9 +334,11 @@ const getDiscounts = async () => {
         {role === 'teacher' && user?._id === teacherId && (
           // Only the teacher who owns this classroom sees Edit/Delete
           //we were using regular window pop up. 
-          <div className="flex gap-2 mt-2">
+
+          // replace buttons in comment with code in div to revert
+          /*
             <button className="btn btn-sm btn-outline" onClick={() => setEditOpen(true)}>
-              <Pencil className="w-4 h-4" /> Edit
+              <Pencil className="w-4 h-4" /> Edit 
             </button>
 
             <button
@@ -346,6 +346,19 @@ const getDiscounts = async () => {
               onClick={() => setConfirmDelete(true)}
             >
               <Trash2 className="w-4 h-4" /> Delete
+            </button>
+          */
+          <div className="flex gap-2 mt-2">
+            
+            <button className="btn btn-sm btn-outline" onClick={() => setEditOpen(true)}>
+                Edit 
+            </button>
+
+            <button
+              className="btn btn-sm btn-error"
+              onClick={() => setConfirmDelete(true)}
+            >
+              Delete
             </button>
 
           </div>
