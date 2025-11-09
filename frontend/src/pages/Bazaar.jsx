@@ -442,7 +442,7 @@ useEffect(() => {
                               const created = await applyTemplate(t._id, classroomId);
                               if (created) {
                                 setBazaar(created);
-                                toast.success("Template applied");
+                                //toast.success("Template applied");
                               }
                             }}
                           >
@@ -456,7 +456,7 @@ useEffect(() => {
                                   await deleteTemplate(t._id);
                                   setConfirmDeleteId(null);
                                   await fetchTemplates();
-                                  toast.success('Template deleted');
+                                  //toast.success('Template deleted');
                                 }}
                               >
                                 Confirm
@@ -957,7 +957,7 @@ useEffect(() => {
                                       if (created) {
                                         setBazaar(created);
                                         setShowViewer(false);
-                                        toast.success('Template applied');
+                                        //toast.success('Template applied');
                                       }
                                     }}
                                   >
