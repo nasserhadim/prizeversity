@@ -119,6 +119,5 @@ UserSchema.pre('validate', async function (next) {
   this.shortId = candidate;
   next();
 });
-console.log("✅ User model loaded. Fields:", Object.keys(UserSchema.paths));
 
 module.exports = mongoose.model('User', UserSchema);

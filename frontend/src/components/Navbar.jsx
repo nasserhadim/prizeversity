@@ -31,7 +31,8 @@ import {
   History,
   Star,
   Sun,
-  Moon
+  Moon,
+  Crown
 } from 'lucide-react';
 
 const BACKEND_URL = `${API_BASE}`;
@@ -397,7 +398,7 @@ const Navbar = () => {
                   }`}
                   title="Badges"
                 >
-                  <Star size={18} />
+                  <Crown size={18} />
                   <span>Badges</span>
                 </Link>
               </li>
@@ -694,7 +695,7 @@ const Navbar = () => {
                   } ${hoverClass}`}
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
-                  <Star size={20} />
+                  <Crown size={20} />
                   <span>Badges</span>
                 </Link>
                 {/* ADMIN: link visible only to admins */}

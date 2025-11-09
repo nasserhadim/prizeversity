@@ -383,5 +383,66 @@ router.get('/badges/:userId/:classroomId', async (req, res) => {
   }
 });
 
+// Get current badge + XP progress for each student in a classroom
+router.get('/classroom/:classroomId/progress', async (req, res) => {
+  try {
+    const { classroomId } = req.params;
+
+    // Get all users who belong to this classroom
+    const users = await User.find({ 'classroomBalances.classroom': classroomId })
+      .populate({
+        path: 'classroomBalances.badges.badge',
+        model: 'Badge',
+        select: 'name levelRequired',
+      });
+
+    // Get all possible badges for the classroom
+    const allBadges = await Badge.find({ classroom: classroomId }).sort({ levelRequired: 1 });
+
+    const students = users.map(user => {
+      const classroomData = user.classroomBalances.find(
+        c => c.classroom?.toString() === classroomId.toString()
+      );
+
+      if (!classroomData) return null;
+
+      // Count only currently held badges
+      const earnedBadges = (classroomData.badges || []).filter(b => b.badge);
+      const earnedCount = earnedBadges.length;
+      const totalBadges = allBadges.length;
+
+      // Determine next badge
+      const nextBadge = allBadges.find(
+        b => b.levelRequired > (classroomData.level || 1)
+      );
+
+      // XP until next badge unlock
+      const xpUntilNextBadge = nextBadge
+        ? Math.max(0, nextBadge.levelRequired * 100 - classroomData.xp - (classroomData.level - 1) * 100)
+        : 0;
+
+      return {
+        _id: user._id,
+        name: `${user.firstName} ${user.lastName}`,
+        email: user.email,
+        level: classroomData.level || 1,
+        xp: classroomData.xp || 0,
+        badgesEarned: earnedCount,
+        totalBadges: totalBadges,
+        nextBadge: nextBadge
+          ? `${nextBadge.name} | Level ${nextBadge.levelRequired}`
+          : 'All badges earned',
+        xpUntilNextBadge,
+      };
+    }).filter(Boolean);
+
+    res.json(students);
+  } catch (err) {
+    console.error('Error getting classroom progress:', err);
+    res.status(500).json({ error: 'Server error getting progress' });
+  }
+});
+
+
 
 module.exports = router;
