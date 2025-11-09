@@ -4,8 +4,6 @@ import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Store, HandCoins } from 'lucide-react';
 import { Image as ImageIcon } from 'lucide-react';
-//import axios from 'axios'
-//import apiBazaar from '../API/apiBazaar.js'
 import CreateBazaar from '../components/CreateBazaar';
 import CreateItem from '../components/CreateItem';
 import ItemCard from '../components/ItemCard';
@@ -58,7 +56,6 @@ const Bazaar = () => {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [templateActionMode, setTemplateActionMode] = useState('apply-delete');
 
-  // delete bazaar
   const handleDeleteBazaar = async () => {
     if (!confirmDeleteBazaar) return;
     try {
@@ -72,44 +69,35 @@ const Bazaar = () => {
       setConfirmDeleteBazaar(null);
     }
   };
-  
+
   const [filteredItems, setFilteredItems] = useState([]);
   const [filters, setFilters] = useState({ category: undefined, q: "" });
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState("");
   const PAGE_SIZE = 9;
   const [page, setPage] = useState(1);
-  const fetchingRef = useRef(false);
 
-  // Fetch classroom details
   const fetchClassroom = async () => {
     try {
       const response = await apiClassroom.get(`/${classroomId}`);
       setClassroom(response.data);
-      return response.data;
     } catch (err) {
       console.error('Failed to fetch classroom:', err);
-      return null;
     }
   };
 
-  // this will fetch the bazaar from the classroom
   const fetchBazaar = async () => {
     try {
       const res = await apiBazaar.get(`classroom/${classroomId}/bazaar`);
       setBazaar(res.data.bazaar);
-      return res.data.bazaar;
-    } catch (error){
-        console.error(error);
-        //toast.error(`Failed to fetch bazaar: ${error.response?.data?.error || error.message}`);
+    } catch (error) {
+      console.error(error);
       setBazaar(null);
-      return null;
     } finally {
       setLoading(false);
     }
   };
 
-  /// load the templates when a teacher opens this page
   useEffect(() => {
     if (user?.role === 'teacher' && classroomId) {
       fetchTemplates();
@@ -117,24 +105,21 @@ const Bazaar = () => {
   }, [user?.role, classroomId, fetchTemplates]);
 
   const fetchFilteredItems = async (filters = {}) => {
-    if (!bazaar?._id) return; // need bazaarId for this route
+    if (!bazaar?._id) return;
 
     try {
       setSearchLoading(true);
       setSearchError("");
 
       const params = new URLSearchParams();
-      if (
-        filters.category &&
-        ["Attack", "Defend", "Utility", "Passive", "Mystery"].includes(filters.category)
-      ) {
+      if (filters.category) {
         params.append("category", filters.category);
       }
+
       if (filters.q) {
         params.append("q", filters.q);
       }
 
-      // GET /classroom/:classroomId/bazaar/:bazaarId/items
       const res = await apiBazaar.get(
         `classroom/${classroomId}/bazaar/${bazaar._id}/items?${params.toString()}`
       );
@@ -144,11 +129,10 @@ const Bazaar = () => {
         : Array.isArray(res.data)
         ? res.data
         : [];
- 
+
       const toKeyPart = (v) =>
         typeof v === 'string' ? v.trim().toLowerCase() : String(v ?? '').trim().toLowerCase();
 
-      // collapse visually-identical items even if _id differs
       const sig = (it) => [
         toKeyPart(it?.name),
         toKeyPart(it?.price),
@@ -166,46 +150,6 @@ const Bazaar = () => {
         }
       }
       setFilteredItems(unique);
- 
-      //jake helped me with this part, to stop duplications. 
-      
-      // const raw = Array.isArray(res.data?.items)
-      //   ? res.data.items
-      //   : Array.isArray(res.data)
-      //   ? res.data
-      //   : [];
- 
-      // const toKeyPart = (v) =>
-      //   typeof v === 'string' ? v.trim().toLowerCase() : String(v ?? '').trim().toLowerCase();
- 
-      // collapse visually-identical items even if _id differs
-      
-      // const sig = (it) => [
-      //   toKeyPart(it?.name),
-      //   toKeyPart(it?.price),
-      //   toKeyPart(it?.image),    
-      //   toKeyPart(it?.category),
-      // ].join('|');
- 
-    // const sig = (it) => String(it?._id || '').trim();
-
-    //   const seen = new Set();
-    //   const unique = [];
-    //   for (const it of raw) {
-    //     const key = sig(it);
-    //     if (!seen.has(key)) {
-    //       seen.add(key);
-    //       unique.push(it);
-    //     }
-    //   }
-    //   setFilteredItems(unique); 
-
-
-      // trying to figure out why duplication is still hapening. uncokmnet this later if doesnt work 
-  
-        //top block is all new for testing pruposes. 
-        
-
     } catch (err) {
       console.error("[fetchFilteredItems] error:", err);
       setSearchError("Failed to load items");
@@ -215,24 +159,20 @@ const Bazaar = () => {
     }
   };
 
-  // this will get the current page of items
   const totalPages = Math.max(1, Math.ceil((filteredItems.length || 0) / PAGE_SIZE));
   const start = (page - 1) * PAGE_SIZE;
   const currentPageItems = (filteredItems || []).slice(start, start + PAGE_SIZE);
 
-
-  
   useEffect(() => {
     const tp = Math.max(1, Math.ceil((filteredItems.length || 0) / PAGE_SIZE));
     if (page > tp) setPage(tp);
   }, [filteredItems, PAGE_SIZE, page]);
 
- // useEffect(() => {
-   // fetchClassroom();
-    //fetchBazaar();
-  //}, [classroomId]);
+  useEffect(() => {
+    fetchClassroom();
+    fetchBazaar();
+  }, [classroomId]);
 
-  // reset the Bazaar Form
   const resetBazaarForm = () => {
     setBazaarName('');
     setBazaarDesc('');
@@ -243,7 +183,6 @@ const Bazaar = () => {
     if (BazaarFileInputRef.current) BazaarFileInputRef.current.value = '';
   };
 
-  // Editing the Bazaar
   const handleEditBazaar = (bazaar) => {
     setBazaarName(bazaar.name);
     setBazaarDesc(bazaar.description);
@@ -254,12 +193,10 @@ const Bazaar = () => {
     setEditBazaar(true);
   };
 
-  // Update Bazaar (modified to handle file uploads + remove flag)
   const handleUpdateBazaar = async () => {
     if (!BazaarName.trim()) return toast.error('Bazaar name is required');
 
     try {
-      // If a new file was chosen, send multipart/form-data with the file
       if (BazaarImageSource === 'file' && BazaarImageFile) {
         const fd = new FormData();
         fd.append('name', BazaarName);
@@ -286,32 +223,13 @@ const Bazaar = () => {
     }
   };
 
-
-
-useEffect(() => {
-  let cancelled = false; 
-  const loadAll = async () => {
-    if (fetchingRef.current) return; // already fetching
-    fetchingRef.current = true;
-    try {
-      //loading classroom and bazaar in parallel
-      const[, baz] = await Promise.all([fetchClassroom(), fetchBazaar()]);
-      //once bazaar id is loaded, load item ONLY ONCE
-      if(!cancelled && baz?._id) {
-        await fetchFilteredItems(filters);
-        setPage(1);
-      }
-    } finally {
-      fetchingRef.current = false;
+  useEffect(() => {
+    if (bazaar?._id) {
+      fetchFilteredItems(filters);
+      setPage(1);
     }
-  };
-  loadAll();
-  return () => { cancelled = true; };
-}, [classroomId]); //depends only on classroomID
+  }, [bazaar?._id]);
 
-
-
-  // this will keep the bazaar.items in sync after an update
   const handleItemUpdated = (updatedItem) => {
     setBazaar(prev => ({
       ...prev,
@@ -329,7 +247,6 @@ useEffect(() => {
     );
   };
 
-  // Remove an item from bazaar.items after delete
   const handleItemDeleted = (itemId) => {
     setBazaar(prev => ({ 
       ...prev,
@@ -488,12 +405,10 @@ useEffect(() => {
     <span className="loading loading-ring loading-lg"></span>
   </div>;
 
-  // Case: Bazaar not yet created
-  if (!bazaar) { // edited to use card grid
+  if (!bazaar) {
     return user?.role === "teacher" ? (
       <div className="flex flex-col min-h-screen bg-base-200">
         <div className="flex-grow p-6 space-y-6">
-          {/* this would apply the Template Panel (when no bazaar yet) */}
           <div className="card bg-base-100 border border-base-300 shadow-sm">
             <div className="card-body">
               <h2 className="text-xl font-semibold">Apply Template</h2>
@@ -513,12 +428,12 @@ useEffect(() => {
                       <div className="card-body">
                         <div className="min-w-0">
                           <h3 className="card-title text-base truncate">{t.name}</h3>
-                         <p className="text-xs text-black">
+                          <p className="text-xs text-black">
                             From: {t.sourceClassroom?.name || "Classroom"}<br />
                             Class Code: {t.sourceClassroom?.code ? ` (${t.sourceClassroom.code})` : ""}<br />
                             Items: {t.countItem ?? 0} item{(t.countItem ?? 0) === 1 ? "" : "s"}<br />
                             Template Saved: {new Date(t.createdAt).toLocaleDateString()}
-                        </p>
+                          </p>
                         </div>
                         <div className="card-actions justify-end mt-2">
                           <button
@@ -574,7 +489,6 @@ useEffect(() => {
             </div>
           </div>
 
-          {/* this is the divider thats between Apply Template and Create Bazaar */}
           <div className="divider my-4">OR</div>
 
           <CreateBazaar classroomId={classroomId} onCreate={setBazaar} />
@@ -591,12 +505,10 @@ useEffect(() => {
     );
   }
 
-  // Case: Bazaar exists
   return (
     <div className="p-6 space-y-8">
       <div className="text-center space-y-2">
         <h1 className="text-4xl font-bold text-success flex items-center justify-center gap-3">
-          {/* <Store /> */}
           {classroom
             ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''} Bazaar`
             : 'Classroom Bazaar'}
@@ -604,7 +516,6 @@ useEffect(() => {
       </div>
 
       <div className="card bg-base-100 border border-base-200 shadow-md rounded-2xl p-6 flex flex-col md:flex-row items-start md:items-center gap-6">
-        {/* Image Section */}
         <div className="w-full md:w-1/3">
           {(() => {
             const imgSrc = resolveBannerSrc(bazaar?.image);
@@ -622,18 +533,16 @@ useEffect(() => {
           })()}
         </div>
 
-        {/* Text Section */}
         <div className="flex-1 space-y-2 text-center md:text-left">
           <h2 className="text-3xl sm:text-4xl font-bold text-success leading-tight break-words flex items-center gap-2">
             <Store />
             {bazaar.name}
           </h2>
 
-          <p className="text-base-content opacity-70 text-base sm:text-lg whitespace-pre-wrap">
+        <p className="text-base-content opacity-70 text-base sm:text-lg whitespace-pre-wrap">
             {bazaar.description}
           </p>
         </div>
-        {/* Modification Section */}
         {(user?.role === "teacher" || user?.role === "admin") && (
           <div className="flex flex-col gap-2 items-end">
             <div className="flex gap-2">
@@ -657,7 +566,7 @@ useEffect(() => {
                   const created = await saveBazaarTemplate(bazaar._id);
                   if (created) {
                     await fetchTemplates();
-                    setTemplateActionMode('none'); 
+                    setTemplateActionMode('none');
                     setShowViewer(true);
                   }
                 }}
@@ -672,7 +581,7 @@ useEffect(() => {
                   setTemplateActionMode('delete');
                   setShowViewer(true);
                 }}
-                title="View/apply/delete your templates"
+                title="View your templates"
               >
                 View Templates
               </button>
@@ -681,7 +590,6 @@ useEffect(() => {
         )}
       </div>
 
-      {/* This will search & filter the controls for the Bazaar items */}
       <BazaarSearch
         onFiltersChange={(f) => {
           setPage(1);
@@ -719,7 +627,6 @@ useEffect(() => {
        </div>
       )}
 
-      {/* Filtered results section */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-2xl font-bold text-success flex items-center gap-2">
@@ -782,7 +689,6 @@ useEffect(() => {
               ))}
             </div>
 
-            {/* Pagination controls */}
             <div className="flex items-center justify-between mt-4">
               <button
                 className="btn btn-sm"
@@ -803,13 +709,11 @@ useEffect(() => {
           </>
         )}
 
-        {/* Teacher Create Item */}
         {user?.role === 'teacher' && (
           <div className="card card-compact bg-base-100 shadow p-4 border border-base-200">
             <CreateItem
               bazaarId={bazaar._id}
               classroomId={classroomId}
-              //trying to fix this item duplication issue when student purchases/. 
               onAdd={(newItem) => {
                 setBazaar(prev => ({ ...prev, items: [...(prev.items || []), newItem] }));
                 fetchFilteredItems(filters);
@@ -818,7 +722,6 @@ useEffect(() => {
           </div>
         )}
 
-        {/* Inventory Section with Button in Header */}
         <div className="card bg-base-200 shadow-inner border border-base-300">
           <div className="card-body p-4">
             <div className="flex items-center justify-between mb-2">
@@ -830,7 +733,6 @@ useEffect(() => {
               </button>
             </div>
 
-            {/* Inventory Section */}
             {showInventory && (
               <div className="mt-4">
                 <InventorySection userId={user._id} classroomId={classroomId} />
@@ -847,7 +749,6 @@ useEffect(() => {
             <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-lg">
               <h2 className="text-lg font-semibold mb-4 text-center">Edit Bazaar</h2>
 
-              {/* This is for modifying the bazaar name & description */}
               <div className="mb-4">
                 <label className="label">
                   <span className="label-text">Bazaar Name</span>
@@ -873,7 +774,6 @@ useEffect(() => {
                 />
               </div>
 
-              {/* Image controls */}
               <div className="mb-4">
                 <label className="label">
                   <span className="label-text">Image</span>
@@ -979,7 +879,6 @@ useEffect(() => {
                 </button>
               </div>
 
-              {/* this is for the bazaar templates so that they can be in card form */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <h4 className="font-medium">Saved Templates</h4>
@@ -1017,10 +916,8 @@ useEffect(() => {
 
                             <div className="card-actions justify-end mt-2">
                               {templateActionMode === 'none' ? (
-                                // there are actions for "Save as Template" viewer, only you can view
                                 null
                               ) : templateActionMode === 'delete' ? (
-                                // this is the Delete button (with confirm)
                                 <>
                                   {confirmDeleteId === t._id ? (
                                     <>
@@ -1103,7 +1000,7 @@ useEffect(() => {
                     </div>
                   </div>
                 ) : (
-                  <div className="text-sm opacity-70">There are no that saved templates yet.</div>
+                  <div className="text-sm opacity-70">There are no templates yet.</div>
                 )}
               </div>
             </div>
