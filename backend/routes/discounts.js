@@ -12,7 +12,7 @@ const upload = require('../middleware/upload'); // reuse existing upload middlew
 const escapeRx = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 
-// Get Discounts for a classroom (if any) - and delete expired
+// Get Discounts for a classroom (if any)
 router.get('/classroom/:classroomId/user/:userId', ensureAuthenticated, async (req, res) => {
     const { classroomId, userId} = req.params;
     /*Commenting out because fix
