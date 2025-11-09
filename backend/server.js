@@ -74,7 +74,6 @@ console.log("✅ CORS origin set to:", redirectBase);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
 // Session Middleware
 app.use(
   session({
@@ -90,6 +89,7 @@ app.use(
 require('./config/passport')(passport);
 app.use(passport.initialize());
 app.use(passport.session());
+app.use('/api/xpstudent', require('./routes/xpStudent'));
 
 // Database Connection
 mongoose.connect(process.env.MONGO_URI, {})
@@ -210,6 +210,7 @@ app.use('/api/mystery', mysteryRoutes);
 
 app.use('/api/xpSettings', require('./routes/xpSettings'));
 app.use('/api/xpStudent', require('./routes/xpStudent'));
+app.use('/api', require('./routes/xpEvents')); // mount XP endpoints
 
 
 // Root Route

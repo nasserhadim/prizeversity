@@ -1,62 +1,6 @@
-// //backend/middlewares/xpHooks.js
-// const { awardXP } = require('../utils/xp');
-// const Classroom = require('../models/Classroom');
 
 
-// // convert bits to xp and award it using awardxp
-
-
-
-// //award XP when Bits are earned
-// async function xpOnBitsEarned({ userId, classroomId, bitsEarned, bitsMode = 'final' }) {
-//   try {
-//     //const classroom = await Classroom.findById(classroomId).lean();
-//     //if (!classroom || !classroom.xpSettings?.isXPEnabled) return { ok: false, reason: 'xp-disabled'};
-//     const bitsNum = Number(bitsEarned);
-//         if (!Number.isFinite(bitsNum) || bitsNum <= 0) {
-//           return { ok: false, reason: 'no-bits' };
-//         }
-//         const classroom = await Classroom.findById(classroomId).lean();
-//         if (!classroom || !classroom.xpSettings?.isXPEnabled) {
-//           return { ok: false, reason: 'xp-disabled' };
-//         }
-
-//     const settings = classroom.xpSettings || {};
-//     const rewards = settings.xpRewards || {};
-
-//     //find conversion rate; fallback to 1 if not defined
-//     // const rate = Number(rewards.bitsToXp || 1);
-
-//     // const rawXP = bitsEarned * rate;
-//     //use teacher-configured conversion (XP per Bit Earned)
-//     //xp per bit earned
-//     const rate = Math.max(0, Number(rewards.xpPerBitEarned ?? 1));
-//     const rawXP =  Math.round(bitsNum * rate);
-
-//     if (rawXP <= 0) return { ok: false, reason: 'zero-xp' };
-//     //teacher prefrence for base/final
-//     const mode = bitsMode || (settings.bitToXpCountMode === 'base' ? 'base' : 'final');
-
-//     const result = await awardXP({
-//       userId,
-//       classroomId,
-//       opts: {
-//         rawXP,
-//         rawBits: bitsNum,
-//         bitsMode: mode,
-//         rewardKey: 'xpPerBitEarned'
-//       }
-//     });
-//     return result; //returning the award xp result so callers can emit the xp updates
-//   } catch (err) {
-//     console.warn('[XP Hook] xpOnBitsEarned failed:', err.message);
-//     return { ok: false, reason: 'error', error: err.message };
-//   }
-// }
-
-// module.exports = { xpOnBitsEarned };
-
-//commented out above for testing pruposes. 
+//deleted out above for testing pruposes. 
 // backend/middleware/xpHooks.js
 'use strict';
 
@@ -94,7 +38,7 @@ async function xpOnBitsEarned({ userId, classroomId, bitsEarned, bitsMode = 'fin
   }
 }
 
-// NEW: XP from Bits Spent (bazaar purchases)
+//XP from Bits Spent (bazaar purchases)
 async function xpOnBitsSpentPurchase({ userId, classroomId, spentBits, bitsMode = 'final' }) {
   try {
     const classroom = await Classroom.findById(classroomId).lean();
@@ -125,7 +69,112 @@ async function xpOnBitsSpentPurchase({ userId, classroomId, spentBits, bitsMode 
   }
 }
 
+//award for events (attendance, challenges, posts
+async function xpOnEvent({ userId, classroomId, baseXP, rewardKey = 'event' }) {
+  try {
+    const classroom = await Classroom.findById(classroomId).lean();
+    if (!classroom || classroom?.xpSettings?.isXPEnabled === false) {
+      return { ok: false, reason: 'xp-disabled' };
+    }
+
+    const rawXP = Math.max(0, Math.round(Number(baseXP || 0)));
+    if (rawXP <= 0) return { ok: false, reason: 'zero-xp' };
+
+    return await awardXP({
+      userId,
+      classroomId,
+      opts: {
+        rawXP,
+        rewardKey, //for analytics/tuning in awardXP logs
+        bitsMode: 'final',// respects multipliers/effects inside awardXP
+      },
+    });
+  } catch (err) {
+    console.warn('[XP Hook] xpOnEvent failed:', err.message);
+    return { ok: false, reason: 'error' };
+  }
+}
+
+//XP on Mystery Box Open
+async function xpOnMysteryOpen({ userId, classroomId }) {
+  try {
+    const classroom = await Classroom.findById(classroomId).lean();
+    if (!classroom || classroom?.xpSettings?.isXPEnabled === false) {
+      return { ok: false, reason: 'xp-disabled' };
+    }
+    const baseXP = Number(classroom?.xpSettings?.xpRewards?.xpPerMysteryOpen ?? 0);
+    if (!baseXP) return { ok: false, reason: 'zero-xp' };
+
+    return xpOnEvent({ userId, classroomId, baseXP, rewardKey: 'xpPerMysteryOpen' });
+  } catch (err) {
+    console.warn('[XP Hook] xpOnMysteryOpen failed:', err.message);
+    return { ok: false, reason: 'error' };
+  }
+}
+
+//xp on attendance 
+async function xpOnAttendance({ userId, classroomId }) {
+  try {
+    const classroom = await Classroom.findById(classroomId).lean();
+    if (!classroom || classroom?.xpSettings?.isXPEnabled === false) {
+      return { ok: false, reason: 'xp-disabled' };
+    }
+    const baseXP = Number(classroom?.xpSettings?.xpRewards?.xpPerAttendance ?? 0);
+    if (!baseXP) return { ok: false, reason: 'zero-xp' };
+
+    return xpOnEvent({ userId, classroomId, baseXP, rewardKey: 'xpPerAttendance' });
+  } catch (err) {
+    console.warn('[XP Hook] xpOnAttendance failed:', err.message);
+    return { ok: false, reason: 'error' };
+  }
+}
+
+//xp on challange complete WILL NEED TO TETTTTTTT idont have password
+async function xpOnChallengeComplete({ userId, classroomId, difficulty = 'normal' }) {
+  try {
+    const classroom = await Classroom.findById(classroomId).lean();
+    if (!classroom || classroom?.xpSettings?.isXPEnabled === false) {
+      return { ok: false, reason: 'xp-disabled' };
+    }
+
+    const r = classroom?.xpSettings?.xpRewards || {};
+    const baseXP =
+      (difficulty === 'hard'  && Number(r.xpPerChallengeHard)) ||
+      (difficulty === 'easy'  && Number(r.xpPerChallengeEasy)) ||
+      Number(r.xpPerChallenge ?? 0);
+
+    if (!baseXP) return { ok: false, reason: 'zero-xp' };
+
+    return xpOnEvent({ userId, classroomId, baseXP, rewardKey: 'xpPerChallenge' });
+  } catch (err) {
+    console.warn('[XP Hook] xpOnChallengeComplete failed:', err.message);
+    return { ok: false, reason: 'error' };
+  }
+}
+
+//xp on feedback
+async function xpOnNewsPost({ userId, classroomId }) {
+  try {
+    const classroom = await Classroom.findById(classroomId).lean();
+    if (!classroom || classroom?.xpSettings?.isXPEnabled === false) {
+      return { ok: false, reason: 'xp-disabled' };
+    }
+    const baseXP = Number(classroom?.xpSettings?.xpRewards?.xpPerNewsPost ?? 0);
+    if (!baseXP) return { ok: false, reason: 'zero-xp' };
+
+    return xpOnEvent({ userId, classroomId, baseXP, rewardKey: 'xpPerNewsPost' });
+  } catch (err) {
+    console.warn('[XP Hook] xpOnNewsPost failed:', err.message);
+    return { ok: false, reason: 'error' };
+  }
+}
+
 module.exports = {
   xpOnBitsEarned,
   xpOnBitsSpentPurchase,
+  xpOnEvent,
+  xpOnMysteryOpen,
+  xpOnAttendance,
+  xpOnChallengeComplete,
+  xpOnNewsPost,
 };

@@ -3,10 +3,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getNews } from '../API/apiNewsfeed';
+import { giveNewsfeedXP } from '../API/apiXP'; //award xp after post 
 import ClassroomBanner from '../components/ClassroomBanner';
 import { getClassroom } from '../API/apiClassroom';
 import Footer from '../components/Footer';
 import socket from '../utils/socket';
+import { postNews } from '../API/apiNewsfeed'; //creating a post 
+
 
 
 //import for XP card
@@ -30,6 +33,8 @@ export default function StudentNewsfeed() {
     const [visibleCount, setVisibleCount] = useState(10);
     const [bgColor, setBgColor] = useState('');
     const [backgroundImage, setBackgroundImage] = useState('');
+    const [newPostHtml, setNewPostHtml] = useState(''); //HTML accepted like your feed items)
+    const [savingPost, setSavingPost] = useState(false); //prevents double submits
 
 
     //auth and xp state
@@ -140,6 +145,39 @@ const progress = React.useMemo(() => {
         fetchData();
     }, [classId]);
 
+        async function handleCreatePost() {
+          if (!newPostHtml.trim()) {
+            return; // no empty posts
+          }
+          try {
+            setSavingPost(true);
+
+            //Create the post in your existing API
+            //Expecting your createNews to return { data: { post: {_id, ...} } } or { postId }
+            const res = await createNews(classId, { content: newPostHtml }); // adjust payload keys if your API differs
+            const created = res?.data?.post || res?.data || {}; // tolerate different shapes
+            const postId = created._id || created.postId;       // we only need an id for XP call
+
+            // 2) Optimistically refresh the list so user sees their post
+            const newsRes = await getNews(classId);
+            setItems(newsRes.data || []);
+
+            // 3) Immediately award XP for posting (idempotent server-side)
+            if (postId) {
+              await giveNewsfeedXP(classId, postId); // award and emit socket xp:update
+            }
+
+            //Clear composer + toast
+            setNewPostHtml('');
+            // toast.success('Announcement posted (+XP)');
+          } catch (e) {
+            console.error('[Newsfeed] create + XP failed:', e);
+            // toast.error(e?.response?.data?.error || 'Failed to post');
+          } finally {
+            setSavingPost(false);
+          }
+        }    
+
     console.log({
     xpSettings,
     myClassroomBalance,
@@ -155,6 +193,7 @@ const progress = React.useMemo(() => {
                     code={classroomCode}
                     bgColor={bgColor}
                     backgroundImage={backgroundImage}
+                    classroomId={classId}
                 />
                 <div className="max-w-3xl mx-auto p-6 bg-green-50 rounded-lg">
                     <p className="mb-4">
@@ -205,6 +244,41 @@ const progress = React.useMemo(() => {
                     <h2 className="text-center text-green-500 text-4xl font-bold mb-4">
                         Announcements
                     </h2>
+                    {/* Teacher compose box */}
+                    {user?.role === 'teacher' && (
+                      <div className="card bg-white border border-green-200 rounded-lg p-4 mb-6">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          New Announcement (HTML allowed)
+                        </label>
+                        <textarea
+                          className="textarea textarea-bordered w-full"
+                          rows={4}
+                          placeholder="Type your announcement (you can paste formatted HTML if your editor outputs it)…"
+                          value={newPostHtml}
+                          onChange={(e) => setNewPostHtml(e.target.value)}
+                        />
+                        <div className="mt-3 flex gap-2">
+                          <button
+                            className="btn bg-green-500 hover:bg-green-600 text-white"
+                            onClick={handleCreatePost}
+                            disabled={savingPost || !newPostHtml.trim()}
+                          >
+                            {savingPost ? 'Posting…' : 'Post Announcement (+XP)'}
+                          </button>
+                          <button
+                            className="btn btn-ghost"
+                            onClick={() => setNewPostHtml('')}
+                            disabled={savingPost || !newPostHtml}
+                          >
+                            Clear
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-gray-500 mt-2">
+                          Posting will grant XP per your classroom settings (once per post, server-side idempotent).
+                        </p>
+                      </div>
+                    )}
+
                     <ul className="space-y-6">
                         {items.slice(0, visibleCount).map(i => (
                             <li key={i._id} className="bg-white p-4 border border-green-200 rounded-lg shadow-sm mx-auto">

@@ -16,6 +16,7 @@ import Footer from '../components/Footer';
 import Navbar from '../components/Navbar';
 import { computeProgress } from '../utils/xp';
 
+
 //HEADER-STYLE PROGRESS (matches top badge: need = base * level) ---
 const computeHeaderProgress = (carryXP, level, settings = {}) => {
   const base = Number(settings?.baseXPLevel2 ?? 100);
@@ -387,6 +388,7 @@ const progress = React.useMemo(() => {
           code={classroom.code}
           bgColor={classroom.color}
           backgroundImage={resolveBannerSrc(classroom.backgroundImage)}
+          classroomId={id}
         />
 
         <div className="max-w-3xl mx-auto p-6 bg-green-50 rounded-lg space-y-6">

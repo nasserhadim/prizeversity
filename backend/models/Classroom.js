@@ -67,7 +67,11 @@ const ClassroomSchema = new mongoose.Schema({
       dailyCheckInLimit: { type: Number, default: 1 },
       groupJoinXP:       { type: Number, default: 10 },
       challengeXP:       { type: Number, default: 25 },
-      mysteryBoxUseXP:   { type: Number, default: 0 } // 0 = off
+      mysteryBoxUseXP:   { type: Number, default: 0 }, // 0 = off
+       xpPerAttendance:   { type: Number, default: 5 },// used by /xp/attendance
+      xpPerChallenge:    { type: Number, default: 10 },// used by /xp/challenge
+      xpPerNewsfeedPost: { type: Number, default: 2 }, // used by /xp/newsfeed
+      xpPerMysteryOpen:  { type: Number, default: 1 }// used when opening a mystery box
     }
   },
 

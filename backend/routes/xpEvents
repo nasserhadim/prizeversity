@@ -1,0 +1,126 @@
+'use strict';
+
+const express = require('express'); // express router setup
+const router = express.Router(); // create router instance
+
+const Classroom = require('../models/Classroom'); // get classroom xp settings
+const User = require('../models/User'); // to verify user exists
+const { ensureAuthenticated } = require('../config/auth'); // protect routes
+const { awardXP } = require('../utils/xp'); // main xp award logic
+
+// helper to fetch classroom + make sure xp is on
+async function loadClassroomOrBlock(classroomId) {
+  const classroom = await Classroom.findById(classroomId).lean(); // light query
+  if (!classroom) return { ok: false, status: 404, msg: 'Classroom not found' }; // no class
+  if (classroom?.xpSettings?.isXPEnabled === false) return { ok: false, status: 409, msg: 'XP disabled' }; // xp off
+  return { ok: true, classroom }; // all good
+}
+
+// socket emitter for real-time updates
+function emitXp(io, classroomId, userId, result) {
+  if (!io || !result?.ok) return; // nothing to send
+  io.to(`classroom-${classroomId}`).emit('xp:update', { // broadcast xp change
+    userId: String(userId),
+    classroomId: String(classroomId),
+    newXP: result.xp,
+    newLevel: result.level,
+    leveledUp: result.leveled,
+  });
+}
+
+
+//gives XP for daily check-in
+router.post('/xp/:classroomId/attendance', ensureAuthenticated, async (req, res) => {
+  try {
+    const { classroomId } = req.params; // which class
+    const targetUserId = req.body.userId || req.user._id; // default self
+
+    const gate = await loadClassroomOrBlock(classroomId); // validate classroom
+    if (!gate.ok) return res.status(gate.status).json({ error: gate.msg }); // fail fast
+    const classroom = gate.classroom; // shortcut
+
+    const user = await User.findById(targetUserId).select('_id'); // make sure user exists
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const defaultAmt = Number(classroom.xpSettings?.xpRewards?.xpPerAttendance ?? 0); // grab xp config
+    const amt = Math.max(0, Number(req.body.amount ?? defaultAmt)); // safe parse
+    if (amt <= 0) return res.status(200).json({ ok: false, reason: 'zero-config', message: 'Attendance XP is 0' }); // no xp set
+
+    const result = await awardXP({ // give xp
+      userId: targetUserId,
+      classroomId,
+      opts: { rawXP: amt, rewardKey: 'xpPerAttendance', context: 'attendance' },
+    });
+
+    emitXp(req.app.get('io'), classroomId, targetUserId, result); // live update
+    return res.status(200).json({ ok: true, ...result }); // done
+  } catch (err) {
+    console.error('[XP][attendance] error:', err.message); // log err
+    return res.status(500).json({ error: 'Failed to award attendance XP' });
+  }
+});
+
+
+//gives XP for finishing a challenge
+router.post('/xp/:classroomId/challenge', ensureAuthenticated, async (req, res) => {
+  try {
+    const { classroomId } = req.params; // class id
+    const targetUserId = req.body.userId || req.user._id; // self or chosen user
+
+    const gate = await loadClassroomOrBlock(classroomId); // check class/xp
+    if (!gate.ok) return res.status(gate.status).json({ error: gate.msg });
+    const classroom = gate.classroom;
+
+    const user = await User.findById(targetUserId).select('_id'); // verify user
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const defaultAmt = Number(classroom.xpSettings?.xpRewards?.xpPerChallenge ?? 0); // read xp config
+    const amt = Math.max(0, Number(req.body.amount ?? defaultAmt)); // safe parse
+    if (amt <= 0) return res.status(200).json({ ok: false, reason: 'zero-config', message: 'Challenge XP is 0' });
+
+    const result = await awardXP({
+      userId: targetUserId,
+      classroomId,
+      opts: { rawXP: amt, rewardKey: 'xpPerChallenge', context: 'challenge' },
+    });
+
+    emitXp(req.app.get('io'), classroomId, targetUserId, result); // live update
+    return res.status(200).json({ ok: true, ...result });
+  } catch (err) {
+    console.error('[XP][challenge] error:', err.message);
+    return res.status(500).json({ error: 'Failed to award challenge XP' });
+  }
+});
+
+   //gives XP for posting on class feed
+router.post('/xp/:classroomId/newsfeed', ensureAuthenticated, async (req, res) => {
+  try {
+    const { classroomId } = req.params; // class
+    const targetUserId = req.body.userId || req.user._id; // target user
+
+    const gate = await loadClassroomOrBlock(classroomId); // check class/xp
+    if (!gate.ok) return res.status(gate.status).json({ error: gate.msg });
+    const classroom = gate.classroom;
+
+    const user = await User.findById(targetUserId).select('_id'); // verify
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const defaultAmt = Number(classroom.xpSettings?.xpRewards?.xpPerNewsfeedPost ?? 0); // xp config
+    const amt = Math.max(0, Number(req.body.amount ?? defaultAmt)); // use override if given
+    if (amt <= 0) return res.status(200).json({ ok: false, reason: 'zero-config', message: 'Newsfeed XP is 0' });
+
+    const result = await awardXP({
+      userId: targetUserId,
+      classroomId,
+      opts: { rawXP: amt, rewardKey: 'xpPerNewsfeedPost', context: 'newsfeed' },
+    });
+
+    emitXp(req.app.get('io'), classroomId, targetUserId, result); // socket update
+    return res.status(200).json({ ok: true, ...result });
+  } catch (err) {
+    console.error('[XP][newsfeed] error:', err.message);
+    return res.status(500).json({ error: 'Failed to award newsfeed XP' });
+  }
+});
+
+module.exports = router;

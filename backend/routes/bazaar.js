@@ -10,7 +10,7 @@ const Order = require('../models/Order');
 const blockIfFrozen = require('../middleware/blockIfFrozen');
 const upload = require('../middleware/upload'); // reuse existing upload middleware
 const escapeRx = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const { xpOnBitsSpentPurchase } = require('../middleware/xpHooks');
+const { xpOnBitsSpentPurchase, xpOnMysteryOpen } = require('../middleware/xpHooks');
 // Middleware: Only teachers allowed for certain actions
 function ensureTeacher(req, res, next) {
   if (req.user.role !== 'teacher') {
@@ -445,7 +445,7 @@ const updateClassroomBalance = (user, classroomId, newBalance) => {
 // Buy Item (updated for per-classroom balances)
 router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensureAuthenticated, blockIfFrozen, async (req, res) => {
   const { classroomId, itemId } = req.params;
-  const { quantity } = req.body;
+  const { quantity = 1 } = req.body;
 
   try {
     const item = await Item.findById(itemId);
@@ -463,7 +463,8 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
     }
 
     const user = await User.findById(req.user._id);
-    const totalCost = item.price * quantity;
+    const qty = Math.max(1, Number(quantity));
+    const totalCost = item.price * qty;
 
     // Use per-classroom balance for check and deduction
     const userBalance = getClassroomBalance(user, classroomId);
@@ -473,7 +474,7 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
 
     // Create owned copies for quantity and collect summaries (unchanged, but now with per-classroom context)
     const ownedItems = [];
-    for (let i = 0; i < quantity; i++) {
+    for (let i = 0; i < qty; i++) {
       const ownedData = {
         name: item.name,
         description: item.description,
@@ -502,7 +503,7 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
     updateClassroomBalance(user, classroomId, userBalance - totalCost);
     user.transactions.push({
       amount: -totalCost,
-      description: `Purchased ${quantity} x ${item.name}`,
+      description: `Purchased ${qty} x ${item.name}`,
       assignedBy: req.user._id,
       classroom: classroomId,  // Add classroom reference
       type: 'purchase',
@@ -522,6 +523,45 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
     });
 
     await user.save();
+
+    //xp award for no double response risk 
+     (async () => {
+        try {
+          const result = await xpOnBitsSpentPurchase({
+            userId: user._id,
+            classroomId,
+            spentBits: totalCost,
+            bitsMode: 'final',
+          });
+          const io = req.app.get('io');
+          if (io && result?.ok) {
+            io.to(`classroom-${classroomId}`).emit('xp:update', {
+              userId: String(user._id),
+              classroomId: String(classroomId),
+              newXP: result.xp,
+              newLevel: result.level,
+              leveledUp: result.leveled,
+            });
+          }
+        } catch (xpErr) {
+          console.warn('[XP] Failed to award XP on single-item buy:', xpErr.message);
+        }
+      })();
+
+      return res.status(200).json({
+              message: 'Purchase successful',        
+              items: ownedItems,
+              balance: getClassroomBalance(user, classroomId)
+            });
+          } catch (err) {
+            console.error('[Buy Item] error:', err);
+            return res.status(500).json({ error: 'Failed to process purchase' });
+          }
+        }
+      );      
+
+    /* BEGIN-REMOVE: duplicate XP block after /buy route
+
     // award xp for bits spent during checkout + live emit
     try {
       const spentBits = totalCost; // total you just charged
@@ -542,25 +582,13 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
           leveledUp: result.leveled,
         });
       }
+         
     } catch (xpErr) {
       console.warn('[XP] Failed to award XP on checkout:', xpErr.message);
     }
+    END-REMOVE */
+ 
 
-    
-
-
-
-    // res.status(200).json({
-    //   message: 'Purchase successful',
-    //   balance: getClassroomBalance(user, classroomId),  // Return per-classroom balance
-    //   items: ownedItems
-    // });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to process purchase' });
-  }
-});
 
 // Checkout multiple items (updated for per-classroom balances)
 router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) => {
@@ -814,13 +842,14 @@ router.get('/user/:userId/discounts', async (req, res) => {
     const { classroomId } = req.query;
     const user = await User.findById(req.params.userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
+    
+    const query = { owner: req.params.userId };
 
-    let discounts = []; // Default to empty set
-    let num = 0; // default to no discounts
-    if (classroomId) {
-      discounts = await  discounts.find({owner : req.params.userId});
-    }
+    if (classroomId) query.classroom = classroomId;
+    const discounts = await Discounts.find(query);
     res.json({ discounts });
+
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch balance' });
@@ -986,6 +1015,37 @@ router.post('/inventory/:ownedId/open', ensureAuthenticated, async (req, res) =>
     secondaryEffects: base.secondaryEffects,
     owner: req.user._id
   });
+
+  //award xp for opening a mystery box and updates live
+   try {
+    let classroomId = null;
+    // base.bazaar is an ObjectId; grab the classroom it belongs to
+    const bazaarDoc = await Bazaar.findById(base.bazaar).select('classroom').lean();
+    classroomId = bazaarDoc?.classroom;
+
+    if (classroomId) {
+      const result = await xpOnMysteryOpen({
+        userId: req.user._id,
+        classroomId
+      });
+
+      const io = req.app.get('io');
+      if (io && result?.ok) {
+        io.to(`classroom-${classroomId}`).emit('xp:update', {
+          userId: String(req.user._id),
+          classroomId: String(classroomId),
+          newXP: result.xp,
+          newLevel: result.level,
+          leveledUp: result.leveled,
+        });
+      }
+    }
+  } catch (xpErr) {
+    console.warn('[XP] Mystery box XP award failed:', xpErr.message);
+  } 
+
+
+
   // mark box opened + hide it (soft delete)
   await Item.findByIdAndUpdate(ownedId, { openedAt: new Date(), deletedAt: new Date() });
   return res.json({
