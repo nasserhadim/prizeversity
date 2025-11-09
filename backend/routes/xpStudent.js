@@ -87,6 +87,18 @@ router.post('/daily-checkin', ensureStudentOrAbove, async (req, res) => {
       opts: { rawXP: perCheckIn }
     });
 
+    const io = req.app.get('io');
+    if (io && result?.ok) {
+      io.to(`classroom-${classroomId}`).emit('xp:update', {
+        userId,
+        classroomId,
+        newXP: result.xp,
+        newLevel: result.level,
+        leveledUp: result.leveled
+      });
+    }
+
+
     if (!result.ok) {
       return res.status(400).json({ error: `Cannot award XP: ${result.reason}` });
     }
@@ -142,6 +154,18 @@ router.post('/group-join', ensureStudentOrAbove, async (req, res) => {
       }
     });
 
+    const io = req.app.get('io');
+    if (io && result?.ok) {
+      io.to(`classroom-${classroomId}`).emit('xp:update', {
+        userId,
+        classroomId,
+        newXP: result.xp,
+        newLevel: result.level,
+        leveledUp: result.leveled
+      });
+    }
+
+
     if (!result.ok && result.reason === 'already-awarded') {
       return res.status(200).json({ ok: true, message: 'Already awarded previously' });
     }
@@ -189,6 +213,18 @@ router.post('/mystery-box', ensureStudentOrAbove, async (req, res) => {
       classroomId,
       opts: { rawXP: amount }
     });
+
+    const io = req.app.get('io');
+    if (io && result?.ok) {
+      io.to(`classroom-${classroomId}`).emit('xp:update', {
+        userId,
+        classroomId,
+        newXP: result.xp,
+        newLevel: result.level,
+        leveledUp: result.leveled
+      });
+    }
+
 
     if (!result.ok) {
       return res.status(400).json({ error: `Cannot award XP: ${result.reason}` });

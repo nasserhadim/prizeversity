@@ -36,6 +36,9 @@ export default function StudentNewsfeed() {
     const { user } = useAuth();
     const [xpSettings, setXpSettings] = useState(null);
     const [xpRefresh, setXpRefresh] = useState(false);
+    //adding a local balance oveerice for live updates
+    const [localBalance, setLocalBalance] = useState(null);
+
 //load xp settings for classroom 
   useEffect(() => {
     if (!classId) return;
@@ -52,10 +55,17 @@ export default function StudentNewsfeed() {
 
   // Find this student's balance for this classroom
   const myClassroomBalance = React.useMemo(() => {
+    //in case of a liev socket update comes in, we use it immedityly 
+      if (localBalance) {
+        return {
+          xp: Number(localBalance.xp ?? 0),
+          level: Number(localBalance.level ?? 1)
+        };
+      }
     const list = user?.classroomBalances || [];
     const found = list.find(cb => String(cb.classroom) === String(classId));
     return found || { xp: 0, level: 1 };
-  }, [user, classId, xpRefresh]);
+  }, [user, classId, xpRefresh, localBalance]);
 
   // Compute progress numbers for the bar + labels
 // Compute progress numbers for the bar + labels (SAFE)
@@ -101,7 +111,9 @@ const progress = React.useMemo(() => {
         String(payload.userId) === String(user._id)
       ) {
         // flip a local flag to recalc progress from AuthContext values
-        setXpRefresh(r => !r);
+        //setXpRefresh(r => !r);
+        //oveerride locally so the bar will move instanlty 
+        setLocalBalance({ xp: payload.newXP, level: payload.newLevel });
       }
     };
 

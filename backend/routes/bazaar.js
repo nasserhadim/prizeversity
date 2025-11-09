@@ -522,32 +522,40 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
     });
 
     await user.save();
-
-    // Notify classroom about the purchase (unchanged)
-    req.app.get('io').to(`classroom-${classroomId}`).emit('bazaar_purchase', {
-      itemId,
-      buyerId: req.user._id,
-      newStock: item.stock
-    });
-
-    //award xp for bit spents on purchase
+    // award xp for bits spent during checkout + live emit
     try {
-      const spentBits = totalCost;
-      await xpOnBitsSpentPurchase({
-        userId: req.user._id,
+      const spentBits = totalCost; // total you just charged
+      const result = await xpOnBitsSpentPurchase({
+        userId: user._id,
         classroomId,
         spentBits,
-        bitsMode: 'final'
+        bitsMode: 'final',
       });
+
+      const io = req.app.get('io');
+      if (io && result?.ok) {
+        io.to(`classroom-${classroomId}`).emit('xp:update', {
+          userId,
+          classroomId,
+          newXP: result.xp,
+          newLevel: result.level,
+          leveledUp: result.leveled,
+        });
+      }
     } catch (xpErr) {
-      console.warn('[XP] Failed to award XP for purchase:', xpErr.message);
+      console.warn('[XP] Failed to award XP on checkout:', xpErr.message);
     }
 
-    res.status(200).json({
-      message: 'Purchase successful',
-      balance: getClassroomBalance(user, classroomId),  // Return per-classroom balance
-      items: ownedItems
-    });
+    
+
+
+
+    // res.status(200).json({
+    //   message: 'Purchase successful',
+    //   balance: getClassroomBalance(user, classroomId),  // Return per-classroom balance
+    //   items: ownedItems
+    // });
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to process purchase' });
@@ -747,6 +755,30 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
       balance: getClassroomBalance(user, classroomId),  // Return per-classroom balance
       orderId: order._id
     });
+    try {
+    const spentBits = total; // total you just charged
+    const result = await xpOnBitsSpentPurchase({
+      userId,
+      classroomId,
+      spentBits,
+      bitsMode: 'final',
+    });
+
+    const io = req.app.get('io');
+    if (io && result?.ok) {
+      io.to(`classroom-${classroomId}`).emit('xp:update', {
+        userId,
+        classroomId,
+        newXP: result.xp,
+        newLevel: result.level,
+        leveledUp: result.leveled,
+      });
+    }
+  } catch (xpErr) {
+    console.warn('[XP] Failed to award XP on checkout:', xpErr.message);
+  }
+
+
 
   } catch (err) {
     console.error("Checkout failed:", err);

@@ -304,12 +304,24 @@ req.app.get('io').to(`classroom-${classroomId}`).emit('balance_update', {
 //award xp for bits earned
 try {
   if (numericAmount > 0 && classroomId) {
-    await xpOnBitsEarned({
+    const result = await xpOnBitsEarned({
       userId: student._id,
       classroomId,
       bitsEarned: numericAmount,
       bitsMode: 'final'
     });
+  
+
+  const io = req.app.get('io');
+    if (io && result?.ok) {
+      io.to(`classroom-${classroomId}`).emit('xp:update', {
+        userId: String(student._id),
+        classroomId: String(classroomId),
+        newXP: result.xp,
+        newLevel: result.level,
+        leveledUp: result.leveled
+      });
+    }
   }
 } catch (xpErr) {
   console.warn('[XP] Failed to award XP for earned Bits:', xpErr.message);
@@ -485,13 +497,24 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
       //award xp for bits earned 
       try {
         if (numericAmount > 0 && classroomId) {
-          await xpOnBitsEarned({
+          const result = await xpOnBitsEarned({
             userId: student._id,
             classroomId,
             bitsEarned: numericAmount,
             bitsMode: 'final'
           });
         }
+        const io = req.app.get('io');
+        if (io && result && result.ok) {
+          io.to(`classroom-${classroomId}`).emit('xp:update', {
+            userId: student._id,
+            classroomId,
+            newXP: result.xp,
+            newLevel: result.level,
+            leveledUp: !!result.leveled
+          });
+    }
+  
       } catch (xpErr) {
         console.warn('[XP] Bulk award XP failed for', student._id, xpErr.message);
       }
