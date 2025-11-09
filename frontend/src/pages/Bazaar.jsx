@@ -1011,5 +1011,6 @@ useEffect(() => {
     </div>
   );
 };
+// issue testing: can you see this
 
 export default Bazaar;
