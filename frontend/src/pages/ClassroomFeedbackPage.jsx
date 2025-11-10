@@ -45,6 +45,10 @@ const ClassroomFeedbackPage = ({ userId }) => {
   const [loadingRewardConfig, setLoadingRewardConfig] = useState(false);
   const [savingRewardConfig, setSavingRewardConfig] = useState(false);
 
+  // --- NEW: server-side rating data ---
+  const [serverRatingCounts, setServerRatingCounts] = useState(null);
+  const [serverAverage, setServerAverage] = useState(null);
+
   useEffect(() => {
     const fetchClass = async () => {
       try {
@@ -92,6 +96,8 @@ const ClassroomFeedbackPage = ({ userId }) => {
       const items = Array.isArray(data) ? data : (data.feedbacks || []);
       if (append) setFeedbacks(prev => [...prev, ...items]); else setFeedbacks(items);
       setTotal(typeof data.total === 'number' ? data.total : null);
+      setServerRatingCounts(Array.isArray(data.ratingCounts) ? data.ratingCounts : null);
+      setServerAverage(typeof data.average === 'number' ? data.average : null);
       const totalCount = typeof data.total === 'number' ? data.total : null;
       setHasMore(totalCount ? (nextPage * perPage < totalCount) : (items.length === perPage));
     } catch (err) {
@@ -248,18 +254,50 @@ const ClassroomFeedbackPage = ({ userId }) => {
     .replace(/\s+/g, '_')
     .slice(0, 60);                   // limit length
  
-  const handleExportClassroomFeedbacks = async () => {
-    const idPart = classroom?.code || classroomId || (classroom?._id) || 'unknown';
-    const namePart = classroom?.name ? sanitize(classroom.name) : '';
-    const baseName = `classroom_feedbacks_${String(idPart).replace(/\s+/g, '_')}${namePart ? `_${namePart}` : ''}`;
-    return exportFeedbacksToCSV(feedbacks || [], baseName);
+  // pull ALL classroom feedback before exporting (respects includeHidden for teacher/admin)
+  const fetchAllClassroomFeedbackForExport = async () => {
+    if (!classroomId) return [];
+    const includeHidden = user && (user.role === 'teacher' || user.role === 'admin') ? '&includeHidden=true' : '';
+    const per = 200; // batch size
+    let pageNum = 1;
+    let all = [];
+    while (true) {
+      const res = await axios.get(`${API_BASE}/api/feedback/classroom/${classroomId}?page=${pageNum}&perPage=${per}${includeHidden}`, { withCredentials: true });
+      const data = res.data || {};
+      const items = Array.isArray(data) ? data : (data.feedbacks || []);
+      all = all.concat(items);
+      const totalCount = typeof data.total === 'number' ? data.total : all.length;
+      if (all.length >= totalCount || items.length < per) break;
+      pageNum++;
+    }
+    return all;
   };
- 
+
+  const handleExportClassroomFeedbacks = async () => {
+    const all = await fetchAllClassroomFeedbackForExport();
+    // Inject classroom meta if missing
+    const withMeta = all.map(f => ({
+      ...f,
+      classroomName: f.classroomName || f.classroom?.name || classroom?.name || '',
+      classroomCode: f.classroomCode || f.classroom?.code || classroom?.code || ''
+    }));
+    const namePart = String(classroom?.name || 'classroom').replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_\-]/g,'');
+    const codePart = classroom?.code ? `_${classroom.code}` : '';
+    const baseName = `classroom_feedbacks_${namePart}${codePart}`;
+    return exportFeedbacksToCSV(withMeta, baseName);
+  };
+
   const handleExportClassroomFeedbacksJSON = async () => {
-    const idPart = classroom?.code || classroomId || (classroom?._id) || 'unknown';
-    const namePart = classroom?.name ? sanitize(classroom.name) : '';
-    const baseName = `classroom_feedbacks_${String(idPart).replace(/\s+/g, '_')}${namePart ? `_${namePart}` : ''}`;
-    return exportFeedbacksToJSON(feedbacks || [], baseName);
+    const all = await fetchAllClassroomFeedbackForExport();
+    const withMeta = all.map(f => ({
+      ...f,
+      classroomName: f.classroomName || f.classroom?.name || classroom?.name || '',
+      classroomCode: f.classroomCode || f.classroom?.code || classroom?.code || ''
+    }));
+    const namePart = String(classroom?.name || 'classroom').replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_\-]/g,'');
+    const codePart = classroom?.code ? `_${classroom.code}` : '';
+    const baseName = `classroom_feedbacks_${namePart}${codePart}`;
+    return exportFeedbacksToJSON(withMeta, baseName);
   };
  
   return (
@@ -275,9 +313,15 @@ const ClassroomFeedbackPage = ({ userId }) => {
               feedbacks={feedbacks}
               user={user}
               yourRatingLocal={Number(localStorage.getItem(`feedback_your_rating_classroom_${classroomId}`)) || null}
+              totalOverride={total}
+              ratingCountsOverride={serverRatingCounts}
+              averageOverride={serverAverage}
             />
-
-            <RatingDistribution feedbacks={feedbacks} />
+            <RatingDistribution
+              feedbacks={feedbacks}
+              ratingCountsOverride={serverRatingCounts}
+              totalOverride={total}
+            />
 
             {/* STUDENT: show reward badge if enabled */}
             {classroom && classroom.feedbackRewardEnabled && (

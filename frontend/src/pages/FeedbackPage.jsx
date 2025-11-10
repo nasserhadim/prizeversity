@@ -30,6 +30,8 @@ const FeedbackPage = () => {
   const [reportingId, setReportingId] = useState(null);
   const [reportReason, setReportReason] = useState('');
   const [reporterEmail, setReporterEmail] = useState('');
+  const [serverRatingCounts, setServerRatingCounts] = useState(null);
+  const [serverAverage, setServerAverage] = useState(null);
  
   const fetchSiteFeedback = async (nextPage = 1, append = false) => {
     try {
@@ -43,7 +45,8 @@ const FeedbackPage = () => {
         setFeedbacks(items);
       }
       setTotal(typeof data.total === 'number' ? data.total : null);
-      // prefer total if provided
+      setServerRatingCounts(Array.isArray(data.ratingCounts) ? data.ratingCounts : null);
+      setServerAverage(typeof data.average === 'number' ? data.average : null);
       const totalCount = typeof data.total === 'number' ? data.total : null;
       setHasMore(totalCount ? (nextPage * perPage < totalCount) : (items.length === perPage));
     } catch (err) {
@@ -166,14 +169,34 @@ const FeedbackPage = () => {
     );
   };
 
+  // pull ALL site feedback before exporting (respects includeHidden for admin/teacher)
+  const fetchAllSiteFeedbackForExport = async () => {
+    const includeHidden = user && (user.role === 'teacher' || user.role === 'admin') ? '&includeHidden=true' : '';
+    const per = 200; // batch size
+    let pageNum = 1;
+    let all = [];
+    while (true) {
+      const res = await axios.get(`${API_BASE}/api/feedback?page=${pageNum}&perPage=${per}${includeHidden}`, { withCredentials: true });
+      const data = res.data || {};
+      const items = Array.isArray(data) ? data : (data.feedbacks || []);
+      all = all.concat(items);
+      const totalCount = typeof data.total === 'number' ? data.total : all.length;
+      if (all.length >= totalCount || items.length < per) break;
+      pageNum++;
+    }
+    return all;
+  };
+
   const handleExportFeedbacks = async () => {
+    const all = await fetchAllSiteFeedbackForExport();
     const base = user ? `${(user.firstName || '')}_${(user.lastName || '')}_feedbacks`.replace(/\s+/g, '_') : 'site_feedbacks';
-    return exportFeedbacksToCSV(feedbacks || [], base);
+    return exportFeedbacksToCSV(all, base);
   };
 
   const handleExportFeedbacksJSON = async () => {
+    const all = await fetchAllSiteFeedbackForExport();
     const base = user ? `${(user.firstName || '')}_${(user.lastName || '')}_feedbacks`.replace(/\s+/g, '_') : 'site_feedbacks';
-    return exportFeedbacksToJSON(feedbacks || [], base);
+    return exportFeedbacksToJSON(all, base);
   };
 
   return (
@@ -187,10 +210,15 @@ const FeedbackPage = () => {
               feedbacks={feedbacks}
               user={user}
               yourRatingLocal={Number(localStorage.getItem('feedback_your_rating_site')) || null}
+              totalOverride={total}
+              ratingCountsOverride={serverRatingCounts}
+              averageOverride={serverAverage}
             />
-
-            {/* shared distribution component (centralized) */}
-            <RatingDistribution feedbacks={feedbacks} />
+            <RatingDistribution
+              feedbacks={feedbacks}
+              ratingCountsOverride={serverRatingCounts}
+              totalOverride={total}
+            />
 
             {/* Export buttons (CSV) */}
             <div className="flex items-center mb-4">

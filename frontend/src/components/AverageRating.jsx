@@ -2,17 +2,33 @@ import React from 'react';
 import { Star } from 'lucide-react';
 
 /**
- * AverageRating({ feedbacks = [], user = null, yourRatingLocal = null })
+ * AverageRating({ feedbacks = [], user = null, yourRatingLocal = null, totalOverride = null, ratingCountsOverride = null, averageOverride = null })
  * - feedbacks: array of feedback objects (each should have .rating and optional .userId)
  * - user: authenticated user object (optional)
  * - yourRatingLocal: number (1-5) saved locally for anonymous submissions
+ * - totalOverride: number (total number of feedbacks, overrides the actual length of feedbacks array)
+ * - ratingCountsOverride: object (counts for each rating, overrides the actual counts from feedbacks array)
+ * - averageOverride: number (average rating, overrides the actual average from feedbacks array)
  */
-export default function AverageRating({ feedbacks = [], user = null, yourRatingLocal = null }) {
-  const total = (feedbacks || []).length;
-  if (!total) return null;
+export default function AverageRating({ feedbacks = [], user = null, yourRatingLocal = null, totalOverride = null, ratingCountsOverride = null, averageOverride = null }) {
+  const totalLoaded = (feedbacks || []).length;
+  const total = typeof totalOverride === 'number' ? totalOverride : totalLoaded;
 
-  const sum = feedbacks.reduce((s, f) => s + (Number(f.rating) || 0), 0);
-  const avg5 = sum / total;
+  // NEW: hide component entirely until at least one rating exists
+  if (!total || total <= 0) {
+    return null;
+  }
+
+  // compute average (use override if supplied)
+  let avg5 = 0;
+  // Use override only if positive and total > 0
+  if (typeof averageOverride === 'number' && averageOverride > 0 && total > 0) {
+    avg5 = averageOverride;
+  } else {
+    const sumLocal = feedbacks.reduce((s, f) => s + (Number(f.rating ?? f.feedbackRating) || 0), 0);
+    const denom = feedbacks.length;
+    avg5 = denom ? sumLocal / denom : 0;
+  }
   const avg5Str = avg5.toFixed(1);
 
   // find feedback by this user (works when f.userId is populated object or just id)

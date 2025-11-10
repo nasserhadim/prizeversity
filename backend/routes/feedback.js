@@ -28,6 +28,9 @@ function formatRemainingMs(ms) {
 router.post('/', ensureAuthenticated, async (req, res) => {
   try {
     const { rating, comment, classroomId, anonymous } = req.body;
+    const numericRating = Number(rating);
+    if (!(numericRating >= 1 && numericRating <= 5)) return res.status(400).json({ error: 'Invalid rating' });
+
     // If the client requested anonymous, do not attach the authenticated user's id
     const resolvedUserId = anonymous ? undefined : req.user._id;
 
@@ -58,7 +61,7 @@ router.post('/', ensureAuthenticated, async (req, res) => {
     }
 
     const feedback = new Feedback({
-      rating,
+      rating: numericRating,
       comment,
       classroom: classroomId || undefined,
       userId: resolvedUserId, // will be undefined for anonymous submissions
@@ -95,44 +98,56 @@ router.post('/', ensureAuthenticated, async (req, res) => {
 router.post('/classroom', ensureAuthenticated, async (req, res) => {
   try {
     const { rating, comment, classroomId, userId: bodyUserId, anonymous } = req.body;
-    // Respect anonymous flag here as well
+    const numericRating = Number(rating);
+    if (!(numericRating >= 1 && numericRating <= 5)) return res.status(400).json({ error: 'Invalid rating' });
     const resolvedUserId = anonymous ? undefined : ((req.user) ? req.user._id : (bodyUserId || undefined));
 
-    // DEBUG: log incoming classroom feedback requests so we can confirm this handler runs
+    // DEFINE ip early (was referenced before definition)
+    const ip = (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim();
+
     console.log('[feedback] POST /classroom received', {
       classroomId,
       user: req.user ? { _id: String(req.user._id), role: req.user.role } : null,
       anonymous: !!anonymous,
-      ip: (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim()
+      ip
     });
 
-    // Rate limit (per-classroom). Signed-in users limited by userId; unauthenticated by IP.
+    // Rate limit (per-classroom). Allow multiple signed-in users on same IP.
     const cooldownDays = Number(process.env.FEEDBACK_COOLDOWN_DAYS || 7);
     const cutoff = new Date(Date.now() - cooldownDays * 24 * 60 * 60 * 1000);
-    const ip = (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim();
 
-    // Rate-limit by userId OR IP. This ensures signed-in users who post anonymously
-    // still hit cooldown checks (and anonymous submitters by IP cannot spam).
-    const recentQuery = {
-      classroom: classroomId,
-      createdAt: { $gte: cutoff },
-      $or: []
-    };
-    if (req.user) recentQuery.$or.push({ userId: req.user._id });
-    if (ip) recentQuery.$or.push({ ip });
-
-    if (recentQuery.$or.length) {
-      const recent = await Feedback.findOne(recentQuery);
-      if (recent) {
-        const cooldownMs = cooldownDays * 24 * 60 * 60 * 1000;
-        const remainingMs = (new Date(recent.createdAt).getTime() + cooldownMs) - Date.now();
-        const remainingText = formatRemainingMs(remainingMs);
-        return res.status(429).json({ error: `You can submit feedback for this classroom only once every ${cooldownDays} day(s). Try again in ~${remainingText}.` });
-      }
+    let recent;
+    if (resolvedUserId) {
+      // Signed-in user: only check their own prior submission
+      recent = await Feedback.findOne({
+        classroom: classroomId,
+        userId: resolvedUserId,
+        createdAt: { $gte: cutoff }
+      });
+    } else if (!resolvedUserId && ip) {
+      // Truly anonymous (no user id): IP-based cooldown
+      recent = await Feedback.findOne({
+        classroom: classroomId,
+        userId: { $exists: false },
+        ip,
+        createdAt: { $gte: cutoff }
+      });
+    }
+    if (recent) {
+      console.log('[feedback] classroom cooldown hit', {
+        classroomId,
+        forUser: resolvedUserId || null,
+        ip,
+        recentId: recent._id
+      });
+      const cooldownMs = cooldownDays * 24 * 60 * 60 * 1000;
+      const remainingMs = (new Date(recent.createdAt).getTime() + cooldownMs) - Date.now();
+      const remainingText = formatRemainingMs(remainingMs);
+      return res.status(429).json({ error: `You can submit feedback for this classroom only once every ${cooldownDays} day(s). Try again in ~${remainingText}.` });
     }
 
     const feedback = new Feedback({
-      rating,
+      rating: numericRating,
       comment,
       classroom: classroomId || undefined,
       userId: resolvedUserId,
@@ -141,50 +156,55 @@ router.post('/classroom', ensureAuthenticated, async (req, res) => {
     });
     await feedback.save();
 
-    // --- NEW: feedback reward flow ---
+    // --- reward flow (remove duplicate const ip) ---
     try {
-      const ip = (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim();
       const cls = await Classroom.findById(classroomId)
         .select('feedbackRewardEnabled feedbackRewardBits feedbackRewardApplyGroupMultipliers feedbackRewardApplyPersonalMultipliers feedbackRewardAllowAnonymous teacher xpSettings');
       console.log('[feedback] reward check:', { classroomId, clsEnabled: !!cls?.feedbackRewardEnabled, bits: cls?.feedbackRewardBits, allowAnonymous: !!cls?.feedbackRewardAllowAnonymous });
 
       if (cls && cls.feedbackRewardEnabled && Number(cls.feedbackRewardBits) > 0) {
-        // --- clearer duplicate-checks with debug logging ---
         const excludeCurrent = { _id: { $ne: feedback._id } };
+        const allowAnon = !!cls.feedbackRewardAllowAnonymous;
+
         let already = null;
 
-        // If classroom allows anonymous awarding → any prior submission by the same user/IP blocks reward
-        if (cls.feedbackRewardAllowAnonymous) {
-          if (req.user) {
-            already = await Feedback.findOne({ classroom: classroomId, userId: req.user._id, ...excludeCurrent });
-            if (already) console.log('[feedback] prior submission found (user) blocking award', { priorId: already._id, anonymous: !!already.anonymous });
-          }
-          if (!already && ip) {
-            already = await Feedback.findOne({ classroom: classroomId, ip, ...excludeCurrent });
-            if (already) console.log('[feedback] prior submission found (ip) blocking award', { priorId: already._id, anonymous: !!already.anonymous });
-          }
-        } else {
-          // If anonymous awarding is disallowed → only prior NON-ANONYMOUS submissions block reward
-          if (req.user) {
-            already = await Feedback.findOne({ classroom: classroomId, userId: req.user._id, anonymous: { $ne: true }, ...excludeCurrent });
-            if (already) console.log('[feedback] prior non-anon submission found (user) blocking award', { priorId: already._id });
-            else {
-              // Log if prior anonymous exists (informational)
-              const priorAnon = await Feedback.findOne({ classroom: classroomId, userId: req.user._id, anonymous: true, ...excludeCurrent });
-              if (priorAnon) console.log('[feedback] prior anonymous submission exists (user) — should NOT block award when allowAnonymous=false', { priorId: priorAnon._id });
-            }
-          }
-          if (!already && ip) {
-            already = await Feedback.findOne({ classroom: classroomId, ip, anonymous: { $ne: true }, ...excludeCurrent });
-            if (already) console.log('[feedback] prior non-anon submission found (ip) blocking award', { priorId: already._id });
-            else {
-              const priorAnonByIp = await Feedback.findOne({ classroom: classroomId, ip, anonymous: true, ...excludeCurrent });
-              if (priorAnonByIp) console.log('[feedback] prior anonymous submission exists (ip) — should NOT block award when allowAnonymous=false', { priorId: priorAnonByIp._id });
+        if (req.user) {
+          // Signed-in submitter: block by userId only
+          already = await Feedback.findOne({
+            classroom: classroomId,
+            userId: req.user._id,
+            ...(allowAnon ? {} : { anonymous: { $ne: true } }),
+            ...excludeCurrent
+          });
+          if (already) console.log('[feedback] prior submission found (user) blocking award', { priorId: already._id, anonymous: !!already.anonymous });
+        } else if (ip) {
+          // No user (true anonymous): fall back to IP-based check
+          already = await Feedback.findOne({
+            classroom: classroomId,
+            ip,
+            ...(allowAnon ? {} : { anonymous: { $ne: true } }),
+            ...excludeCurrent
+          });
+          if (already) console.log('[feedback] prior submission found (ip) blocking award', { priorId: already._id, anonymous: !!already.anonymous });
+        }
+
+        // NEW: guard against re-award when first submission was anonymous
+        if (!already) {
+          // who would be credited for this award?
+          const targetId = (feedback && feedback.userId) ? feedback.userId : (req.user ? req.user._id : null);
+          if (targetId) {
+            const priorAward = await User.exists({
+              _id: targetId,
+              transactions: { $elemMatch: { type: 'feedback_reward', classroom: classroomId } }
+            });
+            if (priorAward) {
+              already = true;
+              console.log('[feedback] prior feedback_reward transaction found for user; skipping award');
             }
           }
         }
 
-        console.log('[feedback] duplicate-check result', { matchedExisting: !!already, allowAnonymous: !!cls.feedbackRewardAllowAnonymous });
+        console.log('[feedback] duplicate-check result', { matchedExisting: !!already, allowAnonymous: allowAnon });
 
         if (!already) {
           // If feedback was anonymous and classroom disallows anonymous awarding, skip
@@ -346,16 +366,40 @@ router.get('/', async (req, res) => {
     const filter = { classroom: { $exists: false } };
     if (!includeHidden) filter.hidden = { $ne: true };
 
-    const [total, feedbacks] = await Promise.all([
+    const [total, feedbacksRaw, countsRaw] = await Promise.all([
       Feedback.countDocuments(filter),
       Feedback.find(filter)
         .sort({ createdAt: -1 })
         .skip((page - 1) * perPage)
         .limit(perPage)
         .populate('userId', 'firstName lastName email')
+        .populate('classroom', 'name code') // <-- ADD
+      ,
+      Feedback.aggregate([
+        { $match: filter },
+        { $project: { ratingValue: { $ifNull: ['$rating', '$feedbackRating'] } } },
+        { $match: { ratingValue: { $gte: 1, $lte: 5 } } },
+        { $group: { _id: '$ratingValue', count: { $sum: 1 } } }
+      ])
     ]);
 
-    res.json({ feedbacks, total, page, perPage });
+    // Normalize rating field on returned docs (legacy support)
+    const feedbacks = feedbacksRaw.map(f => {
+      if (f.rating == null && f.feedbackRating != null) {
+        f.rating = f.feedbackRating;
+      }
+      return f;
+    });
+
+    const ratingCounts = [0,0,0,0,0,0];
+    countsRaw.forEach(c => {
+      const r = Number(c._id);
+      if (r >= 1 && r <= 5) ratingCounts[r] = c.count;
+    });
+    const sum = ratingCounts.reduce((acc, cnt, r) => r >= 1 ? acc + cnt * r : acc, 0);
+    const average = total ? sum / total : 0;
+
+    res.json({ feedbacks, total, page, perPage, ratingCounts, average });
   } catch (err) {
     console.error('Error fetching site feedback:', err);
     res.status(500).json({ error: 'Failed to fetch feedback' });
@@ -372,16 +416,27 @@ router.get('/classroom/:id', async (req, res) => {
     const filter = { classroom: req.params.id };
     if (!includeHidden) filter.hidden = { $ne: true };
 
-    const [total, feedbacks] = await Promise.all([
+    const [total, feedbacks, countsRaw] = await Promise.all([
       Feedback.countDocuments(filter),
       Feedback.find(filter)
         .sort({ createdAt: -1 })
         .skip((page - 1) * perPage)
         .limit(perPage)
-        .populate('userId', 'firstName lastName email')
+        .populate('userId', 'firstName lastName email'),
+      Feedback.aggregate([
+        { $match: filter },
+        { $group: { _id: '$rating', count: { $sum: 1 } } }
+      ])
     ]);
 
-    res.json({ feedbacks, total, page, perPage });
+    const ratingCounts = [0,0,0,0,0,0];
+    countsRaw.forEach(c => {
+      const r = Number(c._id);
+      if (r >= 1 && r <= 5) ratingCounts[r] = c.count;
+    });
+    const sum = ratingCounts.reduce((acc, cnt, r) => r >= 1 ? acc + cnt * r : acc, 0);
+    const average = total ? sum / total : 0;
+    res.json({ feedbacks, total, page, perPage, ratingCounts, average });
   } catch (err) {
     console.error('Error fetching classroom feedback:', err);
     res.status(500).json({ error: 'Failed to fetch classroom feedback' });
@@ -635,6 +690,7 @@ router.get('/moderation-log', ensureAuthenticated, async (req, res) => {
         .limit(perPage)
         .populate('feedback', 'comment rating classroom hidden')
         .populate('moderator', 'firstName lastName email')
+        .populate('classroom', 'name code') // NEW
     ]);
 
     res.json({ logs, total, page, perPage });
