@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 import ClassroomBanner from '../components/ClassroomBanner';
 import { getClassroom } from '../API/apiClassroom';
 import Footer from '../components/Footer';
+import { resolveBannerSrc } from '../utils/image';
 
 
 export default function TeacherNewsfeed() {
@@ -149,10 +150,10 @@ export default function TeacherNewsfeed() {
     return (
         <>
             <ClassroomBanner
-                name={classroomName}
-                code={classroomCode}
-                bgColor={bgColor}
-                backgroundImage={backgroundImage}
+              name={classroomName}
+              code={classroomCode}
+              bgColor={bgColor}
+              backgroundImage={resolveBannerSrc(backgroundImage)}
             />
             <div className="max-w-3xl mx-auto p-6 bg-green-50 rounded-lg">
                 <p className="mb-4">
