@@ -280,20 +280,23 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
     if (classroomId) {
       const classroom = await Classroom.findById(classroomId).select('xpSettings');
       if (classroom?.xpSettings?.enabled) {
-        const xpRate = numericAmount > 0 
-          ? (classroom.xpSettings.bitsEarned || 0)
-          : (classroom.xpSettings.bitsSpent || 0);
+        // OLD:
+        // const xpRate = numericAmount > 0 
+        //   ? (classroom.xpSettings.bitsEarned || 0)
+        //   : (classroom.xpSettings.bitsSpent || 0);
 
-        const xpBits = computeXPBits({
-          numericAmount,
-          adjustedAmount,
-          xpSettings: classroom.xpSettings
-        });
-        const xpToAward = xpBits * xpRate;
-
-        if (xpToAward > 0) {
-          const reason = numericAmount > 0 ? 'earning bits' : 'spending bits';
-          await awardXP(student._id, classroomId, xpToAward, reason, classroom.xpSettings);
+        // NEW: Only award XP for positive (earned) adjustments; skip debits (spend XP handled elsewhere: bazaar/mystery box)
+        if (numericAmount > 0) {
+          const xpRate = (classroom.xpSettings.bitsEarned || 0);
+          const xpBits = computeXPBits({
+            numericAmount,
+            adjustedAmount,
+            xpSettings: classroom.xpSettings
+          });
+          const xpToAward = xpBits * xpRate;
+          if (xpToAward > 0) {
+            await awardXP(student._id, classroomId, xpToAward, 'earning bits', classroom.xpSettings);
+          }
         }
       }
     }
@@ -535,21 +538,23 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
             ? Math.round(numericAmount * finalMultiplier)
             : numericAmount;
 
-          const xpRate = numericAmount > 0
-            ? (classroom.xpSettings.bitsEarned || 0)
-            : (classroom.xpSettings.bitsSpent || 0);
+          // OLD:
+          // const xpRate = numericAmount > 0
+          //   ? (classroom.xpSettings.bitsEarned || 0)
+          //   : (classroom.xpSettings.bitsSpent || 0);
 
-          // Respect XP basis setting ("final" uses adjustedAmount, "base" uses numericAmount)
-          const xpBits = computeXPBits({
-            numericAmount,
-            adjustedAmount,
-            xpSettings: classroom.xpSettings
-          });
-
-          const xpToAward = xpBits * xpRate;
-          if (xpToAward > 0) {
-            const reason = numericAmount > 0 ? 'earning bits' : 'spending bits';
-            await awardXP(studentId, classroomId, xpToAward, reason, classroom.xpSettings);
+          // NEW: Only award XP for earned (positive) amounts
+          if (numericAmount > 0) {
+            const xpRate = (classroom.xpSettings.bitsEarned || 0);
+            const xpBits = computeXPBits({
+              numericAmount,
+              adjustedAmount,
+              xpSettings: classroom.xpSettings
+            });
+            const xpToAward = xpBits * xpRate;
+            if (xpToAward > 0) {
+              await awardXP(studentId, classroomId, xpToAward, 'earning bits', classroom.xpSettings);
+            }
           }
         }
       }

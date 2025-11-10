@@ -248,18 +248,25 @@ router.post(
           if (classroomId) {
             const cls = await Classroom.findById(classroomId).select('xpSettings');
             if (cls?.xpSettings?.enabled) {
-              const xpRate = adjustedAmount > 0
-                ? (cls.xpSettings.bitsEarned || 0)
-                : (cls.xpSettings.bitsSpent || 0);
+              // OLD:
+              // const xpRate = adjustedAmount > 0
+              //   ? (cls.xpSettings.bitsEarned || 0)
+              //   : (cls.xpSettings.bitsSpent || 0);
+              // const xpBits = (cls.xpSettings.bitsXPBasis === 'base')
+              //   ? Math.abs(numericAmount)
+              //   : Math.abs(adjustedAmount);
+              // const xpToAward = xpBits * xpRate;
 
-              const xpBits = (cls.xpSettings.bitsXPBasis === 'base')
-                ? Math.abs(numericAmount)
-                : Math.abs(adjustedAmount);
-
-              const xpToAward = xpBits * xpRate;
-              if (xpToAward > 0) {
-                const reason = adjustedAmount > 0 ? 'earning bits' : 'spending bits';
-                await awardXP(user._id, classroomId, xpToAward, reason, cls.xpSettings);
+              // NEW: Only award for positive (earn) adjustments; skip negative redistribution/debits
+              if (adjustedAmount > 0) {
+                const xpRate = (cls.xpSettings.bitsEarned || 0);
+                const xpBits = (cls.xpSettings.bitsXPBasis === 'base')
+                  ? Math.abs(numericAmount)
+                  : Math.abs(adjustedAmount);
+                const xpToAward = xpBits * xpRate;
+                if (xpToAward > 0) {
+                  await awardXP(user._id, classroomId, xpToAward, 'earning bits', cls.xpSettings);
+                }
               }
             }
           }

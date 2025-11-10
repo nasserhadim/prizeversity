@@ -18,7 +18,8 @@ import {
   ShoppingCart,
   GraduationCap,
   UserCheck,
-  Lock
+  Lock,
+  TrendingUp
 } from 'lucide-react';
 import Footer from '../components/Footer';
 
@@ -285,99 +286,69 @@ const Support = () => {
       ]
     },
     {
-      category: "Notifications & Updates",
-      icon: <Bell size={20} />,
+      category: "XP & Leveling",
+      icon: <TrendingUp size={20} />,
       questions: [
         {
-          question: "How do I manage my notifications?",
+          question: "How does XP and leveling work?",
           answer: [
-            "Currently, you receive important updates through:",
-            "• The notification bell icon in the navigation",
-            "• Alerts about classroom activities",
-            "• Transaction confirmations such as bit assignments",
-            "• Group activity updates",
+            "• XP tracks progress in each classroom and increases your level over time.",
+            "• Each classroom can use different leveling formulas (Linear/Exponential/Logarithmic).",
+            "• Levels unlock badges as you reach required level thresholds set by your teacher."
+          ],
+          role: ["all"]
+        },
+        {
+          question: "Which actions give XP?",
+          answer: [
+            "Teachers configure XP awards per classroom. Common sources include:",
+            "• Bits Earned (participation, rewards)",
+            "• Bits Spent (bazaar purchases, mystery boxes)",
+            "• Stat boosts (e.g., power-ups, challenges)",
+            "• Challenges completed",
+            "• Daily check‑ins",
+            "• Mystery box usage",
+            "• Joining a group (one‑time)",
             "",
-            "**Coming soon:** Customizable notification preferences!"
-          ],
-          role: ["all"]
-        }
-      ]
-    },
-    {
-      category: "Technical Issues",
-      icon: <Settings size={20} />,
-      questions: [
-        {
-          question: "The page isn't loading properly. What should I do?",
-          answer: [
-            "Try these troubleshooting steps:",
-            "1. Refresh the page (Ctrl+R or Cmd+R)",
-            "2. Clear browser cache and cookies",
-            "3. Ensure you're using a supported browser:",
-            "   • Chrome (recommended)",
-            "   • Firefox",
-            "   • Safari",
-            "   • Edge",
-            "4. Check your internet connection",
-            "5. Try using an incognito/private browsing window"
+            "**About Bits Spent XP:**",
+            "• Spending XP is only awarded on intentional purchases (bazaar checkout, mystery box).",
+            "• It is NOT awarded for negative adjustments like siphons/attacks, teacher/admin debits, or readjustments."
           ],
           role: ["all"]
         },
         {
-          question: "I can't see my bits/items/groups updating.",
+          question: "How do bits convert to XP?",
           answer: [
-            "PrizeVersity uses real-time updates. If something isn't updating:",
-            "• Try refreshing the page first",
-            "• Check your internet connection",
-            "• Look for any error messages",
-            "• If problems persist, there might be a temporary connection issue",
-            "• Contact support if the issue continues"
-          ],
-          role: ["all"]
-        },
-        {
-          question: "How do I switch between light and dark mode?",
-          answer: [
-            "You can change themes in multiple ways:",
-            "• Click the theme toggle icon in the navigation menu",
-            "• Alternatively, go to \"Settings\" from your profile menu and click 'Toggle Theme' to switch between light and dark modes",
+            "Teachers set XP per bit for both earning and spending.",
+            "• Bits Earned → XP (e.g., 1 XP per bit)",
+            "• Bits Spent → XP (e.g., 0.5 XP per bit) — purchases only",
             "",
-            "Your theme preference is saved automatically!"
+            "Teachers also choose how to count bits for XP:",
+            "• Final (after multipliers) — current default",
+            "• Base (before multipliers) — ignores personal/group multipliers when converting bits to XP"
           ],
           role: ["all"]
-        }
-      ]
-    },
-    {
-      category: "Bans & Classroom Access",
-      icon: <Lock size={20} />,
-      questions: [
-        {
-          question: "What does banning a student do?",
-          answer: [
-            "• Banning prevents a student from accessing the classroom and from receiving any balance adjustments for that classroom (credits/assignments/transfers).",
-            "• Banned students are blocked at the server level so they cannot bypass the ban by re-entering the classroom code.",
-            "• The system will also prevent any balance changes targeted at a banned student for the affected classroom."
-          ],
-          role: ["teacher","admin","student"]
         },
         {
-          question: "When should I Ban vs Remove a student?",
+          question: "How do I change XP settings for my classroom?",
           answer: [
-            "• **Remove**: takes a student out of the classroom but does not prevent them from rejoining via the classroom code.",
-            "• **Ban**: keeps the student listed as barred from the classroom so they cannot rejoin even if they have the classroom code.",
-            "• **Important**: If you both ban AND remove a student, the student entry may be permanently removed from the classroom roster and the teacher will lose the ability to unban—so only Remove if you are sure you never want them to reappear in the classroom list.",
-            "• **Recommendation**: Prefer Ban (without removing) when you want to temporarily or permanently block access while preserving the ability to unban later. Only Remove when you are certain you want the student gone from the roster entirely."
+            "Go to People → XP & Leveling Settings.",
+            "You can configure:",
+            "• Enable/disable XP system",
+            "• XP per bit earned/spent",
+            "• Challenge/daily check‑in/mystery box/group join XP",
+            "• Leveling formula and base XP for Level 2 and beyond (since the base is level 1)",
+            "• Bits→XP basis (with or without multipliers)"
           ],
           role: ["teacher"]
         },
         {
-          question: "Can a teacher unban a student?",
+          question: "Why didn’t I get XP for losing bits or being siphoned?",
           answer: [
-            "• Yes — teachers can unban students and restore their ability to access the classroom and receive balance adjustments, provided the student record still exists in the classroom data (i.e. student was NOT removed).",
-            "• If the student was removed and the teacher expects to unban later, then unfortunately it wont be possible to unban the student as their record was permanently deleted from the classroom roster upon removal.",
+            "• To prevent system abuse/spam and keep XP fair, negative transactions do not grant spending XP.",
+            "• Only intentional spending (bazaar purchases and mystery box opens for example) grants Bits Spent XP."
           ],
-          role: ["teacher"]
+          role: ["all"]
         }
       ]
     },
@@ -448,11 +419,108 @@ const Support = () => {
             "• View how many levels students need to reach the next badge",
             "• Filter to see only students without any badges",
             "• Sort by badges earned to identify students who may need encouragement",
-            "• Export this data for planning or parent communication",
+            "• Export this data for planning purposes",
             "",
             "This helps you identify students who are close to milestones and provide targeted motivation!"
           ],
           role: ["teacher"]
+        }
+      ]
+    },
+    {
+      category: "Bans & Classroom Access",
+      icon: <Lock size={20} />,
+      questions: [
+        {
+          question: "What does banning a student do?",
+          answer: [
+            "• Banning prevents a student from accessing the classroom and from receiving any balance adjustments for that classroom (credits/assignments/transfers).",
+            "• Banned students are blocked at the server level so they cannot bypass the ban by re-entering the classroom code.",
+            "• The system will also prevent any balance changes targeted at a banned student for the affected classroom."
+          ],
+          role: ["teacher","admin","student"]
+        },
+        {
+          question: "When should I Ban vs Remove a student?",
+          answer: [
+            "• **Remove**: takes a student out of the classroom but does not prevent them from rejoining via the classroom code.",
+            "• **Ban**: keeps the student listed as barred from the classroom so they cannot rejoin even if they have the classroom code.",
+            "• **Important**: If you both ban AND remove a student, the student entry may be permanently removed from the classroom roster and the teacher will lose the ability to unban—so only Remove if you are sure you never want them to reappear in the classroom list.",
+            "• **Recommendation**: Prefer Ban (without removing) when you want to temporarily or permanently block access while preserving the ability to unban later. Only Remove when you are certain you want the student gone from the roster entirely."
+          ],
+          role: ["teacher"]
+        },
+        {
+          question: "Can a teacher unban a student?",
+          answer: [
+            "• Yes — teachers can unban students and restore their ability to access the classroom and receive balance adjustments, provided the student record still exists in the classroom data (i.e. student was NOT removed).",
+            "• If the student was removed and the teacher expects to unban later, then unfortunately it wont be possible to unban the student as their record was permanently deleted from the classroom roster upon removal.",
+          ],
+          role: ["teacher"]
+        }
+      ]
+    },
+    {
+      category: "Notifications & Updates",
+      icon: <Bell size={20} />,
+      questions: [
+        {
+          question: "How do I manage my notifications?",
+          answer: [
+            "Currently, you receive important updates through:",
+            "• The notification bell icon in the navigation",
+            "• Alerts about classroom activities",
+            "• Transaction confirmations such as bit assignments",
+            "• Group activity updates",
+            "",
+            "**Coming soon:** Customizable notification preferences!"
+          ],
+          role: ["all"]
+        }
+      ]
+    },
+    {
+      category: "Technical Issues",
+      icon: <Settings size={20} />,
+      questions: [
+        {
+          question: "The page isn't loading properly. What should I do?",
+          answer: [
+            "Try these troubleshooting steps:",
+            "1. Refresh the page (Ctrl+R or Cmd+R)",
+            "2. Clear browser cache and cookies",
+            "3. Ensure you're using a supported browser:",
+            "   • Chrome (recommended)",
+            "   • Firefox",
+            "   • Safari",
+            "   • Edge",
+            "4. Check your internet connection",
+            "5. Try using an incognito/private browsing window"
+          ],
+          role: ["all"]
+        },
+        {
+          question: "I can't see my bits/items/groups updating.",
+          answer: [
+            "PrizeVersity uses real-time updates. If something isn't updating:",
+            "• Try refreshing the page first",
+            "• Check your internet connection",
+            "• Look for any error messages",
+            "• If problems persist, there might be a temporary connection issue",
+            "• Contact support if the issue continues"
+          ],
+          role: ["all"]
+        },
+        {
+          question: "How do I switch between light and dark mode?",
+          answer: [
+            "You can change themes in multiple ways:",
+            "• Click the theme toggle icon in the navigation menu",
+            "• Alternatively, go to \"Settings\" from your profile menu and click 'Toggle Theme' to switch between light and dark modes",
+            "",
+            "Your theme preference is saved automatically!"
+          ],
+          role: ["all"]
         }
       ]
     }
