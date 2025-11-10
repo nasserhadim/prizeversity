@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { Award, Plus, Trash2, Edit2 } from 'lucide-react';
+import EmojiPicker from './EmojiPicker';
 
 const BadgeManager = ({ classroomId }) => {
   const [badges, setBadges] = useState([]);
@@ -15,6 +16,7 @@ const BadgeManager = ({ classroomId }) => {
     icon: '🏅',
     image: null
   });
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   useEffect(() => {
     fetchBadges();
@@ -207,17 +209,33 @@ const BadgeManager = ({ classroomId }) => {
                 />
               </div>
 
-              <div className="form-control">
+              <div className="form-control relative">
                 <label className="label">
                   <span className="label-text">Icon (Emoji)</span>
                 </label>
-                <input
-                  type="text"
-                  className="input input-bordered"
-                  value={formData.icon}
-                  onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
-                  maxLength={2}
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    className="input input-bordered flex-1"
+                    value={formData.icon}
+                    onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
+                    maxLength={4}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    onClick={() => setShowEmojiPicker(v => !v)}
+                    title="Pick Emoji"
+                  >
+                    {formData.icon || '😀'}
+                  </button>
+                </div>
+                {showEmojiPicker && (
+                  <EmojiPicker
+                    onSelect={(emoji) => setFormData(f => ({ ...f, icon: emoji }))}
+                    onClose={() => setShowEmojiPicker(false)}
+                  />
+                )}
               </div>
 
               <div className="form-control">

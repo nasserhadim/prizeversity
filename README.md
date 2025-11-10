@@ -294,6 +294,10 @@ npm install react-hot-toast
 
 npm install xlsx
 
+npm install emoji-picker-react
+
+npm install @emoji-mart/react @emoji-mart/data
+
 npm install file-saver
 
 npm install daisyui

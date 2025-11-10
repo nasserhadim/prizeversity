@@ -8,6 +8,7 @@ import ExportButtons from '../components/ExportButtons';
 import { resolveBadgeSrc } from '../utils/image';
 import socket from '../utils/socket'; // Add this import
 import { useLocation, useNavigate, useParams, Link } from 'react-router-dom';
+import EmojiPicker from '../components/EmojiPicker'; // Import the new EmojiPicker component
 
 const Badges = () => {
   const location = useLocation();
@@ -37,6 +38,7 @@ const Badges = () => {
     icon: '🏅',
     image: null
   });
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false); // NEW: state for emoji picker
 
   // Teacher-specific: student badge data with filters/sorts
   const [studentBadgeData, setStudentBadgeData] = useState([]);
@@ -934,7 +936,14 @@ const Badges = () => {
       {/* Badge Creation/Edit Modal (Teacher Only) */}
       {isTeacher && showModal && (
         <div className="modal modal-open">
-          <div className="modal-box max-w-2xl">
+          <div className="modal-box max-w-2xl relative">
+            {/* Emoji picker popover */}
+            {showEmojiPicker && (
+              <EmojiPicker
+                onSelect={(emoji) => setFormData(f => ({ ...f, icon: emoji }))}
+                onClose={() => setShowEmojiPicker(false)}
+              />
+            )}
             <h3 className="font-bold text-lg mb-4">
               {editingBadge ? 'Edit Badge' : 'Create Badge'}
             </h3>
@@ -981,17 +990,27 @@ const Badges = () => {
                 />
               </div>
 
-              <div className="form-control">
+              <div className="form-control relative">
                 <label className="label">
                   <span className="label-text">Icon (Emoji)</span>
                 </label>
-                <input
-                  type="text"
-                  className="input input-bordered"
-                  value={formData.icon}
-                  onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
-                  maxLength={2}
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    className="input input-bordered flex-1"
+                    value={formData.icon}
+                    onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
+                    maxLength={4}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    onClick={() => setShowEmojiPicker(v => !v)}
+                    title="Pick Emoji"
+                  >
+                    {formData.icon || '😀'}
+                  </button>
+                </div>
               </div>
 
               <div className="form-control">
