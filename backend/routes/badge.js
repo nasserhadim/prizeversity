@@ -80,7 +80,8 @@ router.post('/classroom/:classroomId', ensureAuthenticated, ensureTeacher, uploa
       classroom: classroomId,
       levelRequired: parseInt(levelRequired),
       icon: icon || '🏅',
-      image: req.file ? `/uploads/badges/${req.file.filename}` : '',
+      // allow either uploaded file or a direct URL from body
+      image: req.file ? `/uploads/badges/${req.file.filename}` : (req.body.image || ''),
       unlockedBazaarItems: unlockedBazaarItems ? JSON.parse(unlockedBazaarItems) : [],
       createdBy: req.user._id
     });
@@ -113,7 +114,12 @@ router.patch('/:badgeId', ensureAuthenticated, ensureTeacher, upload.single('ima
     if (description) badge.description = description;
     if (levelRequired) badge.levelRequired = parseInt(levelRequired);
     if (icon) badge.icon = icon;
-    if (req.file) badge.image = `/uploads/badges/${req.file.filename}`;
+    if (req.file) {
+      badge.image = `/uploads/badges/${req.file.filename}`;
+    } else if (Object.prototype.hasOwnProperty.call(req.body, 'image')) {
+      // allow replacing or clearing image via URL (empty string clears)
+      badge.image = req.body.image || '';
+    }
     if (unlockedBazaarItems) badge.unlockedBazaarItems = JSON.parse(unlockedBazaarItems);
 
     await badge.save();

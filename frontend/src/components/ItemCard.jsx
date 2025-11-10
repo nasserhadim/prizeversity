@@ -70,14 +70,13 @@ const ItemCard = ({ item, role, classroomId }) => {
   return (
     <div className="card bg-base-100 shadow-md border border-base-200 hover:shadow-lg transition duration-200 rounded-2xl overflow-hidden">
       {/* Image */}
-      <figure className="relative h-40 sm:h-48 md:h-52 bg-base-200 flex items-center justify-center">
+      <figure className="relative h-40 md:h-48 overflow-hidden bg-base-200">
         <img
-          src={imgSrc}
-          alt={item.name || 'Item'}
-          className="w-full h-full object-cover"
+          src={resolveImageSrc(item?.image)}
+          alt={item.name}
+          className="w-full h-full object-contain"
           sizes="(max-width: 768px) 100vw, 50vw"
           onError={(e) => {
-            // swap to placeholder if image fails to load
             e.currentTarget.onerror = null;
             e.currentTarget.src = '/images/item-placeholder.svg';
           }}

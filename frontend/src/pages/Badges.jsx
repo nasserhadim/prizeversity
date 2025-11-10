@@ -39,6 +39,9 @@ const Badges = () => {
     image: null
   });
   const [showEmojiPicker, setShowEmojiPicker] = useState(false); // NEW: state for emoji picker
+  // NEW: support URL or file for badge image
+  const [imageSource, setImageSource] = useState('file'); // 'file' | 'url'
+  const [imageUrl,   setImageUrl]   = useState('');
 
   // Teacher-specific: student badge data with filters/sorts
   const [studentBadgeData, setStudentBadgeData] = useState([]);
@@ -130,31 +133,51 @@ const Badges = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    const formDataToSend = new FormData();
-    formDataToSend.append('name', formData.name);
-    formDataToSend.append('description', formData.description);
-    formDataToSend.append('levelRequired', formData.levelRequired);
-    formDataToSend.append('icon', formData.icon);
-    if (formData.image) {
-      formDataToSend.append('image', formData.image);
-    }
+
+    // common fields
+    const base = {
+      name: formData.name,
+      description: formData.description,
+      levelRequired: formData.levelRequired,
+      icon: formData.icon
+    };
 
     try {
-      if (editingBadge) {
-        await axios.patch(`/api/badge/${editingBadge._id}`, formDataToSend, {
-          withCredentials: true,
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        toast.success('Badge updated successfully');
+      if (imageSource === 'file' && formData.image) {
+        // multipart path
+        const fd = new FormData();
+        Object.entries(base).forEach(([k, v]) => fd.append(k, v));
+        fd.append('image', formData.image);
+
+        if (editingBadge) {
+          await axios.patch(`/api/badge/${editingBadge._id}`, fd, {
+            withCredentials: true,
+            headers: { 'Content-Type': 'multipart/form-data' }
+          });
+          toast.success('Badge updated successfully');
+        } else {
+          await axios.post(`/api/badge/classroom/${classroomId}`, fd, {
+            withCredentials: true,
+            headers: { 'Content-Type': 'multipart/form-data' }
+          });
+          toast.success('Badge created successfully');
+        }
       } else {
-        await axios.post(`/api/badge/classroom/${classroomId}`, formDataToSend, {
-          withCredentials: true,
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        toast.success('Badge created successfully');
+        // JSON path (optional image URL)
+        const payload = { ...base };
+        if (imageSource === 'url' && imageUrl.trim()) {
+          payload.image = imageUrl.trim();
+        }
+
+        if (editingBadge) {
+          await axios.patch(`/api/badge/${editingBadge._id}`, payload, { withCredentials: true });
+          toast.success('Badge updated successfully');
+        } else {
+          await axios.post(`/api/badge/classroom/${classroomId}`, payload, { withCredentials: true });
+          toast.success('Badge created successfully');
+        }
       }
-      
+
       fetchBadges();
       setShowModal(false);
       resetForm();
@@ -184,6 +207,9 @@ const Badges = () => {
       image: null
     });
     setEditingBadge(null);
+    // NEW
+    setImageSource('file');
+    setImageUrl('');
   };
 
   const openEditModal = (badge) => {
@@ -195,6 +221,9 @@ const Badges = () => {
       icon: badge.icon,
       image: null
     });
+    // NEW: default to file; teacher can switch to URL if they want to replace image via URL
+    setImageSource('file');
+    setImageUrl('');
     setShowModal(true);
   };
 
@@ -489,7 +518,7 @@ const Badges = () => {
                             <img 
                               src={resolveBadgeSrc(badge.image)}
                               alt={badge.name}
-                              className="w-full h-full object-cover"
+                              className="w-full max-h-56 object-contain"
                               onError={(e) => {
                                 e.currentTarget.onerror = null;
                                 // Fallback to showing just the icon if image fails
@@ -826,7 +855,7 @@ const Badges = () => {
                             <img 
                               src={resolveBadgeSrc(badge.image)}
                               alt={badge.name}
-                              className="w-full h-32 object-cover rounded-lg mb-3"
+                              className="w-full max-h-40 object-contain mb-3"
                               onError={(e) => {
                                 e.currentTarget.onerror = null;
                                 e.currentTarget.style.display = 'none';
@@ -886,7 +915,7 @@ const Badges = () => {
                               <img 
                                 src={resolveBadgeSrc(badge.image)}
                                 alt={badge.name}
-                                className="w-full h-32 object-cover rounded-lg filter grayscale"
+                                className="w-full max-h-40 object-contain filter grayscale"
                                 onError={(e) => {
                                   e.currentTarget.onerror = null;
                                   e.currentTarget.style.display = 'none';
@@ -1013,16 +1042,46 @@ const Badges = () => {
                 </div>
               </div>
 
+              {/* Badge Image (Optional) */}
               <div className="form-control">
                 <label className="label">
                   <span className="label-text">Badge Image (Optional)</span>
                 </label>
-                <input
-                  type="file"
-                  className="file-input file-input-bordered"
-                  accept="image/*"
-                  onChange={(e) => setFormData({ ...formData, image: e.target.files[0] })}
-                />
+
+                {/* NEW: URL / Upload switch */}
+                <div className="inline-flex rounded-full bg-gray-200 p-1 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => setImageSource('url')}
+                    className={`px-3 py-1 rounded-full text-sm transition ${imageSource === 'url' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
+                  >
+                    Use image URL
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setImageSource('file')}
+                    className={`ml-1 px-3 py-1 rounded-full text-sm transition ${imageSource === 'file' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
+                  >
+                    Upload
+                  </button>
+                </div>
+
+                {imageSource === 'file' ? (
+                  <input
+                    type="file"
+                    className="file-input file-input-bordered"
+                    accept="image/*"
+                    onChange={(e) => setFormData({ ...formData, image: e.target.files[0] })}
+                  />
+                ) : (
+                  <input
+                    type="url"
+                    placeholder="https://example.com/badge.png"
+                    className="input input-bordered"
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                  />
+                )}
               </div>
 
               <div className="modal-action">

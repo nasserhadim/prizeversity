@@ -239,7 +239,7 @@ const Bazaar = () => {
               <img
                 src={resolveBannerSrc(bazaar?.image)}
                 alt="Bazaar Banner"
-                className="w-full h-48 object-cover rounded-xl shadow-sm"
+                className="w-full max-h-48 object-contain rounded-xl shadow-sm"
                 onError={(e) => {
                   e.currentTarget.onerror = null;
                   e.currentTarget.src = '/images/bazaar-placeholder.svg';

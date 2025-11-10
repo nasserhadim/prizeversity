@@ -17,6 +17,8 @@ const BadgeManager = ({ classroomId }) => {
     image: null
   });
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [imageSource, setImageSource] = useState('file');
+  const [imageUrl, setImageUrl] = useState('');
 
   useEffect(() => {
     fetchBadges();
@@ -37,31 +39,46 @@ const BadgeManager = ({ classroomId }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    const formDataToSend = new FormData();
-    formDataToSend.append('name', formData.name);
-    formDataToSend.append('description', formData.description);
-    formDataToSend.append('levelRequired', formData.levelRequired);
-    formDataToSend.append('icon', formData.icon);
-    if (formData.image) {
-      formDataToSend.append('image', formData.image);
-    }
+
+    const base = {
+      name: formData.name,
+      description: formData.description,
+      levelRequired: formData.levelRequired,
+      icon: formData.icon
+    };
 
     try {
-      if (editingBadge) {
-        await axios.patch(`/api/badge/${editingBadge._id}`, formDataToSend, {
-          withCredentials: true,
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        toast.success('Badge updated successfully');
+      if (imageSource === 'file' && formData.image) {
+        const fd = new FormData();
+        Object.entries(base).forEach(([k, v]) => fd.append(k, v));
+        fd.append('image', formData.image);
+
+        if (editingBadge) {
+          await axios.patch(`/api/badge/${editingBadge._id}`, fd, {
+            withCredentials: true,
+            headers: { 'Content-Type': 'multipart/form-data' }
+          });
+          toast.success('Badge updated successfully');
+        } else {
+          await axios.post(`/api/badge/classroom/${classroomId}`, fd, {
+            withCredentials: true,
+            headers: { 'Content-Type': 'multipart/form-data' }
+          });
+          toast.success('Badge created successfully');
+        }
       } else {
-        await axios.post(`/api/badge/classroom/${classroomId}`, formDataToSend, {
-          withCredentials: true,
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        toast.success('Badge created successfully');
+        const payload = { ...base };
+        if (imageSource === 'url' && imageUrl.trim()) payload.image = imageUrl.trim();
+
+        if (editingBadge) {
+          await axios.patch(`/api/badge/${editingBadge._id}`, payload, { withCredentials: true });
+          toast.success('Badge updated successfully');
+        } else {
+          await axios.post(`/api/badge/classroom/${classroomId}`, payload, { withCredentials: true });
+          toast.success('Badge created successfully');
+        }
       }
-      
+
       fetchBadges();
       setShowModal(false);
       resetForm();
@@ -242,12 +259,41 @@ const BadgeManager = ({ classroomId }) => {
                 <label className="label">
                   <span className="label-text">Badge Image (Optional)</span>
                 </label>
-                <input
-                  type="file"
-                  className="file-input file-input-bordered"
-                  accept="image/*"
-                  onChange={(e) => setFormData({ ...formData, image: e.target.files[0] })}
-                />
+
+                {/* NEW: URL / Upload switch */}
+                <div className="inline-flex rounded-full bg-gray-200 p-1 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => setImageSource('url')}
+                    className={`px-3 py-1 rounded-full text-sm transition ${imageSource === 'url' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
+                  >
+                    Use image URL
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setImageSource('file')}
+                    className={`ml-1 px-3 py-1 rounded-full text-sm transition ${imageSource === 'file' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
+                  >
+                    Upload
+                  </button>
+                </div>
+
+                {imageSource === 'file' ? (
+                  <input
+                    type="file"
+                    className="file-input file-input-bordered"
+                    accept="image/*"
+                    onChange={(e) => setFormData({ ...formData, image: e.target.files[0] })}
+                  />
+                ) : (
+                  <input
+                    type="url"
+                    placeholder="https://example.com/badge.png"
+                    className="input input-bordered"
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                  />
+                )}
               </div>
 
               <div className="modal-action">
