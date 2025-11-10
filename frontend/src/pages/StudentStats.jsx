@@ -170,14 +170,25 @@ const StudentStats = () => {
                 </div>
 
                 {/*
-                  Compute percent locally as a fallback.
-                  Use it for both the label and the progress bar.
+                  Compute percent using server progress, with a correct local fallback.
                 */}
                 {(() => {
-                  const xp = Number(xpData?.xp ?? 0);
-                  const cap = Number(xpData?.nextLevelProgress?.xpForNextLevel ?? 0);
-                  const pct = cap > 0 ? Math.min(100, Math.max(0, Math.round((xp / cap) * 100))) : 0;
-                  const xpNeeded = Math.max(0, cap - xp);
+                  const nlp = xpData?.nextLevelProgress || {};
+                  // Prefer server-calculated progress (already floors)
+                  let pct = Number.isFinite(nlp.progress) ? Number(nlp.progress) : undefined;
+
+                  if (!Number.isFinite(pct)) {
+                    // Fallback: per-level progress, floor and clamp to 99% until reached
+                    const xp = Number(xpData?.xp ?? 0);
+                    const cur = Number(nlp.xpForCurrentLevel ?? 0);
+                    const next = Number(nlp.xpForNextLevel ?? 0);
+                    const inLevel = Math.max(0, xp - cur);
+                    const required = Math.max(1, next - cur);
+                    pct = Math.floor((inLevel / required) * 100);
+                    pct = Math.max(0, Math.min(pct, xp >= next ? 100 : 99));
+                  }
+
+                  const xpNeeded = Math.max(0, Number(nlp.xpForNextLevel ?? 0) - Number(xpData?.xp ?? 0));
                   return (
                     <div className="text-right">
                       <p className="text-2xl font-bold text-primary">{pct}%</p>
