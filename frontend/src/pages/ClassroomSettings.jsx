@@ -512,7 +512,6 @@ export default function ClassroomSettings() {
                         </>
                     )}
                 </div>
-                <XPSettingsSection classroomId={id} />   
 
             </div>
             <Footer />
