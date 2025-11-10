@@ -49,7 +49,7 @@ export default function StudentNewsfeed() {
       }
     })();
   }, [classId, xpRefresh]);
-
+ 
   // Find this student's balance for this classroom
   const myClassroomBalance = React.useMemo(() => {
     const list = user?.classroomBalances || [];
