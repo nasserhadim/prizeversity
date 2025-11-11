@@ -362,7 +362,7 @@ router.get('/badges/:userId/:classroomId', async (req, res) => {
     const user = await User.findById(userId).populate({
       path: 'classroomBalances.badges.badge',
       model: 'Badge',
-      select: 'name description icon levelRequired classroom',
+      select: 'name description icon imageUrl levelRequired classroom',
     });
 
     if (!user) {
@@ -377,6 +377,7 @@ router.get('/badges/:userId/:classroomId', async (req, res) => {
       return res.status(400).json({ error: 'No classroom data for this user' });
     }
 
+    // Fetch all badges for this classroom
     const allBadges = await Badge.find({ classroom: classroomId }).sort({ levelRequired: 1 });
 
     const earnedIds = new Set(
@@ -402,6 +403,7 @@ router.get('/badges/:userId/:classroomId', async (req, res) => {
             name: b.badge.name,
             description: b.badge.description,
             icon: b.badge.icon,
+            imageUrl: b.badge.imageUrl,
             levelRequired: b.badge.levelRequired,
             dateEarned: b.dateEarned || null,
             status: 'earned'
@@ -411,6 +413,7 @@ router.get('/badges/:userId/:classroomId', async (req, res) => {
           name: b.name,
           description: b.description,
           icon: b.icon,
+          imageUrl: b.imageUrl,
           levelRequired: b.levelRequired,
           status: 'locked'
         }))
@@ -432,6 +435,7 @@ router.get('/badges/:userId/:classroomId', async (req, res) => {
 router.get('/classroom/:classroomId/progress', async (req, res) => {
   try {
     const { classroomId } = req.params;
+    const { baseXP, xpFormula } = await loadClassroomConfigurations(classroomId);
 
     const users = await User.find({ 'classroomBalances.classroom': classroomId })
       .populate({
@@ -440,6 +444,7 @@ router.get('/classroom/:classroomId/progress', async (req, res) => {
         select: 'name levelRequired',
       });
 
+    // Get all possible badges for the classroom
     const allBadges = await Badge.find({ classroom: classroomId }).sort({ levelRequired: 1 });
 
     const students = users.map(user => {
@@ -457,7 +462,7 @@ router.get('/classroom/:classroomId/progress', async (req, res) => {
         b => b.levelRequired > (classroomData.level || 1)
       );
 
-      // NOTE: this "xpUntilNextBadge" assumes 100 XP per level; adjust if needed.
+      // XP until next badge unlock
       const xpUntilNextBadge = nextBadge
         ? Math.max(0, nextBadge.levelRequired * 100 - classroomData.xp - (classroomData.level - 1) * 100)
         : 0;

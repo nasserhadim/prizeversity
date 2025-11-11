@@ -9,13 +9,10 @@ import StatsRadar from '../components/StatsRadar'; // add
 import { getThemeClasses } from '../utils/themeUtils'; // add
 import { getUserBadges } from '../api/apiBadges';
 
-import { useAuth } from '../context/AuthContext';
-import { computeProgress } from '../utils/xp';
-
 const StudentStats = () => {
   const { classroomId, id: studentId } = useParams();
   const location = useLocation();
-  const { theme } = useContext(ThemeContext); // read theme
+  const { theme } = useContext(ThemeContext); // <-- read theme
   const isDark = theme === 'dark';
   const themeClasses = getThemeClasses(isDark); // derive theme classes
 
@@ -27,9 +24,9 @@ const StudentStats = () => {
   const groupMultiplierValue = Number(stats?.groupMultiplier ?? stats?.student?.groupMultiplier ?? 1);
 
   // --- Badge Collection Modal State ---
-  const [badgeModalOpen, setBadgeModalOpen] = useState(false);
-  const [badgeData, setBadgeData] = useState(null);
-  const [badgeLoading, setBadgeLoading] = useState(false);
+const [badgeModalOpen, setBadgeModalOpen] = useState(false);
+const [badgeData, setBadgeData] = useState(null);
+const [badgeLoading, setBadgeLoading] = useState(false);
 
   // --- Function to open modal and fetch badges ---
   const handleViewBadges = async () => {
@@ -61,6 +58,13 @@ const StudentStats = () => {
         const res = await axios.get(url, { withCredentials: true });
         setStats(res.data);
         setError('');
+        try {
+          const badgeRes = await getUserBadges(studentId, classroomId);
+          const earnedCount = badgeRes?.badges?.earned?.length || 0;
+          setBadgeCount(earnedCount);
+        } catch (err) {
+          console.error("Error fetching badge count:", err);
+        }
       } catch (err) {
         setError(err.response?.data?.error || 'Failed to load stats');
       } finally {
@@ -155,10 +159,14 @@ const StudentStats = () => {
         {/* View Badge Collection button above radar */}
         <div className="flex justify-center mt-4">
           <button
-            onClick={handleViewBadges}
+            onClick={() =>
+              navigate(`/classroom/${classroomId}/badges?studentId=${studentId}`, {
+                state: { from: location.state?.from || 'people' },
+              })
+            }
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow transition-transform duration-150 active:scale-95"
           >
-            View Badge Collection
+            View Badge Collection ({badgeCount})
           </button>
         </div>
 
