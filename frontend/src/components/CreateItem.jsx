@@ -214,9 +214,10 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
     if (selectedRewards.length >= allPrizes.length) return;
     const w = (useCustom ? 10 : 40);
     const l = (useCustom ? 1 : 2);
+    const s = (useCustom ? "Custom" : "Common");
     setSelectedRewards(prev => [
         ...prev,
-        {itemId: "", weight: w, luckWeight: l, rarity: "Custom"}
+        {itemId: "", weight: w, luckWeight: l, rarity: s}
     ]);
   };
 
