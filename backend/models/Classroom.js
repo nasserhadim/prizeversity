@@ -42,6 +42,35 @@ const ClassroomSchema = new mongoose.Schema({
     groupJoin: { type: Number, default: 25 },
   },
 
+
+
+  //leveling system settings and xp 
+  //below powers the leveing system UI in classroom settings 
+  xpSettings: {
+    isXPEnabled: { type: Boolean, default: true },
+    xpFormulaType: {
+      type: String,
+      enum: ['linear', 'exponential', 'logarithmic'],
+      default: 'exponential'
+    },
+    baseXPLevel2: { type: Number, default: 100 },
+    bitToXpCountMode: { 
+      type: String, 
+      enum: ['base', 'final'], 
+      default: 'final' 
+    },
+    xpRewards: {
+      xpPerBitEarned:    { type: Number, default: 1 },
+      xpPerBitSpent:     { type: Number, default: 0.5 }, // purchases only
+      xpPerStatsBoost:   { type: Number, default: 10 },
+      dailyCheckInXP:    { type: Number, default: 5 },
+      dailyCheckInLimit: { type: Number, default: 1 },
+      groupJoinXP:       { type: Number, default: 10 },
+      challengeXP:       { type: Number, default: 25 },
+      mysteryBoxUseXP:   { type: Number, default: 0 } // 0 = off
+    }
+  },
+
   studentSendEnabled: { type: Boolean, default: false },
   studentsCanViewStats: { type: Boolean, default: true }, // Add this line
 

@@ -14,8 +14,17 @@ import { API_BASE } from '../config/api';
 import ConfirmModal from '../components/ConfirmModal';
 import Footer from '../components/Footer';
 import Navbar from '../components/Navbar';
+import { computeProgress } from '../utils/xp';
 
 const socket = io(); // no "/api" needed here
+
+//normalize 0–1 or 0–100 to percent 0–100
+const normalizePct = (p) => {
+  if (!Number.isFinite(p)) return 0;
+  const pct = p <= 1 ? p * 100 : p;
+  return Math.max(0, Math.min(100, pct));
+};
+
 
 const Classroom = () => {
   const { id } = useParams();
@@ -33,6 +42,58 @@ const Classroom = () => {
   const [visibleCount, setVisibleCount] = useState(10);
   const [confirmModal, setConfirmModal] = useState(null);
   const [xpRefresh, setXpRefresh] = useState(false);
+  const [xpSettings, setXpSettings] = useState(null);
+
+
+//current user's classroom balance (xp/level) for THIS classroom
+const myClassroomBalance = React.useMemo(() => {
+  const list = user?.classroomBalances || [];
+  const found = list.find(cb => String(cb.classroom) === String(id));
+  return found || { xp: 0, level: 1 };
+}, [user, id, xpRefresh]);
+
+//compute progress values for the progress bar
+const progress = React.useMemo(() => {
+  if (xpSettings == null) {
+    return { need: 100, have: Number(myClassroomBalance?.xp) || 0, pct: 0 };
+  }
+  try {
+    const res = computeProgress(
+      Number(myClassroomBalance?.xp) || 0,
+      Number(myClassroomBalance?.level) || 1,
+      xpSettings
+    );
+    const need = Number(res?.need) || 100;
+    const have = Number(res?.have) || 0;
+    let pct = Number(res?.pct);
+    if (!Number.isFinite(pct)) {
+      pct = need > 0 ? have / need : 0;
+    }
+    return { need, have, pct };
+  } catch (e) {
+    console.error('computeProgress failed:', e);
+    const have = Number(myClassroomBalance?.xp) || 0;
+    const need = 100;
+    const pct = need > 0 ? have / need : 0;
+    return { need, have, pct };
+  }
+}, [myClassroomBalance, xpSettings]);
+
+//load xp settings when classroom changes or xpRefresh toggles
+  useEffect(() => {
+    if (!id) return;
+    (async () => {
+      try {
+        const r = await axios.get(`/api/xpSettings/${id}`);
+        //default to enabled if backend returns null/empty
+        setXpSettings(r.data ?? { isXPEnabled: true });
+        console.log('[xpSettings]', r.data ?? { isXPEnabled: true });
+      } catch (e) {
+        console.error('Failed to load xpSettings', e);
+        setXpSettings({ isXPEnabled: true });
+      }
+    })();
+  }, [id, xpRefresh]);
 
 
   // Fetch classroom and student data on mount
@@ -99,6 +160,7 @@ const Classroom = () => {
     const handleNewAnnouncement = (announcement) => {
       setAnnouncements(prev => [announcement, ...prev]);
     };
+
 
     // Add classroom removal handler
     const handleClassroomRemoval = (data) => {
@@ -307,6 +369,43 @@ const Classroom = () => {
         />
 
         <div className="max-w-3xl mx-auto p-6 bg-green-50 rounded-lg space-y-6">
+        {xpSettings?.isXPEnabled === false ? null : (
+          (() => {
+            const pct = normalizePct(progress?.pct);
+            const need = Number(progress?.need) || 100;
+            const have = Number(progress?.have) || 0;
+            const level = Number(myClassroomBalance?.level) || 1;
+
+            return (
+              <div className="card bg-white border border-base-300 shadow-sm rounded-lg p-4">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="font-semibold">Level {level}</div>
+                  <div className="text-sm text-gray-600">
+                    {have} / {need} XP
+                  </div>
+                </div>
+
+                {/* Primary progress (DaisyUI) */}
+                <progress
+                  className="progress progress-success w-full"
+                  value={pct}
+                  max="100"
+                ></progress>
+                <div className="text-xs text-gray-500 mt-1">{Math.round(pct)}% to next level</div>
+
+                {/* Fallback bar in case <progress> isn't styled */}
+                <div className="mt-2">
+                  <div className="h-2 bg-gray-200 rounded">
+                    <div className="h-2 rounded bg-green-500" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              </div>
+            );
+          })()
+        )}
+
+
+        
           {/* Navigation */}
           <Link to="/classrooms" className="link text-accent">
             ← Back to Classroom Dashboard
@@ -331,6 +430,14 @@ const Classroom = () => {
             )}
           </nav>
 
+            {/* settings loaded  
+           {xpSettings && (
+           
+            <div className="text-xs text-gray-500">XP settings loaded</div>
+            )}
+*/}
+
+
           {/* Teacher/Admin Controls */}
           {(user.role === 'teacher' || user.role === 'admin') && (
             <div id="class-settings" className="space-y-4">
@@ -351,15 +458,15 @@ const Classroom = () => {
           )}
 
           {/* XP test buttons jsut for students (temporary) */}
-          {user.role === 'student' && (
+          {(user.role === 'teacher' || user.role === 'admin') && (
             <div className="flex gap-3 mb-6 justify-center">
               <button
                 onClick={async () => {
                   try {
                     await axios.post('/api/xp/test/add', {
                       userId: user._id,
-                      classroomId: id, // matches useParams
-                      xpToAdd: 50, // adjust XP value if needed
+                      classroomId: id,
+                      xpToAdd: 50,
                     });
                     toast.success('Added 50 XP');
                     setXpRefresh(prev => !prev);
@@ -392,7 +499,7 @@ const Classroom = () => {
                 Reset XP
               </button>
             </div>
-          )}
+          )}         
 
 
           {/* Announcements List */}
