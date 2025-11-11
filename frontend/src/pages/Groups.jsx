@@ -698,9 +698,9 @@ const Groups = () => {
       const { groupSetId, groupId, memberIds } = adjustModal;
       const amt = Number(adjustAmount);
       const res = await axios.post(
-        `/api/groupset/${groupSetId}/group/${groupId}/adjust-balance`, // Remove 'group-balance' prefix
-        { 
-          amount: amt, 
+        `/api/groupset/${groupSetId}/group/${groupId}/adjust-balance`,
+        {
+          amount: amt,
           description: adjustDesc,
           applyGroupMultipliers: adjustApplyGroupMultipliers,
           applyPersonalMultipliers: adjustApplyPersonalMultipliers,
@@ -742,11 +742,12 @@ const Groups = () => {
 
     try {
       await axios.post(
-        `/api/group-balance/groupset/${groupSetId}/group/${groupId}/adjust`,
+        `/api/groupset/${groupSetId}/group/${groupId}/adjust-balance`,
         {
           amount: amt,
           description: adjustDescription,
-          selectedMemberIds: approvedSelectedIds, // Add this
+          // Use backend expected key:
+          memberIds: approvedSelectedIds,
           applyGroupMultipliers: adjustApplyGroupMultipliers,
           applyPersonalMultipliers: adjustApplyPersonalMultipliers
         }
