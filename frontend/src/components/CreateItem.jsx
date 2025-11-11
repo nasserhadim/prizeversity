@@ -23,11 +23,11 @@ const CATEGORY_OPTIONS = {
   Mystery: [] 
 };
 const RARITY_OPTIONS = {
-    Common: [{ weight: 40, luckWeight: 2}],
-    Uncommon: [{ weight: 30, luckWeight: 4}],
-    Rare: [{ weight: 20, luckWeight: 6}],
-    Epic: [{ weight: 8, luckWeight: 8}],
-    Legendary: [{ weight: 2, luckWeight: 10}],
+    Common: [{ weight: 40, luckWeight: 1}],
+    Uncommon: [{ weight: 30, luckWeight: 2}],
+    Rare: [{ weight: 20, luckWeight: 3}],
+    Epic: [{ weight: 8, luckWeight: 4}],
+    Legendary: [{ weight: 2, luckWeight: 5}],
     Custom: []
 }
 
