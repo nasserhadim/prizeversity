@@ -407,20 +407,6 @@ const Navbar = () => {
                 </Link>
               </li>
               <li>
-                <Link
-                  to={`/classroom/${classroomId}/badges`}
-                  className={`flex items-center gap-2 ${hoverClass} ${
-                    location.pathname.startsWith(`/classroom/${classroomId}/badges`)
-                      ? 'text-green-500'
-                      : ''
-                  }`}
-                  title="Badges"
-                >
-                  <Medal size={18} />
-                  <span>Badges</span>
-                </Link>
-              </li>
-              <li>
                 <div className="tooltip tooltip-bottom" data-tip="Challenge">
                   <Link
                     to={`/classroom/${classroomId}/challenge`}
@@ -450,7 +436,7 @@ const Navbar = () => {
                   }`}
                   title="Badges"
                 >
-                  <Crown size={18} />
+                  <Medal size={18} />
                   <span>Badges</span>
                 </Link>
               </li>

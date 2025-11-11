@@ -53,6 +53,7 @@ const StudentBadgesPage = ({ classroomId, studentId }) => {
         // Get earned and locked badges from XP route
         const res = await getUserBadges(targetUserId, classroomId);
         setBadgeData(res);
+        console.log('Badge data received:', res);
       } catch (err) {
         console.error('Error fetching student badge data:', err);
       } finally {
@@ -148,50 +149,125 @@ const StudentBadgesPage = ({ classroomId, studentId }) => {
       {earnedBadges.length === 0 ? (
         <p className="text-gray-500 mb-6">No badges earned yet.</p>
       ) : (
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          {earnedBadges.map((badge) => (
-            <div
-              key={badge._id}
-              className="border rounded-md p-3 shadow bg-green-100 border-green-400"
-            >
-              <p className="text-lg font-bold">
-                {badge.icon || '🏅'} {badge.name}
-              </p>
-              <p className="text-sm text-gray-700">{badge.description}</p>
-              <p className="text-sm mt-1">Level {badge.levelRequired}</p>
-              {badge.dateEarned && (
-                <p className="text-xs text-gray-600 mt-1 italic">
-                  Earned: {new Date(badge.dateEarned).toLocaleString()}
-                </p>
-              )}
-            </div>
-          ))}
+        <div className="flex flex-wrap gap-4 mb-6 justify-start">
+          {earnedBadges.map((badge) => {
+            const imgSrc =
+              badge.imageUrl || badge.imageURL || badge.image || null;
+
+            return (
+              <div
+                key={badge._id}
+                className="relative flex flex-col justify-between rounded-2xl shadow-md border border-success/50 bg-success/10 hover:shadow-lg transition p-4 w-60 h-[300px]"
+              >
+                {/* Top: emoji */}
+                <div className="flex justify-start items-start">
+                  <span className="text-3xl">{badge.icon || '🏅'}</span>
+                </div>
+
+                {/* Middle: badge text info */}
+                <div className="mt-3 text-left space-y-1">
+                  <h4 className="font-semibold text-base text-base-content">
+                    {badge.name}
+                  </h4>
+                  {badge.description && (
+                    <p className="text-sm text-base-content/80">
+                      {badge.description}
+                    </p>
+                  )}
+                  <p className="text-sm font-semibold text-base-content/90">
+                    Level {badge.levelRequired}
+                  </p>
+                  {badge.dateEarned && (
+                    <p className="text-xs text-base-content/70 italic">
+                      Earned: {new Date(badge.dateEarned).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+
+                {/* Bottom: badge image (if present) */}
+                {imgSrc && (
+                  <div className="mt-4 flex justify-center">
+                    <img
+                      src={
+                        imgSrc.startsWith('/uploads/')
+                          ? `${
+                              import.meta.env.VITE_API_BASE_URL ||
+                              'http://localhost:5000'
+                            }${imgSrc}`
+                          : imgSrc
+                      }
+                      alt={badge.name}
+                      className="w-24 h-28 object-contain rounded-md"
+                      onError={(e) =>
+                        (e.currentTarget.style.display = 'none')
+                      }
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
       {/* Locked Badges */}
-      <h3 className="font-semibold mb-2">Locked Badges ({lockedBadges.length})</h3>
+      <h3 className="font-semibold mb-2">
+        Locked Badges ({lockedBadges.length})
+      </h3>
       {lockedBadges.length === 0 ? (
         <p className="text-gray-500">No locked badges remaining.</p>
       ) : (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="flex flex-wrap gap-4 justify-start">
           {lockedBadges.map((badge) => (
             <div
-              key={badge._id}
-              className="border rounded-md p-3 shadow bg-gray-100 opacity-70 border-gray-400"
+              key={badge._id || badge.id}
+              className="relative flex flex-col justify-between rounded-2xl shadow-md border border-base-300 bg-base-200 opacity-70 hover:shadow-lg transition p-4 w-60 h-[300px]"
             >
-              <p className="text-lg font-bold">
-                {badge.icon || '🏅'} {badge.name}
-              </p>
-              <p className="text-sm text-gray-600">{badge.description}</p>
-              <p className="text-sm mt-1">Level {badge.levelRequired} Required</p>
-              <p className="text-gray-500 text-sm mt-1 flex items-center">🔒 Locked</p>
+              {/* Top row: emoji */}
+              <div className="flex justify-start items-start">
+                <span className="text-3xl">{badge.icon || '🏅'}</span>
+              </div>
+
+              {/* Middle: badge text info */}
+              <div className="mt-3 text-left space-y-1">
+                <h4 className="font-semibold text-base text-base-content">
+                  {badge.name}
+                </h4>
+                {badge.description && (
+                  <p className="text-sm text-base-content/70">
+                    {badge.description}
+                  </p>
+                )}
+                <p className="text-sm font-semibold text-base-content/80">
+                  Level {badge.levelRequired} Required
+                </p>
+                <p className="text-xs text-base-content/60 flex items-center">
+                  🔒 Locked
+                </p>
+              </div>
+
+              {/* Bottom: badge image */}
+              {badge.imageUrl && (
+                <div className="mt-4 flex justify-center">
+                  <img
+                    src={
+                      badge.imageUrl?.startsWith('/uploads/')
+                        ? `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}${badge.imageUrl}`
+                        : badge.imageUrl
+                    }
+                    alt={badge.name}
+                    className="w-24 h-28 object-contain rounded-md"
+                    onError={(e) => (e.currentTarget.style.display = 'none')}
+                  />
+                </div>
+              )}
             </div>
           ))}
         </div>
       )}
     </div>
   );
-};
+}; 
+
 
 export default StudentBadgesPage;
