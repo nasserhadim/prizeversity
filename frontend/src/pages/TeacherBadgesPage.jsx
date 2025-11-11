@@ -2,7 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { createBadge, getBadges, deleteBadge } from '../API/apiBadges';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
-import EmojiPicker from 'emoji-picker-react';
+import Picker from '@emoji-mart/react';
+import data from '@emoji-mart/data';
+import { Trash2 } from "lucide-react";
+import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+
+
 
 const TeacherBadgesPage = ({ classroomId }) => {
   const { user } = useAuth();
@@ -14,6 +20,8 @@ const TeacherBadgesPage = ({ classroomId }) => {
   const [editingBadge, setEditingBadge] = useState(null);
   const [sortField, setSortField] = useState('name');
   const [sortOrder, setSortOrder] = useState('asc');
+  const navigate = useNavigate();
+
 
   const [formData, setFormData] = useState({
     name: '',
@@ -26,6 +34,7 @@ const TeacherBadgesPage = ({ classroomId }) => {
   const [studentList, setStudentList] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [levelFilter, setLevelFilter] = useState('');
+  const [badgeFilter, setBadgeFilter] = useState('all');
 
   // Derived filtered students
   const filteredStudents = studentList.filter((s) => {
@@ -33,7 +42,16 @@ const TeacherBadgesPage = ({ classroomId }) => {
       s.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.email?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesLevel = levelFilter ? s.level === Number(levelFilter) : true;
-    return matchesSearch && matchesLevel;
+
+    const badgeCount = s.badgesEarned || 0;
+    const matchesBadge =
+      badgeFilter === 'all'
+        ? true
+        : badgeFilter === 'with'
+        ? badgeCount > 0
+        : badgeCount === 0;
+
+    return matchesSearch && matchesLevel && matchesBadge;
   });
 
   const sortedStudents = [...filteredStudents].sort((a, b) => {
@@ -116,25 +134,39 @@ const TeacherBadgesPage = ({ classroomId }) => {
     setLoading(true);
 
     try {
-      const data = {
-        ...formData,
-        classroomId,
-        teacherId: user._id,
-      };
+      const data = new FormData();
+      data.append('name', formData.name);
+      data.append('description', formData.description);
+      data.append('levelRequired', formData.levelRequired);
+      data.append('icon', formData.icon);
+      data.append('classroomId', classroomId);
+      data.append('teacherId', user._id);
+      if (formData.image) data.append('image', formData.image);
+
+      let res;
 
       if (editingBadge) {
-        // Update existing badge
-        const res = await axios.put(`/api/badges/${editingBadge._id}`, data);
+        // update existing badge
+        res = await axios.put(`/api/badges/${editingBadge._id}`, data, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          withCredentials: true,
+        });
+
         setBadges((prev) =>
           prev.map((b) => (b._id === editingBadge._id ? res.data : b))
         );
         setEditingBadge(null);
       } else {
-        // Create new badge
-        const res = await createBadge(data);
+        // create new badge
+        res = await axios.post('/api/badges', data, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          withCredentials: true,
+        });
+
         setBadges((prev) => [...prev, res.data]);
       }
 
+      // Reset modal + form
       setShowModal(false);
       setFormData({ name: '', description: '', levelRequired: '', icon: '' });
     } catch (err) {
@@ -186,6 +218,11 @@ const TeacherBadgesPage = ({ classroomId }) => {
 
   return (
     <div className="p-6">
+      <div className="mb-2">
+        <Link to={`/classroom/${classroomId}`} className="link text-green-600 hover:text-green-700 focus:outline-none focus:ring-2 focus:ring-green-300 rounded">
+         ← Back to Classroom
+        </Link>
+      </div>
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-bold">Badge Management</h2>
@@ -217,38 +254,70 @@ const TeacherBadgesPage = ({ classroomId }) => {
       {badges.length === 0 ? (
         <p className="text-gray-500">No badges created yet.</p>
       ) : (
-        <div className="grid grid-cols-3 gap-4 mb-8">
+        <div className="flex flex-wrap gap-4 mb-6 justify-start">
+
           {badges.map((badge) => (
             <div
               key={badge._id}
-              className="border rounded-md p-3 shadow hover:shadow-lg transition relative"
+              className="relative flex flex-col justify-between rounded-2xl shadow-md border border-gray-200 bg-white hover:shadow-lg transition p-4 w-60 h-[300px]"
             >
-              {/* Edit & Delete Buttons */}
-              <div className="absolute top-2 right-2 flex gap-3">
-                <button
-                  onClick={() => handleEditBadge(badge)}
-                  className="text-blue-500 hover:text-blue-700"
-                  title="Edit badge"
-                >
-                  ✎
-                </button>
-                <button
-                  onClick={() => handleDeleteBadge(badge._id)}
-                  className="text-red-500 hover:text-red-700"
-                  title="Delete badge"
-                >
-                  ✕
-                </button>
+              {/* Top row: emoji + edit/delete */}
+              <div className="flex justify-between items-start">
+                <span className="text-3xl">
+                  {badge.icon || '🏅'}
+                </span>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleEditBadge(badge)}
+                    className="text-blue-500 hover:text-blue-700"
+                    title="Edit badge"
+                  >
+                    ✎
+                  </button>
+                  <button
+                    onClick={() => handleDeleteBadge(badge._id)}
+                    className="text-red-500 hover:text-red-700 p-1 rounded focus:outline-none focus:ring-2 focus:ring-red-300"
+                    title="Delete badge"
+                    aria-label="Delete badge"
+                  >
+                    <Trash2 size={16} className="shrink-0" aria-hidden="true" />
+                  </button>
+                </div>
               </div>
 
-              <p className="text-lg font-bold">
-                {badge.icon || '🏅'} {badge.name}
-              </p>
-              <p className="text-sm text-gray-600">{badge.description}</p>
-              <p className="text-sm mt-1">Level {badge.levelRequired} Required</p>
-              <p className="text-xs text-gray-400 mt-1">
-                Created {new Date(badge.createdAt).toLocaleDateString()}
-              </p>
+              {/* Middle: badge text info */}
+              <div className="mt-3 text-left space-y-1">
+                <h4 className="font-semibold text-base">{badge.name}</h4>
+                {badge.description && (
+                  <p className="text-sm text-gray-600">{badge.description}</p>
+                )}
+                <p className="text-sm font-semibold text-gray-700">
+                  Level {badge.levelRequired} Required
+                </p>
+                <p className="text-xs text-gray-400">
+                  Created {new Date(badge.createdAt).toLocaleDateString()}
+                </p>
+              </div>
+
+              {/* Bottom: badge image (only if present) */}
+              {badge.imageUrl && (
+                <div className="mt-4 flex justify-center">
+                  <img
+                    src={
+                      badge.imageUrl?.startsWith('/uploads/')
+                        ? `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}${badge.imageUrl}`
+                        : badge.imageUrl
+                    }
+                    alt={badge.name}
+                    className="w-24 h-28 object-contain rounded-md"
+                    onError={(e) => {
+                      // hide broken images to avoid the tiny broken icon
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -319,14 +388,40 @@ const TeacherBadgesPage = ({ classroomId }) => {
 
                 {showEmojiPicker && (
                   <div className="mt-2">
-                    <EmojiPicker
-                      onEmojiClick={(e) => {
-                        setFormData({ ...formData, icon: e.emoji });
+                    <Picker
+                      data={data}
+                      onEmojiSelect={(emoji) => {
+                        setFormData({ ...formData, icon: emoji.native });
                         setShowEmojiPicker(false);
                       }}
+                      theme="light"
+                      previewPosition="none"
                     />
                   </div>
                 )}
+              </label>
+
+              {/* Badge Image Upload */}
+              <label className="text-sm font-semibold">
+                Badge Image:
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={async (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    const formDataImg = new FormData();
+                    formDataImg.append('image', file);
+                    try {
+                      const file = e.target.files[0];
+                      if (file) setFormData({ ...formData, image: file });
+                    } catch (err) {
+                      console.error('Upload failed:', err);
+                      alert('Image upload failed.');
+                    }
+                  }}
+                  className="border p-2 rounded w-full mt-1"
+                />
               </label>
 
               <div className="flex justify-end gap-3 mt-4">
@@ -359,6 +454,22 @@ const TeacherBadgesPage = ({ classroomId }) => {
   <h2 className="text-xl font-bold mb-4">Student Badge Progress</h2>
 
   {/* Filters + Sorting + Export */}
+  <div className="flex justify-end gap-2 mb-3">
+    <button
+      onClick={() => exportToCSV(sortedStudents)}
+      className="border px-3 py-1 rounded hover:bg-gray-100 text-sm"
+    >
+      Export CSV
+    </button>
+    <button
+      onClick={() => exportToJSON(sortedStudents)}
+      className="border px-3 py-1 rounded hover:bg-gray-100 text-sm"
+    >
+      Export JSON
+    </button>
+  </div>
+
+  {/* Filters + Sorting */}
   <div className="flex flex-wrap items-center gap-3 mb-4">
     <input
       type="text"
@@ -367,6 +478,7 @@ const TeacherBadgesPage = ({ classroomId }) => {
       onChange={(e) => setSearchQuery(e.target.value)}
       className="border rounded px-3 py-1 flex-1 min-w-[200px]"
     />
+    
     <select
       value={levelFilter}
       onChange={(e) => setLevelFilter(e.target.value)}
@@ -380,7 +492,18 @@ const TeacherBadgesPage = ({ classroomId }) => {
       ))}
     </select>
 
-    {/* Sort and order controls */}
+    {/* NEW Badge Filter */}
+    <select
+      value={badgeFilter}
+      onChange={(e) => setBadgeFilter(e.target.value)}
+      className="border rounded px-3 py-1"
+    >
+      <option value="all">All Students</option>
+      <option value="with">With Badges</option>
+      <option value="without">Without Badges</option>
+    </select>
+
+    {/* Sort + Order controls */}
     <select
       value={sortField}
       onChange={(e) => setSortField(e.target.value)}
@@ -398,58 +521,104 @@ const TeacherBadgesPage = ({ classroomId }) => {
     >
       {sortOrder === 'asc' ? 'ASC' : 'DESC'}
     </button>
-
-    {/* Export buttons */}
-    <button
-      onClick={() => exportToCSV(sortedStudents)}
-      className="ml-auto border px-3 py-1 rounded hover:bg-gray-100"
-    >
-      Export CSV
-    </button>
-    <button
-      onClick={() => exportToJSON(sortedStudents)}
-      className="border px-3 py-1 rounded hover:bg-gray-100"
-    >
-      Export JSON
-    </button>
-  </div>
-
-  {/* Student Table */}
-  <table className="w-full border rounded-md text-sm">
-    <thead className="bg-gray-100">
-      <tr>
-        <th className="p-2 border">Student</th>
-        <th className="p-2 border">Level</th>
-        <th className="p-2 border">XP</th>
-        <th className="p-2 border">Badges Earned</th>
-        <th className="p-2 border">Next Badge</th>
-      </tr>
-    </thead>
-    <tbody>
-      {sortedStudents.length === 0 ? (
-        <tr>
-          <td colSpan="6" className="p-4 text-center text-gray-500">
-            No students found.
-          </td>
-        </tr>
-      ) : (
-        sortedStudents.map((s) => (
-          <tr key={s._id} className="hover:bg-gray-50">
-            <td className="p-2 border">
-              <div className="font-medium">{s.name}</div>
-              <div className="text-gray-500 text-xs">{s.email}</div>
-            </td>
-            <td className="p-2 border text-center">{s.level}</td>
-            <td className="p-2 border text-center">{s.xp}</td>
-            <td className="p-2 border text-center">{s.badgesEarned} / {s.totalBadges ?? 0}</td>
-            <td className="p-2 border text-center">{s.nextBadge}</td>
-          </tr>
-        ))
-      )}
-    </tbody>
-  </table>
-</div>
     </div>
+
+    {/* Student Table */}
+    <div className="card bg-base-100 border border-base-200 shadow-md rounded-2xl overflow-x-auto">
+      <div className="card-body p-4">
+        {/* Removed duplicate title inside card */}
+        <table className="table table-zebra w-full table-auto text-sm md:text-base">
+          <thead className="text-base-content/70 border-b border-base-300">
+            <tr>
+              <th className="py-3">Student</th>
+              <th className="py-3 text-center">Level</th>
+              <th className="py-3 text-center">XP</th>
+              <th className="py-3 text-center">Badges Earned</th>
+              <th className="py-3 text-center">Next Badge</th>
+              <th className="py-3 text-center">XP Until Next Badge</th>
+              <th className="py-3 text-center">Actions</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {sortedStudents.length === 0 ? (
+              <tr>
+                <td
+                  colSpan="5"
+                  className="py-6 text-center text-base-content/60 italic"
+                >
+                  No students found.
+                </td>
+              </tr>
+            ) : (
+              sortedStudents.map((s, i) => (
+                <tr
+                  key={s._id || i}
+                  className="hover:bg-base-200 transition-colors"
+                >
+                  <td className="py-3">
+                    <div className="font-medium">{s.name}</div>
+                    <div className="text-xs opacity-70">{s.email}</div>
+                  </td>
+
+                  <td className="py-3 text-center">{s.level}</td>
+
+                  <td className="py-3 text-center">{s.xp}</td>
+
+                  <td className="py-3 text-center">
+                    <span className="font-medium">{s.badgesEarned}</span>
+                    <span className="opacity-70 ml-1">/ {s.totalBadges ?? 0}</span>
+                  </td>
+
+                  <td className="py-3 text-center">
+                    {s.nextBadge ? (
+                      <span className="text-sm">{s.nextBadge}</span>
+                    ) : (
+                      <span className="text-xs opacity-70 italic">—</span>
+                    )}
+                  </td>
+                  <td className="py-3 text-center">
+                    {s.nextBadge === 'All badges earned'
+                      ? '—'
+                      : `${s.xpUntilNextBadge ?? 0} XP`}
+                  </td>
+
+                  <td className="py-3 text-center">
+                    <div className="flex flex-col sm:flex-row justify-center gap-2">
+                      <button
+                        className="btn btn-xs sm:btn-sm btn-outline whitespace-nowrap"
+                        onClick={() =>
+                          navigate(
+                            `/classroom/${classroomId}/profile/${s._id}`,
+                            { state: { from: 'badges', classroomId } }
+                          )
+                        }
+                      >
+                        View Profile
+                      </button>
+
+                      <button
+                        className="btn btn-xs sm:btn-sm btn-success whitespace-nowrap"
+                        onClick={() =>
+                          navigate(
+                            `/classroom/${classroomId}/student/${s._id}/stats`,
+                            { state: { from: 'badges' } }
+                          )
+                        }
+                      >
+                        View Stats
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
   );
 };
 

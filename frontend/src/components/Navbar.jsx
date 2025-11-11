@@ -33,7 +33,8 @@ import {
   Star,
   Sun,
   Moon,
-  Crown
+  Crown,
+  Medal
 } from 'lucide-react';
 
 const BACKEND_URL = `${API_BASE}`;
@@ -406,20 +407,6 @@ const Navbar = () => {
                 </Link>
               </li>
               <li>
-                <Link
-                  to={`/classroom/${classroomId}/badges`}
-                  className={`flex items-center gap-2 ${hoverClass} ${
-                    location.pathname.startsWith(`/classroom/${classroomId}/badges`)
-                      ? 'text-green-500'
-                      : ''
-                  }`}
-                  title="Badges"
-                >
-                  <Crown size={18} />
-                  <span>Badges</span>
-                </Link>
-              </li>
-              <li>
                 <div className="tooltip tooltip-bottom" data-tip="Challenge">
                   <Link
                     to={`/classroom/${classroomId}/challenge`}
@@ -437,6 +424,20 @@ const Navbar = () => {
                 >
                   <Star size={18} />
                   <span>Feedback</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to={`/classroom/${classroomId}/badges`}
+                  className={`flex items-center gap-2 ${hoverClass} ${
+                    location.pathname.startsWith(`/classroom/${classroomId}/badges`)
+                      ? 'text-green-500'
+                      : ''
+                  }`}
+                  title="Badges"
+                >
+                  <Medal size={18} />
+                  <span>Badges</span>
                 </Link>
               </li>
             </>
