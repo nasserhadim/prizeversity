@@ -26,6 +26,7 @@ const TeacherBadgesPage = ({ classroomId }) => {
   const [studentList, setStudentList] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [levelFilter, setLevelFilter] = useState('');
+  const [badgeFilter, setBadgeFilter] = useState('all');
 
   // Derived filtered students
   const filteredStudents = studentList.filter((s) => {
@@ -33,7 +34,16 @@ const TeacherBadgesPage = ({ classroomId }) => {
       s.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.email?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesLevel = levelFilter ? s.level === Number(levelFilter) : true;
-    return matchesSearch && matchesLevel;
+
+    const badgeCount = s.badgesEarned || 0;
+    const matchesBadge =
+      badgeFilter === 'all'
+        ? true
+        : badgeFilter === 'with'
+        ? badgeCount > 0
+        : badgeCount === 0;
+
+    return matchesSearch && matchesLevel && matchesBadge;
   });
 
   const sortedStudents = [...filteredStudents].sort((a, b) => {
@@ -359,6 +369,22 @@ const TeacherBadgesPage = ({ classroomId }) => {
   <h2 className="text-xl font-bold mb-4">Student Badge Progress</h2>
 
   {/* Filters + Sorting + Export */}
+  <div className="flex justify-end gap-2 mb-3">
+    <button
+      onClick={() => exportToCSV(sortedStudents)}
+      className="border px-3 py-1 rounded hover:bg-gray-100 text-sm"
+    >
+      Export CSV
+    </button>
+    <button
+      onClick={() => exportToJSON(sortedStudents)}
+      className="border px-3 py-1 rounded hover:bg-gray-100 text-sm"
+    >
+      Export JSON
+    </button>
+  </div>
+
+  {/* Filters + Sorting */}
   <div className="flex flex-wrap items-center gap-3 mb-4">
     <input
       type="text"
@@ -367,6 +393,7 @@ const TeacherBadgesPage = ({ classroomId }) => {
       onChange={(e) => setSearchQuery(e.target.value)}
       className="border rounded px-3 py-1 flex-1 min-w-[200px]"
     />
+    
     <select
       value={levelFilter}
       onChange={(e) => setLevelFilter(e.target.value)}
@@ -380,7 +407,18 @@ const TeacherBadgesPage = ({ classroomId }) => {
       ))}
     </select>
 
-    {/* Sort and order controls */}
+    {/* NEW Badge Filter */}
+    <select
+      value={badgeFilter}
+      onChange={(e) => setBadgeFilter(e.target.value)}
+      className="border rounded px-3 py-1"
+    >
+      <option value="all">All Students</option>
+      <option value="with">With Badges</option>
+      <option value="without">Without Badges</option>
+    </select>
+
+    {/* Sort + Order controls */}
     <select
       value={sortField}
       onChange={(e) => setSortField(e.target.value)}
@@ -398,58 +436,70 @@ const TeacherBadgesPage = ({ classroomId }) => {
     >
       {sortOrder === 'asc' ? 'ASC' : 'DESC'}
     </button>
-
-    {/* Export buttons */}
-    <button
-      onClick={() => exportToCSV(sortedStudents)}
-      className="ml-auto border px-3 py-1 rounded hover:bg-gray-100"
-    >
-      Export CSV
-    </button>
-    <button
-      onClick={() => exportToJSON(sortedStudents)}
-      className="border px-3 py-1 rounded hover:bg-gray-100"
-    >
-      Export JSON
-    </button>
-  </div>
-
-  {/* Student Table */}
-  <table className="w-full border rounded-md text-sm">
-    <thead className="bg-gray-100">
-      <tr>
-        <th className="p-2 border">Student</th>
-        <th className="p-2 border">Level</th>
-        <th className="p-2 border">XP</th>
-        <th className="p-2 border">Badges Earned</th>
-        <th className="p-2 border">Next Badge</th>
-      </tr>
-    </thead>
-    <tbody>
-      {sortedStudents.length === 0 ? (
-        <tr>
-          <td colSpan="6" className="p-4 text-center text-gray-500">
-            No students found.
-          </td>
-        </tr>
-      ) : (
-        sortedStudents.map((s) => (
-          <tr key={s._id} className="hover:bg-gray-50">
-            <td className="p-2 border">
-              <div className="font-medium">{s.name}</div>
-              <div className="text-gray-500 text-xs">{s.email}</div>
-            </td>
-            <td className="p-2 border text-center">{s.level}</td>
-            <td className="p-2 border text-center">{s.xp}</td>
-            <td className="p-2 border text-center">{s.badgesEarned} / {s.totalBadges ?? 0}</td>
-            <td className="p-2 border text-center">{s.nextBadge}</td>
-          </tr>
-        ))
-      )}
-    </tbody>
-  </table>
-</div>
     </div>
+
+    {/* Student Table */}
+    <div className="card bg-base-100 border border-base-200 shadow-md rounded-2xl overflow-x-auto">
+      <div className="card-body p-4">
+        {/* Removed duplicate title inside card */}
+        <table className="table table-zebra w-full table-auto text-sm md:text-base">
+          <thead className="text-base-content/70 border-b border-base-300">
+            <tr>
+              <th className="py-3">Student</th>
+              <th className="py-3 text-center">Level</th>
+              <th className="py-3 text-center">XP</th>
+              <th className="py-3 text-center">Badges Earned</th>
+              <th className="py-3 text-center">Next Badge</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {sortedStudents.length === 0 ? (
+              <tr>
+                <td
+                  colSpan="5"
+                  className="py-6 text-center text-base-content/60 italic"
+                >
+                  No students found.
+                </td>
+              </tr>
+            ) : (
+              sortedStudents.map((s, i) => (
+                <tr
+                  key={s._id || i}
+                  className="hover:bg-base-200 transition-colors"
+                >
+                  <td className="py-3">
+                    <div className="font-medium">{s.name}</div>
+                    <div className="text-xs opacity-70">{s.email}</div>
+                  </td>
+
+                  <td className="py-3 text-center">{s.level}</td>
+
+                  <td className="py-3 text-center">{s.xp}</td>
+
+                  <td className="py-3 text-center">
+                    {/* Removed green highlight badge */}
+                    <span className="font-medium">{s.badgesEarned}</span>
+                    <span className="opacity-70 ml-1">/ {s.totalBadges ?? 0}</span>
+                  </td>
+
+                  <td className="py-3 text-center">
+                    {s.nextBadge ? (
+                      <span className="text-sm">{s.nextBadge}</span>
+                    ) : (
+                      <span className="text-xs opacity-70 italic">—</span>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
   );
 };
 

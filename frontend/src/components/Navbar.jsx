@@ -33,7 +33,8 @@ import {
   Star,
   Sun,
   Moon,
-  Crown
+  Crown,
+  Medal
 } from 'lucide-react';
 
 const BACKEND_URL = `${API_BASE}`;
@@ -415,7 +416,7 @@ const Navbar = () => {
                   }`}
                   title="Badges"
                 >
-                  <Crown size={18} />
+                  <Medal size={18} />
                   <span>Badges</span>
                 </Link>
               </li>
