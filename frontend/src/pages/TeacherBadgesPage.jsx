@@ -3,6 +3,9 @@ import { createBadge, getBadges, deleteBadge } from '../API/apiBadges';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import EmojiPicker from 'emoji-picker-react';
+import { Trash2 } from "lucide-react";
+import { Link } from 'react-router-dom';
+
 
 const TeacherBadgesPage = ({ classroomId }) => {
   const { user } = useAuth();
@@ -196,6 +199,11 @@ const TeacherBadgesPage = ({ classroomId }) => {
 
   return (
     <div className="p-6">
+      <div className="mb-2">
+        <Link to={`/classroom/${classroomId}`} className="link text-green-600 hover:text-green-700 focus:outline-none focus:ring-2 focus:ring-green-300 rounded">
+         ← Back to Classroom
+        </Link>
+      </div>
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-bold">Badge Management</h2>
@@ -244,10 +252,11 @@ const TeacherBadgesPage = ({ classroomId }) => {
                 </button>
                 <button
                   onClick={() => handleDeleteBadge(badge._id)}
-                  className="text-red-500 hover:text-red-700"
+                  className="text-red-500 hover:text-red-700 p-1 rounded focus:outline-none focus:ring-2 focus:ring-red-300"
                   title="Delete badge"
+                  aria-label="Delete badge"
                 >
-                  ✕
+                   <Trash2 size={16} className="shrink-0" aria-hidden="true" />
                 </button>
               </div>
 

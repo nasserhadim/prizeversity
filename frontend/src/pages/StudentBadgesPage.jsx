@@ -158,7 +158,7 @@ const StudentBadgesPage = ({ classroomId, studentId }) => {
                 {badge.icon || '🏅'} {badge.name}
               </p>
               <p className="text-sm text-gray-700">{badge.description}</p>
-              <p className="text-sm mt-1">Level {badge.levelRequired} Required</p>
+              <p className="text-sm mt-1">Level {badge.levelRequired}</p>
               {badge.dateEarned && (
                 <p className="text-xs text-gray-600 mt-1 italic">
                   Earned: {new Date(badge.dateEarned).toLocaleString()}
