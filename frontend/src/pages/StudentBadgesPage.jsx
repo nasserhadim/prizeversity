@@ -42,13 +42,6 @@ const StudentBadgesPage = ({ classroomId }) => {
 
   return (
     <div className="p-6">
-      {/* Back navigation */}
-      <p
-        className="text-blue-600 hover:underline cursor-pointer mb-3"
-        onClick={() => window.history.back()}
-      >
-        &lt;-- Back to People
-      </p>
 
       {/* Header */}
       <h2 className="text-xl font-bold mb-1">Badge Collection</h2>

@@ -12,6 +12,9 @@ const TeacherBadgesPage = ({ classroomId }) => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [classroom, setClassroom] = useState(null);
   const [editingBadge, setEditingBadge] = useState(null);
+  const [sortField, setSortField] = useState('name');
+  const [sortOrder, setSortOrder] = useState('asc');
+
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -31,6 +34,16 @@ const TeacherBadgesPage = ({ classroomId }) => {
       s.email?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesLevel = levelFilter ? s.level === Number(levelFilter) : true;
     return matchesSearch && matchesLevel;
+  });
+
+  const sortedStudents = [...filteredStudents].sort((a, b) => {
+    let valA = a[sortField];
+    let valB = b[sortField];
+    if (typeof valA === 'string') valA = valA.toLowerCase();
+    if (typeof valB === 'string') valB = valB.toLowerCase();
+    if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
+    if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
+    return 0;
   });
 
   // Fetch badges on load
@@ -64,7 +77,7 @@ const TeacherBadgesPage = ({ classroomId }) => {
   useEffect(() => {
     const fetchStudents = async () => {
       try {
-        const res = await axios.get(`/api/classroom/${classroomId}/student-badge-progress`, {
+        const res = await axios.get(`/api/xp/classroom/${classroomId}/progress`, {
           withCredentials: true,
         });
         setStudentList(res.data);
@@ -142,6 +155,33 @@ const TeacherBadgesPage = ({ classroomId }) => {
       console.error('Error deleting badge:', err);
       alert('Failed to delete badge.');
     }
+  };
+
+  // Export helpers
+  const exportToCSV = (data) => {
+    if (!data || !data.length) return alert('No data to export.');
+    const headers = Object.keys(data[0]);
+    const csvRows = [
+      headers.join(','), 
+      ...data.map(row => headers.map(h => JSON.stringify(row[h] ?? '')).join(','))
+    ];
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'badge_progress.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportToJSON = (data) => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'badge_progress.json';
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -315,63 +355,100 @@ const TeacherBadgesPage = ({ classroomId }) => {
       )}
 
       {/* STUDENT BADGE PROGRESS SECTION */}
-      <div className="mt-10">
-        <h2 className="text-xl font-bold mb-4">Student Badge Progress</h2>
+<div className="mt-10">
+  <h2 className="text-xl font-bold mb-4">Student Badge Progress</h2>
 
-        {/* Search + Level Filter */}
-        <div className="flex flex-wrap items-center gap-3 mb-4">
-          <input
-            type="text"
-            placeholder="Search students..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="border rounded px-3 py-1 flex-1 min-w-[200px]"
-          />
-          <select
-            value={levelFilter}
-            onChange={(e) => setLevelFilter(e.target.value)}
-            className="border rounded px-3 py-1"
-          >
-            <option value="">All Levels</option>
-            {[...new Set(studentList.map((s) => s.level))].map((lvl) => (
-              <option key={lvl} value={lvl}>
-                Level {lvl}
-              </option>
-            ))}
-          </select>
-        </div>
+  {/* Filters + Sorting + Export */}
+  <div className="flex flex-wrap items-center gap-3 mb-4">
+    <input
+      type="text"
+      placeholder="Search students..."
+      value={searchQuery}
+      onChange={(e) => setSearchQuery(e.target.value)}
+      className="border rounded px-3 py-1 flex-1 min-w-[200px]"
+    />
+    <select
+      value={levelFilter}
+      onChange={(e) => setLevelFilter(e.target.value)}
+      className="border rounded px-3 py-1"
+    >
+      <option value="">All Levels</option>
+      {[...new Set(studentList.map((s) => s.level))].map((lvl) => (
+        <option key={lvl} value={lvl}>
+          Level {lvl}
+        </option>
+      ))}
+    </select>
 
-        {/* Student Table */}
-        <table className="w-full border rounded-md">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="p-2 border">Name</th>
-              <th className="p-2 border">Level</th>
-              <th className="p-2 border">XP</th>
-              <th className="p-2 border">Badges Earned</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredStudents.length === 0 ? (
-              <tr>
-                <td colSpan="4" className="p-4 text-center text-gray-500">
-                  No students found.
-                </td>
-              </tr>
-            ) : (
-              filteredStudents.map((s) => (
-                <tr key={s._id} className="hover:bg-gray-50">
-                  <td className="p-2 border">{s.name}</td>
-                  <td className="p-2 border text-center">{s.level}</td>
-                  <td className="p-2 border text-center">{s.xp}</td>
-                  <td className="p-2 border text-center">{s.badgesEarned}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+    {/* Sort and order controls */}
+    <select
+      value={sortField}
+      onChange={(e) => setSortField(e.target.value)}
+      className="border rounded px-3 py-1"
+    >
+      <option value="name">Sort by Name</option>
+      <option value="level">Sort by Level</option>
+      <option value="xp">Sort by XP</option>
+      <option value="badgesEarned">Sort by Badges</option>
+    </select>
 
+    <button
+      onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+      className="border px-3 py-1 rounded hover:bg-gray-100"
+    >
+      {sortOrder === 'asc' ? 'ASC' : 'DESC'}
+    </button>
+
+    {/* Export buttons */}
+    <button
+      onClick={() => exportToCSV(sortedStudents)}
+      className="ml-auto border px-3 py-1 rounded hover:bg-gray-100"
+    >
+      Export CSV
+    </button>
+    <button
+      onClick={() => exportToJSON(sortedStudents)}
+      className="border px-3 py-1 rounded hover:bg-gray-100"
+    >
+      Export JSON
+    </button>
+  </div>
+
+  {/* Student Table */}
+  <table className="w-full border rounded-md text-sm">
+    <thead className="bg-gray-100">
+      <tr>
+        <th className="p-2 border">Student</th>
+        <th className="p-2 border">Level</th>
+        <th className="p-2 border">XP</th>
+        <th className="p-2 border">Badges Earned</th>
+        <th className="p-2 border">Next Badge</th>
+      </tr>
+    </thead>
+    <tbody>
+      {sortedStudents.length === 0 ? (
+        <tr>
+          <td colSpan="6" className="p-4 text-center text-gray-500">
+            No students found.
+          </td>
+        </tr>
+      ) : (
+        sortedStudents.map((s) => (
+          <tr key={s._id} className="hover:bg-gray-50">
+            <td className="p-2 border">
+              <div className="font-medium">{s.name}</div>
+              <div className="text-gray-500 text-xs">{s.email}</div>
+            </td>
+            <td className="p-2 border text-center">{s.level}</td>
+            <td className="p-2 border text-center">{s.xp}</td>
+            <td className="p-2 border text-center">{s.badgesEarned} / {s.totalBadges ?? 0}</td>
+            <td className="p-2 border text-center">{s.nextBadge}</td>
+          </tr>
+        ))
+      )}
+    </tbody>
+  </table>
+</div>
     </div>
   );
 };
