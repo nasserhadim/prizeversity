@@ -957,7 +957,7 @@ router.post('/inventory/:ownedId/open', ensureAuthenticated, async (req, res) =>
   return res.json({
     ok: true,
     message: 'Box opened',
-    reward: { id: base._id, name: base.name },
+    reward: { id: base._id, name: base.name, description: base.description, effect: base.primaryEffect },
     awardedItemOwned,
     item: awardedItemOwned // for backward compatibility
   });
