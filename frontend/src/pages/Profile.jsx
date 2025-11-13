@@ -134,7 +134,11 @@ export default function Profile() {
                   withCredentials: true
               })
               .then(res => {
-                  setOrders(res.data);
+                  // ADD: Filter out orders that are just mystery box opens (they don't have items)
+                  const validOrders = (res.data || []).filter(order => 
+                    order.items && order.items.length > 0
+                  );
+                  setOrders(validOrders);
                   setLoadingOrders(false);
               })
               .catch(err => {

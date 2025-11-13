@@ -426,7 +426,9 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
 
     await targetUser.save();
     await req.user.save();
-    await Item.findByIdAndDelete(item._id); // Delete attack item after use
+    item.usesRemaining = Math.max(0, (item.usesRemaining || 1) - 1);
+    item.consumed = item.usesRemaining === 0;
+    await item.save();
 
     // Award XP for using an attack item
     try {

@@ -198,8 +198,7 @@ app.use('/api/attack', attackItems);
 app.use('/api/defend', defendItems);
 app.use('/api/utility', utilityItems);
 app.use('/api/passive', passiveItems);
-const mysteryBoxRoutes = require('./routes/mysteryBox');
-app.use('/api/mystery-box', mysteryBoxRoutes);
+app.use('/api/mystery-box-item', require('./routes/mysteryBoxItem'));
 
 const badgeRoutes = require('./routes/badge');
 const xpRoutes = require('./routes/xp');

@@ -139,10 +139,17 @@ export default function OrderHistory() {
     });
 
     useEffect(() => {
+        if (!user) return;
+        setLoading(true);
         axios
             .get(`/api/bazaar/orders/user/${user._id}`)
             .then(res => {
-                setOrders(res.data || []);
+                // CHANGED: Keep all orders including mystery box opens (total: 0)
+                const validOrders = (res.data || []).filter(order => 
+                    order.items && order.items.length > 0
+                    // Removed the total > 0 filter to include mystery box opens
+                );
+                setOrders(validOrders);
                 setLoading(false);
             })
             .catch(err => {

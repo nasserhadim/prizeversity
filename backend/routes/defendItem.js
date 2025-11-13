@@ -33,6 +33,9 @@ router.post('/activate/:itemId', ensureAuthenticated, async (req, res) => {
 
     // Activate shield
     item.active = true;
+    // ADD: Mark item usage
+    item.usesRemaining = Math.max(0, (item.usesRemaining || 1) - 1);
+    item.consumed = item.usesRemaining === 0;
     await item.save();
 
     req.user.shieldCount = (req.user.shieldCount || 0) + 1;
@@ -70,11 +73,12 @@ router.post('/activate/:itemId', ensureAuthenticated, async (req, res) => {
       details: { effectsText: 'Shield +1 (blocks next attack)' }
     });
 
-    res.json({
-      message: 'Shield activated - will protect against next attack',
-      usesRemaining: 1
+    res.json({ 
+      message: 'Shield activated successfully',
+      shieldCount: req.user.shieldCount
     });
   } catch (err) {
+    console.error('Shield activation error:', err);
     res.status(500).json({ error: 'Failed to activate shield' });
   }
 });

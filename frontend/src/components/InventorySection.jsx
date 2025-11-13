@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import apiBazaar from '../API/apiBazaar';
 import apiClassroom from '../API/apiClassroom';
 import apiItem from '../API/apiItem.js';
+import axios from 'axios'; // ADD: for mystery box API call
 import { ImageOff } from 'lucide-react';
 import SwapModal from '../components/SwapModal';
 import NullifyModal from '../components/NullifyModal';
@@ -19,16 +20,29 @@ const InventorySection = ({ userId, classroomId }) => {
   const [currentItem, setCurrentItem] = useState(null);
   const [selectedTarget, setSelectedTarget] = useState(null);
   const [nullifyModalOpen, setNullifyModalOpen] = useState(false);
+  
+  // ADD: Mystery box reward modal state
+  const [showRewardModal, setShowRewardModal] = useState(false);
+  const [wonItem, setWonItem] = useState(null);
 
   // Load inventory and student list when userId and classroomId are available
   useEffect(() => {
     const load = async () => {
       try {
         const [invRes, studentRes] = await Promise.all([
-          apiBazaar.get(`/inventory/${userId}?classroomId=${classroomId}`), // Add classroomId query param
+          apiBazaar.get(`/inventory/${userId}?classroomId=${classroomId}`),
           apiClassroom.get(`/${classroomId}/students`)
         ]);
-        setItems(invRes.data.items);
+        
+        // Filter out depleted mystery boxes
+        const activeItems = (invRes.data.items || []).filter(item => {
+          if (item.category === 'MysteryBox') {
+            return item.usesRemaining !== 0;
+          }
+          return true;
+        });
+        
+        setItems(activeItems);
         setStudents(studentRes.data);
       } catch (err) {
         console.error(err);
@@ -128,13 +142,18 @@ const InventorySection = ({ userId, classroomId }) => {
         case 'Passive':
           endpoint = `/passive/equip/${item._id}`;
           break;
+
+        // ADD: MysteryBox handler
+        case 'MysteryBox':
+          await handleOpenMysteryBox(item);
+          return; // Exit early since we handle everything in the function
           
         default:
           toast.error('Invalid item category');
           return;
       }
 
-      // Execute item usage
+      // Execute item usage (for non-MysteryBox items)
       const response = await apiItem.post(endpoint, { 
         ...(data || {}), 
         classroomId 
@@ -142,12 +161,35 @@ const InventorySection = ({ userId, classroomId }) => {
       toast.success(response.data.message || 'Item used successfully!');
       
       // Refresh inventory
-      const invRes = await apiBazaar.get(`/inventory/${userId}?classroomId=${classroomId}`); // Add classroomId query param
+      const invRes = await apiBazaar.get(`/inventory/${userId}?classroomId=${classroomId}`);
       setItems(invRes.data.items);
       
     } catch (err) {
       console.error('Item use error:', err);
       toast.error(err.response?.data?.error || 'Failed to use item');
+    }
+  };
+
+  // ADD: Mystery Box opening handler
+  const handleOpenMysteryBox = async (item) => {
+    try {
+      const response = await axios.post(
+        `/api/mystery-box-item/open/${item._id}`,
+        { classroomId }
+      );
+
+      // Show reward modal
+      setWonItem(response.data.wonItem);
+      setShowRewardModal(true);
+      
+      toast.success(`You won: ${response.data.wonItem.name}!`);
+
+      // Refresh inventory
+      const invRes = await apiBazaar.get(`/inventory/${userId}?classroomId=${classroomId}`);
+      setItems(invRes.data.items);
+    } catch (err) {
+      console.error('Mystery box open error:', err);
+      toast.error(err.response?.data?.error || 'Failed to open mystery box');
     }
   };
 
@@ -274,11 +316,64 @@ const InventorySection = ({ userId, classroomId }) => {
       />
 
       <NullifyModal
-      isOpen={nullifyModalOpen}
-      onClose={() => setNullifyModalOpen(false)}
-      onSelect={handleNullifySelection}
-      targetName={getTargetName(selectedTarget)}
-    />
+        isOpen={nullifyModalOpen}
+        onClose={() => setNullifyModalOpen(false)}
+        onConfirm={handleNullifySelection}
+        targetName={selectedTarget ? getTargetName(selectedTarget) : ''}
+      />
+
+      {/* ADD: Mystery Box Reward Modal */}
+      {showRewardModal && wonItem && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-base-100 rounded-lg shadow-xl max-w-md w-full p-6 space-y-4">
+            <h3 className="text-2xl font-bold text-center text-warning">
+              🎉 Ta-da! 🎉
+            </h3>
+            
+            <div className="text-center">
+              <p className="text-lg mb-2">You won:</p>
+              <p className="text-3xl font-bold text-success">{wonItem.name}</p>
+              
+              {wonItem.rarity && (
+                <span className={`badge badge-lg mt-2 ${
+                  wonItem.rarity === 'legendary' ? 'badge-warning' :
+                  wonItem.rarity === 'epic' ? 'badge-secondary' :
+                  wonItem.rarity === 'rare' ? 'badge-primary' :
+                  wonItem.rarity === 'uncommon' ? 'badge-accent' :
+                  'badge-ghost'
+                }`}>
+                  {wonItem.rarity}
+                </span>
+              )}
+            </div>
+
+            {wonItem.description && (
+              <p className="text-sm text-center opacity-70 whitespace-pre-line">
+                {wonItem.description}
+              </p>
+            )}
+
+            <img
+              src={resolveImageSrc(wonItem.image)}
+              alt={wonItem.name}
+              className="w-32 h-32 object-cover rounded-lg mx-auto"
+              onError={(e) => {
+                e.currentTarget.src = '/images/item-placeholder.svg';
+              }}
+            />
+
+            <button
+              className="btn btn-success w-full"
+              onClick={() => {
+                setShowRewardModal(false);
+                setWonItem(null);
+              }}
+            >
+              Proceed
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

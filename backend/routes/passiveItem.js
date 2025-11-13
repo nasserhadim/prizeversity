@@ -24,7 +24,7 @@ router.post('/equip/:itemId', ensureAuthenticated, async (req, res) => {
       multiplier: req.user.passiveAttributes?.multiplier || 1,
       discount: req.user.passiveAttributes?.discount || 0,
       shield: req.user.shieldCount || 0,
-      // groupMultiplier: unknown baseline; we’ll log a +1 when applied
+      // groupMultiplier: unknown baseline; we'll log a +1 when applied
     };
 
     // Find all groups where the user is an approved member
@@ -53,11 +53,15 @@ router.post('/equip/:itemId', ensureAuthenticated, async (req, res) => {
       }
     });
 
-    // Save all updated groups
-    await Promise.all(userGroups.map(group => group.save()));
-
-    item.active = true;
+    // Save user and groups
     await req.user.save();
+    if (groupEffectApplied) {
+      await Promise.all(userGroups.map(g => g.save()));
+    }
+
+    // ADD: Mark item as consumed
+    item.usesRemaining = Math.max(0, (item.usesRemaining || 1) - 1);
+    item.consumed = item.usesRemaining === 0;
     await item.save();
 
     // award XP (existing)
