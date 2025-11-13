@@ -15,6 +15,7 @@ import RatingDistribution from '../components/RatingDistribution';
 import ExportButtons from '../components/ExportButtons';
 import { exportFeedbacksToCSV, exportFeedbacksToJSON } from '../utils/exportFeedbacks';
 import AverageRating from '../components/AverageRating';
+import { Settings } from 'lucide-react'; // ADD
  
 const ClassroomFeedbackPage = ({ userId }) => {
   const { classroomId } = useParams();
@@ -300,14 +301,38 @@ const ClassroomFeedbackPage = ({ userId }) => {
     return exportFeedbacksToJSON(withMeta, baseName);
   };
  
+  // NEW: collapsed state for the reward settings (persisted per classroom)
+  const [showRewardSettings, setShowRewardSettings] = useState(() => {
+    try { return localStorage.getItem(`cfp_reward_settings_open_${classroomId}`) === '1'; } catch { return false; }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(`cfp_reward_settings_open_${classroomId}`, showRewardSettings ? '1' : '0');
+    } catch {}
+  }, [showRewardSettings, classroomId]);
+
   return (
     <div className="min-h-screen bg-base-200 flex flex-col justify-between">
       <div className="flex-grow p-4">
         <div className="card w-full max-w-3xl mx-auto shadow-xl bg-base-100 mt-8">
           <div className="card-body">
-            <h2 className="card-title text-primary mb-4">
-              {classroom ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''} Feedback` : 'Classroom Feedback'}
-            </h2>
+            {/* HEADER + gear toggle */}
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <h2 className="card-title text-primary">
+                {classroom ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''} Feedback` : 'Classroom Feedback'}
+              </h2>
+              {user && user.role === 'teacher' && (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm gap-2"
+                  onClick={() => setShowRewardSettings(s => !s)}
+                  title="Feedback reward settings"
+                >
+                  <Settings size={16} />
+                  {showRewardSettings ? 'Hide settings' : 'Show settings'}
+                </button>
+              )}
+            </div>
 
             <AverageRating
               feedbacks={feedbacks}
@@ -345,8 +370,8 @@ const ClassroomFeedbackPage = ({ userId }) => {
               </div>
             )}
 
-            {/* TEACHER: Feedback reward settings */}
-            {user && user.role === 'teacher' && (
+            {/* TEACHER: Feedback reward settings (collapsible) */}
+            {user && user.role === 'teacher' && showRewardSettings && (
               <div className="card bg-base-100 border border-base-200 p-4 mt-4 max-w-3xl mx-auto">
                 <h4 className="font-semibold mb-2">Feedback Reward (₿its)</h4>
                 {loadingRewardConfig ? (
@@ -383,7 +408,6 @@ const ClassroomFeedbackPage = ({ userId }) => {
                           onChange={(e) => setFeedbackRewardConfig(prev => ({ ...prev, feedbackRewardBits: Number(e.target.value || 0) }))}
                         />
                       </div>
-
                       <div>
                         <label className="label"><span className="label-text">Apply group multipliers</span></label>
                         <input
@@ -393,16 +417,16 @@ const ClassroomFeedbackPage = ({ userId }) => {
                           onChange={(e) => setFeedbackRewardConfig(prev => ({ ...prev, feedbackRewardApplyGroupMultipliers: e.target.checked }))}
                         />
                       </div>
+                    </div>
 
-                      <div>
-                        <label className="label"><span className="label-text">Apply personal multipliers</span></label>
-                        <input
-                          type="checkbox"
-                          className="toggle toggle-primary"
-                          checked={feedbackRewardConfig.feedbackRewardApplyPersonalMultipliers}
-                          onChange={(e) => setFeedbackRewardConfig(prev => ({ ...prev, feedbackRewardApplyPersonalMultipliers: e.target.checked }))}
-                        />
-                      </div>
+                    <div>
+                      <label className="label"><span className="label-text">Apply personal multipliers</span></label>
+                      <input
+                        type="checkbox"
+                        className="toggle toggle-primary"
+                        checked={feedbackRewardConfig.feedbackRewardApplyPersonalMultipliers}
+                        onChange={(e) => setFeedbackRewardConfig(prev => ({ ...prev, feedbackRewardApplyPersonalMultipliers: e.target.checked }))}
+                      />
                     </div>
 
                     <div className="flex gap-2 justify-end">
