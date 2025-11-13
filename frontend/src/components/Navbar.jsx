@@ -11,6 +11,7 @@ import Logo from './Logo'; // Import the new Logo component
 import { API_BASE } from '../config/api';
 import socket, { joinUserRoom, joinClassroom } from '../utils/socket'; // <-- updated import
 import axios from 'axios';
+import ConfirmModal from './ConfirmModal';
 
 import {
   Home,
@@ -81,13 +82,14 @@ const Navbar = () => {
   const insideClassroom = Boolean(classroomId);
 
   // Use classroom-scoped cart API
-  const { getCart, getCount, removeFromCart } = useCart();
+  const { getCart, getCount, removeFromCart, clearCart } = useCart();
   const cartItems = getCart(classroomId);
   const cartCount = getCount(classroomId) || 0;
 
   const [showCart, setShowCart] = useState(false);
   const cartRef = useRef(null);
   const [balance, setBalance] = useState(0);
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
 
   useEffect(() => {
     const fetchBalance = async () => {
@@ -185,6 +187,7 @@ const Navbar = () => {
   // Close mobile menu when route changes
   useEffect(() => {
     setIsMobileMenuOpen(false);
+    setShowCart(false); // ensure cart dropdown closes on navigation
   }, [location.pathname]);
 
   // Hook to close cart dropdown when clicking outside
@@ -525,33 +528,72 @@ const Navbar = () => {
 
         {/* Cart Dropdown */}
         {showCart && (
-          <div ref={cartRef} className="fixed top-20 right-4 bg-base-100 border border-base-300 shadow-lg w-80 max-w-[calc(100vw-2rem)] z-[9999] p-4 rounded text-base-content">
-            <h3 className="text-lg font-bold mb-2">Your Cart</h3>
-            {cartItems.length === 0 ? (
-              <p className="text-sm text-base-content/60">Cart is empty</p>
-            ) : (
-              <>
+          <div
+            ref={cartRef}
+            className="fixed top-20 right-4 bg-base-100 border border-base-300 shadow-lg w-80 max-w-[calc(100vw-2rem)] z-[9999] rounded text-base-content
+                       flex flex-col max-h-[80vh] overflow-hidden"
+          >
+            <div className="p-3 border-b border-base-300 flex items-center justify-between">
+              <h3 className="text-lg font-bold">Your Cart</h3>
+              {cartItems.length > 0 && (
+                <button
+                  className="btn btn-ghost btn-xs text-error"
+                  onClick={() => setConfirmClearOpen(true)}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {/* Scrollable items */}
+            <div className="flex-1 overflow-y-auto p-4 pt-2">
+              {cartItems.length === 0 ? (
+                <p className="text-sm text-base-content/60">Cart is empty</p>
+              ) : (
                 <ul className="space-y-2">
                   {cartItems.map((item, idx) => (
-                    <li key={idx} className="flex justify-between items-center">
+                    <li key={item._entryId || `${item._id}-${idx}`} className="flex justify-between items-center">
                       <div>
                         <span className="block font-medium">{item.name}</span>
                         <span className="text-sm text-base-content/80">{item.price} ₿</span>
                       </div>
-                      <button onClick={() => removeFromCart(idx, classroomId)} className="text-red-500 text-sm">✕</button>
+                      <button onClick={() => removeFromCart(idx, classroomId)} className="text-error text-sm">✕</button>
                     </li>
                   ))}
                 </ul>
-                <div className="mt-3 text-right font-semibold">
+              )}
+            </div>
+
+            {/* Sticky footer */}
+            {cartItems.length > 0 && (
+              <div className="p-4 border-t border-base-300 bg-base-100">
+                <div className="text-right font-semibold">
                   Total: {cartItems.reduce((sum, item) => sum + (Number(item.price) || 0), 0)} ₿
                 </div>
-                <Link to={classroomId ? `/classroom/${classroomId}/checkout` : '/checkout'}>
+                <Link
+                  to={classroomId ? `/classroom/${classroomId}/checkout` : '/checkout'}
+                  onClick={() => setShowCart(false)} // close immediately
+                >
                   <button className="mt-3 w-full btn btn-success">Go to Checkout</button>
                 </Link>
-              </>
+              </div>
             )}
           </div>
         )}
+        {/* Clear cart modal */}
+        <ConfirmModal
+          isOpen={confirmClearOpen}
+          title="Clear cart"
+          message="Remove all items from your cart?"
+          confirmText="Clear"
+          cancelText="Cancel"
+          confirmButtonClass="btn-error"
+          onClose={() => setConfirmClearOpen(false)}
+          onConfirm={() => {
+            clearCart(classroomId);
+            setConfirmClearOpen(false);
+          }}
+        />
       </div>
 
       {/* Mobile Menu Overlay */}
