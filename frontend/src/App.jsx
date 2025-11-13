@@ -80,6 +80,8 @@ const App = () => {
           <Route path="/classroom/:id/people" element={<People />} />
           <Route path="/classroom/:classId/leaderboard" element={<Leaderboard />} />
           <Route path="/classroom/:classroomId/badges" element={<Badges />} />
+          {/* student-specific badge page */}
+          <Route path="/classroom/:classroomId/badges/:studentId" element={<Badges />}/>
           <Route path="/classroom/:classroomId/challenge" element={<Challenge />} />
           {/* Classroom-specific profile */}
           <Route path="/classroom/:classroomId/profile/:id" element={<Profile />} />

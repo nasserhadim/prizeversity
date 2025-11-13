@@ -1,13 +1,17 @@
 const express = require('express');
 const Badge = require('../models/Badge');
 const User = require('../models/User');
+const upload = require('../middleware/upload');
 
 const router = express.Router();
 
 // Teacher creates a badge for a classroom
-router.post('/', async (req, res) => {
+router.post('/', upload.single('image'), async (req, res) => {
   try {
     const { name, description, levelRequired, icon, classroomId, teacherId } = req.body;
+    const imageUrl = req.file
+      ? `/uploads/${req.file.filename}`
+      : req.body.imageUrl || undefined;
 
     // Quick validation
     if (!name || !levelRequired || !classroomId || !teacherId) {
@@ -19,6 +23,7 @@ router.post('/', async (req, res) => {
       description,
       levelRequired,
       icon,
+      imageUrl,
       classroom: classroomId,
       createdBy: teacherId
     });
@@ -56,16 +61,18 @@ router.delete('/:badgeId', async (req, res) => {
 });
 
 // Update (edit) a badge
-router.put('/:badgeId', async (req, res) => {
+router.put('/:badgeId', upload.single('image'), async (req, res) => {
   try {
     const { badgeId } = req.params;
     const { name, description, levelRequired, icon } = req.body;
+    const imageUrl = req.file
+      ? `/uploads/${req.file.filename}`
+      : req.body.imageUrl || undefined;
 
-    const updatedBadge = await Badge.findByIdAndUpdate(
-      badgeId,
-      { name, description, levelRequired, icon },
-      { new: true }
-    );
+    const updateData = { name, description, levelRequired, icon };
+    if (imageUrl) updateData.imageUrl = imageUrl;
+    const updatedBadge = await Badge.findByIdAndUpdate(badgeId, updateData, { new: true });
+
 
     if (!updatedBadge) {
       return res.status(404).json({ error: 'Badge not found' });
