@@ -138,8 +138,8 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items',
       price: Number(price),
       image: image?.trim(),
       category,
-      primaryEffect: (category !== 'Passive' && category !== 'Mystery') ? primaryEffect : undefined,
-      primaryEffectValue: (category !== 'Passive' && category !== 'Mystery') ? Number(primaryEffectValue) : undefined,
+      primaryEffect: (category !== 'Passive' && category !== 'Mystery Box') ? primaryEffect : undefined,
+      primaryEffectValue: (category !== 'Passive' && category !== 'Mystery Box') ? Number(primaryEffectValue) : undefined,
 
       secondaryEffects: (parsedSecondaryEffects || []).map(se => ({
         effectType: se.effectType,
@@ -149,16 +149,17 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items',
       swapOptions: parsedSwapOptions && parsedSwapOptions.length ? parsedSwapOptions : undefined,
       duration: parsedDuration || null,
       bazaar: bazaarId,
-      kind: category === 'Mystery' ? 'mystery_box' : undefined,
+      kind: category === 'Mystery Box' ? 'mystery_box' : undefined,
 
     });
-    if (item.category === 'Mystery' && item.kind !== 'mystery_box') {
+    if (item.category === 'Mystery Box' && item.kind !== 'mystery_box') {
       item.kind = 'mystery_box';
     }
 
     //allowing rewards to be passed on create from the teacher view 
-    if (item.category === 'Mystery' ) {
+    if (item.category === 'Mystery Box' ) {
       let rewardFromBody = [];
+      item.luckFactor = req.body.luckFactor;
       try{ 
         if (Array.isArray(req.body.rewards)) {
           rewardFromBody = req.body.rewards;
@@ -199,7 +200,7 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items',
           bazaar: bazaarId,
           deletedAt: null,
           $or: [{ kind: { $ne: 'mystery_box' } }, { kind: { $exists: false } }],
-          category: { $ne: 'Mystery' }
+          category: { $ne: 'Mystery Box' }
         }).select('_id').lean();
 
         if (regulars.length > 0) {
@@ -684,6 +685,7 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
         ownedData.kind = 'mystery_box';
         ownedData.category = 'Mystery';
         ownedData.metadata = { ...item.metadata || {} };
+        ownedData.luckFactor = item.luckFactor;
         ownedData.openedAt = null; // not opened yet
       }
       const ownedItem = await Item.create(ownedData);
@@ -907,7 +909,9 @@ router.post('/inventory/:ownedId/open', ensureAuthenticated, async (req, res) =>
   if (box.openedAt) return res.status(200).json({ ok: true, alreadyOpened: true, message: 'Box already opened' });
 
   // find owners luck
-  const luck = req.user.passiveAttributes.luck - 1;
+  const luckS = req.user.passiveAttributes.luck - 1;
+  // find box luck
+  const luckBox = box.luckFactor - 1;
   // Atomically mark this box as opened; only the first request will succeed
   const claim = await Item.updateOne(
     { _id: ownedId, owner: req.user._id, openedAt: null },
@@ -921,16 +925,16 @@ router.post('/inventory/:ownedId/open', ensureAuthenticated, async (req, res) =>
 
   /// pick a reward from metadata.rewards (weighted and luck-weighted)
   const rewards = Array.isArray(box.metadata?.rewards) ? box.metadata.rewards : [];
-  const baseWeight = rewards.reduce((s, r) => s + Number(r.weight || 0), 0);
-  const luckWeight = rewards.reduce((s, r) => s + Number(r.luckWeight || 0), 0) * luck;
-  const totalW = baseWeight + luckWeight;
+  const baseWeights = rewards.reduce((s, r) => s + Number(r.weight || 0), 0);
+  const luckWeights = rewards.reduce((s, r) => s + Number(r.luckWeight || 0), 0) * luckS * luckBox;
+  const totalW = baseWeights + luckWeights;
   if (totalW <= 0) return res.status(400).json({ error: 'No rewards configured for this box' });
 
   let roll = Math.random() * totalW;
   let picked = rewards[0];
   for (const r of rewards) {
     roll -= Number(r.weight || 0);
-    roll -= Number(r.luckWeight || 0) * luck;
+    roll -= Number(r.luckWeight || 0) * luckS * luckBox;
     if (roll <= 0) { picked = r; break; }
   }
   //create an owned copy of the awarded item

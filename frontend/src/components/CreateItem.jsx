@@ -53,7 +53,8 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
     secondaryEffects: [],
     swapOptions: [],
     duration: '', // added for discount duration
-    prizeWeights: {} // added for the mystery box prize weights
+    prizeWeights: {}, // added for the mystery box prize weights
+    luckFactor: ''
   });
   const [loading, setLoading] = useState(false);
   const [effectPreview, setEffectPreview] = useState('');
@@ -64,7 +65,6 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
   const [allPrizes, setAllPrizes] = useState([]);// non mystery items
   const [selectedRewards, setSelectedRewards] = useState([]); // { itemId: { checked, weight } }
   const [showProbs, setShowProbs] = useState(false);
-  const [luckFactor, setLuckFactor] = useState(1);
   const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
   const fileInputRef = useRef(null); // ADD: to clear native file input after submit
  
@@ -109,6 +109,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
       swapOptions: [],
       duration: '', // added for discount duration
       prizeWeights: {}, // added for the mystery box prize weights
+      luckFactor: ''
     });
     // reset image controls too
     setImageSource('url');
@@ -131,7 +132,8 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
         secondaryEffects: [],
         swapOptions: [],
         duration: '', // added for discount duration
-        prizeWeights: {} // added for the mystery box prize weights
+        prizeWeights: {}, // added for the mystery box prize weights
+        luckFactor: ''
       } : {})
     }));
   };
@@ -248,9 +250,10 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
 
     //
     function itemProb(item) {
-        const itemW = (item.weight + item.luckWeight * (luckFactor-1));
+        const lf = form.luckFactor || 1;
+        const itemW = (item.weight + item.luckWeight * (lf-1));
 
-        const allW = selectedRewards.reduce((total, oItem) => total + (oItem.weight + oItem.luckWeight * (luckFactor-1)), 0);
+        const allW = selectedRewards.reduce((total, oItem) => total + (oItem.weight + oItem.luckWeight * (lf-1)), 0);
         const prob = Math.round(10000 *itemW / allW) / 100;
         return prob;
     }
@@ -300,6 +303,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
         fd.append('bazaar', bazaarId);
         fd.append('image', imageFile);
         fd.append('rewards', JSON.stringify(buildRewardsPayload()));
+        fd.append('luckFactor', Number(form.luckFactor))
 
 
         const res = await apiBazaar.post(
@@ -330,7 +334,8 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
           swapOptions: form.primaryEffect === 'swapper' ? form.swapOptions : undefined,
           duration: form.primaryEffect === 'discountShop' ? Number(form.duration) : undefined,
           bazaar: bazaarId,
-          rewards: buildRewardsPayload()
+          rewards: buildRewardsPayload(),
+          luckFactor: Number(form.luckFactor)
         };
         console.log(payload);
         const res = await apiBazaar.post(
@@ -695,8 +700,8 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                     type="number"
                     min="1"
                     className="input input-bordered w-20"
-                    value={luckFactor}
-                        onChange={(e) => setLuckFactor( Number(e.target.value))}
+                    value={form.luckFactor || 1}
+                        onChange={(e) => setForm(prev => ({ ...prev, luckFactor: Number(e.target.value) }))}
                     />
                 </div> 
                 

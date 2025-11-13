@@ -55,6 +55,8 @@ kind: { type: String, enum: ['standard', 'mystery_box'], default: 'standard' },
   deletedAt: { type: Date, default: null },
   
   //listing possible prizes, array of items with a weight that affects, so putting this list inside a nested sechema keeps it well orgnaized
+  // and luck factor
+  luckFactor: { type: Number, default: 1},
   metadata: {
     rewards: { type: [RewardSchema], default: [] }, //which kind of mysterybox
     openDelay: { type: Number, min: 0, default: 0 },

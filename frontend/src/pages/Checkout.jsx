@@ -117,6 +117,7 @@ const Checkout = () => {
           primaryEffect: item.primaryEffect,
           secondaryEffects: item.secondaryEffects,
           duration: Number(item.duration) || 1,
+          luckFactor: Number(item.luckFactor),
           image: item.image
         };
       });
