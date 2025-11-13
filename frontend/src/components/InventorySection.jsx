@@ -225,6 +225,36 @@ const InventorySection = ({ userId, classroomId }) => {
     }
   };
 
+  // Helper to get button styling based on category
+  const getButtonStyle = (category, isActive) => {
+    if (isActive) return 'btn-disabled';
+    
+    const styles = {
+      MysteryBox: 'btn-warning hover:btn-warning/80 animate-pulse',
+      Attack: 'btn-error hover:btn-error/80 hover:scale-105 transition-transform',
+      Defend: 'btn-info hover:btn-info/80 hover:shadow-lg hover:shadow-info/50 transition-all',
+      Passive: 'btn-success hover:btn-success/80 hover:brightness-110 transition-all',
+      Utility: 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white border-0 hover:scale-105 transition-transform'
+    };
+    
+    return styles[category] || 'btn-success';
+  };
+
+  // Helper to get button text
+  const getButtonText = (item) => {
+    if (item.active) return 'Active';
+    
+    const texts = {
+      MysteryBox: '🎁 Open Mystery Box',
+      Attack: '⚔️ Use Attack',
+      Defend: '🛡️ Activate Shield',
+      Passive: '✨ Equip Passive',
+      Utility: '🔮 Use Utility'
+    };
+    
+    return texts[item.category] || 'Use Item';
+  };
+
   return (
     <div className="mt-6 space-y-6">
       <h2 className="text-2xl font-bold text-success flex items-center gap-2">
@@ -298,11 +328,11 @@ const InventorySection = ({ userId, classroomId }) => {
             )}
 
             <button
-              className="btn btn-success btn-sm w-full"
+              className={`btn btn-sm w-full ${getButtonStyle(item.category, item.active)}`}
               onClick={() => handleUse(item)}
               disabled={item.active}
             >
-              {item.active ? 'Active' : 'Use Item'}
+              {getButtonText(item)}
             </button>
           </div>
         </div>
