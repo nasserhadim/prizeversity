@@ -5,6 +5,19 @@ import { getEffectDescription, splitDescriptionEffect } from '../utils/itemHelpe
 import { resolveImageSrc } from '../utils/image';
 
 export default function OrderCard({ order }) {
+  const classroomLabel = (o) => {
+    const c = o.items?.[0]?.bazaar?.classroom || o.classroom;
+    if (c && typeof c === 'object' && c.name) {
+      return `${c.name}${c.code ? ` (${c.code})` : ''}`;
+    }
+    if (o.metadata?.classroomName) {
+      return o.metadata.classroomCode
+        ? `${o.metadata.classroomName} (${o.metadata.classroomCode})`
+        : o.metadata.classroomName;
+    }
+    return '—';
+  };
+
   if (!order) return null;
 
   const shortId = (id) => {
@@ -29,12 +42,6 @@ export default function OrderCard({ order }) {
     } catch (err) {
       toast.error('Copy failed');
     }
-  };
-
-  const classroomLabel = (o) => {
-    const c = o.classroom || o.items?.[0]?.bazaar?.classroom;
-    if (!c) return '—';
-    return c.name ? `${c.name}${c.code ? ` (${c.code})` : ''}` : '—';
   };
 
   return (

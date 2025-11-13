@@ -15,11 +15,16 @@ import formatExportFilename from '../utils/formatExportFilename';
 // helper: compute classroom label for an order (moved to module scope to avoid TDZ)
 function classroomLabel(o) {
   if (!o) return '—';
-  // prefer an explicit classroom on the order, otherwise fall back to the first item's bazaar classroom
-  const c = o.classroom || o.items?.[0]?.bazaar?.classroom;
-  if (!c) return '—';
-  // include code if present
-  return c.name ? `${c.name}${c.code ? ` (${c.code})` : ''}` : '—';
+  const c = o.items?.[0]?.bazaar?.classroom || o.classroom;
+  if (c && typeof c === 'object' && c.name) {
+    return `${c.name}${c.code ? ` (${c.code})` : ''}`;
+  }
+  if (o.metadata?.classroomName) {
+    return o.metadata.classroomCode
+      ? `${o.metadata.classroomName} (${o.metadata.classroomCode})`
+      : o.metadata.classroomName;
+  }
+  return '—';
 }
 
 export default function OrderHistory() {

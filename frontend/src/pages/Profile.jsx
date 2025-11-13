@@ -26,9 +26,16 @@ const ROLE_LABELS = {
 // helper: compute classroom label for an order (module scope so usable before render)
 function classroomLabel(o) {
   if (!o) return '—';
-  const c = o.classroom || o.items?.[0]?.bazaar?.classroom;
-  if (!c) return '—';
-  return c.name ? `${c.name}${c.code ? ` (${c.code})` : ''}` : '—';
+  const c = o.items?.[0]?.bazaar?.classroom || o.classroom;
+  if (c && typeof c === 'object' && c.name) {
+    return `${c.name}${c.code ? ` (${c.code})` : ''}`;
+  }
+  if (o.metadata?.classroomName) {
+    return o.metadata.classroomCode
+      ? `${o.metadata.classroomName} (${o.metadata.classroomCode})`
+      : o.metadata.classroomName;
+  }
+  return '—';
 }
 
 export default function Profile() {

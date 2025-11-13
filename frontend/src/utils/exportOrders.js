@@ -3,23 +3,28 @@
  */
 export function getClassroomLabel(order) {
   if (!order) return '—';
-  
-  // Try multiple paths to find classroom info
-  const c = order.classroom || 
-            order.metadata?.classroomName || // From mystery box metadata
-            order.items?.[0]?.bazaar?.classroom;
-  
-  if (!c) return '—';
-  
-  // Handle both populated and metadata classroom info
-  if (typeof c === 'string') {
-    // If it's just a string (metadata classroomName)
-    const code = order.metadata?.classroomCode;
-    return code ? `${c} (${code})` : c;
+
+  // 1) Prefer populated classroom from first item (most reliable)
+  const itemCls = order.items?.[0]?.bazaar?.classroom;
+  if (itemCls && typeof itemCls === 'object' && itemCls.name) {
+    return `${itemCls.name}${itemCls.code ? ` (${itemCls.code})` : ''}`;
   }
-  
-  // If it's a populated object
-  return c.name ? `${c.name}${c.code ? ` (${c.code})` : ''}` : '—';
+
+  // 2) If order.classroom is populated, use it
+  const orderCls = order.classroom;
+  if (orderCls && typeof orderCls === 'object' && orderCls.name) {
+    return `${orderCls.name}${orderCls.code ? ` (${orderCls.code})` : ''}`;
+  }
+
+  // 3) Fallback to metadata (used by mystery box orders)
+  if (order.metadata?.classroomName) {
+    return order.metadata.classroomCode
+      ? `${order.metadata.classroomName} (${order.metadata.classroomCode})`
+      : order.metadata.classroomName;
+  }
+
+  // 4) Never show raw ObjectId/string
+  return '—';
 }
 
 function escapeCsvCell(value) {
@@ -66,39 +71,30 @@ export function exportOrdersToCSV(orders = [], filenameBase = 'orders') {
 
 export function exportOrdersToJSON(orders = [], filenameBase = 'orders') {
   const data = (orders || []).map(o => {
-    // CHANGED: Use metadata.itemDetails if items are deleted
-    const displayItems = (o.items && o.items.length > 0) 
-      ? o.items 
-      : (o.metadata?.itemDetails || []);
-    
+    // CHANGED: prefer populated classroom from items, then populated order.classroom, then metadata
+    const displayItems = (o.items && o.items.length > 0) ? o.items : (o.metadata?.itemDetails || []);
+
+    const classroomObj =
+      (o.items?.[0]?.bazaar?.classroom && typeof o.items[0].bazaar.classroom === 'object'
+        ? o.items[0].bazaar.classroom
+        : null) ||
+      (o.classroom && typeof o.classroom === 'object' ? o.classroom : null);
+
+    const classroom = classroomObj
+      ? { _id: classroomObj._id, name: classroomObj.name, code: classroomObj.code }
+      : (o.metadata?.classroomName
+          ? { name: o.metadata.classroomName, code: o.metadata.classroomCode || null }
+          : null);
+
     return {
       _id: o._id,
       type: o.type || 'purchase',
       createdAt: o.createdAt,
       total: o.total,
       description: o.description,
-      classroom: (() => {
-        const label = getClassroomLabel(o);
-        if (label === '—') return null;
-        
-        // Try to extract structured data
-        const c = o.classroom || o.items?.[0]?.bazaar?.classroom;
-        if (c && typeof c === 'object') {
-          return { _id: c._id, name: c.name, code: c.code };
-        }
-        
-        // Fallback to metadata
-        if (o.metadata?.classroomName) {
-          return {
-            name: o.metadata.classroomName,
-            code: o.metadata.classroomCode || null
-          };
-        }
-        
-        return label;
-      })(),
-      items: displayItems.map(i => ({ 
-        _id: i?._id, 
+      classroom,
+      items: displayItems.map(i => ({
+        _id: i?._id,
         name: i?.name,
         category: i?.category,
         price: i?.price
@@ -106,7 +102,7 @@ export function exportOrdersToJSON(orders = [], filenameBase = 'orders') {
       metadata: o.metadata || null
     };
   });
-  
+
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
