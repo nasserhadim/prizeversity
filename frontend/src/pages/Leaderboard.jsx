@@ -6,49 +6,45 @@ import socket from '../utils/socket';
 import apiLeaderboard from '../API/apiLeaderboard.js';
 import apiClassroom from '../API/apiClassroom.js';
 import Footer from '../components/Footer';
-import { useAuth } from '../context/AuthContext'; // Add this import
+import { useAuth } from '../context/AuthContext';
 import Avatar from '../components/Avatar';
 
 const Leaderboard = () => {
   const { classId } = useParams();
-  const { user } = useAuth(); // Add this
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
   const [students, setStudents] = useState([]);
-  //const [filteredStudents, setFilteredStudents] = useState([]);
   const [classroom, setClassroom] = useState(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortField, setSortField] = useState('balance');
   const [sortDirection, setSortDirection] = useState('desc');
-  const [studentsCanViewStats, setStudentsCanViewStats] = useState(true); // Add this
-  const navigate = useNavigate();
+  const [studentsCanViewStats, setStudentsCanViewStats] = useState(true);
 
-  //const isTeacher = user?.role === 'teacher' || user?.role === 'admin'; // this is so instructors can only see certain things
-
-  // Helper function to get display name (similar to other components)
   const getDisplayName = (student) => {
     if (student.firstName || student.lastName) {
       return `${student.firstName || ''} ${student.lastName || ''}`.trim();
     }
     return student.email;
   };
-  
-  //added these lines to get the level and to also get the xp for the leaderboard
+
+  // pull level/xp from either flattened fields or nested stats
   const getLevel = (student) => student.level ?? student.stats?.level ?? 0;
   const getXP = (student) => student.xp ?? student.stats?.xp ?? 0;
 
-  // Fetch classroom details
+  // --- data fetchers ---
   const fetchClassroom = async () => {
     try {
       const response = await apiClassroom.get(`/${classId}`);
       setClassroom(response.data);
-      setStudentsCanViewStats(response.data.studentsCanViewStats !== false); // Default to true
+      setStudentsCanViewStats(response.data.studentsCanViewStats !== false); // default true
     } catch (err) {
       console.error('Failed to fetch classroom:', err);
     }
   };
 
-  // Fetch leaderboard with per-classroom balances
-   const fetchLeaderboard = async () => {
+  const fetchLeaderboard = async () => {
     try {
       const res = await apiLeaderboard.get(`/${classId}/leaderboard`);
       const sorted = [...res.data].sort(
@@ -64,27 +60,26 @@ const Leaderboard = () => {
   };
 
   useEffect(() => {
+    setLoading(true);
     fetchClassroom();
     fetchLeaderboard();
   }, [classId]);
 
-  // Add real-time leaderboard updates
+  // Real-time updates
   useEffect(() => {
-    socket.on('balance_update', () => {
-      fetchLeaderboard(); // Refresh leaderboard when any balance changes
-    });
-    
-    socket.on('classroom_update', () => {
-      fetchLeaderboard(); // Refresh when classroom changes
-    });
-    
+    const onBalance = () => fetchLeaderboard();
+    const onClassroom = () => fetchLeaderboard();
+
+    socket.on('balance_update', onBalance);
+    socket.on('classroom_update', onClassroom);
+
     return () => {
-      socket.off('balance_update', fetchLeaderboard);
-      socket.off('classroom_update', fetchLeaderboard);
+      socket.off('balance_update', onBalance);
+      socket.off('classroom_update', onClassroom);
     };
   }, [classId]);
 
-  // Filter and sort students
+  // Filter + sort
   const filteredStudents = useMemo(() => {
     const term = searchTerm.toLowerCase();
     const filtered = students.filter((s) =>
@@ -99,18 +94,20 @@ const Leaderboard = () => {
       if (sortField === 'level') {
         return dir * (getLevel(a) - getLevel(b));
       }
-      if (sortField === 'xp'){
+      if (sortField === 'xp') {
         return dir * (getXP(a) - getXP(b));
       }
+      // default balance
       return dir * ((a.balance ?? 0) - (b.balance ?? 0));
     });
   }, [students, searchTerm, sortField, sortDirection]);
 
-  //this updates which column that we sort by and also the direction
+  // ensure students can’t sort on hidden columns
   const handleSort = (field) => {
-    if (!user?.role === 'teacher' && (field === 'xp' || field === 'level')) return; // students can't toggle hidden columns
-    if (sortField === field) setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    else {
+    if (user?.role !== 'teacher' && (field === 'xp' || field === 'level')) return;
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
       setSortField(field);
       setSortDirection(field === 'name' ? 'asc' : 'desc');
     }
@@ -119,7 +116,7 @@ const Leaderboard = () => {
   const getSortIcon = (field) => {
     if (sortField !== field) return <ArrowUpDown size={14} className="opacity-50" />;
     return sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />;
-  };
+    };
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -142,7 +139,6 @@ const Leaderboard = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          
           <div className="text-sm text-base-content/70">
             Showing {filteredStudents.length} of {students.length} students
           </div>
@@ -164,16 +160,23 @@ const Leaderboard = () => {
                       Name {getSortIcon('name')}
                     </button>
                   </th>
-                 {/* this is what only the teachers/admins see Level and the XP columns */} 
-                 {user?.role === 'teacher' && (
+
+                  {/* Only teachers/admins see Level and XP columns */}
+                  {user?.role === 'teacher' && (
                     <>
                       <th className="w-36">
-                        <button className="flex items-center gap-2 hover:text-primary" onClick={() => handleSort('level')}>
+                        <button
+                          className="flex items-center gap-2 hover:text-primary"
+                          onClick={() => handleSort('level')}
+                        >
                           Level {getSortIcon('level')}
                         </button>
                       </th>
                       <th className="w-36">
-                        <button className="flex items-center gap-2 hover:text-primary" onClick={() => handleSort('xp')}>
+                        <button
+                          className="flex items-center gap-2 hover:text-primary"
+                          onClick={() => handleSort('xp')}
+                        >
                           XP {getSortIcon('xp')}
                         </button>
                       </th>
@@ -183,11 +186,14 @@ const Leaderboard = () => {
                   <th className="w-[220px]">Actions</th>
                 </tr>
               </thead>
+
               <tbody>
                 {filteredStudents.length === 0 ? (
                   <tr>
-                    {/* span depends on whether Level/XP headers were shown */}
-                    <td colSpan={user?.role === 'teacher' ? 5 : 3} className="text-center py-8 text-base-content/50">
+                    <td
+                      colSpan={user?.role === 'teacher' ? 5 : 3}
+                      className="text-center py-8 text-base-content/50"
+                    >
                       {searchTerm ? 'No students found matching your search.' : 'No students in this classroom yet.'}
                     </td>
                   </tr>
@@ -202,14 +208,15 @@ const Leaderboard = () => {
                           {index === 2 && <span className="text-orange-600">🥉</span>}
                         </div>
                       </td>
+
                       <td className="font-medium">
                         <div className="flex items-center gap-2">
                           <Avatar user={student} size={28} />
                           {getDisplayName(student)}
                         </div>
                       </td>
-                   
-                      {/* only teachers/admins see Level and the XP values */}
+
+                      {/* Only teachers/admins see Level and XP values */}
                       {user?.role === 'teacher' && (
                         <>
                           <td className="whitespace-nowrap">
@@ -220,27 +227,32 @@ const Leaderboard = () => {
                           </td>
                         </>
                       )}
-                      <td>
 
+                      <td>
                         <div className="flex flex-col sm:flex-row gap-2">
                           <button
                             className="btn btn-xs sm:btn-sm btn-outline whitespace-nowrap"
-                            onClick={() => navigate(
-                              `/classroom/${classId}/profile/${student._id}`,
-                              { state: { from: 'leaderboard', classroomId: classId } }
-                            )}
+                            onClick={() =>
+                              navigate(`/classroom/${classId}/profile/${student._id}`, {
+                                state: { from: 'leaderboard', classroomId: classId },
+                              })
+                            }
                           >
                             View Profile
                           </button>
-                          {/* this will only show View Stats if teacher allows it OR user is teacher/admin */}
-                          {(user?.role === 'teacher' || user?.role === 'admin' || 
+
+                          {(user?.role === 'teacher' ||
+                            user?.role === 'admin' ||
                             (studentsCanViewStats && String(student._id) !== String(user?._id)) ||
                             String(student._id) === String(user?._id)) && (
                             <button
                               className="btn btn-xs sm:btn-sm btn-success whitespace-nowrap"
-                              onClick={() => navigate(`/classroom/${classId}/student/${student._id}/stats`, {
-                                state: { from: 'leaderboard' }
-                              })}
+                              onClick={() => {
+                                // Make sure this matches your Route: /classroom/:classId/student/:studentId/stats
+                                navigate(`/classroom/${classId}/student/${student._id}/stats`, {
+                                  state: { from: 'leaderboard' },
+                                });
+                              }}
                             >
                               View Stats
                             </button>
@@ -255,6 +267,7 @@ const Leaderboard = () => {
           </div>
         )}
       </div>
+
       <Footer />
     </div>
   );

@@ -5,16 +5,18 @@ import axios from 'axios';
 import socket from '../utils/socket.js';
 import { LoaderIcon, RefreshCw } from 'lucide-react';
 import Footer from '../components/Footer';
-import StatsRadar from '../components/StatsRadar'; // add
-import { getThemeClasses } from '../utils/themeUtils'; // add
+import StatsRadar from '../components/StatsRadar';
+import { getThemeClasses } from '../utils/themeUtils';
 import { getUserBadges } from '../api/apiBadges';
+import { useAuth } from '../context/AuthContext';            
+import { computeProgress } from '../utils/xp';                 
 
 const StudentStats = () => {
   const { classroomId, id: studentId } = useParams();
   const location = useLocation();
-  const { theme } = useContext(ThemeContext); // <-- read theme
+  const { theme } = useContext(ThemeContext); 
   const isDark = theme === 'dark';
-  const themeClasses = getThemeClasses(isDark); // derive theme classes
+  const themeClasses = getThemeClasses(isDark); 
 
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -24,9 +26,10 @@ const StudentStats = () => {
   const groupMultiplierValue = Number(stats?.groupMultiplier ?? stats?.student?.groupMultiplier ?? 1);
 
   // --- Badge Collection Modal State ---
-const [badgeModalOpen, setBadgeModalOpen] = useState(false);
-const [badgeData, setBadgeData] = useState(null);
-const [badgeLoading, setBadgeLoading] = useState(false);
+  const [badgeModalOpen, setBadgeModalOpen] = useState(false);
+  const [badgeData, setBadgeData] = useState(null);
+  const [badgeLoading, setBadgeLoading] = useState(false);
+  const [badgeCount, setBadgeCount] = useState(0);              
 
   // --- Function to open modal and fetch badges ---
   const handleViewBadges = async () => {
@@ -44,7 +47,7 @@ const [badgeLoading, setBadgeLoading] = useState(false);
   };
 
   // Auth and XP settings state
-  const { user } = useAuth();
+  const { user } = useAuth();                                   
   const [xpSettings, setXpSettings] = useState(null);
   const [xpRefresh, setXpRefresh] = useState(false);
 
@@ -61,7 +64,7 @@ const [badgeLoading, setBadgeLoading] = useState(false);
         try {
           const badgeRes = await getUserBadges(studentId, classroomId);
           const earnedCount = badgeRes?.badges?.earned?.length || 0;
-          setBadgeCount(earnedCount);
+          setBadgeCount(earnedCount);                           
         } catch (err) {
           console.error("Error fetching badge count:", err);
         }
@@ -117,7 +120,7 @@ const [badgeLoading, setBadgeLoading] = useState(false);
   // compute progress towards next level
   const progress = useMemo(() => {
     if (!xpSettings) return { need: 100, have: 0, pct: 0 };
-    return computeProgress(myClassroomBalance.xp, myClassroomBalance.level, xpSettings);
+    return computeProgress(myClassroomBalance.xp, myClassroomBalance.level, xpSettings); 
   }, [myClassroomBalance, xpSettings]);
 
   // Determine where we came from to customize the back button
@@ -147,7 +150,7 @@ const [badgeLoading, setBadgeLoading] = useState(false);
   // Render message if no stats are available
   if (!stats || !stats.student) {
     return <div className="p-6 text-center">No stats available for this student</div>;
-    }
+  }
 
   return (
     <>
@@ -159,11 +162,7 @@ const [badgeLoading, setBadgeLoading] = useState(false);
         {/* View Badge Collection button above radar */}
         <div className="flex justify-center mt-4">
           <button
-            onClick={() =>
-              navigate(`/classroom/${classroomId}/badges?studentId=${studentId}`, {
-                state: { from: location.state?.from || 'people' },
-              })
-            }
+            onClick={handleViewBadges}  
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow transition-transform duration-150 active:scale-95"
           >
             View Badge Collection ({badgeCount})
