@@ -221,51 +221,95 @@ app.get('/', (req, res) => {
 });
 
 // Socket.IO connection handling
-io.on('connection', (socket) => {
-  console.log('New client connected');
+// io.on('connection', (socket) => {
+//   console.log('New client connected', socket.id);
 
+//   socket.on('join', async (room) => {
+//     // Remove existing socket from all rooms before joining new one
+//     const rooms = [...socket.rooms];
+//     rooms.forEach(r => {
+//       if (r !== socket.id) {
+//         socket.leave(r);
+//       }
+//     });
+
+//     socket.join(room);
+
+
+//     // Extract user ID from room name (removes 'user-' prefix)
+//     if (room.startsWith('user-')) {
+//       const userId = room.replace('user-', '');
+//       try {
+//         const User = require('./models/User');
+//         const user = await User.findById(userId);
+//         console.log(`Socket joined room: ${room} (${user ? user.email : 'unknown user'})`);
+//       } catch (err) {
+//         console.log(`Error fetching user details for ${room}:`, err.message);
+//       }
+//     } else {
+//       console.log(`Socket joined room: ${room}`);
+//     }
+//   });
+
+//       // NEW: classroom join
+//   socket.on('join-classroom', (classId) => {
+//     socket.join(`classroom-${classId}`);
+//     console.log(`Socket joined classroom room: classroom-${classId}`);
+//   });
+
+//   // Optional: leave classroom
+//   socket.on('leave-classroom', (classId) => {
+//     socket.leave(`classroom-${classId}`);
+//     console.log(`Socket left classroom room: classroom-${classId}`);
+//   });
+
+
+//   socket.on('disconnect', () => {
+//     console.log('Client disconnected');
+//   });
+// });
+
+io.on('connection', (socket) => {
+  console.log('New client connected', socket.id);
+
+  // Join generic room names (including "user-<id>")
   socket.on('join', async (room) => {
-    // Remove existing socket from all rooms before joining new one
-    const rooms = [...socket.rooms];
-    rooms.forEach(r => {
-      if (r !== socket.id) {
+    // Only leave old user-* rooms so we don't drop classroom-* memberships
+    for (const r of socket.rooms) {
+      if (r !== socket.id && r.startsWith('user-')) {
         socket.leave(r);
       }
-    });
+    }
 
     socket.join(room);
 
-
-    // Extract user ID from room name (removes 'user-' prefix)
     if (room.startsWith('user-')) {
-      const userId = room.replace('user-', '');
+      const userId = room.slice('user-'.length);
       try {
         const User = require('./models/User');
         const user = await User.findById(userId);
-        console.log(`Socket joined room: ${room} (${user ? user.email : 'unknown user'})`);
+        console.log(`[SOCKET] Joined user room: ${room} (${user ? user.email : 'unknown user'})`);
       } catch (err) {
-        console.log(`Error fetching user details for ${room}:`, err.message);
+        console.log(`[SOCKET] Joined user room: ${room} (lookup error: ${err.message})`);
       }
     } else {
-      console.log(`Socket joined room: ${room}`);
+      console.log(`[SOCKET] Joined room: ${room}`);
     }
   });
 
-      // NEW: classroom join
+  // Classroom rooms stay additive
   socket.on('join-classroom', (classId) => {
     socket.join(`classroom-${classId}`);
-    console.log(`Socket joined classroom room: classroom-${classId}`);
+    console.log(`[SOCKET] Joined classroom room: classroom-${classId}`);
   });
 
-  // Optional: leave classroom
   socket.on('leave-classroom', (classId) => {
     socket.leave(`classroom-${classId}`);
-    console.log(`Socket left classroom room: classroom-${classId}`);
+    console.log(`[SOCKET] Left classroom room: classroom-${classId}`);
   });
 
-
   socket.on('disconnect', () => {
-    console.log('Client disconnected');
+    console.log('Client disconnected', socket.id);
   });
 });
 
