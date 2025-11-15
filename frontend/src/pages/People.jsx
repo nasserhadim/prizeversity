@@ -707,31 +707,33 @@ const getBanInfo = (student, classroomObj) => {
       throw new Error('No students to export');
     }
 
-    // Build comprehensive data including stats and groups
     const dataToExport = await Promise.all(
       filteredStudents.map(async (student) => {
         let stats = {};
         let groups = [];
-        
+        let xpData = {};
+
+        // Fetch stats + XP (run in parallel)
         try {
-          // Fetch student stats
-          const statsRes = await axios.get(`/api/stats/student/${student._id}?classroomId=${classroomId}`, { withCredentials: true });
-          stats = statsRes.data;
+          const [statsRes, xpRes] = await Promise.all([
+            axios.get(`/api/stats/student/${student._id}?classroomId=${classroomId}`, { withCredentials: true }),
+            axios.get(`/api/xp/classroom/${classroomId}/user/${student._id}`, { withCredentials: true })
+          ]);
+          stats = statsRes.data || {};
+          xpData = xpRes.data || {};
         } catch (err) {
-          console.error('Failed to fetch stats for student:', student._id);
+          console.error('Failed to fetch stats/xp for student:', student._id);
         }
 
+        // Collect groups
         try {
-          // Find groups this student belongs to
           groupSets.forEach(groupSet => {
             groupSet.groups.forEach(group => {
-              const isMember = group.members.some(member => 
-                String(member._id._id || member._id) === String(student._id) && 
-                member.status === 'approved' // Only count approved members
+              const isMember = group.members.some(member =>
+                String(member._id._id || member._id) === String(student._id) &&
+                member.status === 'approved'
               );
-              if (isMember) {
-                groups.push(`${groupSet.name}: ${group.name}`);
-              }
+              if (isMember) groups.push(`${groupSet.name}: ${group.name}`);
             });
           });
         } catch (err) {
@@ -739,17 +741,21 @@ const getBanInfo = (student, classroomObj) => {
         }
 
         return {
+          ClassroomId: classroomId,
+          ClassroomName: classroom?.name || '',
+            ClassroomCode: classroom?.code || '',
           Name: `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.email,
           Email: student.email,
           Role: ROLE_LABELS[student.role] || student.role,
           Balance: student.balance?.toFixed(2) || '0.00',
-          // Include Total spent for CSV export (uses per-student totals loaded into totalSpentMap)
           TotalSpent: (Number(totalSpentMap[student._id] || 0)).toFixed(2),
-          JoinedDate: student.joinedAt 
-            ? new Date(student.joinedAt).toLocaleString() 
-            : student.createdAt 
+          JoinedDate: student.joinedAt
+            ? new Date(student.joinedAt).toLocaleString()
+            : student.createdAt
               ? new Date(student.createdAt).toLocaleString()
               : 'Unknown',
+          Level: xpData.level || 1,
+          XP: xpData.xp || 0,
           Luck: stats.luck || 1,
           Multiplier: stats.multiplier || 1,
           GroupMultiplier: stats.groupMultiplier || 1,
@@ -764,18 +770,21 @@ const getBanInfo = (student, classroomObj) => {
       })
     );
 
-    // Create CSV
-    const headers = Object.keys(dataToExport[0]);
+    // Explicit header ordering
+    const headers = [
+      'ClassroomId','ClassroomName','ClassroomCode','Name','Email','Role','Balance','TotalSpent',
+      'JoinedDate','Level','XP','Luck','Multiplier','GroupMultiplier','ShieldActive','ShieldCount',
+      'AttackPower','DoubleEarnings','DiscountShop','PassiveItemsCount','Groups'
+    ];
+
     const csvContent = [
       headers.join(','),
-      ...dataToExport.map(row => 
+      ...dataToExport.map(row =>
         headers.map(header => {
           const value = row[header];
-          // Escape CSV values that contain commas, quotes, or newlines
-          if (typeof value === 'string' && (value.includes(',') || value.includes('"') || value.includes('\n'))) {
-            return `"${value.replace(/"/g, '""')}"`;
-          }
-          return value;
+          if (value === null || value === undefined) return '';
+          const str = String(value);
+          return (/[",\n]/.test(str)) ? `"${str.replace(/"/g, '""')}"` : str;
         }).join(',')
       )
     ].join('\n');
@@ -783,18 +792,15 @@ const getBanInfo = (student, classroomObj) => {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
-    
     const classroomName = classroom?.name || 'Unknown';
     const classroomCode = classroom?.code || classroomId;
     const base = formatExportFilename(`${classroomName}_${classroomCode}_people`, 'export');
     a.download = `${base}.csv`;
-    
+    a.href = url;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    
     return `${base}.csv`;
   };
 
@@ -807,22 +813,25 @@ const getBanInfo = (student, classroomObj) => {
       filteredStudents.map(async (student) => {
         let stats = {};
         let groups = [];
-        
+        let xpData = {};
+
         try {
-          // Fetch student stats
-          const statsRes = await axios.get(`/api/stats/student/${student._id}?classroomId=${classroomId}`, { withCredentials: true });
-          stats = statsRes.data;
+          const [statsRes, xpRes] = await Promise.all([
+            axios.get(`/api/stats/student/${student._id}?classroomId=${classroomId}`, { withCredentials: true }),
+            axios.get(`/api/xp/classroom/${classroomId}/user/${student._id}`, { withCredentials: true })
+          ]);
+          stats = statsRes.data || {};
+          xpData = xpRes.data || {};
         } catch (err) {
-          console.error('Failed to fetch stats for student:', student._id);
+          console.error('Failed to fetch stats/xp for student:', student._id);
         }
 
         try {
-          // Find groups this student belongs to
           groupSets.forEach(groupSet => {
             groupSet.groups.forEach(group => {
-              const isMember = group.members.some(member => 
-                String(member._id._id || member._id) === String(student._id) && 
-                member.status === 'approved' // Only count approved members
+              const isMember = group.members.some(member =>
+                String(member._id._id || member._id) === String(student._id) &&
+                member.status === 'approved'
               );
               if (isMember) {
                 groups.push({
@@ -841,6 +850,9 @@ const getBanInfo = (student, classroomObj) => {
         const banInfo = getBanInfo(student, classroom);
 
         return {
+          classroomId,
+          classroomName: classroom?.name || '',
+          classroomCode: classroom?.code || '',
           _id: student._id,
           name: `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.email,
           firstName: student.firstName,
@@ -848,15 +860,14 @@ const getBanInfo = (student, classroomObj) => {
           email: student.email,
           role: student.role,
           balance: student.balance || 0,
-          // include numeric totalSpent for JSON export
-          // Prefer server-side precomputed `totalSpentMap` but fall back to computing
-          // from per-student `transactions` if available (exclude teacher/admin adjustments)
           totalSpent: Number(
             (totalSpentMap && typeof totalSpentMap[student._id] !== 'undefined')
               ? totalSpentMap[student._id]
               : computeTotalSpent(student.transactions || [], classroomId)
           ),
           joinedDate: student.joinedAt || student.createdAt || null,
+          level: xpData.level || 1,
+          xp: xpData.xp || 0,
           stats: {
             luck: stats.luck || 1,
             multiplier: stats.multiplier || 1,
@@ -868,13 +879,8 @@ const getBanInfo = (student, classroomObj) => {
             discountShop: stats.discountShop || 0,
             passiveItemsCount: stats.passiveItemsCount || 0
           },
-          groups: groups.length > 0 ? groups : ['Unassigned'],
-          classroom: {
-            _id: classroomId,
-            name: classroom?.name,
-            code: classroom?.code
-          },
-          // NEW: standardized ban/status fields
+          groups: groups.length ? groups : ['Unassigned'],
+          classroom: { _id: classroomId, name: classroom?.name, code: classroom?.code },
           status: banInfo.banned ? 'banned' : (student.role || 'unknown'),
           banReason: banInfo.reason || '',
           banTimestamp: banInfo.bannedAt ? new Date(banInfo.bannedAt).toISOString() : null,
@@ -887,18 +893,15 @@ const getBanInfo = (student, classroomObj) => {
     const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
-    
     const classroomName = classroom?.name || 'Unknown';
     const classroomCode = classroom?.code || classroomId;
     const base = formatExportFilename(`${classroomName}_${classroomCode}_people`, 'export');
     a.download = `${base}.json`;
-    
+    a.href = url;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    
     return `${base}.json`;
   };
   // ── Join each student's user room so per-user notifications/balance events are received ──
