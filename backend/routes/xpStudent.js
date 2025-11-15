@@ -206,4 +206,93 @@ router.post('/mystery-box', ensureStudentOrAbove, async (req, res) => {
   }
 });
 
+// GET /api/xpStudent/:classroomId  -> returns persisted xp/level for the logged-in user
+router.get('/:classroomId', ensureStudentOrAbove, async (req, res) => {
+  try {
+    const classroomId = req.params.classroomId;
+    const userId = req.user._id;
+
+    const user = await User.findById(userId).lean();
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const cb = (user.classroomBalances || []).find(
+      c => String(c.classroom) === String(classroomId)
+    );
+
+    // If the bucket doesn't exist yet, return defaults
+    if (!cb) return res.json({ xp: 0, level: 1 });
+
+    // Optional: also return how much is needed to hit next level (helps the progress bar)
+    const classroom = await Classroom.findById(classroomId).lean();
+    const settings = classroom?.xpSettings || {};
+    const base = Math.max(1, Number(settings.baseXPLevel2 || 100));
+    const type = settings.xpFormulaType || 'exponential';
+
+    // reuse your helper
+    const need = require('../utils/xp').xpNeededForNextLevel(cb.level, {
+      xpFormulaType: type,
+      baseXPLevel2: base,
+    });
+
+    return res.json({
+      xp: cb.xp || 0,          // xp toward the NEXT level (your util subtracts on level up)
+      level: cb.level || 1,
+      nextLevelXP: need        // total needed to reach (level+1)
+    });
+  } catch (e) {
+    console.error('xpStudent GET error:', e);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+
+// GET /api/xpStudent/:classroomId
+// Returns this student's level, xp (toward next level), and nextLevelXP
+router.get('/:classroomId', ensureStudentOrAbove, async (req, res) => {
+  try {
+    const classroomId = req.params.classroomId;
+    const userId = req.user._id;
+
+    const classroom = await Classroom.findById(classroomId).lean();
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+
+    const settings = classroom.xpSettings || { isXPEnabled: true, xpFormulaType: 'exponential', baseXPLevel2: 100 };
+    if (!settings.isXPEnabled) {
+      return res.status(400).json({ error: 'XP system is disabled for this classroom' });
+    }
+
+    const user = await User.findById(userId).select('classroomBalances').lean();
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const cb = (user.classroomBalances || []).find(c => String(c.classroom) === String(classroomId)) || {
+      xp: 0, level: 1
+    };
+
+    // compute “xp needed for NEXT level” from current level + class settings
+    const level = Number(cb.level) || 1;
+    const xp = Number(cb.xp) || 0;
+
+    // inline copy of your util (or import it if you prefer)
+    const base = Math.max(1, Number((settings.baseXPLevel2 ?? 100)));
+    const xpFormulaType = settings.xpFormulaType || 'exponential';
+    const xpNeededForNextLevel = (L) => {
+      const levelSafe = Math.max(1, Number(L || 1));
+      switch (xpFormulaType) {
+        case 'linear':       return base;
+        case 'logarithmic':  return Math.max(1, Math.round(base * levelSafe * Math.log10(levelSafe + 1)));
+        case 'exponential':
+        default:             return Math.max(1, Math.round(base * Math.pow(1.5, levelSafe - 1)));
+      }
+    };
+
+    const nextLevelXP = xpNeededForNextLevel(level);
+
+    return res.json({ level, xp, nextLevelXP });
+  } catch (e) {
+    console.error('xpStudent GET error:', e);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+
 module.exports = router;
