@@ -35,28 +35,42 @@ function escapeCsvCell(value) {
 }
 
 export function exportOrdersToCSV(orders = [], filenameBase = 'orders') {
-  const header = ['orderId', 'type', 'date', 'total', 'classroom', 'description', 'items'];
+  const header = ['orderId', 'type', 'date', 'total', 'classroom', 'classroomId', 'description', 'items']; // ADDED classroomId
   const rows = (orders || []).map(o => {
     // CHANGED: Use metadata.itemDetails if items are deleted
-    const displayItems = (o.items && o.items.length > 0) 
-      ? o.items 
+    const displayItems = (o.items && o.items.length > 0)
+      ? o.items
       : (o.metadata?.itemDetails || []);
-    
+
+    // Derive classroom object (same logic as JSON export)
+    const itemCls = o.items?.[0]?.bazaar?.classroom;
+    const orderCls = o.classroom;
+    const classroomObj =
+      (itemCls && typeof itemCls === 'object' && itemCls.name ? itemCls :
+        (orderCls && typeof orderCls === 'object' && orderCls.name ? orderCls : null));
+
+    // Label (existing helper)
+    const classroomLabel = getClassroomLabel(o);
+    // Id (only if we have an object or a raw string ObjectId)
+    const classroomId = classroomObj?._id
+      || (typeof orderCls === 'string' ? orderCls : '');
+
     const items = displayItems.map(i => i?.name || i?._id || '').join('|');
     const orderType = o.type || 'purchase';
     const description = o.description || '';
-    
+
     return [
       escapeCsvCell(o._id || ''),
       escapeCsvCell(orderType),
       escapeCsvCell(new Date(o.createdAt || '').toLocaleString() || ''),
       escapeCsvCell(o.total ?? ''),
-      escapeCsvCell(getClassroomLabel(o)),
+      escapeCsvCell(classroomLabel),
+      escapeCsvCell(classroomId || ''),
       escapeCsvCell(description),
       escapeCsvCell(items)
     ].join(',');
   });
-  
+
   const csv = [header.join(','), ...rows].join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
@@ -74,11 +88,11 @@ export function exportOrdersToJSON(orders = [], filenameBase = 'orders') {
     // CHANGED: prefer populated classroom from items, then populated order.classroom, then metadata
     const displayItems = (o.items && o.items.length > 0) ? o.items : (o.metadata?.itemDetails || []);
 
+    const itemCls = o.items?.[0]?.bazaar?.classroom;
+    const orderCls = o.classroom;
     const classroomObj =
-      (o.items?.[0]?.bazaar?.classroom && typeof o.items[0].bazaar.classroom === 'object'
-        ? o.items[0].bazaar.classroom
-        : null) ||
-      (o.classroom && typeof o.classroom === 'object' ? o.classroom : null);
+      (itemCls && typeof itemCls === 'object' && itemCls.name ? itemCls :
+        (orderCls && typeof orderCls === 'object' && orderCls.name ? orderCls : null));
 
     const classroom = classroomObj
       ? { _id: classroomObj._id, name: classroomObj.name, code: classroomObj.code }
@@ -86,13 +100,19 @@ export function exportOrdersToJSON(orders = [], filenameBase = 'orders') {
           ? { name: o.metadata.classroomName, code: o.metadata.classroomCode || null }
           : null);
 
+    // NEW: explicit classroomId field (only when available)
+    const classroomId =
+      classroomObj?._id ||
+      (typeof orderCls === 'string' ? orderCls : null);
+
     return {
       _id: o._id,
       type: o.type || 'purchase',
       createdAt: o.createdAt,
       total: o.total,
       description: o.description,
-      classroom,
+      classroom,          // existing structured classroom info
+      classroomId,        // ADDED explicit id
       items: displayItems.map(i => ({
         _id: i?._id,
         name: i?.name,
