@@ -149,7 +149,8 @@ const StudentBadgesPage = ({ classroomId, studentId }) => {
       {earnedBadges.length === 0 ? (
         <p className="text-gray-500 mb-6">No badges earned yet.</p>
       ) : (
-        <div className="flex flex-wrap gap-4 mb-6 justify-start">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+
           {earnedBadges.map((badge) => {
             const imgSrc =
               badge.imageUrl || badge.imageURL || badge.image || null;
@@ -157,28 +158,32 @@ const StudentBadgesPage = ({ classroomId, studentId }) => {
             return (
               <div
                 key={badge._id}
-                className="relative flex flex-col justify-between rounded-2xl shadow-md border border-success/50 bg-success/10 hover:shadow-lg transition p-4 w-60 h-[300px]"
+                className="relative flex flex-col justify-between rounded-2xl shadow-md border border-success/50 bg-success/10 hover:shadow-lg transition duration-200 p-6 w-[360px] min-h-[420px]"
               >
+
                 {/* Top: emoji */}
                 <div className="flex justify-start items-start">
                   <span className="text-3xl">{badge.icon || '🏅'}</span>
                 </div>
 
                 {/* Middle: badge text info */}
-                <div className="mt-3 text-left space-y-1">
-                  <h4 className="font-semibold text-base text-base-content">
+                <div className="mt-4 text-left space-y-2">
+                  <h4 className="font-semibold text-xl text-base-content">
                     {badge.name}
                   </h4>
+
                   {badge.description && (
-                    <p className="text-sm text-base-content/80">
+                    <p className="text-base text-base-content/80">
                       {badge.description}
                     </p>
                   )}
-                  <p className="text-sm font-semibold text-base-content/90">
+
+                  <p className="text-base font-semibold text-base-content/90">
                     Level {badge.levelRequired}
                   </p>
+
                   {badge.dateEarned && (
-                    <p className="text-xs text-base-content/70 italic">
+                    <p className="text-sm text-base-content/70 italic">
                       Earned: {new Date(badge.dateEarned).toLocaleDateString()}
                     </p>
                   )}
@@ -197,7 +202,7 @@ const StudentBadgesPage = ({ classroomId, studentId }) => {
                           : imgSrc
                       }
                       alt={badge.name}
-                      className="w-24 h-28 object-contain rounded-md"
+                      className="w-56 h-64 object-contain rounded-md"
                       onError={(e) =>
                         (e.currentTarget.style.display = 'none')
                       }
@@ -217,31 +222,36 @@ const StudentBadgesPage = ({ classroomId, studentId }) => {
       {lockedBadges.length === 0 ? (
         <p className="text-gray-500">No locked badges remaining.</p>
       ) : (
-        <div className="flex flex-wrap gap-4 justify-start">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+
           {lockedBadges.map((badge) => (
             <div
               key={badge._id || badge.id}
-              className="relative flex flex-col justify-between rounded-2xl shadow-md border border-base-300 bg-base-200 opacity-70 hover:shadow-lg transition p-4 w-60 h-[300px]"
+              className="relative flex flex-col justify-between rounded-2xl shadow-md border border-base-300 bg-base-200 opacity-70 hover:shadow-lg transition duration-200 p-6 w-[360px] min-h-[420px]"
             >
+
               {/* Top row: emoji */}
               <div className="flex justify-start items-start">
                 <span className="text-3xl">{badge.icon || '🏅'}</span>
               </div>
 
               {/* Middle: badge text info */}
-              <div className="mt-3 text-left space-y-1">
-                <h4 className="font-semibold text-base text-base-content">
+              <div className="mt-4 text-left space-y-2">
+                <h4 className="font-semibold text-xl text-base-content">
                   {badge.name}
                 </h4>
+
                 {badge.description && (
-                  <p className="text-sm text-base-content/70">
+                  <p className="text-base text-base-content/70">
                     {badge.description}
                   </p>
                 )}
-                <p className="text-sm font-semibold text-base-content/80">
+
+                <p className="text-base font-semibold text-base-content/80">
                   Level {badge.levelRequired} Required
                 </p>
-                <p className="text-xs text-base-content/60 flex items-center">
+
+                <p className="text-sm text-base-content/60 flex items-center">
                   🔒 Locked
                 </p>
               </div>
@@ -256,7 +266,7 @@ const StudentBadgesPage = ({ classroomId, studentId }) => {
                         : badge.imageUrl
                     }
                     alt={badge.name}
-                    className="w-24 h-28 object-contain rounded-md"
+                    className="w-56 h-64 object-contain rounded-md"
                     onError={(e) => (e.currentTarget.style.display = 'none')}
                   />
                 </div>

@@ -254,23 +254,23 @@ const TeacherBadgesPage = ({ classroomId }) => {
       {badges.length === 0 ? (
         <p className="text-gray-500">No badges created yet.</p>
       ) : (
-        <div className="flex flex-wrap gap-4 mb-6 justify-start">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
 
           {badges.map((badge) => (
             <div
               key={badge._id}
-              className="relative flex flex-col justify-between rounded-2xl shadow-md border border-gray-200 bg-white hover:shadow-lg transition p-4 w-60 h-[300px]"
+              className="relative flex flex-col justify-between rounded-2xl shadow-md border border-base-200 bg-base-100 hover:shadow-lg transition duration-200 p-6 w-[360px] min-h-[420px]"
             >
               {/* Top row: emoji + edit/delete */}
               <div className="flex justify-between items-start">
-                <span className="text-3xl">
+                <span className="text-5xl">
                   {badge.icon || '🏅'}
                 </span>
 
-                <div className="flex gap-2">
+                <div className="flex gap-3">
                   <button
                     onClick={() => handleEditBadge(badge)}
-                    className="text-blue-500 hover:text-blue-700"
+                    className="text-blue-500 hover:text-blue-700 text-xl"
                     title="Edit badge"
                   >
                     ✎
@@ -279,46 +279,46 @@ const TeacherBadgesPage = ({ classroomId }) => {
                     onClick={() => handleDeleteBadge(badge._id)}
                     className="text-red-500 hover:text-red-700 p-1 rounded focus:outline-none focus:ring-2 focus:ring-red-300"
                     title="Delete badge"
-                    aria-label="Delete badge"
                   >
-                    <Trash2 size={16} className="shrink-0" aria-hidden="true" />
+                    <Trash2 size={22} />
                   </button>
                 </div>
               </div>
 
-              {/* Middle: badge text info */}
-              <div className="mt-3 text-left space-y-1">
-                <h4 className="font-semibold text-base">{badge.name}</h4>
+              {/* Badge text */}
+              <div className="mt-4 text-left space-y-2">
+                <h4 className="font-semibold text-xl">{badge.name}</h4>
+
                 {badge.description && (
-                  <p className="text-sm text-gray-600">{badge.description}</p>
+                  <p className="text-base text-base-content/70">{badge.description}</p>
                 )}
-                <p className="text-sm font-semibold text-gray-700">
+
+                <p className="text-base font-semibold text-base-content">
                   Level {badge.levelRequired} Required
                 </p>
-                <p className="text-xs text-gray-400">
+
+                <p className="text-sm text-base-content/50">
                   Created {new Date(badge.createdAt).toLocaleDateString()}
                 </p>
               </div>
 
-              {/* Bottom: badge image (only if present) */}
+              {/* Bottom: badge image (bigger, stays at bottom) */}
               {badge.imageUrl && (
-                <div className="mt-4 flex justify-center">
+                <div className="mt-6 flex justify-center">
                   <img
                     src={
-                      badge.imageUrl?.startsWith('/uploads/')
+                      badge.imageUrl.startsWith('/uploads/')
                         ? `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}${badge.imageUrl}`
                         : badge.imageUrl
                     }
                     alt={badge.name}
-                    className="w-24 h-28 object-contain rounded-md"
-                    onError={(e) => {
-                      // hide broken images to avoid the tiny broken icon
-                      e.currentTarget.style.display = 'none';
-                    }}
+                    className="w-56 h-64 object-contain rounded-md"
+                    onError={(e) => (e.currentTarget.style.display = 'none')}
                   />
                 </div>
               )}
             </div>
+
           ))}
         </div>
       )}
@@ -492,7 +492,7 @@ const TeacherBadgesPage = ({ classroomId }) => {
       ))}
     </select>
 
-    {/* NEW Badge Filter */}
+    {/* Badge Filter */}
     <select
       value={badgeFilter}
       onChange={(e) => setBadgeFilter(e.target.value)}
