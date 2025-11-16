@@ -10,6 +10,9 @@ const blockIfFrozen = require('../middleware/blockIfFrozen');
 const PendingAssignment = require('../models/PendingAssignment');
 const Notification = require('../models/Notification');
 const { populateNotification } = require('../utils/notifications');
+const { xpOnBitsEarned } = require('../middleware/xpHooks');
+const { ensureClassroomBalance } = require('../utils/classroomBalance');
+
 
 // Utility to check if a Admin/TA can assign bits based on classroom policy
 async function canTAAssignBits({ taUser, classroomId }) {
@@ -145,20 +148,31 @@ router.get('/transactions/all', ensureAuthenticated, async (req, res) => {
 });
 
 // Helper function to get or initialize per-classroom balance
-const getClassroomBalance = (user, classroomId) => {
-  const classroomBalance = user.classroomBalances.find(cb => cb.classroom.toString() === classroomId.toString());
-  return classroomBalance ? classroomBalance.balance : 0;
-};
+// const getClassroomBalance = (user, classroomId) => {
+//   const classroomBalance = user.classroomBalances.find(cb => cb.classroom.toString() === classroomId.toString());
+//   return classroomBalance ? classroomBalance.balance : 0;
+// };
 
-// Helper function to update per-classroom balance
-const updateClassroomBalance = (user, classroomId, newBalance) => {
-  const index = user.classroomBalances.findIndex(cb => cb.classroom.toString() === classroomId.toString());
-  if (index >= 0) {
-    user.classroomBalances[index].balance = Math.max(0, newBalance); // Prevent negative balances
-  } else {
-    user.classroomBalances.push({ classroom: classroomId, balance: Math.max(0, newBalance) });
-  }
-};
+// // Helper function to update per-classroom balance
+// const updateClassroomBalance = (user, classroomId, newBalance) => {
+//   const index = user.classroomBalances.findIndex(cb => cb.classroom.toString() === classroomId.toString());
+//   if (index >= 0) {
+//     user.classroomBalances[index].balance = Math.max(0, newBalance); // Prevent negative balances
+//   } else {
+//     user.classroomBalances.push({ classroom: classroomId, balance: Math.max(0, newBalance) });
+//   }
+// };
+
+// Read-only finder (does NOT create a new subdoc)
+function findClassroomBalance(user, classroomId) {
+  return (user.classroomBalances || []).find(
+    cb => String(cb.classroom) === String(classroomId)
+  ) || null;
+}
+
+// Writer: always use ensureClassroomBalance() when you intend to modify balance,
+// so we preserve existing {xp, level, meta}.
+
 
 // Assign Balance to Student (updated for per-classroom)
 router.post('/assign', ensureAuthenticated, async (req, res) => {
@@ -225,47 +239,92 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
     }
 
     // Use per-classroom balance if classroomId is provided
-    if (classroomId) {
-      const currentBalance = getClassroomBalance(student, classroomId);
-      const adjustedAmount = (numericAmount >= 0 && (applyGroupMultipliers || applyPersonalMultipliers)) 
-        ? Math.round(numericAmount * finalMultiplier) 
-        : numericAmount;
-      const newBalance = Math.max(0, currentBalance + adjustedAmount);
-      updateClassroomBalance(student, classroomId, newBalance);
+    // if (classroomId) {
+    //   const currentBalance = getClassroomBalance(student, classroomId);
+    //   const adjustedAmount = (numericAmount >= 0 && (applyGroupMultipliers || applyPersonalMultipliers)) 
+    //     ? Math.round(numericAmount * finalMultiplier) 
+    //     : numericAmount;
+    //   const newBalance = Math.max(0, currentBalance + adjustedAmount);
+    //   updateClassroomBalance(student, classroomId, newBalance);
 
-      student.transactions.push({
-        amount: adjustedAmount,
-        description: description || `Balance adjustment`,
-        assignedBy: req.user._id,
-        classroom: classroomId,
-        calculation: (numericAmount >= 0 && (applyGroupMultipliers || applyPersonalMultipliers)) ? {
-          baseAmount: numericAmount,
-          personalMultiplier: applyPersonalMultipliers ? (student.passiveAttributes?.multiplier || 1) : 1,
-          groupMultiplier: applyGroupMultipliers ? Math.max(...groups.map(g => g.groupMultiplier || 1)) : 1,
-          totalMultiplier: finalMultiplier,
-        } : {
-          baseAmount: numericAmount,
-          personalMultiplier: 1,
-          groupMultiplier: 1,
-          totalMultiplier: 1,
-          note: getMultiplierNote(applyGroupMultipliers, applyPersonalMultipliers)
-        },
-      });
-    } else {
-      // Fallback to global balance
-      student.balance = Math.max(0, student.balance + numericAmount);
-      student.transactions.push({
-        amount: numericAmount,
-        description: description || `Balance adjustment`,
-        assignedBy: req.user._id,
-        calculation: numericAmount >= 0 ? {
-          baseAmount: numericAmount,
-          personalMultiplier: 1, // Note: This route doesn't use personal multiplier
-          groupMultiplier: finalMultiplier,
-          totalMultiplier: finalMultiplier,
-        } : undefined,
-      });
-    }
+    //   student.transactions.push({
+    //     amount: adjustedAmount,
+    //     description: description || `Balance adjustment`,
+    //     assignedBy: req.user._id,
+    //     classroom: classroomId,
+    //     calculation: (numericAmount >= 0 && (applyGroupMultipliers || applyPersonalMultipliers)) ? {
+    //       baseAmount: numericAmount,
+    //       personalMultiplier: applyPersonalMultipliers ? (student.passiveAttributes?.multiplier || 1) : 1,
+    //       groupMultiplier: applyGroupMultipliers ? Math.max(...groups.map(g => g.groupMultiplier || 1)) : 1,
+    //       totalMultiplier: finalMultiplier,
+    //     } : {
+    //       baseAmount: numericAmount,
+    //       personalMultiplier: 1,
+    //       groupMultiplier: 1,
+    //       totalMultiplier: 1,
+    //       note: getMultiplierNote(applyGroupMultipliers, applyPersonalMultipliers)
+    //     },
+    //   });
+    // } else {
+    //   // Fallback to global balance
+    //   student.balance = Math.max(0, student.balance + numericAmount);
+    //   student.transactions.push({
+    //     amount: numericAmount,
+    //     description: description || `Balance adjustment`,
+    //     assignedBy: req.user._id,
+    //     calculation: numericAmount >= 0 ? {
+    //       baseAmount: numericAmount,
+    //       personalMultiplier: 1, // Note: This route doesn't use personal multiplier
+    //       groupMultiplier: finalMultiplier,
+    //       totalMultiplier: finalMultiplier,
+    //     } : undefined,
+    //   });
+    // }
+
+    if (classroomId) {
+  const cb = ensureClassroomBalance(student, classroomId);
+
+  const adjustedAmount = (numericAmount >= 0 && (applyGroupMultipliers || applyPersonalMultipliers))
+    ? Math.round(numericAmount * finalMultiplier)
+    : numericAmount;
+
+  cb.balance = Math.max(0, (cb.balance || 0) + adjustedAmount);
+
+  student.transactions.push({
+    amount: adjustedAmount,
+    description: description || `Balance adjustment`,
+    assignedBy: req.user._id,
+    classroom: classroomId,
+    calculation: (numericAmount >= 0 && (applyGroupMultipliers || applyPersonalMultipliers)) ? {
+      baseAmount: numericAmount,
+      personalMultiplier: applyPersonalMultipliers ? (student.passiveAttributes?.multiplier || 1) : 1,
+      groupMultiplier: applyGroupMultipliers ? Math.max(...groups.map(g => g.groupMultiplier || 1)) : 1,
+      totalMultiplier: finalMultiplier,
+    } : {
+      baseAmount: numericAmount,
+      personalMultiplier: 1,
+      groupMultiplier: 1,
+      totalMultiplier: 1,
+      note: getMultiplierNote(applyGroupMultipliers, applyPersonalMultipliers)
+    },
+  });
+} else {
+  // Fallback to global balance
+  student.balance = Math.max(0, (student.balance || 0) + numericAmount);
+  student.transactions.push({
+    amount: numericAmount,
+    description: description || `Balance adjustment`,
+    assignedBy: req.user._id,
+    calculation: numericAmount >= 0 ? {
+      baseAmount: numericAmount,
+      personalMultiplier: 1,
+      groupMultiplier: finalMultiplier,
+      totalMultiplier: finalMultiplier,
+    } : undefined,
+  });
+}
+
+
 
     await student.save();
     console.log(`Assigned ${adjustedAmount} ₿ to ${student.email}`);
@@ -293,12 +352,33 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
     });
 
     // AFTER saving student(s) and creating notification(s), emit per-classroom update and return per-class balance
-const perClassBalance = classroomId ? getClassroomBalance(student, classroomId) : (student.balance || 0);
-req.app.get('io').to(`classroom-${classroomId}`).emit('balance_update', {
-  studentId: student._id,
-  newBalance: perClassBalance,
-  classroomId
-});
+    
+const perClassBalance = classroomId
+  ? (findClassroomBalance(student, classroomId)?.balance || 0)
+  : (student.balance || 0);
+
+
+
+
+//award xp for bits earned
+try {
+  if (classroomId) {
+  const bitsForXP = Math.max(0, Number(
+    (typeof adjustedAmount === 'number') ? adjustedAmount : numericAmount
+  ));
+  if (bitsForXP > 0) {
+    await xpOnBitsEarned({
+      userId: student._id,
+      classroomId,
+      bitsEarned: bitsForXP,   // final amount after multipliers
+      bitsMode: 'final'
+    });
+  }
+}
+
+} catch (xpErr) {
+  console.warn('[XP] Failed to award XP for earned Bits:', xpErr.message);
+}
 
 res.status(200).json({
   message: 'Balance assigned successfully',
@@ -432,19 +512,23 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
         finalMultiplier = 1;
       }
 
-      const adjustedAmount = (numericAmount >= 0 && (applyGroupMultipliers || applyPersonalMultipliers))
-        ? Math.round(numericAmount * finalMultiplier)
-        : numericAmount;
+      // Update per-classroom balance when classroomId provided; otherwise fallback to global balance
+      // Compute adjustedAmount once so it's available after the if/else
+      const adjustedAmount =
+        numericAmount >= 0 && (applyGroupMultipliers || applyPersonalMultipliers)
+          ? Math.round(numericAmount * finalMultiplier)
+          : numericAmount;
 
       // Update per-classroom balance when classroomId provided; otherwise fallback to global balance
       if (classroomId) {
-        const current = getClassroomBalance(student, classroomId);
-        const newBalance = Math.max(0, current + adjustedAmount);
-        updateClassroomBalance(student, classroomId, newBalance);
+        const cb = ensureClassroomBalance(student, classroomId);
+        cb.balance = Math.max(0, (cb.balance || 0) + adjustedAmount);
       } else {
-        // fallback: global balance (legacy)
         student.balance = Math.max(0, (student.balance || 0) + adjustedAmount);
       }
+
+
+
       student.transactions.push({
         amount: adjustedAmount,
         description,
@@ -467,6 +551,27 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
 
       await student.save();
       results.updated += 1; 
+      //award xp for bits earned 
+      try {
+        if (classroomId) {
+          const bitsForXP = Math.max(0, Number(
+            (typeof adjustedAmount === 'number') ? adjustedAmount : numericAmount
+          ));
+          if (bitsForXP > 0) {
+            await xpOnBitsEarned({
+              userId: student._id,
+              classroomId,
+              bitsEarned: bitsForXP,
+              bitsMode: 'final'
+            });
+          }
+        }
+
+        
+      } catch (xpErr) {
+        console.warn('[XP] Bulk award XP failed for', student._id, xpErr.message);
+      }
+
       const notification = await Notification.create({
           user: student._id,
           actionBy: req.user._id,
@@ -580,19 +685,22 @@ router.post(
     // --- end new code ---
 
     // Update balances (use inside the transfer/assign handler where numericAmount/adjustedAmount/classroomId are available)
-    const senderBalance = classroomId ? getClassroomBalance(sender, classroomId) : (sender.balance || 0);
-    if (senderBalance < numericAmount) {
-      return res.status(400).json({ error: 'Insufficient balance' });
-    }
+   const senderCB = classroomId ? ensureClassroomBalance(sender, classroomId) : null;
+  const senderBalance = classroomId ? (senderCB.balance || 0) : (sender.balance || 0);
 
-    if (classroomId) {
-      updateClassroomBalance(sender, classroomId, Math.max(0, senderBalance - numericAmount));
-      const recipientBalance = getClassroomBalance(recipient, classroomId);
-      updateClassroomBalance(recipient, classroomId, recipientBalance + adjustedAmount);
-    } else {
-      sender.balance = (sender.balance || 0) - numericAmount;
-      recipient.balance = (recipient.balance || 0) + adjustedAmount;
-    }
+  if (senderBalance < numericAmount) {
+    return res.status(400).json({ error: 'Insufficient balance' });
+  }
+
+  if (classroomId) {
+    senderCB.balance = Math.max(0, senderBalance - numericAmount);
+    const recipientCB = ensureClassroomBalance(recipient, classroomId);
+    recipientCB.balance = (recipientCB.balance || 0) + adjustedAmount;
+  } else {
+    sender.balance = (sender.balance || 0) - numericAmount;
+    recipient.balance = (recipient.balance || 0) + adjustedAmount;
+  }
+
 
     // Create custom descriptions based on whether a message was provided
     const baseDescription = message ? 
@@ -681,7 +789,8 @@ router.get('/:userId/balance', ensureAuthenticated, async (req, res) => {
 
     let balance = user.balance; // Default to global
     if (classroomId) {
-      balance = getClassroomBalance(user, classroomId);
+      balance = (findClassroomBalance(user, classroomId)?.balance || 0);
+
     }
     res.json({ balance });
   } catch (err) {

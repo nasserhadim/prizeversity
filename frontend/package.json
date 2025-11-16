@@ -10,9 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@emoji-mart/data": "^1.2.1",
+    "@emoji-mart/react": "^1.1.1",
     "axios": "^1.7.9",
     "dompurify": "^3.2.6",
-    "emoji-picker-react": "^4.15.0",
     "file-saver": "^2.0.5",
     "lucide-react": "^0.511.0",
     "quill": "^2.0.3",

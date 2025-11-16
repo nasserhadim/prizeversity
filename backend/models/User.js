@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
+// Clear existing model to avoid OverwriteModelError in watch mode
 delete mongoose.models['User'];
 delete mongoose.connection.models['User'];
 
@@ -16,9 +17,16 @@ const TransactionSchema = new mongoose.Schema({
   amount: { type: Number, required: true },
   description: { type: String, required: true },
   assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  // <-- add classroom reference so transactions can be scoped per classroom
-  classroom: { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom', default: null },
-  // Embedded item summaries for purchase transactions (so wallet can render thumbnails/effects)
+
+  // Classroom reference so transactions can be scoped per classroom
+  classroom: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Classroom',
+    default: null
+  },
+
+  // Embedded item summaries for purchase transactions
+  // this is so wallet can render thumbnails/effects even if the Item changes later
   items: [{
     id: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' },
     name: String,
@@ -30,92 +38,127 @@ const TransactionSchema = new mongoose.Schema({
     primaryEffectValue: Number,
     secondaryEffects: [{ effectType: String, value: Number }]
   }],
+
   // Reference to Order when a checkout created an Order document
   orderId: { type: mongoose.Schema.Types.ObjectId, ref: 'Order' },
+
   type: { type: String }, // e.g. 'purchase', 'transfer', etc.
   createdAt: { type: Date, default: Date.now },
+
   calculation: {
     baseAmount: Number,
     personalMultiplier: Number,
     groupMultiplier: Number,
-    totalMultiplier: Number,
+    totalMultiplier: Number
   }
 });
 
 const UserSchema = new mongoose.Schema({
   googleId: { type: String },
   microsoftId: { type: String },
+
   email: { type: String, required: true },
-  avatar: String, // uploaded avatar filename
-  profileImage: String, // OAuth provider profile image URL
+
+  avatar: String,        // uploaded avatar filename
+  profileImage: String,  // OAuth provider profile image URL
+
   firstName: { type: String },
   lastName: { type: String },
-  // Add these fields to store OAuth profile names temporarily
-  oauthFirstName: { type: String }, // Temporary storage for OAuth first name
-  oauthLastName: { type: String },  // Temporary storage for OAuth last name
-  role: { type: String, enum: ['admin', 'teacher', 'student']/*, default: 'student' */ },
+
+  // Store OAuth profile names temporarily this is used to prefill profile
+  oauthFirstName: { type: String },
+  oauthLastName: { type: String },
+
+  role: {
+    type: String,
+    enum: ['admin', 'teacher', 'student']
+  },
+
   balance: { type: Number, default: 0, min: 0 },
-  isFrozen: { type: Boolean, default: false }, // Add default: false here
-  // Add classroom join dates tracking
+
+  isFrozen: { type: Boolean, default: false },
+
+  // this will track when the user joined each classroom
   classroomJoinDates: [{
     classroom: { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom' },
     joinedAt: { type: Date, default: Date.now }
   }],
-  // Per-classroom freeze flags: list of classroom ids where this user is currently frozen
+
+  // Per-classroom freeze flags: list of classroom ids where this user is frozen
   classroomFrozen: [{
     classroom: { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom' }
   }],
+
   groups: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Group' }],
+
   transactions: [TransactionSchema],
+
   isBanned: { type: Boolean, default: false },
+
   shieldActive: { type: Boolean, default: false },
   shieldCount: { type: Number, default: 0 },
-  //will comment out these lines once completely obsolete
-  discountShop: { type: Boolean, default: false }, // edited this line
-  discountPercent: { type: Number, default: 0 }, //addded this line            
-  discountExpiresAt: { type: Date, default: null }, //added this line
+
+  // this is for the discount shop status
+  discountShop: { type: Boolean, default: false },
+  discountPercent: { type: Number, default: 0 },
+  discountExpiresAt: { type: Date, default: null },
+
+  // Combat / challenge stats
   attackPower: { type: Number, default: 0 },
-  // New passive stat attributes
+
+  // Passive stat attributes (used for items, mystery boxes, etc.)
   passiveAttributes: {
-    luck: { type: Number, default: 1 },               // base 0, can be incremented
-    multiplier: { type: Number, default: 1 },         // base 1x
-    groupMultiplier: { type: Number, default: 1 }, // base 1x
+    luck: { type: Number, default: 1 },           // base 1, can be incremented
+    multiplier: { type: Number, default: 1 },     // base 1x
+    groupMultiplier: { type: Number, default: 1 } // base 1x
   },
 
-  // Leveling System (Scoped Per Classroom)
-// Each student has a separate XP and Level record per classroom.
-// Teachers and admins will not use this system.
+  // Leveling System (this is scoped Per Classroom)
+  // Each student has a separate XP and a Level per classroom.
   classroomBalances: [{
     classroom: { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom' },
+
+    // this is Bits balance for this classroom
     balance: { type: Number, default: 0, min: 0 },
-    xp: { type: Number, default: 0, min: 0 }, // XP progress specific to the classroom
-    level: { type: Number, default: 1, min: 1 }, // Level specific to the classroom
-    badges: [
-      {
-        badge: { type: mongoose.Schema.Types.ObjectId, ref: 'Badge' },
-        dateEarned: { type: Date, default: Date.now }
-      }
-    ]
+
+    // XP and Level specific to this classroom
+    xp: { type: Number, default: 0, min: 0 },
+    level: { type: Number, default: 1, min: 1 },
+
+    // Per-classroom daily check-in timestamp this is used for 24h
+    lastDailyCheckin: { type: Date, default: null },
+
+    // these are the badges earned in this classroom
+    badges: [{
+      badge: { type: mongoose.Schema.Types.ObjectId, ref: 'Badge' },
+      dateEarned: { type: Date, default: Date.now }
+    }]
   }],
 
+  // Short friendly id like "AB1234"
   shortId: {
     type: String,
     unique: true,
     required: true,
-    match: /^[A-Z]{2}\d{4}$/,
-  },
+    match: /^[A-Z]{2}\d{4}$/
+  }
 
-}, { 
-  timestamps: true  // This should be here to automatically add createdAt and updatedAt
+}, {
+  timestamps: true // automatically adds createdAt and updatedAt
 });
 
+// this will generate a unique shortId before validation if it's missing
 UserSchema.pre('validate', async function (next) {
   if (this.shortId) return next();
-  let candidate; let exists = true;
+
+  let candidate;
+  let exists = true;
+
   while (exists) {
     candidate = generateShortId();
     exists = await mongoose.models.User.exists({ shortId: candidate });
   }
+
   this.shortId = candidate;
   next();
 });

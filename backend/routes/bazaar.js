@@ -10,6 +10,36 @@ const Order = require('../models/Order');
 const blockIfFrozen = require('../middleware/blockIfFrozen');
 const upload = require('../middleware/upload'); // reuse existing upload middleware
 const escapeRx = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const { xpOnBitsSpent, xpOnMysteryBoxUse } = require('../middleware/xpHooks');
+
+const { xpOnBitsSpentPurchase } = require('../middleware/xpHooks');
+// XP hooks
+
+// --- XP helper: safely award XP when bits are spent ---
+async function awardXpForSpentBits({ userId, classroomId, spentBits }) {
+  const n = Number(spentBits);
+  if (!Number.isFinite(n) || n <= 0) return;
+
+  try {
+    if (typeof xpOnBitsSpentPurchase === 'function' && xpOnBitsSpentPurchase.length <= 1) {
+      await xpOnBitsSpentPurchase({
+        userId: String(userId),
+        classroomId: String(classroomId),
+        spentBits: n,
+        bitsMode: 'final',
+      });
+    } else {
+      const user = await User.findById(userId);
+      await xpOnBitsSpentPurchase(user, n, classroomId);
+    }
+  } catch (e) {
+    console.warn('[XP] Failed to award XP for purchase:', e.message);
+  }
+}
+
+
+
+
 
 // Middleware: Only teachers allowed for certain actions
 function ensureTeacher(req, res, next) {
@@ -446,12 +476,14 @@ const updateClassroomBalance = (user, classroomId, newBalance) => {
 
 // Buy Item (updated for per-classroom balances)
 router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensureAuthenticated, blockIfFrozen, async (req, res) => {
-  const { classroomId, itemId } = req.params;
-  const { quantity } = req.body;
+ const { classroomId, itemId } = req.params;
+ try {
+  const item = await Item.findById(itemId);
+if (!item) return res.status(404).json({ error: 'Item not found' });
 
-  try {
-    const item = await Item.findById(itemId);
-    if (!item) return res.status(404).json({ error: 'Item not found' });
+const rawQty = req.body.quantity;
+const qty = Number.isFinite(Number(rawQty)) && Number(rawQty) > 0 ? Number(rawQty) : 1;
+const totalCost = item.price * qty;
 
     //guarding, block purchase of a mystery box with no prizes 
     if (item.kind === 'mystery_box' || item.category === 'Mystery') {
@@ -465,7 +497,6 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
     }
 
     const user = await User.findById(req.user._id);
-    const totalCost = item.price * quantity;
 
     // Use per-classroom balance for check and deduction
     const userBalance = getClassroomBalance(user, classroomId);
@@ -475,7 +506,8 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
 
     // Create owned copies for quantity and collect summaries (unchanged, but now with per-classroom context)
     const ownedItems = [];
-    for (let i = 0; i < quantity; i++) {
+    for (let i = 0; i < qty; i++) {
+
       const ownedData = {
         name: item.name,
         description: item.description,
@@ -504,7 +536,8 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
     updateClassroomBalance(user, classroomId, userBalance - totalCost);
     user.transactions.push({
       amount: -totalCost,
-      description: `Purchased ${quantity} x ${item.name}`,
+      description: `Purchased ${qty} x ${item.name}`,
+
       assignedBy: req.user._id,
       classroom: classroomId,  // Add classroom reference
       type: 'purchase',
@@ -531,6 +564,20 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
       buyerId: req.user._id,
       newStock: item.stock
     });
+
+    //award xp for bit spents on purchase
+   // Award XP for Bits spent in checkout
+   // Award XP for Bits spent on a single-item buy
+ 
+// Award XP for Bits spent (single-item buy)
+  try {
+    console.log('[XP] Award on buy:', { userId: req.user._id, classroomId, spentBits: totalCost });
+    await awardXpForSpentBits({ userId: req.user._id, classroomId, spentBits: totalCost });
+  } catch (xpErr) {
+    console.warn('[XP] Failed to award XP for buy:', xpErr.message);
+  }
+
+
 
     res.status(200).json({
       message: 'Purchase successful',
@@ -731,6 +778,16 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
     await user.save();
 
     console.log("Checkout successful for user:", userId, "order:", order._id);
+// Award XP for Bits spent (checkout)
+    try {
+      console.log('[XP] Award on checkout:', { userId, classroomId, spentBits: total });
+      await awardXpForSpentBits({ userId, classroomId, spentBits: total });
+    } catch (xpErr) {
+      console.warn('[XP] Failed to award XP for checkout:', xpErr.message);
+    }
+
+
+
     res.status(200).json({
       message: 'Purchase successful',
       items: ownedItems,
@@ -773,12 +830,12 @@ router.get('/user/:userId/discounts', async (req, res) => {
     const user = await User.findById(req.params.userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    let discounts = []; // Default to empty set
-    let num = 0; // default to no discounts
+    let discounts = [];
     if (classroomId) {
-      discounts = await  discounts.find({owner : req.params.userId});
+      discounts = await Discounts.find({ owner: req.params.userId, classroom: classroomId });
     }
     res.json({ discounts });
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch balance' });
@@ -952,8 +1009,26 @@ router.post('/inventory/:ownedId/open', ensureAuthenticated, async (req, res) =>
     secondaryEffects: base.secondaryEffects,
     owner: req.user._id
   });
+
+
   // mark box opened + hide it (soft delete)
   await Item.findByIdAndUpdate(ownedId, { openedAt: new Date(), deletedAt: new Date() });
+  try {
+    let classroomId = null;
+    if (box?.bazaar) {
+      const baz = await Bazaar.findById(box.bazaar).select('classroom').lean();
+      classroomId = baz?.classroom || null;
+    }
+    if (classroomId) {
+      await xpOnMysteryBoxUse({
+        userId: req.user._id,
+        classroomId,
+      });
+    }
+  } catch (xpErr) {
+    console.warn('[XP] Failed to award XP for mystery box use:', xpErr.message);
+  }
+
   return res.json({
     ok: true,
     message: 'Box opened',
