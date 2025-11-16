@@ -67,19 +67,19 @@ const People = () => {
   const navigate = useNavigate();
 
   // Load stat-change log for teacher/admin/student viewers
- useEffect(() => {
-   const viewerRole = (user?.role || '').toLowerCase();
-   if (!classroomId || !user || !['teacher', 'admin', 'student'].includes(viewerRole)) return;
-   let mounted = true;
-   (async () => {
-     try {
-       await fetchStatChanges();
-     } catch (e) {
-       if (mounted) console.debug('[People] failed to auto-load stat changes', e);
-     }
-   })();
-   return () => { mounted = false; };
- }, [user, classroomId]);
+  useEffect(() => {
+    const viewerRole = (user?.role || '').toLowerCase();
+    if (!classroomId || !user || !['teacher', 'admin', 'student'].includes(viewerRole)) return;
+    let mounted = true;
+    (async () => {
+      try {
+        await fetchStatChanges();
+      } catch (e) {
+        if (mounted) console.debug('[People] failed to auto-load stat changes', e);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [user, classroomId]);
 
   // Fetch classroom settings including students can view stats
   const fetchClassroom = async () => {
@@ -176,20 +176,20 @@ const People = () => {
       .get(`/api/classroom/${classroomId}/student-send-enabled`, {
         withCredentials: true,
       })
-     .then((r) => setStudentSendEnabled(!!r.data.studentSendEnabled))
+      .then((r) => setStudentSendEnabled(!!r.data.studentSendEnabled))
       .catch(() => setStudentSendEnabled(false)); // safe default
 
-      // This is now the single source of truth for real-time updates to this setting.
-      socket.on('classroom_update', (updatedClassroom) => {
-        console.log('classroom_update received, banLog:', updatedClassroom.banLog);
-        if (updatedClassroom._id === classroomId) {
-          console.debug('[socket] People classroom_update received, updating state from payload.');
-          console.debug('[socket] Updated classroom data:', updatedClassroom);
-          // Update the entire classroom object and the specific setting state from the socket payload.
-          setClassroom(prev => ({ ...prev, ...updatedClassroom }));
-          setStudentsCanViewStats(updatedClassroom.studentsCanViewStats !== false);
-        }
-      });
+    // This is now the single source of truth for real-time updates to this setting.
+    socket.on('classroom_update', (updatedClassroom) => {
+      console.log('classroom_update received, banLog:', updatedClassroom.banLog);
+      if (updatedClassroom._id === classroomId) {
+        console.debug('[socket] People classroom_update received, updating state from payload.');
+        console.debug('[socket] Updated classroom data:', updatedClassroom);
+        // Update the entire classroom object and the specific setting state from the socket payload.
+        setClassroom(prev => ({ ...prev, ...updatedClassroom }));
+        setStudentsCanViewStats(updatedClassroom.studentsCanViewStats !== false);
+      }
+    });
 
     // Join helper (use shared helpers so server room names match)
     const joinRooms = () => {
@@ -280,7 +280,7 @@ const People = () => {
     const notificationHandler = (payload) => {
       console.debug('[socket] People notification payload:', payload);
       // React only to wallet-related notifications
-      const walletTypes = new Set(['wallet_topup','wallet_transfer','wallet_adjustment','wallet_payment','wallet_transaction']);
+      const walletTypes = new Set(['wallet_topup', 'wallet_transfer', 'wallet_adjustment', 'wallet_payment', 'wallet_transaction']);
       if (payload?.type && !walletTypes.has(payload.type)) return;
 
       // If notification carries a populated user or studentId, use it
@@ -343,7 +343,7 @@ const People = () => {
       fetchStudents();
     }); // group bulk events
     socket.on('notification', (payload) => {
-      const walletTypes = new Set(['wallet_topup','wallet_transfer','wallet_adjustment','wallet_payment','wallet_transaction']);
+      const walletTypes = new Set(['wallet_topup', 'wallet_transfer', 'wallet_adjustment', 'wallet_payment', 'wallet_transaction']);
       if (payload?.type && walletTypes.has(payload.type)) {
         // Some notifications are per-user, some are bulk — refresh to be safe
         console.debug('[socket] wallet notification received — refreshing students', payload);
@@ -362,10 +362,9 @@ const People = () => {
       socket.off('notification');
       socket.off('classroom_removal', handleClassroomRemoval); // Add cleanup
     };
-  }, [classroomId, user?._id, navigate]); // Add navigate to dependencies
+  }, [classroomId, user?._id, navigate]);
 
-
-// Fetch students with per-classroom balances
+  // Fetch students with per-classroom balances
   const fetchStudents = async () => {
     try {
       const res = await axios.get(`/api/classroom/${classroomId}/students`, { withCredentials: true });
@@ -386,21 +385,21 @@ const People = () => {
   };
 
   // Add helper to detect ban info for a student
-const getBanInfo = (student, classroomObj) => {
-  const banLog = (Array.isArray(classroomObj?.banLog) && classroomObj.banLog.length)
-    ? classroomObj.banLog
-    : (Array.isArray(classroomObj?.bannedRecords) ? classroomObj.bannedRecords : []);
-  const banRecord = (banLog || []).find(br => String(br.user?._id || br.user) === String(student._id));
-  if (banRecord) {
-    return { banned: true, reason: banRecord.reason || '', bannedAt: banRecord.bannedAt || null };
-  }
-  const bannedStudents = Array.isArray(classroomObj?.bannedStudents) ? classroomObj.bannedStudents : [];
-  const bannedIds = bannedStudents.map(b => (b && b._id) ? String(b._id) : String(b));
-  if (bannedIds.includes(String(student._id))) {
-    return { banned: true, reason: '', bannedAt: null };
-  }
-  return { banned: false, reason: '', bannedAt: null };
-};
+  const getBanInfo = (student, classroomObj) => {
+    const banLog = (Array.isArray(classroomObj?.banLog) && classroomObj.banLog.length)
+      ? classroomObj.banLog
+      : (Array.isArray(classroomObj?.bannedRecords) ? classroomObj.bannedRecords : []);
+    const banRecord = (banLog || []).find(br => String(br.user?._id || br.user) === String(student._id));
+    if (banRecord) {
+      return { banned: true, reason: banRecord.reason || '', bannedAt: banRecord.bannedAt || null };
+    }
+    const bannedStudents = Array.isArray(classroomObj?.bannedStudents) ? classroomObj.bannedStudents : [];
+    const bannedIds = bannedStudents.map(b => (b && b._id) ? String(b._id) : String(b));
+    if (bannedIds.includes(String(student._id))) {
+      return { banned: true, reason: '', bannedAt: null };
+    }
+    return { banned: false, reason: '', bannedAt: null };
+  };
 
   // Filter and sort students based on searchQuery, sortOption, and roleFilter
   const filteredStudents = [...students]
@@ -410,7 +409,7 @@ const getBanInfo = (student, classroomObj) => {
       const email = (student.email || '').toLowerCase();
       const fullName = `${firstName} ${lastName}`.trim().toLowerCase();
       const query = searchQuery.toLowerCase();
-      
+
       // Search filter
       const matchesSearch = (
         firstName.includes(query) ||
@@ -425,7 +424,7 @@ const getBanInfo = (student, classroomObj) => {
         return matchesSearch && banInfo.banned;
       }
       const matchesRole = roleFilter === 'all' || student.role === roleFilter;
-      
+
       return matchesSearch && matchesRole;
     })
     .sort((a, b) => {
@@ -532,7 +531,7 @@ const getBanInfo = (student, classroomObj) => {
       setTotalSpentMap({});
       return;
     }
- 
+
     let cancelled = false;
     (async () => {
       try {
@@ -557,43 +556,43 @@ const getBanInfo = (student, classroomObj) => {
               return { id, spent: 0 };
             })
         );
- 
+
         const results = await Promise.all(promises);
         if (cancelled) return;
         const map = {};
         results.forEach(r => { map[r.id] = r.spent; });
         setTotalSpentMap(map);
-       } catch (err) {
-         if (!cancelled) console.error('[People] failed to load per-student totals', err);
-       }
-     })();
- 
-     return () => { cancelled = true; };
+      } catch (err) {
+        if (!cancelled) console.error('[People] failed to load per-student totals', err);
+      }
+    })();
+
+    return () => { cancelled = true; };
   }, [user, classroomId, students]);
   // ── end per-student totals effect ──
 
   // ── Fetch per-student stats (all students) — debounced so rapid sort/select changes don't refire immediately ──
   useEffect(() => {
     const viewerRole = (user?.role || '').toLowerCase();
-    const statFields = ['multiplier','luck','shield','attack','discount'];
+    const statFields = ['multiplier', 'luck', 'shield', 'attack', 'discount'];
     const statSortSelected = statFields.some(f => sortOption.includes(f));
- 
+
     // Only fetch stats if:
     // - we have a classroom and students
     // - and either viewer is teacher/admin, or student view is allowed, or a stat-based sort is active
     const shouldFetch = classroomId &&
       Array.isArray(students) && students.length > 0 &&
       (viewerRole === 'teacher' || viewerRole === 'admin' || (viewerRole === 'student' && studentsCanViewStats) || statSortSelected);
- 
+
     if (!shouldFetch) {
       setStudentStatsMap({});
       setStudentStatsLoading(false);
       return;
     }
- 
+
     let cancelled = false;
     setStudentStatsLoading(true);
- 
+
     // Debounce to avoid refiring many requests for quick select changes
     const idsKey = students.map(s => s._id).join(',');
     const timer = setTimeout(async () => {
@@ -618,11 +617,10 @@ const getBanInfo = (student, classroomObj) => {
         if (!cancelled) setStudentStatsLoading(false);
       }
     }, 350); // 350ms debounce
- 
+
     return () => { cancelled = true; clearTimeout(timer); setStudentStatsLoading(false); };
   }, [
     classroomId,
-    // watch student ids, sortOption, viewer role, and the classroom setting for student visibility
     students.map(s => s._id).join(','),
     sortOption,
     (user?.role || '').toLowerCase(),
@@ -670,7 +668,7 @@ const getBanInfo = (student, classroomObj) => {
       filteredStudents.map(async (student) => {
         let stats = {};
         let groups = [];
-        
+
         try {
           // Fetch student stats
           const statsRes = await axios.get(`/api/stats/student/${student._id}?classroomId=${classroomId}`, { withCredentials: true });
@@ -683,8 +681,8 @@ const getBanInfo = (student, classroomObj) => {
           // Find groups this student belongs to
           groupSets.forEach(groupSet => {
             groupSet.groups.forEach(group => {
-              const isMember = group.members.some(member => 
-                String(member._id._id || member._id) === String(student._id) && 
+              const isMember = group.members.some(member =>
+                String(member._id._id || member._id) === String(student._id) &&
                 member.status === 'approved' // Only count approved members
               );
               if (isMember) {
@@ -703,9 +701,9 @@ const getBanInfo = (student, classroomObj) => {
           Balance: student.balance?.toFixed(2) || '0.00',
           // Include Total spent for CSV export (uses per-student totals loaded into totalSpentMap)
           TotalSpent: (Number(totalSpentMap[student._id] || 0)).toFixed(2),
-          JoinedDate: student.joinedAt 
-            ? new Date(student.joinedAt).toLocaleString() 
-            : student.createdAt 
+          JoinedDate: student.joinedAt
+            ? new Date(student.joinedAt).toLocaleString()
+            : student.createdAt
               ? new Date(student.createdAt).toLocaleString()
               : 'Unknown',
           Luck: stats.luck || 1,
@@ -726,7 +724,7 @@ const getBanInfo = (student, classroomObj) => {
     const headers = Object.keys(dataToExport[0]);
     const csvContent = [
       headers.join(','),
-      ...dataToExport.map(row => 
+      ...dataToExport.map(row =>
         headers.map(header => {
           const value = row[header];
           // Escape CSV values that contain commas, quotes, or newlines
@@ -742,17 +740,17 @@ const getBanInfo = (student, classroomObj) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    
+
     const classroomName = classroom?.name || 'Unknown';
     const classroomCode = classroom?.code || classroomId;
     const base = formatExportFilename(`${classroomName}_${classroomCode}_people`, 'export');
     a.download = `${base}.csv`;
-    
+
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    
+
     return `${base}.csv`;
   };
 
@@ -765,7 +763,7 @@ const getBanInfo = (student, classroomObj) => {
       filteredStudents.map(async (student) => {
         let stats = {};
         let groups = [];
-        
+
         try {
           // Fetch student stats
           const statsRes = await axios.get(`/api/stats/student/${student._id}?classroomId=${classroomId}`, { withCredentials: true });
@@ -778,8 +776,8 @@ const getBanInfo = (student, classroomObj) => {
           // Find groups this student belongs to
           groupSets.forEach(groupSet => {
             groupSet.groups.forEach(group => {
-              const isMember = group.members.some(member => 
-                String(member._id._id || member._id) === String(student._id) && 
+              const isMember = group.members.some(member =>
+                String(member._id._id || member._id) === String(student._id) &&
                 member.status === 'approved' // Only count approved members
               );
               if (isMember) {
@@ -846,19 +844,20 @@ const getBanInfo = (student, classroomObj) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    
+
     const classroomName = classroom?.name || 'Unknown';
     const classroomCode = classroom?.code || classroomId;
     const base = formatExportFilename(`${classroomName}_${classroomCode}_people`, 'export');
     a.download = `${base}.json`;
-    
+
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    
+
     return `${base}.json`;
   };
+
   // ── Join each student's user room so per-user notifications/balance events are received ──
   useEffect(() => {
     if (!Array.isArray(students) || students.length === 0) return;
@@ -948,24 +947,24 @@ const getBanInfo = (student, classroomObj) => {
   };
 
   { /* Add helper to unban (place near other handlers like handleRemoveStudent) */ }
-const handleUnbanStudent = async (studentId) => {
-  try {
-    await axios.post(`/api/classroom/${classroomId}/students/${studentId}/unban`, {}, { withCredentials: true });
-    toast.success('Student unbanned');
-    await fetchStudents();
-    await fetchClassroom();
-    // Add a small delay to ensure state propagates
-    setTimeout(() => setClassroom(prev => ({ ...prev })), 500); // Force re-render if needed
-  } catch (err) {
-    console.error('Failed to unban', err);
-    toast.error(err.response?.data?.error || 'Failed to unban student');
-  }
-};
+  const handleUnbanStudent = async (studentId) => {
+    try {
+      await axios.post(`/api/classroom/${classroomId}/students/${studentId}/unban`, {}, { withCredentials: true });
+      toast.success('Student unbanned');
+      await fetchStudents();
+      await fetchClassroom();
+      // Add a small delay to ensure state propagates
+      setTimeout(() => setClassroom(prev => ({ ...prev })), 500); // Force re-render if needed
+    } catch (err) {
+      console.error('Failed to unban', err);
+      toast.error(err.response?.data?.error || 'Failed to unban student');
+    }
+  };
 
   // Add this helper function near the top of the People component
   const getUnassignedStudents = (students, groupSets) => {
     const assignedStudentIds = new Set();
-    
+
     // Collect all student IDs that are assigned to any group in any group set
     groupSets.forEach(groupSet => {
       groupSet.groups.forEach(group => {
@@ -977,28 +976,28 @@ const handleUnbanStudent = async (studentId) => {
         });
       });
     });
-    
+
     // Return students who are not in any group
-    return students.filter(student => 
-      student.role === 'student' && 
+    return students.filter(student =>
+      student.role === 'student' &&
       !assignedStudentIds.has(String(student._id))
     );
   };
 
   // Add this helper function
-const getGroupAssignmentStats = (students, groupSets) => {
-  const totalStudents = students.filter(s => s.role === 'student').length;
-  const assignedStudents = totalStudents - getUnassignedStudents(students, groupSets).length;
-  const assignmentRate = totalStudents > 0 ? (assignedStudents / totalStudents * 100).toFixed(1) : 0;
-  
-  return { totalStudents, assignedStudents, assignmentRate };
-};
+  const getGroupAssignmentStats = (students, groupSets) => {
+    const totalStudents = students.filter(s => s.role === 'student').length;
+    const assignedStudents = totalStudents - getUnassignedStudents(students, groupSets).length;
+    const assignmentRate = totalStudents > 0 ? (assignedStudents / totalStudents * 100).toFixed(1) : 0;
+
+    return { totalStudents, assignedStudents, assignmentRate };
+  };
 
   const stats = getGroupAssignmentStats(students, groupSets);
 
   // Add visible / total counts for UI
-const totalPeople = students.length;
-const visibleCount = filteredStudents.length;
+  const totalPeople = students.length;
+  const visibleCount = filteredStudents.length;
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -1047,10 +1046,11 @@ const visibleCount = filteredStudents.length;
             </button>
           )}
         </div>
-{/* ─────────────── Settings TAB ─────────────── */}
+
+        {/* ─────────────── Settings TAB ─────────────── */}
         {tab === 'settings' && (user?.role || '').toLowerCase() === 'teacher' && (
           <div className="w-full space-y-6 min-w-0">
-             <h2 className="text-2xl font-semibold">People Settings</h2>
+            <h2 className="text-2xl font-semibold">People&nbsp;Settings</h2>
 
             <label className="form-control w-full">
               <span className="label-text mb-2 font-medium">
@@ -1173,10 +1173,10 @@ const visibleCount = filteredStudents.length;
                 checked={studentsCanViewStats}
                 onChange={async (e) => {
                   const isEnabled = e.target.checked;
-                  
+
                   // Optimistically update the UI immediately
                   setStudentsCanViewStats(isEnabled);
-                  
+
                   try {
                     // Send the update to the server
                     await axios.patch(
@@ -1187,9 +1187,9 @@ const visibleCount = filteredStudents.length;
                     toast.success(
                       `Students can ${isEnabled ? 'now' : 'no longer'} view other students' stats`
                     );
-                    
+
                     // The socket event will update other users, but this user sees immediate feedback
-                    
+
                   } catch (err) {
                     // If the request fails, revert the optimistic update
                     setStudentsCanViewStats(!isEnabled);
@@ -1205,17 +1205,18 @@ const visibleCount = filteredStudents.length;
             </label>
 
             {/* Show teacher's approval queue when policy=approval */}
-    {taBitPolicy === 'approval' && (
-      <PendingApprovals classroomId={classroomId} />
-    )}
+            {taBitPolicy === 'approval' && (
+              <PendingApprovals classroomId={classroomId} />
+            )}
 
-    {/*adding xp section*/}
-        <div id="xp-settings" className="pt-8">
-      <XPSettingsSection classroomId={classroomId} />
-    </div>
-  
+            {/*adding xp section*/}
+            <div id="xp-settings" className="pt-8">
+              <XPSettingsSection classroomId={classroomId} />
+            </div>
+
           </div>
         )}
+
         {/* ───────────────────────────────────────────── */}
         {tab === 'everyone' && (
           <div>
@@ -1247,47 +1248,47 @@ const visibleCount = filteredStudents.length;
 
                 {/* Sort */}
                 <div className="flex items-center gap-2">
-                <select
-                  className="select select-bordered"
-                  value={sortOption}
-                  onChange={(e) => setSortOption(e.target.value)}
-                >
-                   <option value="default">Sort By</option>
-                   {(user?.role === 'teacher' || user?.role === 'admin') && (
-                     <>
-                       <option value="balanceDesc">Balance (High → Low)</option>
-                       <option value="balanceAsc">Balance (Low → High)</option>
-                       <option value="totalSpentDesc">Total Spent (High → Low)</option>
-                       <option value="totalSpentAsc">Total Spent (Low → High)</option>
-                     </>
-                   )}
-                {/* Stat-based sorting — only show if viewer allowed to see stats */}
-                {(() => {
-                  const canSeeStats = (user?.role === 'teacher' || user?.role === 'admin' || (user?.role === 'student' && studentsCanViewStats));
-                  if (!canSeeStats) return null;
-                  return (
-                    <>
-                      <option value="multiplierDesc">Multiplier (High → Low)</option>
-                      <option value="multiplierAsc">Multiplier (Low → High)</option>
-                      <option value="luckDesc">Luck (High → Low)</option>
-                      <option value="luckAsc">Luck (Low → High)</option>
-                      <option value="shieldDesc">Shield (Most → Least)</option>
-                      <option value="shieldAsc">Shield (Least → Most)</option>
-                      <option value="attackDesc">Attack (High → Low)</option>
-                      <option value="attackAsc">Attack (Low → High)</option>
-                      <option value="discountDesc">Discount (High → Low)</option>
-                      <option value="discountAsc">Discount (Low → High)</option>
-                    </>
-                  );
-                })()}
-                   <option value="nameAsc">Name (A → Z)</option>
-                   <option value="joinDateDesc">Join Date (Newest)</option>
-                   <option value="joinDateAsc">Join Date (Oldest)</option>
-                </select>
-                {/* loading indicator when a stat-based sort is selected and stats are still loading */}
-                {studentStatsLoading && ['multiplier','luck','shield','attack','discount'].some(f => sortOption.includes(f)) && (
-                  <span className="loading loading-spinner loading-sm ml-2" title="Loading stats…"></span>
-                )}
+                  <select
+                    className="select select-bordered"
+                    value={sortOption}
+                    onChange={(e) => setSortOption(e.target.value)}
+                  >
+                    <option value="default">Sort By</option>
+                    {(user?.role === 'teacher' || user?.role === 'admin') && (
+                      <>
+                        <option value="balanceDesc">Balance (High → Low)</option>
+                        <option value="balanceAsc">Balance (Low → High)</option>
+                        <option value="totalSpentDesc">Total Spent (High → Low)</option>
+                        <option value="totalSpentAsc">Total Spent (Low → High)</option>
+                      </>
+                    )}
+                    {/* Stat-based sorting — only show if viewer allowed to see stats */}
+                    {(() => {
+                      const canSeeStats = (user?.role === 'teacher' || user?.role === 'admin' || (user?.role === 'student' && studentsCanViewStats));
+                      if (!canSeeStats) return null;
+                      return (
+                        <>
+                          <option value="multiplierDesc">Multiplier (High → Low)</option>
+                          <option value="multiplierAsc">Multiplier (Low → High)</option>
+                          <option value="luckDesc">Luck (High → Low)</option>
+                          <option value="luckAsc">Luck (Low → High)</option>
+                          <option value="shieldDesc">Shield (Most → Least)</option>
+                          <option value="shieldAsc">Shield (Least → Most)</option>
+                          <option value="attackDesc">Attack (High → Low)</option>
+                          <option value="attackAsc">Attack (Low → High)</option>
+                          <option value="discountDesc">Discount (High → Low)</option>
+                          <option value="discountAsc">Discount (Low → High)</option>
+                        </>
+                      );
+                    })()}
+                    <option value="nameAsc">Name (A → Z)</option>
+                    <option value="joinDateDesc">Join Date (Newest)</option>
+                    <option value="joinDateAsc">Join Date (Oldest)</option>
+                  </select>
+                  {/* loading indicator when a stat-based sort is selected and stats are still loading */}
+                  {studentStatsLoading && ['multiplier', 'luck', 'shield', 'attack', 'discount'].some(f => sortOption.includes(f)) && (
+                    <span className="loading loading-spinner loading-sm ml-2" title="Loading stats…"></span>
+                  )}
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -1313,8 +1314,8 @@ const visibleCount = filteredStudents.length;
                     // Normalize bannedStudents entries (may be Object or id) and prefer banLog if present
                     (() => {
                       // Prefer canonical banLog but fall back to older 'bannedRecords' shape.
-                      const banLog = (Array.isArray(classroom?.banLog) && classroom.banLog.length) 
-                        ? classroom.banLog 
+                      const banLog = (Array.isArray(classroom?.banLog) && classroom.banLog.length)
+                        ? classroom.banLog
                         : (Array.isArray(classroom?.bannedRecords) ? classroom.bannedRecords : []);
                       const banRecord = (banLog || []).find(br => String(br.user?._id || br.user) === String(student._id));
                       console.log('classroom.banLog:', classroom?.banLog);
@@ -1332,6 +1333,12 @@ const visibleCount = filteredStudents.length;
                   );
                   const banRecord = (classroom?.banLog || []).find(br => String(br.user?._id || br.user) === String(student._id));
 
+                  //who can view stats from the People page
+                  const canViewStats =
+                    user?.role === 'teacher' ||
+                    user?.role === 'admin' ||
+                    String(student._id) === String(user?._id); // students: only their own stats
+
                   return (
                     <div key={student._id} className="border p-3 rounded shadow flex justify-between items-center">
                       <div>
@@ -1343,9 +1350,9 @@ const visibleCount = filteredStudents.length;
                           {student.firstName || student.lastName
                             ? `${student.firstName || ''} ${student.lastName || ''}`.trim()
                             : student.name || student.email}
-                        <span className="ml-2 text-gray-600 text-sm">
-                          – Role: {ROLE_LABELS[student.role] || student.role}
-                        </span>
+                          <span className="ml-2 text-gray-600 text-sm">
+                            – Role: {ROLE_LABELS[student.role] || student.role}
+                          </span>
                         </div>
 
                         {isBanned && (
@@ -1354,9 +1361,9 @@ const visibleCount = filteredStudents.length;
                             <div className="text-xs text-red-600">
                               {banRecord ? (
                                 <div>
-                                 { (user?.role === 'teacher' || user?.role === 'admin') ? (
+                                  {(user?.role === 'teacher' || user?.role === 'admin') ? (
                                     <div>
-                                     Reason: {banRecord.reason || 'Not specified'}
+                                      Reason: {banRecord.reason || 'Not specified'}
                                       <div>• {new Date(banRecord.bannedAt).toLocaleString()}</div>
                                     </div>
                                   ) : (
@@ -1405,15 +1412,11 @@ const visibleCount = filteredStudents.length;
                           View Profile
                         </button>
 
-                        {/* 
-                          Show "View Stats" button if:
-                          1. The current user is a teacher or admin.
-                          OR
-                          2. The student in the list is the current user (you can always see your own stats).
-                          OR
-                          3. The current user is a student AND the classroom setting allows it.
-                        */}
-                        {(user?.role === 'teacher' || user?.role === 'admin' || String(student._id) === String(user?._id) || (user?.role === 'student' && studentsCanViewStats)) && (
+                        {/* View Stats:
+                            - Teacher/Admin → can view any student's stats
+                            - Student → can only view their own stats
+                         */}
+                        {canViewStats && (
                           <button
                             className="btn btn-xs sm:btn-sm btn-success"
                             onClick={() => navigate(`/classroom/${classroomId}/student/${student._id}/stats`, {
@@ -1440,7 +1443,12 @@ const visibleCount = filteredStudents.length;
                             <button
                               type="button"
                               className="btn btn-xs sm:btn-sm btn-error"
-                              onClick={() => handleRemoveStudent(student._id, student.firstName || student.lastName ? `${student.firstName || ''} ${student.lastName || ''}`.trim() : student.email)}
+                              onClick={() => handleRemoveStudent(
+                                student._id,
+                                student.firstName || student.lastName
+                                  ? `${student.firstName || ''} ${student.lastName || ''}`.trim()
+                                  : student.email
+                              )}
                             >
                               Remove
                             </button>
@@ -1514,8 +1522,8 @@ const visibleCount = filteredStudents.length;
 
                         {/* Role change dropdown */}
                         {user?.role?.toLowerCase() === 'teacher'
-            && student.role !== 'teacher'
-          && String(student._id) !== String(user._id) && (
+                          && student.role !== 'teacher'
+                          && String(student._id) !== String(user._id) && (
                           <select
                             className="select select-sm ml-2"
                             value={student.role}
@@ -1523,7 +1531,7 @@ const visibleCount = filteredStudents.length;
                               const newRole = e.target.value;
                               try {
                                 if (newRole === 'admin') {
-                                  await axios.post(`/api/users/${student._id}/make-admin`,{ classroomId });
+                                  await axios.post(`/api/users/${student._id}/make-admin`, { classroomId });
                                   console.log('Student promoted to Admin/TA in classroom:', classroomId);
                                   toast.success('Student promoted to Admin/TA');
                                 } else {
@@ -1553,369 +1561,371 @@ const visibleCount = filteredStudents.length;
         {tab === 'groups' && (
           <div className="space-y-6 w-full min-w-0">
             {/* Add search input for groups */}
-    <div className="flex items-center gap-2 mb-4">
-      <input
-        type="text"
-        placeholder="Search groups..."
-        className="input input-bordered flex-1"
-        value={groupSearch}
-        onChange={(e) => setGroupSearch(e.target.value)}
-      />
-    </div>
+            <div className="flex items-center gap-2 mb-4">
+              <input
+                type="text"
+                placeholder="Search groups..."
+                className="input input-bordered flex-1"
+                value={groupSearch}
+                onChange={(e) => setGroupSearch(e.target.value)}
+              />
+            </div>
 
-    {/* Add Unassigned Students Filter */}
-    {(user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'student') && (
-      <div className="card bg-base-100 shadow-sm border">
-        <div className="card-body p-4">
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg font-semibold">
-              Unassigned Students ({getUnassignedStudents(students, groupSets).length})
-            </h3>
-            <button
-              className="btn btn-sm btn-outline"
-              onClick={() => setShowUnassigned(!showUnassigned)}
-            >
-              {showUnassigned ? 'Hide' : 'Show'} Unassigned
-            </button>
-          </div>
-          
-          {showUnassigned && (
-            <div className="mt-4">
-              {getUnassignedStudents(students, groupSets).length === 0 ? (
-                <p className="text-gray-500 italic">All students are assigned to groups!</p>
-              ) : (
-                <div className="space-y-2">
-                  <p className="text-sm text-gray-600 mb-3">
-                    Students who haven't joined any group yet:
-                  </p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {getUnassignedStudents(students, groupSets)
-                      .filter(student => {
-                        const name = `${student.firstName || ''} ${student.lastName || ''}`.trim().toLowerCase();
-                        const email = student.email.toLowerCase();
-                        const query = unassignedSearch.toLowerCase();
-                        return name.includes(query) || email.includes(query);
-                      })
-                      .map(student => {
-                        const banInfo = getBanInfo(student, classroom);
-                        const isBanned = Boolean(banInfo?.banned);
+            {/* Add Unassigned Students Filter */}
+            {(user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'student') && (
+              <div className="card bg-base-100 shadow-sm border">
+                <div className="card-body p-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-semibold">
+                      Unassigned Students ({getUnassignedStudents(students, groupSets).length})
+                    </h3>
+                    <button
+                      className="btn btn-sm btn-outline"
+                      onClick={() => setShowUnassigned(!showUnassigned)}
+                    >
+                      {showUnassigned ? 'Hide' : 'Show'} Unassigned
+                    </button>
+                  </div>
 
-                        return (
-                          <div 
-                            key={student._id} 
-                            className="flex justify-between items-center p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800"
-                          >
-                            {/* NEW: avatar + name */}
-                            <div className="flex items-center gap-2">
-                              <Avatar user={student} size={24} />
-                              <span className="font-medium">
-                                {student.firstName || student.lastName
-                                  ? `${student.firstName || ''} ${student.lastName || ''}`.trim()
-                                  : student.email}
-                                {isBanned && <span className="badge badge-error ml-2">BANNED</span>}
-                              </span>
-                            </div>
+                  {showUnassigned && (
+                    <div className="mt-4">
+                      {getUnassignedStudents(students, groupSets).length === 0 ? (
+                        <p className="text-gray-500 italic">All students are assigned to groups!</p>
+                      ) : (
+                        <div className="space-y-2">
+                          <p className="text-sm text-gray-600 mb-3">
+                            Students who haven't joined any group yet:
+                          </p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {getUnassignedStudents(students, groupSets)
+                              .filter(student => {
+                                const name = `${student.firstName || ''} ${student.lastName || ''}`.trim().toLowerCase();
+                                const email = student.email.toLowerCase();
+                                const query = unassignedSearch.toLowerCase();
+                                return name.includes(query) || email.includes(query);
+                              })
+                              .map(student => {
+                                const banInfo = getBanInfo(student, classroom);
+                                const isBanned = Boolean(banInfo?.banned);
 
-                            <div className="flex items-center gap-2">
-                              <button
-                                className="btn btn-xs btn-outline"
-                                onClick={() => navigate(
-                                  `/classroom/${classroomId}/profile/${student._id}`,
-                                  { state: { from: 'people', classroomId } }
-                                )}
-                              >
-                                Profile
-                              </button>
-                            </div>
+                                return (
+                                  <div
+                                    key={student._id}
+                                    className="flex justify-between items-center p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800"
+                                  >
+                                    {/* NEW: avatar + name */}
+                                    <div className="flex items-center gap-2">
+                                      <Avatar user={student} size={24} />
+                                      <span className="font-medium">
+                                        {student.firstName || student.lastName
+                                          ? `${student.firstName || ''} ${student.lastName || ''}`.trim()
+                                          : student.email}
+                                        {isBanned && <span className="badge badge-error ml-2">BANNED</span>}
+                                      </span>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        className="btn btn-xs btn-outline"
+                                        onClick={() => navigate(
+                                          `/classroom/${classroomId}/profile/${student._id}`,
+                                          { state: { from: 'people', classroomId } }
+                                        )}
+                                      >
+                                        Profile
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
                           </div>
-                        );
-                      })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Existing group sets content */}
+            {groupSets.length === 0 ? (
+              <p>No groups available yet.</p>
+            ) : (
+              groupSets
+                // Keep a groupset if:
+                // - no query, OR groupset name matches, OR any group name matches, OR any member name/email matches
+                .filter(gs => {
+                  const q = groupSearch.toLowerCase().trim();
+                  if (!q) return true;
+                  if ((gs.name || '').toLowerCase().includes(q)) return true;
+                  if (Array.isArray(gs.groups) && gs.groups.some(g => (g.name || '').toLowerCase().includes(q))) return true;
+                  if (Array.isArray(gs.groups) && gs.groups.some(g => (g.members || []).some(m => {
+                    const memberUser = m._id || {};
+                    const memberName = (typeof memberUser === 'object' && memberUser) ? `${memberUser.firstName || ''} ${memberUser.lastName || ''}`.trim() : '';
+                    const memberEmail = (typeof memberUser === 'object' && memberUser) ? (memberUser.email || '') : '';
+                    const hay = `${memberName || ''} ${memberEmail || ''}`.toLowerCase();
+                    return hay.includes(q);
+                  }))) return true;
+                  return false;
+                })
+                .map((gs) => (
+                  <div key={gs._id} className="w-full min-w-0">
+                    <h2 className="text-xl font-semibold">{gs.name}</h2>
+                    <div className="mt-2 grid grid-cols-1 gap-4 w-full">
+                      {gs.groups
+                        // Keep a group if:
+                        // - no query, OR group name matches, OR any member name/email matches
+                        .filter(group => {
+                          const q = groupSearch.toLowerCase().trim();
+                          if (!q) return true;
+                          if ((group.name || '').toLowerCase().includes(q)) return true;
+                          if ((group.members || []).some(m => {
+                            const memberUser = m._id || {};
+                            const memberName = (typeof memberUser === 'object' && memberUser) ? `${memberUser.firstName || ''} ${memberUser.lastName || ''}`.trim() : '';
+                            const memberEmail = (typeof memberUser === 'object' && memberUser) ? (memberUser.email || '') : '';
+                            const hay = `${memberName || ''} ${memberEmail || ''}`.toLowerCase();
+                            return hay.includes(q);
+                          })) return true;
+                          return false;
+                        })
+                        .map((group) => (
+                          <div key={group._id} className="border p-4 rounded w-full min-w-0 bg-base-100">
+                            <h3 className="text-lg font-bold">{group.name}</h3>
+                            {/* Add group multiplier display */}
+                            <p className="text-sm text-gray-600">
+                              Members: {group.members.filter(m => m._id && m.status === 'approved').length}/{group.maxMembers || 'No limit'} •
+                              Multiplier: {group.groupMultiplier || 1}x
+                              {group.isAutoMultiplier ? (
+                                <span className="text-green-600 text-xs ml-1">(Auto)</span>
+                              ) : (
+                                <span className="text-orange-600 text-xs ml-1">(Manual)</span>
+                              )}
+                            </p>
+                            {group.members.length === 0 ? (
+                              <p className="text-gray-500">No members</p>
+                            ) : (
+                              <ul className="list-disc ml-5 space-y-1">
+                                {group.members
+                                  .filter(m => m && m._id && m.status === 'approved') // Add status filter
+                                  .map((m) => {
+                                    const memberUser = m._id;
+                                    const userId = memberUser._id || memberUser; // handle populated object or raw id
+                                    const displayName = memberUser && (memberUser.firstName || memberUser.lastName)
+                                      ? `${memberUser.firstName || ''} ${memberUser.lastName || ''}`.trim()
+                                      : memberUser?.name || memberUser?.email || 'Unknown User';
+
+                                    // Determine banned state for this member (reuse classroom shape logic)
+                                    const banLog = (Array.isArray(classroom?.banLog) && classroom.banLog.length)
+                                      ? classroom.banLog
+                                      : (Array.isArray(classroom?.bannedRecords) ? classroom.bannedRecords : []);
+                                    const isBannedMember = Boolean(
+                                      banLog.find(br => String(br.user?._id || br.user) === String(userId)) ||
+                                      (Array.isArray(classroom?.bannedStudents) &&
+                                        classroom.bannedStudents.map(b => (b && b._id) ? String(b._id) : String(b)).includes(String(userId)))
+                                    );
+
+                                    // Determine siphoned state: either account frozen for this classroom OR an active siphon targeting them
+                                    const isFrozenForClassroom = Boolean(
+                                      memberUser?.classroomFrozen?.some(cf => String(cf.classroom) === String(classroomId))
+                                    );
+                                    const isTargetOfActiveSiphon = Boolean(
+                                      (group?.siphonRequests || []).some(r =>
+                                        String(r.targetUser?._id || r.targetUser) === String(userId) &&
+                                        ['pending', 'group_approved'].includes(r.status)
+                                      )
+                                    );
+                                    const isSiphoned = isFrozenForClassroom || isTargetOfActiveSiphon;
+
+                                    // Only allow viewing the siphoned badge if the current viewer is a teacher/admin
+                                    // or is an approved member of this group (mirrors Groups.jsx visibility rules)
+                                    const currentUserId = user?._id;
+                                    const isViewerTeacherOrAdmin = (user?.role === 'teacher' || user?.role === 'admin');
+                                    const isViewerGroupMember = Boolean(
+                                      group?.members?.some(m => {
+                                        const mid = m._id?._id || m._id;
+                                        return String(mid) === String(currentUserId) && m.status === 'approved';
+                                      })
+                                    );
+                                    const canSeeSiphon = isViewerTeacherOrAdmin || isViewerGroupMember;
+
+                                    return (
+                                      <li key={String(userId)} className="flex justify-between items-center w-full">
+                                        {/* NEW: avatar + name + badges */}
+                                        <span className="flex items-center gap-2">
+                                          <Avatar user={memberUser} size={24} />
+                                          <span>{displayName}</span>
+                                          {isBannedMember && <span className="badge badge-error">BANNED</span>}
+                                          {isSiphoned && canSeeSiphon && <span className="badge badge-warning">SIPHONED</span>}
+                                        </span>
+
+                                        <button
+                                          className="btn btn-sm btn-outline ml-4"
+                                          onClick={() =>
+                                            navigate(`/classroom/${classroomId}/profile/${userId}`, {
+                                              state: { from: 'people', classroomId }
+                                            })
+                                          }
+                                        >
+                                          View Profile
+                                        </button>
+                                      </li>
+                                    );
+                                  })}
+                              </ul>
+                            )}
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                ))
+            )}
+
+            {/* Add this stats display section */}
+            {user?.role === 'teacher' && (
+              <div className="mb-6">
+                <h2 className="text-2xl font-semibold mb-4">Group Assignment Stats</h2>
+                <div className="stats stats-vertical md:stats-horizontal shadow mb-4">
+                  <div className="stat">
+                    <div className="stat-title">Total Students</div>
+                    <div className="stat-value text-lg">{stats.totalStudents}</div>
+                  </div>
+                  <div className="stat">
+                    <div className="stat-title">Assigned</div>
+                    <div className="stat-value text-lg text-success">{stats.assignedStudents}</div>
+                  </div>
+                  <div className="stat">
+                    <div className="stat-title">Assignment Rate</div>
+                    <div className="stat-value text-lg">{stats.assignmentRate}%</div>
                   </div>
                 </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    )}
-    
-    {/* Existing group sets content */}
-    {groupSets.length === 0 ? (
-      <p>No groups available yet.</p>
-    ) : (
-      groupSets
-        // Keep a groupset if:
-        // - no query, OR groupset name matches, OR any group name matches, OR any member name/email matches
-        .filter(gs => {
-          const q = groupSearch.toLowerCase().trim(); // Define q here
-          if (!q) return true;
-          if ((gs.name || '').toLowerCase().includes(q)) return true;
-          if (Array.isArray(gs.groups) && gs.groups.some(g => (g.name || '').toLowerCase().includes(q))) return true;
-          if (Array.isArray(gs.groups) && gs.groups.some(g => (g.members || []).some(m => {
-            const memberUser = m._id || {};
-            const memberName = (typeof memberUser === 'object' && memberUser) ? `${memberUser.firstName || ''} ${memberUser.lastName || ''}`.trim() : '';
-            const memberEmail = (typeof memberUser === 'object' && memberUser) ? (memberUser.email || '') : '';
-            const hay = `${memberName || ''} ${memberEmail || ''}`.toLowerCase();
-            return hay.includes(q);
-          }))) return true;
-          return false;
-        })
-        .map((gs) => (
-        <div key={gs._id} className="w-full min-w-0">
-          <h2 className="text-xl font-semibold">{gs.name}</h2>
-          <div className="mt-2 grid grid-cols-1 gap-4 w-full">
-            {gs.groups
-              // Keep a group if:
-              // - no query, OR group name matches, OR any member name/email matches
-              .filter(group => {
-                const q = groupSearch.toLowerCase().trim(); // Define q here
-                if (!q) return true;
-                if ((group.name || '').toLowerCase().includes(q)) return true;
-                if ((group.members || []).some(m => {
-                  const memberUser = m._id || {};
-                  const memberName = (typeof memberUser === 'object' && memberUser) ? `${memberUser.firstName || ''} ${memberUser.lastName || ''}`.trim() : '';
-                  const memberEmail = (typeof memberUser === 'object' && memberUser) ? (memberUser.email || '') : '';
-                  const hay = `${memberName || ''} ${memberEmail || ''}`.toLowerCase();
-                  return hay.includes(q);
-                })) return true;
-                return false;
-              })
-              .map((group) => (
-              <div key={group._id} className="border p-4 rounded w-full min-w-0 bg-base-100">
-                 <h3 className="text-lg font-bold">{group.name}</h3>
-                 {/* Add group multiplier display */}
-                 <p className="text-sm text-gray-600">
-                  Members: {group.members.filter(m => m._id && m.status === 'approved').length}/{group.maxMembers || 'No limit'} • 
-                  Multiplier: {group.groupMultiplier || 1}x
-                   {group.isAutoMultiplier ? (
-                     <span className="text-green-600 text-xs ml-1">(Auto)</span>
-                   ) : (
-                     <span className="text-orange-600 text-xs ml-1">(Manual)</span>
-                   )}
-                 </p>
-                 {group.members.length === 0 ? (
-                   <p className="text-gray-500">No members</p>
-                ) : (
-                  <ul className="list-disc ml-5 space-y-1">
-                    {group.members
-                      .filter(m => m && m._id && m.status === 'approved') // Add status filter
-                      .map((m) => {
-                        const memberUser = m._id;
-                        const userId = memberUser._id || memberUser; // handle populated object or raw id
-                        const displayName = memberUser && (memberUser.firstName || memberUser.lastName)
-                          ? `${memberUser.firstName || ''} ${memberUser.lastName || ''}`.trim()
-                          : memberUser?.name || memberUser?.email || 'Unknown User';
-
-                         // Determine banned state for this member (reuse classroom shape logic)
-                        const banLog = (Array.isArray(classroom?.banLog) && classroom.banLog.length)
-                          ? classroom.banLog
-                          : (Array.isArray(classroom?.bannedRecords) ? classroom.bannedRecords : []);
-                        const isBannedMember = Boolean(
-                          banLog.find(br => String(br.user?._id || br.user) === String(userId)) ||
-                          (Array.isArray(classroom?.bannedStudents) &&
-                            classroom.bannedStudents.map(b => (b && b._id) ? String(b._id) : String(b)).includes(String(userId)))
-                        );
-
-                        // Determine siphoned state: either account frozen for this classroom OR an active siphon targeting them
-                        const isFrozenForClassroom = Boolean(
-                          memberUser?.classroomFrozen?.some(cf => String(cf.classroom) === String(classroomId))
-                        );
-                        const isTargetOfActiveSiphon = Boolean(
-                           (group?.siphonRequests || []).some(r =>
-                            String(r.targetUser?._id || r.targetUser) === String(userId) &&
-                            ['pending','group_approved'].includes(r.status)
-                           )
-                         );
-                         const isSiphoned = isFrozenForClassroom || isTargetOfActiveSiphon;
-
-                        // Only allow viewing the siphoned badge if the current viewer is a teacher/admin
-                        // or is an approved member of this group (mirrors Groups.jsx visibility rules)
-                        const currentUserId = user?._id;
-                        const isViewerTeacherOrAdmin = (user?.role === 'teacher' || user?.role === 'admin');
-                        const isViewerGroupMember = Boolean(
-                          group?.members?.some(m => {
-                            const mid = m._id?._id || m._id;
-                            return String(mid) === String(currentUserId) && m.status === 'approved';
-                          })
-                        );
-                        const canSeeSiphon = isViewerTeacherOrAdmin || isViewerGroupMember;
- 
-                        return (
-                          <li key={String(userId)} className="flex justify-between items-center w-full">
-                            {/* NEW: avatar + name + badges */}
-                            <span className="flex items-center gap-2">
-                              <Avatar user={memberUser} size={24} />
-                              <span>{displayName}</span>
-                              {isBannedMember && <span className="badge badge-error">BANNED</span>}
-                              {isSiphoned && canSeeSiphon && <span className="badge badge-warning">SIPHONED</span>}
-                            </span>
-
-                            <button
-                              className="btn btn-sm btn-outline ml-4"
-                              onClick={() =>
-                                navigate(`/classroom/${classroomId}/profile/${userId}`, {
-                                  state: { from: 'people', classroomId }
-                                })
-                              }
-                            >
-                              View Profile
-                            </button>
-                          </li>
-                        );
-                      })}
-                </ul>
-              )}</div>
-             ))}
-          </div>
-        </div>
-      ))
-     )}
-
-     {/* Add this stats display section */}
-     {user?.role === 'teacher' && (
-      <div className="mb-6">
-        <h2 className="text-2xl font-semibold mb-4">Group Assignment Stats</h2>
-        <div className="stats stats-vertical md:stats-horizontal shadow mb-4">
-          <div className="stat">
-            <div className="stat-title">Total Students</div>
-            <div className="stat-value text-lg">{stats.totalStudents}</div>
-          </div>
-          <div className="stat">
-            <div className="stat-title">Assigned</div>
-            <div className="stat-value text-lg text-success">{stats.assignedStudents}</div>
-          </div>
-          <div className="stat">
-            <div className="stat-title">Assignment Rate</div>
-            <div className="stat-value text-lg">{stats.assignmentRate}%</div>
-          </div>
-        </div>
-      </div>
-    )}
+              </div>
+            )}
           </div>
         )}
-                  {/* NEW: Recent stat changes - show for teachers/admins (all changes) and students (their own changes) */}
-          {tab === 'stat-changes' && (user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'student') && (
-            <div className="bg-base-100 border border-base-300 rounded p-4 mt-4">
-              <div className="flex items-center gap-2 mb-4">
-                <h3 className="font-medium flex-1">
-                  {user?.role?.toLowerCase() === 'student' ? 'My recent stat changes' : 'Recent stat changes'}
-                </h3>
-                <div className="text-sm text-base-content/70">{statChanges.length} records</div>
+
+        {/* NEW: Recent stat changes - show for teachers/admins (all changes) and students (their own changes) */}
+        {tab === 'stat-changes' && (user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'student') && (
+          <div className="bg-base-100 border border-base-300 rounded p-4 mt-4">
+            <div className="flex items-center gap-2 mb-4">
+              <h3 className="font-medium flex-1">
+                {user?.role?.toLowerCase() === 'student' ? 'My recent stat changes' : 'Recent stat changes'}
+              </h3>
+              <div className="text-sm text-base-content/70">{statChanges.length} records</div>
+            </div>
+
+            {/* Controls: deep search + sort */}
+            <div className="flex flex-col sm:flex-row gap-2 mb-4">
+              <input
+                type="search"
+                placeholder={user?.role?.toLowerCase() === 'student' ? 'Search your stat changes...' : 'Search by user, actor, field, or value...'}
+                className="input input-bordered flex-1 min-w-[220px]"
+                value={statSearch}
+                onChange={(e) => setStatSearch(e.target.value)}
+              />
+              <select
+                className="select select-bordered max-w-xs"
+                value={statSort}
+                onChange={(e) => setStatSort(e.target.value)}
+              >
+                <option value="desc">Date: Newest first</option>
+                <option value="asc">Date: Oldest first</option>
+              </select>
+              <button
+                className="btn btn-sm btn-ghost"
+                onClick={() => { setStatSearch(''); setStatSort('desc'); }}
+              >
+                Clear
+              </button>
+            </div>
+
+            {/* List */}
+            {loadingStatChanges ? (
+              <div className="text-sm text-base-content/60">Loading…</div>
+            ) : statChanges.length === 0 ? (
+              <div className="text-sm text-base-content/60">
+                {user?.role?.toLowerCase() === 'student' ? 'No stat changes found for you' : 'No recent stat changes'}
               </div>
- 
-               {/* Controls: deep search + sort */}
-               <div className="flex flex-col sm:flex-row gap-2 mb-4">
-                 <input
-                   type="search"
-                   placeholder={user?.role?.toLowerCase() === 'student' ? 'Search your stat changes...' : 'Search by user, actor, field, or value...'}
-                  className="input input-bordered flex-1 min-w-[220px]"
-                   value={statSearch}
-                   onChange={(e) => setStatSearch(e.target.value)}
-                 />
-                 <select
-                   className="select select-bordered max-w-xs"
-                   value={statSort}
-                   onChange={(e) => setStatSort(e.target.value)}
-                 >
-                   <option value="desc">Date: Newest first</option>
-                   <option value="asc">Date: Oldest first</option>
-                 </select>
-                 <button
-                   className="btn btn-sm btn-ghost"
-                   onClick={() => { setStatSearch(''); setStatSort('desc'); }}
-                 >
-                   Clear
-                 </button>
-               </div>
- 
-               {/* List */}
-               {loadingStatChanges ? (
-                <div className="text-sm text-base-content/60">Loading…</div>
-               ) : statChanges.length === 0 ? (
-                <div className="text-sm text-base-content/60">
-                  {user?.role?.toLowerCase() === 'student' ? 'No stat changes found for you' : 'No recent stat changes'}
-                </div>
-               ) : (
-                 (() => {
-                   const q = (statSearch || '').toLowerCase().trim();
-                   let filtered = statChanges.filter(s => {
-                     // For students, only show their own stat changes
-                     if (user?.role?.toLowerCase() === 'student') {
-                       if (String(s.user) !== String(user._id)) return false;
-                     }
+            ) : (
+              (() => {
+                const q = (statSearch || '').toLowerCase().trim();
+                let filtered = statChanges.filter(s => {
+                  // For students, only show their own stat changes
+                  if (user?.role?.toLowerCase() === 'student') {
+                    if (String(s.user) !== String(user._id)) return false;
+                  }
 
-                     if (!q) return true;
-                     // target user
-                     const target = s.targetUser || {};
-                     const targetName = `${target.firstName || ''} ${target.lastName || ''}`.trim().toLowerCase();
-                     const targetEmail = (target.email || '').toLowerCase();
-                     if (targetName.includes(q) || targetEmail.includes(q)) return true;
-                     // actionBy
-                     const actor = s.actionBy || {};
-                     const actorName = `${actor.firstName || ''} ${actor.lastName || ''}`.trim().toLowerCase();
-                     const actorEmail = (actor.email || '').toLowerCase();
-                     if (actorName.includes(q) || actorEmail.includes(q)) return true;
-                     // changes content
-                     if (Array.isArray(s.changes)) {
-                          for (const c of s.changes) {
-                            const field = String(c.field || '').toLowerCase();
-                            const from = String(c.from || '').toLowerCase();
-                            const to = String(c.to || '').toLowerCase();
-                            if (field.includes(q) || from.includes(q) || to.includes(q)) return true;
-                          }
-                        }
-                        // fallback: createdAt
-                        if ((s.createdAt || '').toLowerCase().includes(q)) return true;
-                        return false;
-                    });
+                  if (!q) return true;
+                  // target user
+                  const target = s.targetUser || {};
+                  const targetName = `${target.firstName || ''} ${target.lastName || ''}`.trim().toLowerCase();
+                  const targetEmail = (target.email || '').toLowerCase();
+                  if (targetName.includes(q) || targetEmail.includes(q)) return true;
+                  // actionBy
+                  const actor = s.actionBy || {};
+                  const actorName = `${actor.firstName || ''} ${actor.lastName || ''}`.trim().toLowerCase();
+                  const actorEmail = (actor.email || '').toLowerCase();
+                  if (actorName.includes(q) || actorEmail.includes(q)) return true;
+                  // changes content
+                  if (Array.isArray(s.changes)) {
+                    for (const c of s.changes) {
+                      const field = String(c.field || '').toLowerCase();
+                      const from = String(c.from || '').toLowerCase();
+                      const to = String(c.to || '').toLowerCase();
+                      if (field.includes(q) || from.includes(q) || to.includes(q)) return true;
+                    }
+                  }
+                  // fallback: createdAt
+                  if ((s.createdAt || '').toLowerCase().includes(q)) return true;
+                  return false;
+                });
 
-                    filtered.sort((a, b) => {
-                      const ad = new Date(a.createdAt || 0).getTime();
-                      const bd = new Date(b.createdAt || 0).getTime();
-                      return statSort === 'desc' ? bd - ad : ad - bd;
-                    });
+                filtered.sort((a, b) => {
+                  const ad = new Date(a.createdAt || 0).getTime();
+                  const bd = new Date(b.createdAt || 0).getTime();
+                  return statSort === 'desc' ? bd - ad : ad - bd;
+                });
 
-                    return (
-                      <ul className="space-y-2 text-sm">
-                        {filtered.map((s) => (
-                          <li key={s._id} className="p-2 border border-base-300 rounded bg-base-100">
-                            <div className="text-xs text-base-content/60 mb-1">
-                              {new Date(s.createdAt).toLocaleString()}
-                              {s.actionBy && (s.message.includes('updated by your teacher') || s.message.includes('Updated stats for')) ? (
-                                ` — by ${s.actionBy.firstName || ''} ${s.actionBy.lastName || ''}`.trim()
-                              ) : (
-                                ` — from ${s.message.match(/from (.*?):/)?.[1] || 'System'}`
-                              )}
-                            </div>
-                            {/* For students, don't show target user name since it's always them */}
-                            {user?.role?.toLowerCase() !== 'student' && (
-                              <div className="font-semibold text-lg mt-1">
-                                {s.targetUser ? (
-                                  `${s.targetUser.firstName || ''} ${s.targetUser.lastName || ''}`.trim()
-                                ) : 'Unknown user'}
-                              </div>
-                            )}
-                            <div className="mt-1">
-                              {Array.isArray(s.changes) && s.changes.length ? (
-                                <ul className="list-disc ml-4">
-                                  {s.changes.map((c, i) => (
-                                    <li key={i}>
-                                      {c.field}: {c.field === 'discount' && (c.from === null || c.from === undefined) ? 0 : String(c.from)} → <strong>{String(c.to)}</strong>
-                                    </li>
-                                  ))}
-                                </ul>
-                              ) : (
-                                <div className="text-xs text-base-content/60">No details available</div>
-                              )}
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    );
-                 })()
-               )}
-             </div>
-           )}
+                return (
+                  <ul className="space-y-2 text-sm">
+                    {filtered.map((s) => (
+                      <li key={s._id} className="p-2 border border-base-300 rounded bg-base-100">
+                        <div className="text-xs text-base-content/60 mb-1">
+                          {new Date(s.createdAt).toLocaleString()}
+                          {s.actionBy && (s.message.includes('updated by your teacher') || s.message.includes('Updated stats for')) ? (
+                            ` — by ${s.actionBy.firstName || ''} ${s.actionBy.lastName || ''}`.trim()
+                          ) : (
+                            ` — from ${s.message.match(/from (.*?):/)?.[1] || 'System'}`
+                          )}
+                        </div>
+                        {/* For students, don't show target user name since it's always them */}
+                        {user?.role?.toLowerCase() !== 'student' && (
+                          <div className="font-semibold text-lg mt-1">
+                            {s.targetUser ? (
+                              `${s.targetUser.firstName || ''} ${s.targetUser.lastName || ''}`.trim()
+                            ) : 'Unknown user'}
+                          </div>
+                        )}
+                        <div className="mt-1">
+                          {Array.isArray(s.changes) && s.changes.length ? (
+                            <ul className="list-disc ml-4">
+                              {s.changes.map((c, i) => (
+                                <li key={i}>
+                                  {c.field}: {c.field === 'discount' && (c.from === null || c.from === undefined) ? 0 : String(c.from)} → <strong>{String(c.to)}</strong>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <div className="text-xs text-base-content/60">No details available</div>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                );
+              })()
+            )}
+          </div>
+        )}
       </main>
 
       {/* Stats adjust modal (teacher only) */}
@@ -1926,10 +1936,10 @@ const visibleCount = filteredStudents.length;
         classroomId={classroomId}
         onUpdated={async () => { await fetchStudents(); await fetchClassroom(); }}
       />
-      
-       <Footer />
-     </div>
-   );
- };
- 
- export default People;
+
+      <Footer />
+    </div>
+  );
+};
+
+export default People;
