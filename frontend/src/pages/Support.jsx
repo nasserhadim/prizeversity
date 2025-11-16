@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext'; // Import useAuth
 import { 
@@ -27,6 +27,11 @@ const Support = () => {
   const { user } = useAuth(); // Get user from AuthContext
   const [openFaq, setOpenFaq] = useState(null);
   const [selectedRole, setSelectedRole] = useState('all'); // 'all', 'teacher', 'student', 'admin'
+  // NEW: smart FAQ search
+  const [smartQuery, setSmartQuery] = useState('');
+  const [showSmartDropdown, setShowSmartDropdown] = useState(false); // NEW
+  const searchRef = useRef(null);              // NEW
+  const selectingRef = useRef(false);          // NEW
 
   const toggleFaq = (index) => {
     setOpenFaq(openFaq === index ? null : index);
@@ -71,6 +76,7 @@ const Support = () => {
             "• Create bazaar and custom reward items",
             "• Configure challenges and activities like announcements",
             "• Assign bits to students",
+            "• Adjust student stats",
             "• Promote students to Admin/TA status",
             "and more!",
             "",
@@ -83,6 +89,65 @@ const Support = () => {
             "• Spend bits on bazaar items",
             "• Collaborate in groups",
             "and more!",
+          ],
+          role: ["all"]
+        }
+      ]
+    },
+    {
+      category: "Stats & Core Mechanics",
+      icon: <TrendingUp size={20} />,
+      questions: [
+        {
+          question: "What are stats and why do they matter?",
+          answer: [
+            "Stats are classroom-specific power modifiers that influence rewards, earnings, and interactions. They create a strategic layer over simple participation.",
+            "Core stats: Multiplier, Luck, Discount, Shield, Attack Bonus, Group Multiplier.",
+            "",
+            "**How they interact:**",
+            "• Bits Earned Formula (conceptual): Base Award × Personal Multiplier × Group Multiplier (if teacher/admin enables both).",
+            "• Luck increases chances for better outcome tiers (e.g. Mystery Box higher rarity).",
+            "• Discount reduces Bazaar purchase cost (percentage).",
+            "• Shield protects from certain attack / negative item effects (consumed when triggered).",
+            "• Attack Bonus represents offensive item count/effects (e.g. stat swaps, debuffs).",
+            "• Group Multiplier adds additional earning scaling based on group size (applied only if teacher keeps group multiplier enabled)."
+          ],
+          role: ["all"]
+        },
+        {
+          question: "How can stats be amplified?",
+          answer: [
+            "• Completing challenges (if configured and award stat boosts).",
+            "• Purchasing Bazaar items that grant boosts (Multiplier, Luck, Shields, Discounts).",
+            "• Teacher manual adjustments (People page).",
+            "• Joining groups that have member size-based group multipliers (if configured).",
+            "• Using utility/passive items with embedded stat effects."
+          ],
+          role: ["all"]
+        },
+        {
+          question: "Do stats persist across classrooms?",
+          answer: [
+            "• No. Stats are scoped per classroom. You can have different values in different classrooms depending on teacher configuration.",
+            "• Inventory items and earned boosts do not cross over."
+          ],
+          role: ["all"]
+        },
+        {
+          question: "Are negative effects permanent?",
+          answer: [
+            "• Most attack effects are one-time (e.g. swap, stat debuffs).",
+            "• Shields mitigate or absorb a single incoming attack then decrement/de-activate.",
+            "• Teachers can rebalance by adjusting stats manually (through People page if needed)."
+          ],
+          role: ["all"]
+        },
+        {
+          question: "Why didn’t my multiplier apply on a transaction?",
+          answer: [
+            "• Teachers/Admins can toggle multiplier and/or group multiplier application when awarding bits manually.",
+            "• Deductions never apply multipliers to avoid excessive penalties.",
+            "• Check the transaction detail line to see which multipliers were applied."
           ],
           role: ["all"]
         }
@@ -198,7 +263,7 @@ const Support = () => {
           question: "What are item effects and stats?",
           answer: [
             "Items can provide various benefits:",
-            "• **Luck boosts** - Improve chances in features like \"Mystery Fortune\"",
+            "• **Luck boosts** - Improve chances in features like \"Mystery Box\"",
             "• **Attack Bonuses** - Manipulate other students'/groups' stats or bits (if enabled on certain bazaar items by the teacher)",
             "• **Shields** - Protection against attacks",
             "• **Group multipliers** - Bonus bits awarded for every additional member in the group (within a GroupSet)",
@@ -223,6 +288,70 @@ const Support = () => {
             "• Items that grant active effects (Attack, Defend, Utility, Discount, etc.) must be redeemed from the Inventory section of the Bazaar.",
             "• Open the Bazaar page, click Show Inventory, find the purchased item and click \"Use\" to activate its effect.",
             "• Note that passive items without specified effects, such as extra credit items, should be presented to the teacher or relevant party for redemption."
+          ],
+          role: ["student"]
+        }
+      ]
+    },
+
+    // ADD: Mystery Box FAQ category
+    {
+      category: "Mystery Box",
+      icon: <ShoppingCart size={20} />,
+      questions: [
+        {
+          question: "What is a Mystery Box?",
+          answer: [
+            "• A special bazaar item that, when opened, awards one item from a configured drop pool.",
+            "• Teachers define a pool of existing (non‑mystery) items plus each item's base drop chance (must sum to 100%).",
+            "• Each student open consumes one use; some boxes can allow multiple opens via a max opens setting."
+          ],
+          role: ["all"]
+        },
+        {
+          question: "How does luck affect Mystery Box drops?",
+          answer: [
+            "• The personal luck stat increases odds of higher‑rarity items.",
+            "• Formula: bonus = (luck − 1) × luckMultiplier (baseline luck = 1.0 → no bonus).",
+            "• Pre-Configured but customizable rarity weights by tier (portion of the luck bonus each tier receives): Common=20%, Uncommon=40%, Rare=60%, Epic=80%, Legendary=100%.",
+            "• After adjustment all chances are normalized back to 100% to keep probabilities valid."
+          ],
+          role: ["all"]
+        },
+        {
+          question: "What is the Mystery Box pity system?",
+          answer: [
+            "• If enabled, after a configured number of consecutive opens below a minimum rarity, the next open is guaranteed to be at least that minimum (e.g. Rare+).",
+            "• Tracks recent opens of the same box and triggers once the threshold is reached.",
+            "• Helps prevent extended streaks of low‑rarity rewards."
+          ],
+          role: ["all"]
+        },
+        {
+          question: "Can Mystery Boxes limit how many times a student opens them?",
+          answer: [
+            "• Yes. A box can set 'Max Opens Per Student'.",
+            "• Once that limit is reached, that template box cannot be opened again.",
+            "• Owned (purchased) mystery boxes with usesRemaining = 0 are filtered out of inventory."
+          ],
+          role: ["all"]
+        },
+        {
+          question: "How are Mystery Boxes created?",
+          answer: [
+            "• Teacher selects 'MysteryBox' category when creating an item in the Bazaar.",
+            "• Configurable fields: luckMultiplier, pity toggle & thresholds, minimum pity rarity, max opens/student, item pool with per‑item baseDropChance.",
+            "• System validates: no duplicate items, sum of baseDropChance = 100%, no nested mystery boxes."
+          ],
+          role: ["teacher"]
+        },
+        {
+          question: "What happens when I open a Mystery Box?",
+          answer: [
+            "• The system calculates luck bonus then adjusts each item's chance by its rarity weight.",
+            "• Performs a weighted random roll (or pity selection if triggered).",
+            "• Clones the won item into your inventory as an owned item.",
+            "• Logs a transaction (and order record) showing what you won; may award XP if classroom settings enable mystery box XP."
           ],
           role: ["student"]
         }
@@ -342,6 +471,18 @@ const Support = () => {
           ],
           role: ["teacher"]
         },
+        // NEW: leaderboard impact
+        {
+          question: "How does leveling impact the Leaderboard?",
+          answer: [
+            "• Leaderboard ordering (see classroom Leaderboard page) ranks students by Level first, then XP as a tiebreaker.",
+            "• Raising your level can move you ahead of students with slightly more XP but a lower level.",
+            "• Consistent XP sources (bits earned, purchases, daily check‑ins, etc.) accelerate level gains and badge unlocks.",
+            "• Strategy: focus on reliable XP actions to level sooner; spending bits wisely can add XP (if Bits Spent XP enabled).",
+            "• High level + high XP within that level maximizes visibility and motivation."
+          ],
+          role: ["all"]
+        },
         {
           question: "Why didn’t I get XP for losing bits or being siphoned?",
           answer: [
@@ -427,6 +568,87 @@ const Support = () => {
         }
       ]
     },
+
+    // NEW: Classroom Feedback FAQ (inserted before Bans & Classroom Access)
+    {
+      category: "Classroom Feedback",
+      icon: <MessageCircle size={20} />,
+      questions: [
+        {
+          question: "What is Classroom Feedback?",
+          answer: [
+            "A classroom‑scoped rating/comment students can submit (1–5 stars plus optional comment) to help teachers improve the learning experience.",
+            "Each submission is stored as a feedback document (see Feedback list) and can be moderated by the teacher/admin."
+          ],
+          role: ["all"]
+        },
+        {
+          question: "How do I submit feedback?",
+          answer: [
+            "• Open the classroom and go to the Feedback page.",
+            "• Select a star rating, enter a comment, optionally toggle Anonymous, then submit.",
+            "• After submitting you can view recent feedback entries."
+          ],
+          role: ["student"]
+        },
+        {
+          question: "Can I submit anonymously?",
+          answer: [
+            "• Yes if you toggle Anonymous before submitting.",
+            "• Teachers may optionally allow anonymous submissions to receive the reward (configurable).",
+            "• Anonymous still enforces cooldown and duplicate prevention."
+          ],
+          role: ["all"]
+        },
+        {
+          question: "How does the feedback reward work?",
+          answer: [
+            "• Teacher can enable a bit reward (and whether group/personal multipliers apply).",
+            "• Student is awarded only once per classroom (duplicates blocked).",
+            "• Anonymous reward only granted if teacher enabled 'allow anonymous'.",
+            "• Reward uses classroom balance logic; XP may convert from bits if classroom XP settings apply."
+          ],
+          role: ["all"]
+        },
+        {
+          question: "Why didn’t I receive the reward?",
+          answer: [
+            "Common reasons:",
+            "• Reward disabled in this classroom.",
+            "• You already received the one‑time reward.",
+            "• Anonymous not allowed for reward.",
+            "• Submission failed validation (e.g. missing rating)."
+          ],
+          role: ["student"]
+        },
+        {
+          question: "What is the submission cooldown?",
+          answer: [
+            "A per‑user (or anonymous IP) cooldown defined by FEEDBACK_COOLDOWN_DAYS (default 30 if set; fallback 7).",
+            "Cooldown is scoped: site feedback separate from each classroom."
+          ],
+          role: ["all"]
+        },
+        {
+          question: "How do teachers moderate feedback?",
+          answer: [
+            "• Review reports submitted by users (creates moderation log records).",
+            "• Hide/Unhide entries (remain stored but hidden from student view).",
+            "• Export feedback + moderation logs to CSV/JSON for records."
+          ],
+          role: ["teacher","admin"]
+        },
+        {
+          question: "Can feedback be exported?",
+          answer: [
+            "• Yes: teacher/admin can export classroom feedback to CSV or JSON including rating counts and classroom meta.",
+            "• Useful for longitudinal analysis or administrator reviews."
+          ],
+          role: ["teacher","admin"]
+        }
+      ]
+    },
+
     {
       category: "Bans & Classroom Access",
       icon: <Lock size={20} />,
@@ -534,10 +756,118 @@ const Support = () => {
 
   const filteredFaqs = faqs.map(category => ({
     ...category,
-    questions: category.questions.filter(q => 
+    questions: category.questions.filter(q =>
       selectedRole === 'all' || q.role.includes(selectedRole) || q.role.includes('all')
     )
   })).filter(category => category.questions.length > 0);
+
+  // NEW: similarity helpers
+  const levenshtein = (a, b) => {
+    if (!a || !b) return 0;
+    const m = a.length, n = b.length;
+    if (m === 0) return n;
+    if (n === 0) return m;
+    const dp = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+    for (let i = 0; i <= m; i++) dp[i][0] = i;
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        dp[i][j] = Math.min(
+          dp[i - 1][j] + 1,
+          dp[i][j - 1] + 1,
+          dp[i - 1][j - 1] + cost
+        );
+      }
+    }
+    return dp[m][n];
+  };
+
+  const normalize = s =>
+    String(s || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9×\s]/g, ' ') // allow × so formula stays searchable
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const tokenize = s => normalize(s).split(' ').filter(Boolean);
+
+  const computeFAQSuggestions = (query, data) => {
+    const q = normalize(query);
+    if (!q) return [];
+    const qTokens = tokenize(q);
+    const results = [];
+
+    data.forEach((cat, cIdx) => {
+      cat.questions.forEach((qItem, qIdx) => {
+        const questionText = qItem.question;
+        const answerText = Array.isArray(qItem.answer) ? qItem.answer.join(' ') : qItem.answer;
+        const hay = normalize(`${questionText} ${answerText}`);
+        const hayTokens = tokenize(hay);
+
+        // Token overlap
+        const overlap = qTokens.filter(t => hayTokens.includes(t)).length;
+        const jaccard = overlap === 0
+          ? 0
+          : overlap / new Set([...qTokens, ...hayTokens]).size;
+
+        // Substring / phrase presence
+        const phraseHit = hay.includes(q) ? 1 : 0;
+
+        // Levenshtein distance (shortest distance to any hay token)
+        let minDist = Infinity;
+        qTokens.forEach(t => {
+          hayTokens.forEach(ht => {
+            const d = levenshtein(t, ht);
+            if (d < minDist) minDist = d;
+          });
+        });
+        if (!Number.isFinite(minDist)) minDist = q.length;
+
+        // Score composition
+        // Weight overlap + phrase; penalize distance lightly
+        const score =
+          (overlap * 1.2) +
+          (jaccard * 2.0) +
+          (phraseHit * 3.5) -
+          (minDist * 0.15);
+
+        results.push({
+          score,
+          question: questionText,
+          preview: questionText,
+          globalIndex: cIdx * 100 + qIdx,
+        });
+      });
+    });
+
+    return results
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 6);
+  };
+
+  const suggestions = computeFAQSuggestions(smartQuery, filteredFaqs);
+
+  const openSuggested = (globalIndex) => {
+    setOpenFaq(globalIndex);
+    setShowSmartDropdown(false); // hide after selection
+    const targetId = `faq-item-${globalIndex}`;
+    // defer until DOM updates (state applied)
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        const el = document.getElementById(targetId);
+        if (el) {
+          const y = el.getBoundingClientRect().top + window.scrollY - 100; // adjust offset for fixed nav
+          window.scrollTo({ top: y, behavior: 'smooth' });
+          // temporary highlight
+          el.classList.add('ring','ring-primary','ring-offset-2','ring-offset-base-200');
+          setTimeout(() => {
+            el.classList.remove('ring','ring-primary','ring-offset-2','ring-offset-base-200');
+          }, 1500);
+        }
+      }, 60);
+    });
+  };
 
   const formatAnswer = (answer) => {
     return answer.map((line, index) => {
@@ -605,11 +935,64 @@ const Support = () => {
     <div className="min-h-screen bg-base-200 py-8">
       <div className="max-w-4xl mx-auto px-4">
         {/* Header */}
-        <div className="text-center mb-12">
+        <div className="text-center mb-8"> {/* reduced bottom margin since search follows */}
           <h1 className="text-4xl font-bold text-base-content mb-4">Help & Support</h1>
           <p className="text-lg text-base-content/70 max-w-2xl mx-auto">
             Find answers to common questions, learn about PrizeVersity features, or get in touch with our support team.
           </p>
+        </div>
+
+        {/* Smart FAQ Search (moved to top) */}
+        <div ref={searchRef} className="mb-12 relative">
+          <input
+            type="search"
+            className="input input-bordered w-full"
+            placeholder="Search FAQs (e.g. 'leveling', 'join classroom', 'badges')"
+            value={smartQuery}
+            onChange={(e) => {
+              setSmartQuery(e.target.value);
+              setShowSmartDropdown(e.target.value.trim().length > 0);
+            }}
+            onFocus={() => {
+              if (smartQuery.trim()) setShowSmartDropdown(true);
+            }}
+            onBlur={() => {
+              // delay so click on suggestion registers
+              setTimeout(() => {
+                if (!selectingRef.current) setShowSmartDropdown(false);
+                selectingRef.current = false;
+              }, 80);
+            }}
+          />
+          {smartQuery && showSmartDropdown && suggestions.length > 0 && (
+            <div
+              className="absolute left-0 right-0 mt-2 z-20 card bg-base-100 shadow-lg border border-base-300"
+              onMouseDown={() => { selectingRef.current = true; }} // prevent immediate close
+            >
+              <div className="p-2 max-h-72 overflow-auto">
+                {suggestions.map(s => (
+                  <button
+                    key={s.globalIndex}
+                    type="button"
+                    onClick={() => openSuggested(s.globalIndex)}
+                    className="w-full text-left px-3 py-2 rounded hover:bg-base-200 transition text-sm"
+                  >
+                    {s.preview}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {smartQuery && showSmartDropdown && suggestions.length === 0 && (
+            <div
+              className="absolute left-0 right-0 mt-2 z-20 card bg-base-100 shadow-lg border border-base-300"
+              onMouseDown={() => { selectingRef.current = true; }}
+            >
+              <div className="p-3 text-sm text-base-content/70">
+                No close matches found. Try different wording.
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Quick Actions */}
@@ -681,42 +1064,26 @@ const Support = () => {
           </div>
         )}
 
-        {/* Role Filter */}
-        <div className="card bg-base-100 shadow-lg mb-8">
+        {/* Role Filter */} {/* REMOVED: moving below FAQ header */}
+        {/* <div className="card bg-base-100 shadow-lg mb-8">
           <div className="card-body">
             <h2 className="card-title mb-4">Filter by Role</h2>
             <div className="flex gap-2 flex-wrap">
-              <button
-                onClick={() => setSelectedRole('all')}
-                className={`btn ${selectedRole === 'all' ? 'btn-primary' : 'btn-outline'}`}
-              >
-                <HelpCircle size={16} />
-                All Questions
+              <button onClick={() => setSelectedRole('all')} className={`btn ${selectedRole === 'all' ? 'btn-primary' : 'btn-outline'}`}>
+                <HelpCircle size={16} /> All Questions
               </button>
-              <button
-                onClick={() => setSelectedRole('teacher')}
-                className={`btn ${selectedRole === 'teacher' ? 'btn-primary' : 'btn-outline'}`}
-              >
-                <GraduationCap size={16} />
-                Teacher
+              <button onClick={() => setSelectedRole('teacher')} className={`btn ${selectedRole === 'teacher' ? 'btn-primary' : 'btn-outline'}`}>
+                <GraduationCap size={16} /> Teacher
               </button>
-              <button
-                onClick={() => setSelectedRole('admin')}
-                className={`btn ${selectedRole === 'admin' ? 'btn-primary' : 'btn-outline'}`}
-              >
-                <Briefcase size={16} />
-                Admin/TA
+              <button onClick={() => setSelectedRole('admin')} className={`btn ${selectedRole === 'admin' ? 'btn-primary' : 'btn-outline'}`}>
+                <Briefcase size={16} /> Admin/TA
               </button>
-              <button
-                onClick={() => setSelectedRole('student')}
-                className={`btn ${selectedRole === 'student' ? 'btn-primary' : 'btn-outline'}`}
-              >
-                <UserCheck size={16} />
-                Student
+              <button onClick={() => setSelectedRole('student')} className={`btn ${selectedRole === 'student' ? 'btn-primary' : 'btn-outline'}`}>
+                <UserCheck size={16} /> Student
               </button>
             </div>
           </div>
-        </div>
+        </div> */}
 
         {/* FAQs */}
         <div id="faqs" className="space-y-8">
@@ -728,6 +1095,39 @@ const Support = () => {
               </span>
             )}
           </h2>
+
+          {/* Role Filter (moved here) */}
+          <div className="card bg-base-100 shadow-lg mb-8">
+            <div className="card-body">
+              <h2 className="card-title mb-4">Filter by Role</h2>
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  onClick={() => setSelectedRole('all')}
+                  className={`btn ${selectedRole === 'all' ? 'btn-primary' : 'btn-outline'}`}
+                >
+                  <HelpCircle size={16} /> All Questions
+                </button>
+                <button
+                  onClick={() => setSelectedRole('teacher')}
+                  className={`btn ${selectedRole === 'teacher' ? 'btn-primary' : 'btn-outline'}`}
+                >
+                  <GraduationCap size={16} /> Teacher
+                </button>
+                <button
+                  onClick={() => setSelectedRole('admin')}
+                  className={`btn ${selectedRole === 'admin' ? 'btn-primary' : 'btn-outline'}`}
+                >
+                  <Briefcase size={16} /> Admin/TA
+                </button>
+                <button
+                  onClick={() => setSelectedRole('student')}
+                  className={`btn ${selectedRole === 'student' ? 'btn-primary' : 'btn-outline'}`}
+                >
+                  <UserCheck size={16} /> Student
+                </button>
+              </div>
+            </div>
+          </div>
 
           {filteredFaqs.map((category, categoryIndex) => (
             <div key={categoryIndex} className="card bg-base-100 shadow-lg">
@@ -741,7 +1141,11 @@ const Support = () => {
                   {category.questions.map((faq, faqIndex) => {
                     const globalIndex = categoryIndex * 100 + faqIndex;
                     return (
-                      <div key={faqIndex} className="border border-base-300 rounded-lg">
+                      <div
+                        key={faqIndex}
+                        id={`faq-item-${globalIndex}`}
+                        className="border border-base-300 rounded-lg scroll-mt-24"
+                      >
                         <button
                           onClick={() => toggleFaq(globalIndex)}
                           className="w-full p-4 text-left flex justify-between items-center hover:bg-base-200 transition-colors rounded-lg"
