@@ -33,7 +33,7 @@ const Leaderboard = () => {
   const getLevel = (student) => student.level ?? student.stats?.level ?? 0;
   const getXP = (student) => student.xp ?? student.stats?.xp ?? 0;
 
-  // --- data fetchers ---
+  //data fetchers
   const fetchClassroom = async () => {
     try {
       const response = await apiClassroom.get(`/${classId}`);
@@ -65,7 +65,7 @@ const Leaderboard = () => {
     fetchLeaderboard();
   }, [classId]);
 
-  // Real-time updates
+  // this will give Real-time updates
   useEffect(() => {
     const onBalance = () => fetchLeaderboard();
     const onClassroom = () => fetchLeaderboard();
@@ -102,7 +102,7 @@ const Leaderboard = () => {
     });
   }, [students, searchTerm, sortField, sortDirection]);
 
-  // ensure students can’t sort on hidden columns
+  // this will make sure that the students can’t sort on hidden columns
   const handleSort = (field) => {
     if (user?.role !== 'teacher' && (field === 'xp' || field === 'level')) return;
     if (sortField === field) {
@@ -116,7 +116,7 @@ const Leaderboard = () => {
   const getSortIcon = (field) => {
     if (sortField !== field) return <ArrowUpDown size={14} className="opacity-50" />;
     return sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />;
-    };
+  };
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -194,73 +194,79 @@ const Leaderboard = () => {
                       colSpan={user?.role === 'teacher' ? 5 : 3}
                       className="text-center py-8 text-base-content/50"
                     >
-                      {searchTerm ? 'No students found matching your search.' : 'No students in this classroom yet.'}
+                      {searchTerm
+                        ? 'No students found matching your search.'
+                        : 'No students in this classroom yet.'}
                     </td>
                   </tr>
                 ) : (
-                  filteredStudents.map((student, index) => (
-                    <tr key={student._id} className="hover">
-                      <td>
-                        <div className="flex items-center gap-2">
-                          {index + 1}
-                          {index === 0 && <span className="text-yellow-500">🥇</span>}
-                          {index === 1 && <span className="text-gray-400">🥈</span>}
-                          {index === 2 && <span className="text-orange-600">🥉</span>}
-                        </div>
-                      </td>
+                  filteredStudents.map((student, index) => {
+                    // 🔐 NEW: who can see the "View Stats" button?
+                    const canViewStats =
+                      user?.role === 'teacher' ||
+                      user?.role === 'admin' ||
+                      String(student._id) === String(user?._id); // students: only their own
 
-                      <td className="font-medium">
-                        <div className="flex items-center gap-2">
-                          <Avatar user={student} size={28} />
-                          {getDisplayName(student)}
-                        </div>
-                      </td>
+                    return (
+                      <tr key={student._id} className="hover">
+                        <td>
+                          <div className="flex items-center gap-2">
+                            {index + 1}
+                            {index === 0 && <span className="text-yellow-500">🥇</span>}
+                            {index === 1 && <span className="text-gray-400">🥈</span>}
+                            {index === 2 && <span className="text-orange-600">🥉</span>}
+                          </div>
+                        </td>
 
-                      {/* Only teachers/admins see Level and XP values */}
-                      {user?.role === 'teacher' && (
-                        <>
-                          <td className="whitespace-nowrap">
-                            <span className="font-semibold">Level {getLevel(student) || 0}</span>
-                          </td>
-                          <td className="whitespace-nowrap">
-                            <span className="font-semibold">{getXP(student) || 0} XP</span>
-                          </td>
-                        </>
-                      )}
+                        <td className="font-medium">
+                          <div className="flex items-center gap-2">
+                            <Avatar user={student} size={28} />
+                            {getDisplayName(student)}
+                          </div>
+                        </td>
 
-                      <td>
-                        <div className="flex flex-col sm:flex-row gap-2">
-                          <button
-                            className="btn btn-xs sm:btn-sm btn-outline whitespace-nowrap"
-                            onClick={() =>
-                              navigate(`/classroom/${classId}/profile/${student._id}`, {
-                                state: { from: 'leaderboard', classroomId: classId },
-                              })
-                            }
-                          >
-                            View Profile
-                          </button>
+                        {/* Only teachers/admins see Level and XP values */}
+                        {user?.role === 'teacher' && (
+                          <>
+                            <td className="whitespace-nowrap">
+                              <span className="font-semibold">Level {getLevel(student) || 0}</span>
+                            </td>
+                            <td className="whitespace-nowrap">
+                              <span className="font-semibold">{getXP(student) || 0} XP</span>
+                            </td>
+                          </>
+                        )}
 
-                          {(user?.role === 'teacher' ||
-                            user?.role === 'admin' ||
-                            (studentsCanViewStats && String(student._id) !== String(user?._id)) ||
-                            String(student._id) === String(user?._id)) && (
+                        <td>
+                          <div className="flex flex-col sm:flex-row gap-2">
                             <button
-                              className="btn btn-xs sm:btn-sm btn-success whitespace-nowrap"
-                              onClick={() => {
-                                // Make sure this matches your Route: /classroom/:classId/student/:studentId/stats
-                                navigate(`/classroom/${classId}/student/${student._id}/stats`, {
-                                  state: { from: 'leaderboard' },
-                                });
-                              }}
+                              className="btn btn-xs sm:btn-sm btn-outline whitespace-nowrap"
+                              onClick={() =>
+                                navigate(`/classroom/${classId}/profile/${student._id}`, {
+                                  state: { from: 'leaderboard', classroomId: classId },
+                                })
+                              }
                             >
-                              View Stats
+                              View Profile
                             </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+
+                            {canViewStats && (
+                              <button
+                                className="btn btn-xs sm:btn-sm btn-success whitespace-nowrap"
+                                onClick={() => {
+                                  navigate(`/classroom/${classId}/student/${student._id}/stats`, {
+                                    state: { from: 'leaderboard' },
+                                  });
+                                }}
+                              >
+                                View Stats
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
