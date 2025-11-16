@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Image as ImageIcon } from 'lucide-react';
+import { Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 import apiBazaar from '../API/apiBazaar.js'
@@ -8,6 +9,7 @@ import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext.jsx';
 import { resolveImageSrc } from '../utils/image';
 import { splitDescriptionEffect, getEffectDescription } from '../utils/itemHelpers';
+import MysteryBoxDetailsModal from './MysteryBoxDetailsModal';
 
 const ITEM_PLACEHOLDER = '/images/item-placeholder.svg';
 
@@ -17,8 +19,10 @@ const ItemCard = ({ item, onUse, showUseButton = true, classroomId, role }) => {
   const [using, setUsing] = useState(false);
   const [showRewardModal, setShowRewardModal] = useState(false);
   const [wonItem, setWonItem] = useState(null);
+  const [showDetails, setShowDetails] = useState(false);
   const { addToCart } = useCart();
   const { user } = useAuth();
+  const userLuck = user?.passiveAttributes?.luck || 1.0;
 
   const imgSrc = resolveImageSrc(item?.image);
   const { main, effect } = splitDescriptionEffect(item?.description || '');
@@ -156,6 +160,18 @@ const ItemCard = ({ item, onUse, showUseButton = true, classroomId, role }) => {
         )}
       </div>
 
+      {item.category === 'MysteryBox' && (
+        <div className="px-4 pb-4">
+          <button
+            type="button"
+            className="btn btn-xs btn-outline w-full gap-1"
+            onClick={() => setShowDetails(true)}
+          >
+            <Info size={14} /> Details
+          </button>
+        </div>
+      )}
+
       {/* Add mystery box reward modal (similar to MysteryBoxCard) */}
       {showRewardModal && wonItem && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -197,6 +213,15 @@ const ItemCard = ({ item, onUse, showUseButton = true, classroomId, role }) => {
           </div>
         </div>
       )}
+
+     {showDetails && item.category === 'MysteryBox' && (
+       <MysteryBoxDetailsModal
+         open={showDetails}
+         onClose={() => setShowDetails(false)}
+         box={item}
+         userLuck={userLuck}
+       />
+     )}
     </div>
   );
 };

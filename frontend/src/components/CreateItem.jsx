@@ -72,6 +72,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
   const [imageUrlLocal, setImageUrlLocal] = useState('');
   const [showLuckPreview, setShowLuckPreview] = useState(false);
   const [showLuckExplanation, setShowLuckExplanation] = useState(false);
+  const [previewLuck, setPreviewLuck] = useState(3.0); // NEW: teacher-adjustable preview luck
   const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
   const fileInputRef = useRef(null); // ADD: to clear native file input after submit
  
@@ -139,23 +140,23 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
   const totalDropChance = itemPool.reduce((sum, item) => sum + Number(item.baseDropChance || 0), 0);
   const isValidTotal = Math.abs(totalDropChance - 100) < 0.01;
 
-  const calculateLuckPreview = () => {
-    if (itemPool.length === 0) return [];
-    
-    const rarityOrder = { legendary: 5, epic: 4, rare: 3, uncommon: 2, common: 1 };
-    const exampleLuck = 3.0;
-    const luckBonus = (exampleLuck - 1) * form.luckMultiplier;
+  // Coerced numeric multiplier for safe display/calcs
+  const luckMultiplierNum = Number(form.luckMultiplier || 1);
 
+  const calculateLuckPreview = (exampleLuck = previewLuck) => { // MOD: accept dynamic luck
+    if (itemPool.length === 0) return [];
+    const rarityOrder = { legendary: 5, epic: 4, rare: 3, uncommon: 2, common: 1 };
+    const luckBonus = (exampleLuck - 1) * luckMultiplierNum; // use numeric
     return itemPool.map(poolItem => {
       const rarityMultiplier = rarityOrder[poolItem.rarity] / 5;
       const luckAdjustment = luckBonus * rarityMultiplier * 10;
       const adjustedChance = Math.min(poolItem.baseDropChance + luckAdjustment, 100);
-      
       return {
         ...poolItem,
         baseDrop: poolItem.baseDropChance,
         luckyDrop: adjustedChance,
-        boost: adjustedChance - poolItem.baseDropChance
+        boost: adjustedChance - poolItem.baseDropChance,
+        rarityMultiplier
       };
     });
   };
@@ -1229,17 +1230,38 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                />
                <div className="collapse-title text-sm font-medium flex items-center gap-2">
                  <Info size={16} />
-                 Preview Luck Impact (Example: Student with ×3.0 Luck)
+                 Preview Luck Impact (Example Luck ×{previewLuck.toFixed(1)})
                </div>
                <div className="collapse-content">
+                 {/* NEW: adjustable luck input */}
+                 <div className="flex items-center gap-2 mb-3">
+                   <label className="text-xs font-medium">
+                     Preview Student Luck:
+                   </label>
+                   <input
+                     type="number"
+                     step="0.1"
+                     min="1.0"
+                     className="input input-bordered input-xs w-24"
+                     value={previewLuck}
+                     onChange={(e) => {
+                       const v = parseFloat(e.target.value);
+                       setPreviewLuck(Number.isFinite(v) ? Math.max(1, v) : 3.0);
+                     }}
+                   />
+                   <span className="text-xs opacity-70">
+                     Luck Bonus = ({previewLuck.toFixed(1)} − 1) × {luckMultiplierNum.toFixed(1)} = {(((previewLuck - 1) * luckMultiplierNum)).toFixed(2)}
+                   </span>
+                 </div>
+
                  <div className="overflow-x-auto mt-2">
                    <table className="table table-xs">
                      <thead>
                        <tr>
                          <th>Item</th>
                          <th>Rarity</th>
-                         <th>Base Drop</th>
-                         <th>With Luck</th>
+                         <th>Base %</th>
+                         <th>With Luck % (pre‑norm)</th>
                          <th>Change</th>
                        </tr>
                      </thead>
@@ -1251,14 +1273,14 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                            <tr key={idx}>
                              <td className="text-xs">{selectedItem?.name || 'Unknown'}</td>
                              <td>
-                               <span className={`badge badge-xs badge-outline capitalize`}>
+                               <span className="badge badge-xs badge-outline capitalize">
                                  {item.rarity}
                                </span>
                              </td>
                              <td className="text-xs">{item.baseDrop.toFixed(1)}%</td>
                              <td className="text-xs font-bold">{item.luckyDrop.toFixed(1)}%</td>
                              <td className="text-xs">
-                               {Math.abs(item.boost) > 0.1 ? (
+                               {Math.abs(item.boost) > 0.05 ? (
                                  <span className={item.boost > 0 ? 'text-success' : 'text-warning'}>
                                    {changeDirection}{item.boost.toFixed(1)}%
                                  </span>
@@ -1272,10 +1294,95 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                      </tbody>
                    </table>
                  </div>
-                 <div className="text-xs text-gray-500 mt-2">
-                   💡 Luck <strong>shifts probability</strong> from common → rare+ items. 
-                   Multiplier {form.luckMultiplier} means luck ×3.0 = {((3 - 1) * form.luckMultiplier).toFixed(1)} bonus points 
-                   distributed proportionally by rarity.
+
+                 {/* NEW: Math Breakdown (Steps 1–3) */}
+                 {(() => {
+                   const preview = calculateLuckPreview();
+                   if (!preview.length) return null;
+
+                   // Group by rarity
+                   const rarityWeights = { common: 0.2, uncommon: 0.4, rare: 0.6, epic: 0.8, legendary: 1.0 };
+                   const groups = {};
+                   preview.forEach(p => {
+                     groups[p.rarity] = groups[p.rarity] || { count: 0, baseTotal: 0, preNormTotal: 0, weight: rarityWeights[p.rarity] };
+                     groups[p.rarity].count += 1;
+                     groups[p.rarity].baseTotal += p.baseDrop;
+                     groups[p.rarity].preNormTotal += p.luckyDrop;
+                   });
+                   const baseTotal = Object.values(groups).reduce((s,g)=>s+g.baseTotal,0);
+                   const preNormTotal = Object.values(groups).reduce((s,g)=>s+g.preNormTotal,0) || 1;
+
+                   // Normalize per rarity
+                   Object.values(groups).forEach(g => {
+                     g.normPct = (g.preNormTotal / preNormTotal) * 100;
+                   });
+
+                   const luckBonus = (previewLuck - 1) * form.luckMultiplier;
+
+                   return (
+                     <div className="text-xs mt-4 space-y-3">
+                       {/* Step 1 */}
+                       <div className="bg-base-200 rounded p-2">
+                         <div className="font-semibold mb-1">Step 1: Base Drop Rates (No Luck applied yet)</div>
+                         {Object.entries(groups).map(([r,g]) => (
+                           <div key={r} className="flex justify-between">
+                             <span className="capitalize">• {r}{g.count>1?` ×${g.count}`:''}</span>
+                             <span className="font-mono">{g.baseTotal.toFixed(1)}%</span>
+                           </div>
+                         ))}
+                         <div className="flex justify-between font-bold border-t border-base-300 pt-1 mt-1">
+                           <span>TOTAL</span>
+                           <span className="font-mono">{baseTotal.toFixed(1)}%</span>
+                         </div>
+                       </div>
+
+                       {/* Step 2 */}
+                       <div className="bg-info/10 rounded p-2 border border-info/30">
+                         <div className="font-semibold mb-1">
+                           Step 2: Apply Luck (Preview luck ×{previewLuck.toFixed(1)}, multiplier ×{luckMultiplierNum.toFixed(1)})
+                         </div>
+                         <div className="bg-base-100 p-2 rounded mb-2">
+                           Luck bonus = ({previewLuck.toFixed(1)} − 1) × {luckMultiplierNum.toFixed(1)} = <span className="font-mono">{((previewLuck - 1) * luckMultiplierNum).toFixed(2)}</span>
+                         </div>
+                         {Object.entries(groups).map(([r,g]) => {
+                           const formula = `${g.baseTotal.toFixed(1)} + (${luckBonus.toFixed(2)} × ${g.weight.toFixed(1)} × 10 × ${g.count})`;
+                           return (
+                             <div key={r} className="flex justify-between">
+                               <span className="capitalize">• {r}: {formula}</span>
+                               <span className="font-mono">{g.preNormTotal.toFixed(1)}%</span>
+                             </div>
+                           );
+                         })}
+                         <div className="flex justify-between font-bold border-t border-info/30 pt-1 mt-1">
+                           <span>TOTAL (before normalization)</span>
+                           <span className="font-mono text-error">{preNormTotal.toFixed(1)}%</span>
+                         </div>
+                       </div>
+
+                       {/* Step 3 */}
+                       <div className="bg-success/10 rounded p-2 border border-success/30">
+                         <div className="font-semibold mb-1">Step 3: Normalize (Scale to 100%)</div>
+                         <div className="mb-1">Divide each by {preNormTotal.toFixed(1)}% and ×100:</div>
+                         {Object.entries(groups).map(([r,g]) => (
+                           <div key={r} className="flex justify-between">
+                             <span className="capitalize">• {r}</span>
+                             <span className="font-mono">{g.normPct.toFixed(1)}%</span>
+                           </div>
+                         ))}
+                         <div className="flex justify-between font-bold border-t-2 border-success pt-1 mt-1">
+                           <span>FINAL TOTAL</span>
+                           <span className="font-mono">100.0%</span>
+                         </div>
+                       </div>
+
+                       <div className="bg-base-200 p-2 rounded">
+                         Luck bonus ({luckBonus.toFixed(2)}) × weight (0.2→1.0) ×10 applied per item, clamped, then normalized. Higher rarity items get a larger share.
+                       </div>
+                     </div>
+                   );
+                 })()}
+                 <div className="text-xs text-gray-500 mt-3">
+                   💡 Luck shifts probability from common → rare+ items; after adjustment values are normalized back to 100%.
                  </div>
                </div>
              </div>

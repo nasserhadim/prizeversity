@@ -788,4 +788,20 @@ router.get('/inventory/:userId', async (req, res) => {
   }
 });
 
+// Get populated Mystery Box details
+router.get('/mystery-box/:itemId', ensureAuthenticated, async (req, res) => {
+  try {
+    const { itemId } = req.params;
+    const box = await Item.findById(itemId)
+      .populate('mysteryBoxConfig.itemPool.item');
+    if (!box || box.category !== 'MysteryBox') {
+      return res.status(404).json({ error: 'Mystery box not found' });
+    }
+    res.json({ item: box });
+  } catch (e) {
+    console.error('[MysteryBox details] error:', e);
+    res.status(500).json({ error: 'Failed to load mystery box details' });
+  }
+});
+
 module.exports = router;
