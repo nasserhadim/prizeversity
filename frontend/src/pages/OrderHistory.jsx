@@ -204,23 +204,14 @@ export default function OrderHistory() {
     };
 
     const exportCSV = async () => {
-        if (!visibleOrders.length) {
-            throw new Error('No orders to export');
-        }
-        const displayName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.email || 'user';
-        const base = formatExportFilename(displayName, 'order_history');
-        exportOrdersToCSV(visibleOrders, base);
-        return `${base}.csv`;
+        const display = `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.email || 'orders';
+        const base = formatExportFilename(display, 'order_history');
+        return exportOrdersToCSV(visibleOrders, base, { user }); // pass user
     };
-
     const exportJSON = async () => {
-        if (!visibleOrders.length) {
-            throw new Error('No orders to export');
-        }
-        const displayName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.email || 'user';
-        const base = formatExportFilename(displayName, 'order_history');
-        exportOrdersToJSON(visibleOrders, base);
-        return `${base}.json`;
+        const display = `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.email || 'orders';
+        const base = formatExportFilename(display, 'order_history');
+        return exportOrdersToJSON(visibleOrders, base, { user }); // pass user
     };
 
     if (loading) return <p>Loading your purchase history…</p>;

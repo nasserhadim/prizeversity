@@ -34,8 +34,9 @@ function escapeCsvCell(value) {
   return `"${s.replace(/"/g, '""')}"`;
 }
 
-export function exportOrdersToCSV(orders = [], filenameBase = 'orders') {
-  const header = ['orderId', 'type', 'date', 'total', 'classroom', 'classroomId', 'description', 'items']; // ADDED classroomId
+export function exportOrdersToCSV(orders = [], filenameBase = 'orders', options = {}) {
+  const u = options.user || null;
+  const header = ['orderId','type','date','total','classroom','classroomId','description','items','userId','shortId','userEmail']; // NEW user meta
   const rows = (orders || []).map(o => {
     // CHANGED: Use metadata.itemDetails if items are deleted
     const displayItems = (o.items && o.items.length > 0)
@@ -59,6 +60,10 @@ export function exportOrdersToCSV(orders = [], filenameBase = 'orders') {
     const orderType = o.type || 'purchase';
     const description = o.description || '';
 
+    const userId = (o.user && (o.user._id || o.user)) || (u && u._id) || '';
+    const shortId = (o.user && o.user.shortId) || (u && u.shortId) || '';
+    const userEmail = (o.user && o.user.email) || (u && u.email) || '';
+
     return [
       escapeCsvCell(o._id || ''),
       escapeCsvCell(orderType),
@@ -67,7 +72,10 @@ export function exportOrdersToCSV(orders = [], filenameBase = 'orders') {
       escapeCsvCell(classroomLabel),
       escapeCsvCell(classroomId || ''),
       escapeCsvCell(description),
-      escapeCsvCell(items)
+      escapeCsvCell(items),
+      escapeCsvCell(userId),
+      escapeCsvCell(shortId),
+      escapeCsvCell(userEmail)
     ].join(',');
   });
 
@@ -83,7 +91,8 @@ export function exportOrdersToCSV(orders = [], filenameBase = 'orders') {
   URL.revokeObjectURL(url);
 }
 
-export function exportOrdersToJSON(orders = [], filenameBase = 'orders') {
+export function exportOrdersToJSON(orders = [], filenameBase = 'orders', options = {}) {
+  const u = options.user || null;
   const data = (orders || []).map(o => {
     // CHANGED: prefer populated classroom from items, then populated order.classroom, then metadata
     const displayItems = (o.items && o.items.length > 0) ? o.items : (o.metadata?.itemDetails || []);
@@ -105,14 +114,21 @@ export function exportOrdersToJSON(orders = [], filenameBase = 'orders') {
       classroomObj?._id ||
       (typeof orderCls === 'string' ? orderCls : null);
 
+    const userId = (o.user && (o.user._id || o.user)) || (u && u._id) || null;
+    const shortId = (o.user && o.user.shortId) || (u && u.shortId) || null;
+    const userEmail = (o.user && o.user.email) || (u && u.email) || null;
+
     return {
       _id: o._id,
       type: o.type || 'purchase',
       createdAt: o.createdAt,
       total: o.total,
       description: o.description,
-      classroom,          // existing structured classroom info
-      classroomId,        // ADDED explicit id
+      classroom,
+      classroomId,
+      userId,               // NEW
+      userShortId: shortId, // NEW
+      userEmail,            // NEW
       items: displayItems.map(i => ({
         _id: i?._id,
         name: i?.name,

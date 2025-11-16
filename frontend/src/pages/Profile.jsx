@@ -16,6 +16,7 @@ import ExportButtons from '../components/ExportButtons';
 import { exportOrdersToCSV, exportOrdersToJSON } from '../utils/exportOrders';
 import formatExportFilename from '../utils/formatExportFilename';
 import { useLocation, Link } from 'react-router-dom';
+import { Info } from 'lucide-react'; // ADD
 
 const ROLE_LABELS = {
     student: 'Student',
@@ -285,7 +286,7 @@ export default function Profile() {
     if (!visibleOrders.length) throw new Error('No orders to export');
     const displayName = `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim() || profile?.email || `profile_${profileId || 'user'}`;
     const base = formatExportFilename(displayName, 'purchase_history');
-    exportOrdersToCSV(visibleOrders, base);
+    exportOrdersToCSV(visibleOrders, base, { user: profile || user }); // pass subject
     return `${base}.csv`;
   };
 
@@ -293,7 +294,7 @@ export default function Profile() {
     if (!visibleOrders.length) throw new Error('No orders to export');
     const displayName = `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim() || profile?.email || `profile_${profileId || 'user'}`;
     const base = formatExportFilename(displayName, 'purchase_history');
-    exportOrdersToJSON(visibleOrders, base);
+    exportOrdersToJSON(visibleOrders, base, { user: profile || user }); // pass subject
     return `${base}.json`;
   };
 
@@ -657,7 +658,11 @@ export default function Profile() {
                       </div>
                     ) : ([profile?.firstName, profile?.lastName].filter(Boolean).join(' ') || 'Not set (Complete your profile)')} />
                     <InfoRow label="Email" value={profile?.email || 'N/A'} />
-                    <InfoRow label="User ID" value={profile?.shortId || '—'} />
+                    <InfoRow
+                      label="User ID"
+                      value={profile?.shortId || '—'}
+                      help="This is your shortId (human‑friendly) code useful for display, search, user-facing reports, or classroom management. A different, 24‑character internal user _id (Mongo ObjectId) is used for programmatic integrations such as API relations, joins, socket connections, etc."
+                    />
                     {profile?.role && <InfoRow label="Role" value={ROLE_LABELS[profile.role] || profile.role} />}
                     
                     {/* Add Member Since row */}
@@ -786,9 +791,16 @@ export default function Profile() {
   );
 }
 
-const InfoRow = ({ label, value }) => (
+const InfoRow = ({ label, value, help }) => (
   <div className="flex justify-between border-b border-base-300 pb-2">
-      <span className="font-medium text-base-content/70">{label}:</span>
-      <span className="text-base-content">{value}</span>
+    <span className="font-medium text-base-content/70 inline-flex items-center gap-1">
+      {label}:
+      {help && (
+        <span className="tooltip tooltip-right" data-tip={help} aria-label={help}>
+          <Info size={14} className="inline-block text-base-content/60" />
+        </span>
+      )}
+    </span>
+    <span className="text-base-content">{value}</span>
   </div>
 );

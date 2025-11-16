@@ -743,9 +743,11 @@ const getBanInfo = (student, classroomObj) => {
         return {
           ClassroomId: classroomId,
           ClassroomName: classroom?.name || '',
-            ClassroomCode: classroom?.code || '',
+          ClassroomCode: classroom?.code || '',
           Name: `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.email,
           Email: student.email,
+          UserId: student._id,         // Mongo ObjectId
+          ShortId: student.shortId || '', // ← NEW human-friendly ID
           Role: ROLE_LABELS[student.role] || student.role,
           Balance: student.balance?.toFixed(2) || '0.00',
           TotalSpent: (Number(totalSpentMap[student._id] || 0)).toFixed(2),
@@ -772,7 +774,8 @@ const getBanInfo = (student, classroomObj) => {
 
     // Explicit header ordering
     const headers = [
-      'ClassroomId','ClassroomName','ClassroomCode','Name','Email','Role','Balance','TotalSpent',
+      'ClassroomId','ClassroomName','ClassroomCode','Name','Email',
+      'UserId','ShortId','Role','Balance','TotalSpent',
       'JoinedDate','Level','XP','Luck','Multiplier','GroupMultiplier','ShieldActive','ShieldCount',
       'AttackPower','DoubleEarnings','DiscountShop','PassiveItemsCount','Groups'
     ];
@@ -854,6 +857,8 @@ const getBanInfo = (student, classroomObj) => {
           classroomName: classroom?.name || '',
           classroomCode: classroom?.code || '',
           _id: student._id,
+          userId: student._id,
+          shortId: student.shortId || null, // ← ensure included in JSON
           name: `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.email,
           firstName: student.firstName,
           lastName: student.lastName,
