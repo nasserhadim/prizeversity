@@ -286,7 +286,7 @@ const Support = () => {
           question: "How are items purchased from the Bazaar redeemed/activated?",
           answer: [
             "• Items that grant active effects (Attack, Defend, Utility, Discount, etc.) must be redeemed from the Inventory section of the Bazaar.",
-            "• Open the Bazaar page, click Show Inventory, find the purchased item and click \"Use\" to activate its effect.",
+            "• Open the Bazaar page, click Show Inventory, find the purchased item and equip/use it to activate its effect.",
             "• Note that passive items without specified effects, such as extra credit items, should be presented to the teacher or relevant party for redemption."
           ],
           role: ["student"]
@@ -624,7 +624,7 @@ const Support = () => {
         {
           question: "What is the submission cooldown?",
           answer: [
-            "A per‑user (or anonymous IP) cooldown defined by FEEDBACK_COOLDOWN_DAYS (default 30 if set; fallback 7).",
+            "A per‑user (or anonymous IP) cooldown defined by FEEDBACK_COOLDOWN_DAYS (default 30; fallback 7).",
             "Cooldown is scoped: site feedback separate from each classroom."
           ],
           role: ["all"]
