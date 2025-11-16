@@ -1,8 +1,19 @@
 const express = require('express');
 const router = express.Router();
+
 const User = require('../models/User');
 const Classroom = require('../models/Classroom');
 const Badge = require('../models/Badge');
+
+// Centralized XP helper
+const { awardXP } = require('../utils/xp');
+
+// Role guard (requires auth middleware to set req.user)
+function ensureTeacherOrAdmin(req, res, next) {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  if (req.user.role === 'teacher' || req.user.role === 'admin') return next();
+  return res.status(403).json({ error: 'Forbidden' });
+}
 
 // keep a number within bounds
 const limitToRange = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
@@ -93,7 +104,6 @@ async function loadClassroomConfigurations(classroomId) {
 }
 
 async function awardLevelBadges(user, classroomId) {
-  // Find the classroom record for this user
   const classroomData = user.classroomBalances.find(c => {
     const cId = c.classroom?._id?.toString() || c.classroom?.toString();
     return cId === classroomId.toString();
@@ -105,25 +115,12 @@ async function awardLevelBadges(user, classroomId) {
   }
 
   const currentLevel = Number(classroomData.level) || 0;
-
-  // Make sure badges array exists
   if (!Array.isArray(classroomData.badges)) {
     classroomData.badges = [];
   }
 
-  // 1) Get ALL badges for this classroom
   const badges = await Badge.find({ classroom: classroomId });
 
-  console.log("🔎 Award check for user", user._id.toString());
-  console.log("   classroom:", classroomId.toString());
-  console.log("   current level:", currentLevel);
-  console.log("   badge levels:", badges.map(b => ({
-    id: b._id.toString(),
-    name: b.name,
-    levelRequired: b.levelRequired
-  })));
-
-  // 2) Build set of already-earned badge IDs
   const earned = new Set(
     classroomData.badges
       .filter(b => b.badge)
@@ -138,33 +135,23 @@ async function awardLevelBadges(user, classroomId) {
     const alreadyEarned = earned.has(badgeIdStr);
 
     if (meetsLevel && !alreadyEarned) {
-      console.log(
-        `✅ Awarding badge "${badge.name}" (req ${badge.levelRequired}, user lvl ${currentLevel})`
-      );
       classroomData.badges.push({
         badge: badge._id,
         dateEarned: new Date()
       });
       earned.add(badgeIdStr);
       newlyAwarded.push(badge.name);
-    } else {
-      console.log(
-        `   ❌ Not awarding "${badge.name}" — meetsLevel=${meetsLevel}, alreadyEarned=${alreadyEarned}`
-      );
     }
   }
 
   if (newlyAwarded.length > 0) {
     await user.save();
     console.log("🏅 Saved user with new badges:", newlyAwarded);
-  } else {
-    console.log(
-      `ℹ️ No new badges awarded for user ${user._id} at level ${currentLevel}.`
-    );
   }
 }
 
-// sanity test
+// ────────────────────────────────────────────────────────────────
+// Sanity test
 router.get('/test', (req, res) => {
   res.json({ message: 'XP route connected successfully' });
 });
@@ -206,8 +193,8 @@ router.get('/summary', async (req, res) => {
   }
 });
 
-// adds to TOTAL XP, recomputes level, awards badges, returns summary
-router.post('/add', async (req, res) => {
+// adds to TOTAL XP using centralized awardXP(), awards badges, returns summary
+router.post('/add', ensureTeacherOrAdmin, async (req, res) => {
   try {
     const { userId, classroomId, xpToAdd } = req.body;
 
@@ -215,55 +202,49 @@ router.post('/add', async (req, res) => {
       return res.status(400).json({ error: 'Invalid input data' });
     }
 
+    const result = await awardXP({
+      userId,
+      classroomId,
+      opts: { rawXP: xpToAdd }
+    });
+
+    if (!result || result.ok === false) {
+      return res.status(400).json({ error: result?.reason || 'Failed to add XP' });
+    }
+
+    // Reload user to award badges against updated level
     const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (!user) return res.status(404).json({ error: 'User not found after XP update' });
 
-    const row = getClassroomRow(user, classroomId);
-    const { baseXP, xpFormula } = await loadClassroomConfigurations(classroomId);
-
-    const prevLevel = row.level || 1;
-    row.xp = (Number(row.xp) || 0) + xpToAdd; // store TOTAL XP
-
-    const summary = calculateLevelSummary(row.xp, baseXP, xpFormula);
-    row.level = summary.level;
-
-    await user.save();
-
-    const leveledUp = summary.level > prevLevel;
-
-    // award badges based on new level
     await awardLevelBadges(user, classroomId);
 
     res.json({
-      message: leveledUp ? `Level up! You are now level ${row.level}` : `+${xpToAdd} XP added`,
+      message: result.leveled
+        ? `Level up! Now level ${result.level}.`
+        : `+${result.added ?? xpToAdd} XP added.`,
       classroomData: {
-        classroom: row.classroom,
-        totalXP: row.xp,
-        level: row.level,
-        ...summary,
-        baseXP,
-        formula: xpFormula,
-      },
+        classroom: classroomId,
+        level: result.level,
+        totalXP: result.xp,
+      }
     });
   } catch (err) {
-    console.error('Error updating XP:', err.message);
+    console.error('Error updating XP:', err);
     res.status(500).json({ error: 'Server error updating XP' });
   }
 });
 
-// Update classroom XP settings (Teacher only)
-// (keeping your body: { dailyLogin, groupJoin }, preserving other xpConfig fields)
-router.put('/config/:classroomId', async (req, res) => {
+
+// Update classroom XP settings (Teacher/Admin only)
+router.put('/config/:classroomId', ensureTeacherOrAdmin, async (req, res) => {
   try {
     const { classroomId } = req.params;
     const { dailyLogin, groupJoin } = req.body;
 
     const classroom = await Classroom.findById(classroomId);
-    if (!classroom) {
-      return res.status(404).json({ error: 'Classroom not found' });
-    }
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
 
-    // Validation
+    // Validation (allow 0; only reject if type invalid or negative)
     if (dailyLogin !== undefined && (typeof dailyLogin !== 'number' || dailyLogin < 0)) {
       return res.status(400).json({ error: 'Invalid XP value for dailyLogin' });
     }
@@ -278,24 +259,23 @@ router.put('/config/:classroomId', async (req, res) => {
     await classroom.save();
 
     res.json({
-      message: 'XP configuration updated successfully',
-      xpConfig: classroom.xpConfig,
+      message: 'XP configuration updated successfully.',
+      xpConfig: classroom.xpConfig
     });
   } catch (err) {
-    console.error('Error updating XP config:', err.message);
+    console.error('Error updating XP config:', err);
     res.status(500).json({ error: 'Server error updating XP config' });
   }
 });
 
-// dev-only: quick add XP
-router.post('/test/add', async (req, res) => {
+// dev-only: quick add XP (now calls awardXP), gated by role
+router.post('/test/add', ensureTeacherOrAdmin, async (req, res) => {
   try {
     let { userId, classroomId, xpToAdd = 100 } = req.body;
 
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    // if not provided, use first classroom on user
     if (!classroomId) {
       if (user.classroomBalances?.length > 0) {
         classroomId = user.classroomBalances[0].classroom;
@@ -304,43 +284,38 @@ router.post('/test/add', async (req, res) => {
       }
     }
 
-    const row = getClassroomRow(user, classroomId);
-    const { baseXP, xpFormula } = await loadClassroomConfigurations(classroomId);
+    const result = await awardXP({
+      userId,
+      classroomId,
+      opts: { rawXP: Number(xpToAdd) }
+    });
 
-    const prevLevel = row.level || 1;
-    row.xp = (Number(row.xp) || 0) + Number(xpToAdd);
+    if (!result || result.ok === false) {
+      return res.status(400).json({ error: result?.reason || 'Failed to add XP' });
+    }
 
-    const summary = calculateLevelSummary(row.xp, baseXP, xpFormula);
-    row.level = summary.level;
-
-    await user.save();
-
-    const leveledUp = row.level > prevLevel;
-
-    // badge check
-    await awardLevelBadges(user, classroomId);
+    const refreshed = await User.findById(userId);
+    await awardLevelBadges(refreshed, classroomId);
 
     res.json({
-      message: leveledUp
-        ? `+${xpToAdd} XP — Level Up! You are now level ${row.level}.`
-        : `+${xpToAdd} XP added successfully.`,
+      message: result.leveled
+        ? `+${result.added ?? xpToAdd} XP — Level Up! Now level ${result.level}.`
+        : `+${result.added ?? xpToAdd} XP added successfully.`,
       classroomData: {
-        classroom: row.classroom,
-        totalXP: row.xp,
-        level: row.level,
-        ...summary,
-        baseXP,
-        formula: xpFormula,
-      },
+        classroom: classroomId,
+        level: result.level,
+        totalXP: result.xp
+      }
     });
   } catch (err) {
-    console.error('Error in XP test/add route:', err.message);
+    console.error('Error in XP test/add route:', err);
     res.status(500).json({ error: 'Server error adding XP for testing' });
   }
 });
 
-// dev-only: reset XP & level
-router.post('/test/reset', async (req, res) => {
+
+// dev-only: reset XP & level, gated by role
+router.post('/test/reset', ensureTeacherOrAdmin, async (req, res) => {
   try {
     let { userId, classroomId } = req.body;
 
@@ -355,35 +330,35 @@ router.post('/test/reset', async (req, res) => {
       }
     }
 
-    const row = user.classroomBalances.find(
-      (c) => (c.classroom?._id?.toString() || c.classroom?.toString()) === classroomId.toString()
+    const classroomData = user.classroomBalances.find(
+      c => (c.classroom?._id?.toString() || c.classroom?.toString()) === classroomId.toString()
     );
-    if (!row) {
-      return res.status(400).json({ error: 'User not found in specified classroom' });
+    if (!classroomData) {
+      return res.status(400).json({ error: 'User not found in this classroom.' });
     }
 
-    row.xp = 0;
-    row.level = 1;
-    row.badges = Array.isArray(row.badges) ? row.badges : [];
+    classroomData.xp = 0;
+    classroomData.level = 1;
+    classroomData.badges = Array.isArray(classroomData.badges) ? classroomData.badges : [];
 
     await user.save();
 
     res.json({
       message: 'XP and level reset successfully.',
-      classroomData: row,
+      classroomData
     });
   } catch (err) {
-    console.error('Error in XP test/reset route:', err.message);
+    console.error('Error in XP test/reset route:', err);
     res.status(500).json({ error: 'Server error resetting XP' });
   }
 });
 
 
+// ───────────────────────── Badges endpoints ─────────────────────
 router.get('/badges/:userId/:classroomId', async (req, res) => {
   try {
     const { userId, classroomId } = req.params;
 
-    // Load user and populate badges
     const user = await User.findById(userId).populate({
       path: 'classroomBalances.badges.badge',
       model: 'Badge',
@@ -394,7 +369,6 @@ router.get('/badges/:userId/:classroomId', async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Find classroom data for this user
     const classroomData = user.classroomBalances.find(
       c => (c.classroom?._id?.toString() || c.classroom?.toString()) === classroomId.toString()
     );
@@ -404,21 +378,15 @@ router.get('/badges/:userId/:classroomId', async (req, res) => {
     }
 
     // Fetch all badges for this classroom
-    const allBadges = await Badge.find({ classroom: classroomId })
-      .select('name description icon imageUrl levelRequired classroom')
-      .sort({ levelRequired: 1 });
+    const allBadges = await Badge.find({ classroom: classroomId }).sort({ levelRequired: 1 });
 
-
-    // Identify earned badge IDs
     const earnedIds = new Set(
       (classroomData.badges || []).map(b => b.badge?._id?.toString() || b.badge?.toString())
     );
 
-    // Split badges into earned / locked arrays
     const earnedBadges = allBadges.filter(b => earnedIds.has(b._id.toString()));
     const lockedBadges = allBadges.filter(b => !earnedIds.has(b._id.toString()));
 
-    // Return detailed structured response
     res.json({
       classroom: classroomId,
       user: {
@@ -469,7 +437,6 @@ router.get('/classroom/:classroomId/progress', async (req, res) => {
     const { classroomId } = req.params;
     const { baseXP, xpFormula } = await loadClassroomConfigurations(classroomId);
 
-    // Get all users who belong to this classroom
     const users = await User.find({ 'classroomBalances.classroom': classroomId })
       .populate({
         path: 'classroomBalances.badges.badge',
@@ -478,36 +445,27 @@ router.get('/classroom/:classroomId/progress', async (req, res) => {
       });
 
     // Get all possible badges for the classroom
-    const allBadges = await Badge.find({ classroom: classroomId })
-      .select('name description icon imageUrl levelRequired classroom')
-      .sort({ levelRequired: 1 });
-
+    const allBadges = await Badge.find({ classroom: classroomId }).sort({ levelRequired: 1 });
 
     const students = users.map(user => {
       const classroomData = user.classroomBalances.find(
-        c => c.classroom?.toString() === classroomId.toString()
+        c => (c.classroom?._id?.toString() || c.classroom?.toString()) === classroomId.toString()
       );
 
       if (!classroomData) return null;
 
-      // Count only currently held badges
       const earnedBadges = (classroomData.badges || []).filter(b => b.badge);
       const earnedCount = earnedBadges.length;
       const totalBadges = allBadges.length;
 
-      // Determine next badge
       const nextBadge = allBadges.find(
         b => b.levelRequired > (classroomData.level || 1)
       );
 
       // XP until next badge unlock
-
-      let xpUntilNextBadge = 0;
-      if (nextBadge) {
-          // how much total XP is needed to reach the next badge’s required level
-        const targetXpForNextBadge = requiredXpForLevel(nextBadge.levelRequired, baseXP, xpFormula);
-        xpUntilNextBadge = Math.max(0, targetXpForNextBadge - (classroomData.xp || 0));
-      }
+      const xpUntilNextBadge = nextBadge
+        ? Math.max(0, nextBadge.levelRequired * 100 - classroomData.xp - (classroomData.level - 1) * 100)
+        : 0;
 
       return {
         _id: user._id,
@@ -530,7 +488,5 @@ router.get('/classroom/:classroomId/progress', async (req, res) => {
     res.status(500).json({ error: 'Server error getting progress' });
   }
 });
-
-
 
 module.exports = router;

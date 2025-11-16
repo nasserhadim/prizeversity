@@ -11,6 +11,7 @@ import ExportButtons from '../components/ExportButtons';
 import formatExportFilename from '../utils/formatExportFilename';
 import StatsAdjustModal from '../components/StatsAdjustModal';
 import Avatar from '../components/Avatar';
+import XPSettingsSection from '../components/XPSettingsSection';
 
 const ROLE_LABELS = {
   student: 'Student',
@@ -1207,6 +1208,12 @@ const visibleCount = filteredStudents.length;
     {taBitPolicy === 'approval' && (
       <PendingApprovals classroomId={classroomId} />
     )}
+
+    {/*adding xp section*/}
+        <div id="xp-settings" className="pt-8">
+      <XPSettingsSection classroomId={classroomId} />
+    </div>
+  
           </div>
         )}
         {/* ───────────────────────────────────────────── */}
