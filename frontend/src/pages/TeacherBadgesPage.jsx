@@ -7,8 +7,7 @@ import data from '@emoji-mart/data';
 import { Trash2 } from "lucide-react";
 import { Link } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
-
-
+import toast from 'react-hot-toast';
 
 const TeacherBadgesPage = ({ classroomId }) => {
   const { user } = useAuth();
@@ -22,6 +21,8 @@ const TeacherBadgesPage = ({ classroomId }) => {
   const [sortOrder, setSortOrder] = useState('asc');
   const navigate = useNavigate();
 
+  // NEW: which badge is currently in “are you sure?” mode
+  const [confirmDeleteBadgeId, setConfirmDeleteBadgeId] = useState(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -107,8 +108,6 @@ const TeacherBadgesPage = ({ classroomId }) => {
     if (classroomId) fetchStudents();
   }, [classroomId]);
 
-
-
   // Handle form input changes
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -123,11 +122,11 @@ const TeacherBadgesPage = ({ classroomId }) => {
       levelRequired: badge.levelRequired,
       icon: badge.icon || '',
     });
-    setEditingBadge(badge); // track which badge is being edited
+    setEditingBadge(badge);
     setShowModal(true);
   };
 
-  // Create a new badge (real DB)
+  // Create / update badge
   const handleCreateBadge = async (e) => {
     e.preventDefault();
     if (!user?._id) return alert('No teacher ID found');
@@ -146,7 +145,6 @@ const TeacherBadgesPage = ({ classroomId }) => {
       let res;
 
       if (editingBadge) {
-        // update existing badge
         res = await axios.put(`/api/badges/${editingBadge._id}`, data, {
           headers: { 'Content-Type': 'multipart/form-data' },
           withCredentials: true,
@@ -157,7 +155,6 @@ const TeacherBadgesPage = ({ classroomId }) => {
         );
         setEditingBadge(null);
       } else {
-        // create new badge
         res = await axios.post('/api/badges', data, {
           headers: { 'Content-Type': 'multipart/form-data' },
           withCredentials: true,
@@ -166,7 +163,6 @@ const TeacherBadgesPage = ({ classroomId }) => {
         setBadges((prev) => [...prev, res.data]);
       }
 
-      // Reset modal + form
       setShowModal(false);
       setFormData({ name: '', description: '', levelRequired: '', icon: '' });
     } catch (err) {
@@ -177,15 +173,16 @@ const TeacherBadgesPage = ({ classroomId }) => {
     }
   };
 
-  // Delete badge
+  // NEW: delete WITH inline confirm (like templates in Bazaar)
   const handleDeleteBadge = async (badgeId) => {
-    if (!window.confirm('Are you sure you want to delete this badge?')) return;
     try {
       await deleteBadge(badgeId);
       setBadges((prev) => prev.filter((b) => b._id !== badgeId));
+      setConfirmDeleteBadgeId(null);
+      toast.success('Badge deleted successfully.', { duration: 2000 });
     } catch (err) {
       console.error('Error deleting badge:', err);
-      alert('Failed to delete badge.');
+      toast.error('Failed to delete badge.');
     }
   };
 
@@ -194,7 +191,7 @@ const TeacherBadgesPage = ({ classroomId }) => {
     if (!data || !data.length) return alert('No data to export.');
     const headers = Object.keys(data[0]);
     const csvRows = [
-      headers.join(','), 
+      headers.join(','),
       ...data.map(row => headers.map(h => JSON.stringify(row[h] ?? '')).join(','))
     ];
     const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
@@ -217,12 +214,16 @@ const TeacherBadgesPage = ({ classroomId }) => {
   };
 
   return (
-    <div className="p-6">
+    <div className="w-full px-6 pb-10">
       <div className="mb-2">
-        <Link to={`/classroom/${classroomId}`} className="link text-green-600 hover:text-green-700 focus:outline-none focus:ring-2 focus:ring-green-300 rounded">
-         ← Back to Classroom
+        <Link
+          to={`/classroom/${classroomId}`}
+          className="link text-green-600 hover:text-green-700 focus:outline-none focus:ring-2 focus:ring-green-300 rounded"
+        >
+          ← Back to Classroom
         </Link>
       </div>
+
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-bold">Badge Management</h2>
@@ -234,7 +235,7 @@ const TeacherBadgesPage = ({ classroomId }) => {
         </button>
       </div>
 
-      {/* Classroom info (name + ID) */}
+      {/* Classroom info */}
       <div className="mb-4">
         {classroom ? (
           <>
@@ -245,7 +246,7 @@ const TeacherBadgesPage = ({ classroomId }) => {
           <p className="text-gray-400">Loading classroom info...</p>
         )}
       </div>
-      
+
       {/* All Badges */}
       <h3 className="font-semibold mb-3">
         All Badges ({badges.length})
@@ -254,67 +255,87 @@ const TeacherBadgesPage = ({ classroomId }) => {
       {badges.length === 0 ? (
         <p className="text-gray-500">No badges created yet.</p>
       ) : (
-        <div className="flex flex-wrap gap-4 mb-6 justify-start">
-
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6 w-full">
           {badges.map((badge) => (
             <div
               key={badge._id}
-              className="relative flex flex-col justify-between rounded-2xl shadow-md border border-gray-200 bg-white hover:shadow-lg transition p-4 w-60 h-[300px]"
+              className="relative flex flex-col justify-between rounded-2xl shadow-md border border-base-200 bg-base-100 hover:shadow-lg transition duration-200 p-6 w-full min-h-[420px]"
             >
               {/* Top row: emoji + edit/delete */}
               <div className="flex justify-between items-start">
-                <span className="text-3xl">
+                <span className="text-5xl">
                   {badge.icon || '🏅'}
                 </span>
 
                 <div className="flex gap-2">
+                  {/* Edit button (pretty circle) */}
                   <button
                     onClick={() => handleEditBadge(badge)}
-                    className="text-blue-500 hover:text-blue-700"
+                    className="inline-flex items-center justify-center w-9 h-9 rounded-full border border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 hover:border-blue-300 transition"
                     title="Edit badge"
                   >
                     ✎
                   </button>
-                  <button
-                    onClick={() => handleDeleteBadge(badge._id)}
-                    className="text-red-500 hover:text-red-700 p-1 rounded focus:outline-none focus:ring-2 focus:ring-red-300"
-                    title="Delete badge"
-                    aria-label="Delete badge"
-                  >
-                    <Trash2 size={16} className="shrink-0" aria-hidden="true" />
-                  </button>
+
+                  {/* Delete with Confirm/Cancel like Bazaar templates */}
+                  {confirmDeleteBadgeId === badge._id ? (
+                    <>
+                      <button
+                        onClick={() => handleDeleteBadge(badge._id)}
+                        className="px-3 py-1 text-xs rounded bg-red-600 text-white hover:bg-red-700"
+                      >
+                        Confirm
+                      </button>
+                      <button
+                        onClick={() => setConfirmDeleteBadgeId(null)}
+                        className="px-3 py-1 text-xs rounded border border-gray-300 hover:bg-gray-100"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmDeleteBadgeId(badge._id)}
+                      className="inline-flex items-center justify-center w-9 h-9 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:border-red-300 transition"
+                      title="Delete badge"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  )}
                 </div>
               </div>
 
-              {/* Middle: badge text info */}
-              <div className="mt-3 text-left space-y-1">
-                <h4 className="font-semibold text-base">{badge.name}</h4>
+              {/* Badge text */}
+              <div className="mt-4 text-left space-y-2">
+                <h4 className="font-semibold text-xl">{badge.name}</h4>
+
                 {badge.description && (
-                  <p className="text-sm text-gray-600">{badge.description}</p>
+                  <p className="text-base text-base-content/70">
+                    {badge.description}
+                  </p>
                 )}
-                <p className="text-sm font-semibold text-gray-700">
+
+                <p className="text-base font-semibold text-base-content">
                   Level {badge.levelRequired} Required
                 </p>
-                <p className="text-xs text-gray-400">
+
+                <p className="text-sm text-base-content/50">
                   Created {new Date(badge.createdAt).toLocaleDateString()}
                 </p>
               </div>
 
-              {/* Bottom: badge image (only if present) */}
+              {/* Bottom: badge image */}
               {badge.imageUrl && (
-                <div className="mt-4 flex justify-center">
+                <div className="mt-6 flex justify-center">
                   <img
                     src={
-                      badge.imageUrl?.startsWith('/uploads/')
+                      badge.imageUrl.startsWith('/uploads/')
                         ? `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}${badge.imageUrl}`
                         : badge.imageUrl
                     }
                     alt={badge.name}
-                    className="w-24 h-28 object-contain rounded-md"
-                    onError={(e) => {
-                      // hide broken images to avoid the tiny broken icon
-                      e.currentTarget.style.display = 'none';
-                    }}
+                    className="w-56 h-64 object-contain rounded-md"
+                    onError={(e) => (e.currentTarget.style.display = 'none')}
                   />
                 </div>
               )}
@@ -323,11 +344,13 @@ const TeacherBadgesPage = ({ classroomId }) => {
         </div>
       )}
 
-      {/* Modal */}
+      {/* MODAL */}
       {showModal && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
           <div className="bg-white p-6 rounded-md w-96 shadow-lg">
-            <h3 className="text-lg font-bold mb-4">Create Badge</h3>
+            <h3 className="text-lg font-bold mb-4">
+              {editingBadge ? 'Edit Badge' : 'Create Badge'}
+            </h3>
             <form onSubmit={handleCreateBadge} className="flex flex-col gap-3">
               <label className="text-sm font-semibold">
                 Badge Name:
@@ -407,18 +430,9 @@ const TeacherBadgesPage = ({ classroomId }) => {
                 <input
                   type="file"
                   accept="image/*"
-                  onChange={async (e) => {
+                  onChange={(e) => {
                     const file = e.target.files[0];
-                    if (!file) return;
-                    const formDataImg = new FormData();
-                    formDataImg.append('image', file);
-                    try {
-                      const file = e.target.files[0];
-                      if (file) setFormData({ ...formData, image: file });
-                    } catch (err) {
-                      console.error('Upload failed:', err);
-                      alert('Image upload failed.');
-                    }
+                    if (file) setFormData({ ...formData, image: file });
                   }}
                   className="border p-2 rounded w-full mt-1"
                 />
@@ -427,7 +441,16 @@ const TeacherBadgesPage = ({ classroomId }) => {
               <div className="flex justify-end gap-3 mt-4">
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
+                  onClick={() => {
+                    setShowModal(false);
+                    setEditingBadge(null);
+                    setFormData({
+                      name: '',
+                      description: '',
+                      levelRequired: '',
+                      icon: '',
+                    });
+                  }}
                   className="px-4 py-2 border rounded-md hover:bg-gray-100"
                 >
                   Cancel
@@ -438,7 +461,9 @@ const TeacherBadgesPage = ({ classroomId }) => {
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
                 >
                   {loading
-                    ? (editingBadge ? 'Saving...' : 'Creating...')
+                    ? editingBadge
+                      ? 'Saving...'
+                      : 'Creating...'
                     : editingBadge
                     ? 'Save'
                     : 'Create'}
@@ -450,175 +475,174 @@ const TeacherBadgesPage = ({ classroomId }) => {
       )}
 
       {/* STUDENT BADGE PROGRESS SECTION */}
-<div className="mt-10">
-  <h2 className="text-xl font-bold mb-4">Student Badge Progress</h2>
+      <div className="mt-10">
+        <h2 className="text-xl font-bold mb-4">Student Badge Progress</h2>
 
-  {/* Filters + Sorting + Export */}
-  <div className="flex justify-end gap-2 mb-3">
-    <button
-      onClick={() => exportToCSV(sortedStudents)}
-      className="border px-3 py-1 rounded hover:bg-gray-100 text-sm"
-    >
-      Export CSV
-    </button>
-    <button
-      onClick={() => exportToJSON(sortedStudents)}
-      className="border px-3 py-1 rounded hover:bg-gray-100 text-sm"
-    >
-      Export JSON
-    </button>
-  </div>
+        {/* Export buttons */}
+        <div className="flex justify-end gap-2 mb-3">
+          <button
+            onClick={() => exportToCSV(sortedStudents)}
+            className="border px-3 py-1 rounded hover:bg-gray-100 text-sm"
+          >
+            Export CSV
+          </button>
+          <button
+            onClick={() => exportToJSON(sortedStudents)}
+            className="border px-3 py-1 rounded hover:bg-gray-100 text-sm"
+          >
+            Export JSON
+          </button>
+        </div>
 
-  {/* Filters + Sorting */}
-  <div className="flex flex-wrap items-center gap-3 mb-4">
-    <input
-      type="text"
-      placeholder="Search students..."
-      value={searchQuery}
-      onChange={(e) => setSearchQuery(e.target.value)}
-      className="border rounded px-3 py-1 flex-1 min-w-[200px]"
-    />
-    
-    <select
-      value={levelFilter}
-      onChange={(e) => setLevelFilter(e.target.value)}
-      className="border rounded px-3 py-1"
-    >
-      <option value="">All Levels</option>
-      {[...new Set(studentList.map((s) => s.level))].map((lvl) => (
-        <option key={lvl} value={lvl}>
-          Level {lvl}
-        </option>
-      ))}
-    </select>
+        {/* Filters and sorting */}
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          <input
+            type="text"
+            placeholder="Search students..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="border rounded px-3 py-1 flex-1 min-w-[200px]"
+          />
 
-    {/* NEW Badge Filter */}
-    <select
-      value={badgeFilter}
-      onChange={(e) => setBadgeFilter(e.target.value)}
-      className="border rounded px-3 py-1"
-    >
-      <option value="all">All Students</option>
-      <option value="with">With Badges</option>
-      <option value="without">Without Badges</option>
-    </select>
+          <select
+            value={levelFilter}
+            onChange={(e) => setLevelFilter(e.target.value)}
+            className="border rounded px-3 py-1"
+          >
+            <option value="">All Levels</option>
+            {[...new Set(studentList.map((s) => s.level))].map((lvl) => (
+              <option key={lvl} value={lvl}>
+                Level {lvl}
+              </option>
+            ))}
+          </select>
 
-    {/* Sort + Order controls */}
-    <select
-      value={sortField}
-      onChange={(e) => setSortField(e.target.value)}
-      className="border rounded px-3 py-1"
-    >
-      <option value="name">Sort by Name</option>
-      <option value="level">Sort by Level</option>
-      <option value="xp">Sort by XP</option>
-      <option value="badgesEarned">Sort by Badges</option>
-    </select>
+          <select
+            value={badgeFilter}
+            onChange={(e) => setBadgeFilter(e.target.value)}
+            className="border rounded px-3 py-1"
+          >
+            <option value="all">All Students</option>
+            <option value="with">With Badges</option>
+            <option value="without">Without Badges</option>
+          </select>
 
-    <button
-      onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-      className="border px-3 py-1 rounded hover:bg-gray-100"
-    >
-      {sortOrder === 'asc' ? 'ASC' : 'DESC'}
-    </button>
-    </div>
+          <select
+            value={sortField}
+            onChange={(e) => setSortField(e.target.value)}
+            className="border rounded px-3 py-1"
+          >
+            <option value="name">Sort by Name</option>
+            <option value="level">Sort by Level</option>
+            <option value="xp">Sort by XP</option>
+            <option value="badgesEarned">Sort by Badges</option>
+          </select>
 
-    {/* Student Table */}
-    <div className="card bg-base-100 border border-base-200 shadow-md rounded-2xl overflow-x-auto">
-      <div className="card-body p-4">
-        {/* Removed duplicate title inside card */}
-        <table className="table table-zebra w-full table-auto text-sm md:text-base">
-          <thead className="text-base-content/70 border-b border-base-300">
-            <tr>
-              <th className="py-3">Student</th>
-              <th className="py-3 text-center">Level</th>
-              <th className="py-3 text-center">XP</th>
-              <th className="py-3 text-center">Badges Earned</th>
-              <th className="py-3 text-center">Next Badge</th>
-              <th className="py-3 text-center">XP Until Next Badge</th>
-              <th className="py-3 text-center">Actions</th>
-            </tr>
-          </thead>
+          <button
+            onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+            className="border px-3 py-1 rounded hover:bg-gray-100"
+          >
+            {sortOrder === 'asc' ? 'ASC' : 'DESC'}
+          </button>
+        </div>
 
-          <tbody>
-            {sortedStudents.length === 0 ? (
-              <tr>
-                <td
-                  colSpan="5"
-                  className="py-6 text-center text-base-content/60 italic"
-                >
-                  No students found.
-                </td>
-              </tr>
-            ) : (
-              sortedStudents.map((s, i) => (
-                <tr
-                  key={s._id || i}
-                  className="hover:bg-base-200 transition-colors"
-                >
-                  <td className="py-3">
-                    <div className="font-medium">{s.name}</div>
-                    <div className="text-xs opacity-70">{s.email}</div>
-                  </td>
-
-                  <td className="py-3 text-center">{s.level}</td>
-
-                  <td className="py-3 text-center">{s.xp}</td>
-
-                  <td className="py-3 text-center">
-                    <span className="font-medium">{s.badgesEarned}</span>
-                    <span className="opacity-70 ml-1">/ {s.totalBadges ?? 0}</span>
-                  </td>
-
-                  <td className="py-3 text-center">
-                    {s.nextBadge ? (
-                      <span className="text-sm">{s.nextBadge}</span>
-                    ) : (
-                      <span className="text-xs opacity-70 italic">—</span>
-                    )}
-                  </td>
-                  <td className="py-3 text-center">
-                    {s.nextBadge === 'All badges earned'
-                      ? '—'
-                      : `${s.xpUntilNextBadge ?? 0} XP`}
-                  </td>
-
-                  <td className="py-3 text-center">
-                    <div className="flex flex-col sm:flex-row justify-center gap-2">
-                      <button
-                        className="btn btn-xs sm:btn-sm btn-outline whitespace-nowrap"
-                        onClick={() =>
-                          navigate(
-                            `/classroom/${classroomId}/profile/${s._id}`,
-                            { state: { from: 'badges', classroomId } }
-                          )
-                        }
-                      >
-                        View Profile
-                      </button>
-
-                      <button
-                        className="btn btn-xs sm:btn-sm btn-success whitespace-nowrap"
-                        onClick={() =>
-                          navigate(
-                            `/classroom/${classroomId}/student/${s._id}/stats`,
-                            { state: { from: 'badges' } }
-                          )
-                        }
-                      >
-                        View Stats
-                      </button>
-                    </div>
-                  </td>
+        {/* Student table */}
+        <div className="card bg-base-100 border border-base-200 shadow-md rounded-2xl overflow-x-auto">
+          <div className="card-body p-4">
+            <table className="table table-zebra w-full table-auto text-sm md:text-base">
+              <thead className="text-base-content/70 border-b border-base-300">
+                <tr>
+                  <th className="py-3">Student</th>
+                  <th className="py-3 text-center">Level</th>
+                  <th className="py-3 text-center">XP</th>
+                  <th className="py-3 text-center">Badges Earned</th>
+                  <th className="py-3 text-center">Next Badge</th>
+                  <th className="py-3 text-center">XP Until Next Badge</th>
+                  <th className="py-3 text-center">Actions</th>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              </thead>
+
+              <tbody>
+                {sortedStudents.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan="7"
+                      className="py-6 text-center text-base-content/60 italic"
+                    >
+                      No students found.
+                    </td>
+                  </tr>
+                ) : (
+                  sortedStudents.map((s, i) => (
+                    <tr
+                      key={s._id || i}
+                      className="hover:bg-base-200 transition-colors"
+                    >
+                      <td className="py-3">
+                        <div className="font-medium">{s.name}</div>
+                        <div className="text-xs opacity-70">{s.email}</div>
+                      </td>
+
+                      <td className="py-3 text-center">{s.level}</td>
+                      <td className="py-3 text-center">{s.xp}</td>
+
+                      <td className="py-3 text-center">
+                        <span className="font-medium">{s.badgesEarned}</span>
+                        <span className="opacity-70 ml-1">
+                          / {s.totalBadges ?? 0}
+                        </span>
+                      </td>
+
+                      <td className="py-3 text-center">
+                        {s.nextBadge ? (
+                          <span className="text-sm">{s.nextBadge}</span>
+                        ) : (
+                          <span className="text-xs opacity-70 italic">—</span>
+                        )}
+                      </td>
+
+                      <td className="py-3 text-center">
+                        {s.nextBadge === 'All badges earned'
+                          ? '—'
+                          : `${s.xpUntilNextBadge ?? 0} XP`}
+                      </td>
+
+                      <td className="py-3 text-center">
+                        <div className="flex flex-col sm:flex-row justify-center gap-2">
+                          <button
+                            className="btn btn-xs sm:btn-sm btn-outline whitespace-nowrap"
+                            onClick={() =>
+                              navigate(
+                                `/classroom/${classroomId}/profile/${s._id}`,
+                                { state: { from: 'badges', classroomId } }
+                              )
+                            }
+                          >
+                            View Profile
+                          </button>
+
+                          <button
+                            className="btn btn-xs sm:btn-sm btn-success whitespace-nowrap"
+                            onClick={() =>
+                              navigate(
+                                `/classroom/${classroomId}/student/${s._id}/stats`,
+                                { state: { from: 'badges' } }
+                              )
+                            }
+                          >
+                            View Stats
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
-  </div>
-</div>
   );
 };
 

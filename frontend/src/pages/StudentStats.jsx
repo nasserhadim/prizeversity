@@ -26,10 +26,7 @@ const StudentStats = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Badge Collection Modal State
-  const [badgeModalOpen, setBadgeModalOpen] = useState(false);
-  const [badgeData, setBadgeData] = useState(null);
-  const [badgeLoading, setBadgeLoading] = useState(false);
+  // Just the badge count now
   const [badgeCount, setBadgeCount] = useState(0);
 
   const { user } = useAuth();
@@ -46,19 +43,14 @@ const StudentStats = () => {
     stats?.groupMultiplier ?? stats?.student?.groupMultiplier ?? 1
   );
 
-  // Function to open modal and fetch badges
-  const handleViewBadges = async () => {
-    if (!studentId || !classId) return;
-    setBadgeModalOpen(true);
-    setBadgeLoading(true);
-    try {
-      const res = await getUserBadges(studentId, classId);
-      setBadgeData(res);
-    } catch (err) {
-      console.error('Error fetching badge data:', err);
-    } finally {
-      setBadgeLoading(false);
-    }
+  // Go to the *student-specific* badge page now
+  const handleViewBadges = () => {
+    if (!classId || !studentId) return;
+    navigate(`/classroom/${classId}/student/${studentId}/badges`, {
+      state: {
+        from: 'stats', // so badges page knows to go back to stats
+      },
+    });
   };
 
   // Fetch student stats + badge count
@@ -73,6 +65,7 @@ const StudentStats = () => {
         setStats(res.data);
         setError('');
 
+        // badge count for button
         try {
           const badgeRes = await getUserBadges(studentId, classId);
           const earnedCount = badgeRes?.badges?.earned?.length || 0;
@@ -379,60 +372,6 @@ const StudentStats = () => {
           </button>
         )}
       </div>
-
-      {/* Badge Collection Modal */}
-      {badgeModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div
-            className={`${
-              isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'
-            } rounded-lg shadow-lg w-11/12 max-w-lg p-6 relative`}
-          >
-            {/* Close Button */}
-            <button
-              onClick={() => setBadgeModalOpen(false)}
-              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
-            >
-              ✖
-            </button>
-
-            <h2 className="text-xl font-bold mb-4 text-center">
-              Badge Collection
-            </h2>
-
-            {badgeLoading ? (
-              <p className="text-center text-gray-500">Loading badges...</p>
-            ) : !badgeData ? (
-              <p className="text-center text-gray-500">No badge data found.</p>
-            ) : (
-              <div className="space-y-4">
-                {badgeData.badges?.earned?.length > 0 ? (
-                  badgeData.badges.earned.map(badge => (
-                    <div
-                      key={badge.id}
-                      className="border rounded-md p-3 shadow bg-green-100 border-green-400"
-                    >
-                      <p className="text-lg font-bold">
-                        {badge.icon || '🏅'} {badge.name}
-                      </p>
-                      <p className="text-sm text-gray-700">
-                        {badge.description}
-                      </p>
-                      <p className="text-sm mt-1">
-                        Level {badge.levelRequired} Required
-                      </p>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-gray-500 text-center">
-                    No badges earned yet.
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       <Footer />
     </>
