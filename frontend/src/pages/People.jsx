@@ -1334,10 +1334,13 @@ const People = () => {
                   const banRecord = (classroom?.banLog || []).find(br => String(br.user?._id || br.user) === String(student._id));
 
                   //who can view stats from the People page
+                  const role = (user?.role || '').toLowerCase();
+                  const isSelf = String(student._id) === String(user?._id);
                   const canViewStats =
-                    user?.role === 'teacher' ||
-                    user?.role === 'admin' ||
-                    String(student._id) === String(user?._id); // students: only their own stats
+                    role === 'teacher' ||                 // teachers see all stats
+                    role === 'admin' ||                   // admins see all stats
+                    isSelf ||                             // students always see their own stats
+                    (role === 'student' && studentsCanViewStats && !isSelf); // students see others only if toggle is ON
 
                   return (
                     <div key={student._id} className="border p-3 rounded shadow flex justify-between items-center">
@@ -1413,8 +1416,9 @@ const People = () => {
                         </button>
 
                         {/* View Stats:
-                            - Teacher/Admin → can view any student's stats
-                            - Student → can only view their own stats
+                            - Teacher/Admin can view any student's stats
+                            - Student can always view their own stats
+                            - Student can view others only when toggle is ON in people -> settings page by the teacher
                          */}
                         {canViewStats && (
                           <button

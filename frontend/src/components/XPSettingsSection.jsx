@@ -36,6 +36,7 @@ export default function XPSettingsSection({ classroomId }) {
       return next;
     });
   };
+
   const onField = (path) => (e) => {
     const v =
       e.target.type === "checkbox"
@@ -63,35 +64,34 @@ export default function XPSettingsSection({ classroomId }) {
     })();
   }, [classroomId]);
 
-    const onSave = async (e) => {
+  const onSave = async (e) => {
     e?.preventDefault(); // Prevent default form submit behavior
     setSaving(true);
     setMsg("");
     try {
-        console.log("[XP] Saving payload:", form); // Optional debug
-        const r = await axios.post(
+      console.log("[XP] Saving payload:", form); // Optional debug
+      const r = await axios.post(
         `/api/xpSettings/${classroomId}`,
         form,
         { withCredentials: true } // Ensure credentials/cookies are sent
-        );
+      );
 
-        if (r.status === 200) {
+      if (r.status === 200) {
         setMsg("Saved ✓");
         toast.success("XP settings saved");
-        } else {
+      } else {
         setMsg("Save failed");
         toast.error(`Save failed (status ${r.status})`);
-        }
+      }
     } catch (e) {
-        const apiErr = e?.response?.data?.error || e?.message || "Save failed";
-        setMsg("Save failed");
-        toast.error(apiErr);
-        console.error("[XP] Save failed:", e);
+      const apiErr = e?.response?.data?.error || e?.message || "Save failed";
+      setMsg("Save failed");
+      toast.error(apiErr);
+      console.error("[XP] Save failed:", e);
     } finally {
-        setSaving(false);
+      setSaving(false);
     }
-    };
-
+  };
 
   return (
     <section id="xp-settings" className="card bg-base-100 shadow-md p-4 w-full mt-4">
@@ -100,15 +100,14 @@ export default function XPSettingsSection({ classroomId }) {
       <label className="flex items-center gap-3 mb-4">
         <span className="font-medium">Enable XP System</span>
         <input
-            type="checkbox"
-            role="switch"
-            aria-label="Enable XP System"
-            className="toggle toggle-success"
-            checked={form.isXPEnabled}
-            onChange={onField("isXPEnabled")}
+          type="checkbox"
+          role="switch"
+          aria-label="Enable XP System"
+          className="toggle toggle-success"
+          checked={form.isXPEnabled}
+          onChange={onField("isXPEnabled")}
         />
-        </label>
-
+      </label>
 
       <div className="grid gap-4 md:grid-cols-2">
         <label className="flex flex-col">
@@ -122,24 +121,22 @@ export default function XPSettingsSection({ classroomId }) {
             <option value="linear">Linear</option>
             <option value="logarithmic">Logarithmic</option>
           </select>
-            {form.xpFormulaType === "exponential" && (
+          {form.xpFormulaType === "exponential" && (
             <small className="opacity-70 mt-1">
-            Each level requires 1.5x more XP
+              Each level requires 1.5x more XP
             </small>
-            )}
-            {form.xpFormulaType === "linear" && (
-                <small className="opacity-70 mt-1">
-                Each level requires same amount of XP                
-                </small>
-            )}
-            {form.xpFormulaType === "logarithmic" && (
-                <small className="opacity-70 mt-1">
-                Later levels require progressively less XP
-                </small>
-            )}
-            
+          )}
+          {form.xpFormulaType === "linear" && (
+            <small className="opacity-70 mt-1">
+              Each level requires same amount of XP
+            </small>
+          )}
+          {form.xpFormulaType === "logarithmic" && (
+            <small className="opacity-70 mt-1">
+              Later levels require progressively less XP
+            </small>
+          )}
         </label>
-        
 
         <label className="flex flex-col">
           <span className="mb-1">Base XP for Level 2</span>
@@ -156,123 +153,108 @@ export default function XPSettingsSection({ classroomId }) {
         </label>
 
         <div className="mt-5">
-        <h4 className="font-semibold mb-2">XP Gain Rates</h4>
-        <div className="grid gap-3 md:grid-cols-2">
+          <h4 className="font-semibold mb-2">XP Gain Rates</h4>
+          <div className="grid gap-3 md:grid-cols-2">
             {[
-            {
+              {
                 path: "xpRewards.xpPerBitEarned",
                 label: "Bit Earned",
                 desc: "XP per bit earned",
-            },
-            {
+              },
+              {
                 path: "xpRewards.xpPerBitSpent",
                 label: "Bit Spent",
-                desc: "XP per bit Spent",
-            },
-            {
+                desc: "XP per bit spent",
+              },
+              {
                 path: "xpRewards.xpPerStatsBoost",
                 label: "Stat Increase",
                 desc: "XP per stat boost",
-            },
-            // {
-            //     path: "xpRewards.dailyCheckInXP",
-            //     label: "Daily Check-in",
-            //     desc: "XP per daily limit",
-            // },
-            {
+              },
+              // {
+              //   path: "xpRewards.dailyCheckInXP",
+              //   label: "Daily Check-in",
+              //   desc: "XP per daily limit",
+              // },
+              {
                 path: "xpRewards.dailyCheckInLimit",
                 label: "Daily Check-in Limit",
                 desc: "XP per daily limit",
-            },
-            {
+              },
+              {
                 path: "xpRewards.groupJoinXP",
                 label: "Group Join",
-                desc: "XP for joining Groups (one-time)",
-            },
-            {
+                desc: "XP for joining groups (one-time)",
+              },
+              {
                 path: "xpRewards.challengeXP",
                 label: "Challenge Completion",
-                desc: "XP per Challenge",
-            },
-            {
+                desc: "XP per challenge",
+              },
+              {
                 path: "xpRewards.mysteryBoxUseXP",
                 label: "Mystery Box Use",
                 desc: "XP per mystery box",
-            },
-
+              },
             ].map(({ path, label, desc }) => (
-            <label key={path} className="flex flex-col">
+              <label key={path} className="flex flex-col">
                 <span className="mb-1">{label}</span>
                 <input
-                className="input input-bordered"
-                type="number"
-                value={getPath(form, path)}
-                onChange={onField(path)}
+                  className="input input-bordered"
+                  type="number"
+                  value={getPath(form, path)}
+                  onChange={onField(path)}
                 />
                 <small className="opacity-70 mt-1">{desc}</small>
-            </label>
+              </label>
             ))}
+
+            {/* moved XP from Bits bases, next to Mystery Box Use */}
+            <label className="flex flex-col">
+              <span className="mb-1">XP from Bits bases</span>
+              <select
+                className="select select-bordered"
+                value={form.bitToXpCountMode}
+                onChange={onField("bitToXpCountMode")}
+              >
+                <option value="final">Final (before multipliers)</option>
+                <option value="base">Base (after multipliers)</option>
+              </select>
+              <small className="opacity-70 mt-1">
+                {form.bitToXpCountMode === "final"
+                  ? "Current behavior"
+                  : "Ignores group/personal multipliers when converting bits → XP"}
+              </small>
+            </label>
+          </div>
         </div>
-        </div>
+
         <div className="flex items-start gap-2 bg-[#1E56FF] text-white border border-[#1E56FF] rounded-md p-2 shadow-sm w-[3in] h-[1.5in] overflow-hidden">
-        <div className="flex items-center justify-center bg-white text-[#1E56FF] rounded-full w-4 h-4 text-[15px] font-bold mt-1 flex-shrink-0">
+          <div className="flex items-center justify-center bg-white text-[#1E56FF] rounded-full w-4 h-4 text-[15px] font-bold mt-1 flex-shrink-0">
             i
-        </div>
-        <div className="text-[18px] leading-tight">
+          </div>
+          <div className="text-[18px] leading-tight">
             <p className="font-semibold mb-1">Recommended Balance:</p>
             <ul className="list-disc list-inside space-y-0.5">
-            <li>Keep earning Bits</li>
-            <li>Reward check-ins</li>
-            <li>Avoid grindy XP</li>
+              <li>Keep earning Bits</li>
+              <li>Reward check-ins</li>
+              <li>Avoid grindy XP</li>
             </ul>
+          </div>
         </div>
-        </div>
-
-
-
-
-          <label className="flex flex-col">
-          <span className="mb-1">XP from Bits bases</span>
-          <select
-            className="select select-bordered"
-            value={form.bitToXpCountMode}
-            onChange={onField("bitToXpCountMode")}
-          >
-            <option value="final">Final (before multipliers)</option>
-            <option value="base">Base (after multipliers)</option>
-          </select>
-           <small className="opacity-70 mt-1">
-            {form.bitToXpCountMode === "final"
-            ? "Current Behavior"
-            : "Ignores group/persoanl multipliers when converting bits -> XP"}
-        </small>
-        </label>
       </div>
 
-      {/* <div className="mt-4 flex items-center gap-3">
-        <button onClick={onSave} disabled={saving} className="btn btn-primary">
+      <div className="flex justify-end mt-4">
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={saving}
+          className="btn btn-primary"
+        >
           {saving ? "Saving…" : "Save Settings"}
         </button>
-        {msg && <span className="text-sm">{msg}</span>}
-      </div> */}
-      <div className="flex justify-end mt-4">
-            <button
-                type="button"
-                onClick={onSave}
-                disabled={saving}
-                className="btn btn-primary"
-            >
-                {saving ? "Saving…" : "Save Settings"}
-            </button>
-            {msg && <span className="ml-3 text-sm">{msg}</span>}
-        </div>
-
-    
-
-
-
+        {msg && <span className="ml-3 text-sm">{msg}</span>}
+      </div>
     </section>
-    
   );
-  
 }

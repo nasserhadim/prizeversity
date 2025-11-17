@@ -254,16 +254,6 @@ const StudentStats = () => {
           {studentDisplayName}&apos;s Stats
         </h1>
 
-        {/* View Badge Collection button above radar */}
-        <div className="flex justify-center mt-4">
-          <button
-            onClick={handleViewBadges}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow transition-transform duration-150 active:scale-95"
-          >
-            View Badge Collection ({badgeCount})
-          </button>
-        </div>
-
         {/* XP / Level Card */}
         {xpSettings?.isXPEnabled ? (
           <div className="card bg-white border border-green-200 shadow-sm rounded-lg p-4">
@@ -287,6 +277,16 @@ const StudentStats = () => {
             XP &amp; Leveling is currently disabled by your teacher.
           </div>
         ) : null}
+
+        {/* View Badge Collection button above radar */}
+        <div className="flex justify-center mt-4">
+          <button
+            onClick={handleViewBadges}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow transition-transform duration-150 active:scale-95"
+          >
+            View Badge Collection ({badgeCount})
+          </button>
+        </div>
 
         {/* radar + legend */}
         <div className="flex justify-center">
