@@ -296,6 +296,7 @@ const openMystery = async (ownedId) => {
                       <strong>Effect:</strong> {getEffectDescription(item)}
                     </div>
                   )}
+
                 </>
               );
             })()}
@@ -410,7 +411,10 @@ const openMystery = async (ownedId) => {
                                 )}
                             </>
                         );
-                    })()}   
+                    })()}
+                    <div className="text-sm text-base-content/60 mt-1">
+                        <strong>Rarity:</strong> {rewardPopup.rarity}
+                    </div>
                 </h4>
               </div>
             </div>

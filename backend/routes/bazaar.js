@@ -981,19 +981,30 @@ router.post('/inventory/:ownedId/open', ensureAuthenticated, async (req, res) =>
   }
 
   /// pick a reward from metadata.rewards (weighted and luck-weighted)
+  // plus determine rarity of chosen item
+  const rarityMap =
+  {
+    1: "Common",
+    2: "Uncommon",
+    3: "Rare",
+    4: "Epic",
+    5: "Legendary"
+  };
   const rewards = Array.isArray(box.metadata?.rewards) ? box.metadata.rewards : [];
   const baseWeights = rewards.reduce((s, r) => s + Number(r.weight || 0), 0);
   const luckWeights = rewards.reduce((s, r) => s + Number(r.luckWeight || 0), 0) * luckS * luckBox;
   const totalW = baseWeights + luckWeights;
   if (totalW <= 0) return res.status(400).json({ error: 'No rewards configured for this box' });
-
+  let rarity = "";
   let roll = Math.random() * totalW;
   let picked = rewards[0];
   for (const r of rewards) {
     roll -= Number(r.weight || 0);
     roll -= Number(r.luckWeight || 0) * luckS * luckBox;
-    if (roll <= 0) { picked = r; break; }
+    if (roll <= 0) { picked = r; rarity = rarityMap[r.luckWeight]; break; }
   }
+  
+  
   //create an owned copy of the awarded item
   const base = await Item.findById(picked.itemId).setOptions({ withDeleted: true });
   if (!base) return res.status(400).json({ error: 'Configured reward item is missing' });
@@ -1032,7 +1043,7 @@ router.post('/inventory/:ownedId/open', ensureAuthenticated, async (req, res) =>
   return res.json({
     ok: true,
     message: 'Box opened',
-    reward: { id: base._id, name: base.name, description: base.description, effect: base.primaryEffect },
+    reward: { id: base._id, name: base.name, description: base.description, effect: base.primaryEffect, rarity: rarity},
     awardedItemOwned,
     item: awardedItemOwned // for backward compatibility
   });
