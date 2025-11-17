@@ -2,7 +2,7 @@ import React, { useEffect, useState, useContext } from 'react';
 import { getUserBadges } from '../api/apiBadges';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ThemeContext } from '../context/ThemeContext';
 
 const StudentBadgesPage = ({ classroomId, studentId }) => {
@@ -10,7 +10,17 @@ const StudentBadgesPage = ({ classroomId, studentId }) => {
   const { theme } = useContext(ThemeContext);
   const location = useLocation();
   const navigate = useNavigate();
+  const params = useParams();
+
+  // from = where this page was opened (people, leaderboard, stats, etc.)
   const from = location.state?.from || 'people';
+
+  // Allow route params as fallback if props not passed
+  const routeClassroomId = params.classroomId;
+  const routeStudentId = params.id || params.studentId;
+
+  const effectiveClassroomId = classroomId || routeClassroomId;
+  const effectiveStudentId = studentId || routeStudentId;
 
   const [classroom, setClassroom] = useState(null);
   const [badgeData, setBadgeData] = useState(null);
@@ -19,16 +29,16 @@ const StudentBadgesPage = ({ classroomId, studentId }) => {
 
   useEffect(() => {
     const fetchStudentInfo = async () => {
-      if (!studentId) return;
+      if (!effectiveStudentId) return;
       try {
         // Try the main users route first
-        const res = await axios.get(`/api/users/${studentId}`, {
+        const res = await axios.get(`/api/users/${effectiveStudentId}`, {
           withCredentials: true,
         });
         setViewedStudent(res.data);
       } catch (err1) {
         try {
-          const resAlt = await axios.get(`/api/user/${studentId}`, {
+          const resAlt = await axios.get(`/api/user/${effectiveStudentId}`, {
             withCredentials: true,
           });
           setViewedStudent(resAlt.data);
@@ -38,20 +48,20 @@ const StudentBadgesPage = ({ classroomId, studentId }) => {
       }
     };
     fetchStudentInfo();
-  }, [studentId]);
+  }, [effectiveStudentId]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const targetUserId = studentId || user?._id;
-        if (!classroomId || !targetUserId) return;
+        const targetUserId = effectiveStudentId || user?._id;
+        if (!effectiveClassroomId || !targetUserId) return;
 
         // Get classroom info
-        const classRes = await axios.get(`/api/classroom/${classroomId}`);
+        const classRes = await axios.get(`/api/classroom/${effectiveClassroomId}`);
         setClassroom(classRes.data);
 
         // Get earned and locked badges from XP route
-        const res = await getUserBadges(targetUserId, classroomId);
+        const res = await getUserBadges(targetUserId, effectiveClassroomId);
         setBadgeData(res);
         console.log('Badge data received:', res);
       } catch (err) {
@@ -62,7 +72,7 @@ const StudentBadgesPage = ({ classroomId, studentId }) => {
     };
 
     fetchData();
-  }, [classroomId, user, studentId]);
+  }, [effectiveClassroomId, user, effectiveStudentId]);
 
   if (loading) return <p className="p-6">Loading badges...</p>;
   if (!badgeData) return <p className="p-6">No badge data available.</p>;
@@ -82,13 +92,20 @@ const StudentBadgesPage = ({ classroomId, studentId }) => {
           onClick={() =>
             navigate(
               from === 'leaderboard'
-                ? `/classroom/${classroomId}/leaderboard`
-                : `/classroom/${classroomId}/people`
+                ? `/classroom/${effectiveClassroomId}/leaderboard`
+                : from === 'stats'
+                ? `/classroom/${effectiveClassroomId}/student/${effectiveStudentId}/stats`
+                : `/classroom/${effectiveClassroomId}/people`
             )
           }
           className="text-blue-600 hover:underline flex items-center gap-1"
         >
-          ← Back to {from === 'leaderboard' ? 'Leaderboard' : 'People'}
+          ← Back to{' '}
+          {from === 'leaderboard'
+            ? 'Leaderboard'
+            : from === 'stats'
+            ? 'Stats'
+            : 'People'}
         </button>
       </div>
 

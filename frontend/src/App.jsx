@@ -37,7 +37,7 @@ import Terms from './pages/Terms';
 import AdminModeration from './pages/AdminModeration';
 import NotFound from './pages/NotFound';
 import Badges from './pages/Badges';
-
+import StudentBadgesPage from './pages/StudentBadgesPage'; //added this
 
 const App = () => {
   const { user } = useContext(AuthContext);
@@ -79,9 +79,19 @@ const App = () => {
           <Route path="/classroom/:id/groups" element={<Groups />} />
           <Route path="/classroom/:id/people" element={<People />} />
           <Route path="/classroom/:classId/leaderboard" element={<Leaderboard />} />
+
+          {/* teacher badge management */}
           <Route path="/classroom/:classroomId/badges" element={<Badges />} />
-          {/* student-specific badge page */}
-          <Route path="/classroom/:classroomId/badges/:studentId" element={<Badges />}/>
+          {/* student-specific badge pages */}
+          <Route
+            path="/classroom/:classroomId/badges/:studentId"
+            element={<StudentBadgesPage />}
+          />
+          <Route
+            path="/classroom/:classroomId/student/:id/badges"
+            element={<StudentBadgesPage />}
+          />
+
           <Route path="/classroom/:classroomId/challenge" element={<Challenge />} />
           {/* Classroom-specific profile */}
           <Route path="/classroom/:classroomId/profile/:id" element={<Profile />} />

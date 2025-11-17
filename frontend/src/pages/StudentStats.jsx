@@ -43,13 +43,12 @@ const StudentStats = () => {
     stats?.groupMultiplier ?? stats?.student?.groupMultiplier ?? 1
   );
 
-  // ✅ Go to real badges page route
+  // Go to the *student-specific* badge page now
   const handleViewBadges = () => {
-    if (!classId) return;
-    navigate(`/classroom/${classId}/badges`, {
+    if (!classId || !studentId) return;
+    navigate(`/classroom/${classId}/student/${studentId}/badges`, {
       state: {
-        from: location.state?.from || 'stats',
-        studentId, // useful if your badges page reads this from location.state
+        from: 'stats', // so badges page knows to go back to stats
       },
     });
   };
