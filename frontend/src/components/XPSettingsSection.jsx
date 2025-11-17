@@ -162,7 +162,7 @@ export default function XPSettingsSection({ classroomId }) {
             {
                 path: "xpRewards.xpPerBitEarned",
                 label: "Bit Earned",
-                desc: "XP per bit earned).",
+                desc: "XP per bit earned",
             },
             {
                 path: "xpRewards.xpPerBitSpent",
