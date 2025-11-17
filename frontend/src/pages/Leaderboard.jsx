@@ -33,12 +33,13 @@ const Leaderboard = () => {
   const getLevel = (student) => student.level ?? student.stats?.level ?? 0;
   const getXP = (student) => student.xp ?? student.stats?.xp ?? 0;
 
-  //data fetchers
+  // data fetchers
   const fetchClassroom = async () => {
     try {
       const response = await apiClassroom.get(`/${classId}`);
       setClassroom(response.data);
-      setStudentsCanViewStats(response.data.studentsCanViewStats !== false); // default true
+      // default true; if explicitly false, hide stats from students
+      setStudentsCanViewStats(response.data.studentsCanViewStats !== false);
     } catch (err) {
       console.error('Failed to fetch classroom:', err);
     }
@@ -65,10 +66,16 @@ const Leaderboard = () => {
     fetchLeaderboard();
   }, [classId]);
 
-  // this will give Real-time updates
+  // Real-time updates
   useEffect(() => {
     const onBalance = () => fetchLeaderboard();
-    const onClassroom = () => fetchLeaderboard();
+
+    const onClassroom = (updatedClassroom) => {
+      // Only react to this classroom
+      if (!updatedClassroom || String(updatedClassroom._id) !== String(classId)) return;
+      setClassroom((prev) => ({ ...prev, ...updatedClassroom }));
+      setStudentsCanViewStats(updatedClassroom.studentsCanViewStats !== false);
+    };
 
     socket.on('balance_update', onBalance);
     socket.on('classroom_update', onClassroom);
@@ -102,9 +109,8 @@ const Leaderboard = () => {
     });
   }, [students, searchTerm, sortField, sortDirection]);
 
-  // this will make sure that the students can’t sort on hidden columns
+  // Everyone can sort by any visible column now
   const handleSort = (field) => {
-    if (user?.role !== 'teacher' && (field === 'xp' || field === 'level')) return;
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
@@ -130,7 +136,10 @@ const Leaderboard = () => {
         {/* Search and Controls */}
         <div className="mb-6 flex flex-col sm:flex-row gap-4 items-center justify-between">
           <div className="relative flex-1 max-w-md">
-            <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-base-content/50" />
+            <Search
+              size={20}
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-base-content/50"
+            />
             <input
               type="text"
               placeholder="Search students..."
@@ -161,27 +170,23 @@ const Leaderboard = () => {
                     </button>
                   </th>
 
-                  {/* Only teachers/admins see Level and XP columns */}
-                  {user?.role === 'teacher' && (
-                    <>
-                      <th className="w-36">
-                        <button
-                          className="flex items-center gap-2 hover:text-primary"
-                          onClick={() => handleSort('level')}
-                        >
-                          Level {getSortIcon('level')}
-                        </button>
-                      </th>
-                      <th className="w-36">
-                        <button
-                          className="flex items-center gap-2 hover:text-primary"
-                          onClick={() => handleSort('xp')}
-                        >
-                          XP {getSortIcon('xp')}
-                        </button>
-                      </th>
-                    </>
-                  )}
+                  {/* Level + XP visible for everyone now */}
+                  <th className="w-36">
+                    <button
+                      className="flex items-center gap-2 hover:text-primary"
+                      onClick={() => handleSort('level')}
+                    >
+                      Level {getSortIcon('level')}
+                    </button>
+                  </th>
+                  <th className="w-36">
+                    <button
+                      className="flex items-center gap-2 hover:text-primary"
+                      onClick={() => handleSort('xp')}
+                    >
+                      XP {getSortIcon('xp')}
+                    </button>
+                  </th>
 
                   <th className="w-[220px]">Actions</th>
                 </tr>
@@ -191,7 +196,7 @@ const Leaderboard = () => {
                 {filteredStudents.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={user?.role === 'teacher' ? 5 : 3}
+                      colSpan={5}
                       className="text-center py-8 text-base-content/50"
                     >
                       {searchTerm
@@ -201,11 +206,18 @@ const Leaderboard = () => {
                   </tr>
                 ) : (
                   filteredStudents.map((student, index) => {
-                    // 🔐 NEW: who can see the "View Stats" button?
+                    const role = (user?.role || '').toLowerCase();
+                    const isSelf = String(student._id) === String(user?._id);
+
+                    // Match People.jsx behavior:
+                    // the teacher/admin always see stats
+                    // student can always see their own stats
+                    // student can see others only if toggle is ON in the people-> settings page
                     const canViewStats =
-                      user?.role === 'teacher' ||
-                      user?.role === 'admin' ||
-                      String(student._id) === String(user?._id); // students: only their own
+                      role === 'teacher' ||
+                      role === 'admin' ||
+                      isSelf ||
+                      (role === 'student' && studentsCanViewStats && !isSelf);
 
                     return (
                       <tr key={student._id} className="hover">
@@ -225,17 +237,13 @@ const Leaderboard = () => {
                           </div>
                         </td>
 
-                        {/* Only teachers/admins see Level and XP values */}
-                        {user?.role === 'teacher' && (
-                          <>
-                            <td className="whitespace-nowrap">
-                              <span className="font-semibold">Level {getLevel(student) || 0}</span>
-                            </td>
-                            <td className="whitespace-nowrap">
-                              <span className="font-semibold">{getXP(student) || 0} XP</span>
-                            </td>
-                          </>
-                        )}
+                        {/* Level and the XP values for everyone */}
+                        <td className="whitespace-nowrap">
+                          <span className="font-semibold">Level {getLevel(student) || 0}</span>
+                        </td>
+                        <td className="whitespace-nowrap">
+                          <span className="font-semibold">{getXP(student) || 0} XP</span>
+                        </td>
 
                         <td>
                           <div className="flex flex-col sm:flex-row gap-2">
