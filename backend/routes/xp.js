@@ -189,30 +189,46 @@ router.get('/summary', async (req, res) => {
     const row = getClassroomRow(user, classroomId);
     const { baseXP, xpFormula } = await loadClassroomConfigurations(classroomId);
 
-    // Use the stored level as source of truth dont recalculate a lower level
+    // Stored level and the XP INSIDE that level
     const storedLevel = Number(row.level) || 1;
-    const xpCurrent = Math.max(0, Number(row.xp) || 0);
+    const xpInCurrentLevel = Math.max(0, Number(row.xp) || 0);
 
-    // XP needed to go from this level to the next level
+    // XP needed from this level to next level
     let xpNeeded = perLevelIncrease(storedLevel + 1, baseXP, xpFormula);
     if (!xpNeeded || xpNeeded <= 0) {
       xpNeeded = baseXP; // fallback
     }
 
-    const have = Math.max(0, Math.min(xpCurrent, xpNeeded));
-    const progressPercent = limitToRange((have / xpNeeded) * 100, 0, 100);
-    const XPRequired = Math.max(0, xpNeeded - have);
+    // don't let "have" exceed what is needed for this level
+    const haveInLevel = Math.max(0, Math.min(xpInCurrentLevel, xpNeeded));
+
+    // this is the total XP at start of this level (all previous levels)
+    const XPStartLevel = requiredXpForLevel(storedLevel, baseXP, xpFormula);
+
+    // this is total XP required to reach the NEXT level
+    const XPEndLevel = XPStartLevel + xpNeeded;
+
+    // this is the total XP earned in this classroom (what you want as numerator)
+    const totalXP = XPStartLevel + haveInLevel;
+
+    const progressPercent = limitToRange(
+      (haveInLevel / xpNeeded) * 100,
+      0,
+      100
+    );
+
+    const XPRequired = Math.max(0, XPEndLevel - totalXP); // same as xpNeeded - haveInLevel
 
     res.json({
       userId,
       classroomId,
       formula: xpFormula,
       baseXP,
-      totalXP: xpCurrent,
+      totalXP,          // total XP across ALL levels
       level: storedLevel,
-      XPStartLevel: 0,
-      XPEndLevel: xpNeeded,
-      XPRequired,
+      XPStartLevel,     // total XP at start of this level
+      XPEndLevel,       // total XP required for the next level
+      XPRequired,       // XP still needed to level up
       progressPercent: Math.round(progressPercent),
     });
   } catch (err) {
