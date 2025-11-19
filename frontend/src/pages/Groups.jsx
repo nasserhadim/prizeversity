@@ -1377,20 +1377,26 @@ const Groups = () => {
                             const msRemaining = expiresAt ? Math.max(0, expiresAt - now) : null;
                             const timeRemainingStr = msRemaining == null ? null : formatMs(msRemaining);
                             
+                            const pct = r.requestedPercent ?? r.requestedPercentage ?? r.percentage ?? null;
+                            const isPrivileged = user.role === 'teacher' || user.role === 'admin';
+                            const targetName =
+                              `${r.targetUser?.firstName || ''} ${r.targetUser?.lastName || ''}`.trim() ||
+                              r.targetUser?.email || 'Unknown';
+
+                            const titleText = isPrivileged
+                              ? `${r.amount} ₿ (${pct ? `${pct}%` : '—'} of balance) from ${targetName}`
+                              : `${pct ? `${pct}%` : 'A percent'} of balance requested from ${targetName}`;
+
                             return (
-                              <div key={r._id} className="border p-2 mt-2 rounded bg-base-200">
-                                <p>
-                                  <strong>{r.amount} ₿</strong> from {
-                                    r.targetUser?.firstName && r.targetUser?.lastName 
-                                      ? `${r.targetUser.firstName} ${r.targetUser.lastName}` 
-                                      : r.targetUser?.email || 'Unknown User'
-                                  }
-                                  {timeRemainingStr !== null && (
-                                    <span className="text-xs text-warning ml-2">
+                              <div key={r._id} className="card bg-base-200 p-3 mt-2">
+                                <div className="text-lg font-semibold">
+                                  {titleText}
+                                  {expiresAt && (
+                                    <span className="ml-2 text-warning text-sm">
                                       (Expires in {timeRemainingStr})
                                     </span>
                                   )}
-                                </p>
+                                </div> {/* FIX: was </p> */}
                                 <div className="italic text-xs mb-1" dangerouslySetInnerHTML={{ __html: r.reasonHtml }} />
                                 
                                 {/* Show proof file if available - KEEP ONLY THIS ONE */}

@@ -62,9 +62,11 @@ router.post(
 
       // NEW: compute finalAmount from percentage if provided
       let finalAmount;
+      let pctField = undefined;
       if (percentage != null && percentage !== '') {
-        const pct = Math.min(100, Math.max(1, Number(percentage))); // clamp 1-100
+        const pct = Math.min(100, Math.max(1, Number(percentage)));
         finalAmount = Math.floor((pct / 100) * targetBalance);
+        pctField = pct; // keep for storage/display
       } else {
         finalAmount = Number(amount);
       }
@@ -102,7 +104,8 @@ router.post(
         requestedBy:req.user._id,
         targetUser: targetUserId,
         reasonHtml: cleanReason,
-        amount:     finalAmount,         // ← use computed amount
+        amount:     finalAmount,
+        requestedPercent: pctField, // NEW
         classroom:  classroom._id,
         expiresAt,
         proof,

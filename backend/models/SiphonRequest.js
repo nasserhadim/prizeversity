@@ -14,6 +14,7 @@ const SiphonRequestSchema = new mongoose.Schema({
   targetUser:   { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   reasonHtml:   { type: String, required: true },
   amount:       { type: Number,  min: 1, required: true },
+  requestedPercent: { type: Number, min: 1, max: 100 },
   classroom:    { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom', required: true },
   expiresAt:    { type: Date, required: true }, // Auto-expire date
 
