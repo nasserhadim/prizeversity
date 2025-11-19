@@ -1735,7 +1735,7 @@ const visibleCount = filteredStudents.length;
                  {/* Add group multiplier display */}
                  <p className={`text-sm ${subtleText}`}>
                   Members: {group.members.filter(m => m._id && m.status === 'approved').length}/{group.maxMembers || 'No limit'} • 
-                  Multiplier: {group.groupMultiplier || 1}x
+                  Multiplier: {Number(group.groupMultiplier || 1).toFixed(2).replace(/\.?0+$/,'')}x
                    {group.isAutoMultiplier ? (
                      <span className="text-green-600 text-xs ml-1">(Auto)</span>
                    ) : (

@@ -31,32 +31,30 @@ GroupSchema.methods.calculateMultiplier = async function() {
   const GroupSet = require('./GroupSet');
   const groupSet = await GroupSet.findOne({ groups: this._id });
   
-  // If no groupset or no increment setting, return current multiplier
-  if (!groupSet || !groupSet.groupMultiplierIncrement) {
+  if (!groupSet || groupSet.groupMultiplierIncrement === undefined) {
     return this.groupMultiplier || 1;
   }
-  
+
   const approvedMemberCount = this.members.filter(m => m.status === 'approved').length;
-  return 1 + (approvedMemberCount * groupSet.groupMultiplierIncrement);
+  const raw = 1 + (approvedMemberCount * groupSet.groupMultiplierIncrement);
+  // Round to 3 decimal places to avoid FP artifacts (adjust precision as needed)
+  const rounded = Math.round(raw * 1000) / 1000;
+  return rounded;
 };
 
 // Update multiplier when members change (only if auto mode is enabled)
 GroupSchema.methods.updateMultiplier = async function() {
   const GroupSet = require('./GroupSet');
   const groupSet = await GroupSet.findOne({ groups: this._id });
-  
-  // Only auto-update if groupset has multiplier increment AND auto mode is enabled
+
   if (groupSet && groupSet.groupMultiplierIncrement !== undefined && this.isAutoMultiplier) {
     const approvedMemberCount = this.members.filter(m => m.status === 'approved').length;
-    // If increment is 0, multiplier stays at 1
-    const newMultiplier = groupSet.groupMultiplierIncrement === 0 
-      ? 1 
+    const raw = groupSet.groupMultiplierIncrement === 0
+      ? 1
       : 1 + (approvedMemberCount * groupSet.groupMultiplierIncrement);
-    this.groupMultiplier = newMultiplier;
+    this.groupMultiplier = Math.round(raw * 1000) / 1000;
     return this.save();
   }
-  
-  // If manual mode, don't change the multiplier
   return this;
 };
 

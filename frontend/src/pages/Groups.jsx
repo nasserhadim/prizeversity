@@ -1228,7 +1228,7 @@ const Groups = () => {
                           <h5 className="font-semibold">{group.name}</h5>
                           <p className="text-sm">
                             Members: {group.members.filter(m => m._id).length}/{group.maxMembers || 'No limit'} • 
-                            Multiplier: {group.groupMultiplier || 1}x
+                            Multiplier: {Number(group.groupMultiplier || 1).toFixed(2).replace(/\.?0+$/,'')}x
                             {group.isAutoMultiplier ? (
                               <span className="text-green-600 text-xs ml-1">(Auto)</span>
                             ) : (
