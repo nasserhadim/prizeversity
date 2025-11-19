@@ -329,7 +329,7 @@ router.post('/:id/teacher-reject', ensureAuthenticated, async (req, res) => {
 
   const siphon = await SiphonRequest.findById(req.params.id);
   if (!siphon || siphon.status !== 'group_approved')
-    return res.status(400).json({ error: 'Not ready for teacher rejection' });
+    return res.status(400).json({ error: 'Not ready for teacher rejection. Perhaps try refreshing the page.' });
 
   // Updates the request status and unfreezes user
   siphon.status = 'rejected';
@@ -415,7 +415,7 @@ router.post('/:id/teacher-approve', ensureAuthenticated, async (req, res) => {
 
   const siphon = await SiphonRequest.findById(req.params.id).populate('group').populate('targetUser', 'firstName lastName email');
   if (!siphon || siphon.status !== 'group_approved')
-    return res.status(400).json({ error: 'Not ready for teacher approval' });
+    return res.status(400).json({ error: 'Not ready for teacher approval. Perhaps try refreshing the page.' });
 
   try {
     // Get classroom context for balance updates
