@@ -142,19 +142,49 @@ const StudentStats = () => {
       const totalXP =
         typeof xpSummary.totalXP === 'number' ? xpSummary.totalXP : 0;
 
+      const XPStartLevel =
+        typeof xpSummary.XPStartLevel === 'number' ? xpSummary.XPStartLevel : 0;
+      const XPEndLevel =
+        typeof xpSummary.XPEndLevel === 'number' ? xpSummary.XPEndLevel : 0;
+
+      // XP within THIS level (what the teacher/student expect, e.g. 240/250)
+      const span = Math.max(1, XPEndLevel - XPStartLevel);
+      const inLevelXP = Math.max(
+        0,
+        Math.min(totalXP - XPStartLevel, span)
+      );
+
+      const pct = Math.max(
+        0,
+        Math.min(
+          100,
+          Math.round((inLevelXP / span) * 100)
+        )
+      );
+
       return {
         level: xpSummary.level,
-        xp: totalXP, // this is the total XP from the backend
-        XPStartLevel: xpSummary.XPStartLevel ?? 0,
-        XPEndLevel: xpSummary.XPEndLevel ?? 0,
-        progressPercent: xpSummary.progressPercent ?? 0,
+        totalXP,           // this is the total XP from the backend
+        XPStartLevel,
+        XPEndLevel,
+        inLevelXP,        // XP inside current level
+        requiredInLevel: span, // XP required to reach next level
+        progressPercent: pct, // percent progress to next level
       };
     }
 
     // fallback if summary not available
     const student = stats?.student;
     if (!student) {
-      return { level: 1, xp: 0, XPStartLevel: 0, XPEndLevel: 100, progressPercent: 0 };
+      return {
+        level: 1,
+        totalXP: 0,
+        XPStartLevel: 0,
+        XPEndLevel: 100,
+        inLevelXP: 0,
+        requiredInLevel: 100,
+        progressPercent: 0,
+      };
     }
 
     const balances = Array.isArray(student.classroomBalances)
@@ -173,46 +203,61 @@ const StudentStats = () => {
       const level =
         typeof cb.level === 'number' && !Number.isNaN(cb.level) ? cb.level : 1;
       const xp = typeof cb.xp === 'number' && !Number.isNaN(cb.xp) ? cb.xp : 0;
+      const pct = Math.max(0, Math.min(100, xp)); 
+
       return {
         level,
-        xp,
+        totalXP: xp,
         XPStartLevel: 0,
         XPEndLevel: 100,
-        progressPercent: Math.max(0, Math.min(100, (xp / 100) * 100)),
+        inLevelXP: xp,
+        requiredInLevel: 100,
+        progressPercent: pct,
       };
     }
-
-    return { level: 1, xp: 0, XPStartLevel: 0, XPEndLevel: 100, progressPercent: 0 };
-  }, [xpSummary, stats, classId, xpRefresh]);
-
-  // Progress display the numerator is TOTAL XP, the denominator is the XP needed for next level
-  const progress = useMemo(() => {
-    const totalXP = xpState.xp ?? 0;
-    const nextLevelXP = xpState.XPEndLevel ?? 0;
-
-    if (!nextLevelXP || nextLevelXP <= 0) {
-      return {
-        totalXP,
-        nextLevelXP: 0,
-        pct: 100,
-        xpRemaining: 0,
-      };
-    }
-
-    let pct =
-      typeof xpState.progressPercent === 'number'
-        ? xpState.progressPercent
-        : Math.round((totalXP / nextLevelXP) * 100);
-
-    //this is for the xp that is needed to reach the next level
-    pct = Math.max(0, Math.min(100, pct));
-    const xpRemaining = Math.max(0, nextLevelXP - totalXP);
 
     return {
-      totalXP,
-      nextLevelXP,
-      pct,
+      level: 1,
+      totalXP: 0,
+      XPStartLevel: 0,
+      XPEndLevel: 100,
+      inLevelXP: 0,
+      requiredInLevel: 100,
+      progressPercent: 0,
+    };
+  }, [xpSummary, stats, classId, xpRefresh]);
+
+  // Progress display: numerator and denominator are the XP inside this level
+  const progress = useMemo(() => {
+    const inLevelXP = xpState.inLevelXP ?? 0;
+    const required = xpState.requiredInLevel ?? 0;
+
+    if (!required || required <= 0) {
+      return {
+        currentXP: inLevelXP,
+        required: 0,
+        pct: 100,
+        xpRemaining: 0,
+        totalXP: xpState.totalXP ?? inLevelXP,
+      };
+    }
+
+    const pct =
+      typeof xpState.progressPercent === 'number'
+        ? Math.max(0, Math.min(100, xpState.progressPercent))
+        : Math.max(
+            0,
+            Math.min(100, Math.round((inLevelXP / required) * 100))
+          );
+
+    const xpRemaining = Math.max(0, required - inLevelXP);
+
+    return {
+      currentXP: inLevelXP,      
+      required,                        
+      pct,                          
       xpRemaining,
+      totalXP: xpState.totalXP ?? inLevelXP, // total XP for “Total XP earned”
     };
   }, [xpState]);
 
@@ -268,9 +313,9 @@ const StudentStats = () => {
           <div className="card bg-white border border-green-200 shadow-sm rounded-lg p-4">
             <div className="flex items-center justify-between mb-1">
               <div className="font-semibold">Level {xpState.level || 1}</div>
-              {/* this is all the XP earned / the XP needed for next level */}
+              {/* XP within this level / XP required for next level */}
               <div className="text-sm text-gray-600">
-                {progress.totalXP} / {progress.nextLevelXP || progress.totalXP} XP
+                {progress.currentXP} / {progress.required || progress.currentXP} XP
               </div>
             </div>
             <progress
@@ -281,9 +326,9 @@ const StudentStats = () => {
 
             <div className="flex justify-between text-xs text-gray-500 mt-1">
               <span>{progress.pct}% to next level</span>
-              {progress.nextLevelXP > 0 && (
+              {progress.required > 0 && (
                 <span>
-                  {progress.xpRemaining} XP needed for level{' '}
+                  {progress.xpRemaining} XP required for level{' '}
                   {(xpState.level || 1) + 1}
                 </span>
               )}

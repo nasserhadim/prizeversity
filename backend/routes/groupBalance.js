@@ -8,6 +8,7 @@ const Notification = require('../models/Notification');
 const { populateNotification } = require('../utils/notifications');
 const Classroom = require('../models/Classroom'); // Import Classroom model
 const PendingAssignment = require('../models/PendingAssignment'); // Import PendingAssignment model
+const { awardXP } = require('../utils/xp'); // XP helper
 
 // Utility to check if a TA can assign bits based on classroom policy
 async function canTAAssignBits({ taUser, classroomId }) {
@@ -111,13 +112,23 @@ router.post(
       if (isNaN(numericAmount)) {
         return res.status(400).json({ error: 'Invalid amount' });
       }
+      // Fetch the group set to get classroom context
+
+      if (!groupSet) {
+        return res.status(404).json({ error: 'GroupSet not found' });
+      }
+
+      const classroomDoc = groupSet.classroom;
+      const classroomId = classroomDoc ? (classroomDoc._id || classroomDoc) : null;
 
       // If approval is required, create pending assignments and return
       if (req.requiresApproval) {
-        const classroom = groupSet.classroom;
+        if (!classroomDoc) {
+          return res.status(404).json({ error: 'Classroom not found for this group set' });
+        }
         for (const memberId of memberIds) {
           await PendingAssignment.create({
-            classroom: classroom._id,
+            classroom: classroomId,
             student: memberId,
             amount: numericAmount,
             description: description || `Group adjust`,
@@ -126,14 +137,14 @@ router.post(
         }
         // Notify teacher
         const notification = await Notification.create({
-          user: classroom.teacher,
+          user: classroomDoc.teacher,
           type: 'bit_assignment_request',
           message: `Admin/TA ${req.user.firstName || req.user.email} requested a group balance adjustment.`,
-          classroom: classroom._id,
+          classroom: classroomId,
           actionBy: req.user._id,
         });
         const populated = await populateNotification(notification._id);
-        req.app.get('io').to(`user-${classroom.teacher}`).emit('notification', populated);
+        req.app.get('io').to(`user-${classroomDoc.teacher}`).emit('notification', populated);
 
         return res.status(202).json({ message: 'Request queued for teacher approval' });
       }
@@ -146,6 +157,12 @@ router.post(
       });
 
       if (!group) return res.status(404).json({ error: 'Group not found' });
+
+      // Read XP settings (Bits → XP) from classroom
+      const xpSettings = classroomDoc?.xpSettings || {};
+      const xpRewards  = xpSettings.xpRewards || {};
+      const xpPerBitEarned   = Number(xpRewards.xpPerBitEarned || 0);
+      const bitToXpCountMode = xpSettings.bitToXpCountMode || 'final'; // 'base' or 'final'
 
       // Compose the transaction description once (in outer scope) so it's available
       // everywhere: per-user transactions, notifications, and emitted events.
@@ -164,7 +181,7 @@ router.post(
       { 
         // Add: get classroom banned set (groupSet populated earlier)
         const classroomBannedSet = new Set(
-          (groupSet.classroom?.bannedStudents || []).map(b => String(b._id || b))
+          (classroomDoc?.bannedStudents || []).map(b => String(b._id || b))
         );
 
         // Will loop through each group member and apply balance adjustment
@@ -178,41 +195,34 @@ router.post(
 
           // Skip teachers (teachers shouldn't be adjusted). Allow admins/TAs who are group members.
           if (!user || user.role === 'teacher' || !memberIds.includes(String(user._id))) continue;
-         if (classroomBannedSet.has(String(user._id))) {
-           skipped.push({ id: String(user._id), reason: 'User is banned in this classroom' });
-           continue;
-         }
-
-          // Apply multipliers separately based on flags
-          // OLD multiplicative logic (replace)
-          // let finalMultiplier = 1;
-          // if (numericAmount > 0) {
-          //   if (applyGroupMultipliers) {
-          //     finalMultiplier *= (group.groupMultiplier || 1);
-          //   }
-          //   if (applyPersonalMultipliers) {
-          //     finalMultiplier *= (user.passiveAttributes?.multiplier || 1);
-          //   }
-          // }
-
-          // NEW additive logic
-          let finalMultiplier;
-          if (numericAmount > 0) {
-            // Start from base 1 and add only the extra above 1.0 from each source
-            finalMultiplier = 1;
-            if (applyGroupMultipliers) finalMultiplier += ((group.groupMultiplier || 1) - 1);
-            if (applyPersonalMultipliers) finalMultiplier += ((user.passiveAttributes?.multiplier || 1) - 1);
-          } else {
-            finalMultiplier = 1;
+          if (classroomBannedSet.has(String(user._id))) {
+            skipped.push({ id: String(user._id), reason: 'User is banned in this classroom' });
+            continue;
           }
 
-          let adjustedAmount = numericAmount > 0 && (applyGroupMultipliers || applyPersonalMultipliers)
+          // Decide if multipliers should affect bits at all
+          // In "base" mode, then Bits also ignore multipliers (just like XP does).
+          const shouldApplyMultipliers =
+            numericAmount > 0 &&
+            (applyGroupMultipliers || applyPersonalMultipliers) &&
+            bitToXpCountMode !== 'base';
+
+          // Apply multipliers separately based on flags 
+          let finalMultiplier = 1;
+          if (shouldApplyMultipliers) {
+            if (applyGroupMultipliers) {
+              finalMultiplier += ((group.groupMultiplier || 1) - 1);
+            }
+            if (applyPersonalMultipliers) {
+              finalMultiplier += ((user.passiveAttributes?.multiplier || 1) - 1);
+            }
+          }
+
+          let adjustedAmount = shouldApplyMultipliers
             ? Math.round(numericAmount * finalMultiplier)
             : numericAmount;
 
           // Update user balance using classroom-aware functions
-          const classroomId = groupSet?.classroom ? groupSet.classroom._id || groupSet.classroom : group.classroom;
-        
           if (classroomId) {
             const currentBalance = getClassroomBalance(user, classroomId);
             const newBalance = Math.max(0, currentBalance + adjustedAmount);
@@ -229,7 +239,7 @@ router.post(
             description: txDescription,
             assignedBy: req.user._id,
             classroom: classroomId || null,
-            calculation: (numericAmount > 0 && (applyGroupMultipliers || applyPersonalMultipliers)) ? {
+            calculation: shouldApplyMultipliers ? {
               baseAmount: numericAmount,
               personalMultiplier: applyPersonalMultipliers ? (user.passiveAttributes?.multiplier || 1) : 1,
               groupMultiplier: applyGroupMultipliers ? (group.groupMultiplier || 1) : 1,
@@ -239,10 +249,37 @@ router.post(
               personalMultiplier: 1,
               groupMultiplier: 1,
               totalMultiplier: 1,
-              note: getMultiplierNote(applyGroupMultipliers, applyPersonalMultipliers)
+              note: getMultiplierNote(applyGroupMultipliers, applyPersonalMultipliers) || 'Base mode: multipliers ignored for Bits/XP',
             },
           });
           await user.save();
+
+          // Award XP when bits are earned 
+          if (adjustedAmount > 0 && xpPerBitEarned > 0 && classroomId) {
+            // Respect Base vs Final mode for XP
+            const bitsForXP =
+              bitToXpCountMode === 'base'
+                ? numericAmount          // raw amount typed in modal
+                : adjustedAmount;        // after multipliers
+
+            const xpToAdd = bitsForXP * xpPerBitEarned;
+
+            if (Number.isFinite(xpToAdd) && xpToAdd > 0) {
+              try {
+                await awardXP({
+                  userId: user._id,
+                  classroomId,
+                  opts: {
+                    rawXP: xpToAdd,
+                    reason: 'bits_earned',
+                    source: 'group_adjust',
+                  },
+                });
+              } catch (xpErr) {
+                console.error('Failed to award XP for group adjust:', xpErr);
+              }
+            }
+          }
  
           // Add result summary for the student
           results.push({ 
@@ -251,32 +288,30 @@ router.post(
             baseAmount: numericAmount,
             adjustedAmount: adjustedAmount,
             multipliersApplied: {
-              group: applyGroupMultipliers ? (group.groupMultiplier || 1) : 1,
-              personal: applyPersonalMultipliers ? (user.passiveAttributes?.multiplier || 1) : 1,
+              group: shouldApplyMultipliers && applyGroupMultipliers ? (group.groupMultiplier || 1) : 1,
+              personal: shouldApplyMultipliers && applyPersonalMultipliers ? (user.passiveAttributes?.multiplier || 1) : 1,
               total: finalMultiplier
             }
           });
  
-         // Create notification for this student
-         const notification = await Notification.create({
-           user: user._id,
-           type: 'wallet_transaction',
-           message: `You were ${amount >= 0 ? 'credited' : 'debited'} ${Math.abs(adjustedAmount)} ₿ in ${group.name}.`,
-           amount: adjustedAmount,
-           description: txDescription,
-           group: group._id,
-           groupSet: req.params.groupSetId,
-           classroom: classroomId,
-           actionBy: req.user._id,
-         });
-         const populated = await populateNotification(notification._id);
-         req.app.get('io').to(`user-${user._id}`).emit('notification', populated);
+          // Create notification for this student
+          const notification = await Notification.create({
+            user: user._id,
+            type: 'wallet_transaction',
+            message: `You were ${amount >= 0 ? 'credited' : 'debited'} ${Math.abs(adjustedAmount)} ₿ in ${group.name}.`,
+            amount: adjustedAmount,
+            description: txDescription,
+            group: group._id,
+            groupSet: req.params.groupSetId,
+            classroom: classroomId,
+            actionBy: req.user._id,
+          });
+          const populated = await populateNotification(notification._id);
+          req.app.get('io').to(`user-${user._id}`).emit('notification', populated);
         }
       }
 
       // Emit classroom-aware event including classroomId, use composed description
-      const classroomId = groupSet?.classroom ? groupSet.classroom._id || groupSet.classroom : group.classroom;
-      
       req.app.get('io').to(`group-${group._id}`).emit('balance_adjust', {
         groupId: group._id,
         classroomId,
@@ -286,7 +321,7 @@ router.post(
         skipped
       });
       
-       // Respond with success and detailed result
+      // Respond with success and detailed result
       res.json({ 
         success: true,
         message: `${results.length} students updated`,
