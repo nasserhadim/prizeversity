@@ -23,7 +23,8 @@ router.post(
   upload.single('proof'),
   async (req, res) => {
     try {
-      const { targetUserId, reason, amount } = req.body;
+      // accept either explicit amount or a percentage
+      const { targetUserId, reason, amount, percentage } = req.body;
 
       // Get group and classroom info
       const group = await Group.findById(req.params.groupId).populate('members._id', 'balance');
@@ -46,30 +47,42 @@ router.post(
         });
       }
 
-      // Ensure the target has enough balance (check classroom-specific balance)
+      // Ensure the target exists; use classroom-scoped balance
       const target = await User.findById(targetUserId).select('balance classroomBalances');
       if (!target) {
         return res.status(400).json({ error: 'Target user not found' });
       }
 
-      // Helper function to get classroom balance (add this if not already present)
       const getClassroomBalance = (user, classroomId) => {
         if (!Array.isArray(user.classroomBalances)) return user.balance || 0;
         const cb = user.classroomBalances.find(cb => String(cb.classroom) === String(classroomId));
         return cb ? cb.balance : (user.balance || 0);
       };
-
       const targetBalance = getClassroomBalance(target, classroom._id);
-      if (targetBalance < Number(amount)) {
+
+      // NEW: compute finalAmount from percentage if provided
+      let finalAmount;
+      if (percentage != null && percentage !== '') {
+        const pct = Math.min(100, Math.max(1, Number(percentage))); // clamp 1-100
+        finalAmount = Math.floor((pct / 100) * targetBalance);
+      } else {
+        finalAmount = Number(amount);
+      }
+
+      if (!Number.isFinite(finalAmount) || finalAmount < 1) {
+        return res.status(400).json({ error: 'Requested amount is invalid' });
+      }
+      if (targetBalance < finalAmount) {
+        // generic message; do not leak exact balance
         return res.status(400).json({ error: 'Amount exceeds target user balance' });
       }
-      
-      // Sanitize the HTML reason input
+
+      // Sanitize reason
       const cleanReason = DOMPurify.sanitize(reason, {
         ALLOWED_TAGS: ['b','i','u','span','font','p','br','ul','ol','li']
       });
 
-      // Prepare file metadata if proof was uploaded
+      // Prepare proof metadata
       const proof = req.file
         ? {
             originalName: req.file.originalname,
@@ -82,16 +95,16 @@ router.post(
       // Calculate expiration date based on classroom setting
       const timeoutHours = classroom.siphonTimeoutHours || 72;
       const expiresAt = new Date(Date.now() + timeoutHours * 60 * 60 * 1000);
-      
-      // Create the SiphonRequest document
+
+      // Create the SiphonRequest document with computed amount
       const reqDoc = await SiphonRequest.create({
         group:      req.params.groupId,
         requestedBy:req.user._id,
         targetUser: targetUserId,
         reasonHtml: cleanReason,
-        amount:     Number(amount),
+        amount:     finalAmount,         // ← use computed amount
         classroom:  classroom._id,
-        expiresAt:  expiresAt,
+        expiresAt,
         proof,
       });
 

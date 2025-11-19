@@ -95,3 +95,56 @@ img, svg, picture, video {
   display: block;
   box-sizing: border-box;
 }
+
+/* Dark theme ReactQuill visibility improvements */
+[data-theme='dark'] .ql-toolbar.ql-snow {
+  background-color: #1f2937;
+  border-color: #374151;
+}
+
+[data-theme='dark'] .ql-container.ql-snow {
+  background-color: #1f2937;
+  border-color: #374151;
+  color: #f1f5f9;
+}
+
+/* Icon strokes & fills (bold, italic, list, etc.) */
+[data-theme='dark'] .ql-snow .ql-stroke {
+  stroke: #e2e8f0;
+}
+[data-theme='dark'] .ql-snow .ql-fill,
+[data-theme='dark'] .ql-snow .ql-picker {
+  fill: #e2e8f0;
+  color: #e2e8f0;
+}
+
+/* Picker labels/items */
+[data-theme='dark'] .ql-snow .ql-picker-label,
+[data-theme='dark'] .ql-snow .ql-picker-item {
+  color: #e2e8f0;
+}
+
+/* Hover/focus for buttons */
+[data-theme='dark'] .ql-toolbar .ql-formats button:hover,
+[data-theme='dark'] .ql-toolbar .ql-formats button:focus,
+[data-theme='dark'] .ql-toolbar .ql-formats button.ql-active {
+  background-color: #374151;
+  color: #f8fafc;
+}
+
+/* Dropdown menu background */
+[data-theme='dark'] .ql-snow .ql-picker-options {
+  background-color: #1f2937;
+  border-color: #374151;
+}
+
+/* Placeholder color */
+[data-theme='dark'] .ql-editor.ql-blank::before {
+  color: #64748b;
+  opacity: 0.6;
+}
+
+/* Remove default light border contrast */
+[data-theme='dark'] .ql-toolbar.ql-snow + .ql-container.ql-snow {
+  border-top: 1px solid #374151;
+}
