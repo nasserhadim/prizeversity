@@ -9,6 +9,9 @@ const { populateNotification } = require('../utils/notifications');
 const { ensureAuthenticated } = require('../config/auth');
 const sendEmail = require('../../send-email'); // root-level send-email.js
 
+// Centralized XP helper
+const { awardXP } = require('../utils/xp');
+
 // helper to format remaining milliseconds into "Xd Yh Zm"
 function formatRemainingMs(ms) {
   if (!ms || ms <= 0) return '0 minutes';
@@ -244,6 +247,11 @@ router.post('/classroom', ensureAuthenticated, async (req, res) => {
                   } else {
                     target.classroomBalances.push({ classroom: classroomId, balance: award });
                   }
+                  
+                  
+                    
+                
+                  
 
                   // add a transaction entry including calculation details
                   target.transactions.push({
@@ -288,6 +296,23 @@ router.post('/classroom', ensureAuthenticated, async (req, res) => {
                     }
                   } catch (emitErr) {
                     console.warn('[feedback] failed to emit socket events:', emitErr);
+                  }
+                  // adds xp from bits (look in item purchases)
+                  try{
+                    const result = await awardXP({
+                        userId: targetId,
+                        classroomId,
+                        opts: { rawXP: Number(base) },
+                    });
+                    if (!result || result.ok === false) {
+                        return res.status(400).json({ error: result?.reason || 'Failed to add XP' });
+                    }
+                    const refreshed = await User.findById(targetId);
+                    await awardLevelBadges(refreshed, classroomId);
+                    
+                  }
+                  catch (xpErr) {
+                    console.warn('Failed to award xp:', xpErr);
                   }
                 }
               }
