@@ -399,6 +399,98 @@ router.post('/:id/teacher-approve', ensureAuthenticated, async (req, res) => {
     // Get classroom context for balance updates
     const groupSet = await GroupSet.findOne({ groups: siphon.group._id }).populate('classroom');
     const classroomId = groupSet?.classroom?._id;
+    if (!classroomId) {
+      return res.status(400).json({ error: 'Classroom context not found' });
+    }
+
+    // NEW: recalculate actual siphon amount based on current balance and stored percentage
+    const getClassroomBalance = (user, cid) => {
+      if (!Array.isArray(user.classroomBalances)) return user.balance || 0;
+      const cb = user.classroomBalances.find(cb => String(cb.classroom) === String(cid));
+      return cb ? cb.balance : (user.balance || 0);
+    };
+
+    const targetUser = await User.findById(siphon.targetUser._id).select('balance classroomBalances');
+    const currentBalance = getClassroomBalance(targetUser, classroomId);
+
+    // Use the stored percentage to compute the actual amount now
+    let finalSiphonAmount;
+    if (siphon.requestedPercent != null) {
+      finalSiphonAmount = Math.floor((siphon.requestedPercent / 100) * currentBalance);
+    } else {
+      // fallback: use the old amount (but clamp to current balance)
+      finalSiphonAmount = Math.min(siphon.amount, currentBalance);
+    }
+
+    // ensure we don't try to siphon more than they have or less than 1
+    finalSiphonAmount = Math.max(0, Math.min(finalSiphonAmount, currentBalance));
+
+    if (finalSiphonAmount < 1) {
+      // target has 0 or insufficient balance; reject the siphon
+      siphon.status = 'rejected';
+      await siphon.save();
+      await User.findByIdAndUpdate(siphon.targetUser, {
+        $pull: { classroomFrozen: { classroom: siphon.classroom } }
+      });
+
+      // Get group and classroom info for notifications
+      const group = await Group.findById(siphon.group._id).populate('members._id', '_id status email firstName lastName');
+      const classroom = await Classroom.findById(classroomId).select('name teacher');
+      const targetName = `${siphon.targetUser.firstName || ''} ${siphon.targetUser.lastName || ''}`.trim() || siphon.targetUser.email;
+
+      // 1. Notify target
+      const targetNotif = await Notification.create({
+        user: siphon.targetUser._id,
+        type: 'siphon_rejected',
+        message: `The siphon request against you was rejected because your balance is now insufficient.`,
+        group: siphon.group._id,
+        classroom: classroomId,
+        actionBy: null, // system action
+        anonymized: true
+      });
+      const popTarget = await populateNotification(targetNotif._id);
+      req.app.get('io').to(`user-${siphon.targetUser._id}`).emit('notification', popTarget);
+
+      // 2. Notify group members (excluding target)
+      const groupMembers = (group?.members || [])
+        .filter(m => m.status === 'approved' && String(m._id._id) !== String(siphon.targetUser._id))
+        .map(m => m._id._id);
+
+      for (const memberId of groupMembers) {
+        const memberNotif = await Notification.create({
+          user: memberId,
+          type: 'siphon_rejected',
+          message: `The siphon request against ${targetName} in group "${group?.name || 'your group'}" was rejected because their balance is now insufficient.`,
+          group: siphon.group._id,
+          classroom: classroomId,
+          actionBy: null,
+          anonymized: false // show target name to group members
+        });
+        const popMember = await populateNotification(memberNotif._id);
+        req.app.get('io').to(`user-${memberId}`).emit('notification', popMember);
+      }
+
+      // 3. Notify teacher(s)
+      const teachers = Array.isArray(classroom.teacher) ? classroom.teacher : [classroom.teacher];
+      for (const teacherId of teachers) {
+        if (!teacherId) continue;
+        const teacherNotif = await Notification.create({
+          user: teacherId,
+          type: 'siphon_rejected',
+          message: `The siphon request against ${targetName} in group "${group?.name || 'a group'}" (classroom "${classroom?.name || 'Unknown'}") was automatically rejected because their balance became insufficient before teacher approval.`,
+          group: siphon.group._id,
+          classroom: classroomId,
+          actionBy: null
+        });
+        const popTeacher = await populateNotification(teacherNotif._id);
+        req.app.get('io').to(`user-${teacherId}`).emit('notification', popTeacher);
+      }
+
+      // Emit real-time update to group
+      req.app.get('io').to(`group-${siphon.group._id}`).emit('siphon_update', siphon);
+
+      return res.status(400).json({ error: 'Target user balance is now insufficient; siphon rejected.' });
+    }
 
     // Select recipients (approved group members excluding target)
     const recipients = siphon.group.members
@@ -413,7 +505,7 @@ router.post('/:id/teacher-approve', ensureAuthenticated, async (req, res) => {
       return res.status(400).json({ error: 'No eligible recipients found' });
     }
 
-    // Transfer bits from target to recipients
+    // Transfer bits from target to recipients using the recalculated amount
     console.log('transferBits starting');
     
     // Get group and groupset info for transaction details
@@ -421,14 +513,16 @@ router.post('/:id/teacher-approve', ensureAuthenticated, async (req, res) => {
     const groupSetInfo = await GroupSet.findOne({ groups: siphon.group._id }).select('name');
     
     await transferBits({
-      fromUserId: siphon.targetUser._id, // Change this line - add ._id
+      fromUserId: siphon.targetUser._id,
       recipients,
-      amount: siphon.amount,
+      amount: finalSiphonAmount,  // ← use recalculated amount
       classroomId: classroomId
     });
 
     // Mark request as fully approved and executed
     siphon.status = 'teacher_approved';
+    // NEW: store the actual executed amount for audit trail
+    siphon.executedAmount = finalSiphonAmount;
     await siphon.save();
     await User.findByIdAndUpdate(siphon.targetUser, {
       $pull: { classroomFrozen: { classroom: siphon.classroom } }
@@ -436,15 +530,15 @@ router.post('/:id/teacher-approve', ensureAuthenticated, async (req, res) => {
 
     // Create enhanced notifications with more details
     const targetName = `${siphon.targetUser.firstName || ''} ${siphon.targetUser.lastName || ''}`.trim() || siphon.targetUser.email;
-    const amountPerRecipient = Math.floor(siphon.amount / recipients.length);
+    const amountPerRecipient = Math.floor(finalSiphonAmount / recipients.length);
     const groupName = siphon.group.name;
     const groupSetName = groupSetInfo?.name || 'Unknown GroupSet';
 
     // Update the target user's transaction with detailed info
-    const targetUser = await User.findById(siphon.targetUser);
-    if (targetUser && targetUser.transactions.length > 0) {
-      const lastTransaction = targetUser.transactions[targetUser.transactions.length - 1];
-      lastTransaction.description = `Siphoned from ${groupSetName} > ${groupName}: ${siphon.amount} bits redistributed to ${recipients.length} members`;
+    const targetUserDoc = await User.findById(siphon.targetUser);
+    if (targetUserDoc && targetUserDoc.transactions.length > 0) {
+      const lastTransaction = targetUserDoc.transactions[targetUserDoc.transactions.length - 1];
+      lastTransaction.description = `Siphoned from ${groupSetName} > ${groupName}: ${finalSiphonAmount} bits redistributed to ${recipients.length} members`;
       lastTransaction.metadata = {
         type: 'siphon',
         groupSet: groupSetInfo?._id,
@@ -452,10 +546,12 @@ router.post('/:id/teacher-approve', ensureAuthenticated, async (req, res) => {
         group: siphon.group._id,
         groupName: groupName,
         originalAmount: siphon.amount,
+        executedAmount: finalSiphonAmount,
+        requestedPercent: siphon.requestedPercent,
         recipientCount: recipients.length,
         amountPerRecipient: amountPerRecipient
       };
-      await targetUser.save();
+      await targetUserDoc.save();
     }
 
     // Update recipients' transactions with detailed info
@@ -473,6 +569,7 @@ router.post('/:id/teacher-approve', ensureAuthenticated, async (req, res) => {
           targetUser: siphon.targetUser,
           targetUserName: targetName,
           originalAmount: siphon.amount,
+          executedAmount: finalSiphonAmount,
           recipientCount: recipients.length,
           amountReceived: amountPerRecipient
         };
@@ -484,7 +581,7 @@ router.post('/:id/teacher-approve', ensureAuthenticated, async (req, res) => {
     const targetNotification = await Notification.create({
       user: siphon.targetUser._id,
       type: 'siphon_approved',
-      message: `${siphon.amount} bits were siphoned from you and redistributed to ${recipients.length} group members in "${groupName}" (${groupSetName}).`,
+      message: `${finalSiphonAmount} bits were siphoned from you and redistributed to ${recipients.length} group members in "${groupName}" (${groupSetName}).`,
       classroom: classroomId,
       group: siphon.group._id,
       actionBy: req.user._id,

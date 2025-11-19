@@ -654,8 +654,18 @@ const Groups = () => {
 
   // Teacher approving the siphon using POST api call
   const teacherApprove = async (siphonId) => {
-    await axios.post(`/api/siphon/${siphonId}/teacher-approve`);
-    fetchGroupSets();
+    if (processing) return;
+    setProcessing(true);
+    try {
+      await axios.post(`/api/siphon/${siphonId}/teacher-approve`);
+      toast.success('Siphon approved and executed');
+      fetchGroupSets();
+    } catch (err) {
+      console.error('Approve error:', err);
+      toast.error(err.response?.data?.error || 'Failed to approve siphon');
+    } finally {
+      setProcessing(false);
+    }
   };
 
   // Teacher rejecting a siphon using POST api call
