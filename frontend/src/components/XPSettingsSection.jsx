@@ -217,8 +217,8 @@ export default function XPSettingsSection({ classroomId }) {
                 value={form.bitToXpCountMode}
                 onChange={onField("bitToXpCountMode")}
               >
-                <option value="final">Final (before multipliers)</option>
-                <option value="base">Base (after multipliers)</option>
+                <option value="base">Base (before multipliers)</option>
+                <option value="final">Final (after multipliers)</option>
               </select>
               <small className="opacity-70 mt-1">
                 {form.bitToXpCountMode === "final"

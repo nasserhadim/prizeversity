@@ -33,11 +33,11 @@ const StudentStats = () => {
 
   // XP settings (for isXPEnabled flag)
   const [xpSettings, setXpSettings] = useState(null);
-  const [xpRefresh] = useState(false); // keep in case you want manual refresh later
-
+  const [xpRefresh] = useState(false);
+ 
   // XP summary from backend (single source of truth)
   const [xpSummary, setXpSummary] = useState(null);
-
+ 
   // Precompute group multiplier for rendering
   const groupMultiplierValue = Number(
     stats?.groupMultiplier ?? stats?.student?.groupMultiplier ?? 1
@@ -47,9 +47,9 @@ const StudentStats = () => {
   const handleViewBadges = () => {
     if (!classId || !studentId) return;
     navigate(`/classroom/${classId}/student/${studentId}/badges`, {
-      state: {
-        from: 'stats', // so badges page knows to go back to stats
-      },
+      state: { 
+        from: 'stats'// so badges page knows to go back to stats
+       },
     });
   };
 
@@ -99,7 +99,7 @@ const StudentStats = () => {
     };
   }, [studentId, classId]);
 
-  // Fetch XP settings for this classroom (for isXPEnabled, etc.)
+  // Fetch XP settings for this specific classroom
   useEffect(() => {
     if (!classId) return;
     (async () => {
@@ -136,29 +136,55 @@ const StudentStats = () => {
     };
   }, [classId, studentId, xpRefresh]);
 
-  // XP + the Level from XP summary (preferred) with fallback to student.classroomBalances
+  // XP state from summary or classroomBalances
   const xpState = useMemo(() => {
-    // Prefer the backend XP summary
     if (xpSummary && typeof xpSummary.level === 'number') {
       const totalXP =
-        typeof xpSummary.totalXP === 'number'
-          ? xpSummary.totalXP
-          : typeof xpSummary.totalXp === 'number'
-          ? xpSummary.totalXp
-          : 0;
+        typeof xpSummary.totalXP === 'number' ? xpSummary.totalXP : 0;
+
+      const XPStartLevel =
+        typeof xpSummary.XPStartLevel === 'number' ? xpSummary.XPStartLevel : 0;
+      const XPEndLevel =
+        typeof xpSummary.XPEndLevel === 'number' ? xpSummary.XPEndLevel : 0;
+
+      // XP within THIS level (what the teacher/student expect, e.g. 240/250)
+      const span = Math.max(1, XPEndLevel - XPStartLevel);
+      const inLevelXP = Math.max(
+        0,
+        Math.min(totalXP - XPStartLevel, span)
+      );
+
+      const pct = Math.max(
+        0,
+        Math.min(
+          100,
+          Math.round((inLevelXP / span) * 100)
+        )
+      );
+
       return {
         level: xpSummary.level,
-        xp: totalXP,
-        XPStartLevel: xpSummary.XPStartLevel ?? 0,
-        XPEndLevel: xpSummary.XPEndLevel ?? (xpSummary.nextLevelXP || 0),
-        progressPercent: xpSummary.progressPercent ?? 0,
+        totalXP,           // this is the total XP from the backend
+        XPStartLevel,
+        XPEndLevel,
+        inLevelXP,        // XP inside current level
+        requiredInLevel: span, // XP required to reach next level
+        progressPercent: pct, // percent progress to next level
       };
     }
 
-    // derive from student.classroomBalances if summary isn't available
+    // fallback if summary not available
     const student = stats?.student;
     if (!student) {
-      return { level: 1, xp: 0, XPStartLevel: 0, XPEndLevel: 100, progressPercent: 0 };
+      return {
+        level: 1,
+        totalXP: 0,
+        XPStartLevel: 0,
+        XPEndLevel: 100,
+        inLevelXP: 0,
+        requiredInLevel: 100,
+        progressPercent: 0,
+      };
     }
 
     const balances = Array.isArray(student.classroomBalances)
@@ -177,37 +203,65 @@ const StudentStats = () => {
       const level =
         typeof cb.level === 'number' && !Number.isNaN(cb.level) ? cb.level : 1;
       const xp = typeof cb.xp === 'number' && !Number.isNaN(cb.xp) ? cb.xp : 0;
-      // Simple fallback progress if we don't know real thresholds
+      const pct = Math.max(0, Math.min(100, xp)); 
+
       return {
         level,
-        xp,
+        totalXP: xp,
         XPStartLevel: 0,
         XPEndLevel: 100,
-        progressPercent: Math.max(0, Math.min(100, (xp / 100) * 100)),
+        inLevelXP: xp,
+        requiredInLevel: 100,
+        progressPercent: pct,
       };
     }
 
-    return { level: 1, xp: 0, XPStartLevel: 0, XPEndLevel: 100, progressPercent: 0 };
+    return {
+      level: 1,
+      totalXP: 0,
+      XPStartLevel: 0,
+      XPEndLevel: 100,
+      inLevelXP: 0,
+      requiredInLevel: 100,
+      progressPercent: 0,
+    };
   }, [xpSummary, stats, classId, xpRefresh]);
 
-  // Progress numbers for display: "have / need XP"
+  // Progress display: numerator and denominator are the XP inside this level
   const progress = useMemo(() => {
-    const span = Math.max(1, (xpState.XPEndLevel ?? 0) - (xpState.XPStartLevel ?? 0));
-    const have = (xpState.xp ?? 0) - (xpState.XPStartLevel ?? 0);
-    const normalizedHave = Math.max(0, Math.min(span, have));
+    const inLevelXP = xpState.inLevelXP ?? 0;
+    const required = xpState.requiredInLevel ?? 0;
+
+    if (!required || required <= 0) {
+      return {
+        currentXP: inLevelXP,
+        required: 0,
+        pct: 100,
+        xpRemaining: 0,
+        totalXP: xpState.totalXP ?? inLevelXP,
+      };
+    }
+
     const pct =
       typeof xpState.progressPercent === 'number'
-        ? xpState.progressPercent
-        : Math.round((normalizedHave / span) * 100);
+        ? Math.max(0, Math.min(100, xpState.progressPercent))
+        : Math.max(
+            0,
+            Math.min(100, Math.round((inLevelXP / required) * 100))
+          );
+
+    const xpRemaining = Math.max(0, required - inLevelXP);
 
     return {
-      have: normalizedHave,
-      need: span,
-      pct: Math.max(0, Math.min(100, pct)),
+      currentXP: inLevelXP,      
+      required,                        
+      pct,                          
+      xpRemaining,
+      totalXP: xpState.totalXP ?? inLevelXP, // total XP for “Total XP earned”
     };
   }, [xpState]);
 
-  // Determine where we came from to customize the back button
+  // Back button
   const backButton = (() => {
     const from = location.state?.from;
     if (from === 'leaderboard') {
@@ -259,8 +313,9 @@ const StudentStats = () => {
           <div className="card bg-white border border-green-200 shadow-sm rounded-lg p-4">
             <div className="flex items-center justify-between mb-1">
               <div className="font-semibold">Level {xpState.level || 1}</div>
+              {/* XP within this level / XP required for next level */}
               <div className="text-sm text-gray-600">
-                {progress.have} / {progress.need} XP
+                {progress.currentXP} / {progress.required || progress.currentXP} XP
               </div>
             </div>
             <progress
@@ -268,8 +323,19 @@ const StudentStats = () => {
               value={progress.pct}
               max="100"
             ></progress>
+
+            <div className="flex justify-between text-xs text-gray-500 mt-1">
+              <span>{progress.pct}% to next level</span>
+              {progress.required > 0 && (
+                <span>
+                  {progress.xpRemaining} XP required for level{' '}
+                  {(xpState.level || 1) + 1}
+                </span>
+              )}
+            </div>
+
             <div className="text-xs text-gray-500 mt-1">
-              {progress.pct}% to next level
+              Total XP earned: {progress.totalXP}
             </div>
           </div>
         ) : xpSettings ? (
@@ -278,7 +344,7 @@ const StudentStats = () => {
           </div>
         ) : null}
 
-        {/* View Badge Collection button above radar */}
+        {/* View Badge Collection button */}
         <div className="flex justify-center mt-4">
           <button
             onClick={handleViewBadges}
@@ -288,7 +354,7 @@ const StudentStats = () => {
           </button>
         </div>
 
-        {/* radar + legend */}
+        {/* Radar chart */}
         <div className="flex justify-center">
           <StatsRadar
             isDark={isDark}
@@ -329,7 +395,6 @@ const StudentStats = () => {
             </div>
           </div>
 
-          {/* ONLY render Group Multiplier when > 1 */}
           {groupMultiplierValue > 1 && (
             <div className="stat">
               <div className="stat-figure text-secondary">👥</div>
