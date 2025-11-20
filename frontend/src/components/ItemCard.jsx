@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import axios from 'axios';
-import apiBazaar from '../API/apiBazaar.js'
+import apiBazaar from '../API/apiBazaar.js';
 import { ShoppingCart } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -36,6 +36,9 @@ const [editOpen, setEditOpen] = useState(false); // controls edit modal visibili
 
 const [discounts, setDiscounts] = useState([]);
 const [discountPercent, setDiscountPercent] = useState(0);
+const [mysteryStats, setMysteryStats] = useState([]);
+const [showStats, setShowStats] = useState(false);
+const [itemNames, setItemNames] = useState([]);
 
 const handleChange = (e) => {
   const { name, value } = e.target;   //get input name and value
@@ -286,6 +289,52 @@ const getDiscounts = async () => {
     return `${finalPrice} ₿`;
   };
 
+  // for getting the names of the items for the mystery box
+  useEffect(() => {
+    if (!classroomId || !bazaarId || item.kind !== "mystery_box") return;
+    (async () => {
+      try {
+        const res = await apiBazaar.get(`classroom/${classroomId}/bazaar/${bazaarId}/items?kind=standard`);
+        // filters out owned items and mystery boxes
+        const items = res.data.items || res.data;
+        
+        setItemNames(items.filter(i => !i.owner && i.kind !== "mystery_box"));
+      } catch (err) {
+        console.error('Failed to load prizes for mystery box:', err);
+      }
+    })();
+  }, [classroomId, bazaarId]);
+  // function to help with displaying probabilities
+  function itemWeight(reward) {
+        return reward.weight + (reward.luckWeight * (user.passiveAttributes.luck - 1) * item.luckFactor);
+  }
+
+  // display stats of mystery box
+  const displayStats = () => {
+    if (!item?.metadata?.rewards) return;
+
+    const rewards = item.metadata.rewards;
+
+    const baseWeights = rewards.reduce((b, r) => b + r.weight, 0);
+    const luckWeights = (rewards.reduce((b, r) => b + r.luckWeight, 0) * (user.passiveAttributes.luck - 1) * item.luckFactor);
+    const totalW = baseWeights + luckWeights;
+
+    const stats = rewards.map(r => {
+        const weight = itemWeight(r);
+        const name = itemNames.find(i => i._id === r._id);
+        return {
+            name: name,
+            prob: (weight / totalW * 100).toFixed(2),
+            rarity: r.luckWeight
+        }
+    })
+
+
+
+    setMysteryStats(stats);
+    setShowStats(true);
+  }
+
 
   const { main, effect } = splitDescriptionEffect(item.description || '');
 
@@ -311,9 +360,21 @@ const getDiscounts = async () => {
          <h3 className="card-title text-lg md:text-xl font-semibold">
            {item.name}
          </h3>
+
         <p className="text-sm text-base-content/70 whitespace-pre-wrap">
           {main || 'No description provided.'}
         </p>
+
+        {item.kind === 'mystery_box' && (
+            <div className="flex justify-center gap-4 mt-4">
+                <button
+                  className="btn btn-success"
+                  onClick={displayStats}
+                >
+                  View Stats
+                </button>
+            </div>
+        )}
 
         {effect && (
           <div className="text-sm text-base-content/60 mt-1">
@@ -499,6 +560,30 @@ this will prevent duplication or inccorect buttons from appearing
     </div>
   </div>
 )}
+
+        {showStats && (
+          <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
+              <h2> Mystery Box Stats</h2>
+              
+                <div className="flex items-center gap-2">
+                    <span className="flex-1">Item</span>
+                    <span className="w-8 text-left">%</span>  
+                    <span className="w-40 text-center">Rarity</span>
+                </div>
+                {mysteryStats.map((reward, spot) => (
+                <div key = {spot} className="flex items-center gap-3">
+                    <p> {reward.name}</p>
+                    <p> {reward.prob}%</p>
+                    <p> {reward.rarity}</p>                        
+                </div>
+            ))}
+            </div>
+
+
+            
+          </div>
+        )}
 
 
     </div>
