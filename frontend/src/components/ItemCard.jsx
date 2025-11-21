@@ -291,8 +291,8 @@ const getDiscounts = async () => {
 
   return (
     <div className="card bg-base-100 shadow-md border border-base-200 hover:shadow-lg transition duration-200 rounded-2xl overflow-hidden">
-      {/* Image */}
-      <figure className="relative h-40 sm:h-48 md:h-52 bg-base-200 flex items-center justify-center">
+      
+      <figure className="relative bg-base-100 rounded-t-2xl overflow-hidden">
         <img
           src={imgSrc}
           alt={item.name || 'Item'}
@@ -305,86 +305,55 @@ const getDiscounts = async () => {
           }}
         />
       </figure>
- 
-       {/* Content - unchanged from original */}
-       <div className="card-body space-y-2">
-         <h3 className="card-title text-lg md:text-xl font-semibold">
-           {item.name}
-         </h3>
-        <p className="text-sm text-base-content/70 whitespace-pre-wrap">
-          {main || 'No description provided.'}
-        </p>
+      <div className="card-body px-4 py-3">
+        {/* Title + description + effect stacked with small gap */}
+        <div className="space-y-1">
+          <h3 className="card-title text-lg md:text-xl font-semibold">
+            {item.name}
+          </h3>
 
-        {effect && (
-          <div className="text-sm text-base-content/60 mt-1">
-            <strong>Effect:</strong> {effect}
-          </div>
-        )}
+          <p className="text-sm text-base-content/70 whitespace-pre-wrap">
+            {main || 'No description provided.'}
+          </p>
 
-        {!effect && getEffectDescription(item) && (
-          <div className="text-sm text-base-content/60 mt-1">
-            <strong>Effect:</strong> {getEffectDescription(item)}
-          </div>
-        )}
+          {effect && (
+            <div className="text-sm text-base-content/60">
+              <strong>Effect:</strong> {effect}
+            </div>
+          )}
 
-        <p className="text-base-content font-bold text-base">
-           {calculatePrice()}
-         </p>
+          {!effect && getEffectDescription(item) && (
+            <div className="text-sm text-base-content/60">
+              <strong>Effect:</strong> {getEffectDescription(item)}
+            </div>
+          )}
+        </div>
 
-        {role === 'teacher' && user?._id === teacherId && (
-          // Only the teacher who owns this classroom sees Edit/Delete
-          //we were using regular window pop up. 
+        {/* Price + teacher buttons on one row */}
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <p className="text-base-content font-bold text-base">
+            {calculatePrice()}
+          </p>
 
-          // replace buttons in comment with code in div to revert
-          /*
-            <button className="btn btn-sm btn-outline" onClick={() => setEditOpen(true)}>
-              <Pencil className="w-4 h-4" /> Edit 
-            </button>
+          {role === 'teacher' && user?._id === teacherId && (
+            <div className="flex gap-2">
+              <button
+                className="btn btn-xs md:btn-sm btn-outline"
+                onClick={() => setEditOpen(true)}
+              >
+                Edit
+              </button>
+              <button
+                className="btn btn-xs md:btn-sm btn-error"
+                onClick={() => setConfirmDelete(true)}
+              >
+                Delete
+              </button>
+            </div>
+          )}
+        </div>
 
-            <button
-              className="btn btn-sm btn-error"
-              onClick={() => setConfirmDelete(true)}
-            >
-              <Trash2 className="w-4 h-4" /> Delete
-            </button>
-          */
-          <div className="flex gap-2 mt-2">
-            
-            <button className="btn btn-sm btn-outline" onClick={() => setEditOpen(true)}>
-                Edit 
-            </button>
-
-            <button
-              className="btn btn-sm btn-error"
-              onClick={() => setConfirmDelete(true)}
-            >
-              Delete
-            </button>
-
-          </div>
-        )}
-
-
-{/*  10/14 notes: Before, all students items used the add to cart button by default. 
-now, im commenting it out and replacing it with a conditional block
-this maakes sure the mustery box item shown a uniqie open mustery box button
-wich will call the mystery box API route, while all other items still show add to cart
-this will prevent duplication or inccorect buttons from appearing 
-
-         {role === 'student' && (
-          <button
-            onClick={() => addToCart(item)}
-            className="btn btn-success btn-sm w-full mt-2"
-          >
-            Add to Cart
-          </button>
-        )}
-  */}
-
-
-
-
-  
+        {/* Student button sits close under price row */}
         {role === 'student' && (
           <button
             onClick={() => addToCart(item)}
@@ -393,7 +362,10 @@ this will prevent duplication or inccorect buttons from appearing
             Add to Cart
           </button>
         )}
+      </div>
+      <div>
 
+      
 
 
       </div>
