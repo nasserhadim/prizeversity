@@ -133,6 +133,13 @@ const ClassroomFeedbackPage = ({ userId }) => {
       toast.error('Please enter a comment before submitting.');
       return;
     }
+    // NEW: enforce minimum 50 non-space characters
+    const nonSpaceLength = (comment || '').replace(/\s/g, '').length;
+    if (nonSpaceLength < 50) {
+      toast.error('Please write at least 50 non-space characters so your feedback is specific and helpful.');
+      return;
+    }
+
     try {
       const payload = {
         rating,

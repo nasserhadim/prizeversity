@@ -34,6 +34,14 @@ router.post('/', ensureAuthenticated, async (req, res) => {
     // If the client requested anonymous, do not attach the authenticated user's id
     const resolvedUserId = anonymous ? undefined : req.user._id;
 
+    // NEW: enforce minimum 50 non-space characters on the server
+    const nonSpaceLength = (comment || '').replace(/\s/g, '').length;
+    if (nonSpaceLength < 50) {
+      return res.status(400).json({
+        error: 'Feedback comment must be at least 50 non-space characters long.'
+      });
+    }
+
     // Rate limit: per-user, scoped separately for site vs each classroom.
     // Submitting feedback in one classroom should not block submitting in other classrooms or site feedback.
     const cooldownDays = Number(process.env.FEEDBACK_COOLDOWN_DAYS || 7);
@@ -105,6 +113,15 @@ router.post('/classroom', ensureAuthenticated, async (req, res) => {
     // DEFINE ip early (was referenced before definition)
     const ip = (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim();
 
+    // NEW: enforce minimum 50 non-space characters for classroom feedback
+    const nonSpaceLength = (comment || '').replace(/\s/g, '').length;
+    if (nonSpaceLength < 50) {
+      return res.status(400).json({
+        error: 'Feedback comment must be at least 50 non-space characters long.'
+      });
+    }
+
+    // DEBUG: log incoming classroom feedback requests so we can confirm this handler runs
     console.log('[feedback] POST /classroom received', {
       classroomId,
       user: req.user ? { _id: String(req.user._id), role: req.user.role } : null,

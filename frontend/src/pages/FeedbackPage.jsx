@@ -78,6 +78,13 @@ const FeedbackPage = () => {
       toast.error("Please select a star rating before submitting.");
       return;
     }
+    // NEW: enforce minimum 50 non-space characters
+    const nonSpaceLength = (comment || '').replace(/\s/g, '').length;
+    if (nonSpaceLength < 50) {
+      toast.error('Please write at least 50 non-space characters so we can understand your feedback.');
+      return;
+    }
+
     try {
       await axios.post(`${API_BASE}/api/feedback`, {
         rating,
