@@ -3,6 +3,7 @@ const { Schema, model } = mongoose;
 //mystery award box sechema
 const RewardSchema = new mongoose.Schema({
   itemId: {type: Schema.Types.ObjectId, ref: "Item", required: true},
+  itemName: {type: String, required: true},
   weight: {type: Number, min: 1, required: true},
   luckWeight: {type: Number, min: 0, required: true}
 }, {_id: false});

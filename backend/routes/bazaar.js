@@ -119,7 +119,6 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items',
     primaryEffect, 
     primaryEffectValue,
   } = req.body;
-  console.log("1");
   // Prefer uploaded file, fallback to image URL
   const image = req.file
     ? `/uploads/${req.file.filename}`
@@ -219,6 +218,7 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items',
           item.metadata = item.metadata || {};
           item.metadata.rewards = rewardFromBody.map(r => ({
             itemId: r.itemId,
+            itemName: r.itemName,
             weight: Number(r.weight),
             luckWeight:Number(r.luckWeight)
           }));

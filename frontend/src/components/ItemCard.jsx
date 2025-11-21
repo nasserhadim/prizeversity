@@ -318,14 +318,23 @@ const getDiscounts = async () => {
     const baseWeights = rewards.reduce((b, r) => b + r.weight, 0);
     const luckWeights = (rewards.reduce((b, r) => b + r.luckWeight, 0) * (user.passiveAttributes.luck - 1) * item.luckFactor);
     const totalW = baseWeights + luckWeights;
-
+    const rarityMap =
+    {
+        1: "Common",
+        2: "Uncommon",
+        3: "Rare",
+        4: "Epic",
+        5: "Legendary"
+    };
     const stats = rewards.map(r => {
         const weight = itemWeight(r);
         const name = itemNames.find(i => i._id === r._id);
+
+        const rarity = rarityMap[r.luckWeight];
         return {
-            name: name,
+            name: r.itemName,
             prob: (weight / totalW * 100).toFixed(2),
-            rarity: r.luckWeight
+            rarity: rarity
         }
     })
 
@@ -573,11 +582,20 @@ this will prevent duplication or inccorect buttons from appearing
                 </div>
                 {mysteryStats.map((reward, spot) => (
                 <div key = {spot} className="flex items-center gap-3">
-                    <p> {reward.name}</p>
-                    <p> {reward.prob}%</p>
-                    <p> {reward.rarity}</p>                        
+                    <span className="flex-1"> {reward.name}</span>
+                    <span className="w-8 text-left"> {reward.prob}%</span>
+                    <span className="w-40 text-center">{reward.rarity}</span>                       
                 </div>
+                
             ))}
+            <button
+                className="btn btn-success"
+                onClick={() => {
+                    setShowStats(false);
+                }}
+                >
+                Close
+            </button>
             </div>
 
 

@@ -249,11 +249,10 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
   };
 
     //
-    function itemProb(item) {
-        const lf = form.luckFactor || 1;
-        const itemW = (item.weight + item.luckWeight * (lf-1));
+    function itemProbBase(item) {
+        const itemW = item.weight;
 
-        const allW = selectedRewards.reduce((total, oItem) => total + (oItem.weight + oItem.luckWeight * (lf-1)), 0);
+        const allW = selectedRewards.reduce((total, oItem) => total + oItem.weight, 0);
         const prob = Math.round(10000 *itemW / allW) / 100;
         return prob;
     }
@@ -266,11 +265,16 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
     if (form.category !== 'Mystery Box') return [];
     return selectedRewards
         .filter(r => r.itemId)
-        .map(r => ({
+        .map(r => {
+            const i = allPrizes.find(p => p._id === r.itemId)
+
+            return {
             itemId: r.itemId,
+            itemName: i ? i.name : "",
             weight: Number(r.weight) || 10,
             luckWeight: Number(r.luckWeight) || 0
-        }));
+            }
+        });
   };
 
   
@@ -739,7 +743,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
 
                         {/* Probability */}
                         
-                        <label className="w-10"> {itemProb(selectedRewards[spot]).toFixed(2)}</label>
+                        <label className="w-10"> {itemProbBase(selectedRewards[spot]).toFixed(2)}</label>
                         
 
 
