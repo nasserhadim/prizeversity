@@ -826,6 +826,20 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
       
       const populatedNotification = await populateNotification(notification._id);
       req.app.get('io').to(`user-${memberId}`).emit('notification', populatedNotification);
+
+      // Award XP for joining group
+      const classroom = await Classroom.findById(groupSet.classroom);
+      const joinXP = classroom?.xpConfig?.groupJoin ?? 0;
+
+      if (Number(joinXP) > 0) {
+        const { awardXP } = require('../utils/xp');
+
+        await awardXP({
+          userId: memberId,
+          classroomId: classroom._id,
+          opts: { rawXP: Number(joinXP) }
+        });
+      }
     }
 
     // Send notifications to rejected members (due to capacity) - they were removed
