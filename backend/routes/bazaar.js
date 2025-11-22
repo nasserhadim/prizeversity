@@ -984,11 +984,11 @@ router.post('/inventory/:ownedId/open', ensureAuthenticated, async (req, res) =>
   // plus determine rarity of chosen item
   const rarityMap =
   {
-    1: "Common",
-    2: "Uncommon",
-    3: "Rare",
-    4: "Epic",
-    5: "Legendary"
+    1000: "Common",
+    2000: "Uncommon",
+    3000: "Rare",
+    4000: "Epic",
+    5000: "Legendary"
   };
   const rewards = Array.isArray(box.metadata?.rewards) ? box.metadata.rewards : [];
   const baseWeights = rewards.reduce((s, r) => s + Number(r.weight || 0), 0);

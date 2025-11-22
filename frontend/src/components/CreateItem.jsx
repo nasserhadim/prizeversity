@@ -23,11 +23,11 @@ const CATEGORY_OPTIONS = {
   "Mystery Box": [] 
 };
 const RARITY_OPTIONS = {
-    Common: [{ weight: 40, luckWeight: 1}],
-    Uncommon: [{ weight: 30, luckWeight: 2}],
-    Rare: [{ weight: 20, luckWeight: 3}],
-    Epic: [{ weight: 8, luckWeight: 4}],
-    Legendary: [{ weight: 2, luckWeight: 5}]
+    Common: [{ weight: 40000, luckWeight: 1000}],
+    Uncommon: [{ weight: 30000, luckWeight: 2000}],
+    Rare: [{ weight: 20000, luckWeight: 3000}],
+    Epic: [{ weight: 8000, luckWeight: 4000}],
+    Legendary: [{ weight: 2000, luckWeight: 5000}]
 }
 
 // helper: ensure URL has a scheme so browser won't treat it as invalid
@@ -214,14 +214,22 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
     if (selectedRewards.length >= allPrizes.length) return;
     setSelectedRewards(prev => [
         ...prev,
-        {itemId: "", weight: 40, luckWeight: 1, rarity: "Common"}
+        {itemId: "", weight: 40000, luckWeight: 1000, rarity: "Common"}
     ]);
   };
 
-  const updatePrize = (spot, part, change) => {
+  const updatePrize = (spot, change) => {
     setSelectedRewards(prev => {
         const copy = [...prev];
-        copy[spot] = {...copy[spot], [part]: change};
+        copy[spot] = {...copy[spot], "itemId": change};
+        return copy;
+    });
+  };
+
+  const updateProb = (spot, prob) => {
+    setSelectedRewards(prev => {
+        const copy = [...prev];
+        copy[spot] = {...copy[spot], probability: prob};
         return copy;
     });
   };
@@ -230,7 +238,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
     const r = RARITY_OPTIONS[rarityS][0];
     setSelectedRewards(prev => {
         const copy = [...prev];
-        copy[spot] = {...copy[spot], weight: r.weight, luckWeight: r.luckWeight, rarity: rarityS};
+        copy[spot] = {...copy[spot], weight: r.weight, luckWeight: r.luckWeight, rarity: rarityS, probability: null};
         return copy;
     });
   };
@@ -255,6 +263,20 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
         const allW = selectedRewards.reduce((total, oItem) => total + oItem.weight, 0);
         const prob = Math.round(10000 *itemW / allW) / 100;
         return prob;
+    }
+    function totalProb() {
+        const {percents, weights, totalW} = selectedRewards.reduce(
+            (totals, oItem) => {
+                totals.totalW += Number(oItem.weight) || 0;
+                oItem.probability != null ?
+                (totals.percents += Number(oItem.probability) || 0) :
+                (totals.weights += Number(oItem.weight) || 0);
+
+                return totals;
+            }, {percents: 0, weights: 0, totalW: 0}
+        )
+        const wp = weights / totalW * 100; //weights percentage
+        return percents + wp;
     }
 
 
@@ -284,6 +306,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    
     try {
       // build effect summary and append to description so teachers don't have to type it
       // use the editable preview (teachers may have tweaked wording)
@@ -714,10 +737,11 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                 {selectedRewards.length > 0 && (
                 <div className="flex items-center gap-3 px-1 text-sm">
                     <span className="flex-1">Item</span>
+                    <span className="flex-1">Total %: {totalProb()}</span>
                     <div className="flex items-center gap-2">
                         <span className="w-8 text-left">%</span>
-                            <span className="w-40 text-center">Rarity</span>
-                            <span className="w-8 text-center"></span>
+                        <span className="w-40 text-center">Rarity</span>
+                        <span className="w-8 text-center"></span>
                     </div>
                 </div>
                 )}
@@ -730,7 +754,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                         <select
                             className="select select-bordered flex-1"
                             value = {reward.itemId}
-                            onChange={(e) => updatePrize(spot, "itemId", e.target.value)}
+                            onChange={(e) => updatePrize(spot, e.target.value)}
                             required
                             >
                         <option value="" disabled>Select item</option>
@@ -742,9 +766,18 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                         </select>
 
                         {/* Probability */}
-                        
-                        <label className="w-10"> {itemProbBase(selectedRewards[spot]).toFixed(2)}</label>
-                        
+                        {/*
+                         <label className="w-10"> {itemProbBase(selectedRewards[spot]).toFixed(2)}</label>
+                        */}
+                        <input
+                            type="number"
+                            className="input input-bordered"
+                            min="0"
+                            max="100"
+                            step="0.01"
+                            value={reward.probability ?? itemProbBase(selectedRewards[spot]).toFixed(2)}
+                            onChange={(e) => updateProb(spot, e.target.value)}
+                        />
 
 
                         
