@@ -377,6 +377,29 @@ router.post('/groupset/:groupSetId/group/:groupId/join', ensureAuthenticated, as
 
     await group.save();
 
+    // Award XP immediately if approved
+    if (status === 'approved') {
+      try {
+        const classroom = await Classroom.findById(groupSet.classroom);
+        const joinXP = Number(
+          classroom?.xpSettings?.xpRewards?.groupJoin ?? 0
+        );
+
+
+        if (Number(joinXP) > 0) {
+          const { awardXP } = require('../utils/xp');
+
+          await awardXP({
+            userId: req.user._id,
+            classroomId: classroom._id,
+            opts: { rawXP: Number(joinXP) }
+          });
+        }
+      } catch (err) {
+        console.error('Failed to award XP on self-join:', err);
+      }
+    }
+
     // Update group multiplier after member joins
     await group.updateMultiplier();
 
@@ -829,7 +852,10 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
 
       // Award XP for joining group
       const classroom = await Classroom.findById(groupSet.classroom);
-      const joinXP = classroom?.xpConfig?.groupJoin ?? 0;
+      const joinXP = Number(
+        classroom?.xpSettings?.xpRewards?.groupJoin ?? 0
+      );
+
 
       if (Number(joinXP) > 0) {
         const { awardXP } = require('../utils/xp');
