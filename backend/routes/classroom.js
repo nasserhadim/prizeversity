@@ -10,6 +10,8 @@ const { ensureAuthenticated } = require('../config/auth');
 const blockIfFrozen = require('../middleware/blockIfFrozen');
 const { populateNotification } = require('../utils/notifications');
 const Badge = require('../models/Badge');
+const { awardXP } = require('../utils/xp');
+
 
 
 const router = express.Router();
@@ -1062,6 +1064,8 @@ router.patch('/:id/feedback-reward', ensureAuthenticated, async (req, res) => {
   }
 });
 
+
+
 // Patch: allow teacher to set per-student stats (multiplier, luck, discount)
 router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, res) => {
   try {
@@ -1070,24 +1074,28 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
 
     const classroom = await Classroom.findById(classId);
     if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+
     if (classroom.teacher.toString() !== req.user._id.toString()) {
       return res.status(403).json({ error: 'Only the teacher can update student stats' });
     }
 
     const student = await User.findById(userId);
     if (!student) return res.status(404).json({ error: 'Student not found' });
-    if (student.role === 'teacher') return res.status(400).json({ error: 'Cannot adjust teacher stats' });
+
+    if (student.role === 'teacher') {
+      return res.status(400).json({ error: 'Cannot adjust teacher stats' });
+    }
 
     if (!student.passiveAttributes) student.passiveAttributes = {};
 
-    // Capture previous values for change log
+    // 1) Capture previous values
     const prev = {
       multiplier: student.passiveAttributes.multiplier ?? 1,
-      luck: student.passiveAttributes.luck ?? 1,
-      discount: student.passiveAttributes.discount ?? null
+      luck:       student.passiveAttributes.luck ?? 1,
+      discount:   student.passiveAttributes.discount ?? null
     };
 
-    // Apply updates
+    // 2) Apply incoming changes
     if (typeof multiplier !== 'undefined') {
       student.passiveAttributes.multiplier = Number(multiplier) || 1;
     }
@@ -1103,30 +1111,92 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
       }
     }
 
-    // Build changes array
-    const changes = [];
-    const now = new Date();
+    // 3) Build changes array (what actually changed)
     const curr = {
       multiplier: student.passiveAttributes.multiplier ?? 1,
-      luck: student.passiveAttributes.luck ?? 1,
-      discount: student.passiveAttributes.discount ?? null
+      luck:       student.passiveAttributes.luck ?? 1,
+      discount:   student.passiveAttributes.discount ?? null
     };
+
+    const changes = [];
     ['multiplier', 'luck', 'discount'].forEach((f) => {
       const before = prev[f];
       const after = curr[f];
-      // treat null/undefined === null
+      // treat null/undefined as the same "null" value
       if (String(before) !== String(after)) {
         changes.push({ field: f, from: before, to: after });
       }
     });
 
+// --- NEW: award XP for stat increase ---
+let xpAwarded = 0;
+let xpResult = null;
+
+if (changes.length > 0) {
+  try {
+    const xpSettings = classroom.xpSettings || {};
+
+    // Try multiple possible places for the "Stat Increase" setting
+    const gainRates =
+      xpSettings.xpGainRates ||
+      xpSettings.gainRates ||
+      xpSettings.gainRate ||
+      {};
+
+    const xpRewardsRoot =
+      xpSettings.xpRewards ||
+      xpSettings.rewards ||
+      xpSettings.rewardConfig ||
+      {};
+
+    const configuredXP =
+      xpRewardsRoot.statAdjustXP ??
+      xpRewardsRoot.statsAdjustXP ??
+      xpRewardsRoot.statChangeXP ??
+      xpRewardsRoot.statsChangeXP ??
+      gainRates.statIncrease ??
+      gainRates.statIncreaseXP ??
+      gainRates.statChange ??
+      xpSettings.statIncreaseXP ??
+      null;
+
+    const rawXP = Number(configuredXP);
+    // If config is missing or invalid, default to 1 XP (matches your UI)
+    const finalXP =
+      Number.isFinite(rawXP) && rawXP > 0 ? rawXP : 1;
+
+    console.log('[Stats PATCH] xpSettings:', xpSettings);
+    console.log('[Stats PATCH] gainRates:', gainRates);
+    console.log('[Stats PATCH] resolved statIncreaseXP =', configuredXP, '-> finalXP =', finalXP);
+
+    xpResult = await awardXP({
+      userId: student._id,
+      classroomId: classId,
+      opts: {
+        rawXP: finalXP,
+        reason: 'stat_adjust'
+      }
+    });
+
+    console.log('[Stats PATCH] awardXP result:', xpResult);
+
+    if (xpResult && xpResult.ok !== false) {
+      xpAwarded = xpResult.added ?? finalXP;
+    } else {
+      console.warn('[Stats PATCH] awardXP returned not ok', xpResult);
+    }
+  } catch (e) {
+    console.error('[Stats PATCH] awardXP error:', e);
+  }
+}
+
+
+
     await student.save();
 
-    // after changes array has been built and student.save() completed
-    // Helper to render a readable value (fall back to sensible defaults for known stat fields)
+    // 5) Format change summary for notifications
     const renderValue = (field, v) => {
       if (v === null || v === undefined) {
-        // sensible defaults per-field (matches how stats are displayed elsewhere)
         if (field === 'multiplier' || field === 'luck') return 1;
         if (field === 'discount') return 0;
         return 0;
@@ -1134,64 +1204,76 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
       return v;
     };
 
-    const formatChangeSummary = (changes) => {
-      if (!Array.isArray(changes) || changes.length === 0) return '';
-      return changes
-        .map(c => {
+    const formatChangeSummary = (changesArr) => {
+      if (!Array.isArray(changesArr) || changesArr.length === 0) return '';
+      return changesArr
+        .map((c) => {
           const from = renderValue(c.field, c.from);
-          const to = renderValue(c.field, c.to);
+          const to   = renderValue(c.field, c.to);
           return `${c.field}: ${String(from)} → ${String(to)}`;
         })
         .join('; ');
     };
 
-    // Notify the student (targeted notification). Keep this simple & readable for the student.
+    const now = new Date();
     const fullName = `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.email;
-    const summary = formatChangeSummary(changes) || 'updated by teacher';
+    const summary  = formatChangeSummary(changes) || 'updated by teacher';
+    const xpNote   = xpAwarded > 0 ? ` (+${xpAwarded} XP)` : '';
 
-    // Create a notification for the student, which also serves as the log entry
+    // 6) Notifications
+
+    // Student log entry (used in stat-changes view)
     const studentNotification = await Notification.create({
       user: student._id,
       actionBy: req.user._id,
       type: 'stats_adjusted',
-      message: `Your stats were updated by your teacher: ${summary}.`,
+      message: `Your stats were updated by your teacher: ${summary}.${xpNote}`,
       classroom: classId,
       read: false,
       changes,
       targetUser: student._id,
+      isLogEntry: true,
       createdAt: now
     });
 
-    // Create a separate notification for the teacher's real-time feedback
+    // Teacher notification (just for real-time feedback, not part of log list)
     const teacherNotification = await Notification.create({
-      user: req.user._id, // Target the teacher
+      user: req.user._id,
       actionBy: req.user._id,
       type: 'stats_adjusted',
-      message: `You updated stats for ${fullName}: ${summary}.`,
+      message: `You updated stats for ${fullName}: ${summary}.${xpNote}`,
       classroom: classId,
       read: false,
       changes,
       targetUser: student._id,
-      isLogEntry: false // Flag to exclude from stat changes log
+      isLogEntry: false,
+      createdAt: now
     });
- 
-    // Notify the student in real-time
+
     const populatedStudentNotification = await populateNotification(studentNotification._id);
-    try { req.app.get('io').to(`user-${student._id}`).emit('notification', populatedStudentNotification); } catch(e){/*ignore*/}
+    try { req.app.get('io').to(`user-${student._id}`).emit('notification', populatedStudentNotification); } catch (e) {}
 
-    // Notify the teacher in real-time
     const populatedTeacherNotification = await populateNotification(teacherNotification._id);
-    try { req.app.get('io').to(`user-${req.user._id}`).emit('notification', populatedTeacherNotification); } catch(e){/*ignore*/}
+    try { req.app.get('io').to(`user-${req.user._id}`).emit('notification', populatedTeacherNotification); } catch (e) {}
 
-    // Existing socket emit so clients can update UI
-    req.app.get('io').to(`user-${student._id}`).emit('user_stats_update', { userId: student._id, passiveAttributes: student.passiveAttributes });
+    // Let clients refresh stats UI
+    req.app.get('io').to(`user-${student._id}`).emit('user_stats_update', {
+      userId: student._id,
+      passiveAttributes: student.passiveAttributes
+    });
 
-    res.json({ message: 'Stats updated', passiveAttributes: student.passiveAttributes, changes });
+    res.json({
+      message: 'Stats updated',
+      passiveAttributes: student.passiveAttributes,
+      changes,
+      xpAwarded
+    });
   } catch (err) {
     console.error('[Patch student stats] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
+
 
 // NEW: Fetch recent stat-change notifications for a classroom (teacher/admin access)
 router.get('/:id/stat-changes', ensureAuthenticated, async (req, res) => {
@@ -1296,6 +1378,48 @@ router.get('/:classroomId/student-badge-progress', ensureAuthenticated, async (r
     res.status(500).json({ error: 'Failed to load student badge progress' });
   }
 });
+// Helper: compute level from total XP using classroom XP settings
+function computeLevelFromXP(totalXP, xpSettings = {}) {
+  // Reasonable defaults if fields are missing
+  const base =
+    Number(
+      xpSettings.baseXPForLevel2 ??
+      xpSettings.baseXpForLevel2 ??
+      xpSettings.baseXP ??
+      100
+    ) || 100;
+
+  const formula = xpSettings.levelingFormula || 'exponential';
+  const growth = Number(xpSettings.levelGrowthFactor || 1.5) || 1.5;
+
+  if (!totalXP || totalXP <= 0) return 1;
+
+  if (formula === 'linear') {
+    // Each level needs another `base` XP
+    return 1 + Math.floor(totalXP / base);
+  }
+
+  if (formula === 'logarithmic' || formula === 'log') {
+    // Very gentle curve – adjust `logScale` if you have one in your schema
+    const scale = xpSettings.logScale ? Number(xpSettings.logScale) : base;
+    return Math.max(1, Math.floor(Math.log(totalXP / scale + 1)) + 1);
+  }
+
+  // Default: exponential (each level ~1.5x more XP than previous)
+  let level = 1;
+  let needed = base;
+  let xp = totalXP;
+
+  while (xp >= needed && level < 999) {
+    xp -= needed;
+    level += 1;
+    needed = Math.round(needed * growth);
+  }
+
+  return level;
+}
+
+
 
 
 module.exports = router;
