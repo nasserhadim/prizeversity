@@ -64,13 +64,22 @@ router.delete('/:badgeId', async (req, res) => {
 router.put('/:badgeId', upload.single('image'), async (req, res) => {
   try {
     const { badgeId } = req.params;
-    const { name, description, levelRequired, icon } = req.body;
-    const imageUrl = req.file
-      ? `/uploads/${req.file.filename}`
-      : req.body.imageUrl || undefined;
+    const updateData = {
+      name: req.body.name,
+      description: req.body.description,
+      levelRequired: req.body.levelRequired,
+      icon: req.body.icon
+    };
 
-    const updateData = { name, description, levelRequired, icon };
-    if (imageUrl) updateData.imageUrl = imageUrl;
+    // File mode
+    if (req.file) {
+      updateData.imageUrl = `/uploads/${req.file.filename}`;
+    }
+
+    // URL mode
+    if (!req.file && req.body.imageUrl && req.body.imageUrl.trim() !== "") {
+      updateData.imageUrl = req.body.imageUrl.trim();
+    }
     const updatedBadge = await Badge.findByIdAndUpdate(badgeId, updateData, { new: true });
 
 
