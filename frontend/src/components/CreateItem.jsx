@@ -229,7 +229,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
   const updateProb = (spot, prob) => {
     setSelectedRewards(prev => {
         const copy = [...prev];
-        copy[spot] = {...copy[spot], probability: prob};
+        copy[spot] = {...copy[spot], probability: Number(prob)};
         return copy;
     });
   };
@@ -276,7 +276,12 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
             }, {percents: 0, weights: 0, totalW: 0}
         )
         const wp = weights / totalW * 100; //weights percentage
-        return percents + wp;
+        return percents + wp || 100;
+    }
+    // if the item isn't a mystery box - or the totalProb is either too low or too high, return false
+    // else, return true
+    function haltMystery() {
+        return form.category === 'Mystery Box' && (totalProb().toFixed(2) <= 99.99 || totalProb().toFixed(2) >= 100.01);    
     }
 
 
@@ -285,15 +290,20 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
 
   const buildRewardsPayload = () => {
     if (form.category !== 'Mystery Box') return [];
+    const totalW = selectedRewards.reduce((total, oItem) => total + oItem.weight, 0);
     return selectedRewards
         .filter(r => r.itemId)
         .map(r => {
             const i = allPrizes.find(p => p._id === r.itemId)
-
+            let weight = Number(r.weight) || 2000;
+            if (r.probability != null)
+            {
+                weight = Number(r.probability * totalW / 100);
+            }
             return {
             itemId: r.itemId,
             itemName: i ? i.name : "",
-            weight: Number(r.weight) || 10,
+            weight: weight,
             luckWeight: Number(r.luckWeight) || 0
             }
         });
@@ -308,6 +318,11 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
     setLoading(true);
     
     try {
+        // double check probabilities
+        if (haltMystery())
+        {
+            throw new Error("Mystery box item percentages don't add up to 100%.");
+        }
       // build effect summary and append to description so teachers don't have to type it
       // use the editable preview (teachers may have tweaked wording)
       const cleanedEffect = (effectPreview || '').trim();
@@ -737,7 +752,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                 {selectedRewards.length > 0 && (
                 <div className="flex items-center gap-3 px-1 text-sm">
                     <span className="flex-1">Item</span>
-                    <span className="flex-1">Total %: {totalProb()}</span>
+                    <span className="flex-1">Total %: {totalProb().toFixed(2)}</span>
                     <div className="flex items-center gap-2">
                         <span className="w-8 text-left">%</span>
                         <span className="w-40 text-center">Rarity</span>
@@ -866,7 +881,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
  
        <button
          className="btn btn-success w-full mt-2"
-         disabled={loading}
+         disabled={loading || haltMystery()}
          type="submit"
        >
          {loading ? (
