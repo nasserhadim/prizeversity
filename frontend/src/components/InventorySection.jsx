@@ -25,30 +25,33 @@ const InventorySection = ({ userId, classroomId }) => {
   const [showRewardModal, setShowRewardModal] = useState(false);
   const [wonItem, setWonItem] = useState(null);
 
-  // Load inventory and student list when userId and classroomId are available
+  // NEW: Search and sort states
+  const [search, setSearch] = useState('');
+  const [sortKey, setSortKey] = useState('addedDesc'); // addedDesc|addedAsc|name|category|activeFirst|activatedDesc
+  const [confirmRemove, setConfirmRemove] = useState(null); // item object
+  const [confirmClear, setConfirmClear] = useState(false);
+
+  // HOIST: load so socket handlers can call it
+  const load = async () => {
+    try {
+      const [invRes, studentRes] = await Promise.all([
+        apiBazaar.get(`/inventory/${userId}?classroomId=${classroomId}`),
+        apiClassroom.get(`/${classroomId}/students`)
+      ]);
+      const activeItems = (invRes.data.items || []).filter(item => {
+        if (item.category === 'MysteryBox') return item.usesRemaining !== 0;
+        return true;
+      });
+      setItems(activeItems);
+      setStudents(studentRes.data);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to load inventory or student list');
+    }
+  };
+
+  // Load inventory and student list
   useEffect(() => {
-    const load = async () => {
-      try {
-        const [invRes, studentRes] = await Promise.all([
-          apiBazaar.get(`/inventory/${userId}?classroomId=${classroomId}`),
-          apiClassroom.get(`/${classroomId}/students`)
-        ]);
-        
-        // Filter out depleted mystery boxes
-        const activeItems = (invRes.data.items || []).filter(item => {
-          if (item.category === 'MysteryBox') {
-            return item.usesRemaining !== 0;
-          }
-          return true;
-        });
-        
-        setItems(activeItems);
-        setStudents(studentRes.data);
-      } catch (err) {
-        console.error(err);
-        toast.error('Failed to load inventory or student list');
-      }
-    };
     if (userId && classroomId) load();
   }, [userId, classroomId]);
 
@@ -255,21 +258,108 @@ const InventorySection = ({ userId, classroomId }) => {
     return texts[item.category] || 'Use Item';
   };
 
-  return (
-    <div className="mt-6 space-y-6">
-      <h2 className="text-2xl font-bold text-success flex items-center gap-2">
-        🎒 My Inventory
-      </h2>
+  const removeItem = async (item) => {
+    try {
+      await apiBazaar.delete(`/inventory/${item._id}?classroomId=${classroomId}`);
+      toast.success('Item removed');
+      // Refresh
+      const invRes = await apiBazaar.get(`/inventory/${userId}?classroomId=${classroomId}`);
+      setItems(invRes.data.items);
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Failed to remove item');
+    }
+  };
 
-      {items.length === 0 && (
-        <p className="italic text-base-content/60">You don't own any items yet.</p>
+  const clearAll = async () => {
+    try {
+      await apiBazaar.delete(`/inventory/user/${userId}/clear?classroomId=${classroomId}`);
+      toast.success('Inventory cleared');
+      setItems([]);
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Failed to clear inventory');
+    }
+  };
+
+  // FIX: parameter order (item first, term second) + guard
+  const deepMatches = (item, term) => {
+    const q = typeof term === 'string' ? term.trim().toLowerCase() : '';
+    if (!q) return true;
+    const parts = [
+      item.name || '',
+      item.description || '',
+      item.category || '',
+      item.primaryEffect || '',
+      item.active ? 'active' : 'inactive',
+      item.activatedAt ? 'activated' : ''
+    ];
+    (item.secondaryEffects || []).forEach(se => {
+      parts.push(se.effectType || '');
+      parts.push(String(se.value || ''));
+    });
+    return parts.some(p => p.toLowerCase().includes(q));
+  };
+
+  const sortedFiltered = items
+    .filter(i => deepMatches(i, search)) // FIX: correct argument order
+    .sort((a, b) => {
+      switch (sortKey) {
+        case 'addedAsc': return new Date(a.createdAt) - new Date(b.createdAt);
+        case 'addedDesc': return new Date(b.createdAt) - new Date(a.createdAt);
+        case 'name': return a.name.localeCompare(b.name);
+        case 'category': return a.category.localeCompare(b.category);
+        case 'activeFirst': return (b.active === true) - (a.active === true);
+        case 'activatedDesc': return new Date(b.activatedAt || 0) - new Date(a.activatedAt || 0);
+        default: return 0;
+      }
+    });
+
+  return (
+    <div>
+      <h2 className="text-2xl font-bold text-success flex items-center gap-2">
+        🎒 My Inventory ({sortedFiltered.length}/{items.length})
+      </h2>
+      {/* Optional small badge */}
+      <div className="mb-2 text-xs text-base-content/60">
+        Showing {sortedFiltered.length} of {items.length} items
+      </div>
+      <div className="flex flex-col md:flex-row gap-2 mb-4">
+        <input
+          type="search"
+          placeholder="Deep search items..."
+          className="input input-bordered flex-1"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+        <select
+          className="select select-bordered"
+          value={sortKey}
+          onChange={e => setSortKey(e.target.value)}
+        >
+          <option value="addedDesc">Added: Newest</option>
+            <option value="addedAsc">Added: Oldest</option>
+            <option value="activatedDesc">Activated: Newest</option>
+            <option value="name">Name</option>
+            <option value="category">Category</option>
+            <option value="activeFirst">Active first</option>
+        </select>
+        {sortedFiltered.length > 0 && (
+          <button
+            className="btn btn-outline btn-error"
+            onClick={() => setConfirmClear(true)}
+          >
+            Clear Inventory
+          </button>
+        )}
+      </div>
+
+      {sortedFiltered.length === 0 && (
+        <p className="italic text-base-content/60">
+          {items.length === 0 ? 'You don’t own any items yet.' : 'No items match your search.'}
+        </p>
       )}
 
-      {items.map((item) => (
-        <div
-          key={item._id}
-          className="card bg-base-100 shadow-md border border-base-200 rounded-xl p-4 flex flex-col md:flex-row md:items-center gap-4"
-        >
+      {sortedFiltered.map(item => (
+        <div key={item._id} className="card bg-base-100 shadow-md border border-base-200 rounded-xl p-4 flex flex-col md:flex-row md:items-center gap-4">
           <div className="w-24 h-24 bg-base-200 rounded-lg overflow-hidden flex items-center justify-center border">
             <img
               src={resolveImageSrc(item.image)}
@@ -347,9 +437,63 @@ const InventorySection = ({ userId, classroomId }) => {
             >
               {getButtonText(item)}
             </button>
+            <button
+              className="btn btn-sm btn-outline btn-error"
+              onClick={() => setConfirmRemove(item)}
+            >
+              Remove
+            </button>
           </div>
         </div>
       ))}
+
+      {/* Remove confirmation */}
+      {confirmRemove && (
+        <div className="modal modal-open">
+          <div className="modal-box">
+            <h3 className="font-bold text-lg">Remove Item</h3>
+            <p className="py-4">
+              Remove "{confirmRemove.name}" from your inventory? This cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button className="btn btn-sm" onClick={() => setConfirmRemove(null)}>Cancel</button>
+              <button
+                className="btn btn-sm btn-error"
+                onClick={async () => {
+                  await removeItem(confirmRemove);
+                  setConfirmRemove(null);
+                }}
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clear confirmation */}
+      {confirmClear && (
+        <div className="modal modal-open">
+          <div className="modal-box">
+            <h3 className="font-bold text-lg">Clear Inventory</h3>
+            <p className="py-4">
+              Remove all matching items ({sortedFiltered.length}) from inventory?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button className="btn btn-sm" onClick={() => setConfirmClear(false)}>Cancel</button>
+              <button
+                className="btn btn-sm btn-error"
+                onClick={async () => {
+                  await clearAll();
+                  setConfirmClear(false);
+                }}
+              >
+                Clear All
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <SwapModal
         isOpen={swapModalOpen}

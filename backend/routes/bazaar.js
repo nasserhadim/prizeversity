@@ -804,4 +804,69 @@ router.get('/mystery-box/:itemId', ensureAuthenticated, async (req, res) => {
   }
 });
 
+// Delete a single owned inventory item
+router.delete('/inventory/:itemId', ensureAuthenticated, async (req, res) => {
+  try {
+    const { itemId } = req.params;
+    const classroomId = req.query.classroomId;
+    const item = await Item.findById(itemId).populate('bazaar');
+
+    if (!item) return res.status(404).json({ error: 'Item not found' });
+    if (String(item.owner) !== String(req.user._id))
+      return res.status(403).json({ error: 'Not your item' });
+
+    // Optional classroom scoping
+    if (classroomId && (!item.bazaar || String(item.bazaar.classroom) !== String(classroomId)))
+      return res.status(400).json({ error: 'Item not in this classroom' });
+
+    await Item.findByIdAndDelete(itemId);
+
+    req.app.get('io').to(`classroom-${classroomId || item.bazaar?.classroom}`).emit('inventory_update', {
+      userId: req.user._id
+    });
+
+    res.json({ deleted: true });
+  } catch (e) {
+    console.error('[Inventory delete] error', e);
+    res.status(500).json({ error: 'Failed to delete item' });
+  }
+});
+
+// Clear all inventory items (self or teacher/admin on student)
+router.delete('/inventory/user/:userId/clear', ensureAuthenticated, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const classroomId = req.query.classroomId;
+
+    const canManage =
+      String(req.user._id) === String(userId) ||
+      ['teacher', 'admin'].includes(req.user.role);
+
+    if (!canManage) return res.status(403).json({ error: 'Not allowed' });
+
+    // Build query
+    const query = { owner: userId };
+    if (classroomId) {
+      // Need bazaar classroom match; fetch item ids first
+      const scopedItems = await Item.find(query)
+        .populate('bazaar', 'classroom')
+        .select('_id bazaar');
+      const ids = scopedItems
+        .filter(i => i.bazaar && String(i.bazaar.classroom) === String(classroomId))
+        .map(i => i._id);
+      if (!ids.length) return res.json({ cleared: 0 });
+      await Item.deleteMany({ _id: { $in: ids } });
+      req.app.get('io').to(`classroom-${classroomId}`).emit('inventory_update', { userId });
+      return res.json({ cleared: ids.length });
+    }
+
+    const result = await Item.deleteMany(query);
+    req.app.get('io').emit('inventory_update', { userId });
+    res.json({ cleared: result.deletedCount || 0 });
+  } catch (e) {
+    console.error('[Inventory clear] error', e);
+    res.status(500).json({ error: 'Failed to clear inventory' });
+  }
+});
+
 module.exports = router;
