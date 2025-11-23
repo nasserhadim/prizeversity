@@ -1136,61 +1136,73 @@ if (changes.length > 0) {
   try {
     const xpSettings = classroom.xpSettings || {};
 
-    // Try multiple possible places for the "Stat Increase" setting
-    const gainRates =
-      xpSettings.xpGainRates ||
-      xpSettings.gainRates ||
-      xpSettings.gainRate ||
-      {};
-
-    const xpRewardsRoot =
-      xpSettings.xpRewards ||
-      xpSettings.rewards ||
-      xpSettings.rewardConfig ||
-      {};
-
-    const configuredXP =
-      xpRewardsRoot.statAdjustXP ??
-      xpRewardsRoot.statsAdjustXP ??
-      xpRewardsRoot.statChangeXP ??
-      xpRewardsRoot.statsChangeXP ??
-      gainRates.statIncrease ??
-      gainRates.statIncreaseXP ??
-      gainRates.statChange ??
-      xpSettings.statIncreaseXP ??
-      null;
-
-    const rawXP = Number(configuredXP);
-    // If config is missing or invalid, default to 1 XP (matches your UI)
-    const finalXP =
-      Number.isFinite(rawXP) && rawXP > 0 ? rawXP : 1;
-
-    console.log('[Stats PATCH] xpSettings:', xpSettings);
-    console.log('[Stats PATCH] gainRates:', gainRates);
-    console.log('[Stats PATCH] resolved statIncreaseXP =', configuredXP, '-> finalXP =', finalXP);
-
-    xpResult = await awardXP({
-      userId: student._id,
-      classroomId: classId,
-      opts: {
-        rawXP: finalXP,
-        reason: 'stat_adjust'
-      }
-    });
-
-    console.log('[Stats PATCH] awardXP result:', xpResult);
-
-    if (xpResult && xpResult.ok !== false) {
-      xpAwarded = xpResult.added ?? finalXP;
+    // this is to respect the classroom XP toggle
+    if (xpSettings.isXPEnabled === false) {
+      console.log('[Stats PATCH] XP disabled for this classroom, skipping award');
     } else {
-      console.warn('[Stats PATCH] awardXP returned not ok', xpResult);
+      // Try multiple possible places for the "Stat Increase" setting
+      const gainRates =
+        xpSettings.xpGainRates ||
+        xpSettings.gainRates ||
+        xpSettings.gainRate ||
+        {};
+
+      const xpRewardsRoot =
+        xpSettings.xpRewards ||
+        xpSettings.rewards ||
+        xpSettings.rewardConfig ||
+        {};
+
+      // 👇 MAIN FIX: look for xpPerStatsBoost (and a few safe aliases) first
+      const configuredXP =
+        xpRewardsRoot.xpPerStatsBoost ??      // your XPSettingsSection default
+        xpRewardsRoot.xpPerStatIncrease ??    // alias
+        xpRewardsRoot.statAdjustXP ??
+        xpRewardsRoot.statsAdjustXP ??
+        xpRewardsRoot.statChangeXP ??
+        xpRewardsRoot.statsChangeXP ??
+        gainRates.statIncrease ??
+        gainRates.statIncreaseXP ??
+        gainRates.statChange ??
+        xpSettings.statIncreaseXP ??
+        null;
+
+      const rawXP = Number(configuredXP);
+
+      // If config is missing or invalid, default to 1 XP (fallback)
+      const finalXP =
+        Number.isFinite(rawXP) && rawXP > 0 ? rawXP : 1;
+
+      console.log('[Stats PATCH] xpSettings:', xpSettings);
+      console.log('[Stats PATCH] gainRates:', gainRates);
+      console.log('[Stats PATCH] resolved statIncreaseXP =', configuredXP, '-> finalXP =', finalXP);
+
+      // Only award if finalXP is positive
+      if (finalXP > 0) {
+        xpResult = await awardXP({
+          userId: student._id,
+          classroomId: classId,
+          opts: {
+            rawXP: finalXP,
+            reason: 'stat_adjust',
+          },
+        });
+
+        console.log('[Stats PATCH] awardXP result:', xpResult);
+
+        if (xpResult && xpResult.ok !== false) {
+          xpAwarded = xpResult.added ?? finalXP;
+        } else {
+          console.warn('[Stats PATCH] awardXP returned not ok', xpResult);
+        }
+      } else {
+        console.log('[Stats PATCH] No valid stat-boost XP configured, skipping award');
+      }
     }
   } catch (e) {
     console.error('[Stats PATCH] awardXP error:', e);
   }
 }
-
-
 
     await student.save();
 

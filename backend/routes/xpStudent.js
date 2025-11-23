@@ -312,35 +312,34 @@ router.post('/daily-checkin', ensureStudentOrAbove, async (req, res) => {
       return res.status(200).json({ ok: false, already: true });
     }
 
-    const xpRewards = settings.xpRewards || {};
+      const xpRewards = settings.xpRewards || {};
 
     // 🔎 LOG what we actually have from DB
     console.log('[xpStudents /daily-checkin] xpSettings =', settings);
     console.log('[xpStudents /daily-checkin] xpRewards =', xpRewards);
 
-    // 1) Primary: teacher-set daily check-in XP in XPSettingsSection
-    //    Support a couple of possible names to be safe.
-    let perCheckIn =
-      xpRewards.dailyCheckInXP ??    // canonical (camel-case In)
-      xpRewards.dailyCheckinXP ??    // typo-safe
-      settings.dailyCheckInXP ??     // flat on xpSettings
-      settings.dailyCheckinXP ??     // alt spelling flat
+    // we want the Daily Check-in limit in the (XP Gain Rates) to be the main source of XP for the check in
+    const xpCfg = classroom.xpConfig || {};
+
+    let rawPerCheckIn =
+      xpRewards.dailyCheckInLimit ??   // XP Gain Rates "Daily Check-in limit"
+      xpRewards.dailyCheckInXP ??      // fallback: older "Daily Check-in XP"
+      xpCfg.dailyCheckinLimit ??       // legacy xpConfig (optional)
+      xpCfg.dailyLogin ??              // very old fallback (optional)
       null;
 
-    console.log('[xpStudents /daily-checkin] perCheckIn (raw) =', perCheckIn);
+
+    console.log('[xpStudents /daily-checkin] rawPerCheckIn =', rawPerCheckIn);
 
     // If teacher didn't set anything valid → NO XP
-    if (!Number.isFinite(Number(perCheckIn))) {
+    const perCheckInNum = Number(rawPerCheckIn);
+    if (!Number.isFinite(perCheckInNum) || perCheckInNum <= 0) {
       return res.status(200).json({ ok: false, already: true });
     }
 
-    // Final numeric conversion
-    perCheckIn = Number(perCheckIn);
+    let perCheckIn = perCheckInNum;
     console.log('[xpStudents /daily-checkin] perCheckIn (number) =', perCheckIn);
 
-    if (perCheckIn <= 0) {
-      return res.status(200).json({ ok: false, already: true });
-    }
 
     // once per day per user+classroom using oneTimeKey
     const stamp = todayStamp(); // e.g. "20251119"

@@ -319,20 +319,35 @@ async function handleDailyCheckin(req, res) {
     // this will derive dailyXP from the People "XP Gain Rates" settings
     const xpSettings = classroom.xpSettings || {};
     const xpRewards = xpSettings.xpRewards || {};
+    const xpCfg = classroom.xpConfig || {};
+    let rawDailyXP =
+      xpRewards.dailyCheckInLimit ??
+      xpRewards.dailyCheckinLimit ??
+      xpRewards.dailyCheckInXP ??
+      xpRewards.dailyCheckinXP ??
+      xpSettings.dailyCheckInLimit ??
+      xpSettings.dailyCheckinLimit ??
+      xpSettings.dailyCheckInXP ??
+      xpSettings.dailyCheckinXP ??
+      xpCfg.dailyCheckinLimit ??
+      xpCfg.dailyLogin ??
+      null;
 
-    let dailyXP = Number(xpRewards.dailyCheckInLimit ?? 0);
-    if ((!Number.isFinite(dailyXP) || dailyXP <= 0) && xpRewards.dailyCheckInXP != null) {
-      dailyXP = Number(xpRewards.dailyCheckInXP);
+    console.log('[xp /daily-checkin] rawDailyXP =', rawDailyXP);
+
+    const dailyXPNum = Number(rawDailyXP);
+    if (!Number.isFinite(dailyXPNum) || dailyXPNum <= 0) {
+      // Treat the no valid config or <=0 as no XP for daily check-in
+      return res.status(200).json({
+        ok: false,
+        alreadyCheckedIn: false,
+        message: 'Daily check-in XP not configured',
+      });
     }
 
-    if (!Number.isFinite(dailyXP) || dailyXP <= 0) {
-      const xpCfg = classroom.xpConfig || {};
-      dailyXP = Number(xpCfg.dailyCheckinLimit ?? xpCfg.dailyLogin);
-    }
+    const dailyXP = dailyXPNum;
+    console.log('[xp /daily-checkin] using dailyXP =', dailyXP);
 
-    if (!Number.isFinite(dailyXP) || dailyXP <= 0) {
-      dailyXP = 1;
-    }
 
     // Use the awardXP so leveling and badges stay consistent
     const result = await awardXP({
