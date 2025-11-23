@@ -110,7 +110,7 @@ const InventorySection = ({ userId, classroomId }) => {
   };
 
   // Handles using any item based on category and effect
-  const handleUse = async (item) => {
+    const handleUse = async (item) => {
     const targetUserId = targets[item._id] || null;
     
     try {
@@ -146,16 +146,19 @@ const InventorySection = ({ userId, classroomId }) => {
           break;
            
         case 'Defend':
-          endpoint = `/defend/activate/${item._id}`;
+          endpoint = `/defend/activate/${item._id}/${classroomId}`;
+          data = {}; 
           break;
 
-        
         case 'Utility':
+          //utility still uses classroomId in the URL as before
           endpoint = `/utility/use/${item._id}/${classroomId}`;
+          data = {}; 
           break;
           
         case 'Passive':
-          endpoint = `/passive/equip/${item._id}`;
+          endpoint = `/passive/equip/${item._id}/${classroomId}`;
+          data = {}; 
           break;
           
         default:
@@ -166,8 +169,9 @@ const InventorySection = ({ userId, classroomId }) => {
       // Execute item usage
       const response = await apiItem.post(endpoint, data);
       toast.success(response.data.message || 'Item used successfully!');
+
       // Refresh inventory
-      const invRes = await apiBazaar.get(`/inventory/${userId}?classroomId=${classroomId}`); // Add classroomId query param
+      const invRes = await apiBazaar.get(`/inventory/${userId}?classroomId=${classroomId}`);
       setItems(invRes.data.items);
       
     } catch (err) {
@@ -175,6 +179,7 @@ const InventorySection = ({ userId, classroomId }) => {
       toast.error(err.response?.data?.error || 'Failed to use item');
     }
   };
+
 
   // Get full name of target user
   const getTargetName = (targetId) => {

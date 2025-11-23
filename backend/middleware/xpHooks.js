@@ -85,16 +85,13 @@
 const { awardXP } = require('../utils/xp');
 const Classroom = require('../models/Classroom');
 const { getIO } = require('../utils/io');
-
+const User = require('../models/User'); //already imported in latest version / NEW if it wasn't
 
 // Wrapper used by checkout/buy routes: accepts { spentBits } and forwards to xpOnBitsSpent
 async function xpOnBitsSpentPurchase({ userId, classroomId, spentBits, bitsMode = 'final' }) {
   return xpOnBitsSpent({ userId, classroomId, bitsSpent: spentBits, bitsMode });
 }
 
-
-
-// helper: load settings once
 // helper: load settings once (aligned to Classroom.xpSettings)
 async function getSettings(classroomId) {
   const cls = await Classroom.findById(classroomId).select('xpSettings');
@@ -118,7 +115,6 @@ async function getSettings(classroomId) {
     ? { ...dflt, ...cls.xpSettings, xpRewards: { ...dflt.xpRewards, ...(cls.xpSettings.xpRewards || {}) } }
     : dflt;
 }
-
 
 // helper: emit realtime update to the student
 function emitXpUpdate({ userId, classroomId, leveledUp, newLevel }) {
@@ -164,15 +160,96 @@ async function xpOnBitsSpent({ userId, classroomId, bitsSpent, bitsMode = 'final
   }
 }
 
-
-
 // ----- Direct XP Events (use rawXP from settings) -----
 async function xpOnStatIncrease({ userId, classroomId, count = 1 }) {
-  const settings = await getSettings(classroomId);
-  const per = Number(settings.xpRewards?.xpPerStatsBoost || 0);
-  if (per <= 0) return;
-  const res = await awardXP({ userId, classroomId, opts: { rawXP: per * count } });
-  if (res?.ok) emitXpUpdate({ userId, classroomId, leveledUp: res.leveled, newLevel: res.level });
+  try {
+    console.log('[XP Hook] xpOnStatIncrease called', {
+      userId: String(userId),
+      classroomId: classroomId ? String(classroomId) : null,
+      count,
+    });
+
+    // if classroomId is missing (Passive/Defend), try to get it from user's classroomBalances
+    if (!classroomId) {
+      const user = await User.findById(userId).select('classroomBalances');
+      if (!user || !Array.isArray(user.classroomBalances) || user.classroomBalances.length === 0) {
+        console.warn('[XP Hook] xpOnStatIncrease: no classroomId and user has no classroomBalances');
+        return;
+      }
+
+      const classroomIds = user.classroomBalances
+        .map(cb => cb.classroom)
+        .filter(Boolean);
+
+      if (classroomIds.length === 0) {
+        console.warn('[XP Hook] xpOnStatIncrease: user.classroomBalances has no classroom ids');
+        return;
+      }
+
+      if (classroomIds.length === 1) {
+        classroomId = classroomIds[0];
+        console.log('[XP Hook] xpOnStatIncrease: single classroomBalance, using', String(classroomId));
+      } else {
+        //try to pick the classroom that actually has xpPerStatsBoost > 0
+        const classes = await Classroom.find({ _id: { $in: classroomIds } }).select('xpSettings');
+        let chosen = null;
+
+        for (const cls of classes) {
+          const per = Number(
+            (cls.xpSettings?.xpRewards || {}).xpPerStatsBoost || 0
+          );
+          if (per > 0) {
+            chosen = cls._id;
+            break;
+          }
+        }
+
+        classroomId = chosen || classroomIds[0];
+        console.log(
+          '[XP Hook] xpOnStatIncrease inferred classroomId =',
+          String(classroomId),
+          'from user.classroomBalances'
+        );
+
+        if (!chosen) {
+          console.warn(
+            '[XP Hook] xpOnStatIncrease: no class had xpPerStatsBoost > 0, falling back to first classroomBalance'
+          );
+        }
+      }
+    }
+
+    // Now we have a classroomId for sure its either from params or inferred
+    const settings = await getSettings(classroomId);
+    const per = Number(settings.xpRewards?.xpPerStatsBoost || 0);
+
+    if (per <= 0) {
+      console.warn(
+        '[XP Hook] xpOnStatIncrease: xpPerStatsBoost <= 0 for classroom',
+        String(classroomId)
+      );
+      return;
+    }
+
+    const res = await awardXP({
+      userId,
+      classroomId,
+      opts: { rawXP: per * count },
+    });
+
+    if (res?.ok) {
+      emitXpUpdate({
+        userId,
+        classroomId,
+        leveledUp: res.leveled,
+        newLevel: res.level,
+      });
+    } else {
+      console.warn('[XP Hook] xpOnStatIncrease: awardXP returned not-ok', res);
+    }
+  } catch (err) {
+    console.error('[XP Hook] xpOnStatIncrease failed:', err);
+  }
 }
 
 async function xpOnDailyCheckIn({ userId, classroomId }) {
@@ -211,7 +288,6 @@ async function xpOnMysteryBoxUse({ userId, classroomId }) {
   if (res?.ok) emitXpUpdate({ userId, classroomId, leveledUp: res.leveled, newLevel: res.level });
 }
 
-
 module.exports = {
   xpOnBitsEarned,
   xpOnBitsSpent,
@@ -222,4 +298,3 @@ module.exports = {
   xpOnChallengeCompletion,
   xpOnMysteryBoxUse,
 };
-

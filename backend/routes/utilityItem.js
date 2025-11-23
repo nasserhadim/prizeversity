@@ -4,6 +4,7 @@ const Item = require('../models/Item');
 const User = require('../models/User');
 const Discount = require('../models/Discount');
 const { ensureAuthenticated } = require('../config/auth');
+const { xpOnStatIncrease } = require('../middleware/xpHooks'); // added this
 
 // Utility item is another category for items in the bazaar workign with a discount and multipleir
 router.post('/use/:itemId/:classroomId', ensureAuthenticated, async (req, res) => {
@@ -63,6 +64,31 @@ router.post('/use/:itemId/:classroomId', ensureAuthenticated, async (req, res) =
 
     await req.user.save();
     await Item.findByIdAndDelete(item._id); // Remove after use
+
+    //still uses URL first, but with classId fallbacks
+    const classroomId =
+      req.params.classroomId ||
+      req.body.classroomId ||
+      req.body.classId ||            // added this
+      req.query.classroomId ||
+      req.query.classId ||           // added this
+      item.classroom ||
+      item.classroomId ||
+      item.classId;                  // added this
+
+    if (classroomId) {
+      try {
+        await xpOnStatIncrease({
+          userId: req.user._id,
+          classroomId,
+          count: 1,
+        });
+      } catch (e) {
+        console.warn('[XP Hook] xpOnStatIncrease from utilityItem failed:', e.message);
+      }
+    } else {
+      console.warn('[XP Hook] utilityItem: no classroomId/classId found for XP');
+    }
 
     res.json({ 
       message: 'Utility item applied',

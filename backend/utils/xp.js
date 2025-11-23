@@ -246,10 +246,6 @@
 //     }
 //   }
 
-//   // if (opts.oneTimeKey) cb.meta[opts.oneTimeKey] = true;
-
-//   // await user.save();
-//   // return { ok: true, leveled, level: cb.level, xp: cb.xp, added: xpToAdd };
 //   if (opts.oneTimeKey) cb.meta[opts.oneTimeKey] = true;
 
 // // Optional: track total XP (only if you like)
@@ -336,7 +332,34 @@ async function awardXP({ userId, classroomId, opts = {} }) {
     return { ok: false, reason: 'no-classroom' };
   }
 
-  const settings = classroom.xpSettings || {};
+  // merge classroom.xpSettings with defaults so every classroom works by default
+  const rawSettings = classroom.xpSettings || {};
+  const defaultSettings = {
+    isXPEnabled: true,               // XP ON by default unless explicitly turned off
+    xpFormulaType: 'exponential',
+    baseXPLevel2: 100,
+    bitToXpCountMode: 'final',
+    xpRewards: {
+      xpPerBitEarned:    1,
+      xpPerBitSpent:     0.5,
+      xpPerStatsBoost:   10,
+      dailyCheckInXP:    5,
+      dailyCheckInLimit: 1,
+      groupJoinXP:       10,
+      challengeXP:       25,
+      mysteryBoxUseXP:   0,
+    },
+  };
+
+  const settings = {
+    ...defaultSettings,
+    ...rawSettings,
+    xpRewards: {
+      ...defaultSettings.xpRewards,
+      ...(rawSettings.xpRewards || {}),
+    },
+  };
+
   if (!settings.isXPEnabled) {
     console.warn('[XP] xp disabled for classroom', classroomId);
     return { ok: false, reason: 'xp-disabled' };
@@ -392,7 +415,7 @@ async function awardXP({ userId, classroomId, opts = {} }) {
 
   let xpToAdd = 0;
 
-  // Direct XP (e.g., challenge rewards)
+  // Direct XP (e.g., challenge rewards, stat boosts, mystery box, etc.)
   if (typeof opts.rawXP === 'number' && Number.isFinite(opts.rawXP)) {
     xpToAdd += Math.max(0, opts.rawXP);
   }
@@ -484,5 +507,3 @@ module.exports = {
   awardXP,
   ALLOWED_REWARD_KEYS,
 };
-
-

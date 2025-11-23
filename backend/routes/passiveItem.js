@@ -4,10 +4,12 @@ const Item = require('../models/Item');
 const User = require('../models/User');
 const Group = require('../models/Group');
 const { ensureAuthenticated } = require('../config/auth');
+const { xpOnStatIncrease } = require('../middleware/xpHooks');
 
 // Passive items are another category of the item bazaar which will grant users multipliers, group multipliers, and luck
 
-router.post('/equip/:itemId', ensureAuthenticated, async (req, res) => {
+// added :classroomId here
+router.post('/equip/:itemId/:classroomId', ensureAuthenticated, async (req, res) => {
   try {
     const item = await Item.findById(req.params.itemId);
     
@@ -45,6 +47,40 @@ router.post('/equip/:itemId', ensureAuthenticated, async (req, res) => {
     item.active = true;
     await req.user.save();
     await item.save();
+
+    //classroomId lookup, including classId
+    let classroomId =
+      req.params.classroomId ||
+      req.body.classroomId ||
+      req.body.classId ||              // added this
+      req.query.classroomId ||
+      req.query.classId ||             // added this
+      item.classroom ||
+      item.classroomId ||
+      item.classId;                    // added this
+
+    // use single classroom from user balances, if that's all they have
+    if (
+      !classroomId &&
+      Array.isArray(req.user.classroomBalances) &&
+      req.user.classroomBalances.length === 1
+    ) {
+      classroomId = req.user.classroomBalances[0].classroom;
+    }
+
+    if (classroomId) {
+      try {
+        await xpOnStatIncrease({
+          userId: req.user._id,
+          classroomId,
+          count: 1,
+        });
+      } catch (e) {
+        console.warn('[XP Hook] xpOnStatIncrease from passiveItem failed:', e.message);
+      }
+    } else {
+      console.warn('[XP Hook] passiveItem: no classroomId/classId found for XP');
+    }
 
     res.json({ 
       message: 'Passive item equipped',
