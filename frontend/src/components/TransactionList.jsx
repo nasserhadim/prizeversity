@@ -57,6 +57,30 @@ const TransactionList = ({ transactions }) => {
   // Memoized list of transactions filtered by type (or all if filterType='all')
   const visible = transactions || [];
 
+  // NEW: helper to group identical items within a transaction
+  const groupTxItems = (items) => {
+    const map = new Map();
+    for (const it of items) {
+      if (!it) continue;
+      const key = [
+        it.name,
+        it.price,
+        it.category,
+        it.primaryEffect,
+        it.primaryEffectValue,
+        (it.description || '').split('\n\nEffect:')[0].trim()
+      ].join('||');
+      const existing = map.get(key);
+      if (existing) {
+        existing.count += 1;
+        existing.items.push(it);
+      } else {
+        map.set(key, { ref: it, count: 1, items: [it] });
+      }
+    }
+    return Array.from(map.values());
+  };
+
   // cache for order lookups when tx.items is missing
   const [orderCache, setOrderCache] = useState({});
 
@@ -134,52 +158,48 @@ const TransactionList = ({ transactions }) => {
             {/* If this transaction contains purchased items (checkout), render item list summary */}
             {((tx.items && tx.items.length > 0) || (tx.orderId && orderCache[tx.orderId]?.length)) && (
               <div className="mt-3 space-y-2">
-                {(tx.items && tx.items.length > 0 ? tx.items : orderCache[tx.orderId] || []).map((it) => {
-                   // Split description into main + Effect (same helper used by OrderCard)
-                   const { main: descMain, effect: effectFromDesc } = splitDescriptionEffect(it.description || '');
-                   const autoEffect = getEffectDescription(it);
-                   return (
-                     <div key={it.id || it._id || it.name} className="flex items-start gap-3">
-                       <div className="w-10 h-10 bg-base-200 rounded overflow-hidden flex items-center justify-center flex-shrink-0">
-                         <img
-                           src={resolveImageSrc(it.image)}
-                           alt={it.name}
-                           className="object-cover w-full h-full"
-                           onError={(e) => {
-                             e.currentTarget.onerror = null;
-                             e.currentTarget.src = '/images/item-placeholder.svg';
-                           }}
-                         />
-                       </div>
+                {(() => {
+                  const rawItems = tx.items && tx.items.length > 0 ? tx.items : (orderCache[tx.orderId] || []);
+                  const grouped = tx.type === 'purchase'
+                    ? groupTxItems(rawItems)
+                    : rawItems.map(it => ({ ref: it, count: 1, items: [it] }));
+                  return grouped.map(g => {
+                    const it = g.ref;
+                    if (!it) return null;
+                    // Split description into main + Effect (same helper used by OrderCard)
+                    const { main: descMain, effect: effectFromDesc } = splitDescriptionEffect(it.description || '');
+                    const autoEffect = getEffectDescription(it);
+                    return (
+                      <div key={it.id || it._id || it.name} className="flex items-start gap-3">
+                        <div className="w-10 h-10 bg-base-200 rounded overflow-hidden flex items-center justify-center flex-shrink-0">
+                          <img
+                            src={resolveImageSrc(it.image)}
+                            alt={it.name}
+                            className="object-cover w-full h-full"
+                            onError={(e) => {
+                              e.currentTarget.onerror = null;
+                              e.currentTarget.src = '/images/item-placeholder.svg';
+                            }}
+                          />
+                        </div>
 
-                       <div className="flex-1 min-w-0">
-                         <div className="font-medium truncate">
-                           {it.name} <span className="text-xs text-base-content/50">({Number.isFinite(Number(it.price)) ? `${it.price} ₿` : '—'})</span>
-                         </div>
-
-                         {/* Description main text */}
-                         {descMain ? (
-                           <div className="text-xs text-base-content/70 whitespace-pre-wrap mt-1">
-                             {descMain}
-                           </div>
-                         ) : it.description && !effectFromDesc ? (
-                           <div className="text-xs text-base-content/70 line-clamp-2 mt-1">
-                             {it.description}
-                           </div>
-                         ) : null}
-
-                         {/* Explicit Effect line (if present) or auto-generated effect */}
-                         {effectFromDesc ? (
-                           <div className="text-xs text-base-content/60 mt-1"><strong>Effect:</strong> {effectFromDesc}</div>
-                         ) : (autoEffect && (
-                           <div className="text-xs text-base-content/60 mt-1"><strong>Effect:</strong> {autoEffect}</div>
-                         )) }
-                       </div>
-                     </div>
-                   );
-                 })}
-               </div>
-             )}
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium truncate">
+                            {it.name}{g.count > 1 && <span className="ml-1 text-xs badge badge-outline">x{g.count}</span>} <span className="text-xs text-base-content/50">({Number.isFinite(Number(it.price)) ? `${it.price} ₿` : '—'})</span>
+                          </div>
+                          {descMain && <div className="text-xs text-base-content/70 truncate">{descMain}</div>}
+                          {(effectFromDesc || autoEffect) && (
+                            <div className="text-xs text-base-content/60 truncate">
+                              <strong>Effect:</strong> {effectFromDesc || autoEffect}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            )}
           </div>
 
           <p className={`text-lg font-bold ${colour(tx.amount)}`}>

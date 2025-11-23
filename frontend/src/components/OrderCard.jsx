@@ -117,29 +117,58 @@ export default function OrderCard({ order }) {
               // If some items are missing/deleted, fallback to metadata
               displayItems = order.metadata?.itemDetails || displayItems.filter(i => i && i.name);
             }
-            
-            return displayItems.map((item, idx) => {
-              if (!item) return null; // Skip null/undefined items
-              
+
+            // NEW: group identical purchased items (only for normal purchase orders)
+            const groupItems = (items) => {
+              const map = new Map();
+              for (const it of items) {
+                if (!it) continue;
+                // Build a stable grouping key. You can adjust fields if needed.
+                const key = [
+                  it.name,
+                  it.price,
+                  it.category,
+                  it.primaryEffect,
+                  it.primaryEffectValue,
+                  // avoid huge descriptions in key; assume identical items share same main description
+                  (it.description || '').split('\n\nEffect:')[0].trim()
+                ].join('||');
+                const entry = map.get(key);
+                if (entry) {
+                  entry.count += 1;
+                  entry.items.push(it);
+                } else {
+                  map.set(key, { ref: it, count: 1, items: [it] });
+                }
+              }
+              return Array.from(map.values());
+            };
+
+            const grouped = order.type === 'purchase'
+              ? groupItems(displayItems)
+              : displayItems.map(it => ({ ref: it, count: 1, items: [it] }));
+
+            return grouped.map((g, idx) => {
+              const item = g.ref;
+              if (!item) return null;
               const priceLabel = Number.isFinite(Number(item.price)) ? `(${Number(item.price)} ₿)` : '';
               const { main, effect } = splitDescriptionEffect(item.description || '');
-              
               return (
                 <div key={item._id || idx} className="flex items-start gap-3 bg-base-200 p-3 rounded-lg">
                   {/* Rarity badge for mystery box rewards */}
                   {order.type === 'mystery_box' && order.metadata?.wonItemRarity && (
                     <span className={`badge badge-sm ${
                       order.metadata.wonItemRarity === 'legendary' ? 'badge-warning' :
-                      order.metadata.wonItemRarity === 'epic' ? 'badge-secondary' :
-                      order.metadata.wonItemRarity === 'rare' ? 'badge-primary' :
-                      order.metadata.wonItemRarity === 'uncommon' ? 'badge-accent' :
-                      'badge-ghost'
+                      order.metadata.wonItemRarity === 'epic'      ? 'badge-secondary' :
+                      order.metadata.wonItemRarity === 'rare'      ? 'badge-primary' :
+                      order.metadata.wonItemRarity === 'uncommon'  ? 'badge-accent'  :
+                      'badge-neutral' // common or unknown
                     }`}>
                       {order.metadata.wonItemRarity}
                     </span>
                   )}
-                  
-                  <div className="w-12 h-12 bg-base-200 rounded overflow-hidden flex items-center justify-center flex-shrink-0">
+
+                  <div className="w-12 h-12 bg-base-300 rounded flex items-center justify-center overflow-hidden flex-shrink-0">
                     <img
                       src={resolveImageSrc(item.image)}
                       alt={item.name}
@@ -152,22 +181,17 @@ export default function OrderCard({ order }) {
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <div className="font-medium truncate">{item.name} {priceLabel}</div>
+                    <div className="font-semibold truncate">
+                      {item.name}{g.count > 1 && <span className="ml-1 text-xs badge badge-outline">x{g.count}</span>} {priceLabel}
                     </div>
-
-                    {main && (
-                      <div className="text-sm text-base-content/70 whitespace-pre-wrap mt-1">{main}</div>
-                    )}
-
+                    {main && <div className="text-xs text-base-content/70 whitespace-pre-wrap">{main}</div>}
                     {effect && (
-                      <div className="text-sm text-base-content/60 mt-1">
+                      <div className="text-xs text-base-content/60 mt-1">
                         <strong>Effect:</strong> {effect}
                       </div>
                     )}
-
                     {!effect && getEffectDescription(item) && (
-                      <div className="text-sm text-base-content/60 mt-1">
+                      <div className="text-xs text-base-content/60 mt-1">
                         <strong>Effect:</strong> {getEffectDescription(item)}
                       </div>
                     )}
