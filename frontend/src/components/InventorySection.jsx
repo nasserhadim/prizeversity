@@ -305,7 +305,20 @@ const InventorySection = ({ userId, classroomId }) => {
              {item.active && (
                <p className="text-green-600 font-semibold">🛡 Active</p>
              )}
-           </div>
+            {/* NEW: timestamps */}
+            <div className="text-xs text-base-content/60 space-y-0.5">
+              {item.createdAt && (
+                <div>
+                  <strong>Added:</strong> {new Date(item.createdAt).toLocaleString()}
+                </div>
+              )}
+              {item.activatedAt && (
+                <div>
+                  <strong>Activated:</strong> {new Date(item.activatedAt).toLocaleString()}
+                </div>
+              )}
+            </div>
+          </div>
 
           <div className="flex flex-col gap-2 md:w-1/3">
             {item.category === 'Attack' && (

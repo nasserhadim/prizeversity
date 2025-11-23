@@ -43,6 +43,7 @@ const ItemSchema = new mongoose.Schema({
     default: false 
   }, // ADD: Track if item is fully consumed
   active: { type: Boolean, default: false },
+  activatedAt: { type: Date }, // ← NEW: when effect was activated/equipped
   
   owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   createdAt: { type: Date, default: Date.now },

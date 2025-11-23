@@ -59,6 +59,9 @@ router.post('/equip/:itemId', ensureAuthenticated, async (req, res) => {
       await Promise.all(userGroups.map(g => g.save()));
     }
 
+    // Equip passive item (mark active + timestamp)
+    item.active = true;              // ← NEW
+    item.activatedAt = new Date();   // ← NEW
     // ADD: Mark item as consumed
     item.usesRemaining = Math.max(0, (item.usesRemaining || 1) - 1);
     item.consumed = item.usesRemaining === 0;

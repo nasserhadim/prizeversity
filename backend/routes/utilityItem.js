@@ -46,6 +46,8 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
     await req.user.save();
     item.usesRemaining = Math.max(0, (item.usesRemaining || 1) - 1);
     item.consumed = item.usesRemaining === 0;
+    item.active = true;              // ← NEW (so UI can show activation)
+    item.activatedAt = new Date();   // ← NEW
     await item.save();
 
     // award XP for stat increases (multiplier or discount)

@@ -33,9 +33,9 @@ router.post('/activate/:itemId', ensureAuthenticated, async (req, res) => {
 
     // Activate shield
     item.active = true;
-    // ADD: Mark item usage
     item.usesRemaining = Math.max(0, (item.usesRemaining || 1) - 1);
     item.consumed = item.usesRemaining === 0;
+    item.activatedAt = new Date(); // ← NEW
     await item.save();
 
     req.user.shieldCount = (req.user.shieldCount || 0) + 1;
