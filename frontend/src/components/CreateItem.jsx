@@ -20,15 +20,14 @@ const CATEGORY_OPTIONS = {
     { label: 'Shop Discount', value: 'discountShop' }
   ],
   Passive: [], // No primary effects for passive
-  Mystery: [] 
+  "Mystery Box": [] 
 };
 const RARITY_OPTIONS = {
-    Common: [{ weight: 40, luckWeight: 1}],
-    Uncommon: [{ weight: 30, luckWeight: 2}],
-    Rare: [{ weight: 20, luckWeight: 3}],
-    Epic: [{ weight: 8, luckWeight: 4}],
-    Legendary: [{ weight: 2, luckWeight: 5}],
-    Custom: []
+    Common: [{ weight: 40000, luckWeight: 1000}],
+    Uncommon: [{ weight: 30000, luckWeight: 2000}],
+    Rare: [{ weight: 20000, luckWeight: 3000}],
+    Epic: [{ weight: 8000, luckWeight: 4000}],
+    Legendary: [{ weight: 2000, luckWeight: 5000}]
 }
 
 // helper: ensure URL has a scheme so browser won't treat it as invalid
@@ -54,7 +53,8 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
     secondaryEffects: [],
     swapOptions: [],
     duration: '', // added for discount duration
-    prizeWeights: {} // added for the mystery box prize weights
+    prizeWeights: {}, // added for the mystery box prize weights
+    luckFactor: ''
   });
   const [loading, setLoading] = useState(false);
   const [effectPreview, setEffectPreview] = useState('');
@@ -64,9 +64,8 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
   const [imageUrlLocal, setImageUrlLocal] = useState('');
   const [allPrizes, setAllPrizes] = useState([]);// non mystery items
   const [selectedRewards, setSelectedRewards] = useState([]); // { itemId: { checked, weight } }
-  const [showProbs, setShowProbs] = useState(false);
-  const [studentLuck, setStudentLuck] = useState(1);
-  const [useCustom, setUseCustom] = useState(false);
+  const [showWork, setShowWork] = useState(false);
+  const [showLuck, setShowLuck] = useState(false);
   const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
   const fileInputRef = useRef(null); // ADD: to clear native file input after submit
  
@@ -111,6 +110,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
       swapOptions: [],
       duration: '', // added for discount duration
       prizeWeights: {}, // added for the mystery box prize weights
+      luckFactor: ''
     });
     // reset image controls too
     setImageSource('url');
@@ -133,7 +133,8 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
         secondaryEffects: [],
         swapOptions: [],
         duration: '', // added for discount duration
-        prizeWeights: {} // added for the mystery box prize weights
+        prizeWeights: {}, // added for the mystery box prize weights
+        luckFactor: ''
       } : {})
     }));
   };
@@ -212,22 +213,24 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
   // following functions: adds, updates, removes possible prizes
   const addPrize = () => {
     if (selectedRewards.length >= allPrizes.length) return;
-    const w = (useCustom ? 10 : 40);
-    const l = (useCustom ? 1 : 2);
     setSelectedRewards(prev => [
         ...prev,
-        {itemId: "", weight: w, luckWeight: l, rarity: "Custom"}
+        {itemId: "", weight: 40000, luckWeight: 1000, rarity: "Common"}
     ]);
   };
 
-  const updatePrize = (spot, part, change) => {
+  const updatePrize = (spot, change) => {
     setSelectedRewards(prev => {
         const copy = [...prev];
-        copy[spot] = {...copy[spot], [part]: change};
-        if (part === "weight" || part === "luckWeight")
-        {
-             copy[spot] = {...copy[spot], rarity: "Custom"};
-        }
+        copy[spot] = {...copy[spot], "itemId": change};
+        return copy;
+    });
+  };
+
+  const updateProb = (spot, prob) => {
+    setSelectedRewards(prev => {
+        const copy = [...prev];
+        copy[spot] = {...copy[spot], probability: Number(prob)};
         return copy;
     });
   };
@@ -236,7 +239,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
     const r = RARITY_OPTIONS[rarityS][0];
     setSelectedRewards(prev => {
         const copy = [...prev];
-        copy[spot] = {...copy[spot], weight: r.weight, luckWeight: r.luckWeight, rarity: rarityS};
+        copy[spot] = {...copy[spot], weight: r.weight, luckWeight: r.luckWeight, rarity: rarityS, probability: null};
         return copy;
     });
   };
@@ -255,12 +258,31 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
   };
 
     //
-    function itemProb(item) {
-        const itemW = (item.weight + item.luckWeight * (studentLuck-1));
+    function itemProbBase(item) {
+        const itemW = item.weight;
 
-        const allW = selectedRewards.reduce((total, oItem) => total + (oItem.weight + oItem.luckWeight * (studentLuck-1)), 0);
+        const allW = selectedRewards.reduce((total, oItem) => total + oItem.weight, 0);
         const prob = Math.round(10000 *itemW / allW) / 100;
         return prob;
+    }
+    function totalProb() {
+        const {percents, weights, totalW} = selectedRewards.reduce(
+            (totals, oItem) => {
+                totals.totalW += Number(oItem.weight) || 0;
+                oItem.probability != null ?
+                (totals.percents += Number(oItem.probability) || 0) :
+                (totals.weights += Number(oItem.weight) || 0);
+
+                return totals;
+            }, {percents: 0, weights: 0, totalW: 0}
+        )
+        const wp = weights / totalW * 100; //weights percentage
+        return percents + wp || 100;
+    }
+    // if the item isn't a mystery box - or the totalProb is either too low or too high, return false
+    // else, return true
+    function haltMystery() {
+        return form.category === 'Mystery Box' && (totalProb().toFixed(2) <= 99.99 || totalProb().toFixed(2) >= 100.01);    
     }
 
 
@@ -268,14 +290,24 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
   //helper will retun the teacher award selection into jason structure 
 
   const buildRewardsPayload = () => {
-    if (form.category !== 'Mystery') return [];
+    if (form.category !== 'Mystery Box') return [];
+    const totalW = selectedRewards.reduce((total, oItem) => total + oItem.weight, 0);
     return selectedRewards
         .filter(r => r.itemId)
-        .map(r => ({
+        .map(r => {
+            const i = allPrizes.find(p => p._id === r.itemId)
+            let weight = Number(r.weight) || 2000;
+            if (r.probability != null)
+            {
+                weight = Number(r.probability * totalW / 100);
+            }
+            return {
             itemId: r.itemId,
-            weight: Number(r.weight) || 10,
+            itemName: i ? i.name : "",
+            weight: weight,
             luckWeight: Number(r.luckWeight) || 0
-        }));
+            }
+        });
   };
 
   
@@ -285,7 +317,13 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    
     try {
+        // double check probabilities
+        if (haltMystery())
+        {
+            throw new Error("Mystery box item percentages don't add up to 100%.");
+        }
       // build effect summary and append to description so teachers don't have to type it
       // use the editable preview (teachers may have tweaked wording)
       const cleanedEffect = (effectPreview || '').trim();
@@ -308,6 +346,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
         fd.append('bazaar', bazaarId);
         fd.append('image', imageFile);
         fd.append('rewards', JSON.stringify(buildRewardsPayload()));
+        fd.append('luckFactor', Number(form.luckFactor))
 
 
         const res = await apiBazaar.post(
@@ -338,7 +377,8 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
           swapOptions: form.primaryEffect === 'swapper' ? form.swapOptions : undefined,
           duration: form.primaryEffect === 'discountShop' ? Number(form.duration) : undefined,
           bazaar: bazaarId,
-          rewards: buildRewardsPayload()
+          rewards: buildRewardsPayload(),
+          luckFactor: Number(form.luckFactor)
         };
         console.log(payload);
         const res = await apiBazaar.post(
@@ -357,8 +397,17 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
        setLoading(false);
      }
    };
+
+    // displays the effect of luck
+    const displayLuck = () => {
+        setShowLuck(true);
+    }
+    const displayWork = () => {
+        setShowWork(true);
+    }
  
    return (
+    <>
      <form
        onSubmit={handleSubmit}
        className="card bg-base-100 border border-base-200 shadow-md rounded-2xl p-6 space-y-4"
@@ -471,7 +520,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
        </div>
  
        {/* Primary Effect (for non-passive categories and mystery box) */}
-       {form.category && !['Passive', 'Mystery'].includes(form.category) && (
+       {form.category && !['Passive', 'Mystery Box'].includes(form.category) && (
          <div className="space-y-4">
            <div className="form-control">
              <label className="label">
@@ -681,68 +730,52 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
 
 
        {/* Mystery box */}
-       {(form.category === 'Mystery') && (
+       {(form.category === 'Mystery Box') && (
             <div className="form-control space-y-2">
                 <label className="label">
                     <span className="label-text font-medium">Item Pool</span>
+                    <div className="flex">
+                        <button
+                        className="btn"
+                        type="button"
+                        onClick={displayWork}
+                        >
+                        How it works
+                        </button>
+                    </div>
                     {(allPrizes.length > 0) && (
                         <span className="label-text-alt">
                             {selectedRewards.length}/{allPrizes.length} selected
                         </span>
                     )}
                 </label>
+                
+                
                 <div className="flex items-center gap-2 mb-2">
-                    <span className="label-text font-medium">Probabilities</span>
-                    <div className="inline-flex rounded-full bg-gray-200 p-1">
-                        
-                        <button type="button" onClick={() => setShowProbs(true)} className={`px-3 py-1 rounded-full text-sm ${showProbs === true ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}>Show</button>
-                        <button type="button" onClick={() => setShowProbs(false)} className={`ml-1 px-3 py-1 rounded-full text-sm ${showProbs === false ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}>Hide</button>
-                    </div>
-                </div>
-                {showProbs && (
-                    <div className="flex items-center gap-2 mb-2">
-                        <span className="label-text font-medium">
-                            Student luck <span className='label-text font-medium'></span>
-                        </span>
-                        <span className="p-1"></span>
+                    <span className="label-text font-medium">
+                        Luck Factor <span className='label-text font-medium'></span>
+                    </span>
+                    <span className="p-1"></span>
                     
-                    <input
-                        type="number"
-                        min="1"
-                        className="input input-bordered w-20"
-                        value={studentLuck}
-                            onChange={(e) => setStudentLuck( Number(e.target.value))}
-                        />
-                    </div>
-                )}
-                <div className="flex items-center gap-2 mb-2">
-                    <span className="label-text font-medium">Set weights</span>
-                    <div className="inline-flex rounded-full bg-gray-200 p-1">
-                        
-                        <button type="button" onClick={() => setUseCustom(true)} className={`px-3 py-1 rounded-full text-sm ${useCustom === true ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}>Use Advanced</button>
-                        <button type="button" onClick={() => setUseCustom(false)} className={`ml-1 px-3 py-1 rounded-full text-sm ${useCustom === false ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}>Use Preset</button>
-                    </div>
-                </div>
+                <input
+                    type="number"
+                    min="1"
+                    className="input input-bordered w-20"
+                    value={form.luckFactor || 1}
+                        onChange={(e) => setForm(prev => ({ ...prev, luckFactor: Number(e.target.value) }))}
+                    />
+                </div> 
+                
                 
                 {/* Headers - so the user knows what the boxes represent */}
                 {selectedRewards.length > 0 && (
                 <div className="flex items-center gap-3 px-1 text-sm">
                     <span className="flex-1">Item</span>
+                    <span className="flex-1">Total %: {totalProb().toFixed(2)}</span>
                     <div className="flex items-center gap-2">
-                            {showProbs && (
-                                <span className="w-8 text-left">%</span>
-                            )}
-                            {useCustom && (
-                                <>
-                                    <span className="w-20 text-center">Luck Weight</span>
-                                    <span className="w-20 text-center">Base Weight</span>
-                                </>
-                            )}
-                            {!useCustom && (
-                                <span className="w-40 text-center">Rarity</span>
-                            )}
-                            
-                            <span className="w-8 text-center"></span>
+                        <span className="w-8 text-left">%</span>
+                        <span className="w-40 text-center">Rarity</span>
+                        <span className="w-8 text-center"></span>
                     </div>
                 </div>
                 )}
@@ -755,7 +788,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                         <select
                             className="select select-bordered flex-1"
                             value = {reward.itemId}
-                            onChange={(e) => updatePrize(spot, "itemId", e.target.value)}
+                            onChange={(e) => updatePrize(spot, e.target.value)}
                             required
                             >
                         <option value="" disabled>Select item</option>
@@ -767,51 +800,36 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                         </select>
 
                         {/* Probability */}
-                        {showProbs && (
-                            <label className="w-10"> {itemProb(selectedRewards[spot]).toFixed(2)}</label>
-                        )}
+                        {/*
+                         <label className="w-10"> {itemProbBase(selectedRewards[spot]).toFixed(2)}</label>
+                        */}
+                        <input
+                            type="number"
+                            className="input input-bordered"
+                            min="0"
+                            max="100"
+                            step="0.01"
+                            value={reward.probability ?? itemProbBase(selectedRewards[spot]).toFixed(2)}
+                            onChange={(e) => updateProb(spot, e.target.value)}
+                        />
 
 
                         
-                        {useCustom && (
-                            <>
-                            {/* Luck weight */}
-                            <input
-                                type="number"
-                                min="0"
-                                className="input input-bordered w-20"
-                                value={reward.luckWeight}
-                                onChange={(e) => updatePrize(spot, "luckWeight", Number(e.target.value))}
-                                />
-
-                            {/* Base weight */}
-                            <input
-                                type="number"
-                                min="0"
-                                className="input input-bordered w-20"
-                                value={reward.weight}
-                                onChange={(e) => updatePrize(spot, "weight", Number(e.target.value))}
-                                />
-                            </>
-                        )}
-                        {!useCustom && (
-                            <>
-                                {/* Rarity */}
-                                <select
-                                    name="rarity"
-                                    className="select select-bordered w-40"
-                                    value={reward.rarity}
-                                    onChange={(e) => updateRarity(spot, e.target.value)}
-                                    required
-                                    >
-                                    <option value="" disabled>Select rarity</option>
-                                    {Object.keys(RARITY_OPTIONS).map(opt => (
-                                        <option key={opt} value={opt}>{opt}</option>
-                                    ))}
-                                </select>
-                            </>
-
-                        )}
+                        
+                        
+                            {/* Rarity */}
+                            <select
+                                name="rarity"
+                                className="select select-bordered w-40"
+                                value={reward.rarity}
+                                onChange={(e) => updateRarity(spot, e.target.value)}
+                                required
+                                >
+                                <option value="" disabled>Select rarity</option>
+                                {Object.keys(RARITY_OPTIONS).map(opt => (
+                                    <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                            </select>
 
                         {/* Remove button: */}
                         <button
@@ -831,9 +849,18 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                         className="btn btn-sm btn-outline w-full"
                         onClick={addPrize}
                         >
-                        + Add Reward
+                        + Add Item
                     </button>
                 )}
+                <div className="flex justify-center gap-4 mt-4">
+                    <button
+                    className="btn"
+                    type="button"
+                    onClick={displayLuck}
+                    >
+                    Preview Luck Stat effect
+                    </button>
+                </div>
             
            
                 {/* No items selected prompt */}
@@ -882,7 +909,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
  
        <button
          className="btn btn-success w-full mt-2"
-         disabled={loading}
+         disabled={loading || haltMystery()}
          type="submit"
        >
          {loading ? (
@@ -895,6 +922,40 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
          )}
        </button>
      </form>
+     {/* How it works pop-up, plus */}
+     {showWork && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
+                Work
+                <button
+                className="btn btn-success"
+                onClick={() => {
+                    setShowWork(false);
+                }}
+                >
+                Close
+            </button>
+            </div>
+        </div>
+     )}
+     {showLuck && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
+                Luck
+                <button
+                className="btn btn-success"
+                onClick={() => {
+                    setShowLuck(false);
+                }}
+                >
+                Close
+            </button>
+            </div>
+        </div>
+
+     )}
+    
+     </>
    );
  };
  

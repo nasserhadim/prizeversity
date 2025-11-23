@@ -22,8 +22,8 @@ const InventorySection = ({ userId, classroomId }) => {
 
   const [openingId, setOpeningId] = useState(null); // ID of the mystery box being opened
   const [rewardPopup, setRewardPopup] = useState(null); // Reward popup state
-  const showReward = (name, image) => {
-    setRewardPopup({ name, image });
+  const showReward = (name, image, description, rarity) => {
+    setRewardPopup({ name, image, description, rarity });
     setTimeout(() => setRewardPopup(null), 5000);
   };
 
@@ -229,8 +229,10 @@ const openMystery = async (ownedId) => {
       // backend may send both; prefer the fully created owned prize if present
       const prize = data.awardedItemOwned || data.item || null;
       const prizeName = data?.reward?.name || prize?.name || 'a prize';
+      const prizeDesc = data?.reward?.description || prize?.description || 'No description.';
+      const prizeRar = data?.reward?.rarity || prize?.rarity || 'Unknown rarity.';
       //toast.success(`You received: ${prizeName}!`);
-      showReward(prizeName, prize?.image || null);
+      showReward(prizeName, prize?.image || null, prizeDesc, prizeRar);
 
       //remove the box from inventory
       setItems(prev => {
@@ -299,6 +301,7 @@ const openMystery = async (ownedId) => {
                       <strong>Effect:</strong> {getEffectDescription(item)}
                     </div>
                   )}
+
                 </>
               );
             })()}
@@ -396,6 +399,27 @@ const openMystery = async (ownedId) => {
                 <p className="text-sm text-base-content/60 mb-1">Congratulations!</p>
                 <h4 className="text-xl font-bold leading-tight">
                   You received <span className="text-success">{rewardPopup.name}</span>
+                    {(() => {
+                        const { main, effect } = splitDescriptionEffect(rewardPopup.description || '');
+                        return (
+                            <>
+                                <p className="text-sm text-base-content/70 whitespace-pre-wrap">Description: {main}</p>
+                                {effect && (
+                                    <div className="text-sm text-base-content/60 mt-1">
+                                        <strong>Effect:</strong> {effect}
+                                    </div>
+                                )}
+                                {!effect && getEffectDescription(rewardPopup) && (
+                                    <div className="text-sm text-base-content/60 mt-1">
+                                        <strong>Effect:</strong> {getEffectDescription(rewardPopup)}
+                                    </div>
+                                )}
+                            </>
+                        );
+                    })()}
+                    <div className="text-sm text-base-content/60 mt-1">
+                        <strong>Rarity:</strong> {rewardPopup.rarity}
+                    </div>
                 </h4>
               </div>
             </div>
