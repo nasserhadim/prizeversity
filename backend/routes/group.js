@@ -364,7 +364,7 @@ router.post('/groupset/:groupSetId/group/:groupId/join', ensureAuthenticated, as
 
     // Remove any old rejected requests from this specific group
     group.members = group.members.filter(m =>
-      !(m._id.equals(req.user._id) && m.status === 'rejected')
+      !m._id.equals(req.user._id)
     );
 
     const status = groupSet.joinApproval ? 'pending' : 'approved';
@@ -376,6 +376,50 @@ router.post('/groupset/:groupSetId/group/:groupId/join', ensureAuthenticated, as
     });
 
     await group.save();
+
+    // Award XP only the first time user is approved in this GroupSet
+    if (status === 'approved') {
+      try {
+        // Reload updated GroupSet after adding user
+        const updatedGroupSet = await GroupSet.findById(req.params.groupSetId)
+          .populate('groups');
+
+        // Mark user as having joined at least once
+        group.members.forEach(m => {
+          if (m._id.equals(req.user._id)) {
+            m.hasEverJoined = true;
+          }
+        });
+        await group.save();
+
+        // Check if user has ever joined any group in this GroupSet
+        const everJoinedBefore = updatedGroupSet.groups.some(g =>
+          g.members.some(m =>
+            m._id.equals(req.user._id) &&
+            m.hasEverJoined === true
+          )
+        );
+
+        // Only award XP if first time
+        if (!everJoinedBefore) {
+          const classroom = await Classroom.findById(updatedGroupSet.classroom);
+          const joinXP = Number(
+            classroom?.xpSettings?.xpRewards?.groupJoinXP ?? 0
+          );
+
+          if (joinXP > 0) {
+            const { awardXP } = require('../utils/xp');
+            await awardXP({
+              userId: req.user._id,
+              classroomId: classroom._id,
+              opts: { rawXP: joinXP }
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Failed to award XP on join:', err);
+      }
+    }
 
     // Update group multiplier after member joins
     await group.updateMultiplier();
@@ -711,7 +755,11 @@ router.post('/groupset/:groupSetId/group/:groupId/leave', ensureAuthenticated, b
     
     console.log(`Before leave - Group ${group.name}: ${group.members.length} members, multiplier: ${group.groupMultiplier}`);
     
-    group.members = group.members.filter(member => !member._id.equals(req.user._id));
+    group.members = group.members.filter(member =>
+      !member._id.equals(req.user._id)
+    );
+
+
     await group.save();
 
     // Update group multiplier after member leaves
@@ -802,12 +850,26 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
       // If this member should be approved, update their status
       if (approved.includes(memberId)) {
         member.status = 'approved';
+        member.hasEverJoined = true;
       }
       
       return true; // Keep in group
     });
 
     await group.save();
+
+    const allGroupsInSet = await Group.find({ _id: { $in: groupSet.groups } });
+
+    for (const g of allGroupsInSet) {
+      let changed = false;
+      for (const m of g.members) {
+        if (m._id.equals(memberIds[0])) {
+          m.hasEverJoined = true;
+          changed = true;
+        }
+      }
+      if (changed) await g.save();
+    }
 
     // Update group multiplier after approving members
     await group.updateMultiplier();
@@ -826,8 +888,38 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
       
       const populatedNotification = await populateNotification(notification._id);
       req.app.get('io').to(`user-${memberId}`).emit('notification', populatedNotification);
-    }
 
+      // Award XP for joining group
+      try {
+        const updatedGroupSet = await GroupSet.findById(req.params.groupSetId)
+          .populate('groups');
+
+        const everJoinedBefore = updatedGroupSet.groups.some(g =>
+          g.members.some(m =>
+            m._id.equals(memberId) &&
+            m.hasEverJoined === true
+          )
+        );
+
+        if (!everJoinedBefore) {
+          const classroom = await Classroom.findById(updatedGroupSet.classroom);
+          const joinXP = Number(
+            classroom?.xpSettings?.xpRewards?.groupJoinXP ?? 0
+          );
+
+          if (joinXP > 0) {
+            const { awardXP } = require('../utils/xp');
+            await awardXP({
+              userId: memberId,
+              classroomId: classroom._id,
+              opts: { rawXP: joinXP }
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Failed to award XP on approve:', err);
+      }
+    }
     // Send notifications to rejected members (due to capacity) - they were removed
     for (const memberId of rejected) {
       const notification = await Notification.create({
@@ -1130,7 +1222,11 @@ router.post('/groupset/:groupSetId/group/:groupId/leave', ensureAuthenticated, b
     
     console.log(`Before leave - Group ${group.name}: ${group.members.length} members, multiplier: ${group.groupMultiplier}`);
     
-    group.members = group.members.filter(member => !member._id.equals(req.user._id));
+    group.members = group.members.filter(member =>
+      !member._id.equals(req.user._id)
+    );
+
+
     await group.save();
 
     // Update group multiplier after member leaves
@@ -1221,12 +1317,25 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
       // If this member should be approved, update their status
       if (approved.includes(memberId)) {
         member.status = 'approved';
+        member.hasEverJoined = true;
       }
       
       return true; // Keep in group
     });
 
     await group.save();
+    const allGroupsInSet = await Group.find({ _id: { $in: groupSet.groups } });
+
+    for (const g of allGroupsInSet) {
+      let changed = false;
+      for (const m of g.members) {
+        if (m._id.equals(memberIds[0])) {
+          m.hasEverJoined = true;
+          changed = true;
+        }
+      }
+      if (changed) await g.save();
+    }
 
     // Update group multiplier after approving members
     await group.updateMultiplier();

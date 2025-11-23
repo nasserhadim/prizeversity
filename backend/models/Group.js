@@ -5,7 +5,8 @@ const GroupSchema = new mongoose.Schema({
   members: [{
     _id: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     joinDate: { type: Date, default: Date.now },
-    status: { type: String, enum: ['pending', 'approved'], default: 'approved' } // Removed 'rejected'
+    status: { type: String, enum: ['pending', 'approved'], default: 'approved' }, // Removed 'rejected'
+    hasEverJoined: { type: Boolean, default: false }
   }],
   maxMembers: { type: Number, default: null },
   image: { type: String, default: 'placeholder.jpg' },

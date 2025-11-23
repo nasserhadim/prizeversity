@@ -20,9 +20,11 @@ const TeacherBadgesPage = ({ classroomId }) => {
   const [sortField, setSortField] = useState('name');
   const [sortOrder, setSortOrder] = useState('asc');
   const navigate = useNavigate();
-
-  // NEW: which badge is currently in “are you sure?” mode
   const [confirmDeleteBadgeId, setConfirmDeleteBadgeId] = useState(null);
+  const [imageSource, setImageSource] = useState("url");
+  const [imageFile, setImageFile] = useState(null);
+  const [imageUrlLocal, setImageUrlLocal] = useState("");
+
 
   const [formData, setFormData] = useState({
     name: '',
@@ -124,6 +126,16 @@ const TeacherBadgesPage = ({ classroomId }) => {
     });
     setEditingBadge(badge);
     setShowModal(true);
+
+    setImageSource("url");
+    setImageFile(null);
+    setImageUrlLocal(
+      badge.imageUrl && !badge.imageUrl.startsWith("/uploads/")
+        ? badge.imageUrl
+        : ""
+    );
+
+
   };
 
   // Create / update badge
@@ -140,8 +152,16 @@ const TeacherBadgesPage = ({ classroomId }) => {
       data.append('icon', formData.icon);
       data.append('classroomId', classroomId);
       data.append('teacherId', user._id);
-      if (formData.image) data.append('image', formData.image);
-
+      if (imageSource === "file") {
+        if (imageFile) {
+          data.append("image", imageFile);
+        }
+      } else if (imageSource === "url") {
+        const cleanUrl = imageUrlLocal.trim();
+        if (cleanUrl !== "") {
+          data.append("imageUrl", cleanUrl);
+        }
+}
       let res;
 
       if (editingBadge) {
@@ -213,6 +233,87 @@ const TeacherBadgesPage = ({ classroomId }) => {
     URL.revokeObjectURL(url);
   };
 
+  const BadgeImageInput = ({
+    imageSource,
+    setImageSource,
+    imageFile,
+    setImageFile,
+    imageUrlLocal,
+    setImageUrlLocal
+  }) => (
+    <div className="form-control">
+      <label className="text-sm font-semibold mb-1">Badge Image:</label>
+
+      <div className="inline-flex rounded-full bg-gray-200 p-1 mb-2 w-fit">
+
+
+        <button
+          type="button"
+          onClick={() => {
+            setImageSource("url");
+            setImageFile(null);
+            setImageUrlLocal("");
+          }}
+          className={`px-3 py-1 rounded-full text-sm ${
+            imageSource === "url" ? "bg-white shadow" : ""
+          }`}
+        >
+          URL
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setImageSource("file");
+            setImageUrlLocal("");
+          }}
+          className={`ml-1 px-3 py-1 rounded-full text-sm ${
+            imageSource === "file" ? "bg-white shadow" : ""
+          }`}
+        >
+          Upload
+        </button>
+      </div>
+
+      {imageSource === "file" ? (
+        <>
+          <div className="flex">
+            <label className="bg-gray-800 text-white px-4 py-2 rounded-l-md cursor-pointer">
+              Choose File
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files[0];
+                  setImageFile(file);
+                }}
+              />
+            </label>
+
+            <div className="flex-1 border border-gray-300 px-3 py-2 rounded-r-md truncate">
+              {imageFile ? imageFile.name : "No file chosen"}
+            </div>
+          </div>
+
+          <p className="text-xs text-gray-500 mt-1">
+            Allowed: jpg, png, webp, gif. Max 5 MB.
+          </p>
+        </>
+      ) : (
+        <input
+          type="url"
+          className="input input-bordered w-full"
+          placeholder="https://example.com/image.png"
+          value={imageUrlLocal}
+          onChange={(e) => setImageUrlLocal(e.target.value)}
+        />
+      )}
+    </div>
+  );
+
+
+
   return (
     <div className="w-full px-6 pb-10">
       <div className="mb-2">
@@ -229,7 +330,13 @@ const TeacherBadgesPage = ({ classroomId }) => {
         <h2 className="text-xl font-bold">Badge Management</h2>
         <button
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
-          onClick={() => setShowModal(true)}
+          onClick={() => {
+            setShowModal(true);
+            setEditingBadge(null);
+            setImageSource("url");
+            setImageFile(null);
+            setImageUrlLocal("");
+          }}
         >
           + Create Badge
         </button>
@@ -425,18 +532,14 @@ const TeacherBadgesPage = ({ classroomId }) => {
               </label>
 
               {/* Badge Image Upload */}
-              <label className="text-sm font-semibold">
-                Badge Image:
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => {
-                    const file = e.target.files[0];
-                    if (file) setFormData({ ...formData, image: file });
-                  }}
-                  className="border p-2 rounded w-full mt-1"
-                />
-              </label>
+              <BadgeImageInput
+                imageSource={imageSource}
+                setImageSource={setImageSource}
+                imageFile={imageFile}
+                setImageFile={setImageFile}
+                imageUrlLocal={imageUrlLocal}
+                setImageUrlLocal={setImageUrlLocal}
+              />
 
               <div className="flex justify-end gap-3 mt-4">
                 <button
