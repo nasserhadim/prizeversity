@@ -380,7 +380,7 @@ const getDiscounts = async () => {
                   className="btn btn-success"
                   onClick={displayStats}
                 >
-                  View Stats
+                  View Details
                 </button>
             </div>
         )}

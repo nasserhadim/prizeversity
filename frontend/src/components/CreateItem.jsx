@@ -64,7 +64,8 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
   const [imageUrlLocal, setImageUrlLocal] = useState('');
   const [allPrizes, setAllPrizes] = useState([]);// non mystery items
   const [selectedRewards, setSelectedRewards] = useState([]); // { itemId: { checked, weight } }
-  const [showProbs, setShowProbs] = useState(false);
+  const [showWork, setShowWork] = useState(false);
+  const [showLuck, setShowLuck] = useState(false);
   const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
   const fileInputRef = useRef(null); // ADD: to clear native file input after submit
  
@@ -396,8 +397,17 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
        setLoading(false);
      }
    };
+
+    // displays the effect of luck
+    const displayLuck = () => {
+        setShowLuck(true);
+    }
+    const displayWork = () => {
+        setShowWork(true);
+    }
  
    return (
+    <>
      <form
        onSubmit={handleSubmit}
        className="card bg-base-100 border border-base-200 shadow-md rounded-2xl p-6 space-y-4"
@@ -724,6 +734,15 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
             <div className="form-control space-y-2">
                 <label className="label">
                     <span className="label-text font-medium">Item Pool</span>
+                    <div className="flex">
+                        <button
+                        className="btn"
+                        type="button"
+                        onClick={displayWork}
+                        >
+                        How it works
+                        </button>
+                    </div>
                     {(allPrizes.length > 0) && (
                         <span className="label-text-alt">
                             {selectedRewards.length}/{allPrizes.length} selected
@@ -833,6 +852,15 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                         + Add Item
                     </button>
                 )}
+                <div className="flex justify-center gap-4 mt-4">
+                    <button
+                    className="btn"
+                    type="button"
+                    onClick={displayLuck}
+                    >
+                    Preview Luck Stat effect
+                    </button>
+                </div>
             
            
                 {/* No items selected prompt */}
@@ -894,6 +922,40 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
          )}
        </button>
      </form>
+     {/* How it works pop-up, plus */}
+     {showWork && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
+                Work
+                <button
+                className="btn btn-success"
+                onClick={() => {
+                    setShowWork(false);
+                }}
+                >
+                Close
+            </button>
+            </div>
+        </div>
+     )}
+     {showLuck && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
+                Luck
+                <button
+                className="btn btn-success"
+                onClick={() => {
+                    setShowLuck(false);
+                }}
+                >
+                Close
+            </button>
+            </div>
+        </div>
+
+     )}
+    
+     </>
    );
  };
  
