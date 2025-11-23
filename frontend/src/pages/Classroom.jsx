@@ -45,9 +45,10 @@ const Classroom = () => {
   // live classroom-specific XP/level for THIS user (fresh from server)
   const [myCB, setMyCB] = useState(null);
 
-  //daily check-in UI state
   const [hasCheckedInToday, setHasCheckedInToday] = useState(false);
-  const [checkinLoading, setCheckinLoading] = useState(false);
+  //const [checkinLoading, setCheckinLoading] = useState(false);
+
+
 
   // fetch the live classroom XP/level for THIS user
   const fetchMyClassroomBalance = async () => {
@@ -112,25 +113,58 @@ const Classroom = () => {
       }
     })();
   }, [id, xpRefresh]);
-
-  //on load, ask backend if we already checked in (for 24-hour gray state)
+  // AUTO DAILY CHECK-IN (one XP award per user+classroom per 24h, per browser)
   useEffect(() => {
     if (!user || !id) return;
+    if (user.role !== 'student') return;
+    if (!xpSettings) return; // wait until settings are loaded
+    if (xpSettings.isXPEnabled === false) return;
+
+    // Per-user + per-classroom key in localStorage
+    const STORAGE_KEY = `pv_dailyCheckin_${id}_${user._id}`;
+    const now = Date.now();
+    const DAY_MS = 24 * 60 * 60 * 1000;
+
+    const lastStr = localStorage.getItem(STORAGE_KEY);
+    const last = lastStr ? Number(lastStr) : 0;
+
+    // If we've already checked in from this browser within 24h, do nothing
+    if (!Number.isNaN(last) && last > 0 && now - last < DAY_MS) {
+      setHasCheckedInToday(true);
+      return;
+    }
+
+    // Mark as checked in BEFORE calling API so StrictMode double-runs don't spam
+    localStorage.setItem(STORAGE_KEY, String(now));
+    setHasCheckedInToday(true);
+
     (async () => {
       try {
-        const res = await axios.get('/api/xp/daily-checkin/status', {
-          params: { classroomId: id },
-        });
-        if (res?.data?.hasCheckedInToday) {
-          setHasCheckedInToday(true);
+        const res = await axios.post(
+          '/api/xpStudent/daily-checkin',
+          { classroomId: id },
+          { withCredentials: true }
+        );
+
+        if (res?.data?.ok && res.data?.xpAwarded > 0) {
+          const gained = res.data.xpAwarded;
+          toast.success(`Daily check-in complete! +${gained} XP 🎉`);
+          await fetchMyClassroomBalance();
+          setXpRefresh(prev => !prev);
+        } else if (res?.data?.already) {
+          // Already awarded today on backend – keep silent
+          console.log('Daily check-in: already awarded today (backend)');
         } else {
-          setHasCheckedInToday(false);
+          console.warn('Daily check-in unexpected response:', res?.data);
         }
-      } catch (e) {
-        console.warn('Failed to get daily check-in status:', e?.response?.data || e.message);
+      } catch (err) {
+        console.warn(
+          'Daily check-in failed:',
+          err?.response?.data || err.message
+        );
       }
     })();
-  }, [user, id]);
+  }, [user, id, xpSettings]);
 
   // initial classroom + my balance load
   useEffect(() => {
@@ -346,61 +380,6 @@ const Classroom = () => {
     });
   };
 
-  // the DAILY CHECK-IN HANDLER
-  const handleDailyCheckIn = async () => {
-    if (!id) return;
-
-    // If teacher/admin disabled the XP, don't allow check-in
-    if (xpSettings?.isXPEnabled === false) {
-      toast.error('XP is disabled for this classroom.');
-      return;
-    }
-
-    setCheckinLoading(true);
-    try {
-      const res = await axios.post(
-        '/api/xp/daily-checkin',
-        { classroomId: id },
-        { withCredentials: true }
-      );
-
-      if (res?.data?.alreadyCheckedIn) {
-        setHasCheckedInToday(true);
-        toast.error('Already Checked In');
-      } else if (res?.data?.ok) {
-        const gained =
-          res.data.awardedXP ??
-          res.data.added ??
-          res.data.xp ??
-          0;
-
-        if (gained > 0) {
-          toast.success(`Daily check-in complete! +${gained} XP 🎉`);
-        } else {
-          toast.success('Daily check-in complete! ✅');
-        }
-        setHasCheckedInToday(true);
-      } else {
-        toast.error(res?.data?.message || 'Failed to complete daily check-in');
-      }
-
-      await fetchMyClassroomBalance();
-      setXpRefresh(prev => !prev);
-    } catch (err) {
-      const msg =
-        err.response?.data?.error ||
-        err.response?.data?.message ||
-        'Failed to complete daily check-in';
-
-      toast.error(msg);
-
-      if (/already.*check/i.test(msg)) {
-        setHasCheckedInToday(true);
-      }
-    } finally {
-      setCheckinLoading(false);
-    }
-  };
 
   // Loading
   if (loading) {
@@ -514,22 +493,7 @@ const Classroom = () => {
         />
 
         <div className="max-w-3xl mx-auto p-6 bg-green-50 rounded-lg space-y-6">
-          {/* Student Daily Check-In button */}
-          {showDailyCheckIn && (
-            <div className="flex justify-center">
-              <button
-                className="btn btn-primary btn-sm mt-2"
-                disabled={checkinLoading || hasCheckedInToday}
-                onClick={handleDailyCheckIn}
-              >
-                {checkinLoading
-                  ? 'Checking in...'
-                  : hasCheckedInToday
-                  ? 'Already Checked In Today'
-                  : 'Daily Check-In'}
-              </button>
-            </div>
-          )}
+      
 
           {/* Nav */}
           <Link to="/classrooms" className="link text-accent">
@@ -572,7 +536,7 @@ const Classroom = () => {
             </div>
           )}
 
-          {(user.role === 'teacher' || user.role === 'admin') && (
+          {/* {(user.role === 'teacher' || user.role === 'admin') && (
             <div className="flex gap-3 mb-6 justify-center">
               <button
                 onClick={async () => {
@@ -590,10 +554,11 @@ const Classroom = () => {
                     toast.error('Failed to add XP');
                   }
                 }}
-                className="btn btn-success btn-sm"
+                className="btn btn-primary btn-sm"
               >
-                +50 XP
+                Add 50 XP
               </button>
+           
 
               <button
                 onClick={async () => {
@@ -615,7 +580,7 @@ const Classroom = () => {
                 Reset XP
               </button>
             </div>
-          )}
+          )} */}
 
           {/* Announcements */}
           <div className="space-y-6">

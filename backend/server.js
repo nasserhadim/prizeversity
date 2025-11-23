@@ -181,6 +181,7 @@ mongoose.connection.once('open', async () => {
 app.use('/api/siphon', siphonRouter);
 app.use('/api/auth', authRoutes);
 app.use('/api/classroom', classroomRoutes);
+app.use('/api/classroom', require('./routes/classroom'));
 app.use('/api/classroom/:id/newsfeed', newsfeedRoutes);
 app.use('/api/bazaar', bazaarRoutes);
 app.use('/api/bazaarTemplate', bazaarTemplatesRoutes);
