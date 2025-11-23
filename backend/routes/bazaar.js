@@ -210,7 +210,8 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticate
         effectType: se.effectType,
         value: Number(se.value)
       }));
-      itemData.swapOptions = parsedSwapOptions && parsedSwapOptions.length ? parsedSwapOptions : undefined;
+      // ALWAYS persist a canonical array (may be empty) so later purchases have the field
+      itemData.swapOptions = Array.isArray(parsedSwapOptions) ? parsedSwapOptions : [];
     }
 
     const item = new Item(itemData);
@@ -242,6 +243,128 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticate
     res.status(500).json({ error: 'Failed to create item' });
   }
 });
+
+// UPDATE bazaar item (teacher)
+router.put(
+  '/classroom/:classroomId/bazaar/:bazaarId/items/:itemId',
+  ensureAuthenticated,
+  ensureTeacher,
+  upload.single('image'),
+  async (req, res) => {
+    const { itemId } = req.params;
+    try {
+      const item = await Item.findById(itemId);
+      if (!item) return res.status(404).json({ error: 'Item not found' });
+
+      // Accept basic fields
+      const up = {};
+      ['name','description','price','primaryEffect','primaryEffectValue','category','image']
+        .forEach(f => {
+          if (typeof req.body[f] !== 'undefined') {
+            up[f] = f === 'price' || f === 'primaryEffectValue'
+              ? Number(req.body[f])
+              : req.body[f].trim?.() || req.body[f];
+          }
+        });
+
+      if (req.file) {
+        up.image = `/uploads/${req.file.filename}`;
+      }
+
+      // Parse arrays if provided
+      if (req.body.secondaryEffects) {
+        try { up.secondaryEffects = JSON.parse(req.body.secondaryEffects); } catch {}
+      }
+      if (req.body.swapOptions) {
+        try { up.swapOptions = JSON.parse(req.body.swapOptions); } catch {}
+      }
+      if (req.body.mysteryBoxConfig) {
+        try { up.mysteryBoxConfig = JSON.parse(req.body.mysteryBoxConfig); } catch {}
+      }
+
+      Object.assign(item, up);
+      await item.save();
+
+      // Broadcast change
+      req.app.get('io').to(`classroom-${req.params.classroomId}`).emit('bazaar_item_updated', {
+        itemId: item._id,
+        item
+      });
+
+      res.json({ item });
+    } catch (e) {
+      console.error('[Update Item] error', e);
+      res.status(500).json({ error: 'Failed to update item' });
+    }
+  }
+);
+
+// DELETE bazaar item (teacher)
+router.delete(
+  '/classroom/:classroomId/bazaar/:bazaarId/items/:itemId',
+  ensureAuthenticated,
+  ensureTeacher,
+  async (req, res) => {
+    const { bazaarId, itemId, classroomId } = req.params;
+    try {
+      const item = await Item.findById(itemId);
+      if (!item) return res.status(404).json({ error: 'Item not found' });
+
+      await Item.findByIdAndDelete(itemId);
+      // remove from bazaar.items array
+      await Bazaar.findByIdAndUpdate(bazaarId, { $pull: { items: itemId } });
+
+      req.app.get('io').to(`classroom-${classroomId}`).emit('bazaar_item_deleted', {
+        itemId
+      });
+
+      res.json({ deleted: true });
+    } catch (e) {
+      console.error('[Delete Item] error', e);
+      res.status(500).json({ error: 'Failed to delete item' });
+    }
+  }
+);
+
+// Add helper near top of file (or in a utils file)
+function normalizeSwapOptionsServer(swapOptions) {
+  if (!swapOptions) return [];
+  let arr = Array.isArray(swapOptions) ? swapOptions : [];
+  if (typeof swapOptions === 'string') {
+    try { arr = JSON.parse(swapOptions); } catch (e) {
+      arr = swapOptions.split(',').map(s => s.trim()).filter(Boolean);
+    }
+  }
+  const canonical = (s) => {
+    if (!s) return null;
+    const val = String(s).toLowerCase().trim();
+    if (['bits','bit','b'].includes(val)) return 'bits';
+    if (['multiplier','mult','mul','x'].includes(val)) return 'multiplier';
+    if (['luck','l'].includes(val)) return 'luck';
+    return null;
+  };
+  const set = new Set();
+  arr.forEach(it => {
+    if (!it) return;
+    if (typeof it === 'string' || typeof it === 'number') {
+      const c = canonical(it);
+      if (c) set.add(c);
+      return;
+    }
+    if (typeof it === 'object') {
+      ['attribute','from','to'].forEach(k => {
+        if (it[k]) {
+          const c = canonical(it[k]);
+          if (c) set.add(c);
+        }
+      });
+      ['bits','multiplier','luck'].forEach(k => {
+        if (it[k] === true || it[k] === 'true') set.add(k);
+      });
+    }
+  });
+  return Array.from(set);
+}
 
 // Helper functions (add these at the top of the file, after imports)
 const getClassroomBalance = (user, classroomId) => {
@@ -297,9 +420,11 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
         primaryEffect: item.primaryEffect,
         primaryEffectValue: item.primaryEffectValue,
         secondaryEffects: item.secondaryEffects,
-        swapOptions: item.swapOptions,
+        // Ensure owned copy always stores canonical swapOptions (string[] of 'bits'|'multiplier'|'luck')
+        swapOptions: normalizeSwapOptionsServer(item.swapOptions),
         owner: req.user._id
       };
+      console.log('[Buy Item] ownedItemData.swapOptions ->', ownedItemData.swapOptions);
 
       // Copy mysteryBoxConfig for MysteryBox items
       if (item.category === 'MysteryBox' && item.mysteryBoxConfig) {
@@ -499,9 +624,18 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
         primaryEffect: item.primaryEffect,
         primaryEffectValue: item.primaryEffectValue,
         secondaryEffects: item.secondaryEffects,
+        // Ensure checkout-created owned item preserves canonical swapOptions (defensive checks)
+        swapOptions: normalizeSwapOptionsServer(
+          item.swapOptions ||
+          item.swap_options ||
+          (item.metadata && item.metadata.swapOptions) ||
+          []
+        ),
         owner: userId
       };
-
+      
+      console.log('[Checkout] ownedItemData.swapOptions ->', ownedItemData.swapOptions);
+      
       // ADD: Copy mysteryBoxConfig for MysteryBox items
       if (item.category === 'MysteryBox' && item.mysteryBoxConfig) {
         console.log('[Checkout] Copying mysteryBoxConfig:', JSON.stringify({
@@ -819,7 +953,12 @@ router.delete('/inventory/:itemId', ensureAuthenticated, async (req, res) => {
     if (classroomId && (!item.bazaar || String(item.bazaar.classroom) !== String(classroomId)))
       return res.status(400).json({ error: 'Item not in this classroom' });
 
-    await Item.findByIdAndDelete(itemId);
+    // DO NOT delete the Item document — preserve it for historical Orders.
+    // Instead mark it as consumed and remove ownership so it no longer appears in inventory.
+    await Item.findByIdAndUpdate(itemId, {
+      $set: { consumed: true, usesRemaining: 0 },
+      $unset: { owner: "" }
+    });
 
     req.app.get('io').to(`classroom-${classroomId || item.bazaar?.classroom}`).emit('inventory_update', {
       userId: req.user._id
@@ -846,6 +985,7 @@ router.delete('/inventory/user/:userId/clear', ensureAuthenticated, async (req, 
 
     // Build query
     const query = { owner: userId };
+
     if (classroomId) {
       // Need bazaar classroom match; fetch item ids first
       const scopedItems = await Item.find(query)
@@ -855,14 +995,22 @@ router.delete('/inventory/user/:userId/clear', ensureAuthenticated, async (req, 
         .filter(i => i.bazaar && String(i.bazaar.classroom) === String(classroomId))
         .map(i => i._id);
       if (!ids.length) return res.json({ cleared: 0 });
-      await Item.deleteMany({ _id: { $in: ids } });
+
+      // Instead of deleting, mark consumed/unowned so Orders stay valid
+      const result = await Item.updateMany(
+        { _id: { $in: ids } },
+        { $set: { consumed: true, usesRemaining: 0 }, $unset: { owner: "" } }
+      );
       req.app.get('io').to(`classroom-${classroomId}`).emit('inventory_update', { userId });
-      return res.json({ cleared: ids.length });
+      return res.json({ cleared: result.modifiedCount ?? result.nModified ?? 0 });
     }
 
-    const result = await Item.deleteMany(query);
+    const result = await Item.updateMany(
+      query,
+      { $set: { consumed: true, usesRemaining: 0 }, $unset: { owner: "" } }
+    );
     req.app.get('io').emit('inventory_update', { userId });
-    res.json({ cleared: result.deletedCount || 0 });
+    res.json({ cleared: result.modifiedCount ?? result.nModified ?? 0 });
   } catch (e) {
     console.error('[Inventory clear] error', e);
     res.status(500).json({ error: 'Failed to clear inventory' });

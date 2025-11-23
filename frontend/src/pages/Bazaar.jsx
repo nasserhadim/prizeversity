@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useEffect, useState, useMemo } from 'react';
+import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Store, HandCoins  } from 'lucide-react';
 import { Image as ImageIcon } from 'lucide-react';
@@ -16,6 +16,8 @@ import Footer from '../components/Footer';
 import { resolveBannerSrc } from '../utils/image';
 import { getBazaarTemplates, saveBazaarTemplate, deleteBazaarTemplate, applyBazaarTemplate } from '../API/apiBazaarTemplate';
 import { Package, Save, Trash2 } from 'lucide-react';
+import EditItemModal from '../components/EditItemModal';
+import { X } from 'lucide-react';
 
 const Bazaar = () => {
   const { classroomId } = useParams();
@@ -23,12 +25,25 @@ const Bazaar = () => {
   const [bazaar, setBazaar] = useState(null);
   const [classroom, setClassroom] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [showInventory, setShowInventory] = useState(false);
+  // REPLACE: showInventory -> bazaarTab
+  // const [showInventory, setShowInventory] = useState(false);
+  const [bazaarTab, setBazaarTab] = useState('shop'); // 'shop' | 'inventory'
   const [templates, setTemplates] = useState([]);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showApplyModal, setShowApplyModal] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [savingTemplate, setSavingTemplate] = useState(false);
+  const [itemSearch, setItemSearch] = useState('');
+  const [itemCategory, setItemCategory] = useState('all');
+  const [itemSort, setItemSort] = useState('nameAsc');
+  const [editItem, setEditItem] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  // NEW: delete modal state
+  const [deleteItem, setDeleteItem] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  // NEW: bulk delete state
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   // Fetch classroom details
   const fetchClassroom = async () => {
@@ -95,14 +110,46 @@ const Bazaar = () => {
     }
   };
 
-  // Delete template
-  const handleDeleteTemplate = async (templateId, name) => {
-    if (!confirm(`Delete template "${name}"?`)) return;
-
+  // NEW: bulk delete handler
+  const handleBulkDeleteItems = async () => {
+    setBulkDeleting(true);
     try {
-      await deleteBazaarTemplate(templateId);
-      toast.success('Template deleted successfully!');
+      const itemsToDelete = sortedFilteredItems;
+      
+      await Promise.all(
+        itemsToDelete.map(item =>
+          apiBazaar.delete(`/classroom/${classroomId}/bazaar/${bazaar._id}/items/${item._id}`)
+        )
+      );
+
+      toast.success(`Deleted ${itemsToDelete.length} item(s)`);
+      
+      setBazaar(prev => ({
+        ...prev,
+        items: prev.items.filter(i => !itemsToDelete.find(d => d._id === i._id))
+      }));
+      
+      setConfirmBulkDelete(false);
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Bulk delete failed');
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  // Delete template
+  const [deleteTemplateModal, setDeleteTemplateModal] = useState(null);
+
+  const handleDeleteTemplate = async (templateId, name) => {
+    setDeleteTemplateModal({ id: templateId, name });
+  };
+
+  const confirmDeleteTemplate = async () => {
+    try {
+      await deleteBazaarTemplate(deleteTemplateModal.id);
+      toast.success('Template deleted');
       fetchTemplates();
+      setDeleteTemplateModal(null);
     } catch (error) {
       toast.error(error.message || 'Failed to delete template');
     }
@@ -124,6 +171,44 @@ const Bazaar = () => {
       toast.error(error.message || 'Failed to apply template');
     }
   };
+
+  // Deep match similar to InventorySection
+  const deepMatches = (item, term) => {
+    const q = term.trim().toLowerCase();
+    if (!q) return true;
+    const parts = [
+      item.name || '',
+      item.description || '',
+      item.category || '',
+      item.primaryEffect || '',
+      String(item.primaryEffectValue || ''),
+      (item.secondaryEffects || []).map(se => `${se.effectType} ${se.value}`).join(' ')
+    ];
+    return parts.some(p => p.toLowerCase().includes(q));
+  };
+
+  const sortedFilteredItems = useMemo(() => {
+    let list = [...(bazaar?.items || [])];
+    if (itemCategory !== 'all') {
+      list = list.filter(i => i.category === itemCategory);
+    }
+    if (itemSearch.trim()) {
+      list = list.filter(i => deepMatches(i, itemSearch));
+    }
+    list.sort((a, b) => {
+      switch (itemSort) {
+        case 'nameAsc': return a.name.localeCompare(b.name);
+        case 'nameDesc': return b.name.localeCompare(a.name);
+        case 'priceAsc': return (a.price || 0) - (b.price || 0);
+        case 'priceDesc': return (b.price || 0) - (a.price || 0);
+        case 'category': return a.category.localeCompare(b.category);
+        case 'addedDesc': return new Date(b.createdAt) - new Date(a.createdAt);
+        case 'addedAsc': return new Date(a.createdAt) - new Date(b.createdAt);
+        default: return 0;
+      }
+    });
+    return list;
+  }, [bazaar?.items, itemSearch, itemCategory, itemSort]);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-base-200">
                         <span className="loading loading-ring loading-lg"></span>
@@ -214,6 +299,7 @@ const Bazaar = () => {
         </h1>
       </div>
 
+      {/* Bazaar banner + description */}
       <div className="card bg-base-100 border border-base-200 shadow-md rounded-2xl p-6 flex flex-col md:flex-row items-start md:items-center gap-6">
         {/* Image Section */}
         <div className="w-full md:w-1/3">
@@ -267,88 +353,143 @@ const Bazaar = () => {
               </button>
             )}
           </div>
-          
+        </div>
+      )}
+
+      {/* TABS */}
+      <div role="tablist" className="tabs tabs-boxed w-full">
+        <button
+          role="tab"
+          className={`tab ${bazaarTab === 'shop' ? 'tab-active' : ''}`}
+          onClick={() => setBazaarTab('shop')}
+        >
+          🛍️ Shop
+        </button>
+        <button
+          role="tab"
+          className={`tab ${bazaarTab === 'inventory' ? 'tab-active' : ''}`}
+          onClick={() => setBazaarTab('inventory')}
+        >
+          🎒 Inventory
+        </button>
+        {user.role === 'teacher' && (
+          <button
+            role="tab"
+            className={`tab ${bazaarTab === 'create' ? 'tab-active' : ''}`}
+            onClick={() => setBazaarTab('create')}
+          >
+            ➕ Add Item
+          </button>
+        )}
+      </div>
+
+      {/* TAB: SHOP */}
+      {bazaarTab === 'shop' && (
+        <div className="card bg-base-100 border border-base-200 shadow-md rounded-2xl p-6 space-y-4">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <h3 className="text-2xl font-bold text-success flex items-center gap-2">
+                <HandCoins />
+                Items for Sale
+              </h3>
+              <span className="badge badge-outline text-sm">
+                {sortedFilteredItems.length}/{bazaar.items?.length || 0}
+              </span>
+            </div>
+
+            {/* Filters */}
+            <div className="flex flex-wrap gap-2">
+              <input
+                type="search"
+                placeholder="Deep search items..."
+                className="input input-bordered w-full sm:w-56"
+                value={itemSearch}
+                onChange={(e) => setItemSearch(e.target.value)}
+              />
+              <select
+                className="select select-bordered w-36"
+                value={itemCategory}
+                onChange={e => setItemCategory(e.target.value)}
+              >
+                <option value="all">All Categories</option>
+                <option value="Attack">Attack</option>
+                <option value="Defend">Defend</option>
+                <option value="Utility">Utility</option>
+                <option value="Passive">Passive</option>
+                <option value="MysteryBox">MysteryBox</option>
+              </select>
+              <select
+                className="select select-bordered w-40"
+                value={itemSort}
+                onChange={e => setItemSort(e.target.value)}
+              >
+                <option value="nameAsc">Name ↑</option>
+                <option value="nameDesc">Name ↓</option>
+                <option value="priceAsc">Price ↑</option>
+                <option value="priceDesc">Price ↓</option>
+                <option value="category">Category</option>
+                <option value="addedDesc">Newest</option>
+                <option value="addedAsc">Oldest</option>
+              </select>
+              
+              {/* ADD: Bulk delete button for teachers */}
+              {user.role === 'teacher' && sortedFilteredItems.length > 0 && (
+                <button
+                  className="btn btn-outline btn-error btn-sm gap-2"
+                  onClick={() => setConfirmBulkDelete(true)}
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete {sortedFilteredItems.length === bazaar.items?.length ? 'All' : 'Filtered'}
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="divider my-2" />
+
+            {sortedFilteredItems.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                {sortedFilteredItems.map(item => (
+                  <ItemCard
+                    key={item._id}
+                    item={item}
+                    role={user.role}
+                    classroomId={classroomId}
+                    onEdit={(it) => {
+                      setEditItem(it);
+                      setShowEditModal(true);
+                    }}
+                    onDelete={(it) => setDeleteItem(it)} // OPEN MODAL
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="py-10 text-center text-gray-500">
+                <p className="italic">No matching items.</p>
+              </div>
+            )}
+        </div>
+      )}
+
+      {/* TAB: INVENTORY */}
+      {bazaarTab === 'inventory' && (
+        <div className="card bg-base-100 border border-base-300 shadow-md rounded-2xl p-6">
+          <InventorySection userId={user._id} classroomId={classroomId} />
+        </div>
+      )}
+
+      {/* TAB: CREATE ITEM - TEACHER ONLY */}
+      {bazaarTab === 'create' && user.role === 'teacher' && (
+        <div className="card bg-base-100 border border-base-200 shadow-md rounded-2xl p-6 space-y-4">
           <CreateItem
             bazaarId={bazaar._id}
             classroomId={classroomId}
             onAdd={(newItem) =>
-              setBazaar((prev) => ({
-                ...prev,
-                items: [...(prev.items || []), newItem],
-              }))
+              setBazaar(prev => ({ ...prev, items: [...(prev.items || []), newItem] }))
             }
           />
         </div>
       )}
-
-      {/* Items for Sale Section */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-2xl font-bold text-success flex items-center gap-2">
-            <HandCoins />
-            Items for Sale
-          </h3>
-          <span className="badge badge-outline text-sm hidden md:inline">
-            {bazaar.items?.length || 0} item{bazaar.items?.length === 1 ? '' : 's'}
-          </span>
-        </div>
-
-        <div className="divider my-0"></div>
-
-        {bazaar.items?.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-            {bazaar.items.map((item) => (
-              <ItemCard
-                key={item._id}
-                item={item}
-                role={user.role}
-                classroomId={classroomId}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center py-10 text-center text-gray-500">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="w-12 h-12 mb-2 opacity-40"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M20 13V9a2 2 0 00-2-2h-1V5a2 2 0 00-2-2H9a2 2 0 00-2 2v2H6a2 2 0 00-2 2v4M3 17h18M9 21h6"
-              />
-            </svg>
-            <p className="italic">Nothing is for sale yet. Please check back later!</p>
-          </div>
-        )}
-      </div>
-      
-      {/* Inventory Section with Button in Header */}
-      <div className="card bg-base-200 shadow-inner border border-base-300">
-        <div className="card-body p-4">
-          <div className="flex items-center justify-between mb-2">
-            <button
-              onClick={() => setShowInventory(!showInventory)}
-              className={`btn btn-sm transition-all duration-200 ${
-                showInventory ? 'btn-outline btn-error' : 'btn-success'
-              }`}
-            >
-              {showInventory ? 'Hide' : 'Show'} Inventory
-            </button>
-          </div>
-          
-          {/* Inventory Section */}
-          {showInventory && (
-            <div className="mt-4">
-              <InventorySection userId={user._id} classroomId={classroomId} />
-            </div>
-          )}
-        </div>
-      </div>
 
       {/* Save Template Modal */}
       {showTemplateModal && (
@@ -454,6 +595,143 @@ const Bazaar = () => {
                   onClick={() => setShowApplyModal(false)}
                 >
                   Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Item Modal */}
+      {deleteItem && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="card bg-base-100 w-full max-w-md shadow-xl border border-base-300">
+            <div className="card-body space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold">Delete Item</h3>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => !deleting && setDeleteItem(null)}
+                >
+                  <X size={16}/>
+                </button>
+              </div>
+              <p className="text-sm">
+                Delete "<strong>{deleteItem.name}</strong>" from this Bazaar? This cannot be undone.
+              </p>
+              <div className="card-actions justify-end gap-2">
+                <button
+                  className="btn btn-sm"
+                  disabled={deleting}
+                  onClick={() => setDeleteItem(null)}
+                >Cancel</button>
+                <button
+                  className="btn btn-sm btn-error"
+                  disabled={deleting}
+                  onClick={async () => {
+                    setDeleting(true);
+                    try {
+                      await apiBazaar.delete(`/classroom/${classroomId}/bazaar/${bazaar._id}/items/${deleteItem._id}`);
+                      toast.success('Item deleted');
+                      setBazaar(prev => ({
+                        ...prev,
+                        items: prev.items.filter(i => i._id !== deleteItem._id)
+                      }));
+                      setDeleteItem(null);
+                    } catch (e) {
+                      toast.error(e.response?.data?.error || 'Delete failed');
+                    } finally {
+                      setDeleting(false);
+                    }
+                  }}
+                >
+                  {deleting ? <span className="loading loading-spinner loading-xs" /> : 'Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Item Modal */}
+      {showEditModal && (
+        <EditItemModal
+          open={showEditModal}
+          onClose={() => { setShowEditModal(false); setEditItem(null); }}
+          item={editItem}
+          classroomId={classroomId}
+          bazaarId={bazaar._id}
+          onUpdated={(updated) => {
+            setBazaar(prev => ({
+              ...prev,
+              items: prev.items.map(i => i._id === updated._id ? updated : i)
+            }));
+          }}
+        />
+      )}
+
+      {/* ADD: Bulk delete confirmation modal */}
+      {confirmBulkDelete && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="card bg-base-100 w-full max-w-md shadow-xl border border-base-300">
+            <div className="card-body space-y-4">
+              <h3 className="text-lg font-bold text-error">Confirm Bulk Delete</h3>
+              <p className="text-sm">
+                Delete <strong>{sortedFilteredItems.length}</strong> item(s)?
+                {sortedFilteredItems.length < bazaar.items?.length && (
+                  <span className="block mt-2 text-warning">
+                    This will delete only the currently filtered items, not all bazaar items.
+                  </span>
+                )}
+              </p>
+              <div className="card-actions justify-end gap-2">
+                <button
+                  className="btn btn-sm"
+                  disabled={bulkDeleting}
+                  onClick={() => setConfirmBulkDelete(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-sm btn-error"
+                  disabled={bulkDeleting}
+                  onClick={handleBulkDeleteItems}
+                >
+                  {bulkDeleting ? <span className="loading loading-spinner loading-xs" /> : 'Delete All'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE TEMPLATE MODAL */}
+      {deleteTemplateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="card bg-base-100 w-full max-w-md shadow-xl border border-base-300">
+            <div className="card-body space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold">Delete Template</h3>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setDeleteTemplateModal(null)}
+                >
+                  <X size={16}/>
+                </button>
+              </div>
+              <p className="text-sm">
+                Delete template "<strong>{deleteTemplateModal.name}</strong>"? This cannot be undone.
+              </p>
+              <div className="card-actions justify-end gap-2">
+                <button
+                  className="btn btn-sm"
+                  onClick={() => setDeleteTemplateModal(null)}
+                >Cancel</button>
+                <button
+                  className="btn btn-sm btn-error"
+                  onClick={confirmDeleteTemplate}
+                >
+                  Delete
                 </button>
               </div>
             </div>

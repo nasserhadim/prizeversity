@@ -13,7 +13,7 @@ import MysteryBoxDetailsModal from './MysteryBoxDetailsModal';
 
 const ITEM_PLACEHOLDER = '/images/item-placeholder.svg';
 
-const ItemCard = ({ item, onUse, showUseButton = true, classroomId, role }) => { // ADD role prop
+const ItemCard = ({ item, onUse, showUseButton = true, classroomId, role, onEdit, onDelete }) => { // ADD role prop
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(false);
   const [using, setUsing] = useState(false);
@@ -110,7 +110,7 @@ const ItemCard = ({ item, onUse, showUseButton = true, classroomId, role }) => {
   };
 
   return (
-    <div className="card bg-base-100 shadow-md border border-base-200 hover:shadow-lg transition duration-200 rounded-2xl overflow-hidden">
+    <div className="card bg-base-100 border border-base-300 shadow-sm hover:shadow-md transition">
       {/* Image */}
       <figure className="relative h-40 md:h-48 overflow-hidden bg-base-200">
         <img
@@ -124,6 +124,27 @@ const ItemCard = ({ item, onUse, showUseButton = true, classroomId, role }) => {
           }}
         />
       </figure>
+
+      <div className="card-actions justify-end pr-4 mt-3">
+        {role === 'teacher' && (
+          <div className="flex gap-2">
+            <button
+              className="btn btn-xs btn-outline"
+              onClick={() => onEdit?.(item)}
+              title="Edit"
+            >
+              Edit
+            </button>
+            <button
+              className="btn btn-xs btn-error"
+              onClick={() => onDelete?.(item)}
+              title="Delete"
+            >
+              Delete
+            </button>
+          </div>
+        )}
+      </div>
  
        {/* Content - unchanged from original */}
        <div className="card-body space-y-2">

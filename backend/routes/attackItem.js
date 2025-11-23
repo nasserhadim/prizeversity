@@ -31,8 +31,9 @@ function setClassroomBalance(user, classroomId, newBalance) {
 
 router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
   try {
-    const { targetUserId, swapAttribute } = req.body;
+    const { targetUserId, swapAttribute, nullifyAttribute } = req.body;
     const classroomId = req.body.classroomId || req.query.classroomId;
+
     const item = await Item.findById(req.params.itemId);
     
     if (!item || item.owner.toString() !== req.user._id.toString()) {
@@ -251,15 +252,19 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
         if (!swapAttribute) {
           return res.status(400).json({ 
             error: 'Swap attribute is required',
-            validAttributes: ['bits', 'multiplier', 'luck']
+            validAttributes: item.swapOptions || ['bits', 'multiplier', 'luck']
           });
         }
         
-        const validAttributes = ['bits', 'multiplier', 'luck'];
-        if (!validAttributes.includes(swapAttribute)) {
+        // Check if the selected attribute is in the allowed list
+        const allowedSwapOptions = item.swapOptions && item.swapOptions.length > 0 
+          ? item.swapOptions 
+          : ['bits', 'multiplier', 'luck'];
+          
+        if (!allowedSwapOptions.includes(swapAttribute)) {
           return res.status(400).json({ 
-            error: 'Invalid swap attribute',
-            validAttributes,
+            error: 'Invalid swap attribute for this item',
+            validAttributes: allowedSwapOptions,
             received: swapAttribute
           });
         }
@@ -335,19 +340,23 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
       }
 
       case 'nullify': {
-        if (!req.body.nullifyAttribute) {
+        if (!nullifyAttribute) {
           return res.status(400).json({ 
             error: 'Nullify attribute is required',
-            validAttributes: ['bits', 'multiplier', 'luck']
+            validAttributes: item.swapOptions || ['bits', 'multiplier', 'luck']
           });
         }
         
-        const validNullifyAttributes = ['bits', 'multiplier', 'luck'];
-        if (!validNullifyAttributes.includes(req.body.nullifyAttribute)) {
+        // Check if the selected attribute is in the allowed list
+        const allowedNullifyOptions = item.swapOptions && item.swapOptions.length > 0 
+          ? item.swapOptions 
+          : ['bits', 'multiplier', 'luck'];
+          
+        if (!allowedNullifyOptions.includes(nullifyAttribute)) {
           return res.status(400).json({ 
-            error: 'Invalid nullify attribute',
-            validAttributes: validNullifyAttributes,
-            received: req.body.nullifyAttribute
+            error: 'Invalid nullify attribute for this item',
+            validAttributes: allowedNullifyOptions,
+            received: nullifyAttribute
           });
         }
         
@@ -361,7 +370,7 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
         }
 
         // Perform the nullify
-        switch(req.body.nullifyAttribute) {
+        switch(nullifyAttribute) {
           case 'bits': {
             const tBefore = getClassroomBalance(targetUser, classroomId);
             const tAfter = 0;

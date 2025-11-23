@@ -26,6 +26,12 @@ const ItemSchema = new mongoose.Schema({
     value: Number
   }],
   
+  // Swap / Nullify options (canonical strings: 'bits' | 'multiplier' | 'luck')
+  swapOptions: {
+    type: [String],
+    default: []
+  },
+  
   // Usage tracking
   usesRemaining: { 
     type: Number, 

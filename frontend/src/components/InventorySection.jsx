@@ -8,7 +8,7 @@ import { ImageOff } from 'lucide-react';
 import SwapModal from '../components/SwapModal';
 import NullifyModal from '../components/NullifyModal';
 import socket from '../utils/socket'; // Changed from '../API/socket' to '../utils/socket'
-import { getEffectDescription, splitDescriptionEffect } from '../utils/itemHelpers';
+import { getEffectDescription, splitDescriptionEffect, normalizeSwapOptions } from '../utils/itemHelpers'; // ADD import
 import { resolveImageSrc } from '../utils/image';
 
 // Inventory section for using, managing, and interacting with items
@@ -101,18 +101,27 @@ const InventorySection = ({ userId, classroomId }) => {
   // Handles using any item based on category and effect
   const handleUse = async (item) => {
     const targetUserId = targets[item._id] || null;
-    
+
     try {
       let endpoint = '';
       let data = {};
-      
+
       switch(item.category) {
         case 'Attack':
           if (!targetUserId) {
             toast.error('Please select a target');
             return;
           }
-          
+
+          // DEBUG: log item shape right before modal open
+          console.log('[InventorySection] handleUse item BEFORE modal:', {
+            id: item._id,
+            primaryEffect: item.primaryEffect,
+            swapOptionsRaw: item.swapOptions,
+            swapOptionsType: typeof item.swapOptions,
+            classroomId
+          });
+
           // For swapper items, show modal instead of immediate use
           if (item.primaryEffect === 'swapper') {
             setCurrentItem(item);
@@ -313,6 +322,19 @@ const InventorySection = ({ userId, classroomId }) => {
       }
     });
 
+  // NEW: compute allowed options only once for the current item (defensive parse)
+  const computedAllowed = currentItem ? normalizeSwapOptions(currentItem.swapOptions || currentItem.swapOptions?.toString?.() || []) : [];
+  const allowedOptionsForItem = (Array.isArray(computedAllowed) && computedAllowed.length)
+    ? computedAllowed
+    : (currentItem && (currentItem.primaryEffect === 'swapper' || currentItem.primaryEffect === 'nullify') ? [] : ['bits', 'multiplier', 'luck']);
+
+  // DEV debug - inspect shapes when opening modal
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development' && currentItem) {
+      console.debug('[InventorySection] currentItem.swapOptions', currentItem.swapOptions, 'computedAllowed', computedAllowed, 'allowedOptionsForItem', allowedOptionsForItem);
+    }
+  }, [currentItem, JSON.stringify(currentItem?.swapOptions || [])]);
+
   return (
     <div>
       <h2 className="text-2xl font-bold text-success flex items-center gap-2">
@@ -500,6 +522,7 @@ const InventorySection = ({ userId, classroomId }) => {
         onClose={() => setSwapModalOpen(false)}
         onSelect={handleSwapSelection}
         targetName={getTargetName(selectedTarget)}
+        allowedOptions={allowedOptionsForItem}
       />
 
       <NullifyModal
@@ -507,6 +530,7 @@ const InventorySection = ({ userId, classroomId }) => {
         onClose={() => setNullifyModalOpen(false)}
         onConfirm={handleNullifySelection}
         targetName={selectedTarget ? getTargetName(selectedTarget) : ''}
+        allowedOptions={allowedOptionsForItem}
       />
 
       {/* ADD: Mystery Box Reward Modal */}

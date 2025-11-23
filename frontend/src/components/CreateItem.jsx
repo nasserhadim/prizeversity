@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Hammer, Plus, Trash2, Info, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react'; // ADD ChevronDown, ChevronUp
 import toast from 'react-hot-toast';
 import apiBazaar from '../API/apiBazaar';
-import { describeEffectFromForm } from '../utils/itemHelpers';
+import { describeEffectFromForm, normalizeSwapOptions } from '../utils/itemHelpers'; // ADD import
 
 // Will define the primary effect options by item category
 const CATEGORY_OPTIONS = {
@@ -78,8 +78,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
  
   // keep an auto-generated preview in sync with form, teachers can edit it before submit
   useEffect(() => {
-    const gen = describeEffectFromForm(form);
-    // only set when there's no manual edit yet, or regenerate on category/effect changes
+    const gen = describeEffectFromForm({ ...form, swapOptions: normalizeSwapOptions(form.swapOptions) });
     setEffectPreview(gen);
   }, [form.category, form.primaryEffect, form.primaryEffectValue, JSON.stringify(form.secondaryEffects), JSON.stringify(form.swapOptions)]);
 
@@ -286,6 +285,12 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
       }
     }
 
+    // Validate swap/nullify options
+    if ((form.primaryEffect === 'swapper' || form.primaryEffect === 'nullify') && form.swapOptions.length === 0) {
+      toast.error('Please select at least one attribute option');
+      return;
+    }
+
     setLoading(true);
     try {
       // Build payload based on category
@@ -334,10 +339,8 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
               effectType: effect.effectType,
               value: Number(effect.value)
             })),
-          swapOptions: form.swapOptions.filter(opt => opt.from && opt.to).map(opt => ({
-            from: opt.from,
-            to: opt.to
-          })),
+          // store swapOptions as simple canonical strings (['bits','multiplier','luck'])
+          swapOptions: Array.isArray(form.swapOptions) ? form.swapOptions.filter(Boolean) : [],
           bazaar: bazaarId
         };
       }
@@ -516,6 +519,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                required
              >
                <option value="" disabled>Select effect</option>
+              <option value="none">None (no primary effect — use secondary effects only)</option>
                {CATEGORY_OPTIONS[form.category].map(effect => (
                  <option key={effect.value} value={effect.value}>
                    {effect.label}
@@ -547,11 +551,13 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
              </div>
            )}
  
-           {/* Swapper Options */}
+           {/* Swap Options - ADD THIS SECTION */}
            {form.primaryEffect === 'swapper' && (
              <div className="form-control">
                <label className="label">
-                 <span className="label-text font-medium">Swap Options</span>
+                 <span className="label-text font-medium">
+                   Swap Options <span className="text-error">*</span>
+                 </span>
                </label>
                <div className="space-y-2">
                  {['bits', 'multiplier', 'luck'].map(option => (
@@ -569,6 +575,39 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                    </div>
                  ))}
                </div>
+               {form.swapOptions.length === 0 && (
+                 <p className="text-xs text-error mt-1">Select at least one attribute to swap</p>
+               )}
+             </div>
+           )}
+ 
+           {/* Nullify Options - ADD THIS SECTION */}
+           {form.primaryEffect === 'nullify' && (
+             <div className="form-control">
+               <label className="label">
+                 <span className="label-text font-medium">
+                   Nullify Options <span className="text-error">*</span>
+                 </span>
+               </label>
+               <div className="space-y-2">
+                 {['bits', 'multiplier', 'luck'].map(option => (
+                   <div key={option} className="flex items-center gap-2">
+                     <input
+                       type="checkbox"
+                       id={`nullify-${option}`}
+                       className="checkbox checkbox-sm"
+                       checked={form.swapOptions.includes(option)}
+                       onChange={() => toggleSwapOption(option)}
+                     />
+                     <label htmlFor={`nullify-${option}`} className="capitalize">
+                       {option}
+                     </label>
+                   </div>
+                 ))}
+               </div>
+               {form.swapOptions.length === 0 && (
+                 <p className="text-xs text-error mt-1">Select at least one attribute to nullify</p>
+               )}
              </div>
            )}
          </div>
