@@ -617,6 +617,24 @@ router.post('/groupset/:groupSetId/group/:groupId/add-members', ensureAuthentica
         status: 'approved',
         joinDate: new Date()
       });
+      
+      // Award XP for teacher-added join
+      try {
+        const classroom = await Classroom.findById(groupSet.classroom);
+        const joinXP = Number(classroom?.xpSettings?.xpRewards?.groupJoinXP ?? 0);
+
+        if (joinXP > 0) {
+          const { awardXP } = require('../utils/xp');
+          await awardXP({
+            userId: memberId,
+            classroomId: classroom._id,
+            opts: { rawXP: joinXP }
+          });
+        }
+      } catch (err) {
+        console.error('Failed to award XP for teacher-added join:', err);
+      }
+    
 
       const notification = await Notification.create({
         user: memberId,
