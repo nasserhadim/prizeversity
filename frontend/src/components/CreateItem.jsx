@@ -444,7 +444,16 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
         })
     }
     const displayWork = () => {
-        setShowWork(true);
+        return (
+            <>
+            <h3 className="text-2xl font-bold text-success flex items-center gap-2">
+                How luck factor works
+            </h3>
+            <p> The luck factor controls how much impact a student's luck has on item probabilities.</p>
+            <p> Luck Factor of 0: item probabilites are constant</p>
+            <p> Luck Factor of 1: the higher a students luck, the more likely they are to get rare, epic, and legendary items</p>
+            </>
+        )
     }
  
    return (
@@ -968,9 +977,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
      {showWork && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
             <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
-                <h3 className="text-2xl font-bold text-success flex items-center gap-2">
-                    How luck factor works
-                </h3>
+                {displayWork()}
                 <button
                 className="btn"
                 onClick={() => {
