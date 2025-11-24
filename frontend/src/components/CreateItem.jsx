@@ -909,7 +909,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                     disabled={haltMystery()}
                     onClick={() => setShowLuck(true)}
                     >
-                    Preview Luck Stat effect
+                    Preview Luck Impact
                     </button>
                 </div>
             

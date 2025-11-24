@@ -333,10 +333,14 @@ const getDiscounts = async () => {
         const name = itemNames.find(i => i._id === r._id);
 
         const rarity = rarityMap[r.luckWeight];
+        const yp = (weight / totalW * 100);
+        const bp = (r.weight / baseWeights * 100);
         return {
             name: r.itemName,
-            prob: (weight / totalW * 100).toFixed(2),
-            rarity: rarity
+            rarity: rarity,
+            yourProb: yp,
+            baseProb: bp,
+            changeProb: (yp - bp)
         }
     })
 
@@ -378,16 +382,7 @@ const getDiscounts = async () => {
             {main || 'No description provided.'}
           </p>
 
-        {item.kind === 'mystery_box' && (
-            <div className="flex justify-center gap-4 mt-4">
-                <button
-                  className="btn btn-success"
-                  onClick={displayStats}
-                >
-                  View Details
-                </button>
-            </div>
-        )}
+        
 
           {effect && (
             <div className="text-sm text-base-content/60">
@@ -434,6 +429,15 @@ const getDiscounts = async () => {
           >
             Add to Cart
           </button>
+        )}
+        {item.kind === 'mystery_box' && (
+
+            <button
+                className="btn btn-sm w-full mt-2"
+                onClick={displayStats}
+            >
+                View Details
+            </button>
         )}
       </div>
       <div>
@@ -547,24 +551,33 @@ const getDiscounts = async () => {
 
         {showStats && (
           <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
-              <h2> Mystery Box Stats</h2>
+            <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-lg">
+              <h2 className="card-title text-lg md:text-xl font-semibold"> Your Personalized drop rates</h2>
+
+                <div className="flex gap-2">
+                    Your luck ({user.passiveAttributes.luck.toFixed(1)}x) with multiplier ({item.luckFactor.toFixed(1)}x) = ({((user.passiveAttributes.luck - 1) * item.luckFactor).toFixed(1)}x)
+                </div>
               
                 <div className="flex items-center gap-2">
                     <span className="flex-1">Item</span>
-                    <span className="w-8 text-left">%</span>  
-                    <span className="w-40 text-center">Rarity</span>
+                    <span className="flex-1 text-center">Rarity</span>
+                    <span className="w-16 text-left">Base %</span>
+                    <span className="w-16 text-left">Your %</span>
+                    <span className="w-16 text-left">Change</span>
                 </div>
                 {mysteryStats.map((reward, spot) => (
                 <div key = {spot} className="flex items-center gap-3">
                     <span className="flex-1"> {reward.name}</span>
-                    <span className="w-8 text-left"> {reward.prob}%</span>
-                    <span className="w-40 text-center">{reward.rarity}</span>                       
+                    <span className="flex-1 text-center">{reward.rarity}</span>
+                    <span className="w-16 text-left"> {reward.baseProb.toFixed(2)}%</span>  
+                    <span className="w-16 text-left"> {reward.yourProb.toFixed(2)}%</span>
+                    <span className="w-16 text-left"> {reward.changeProb.toFixed(2)}%</span>
+                                         
                 </div>
                 
             ))}
             <button
-                className="btn btn-success"
+                className="btn btn-sm w-full mt-2"
                 onClick={() => {
                     setShowStats(false);
                 }}
