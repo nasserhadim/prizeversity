@@ -66,6 +66,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
   const [selectedRewards, setSelectedRewards] = useState([]); // { itemId: { checked, weight } }
   const [showWork, setShowWork] = useState(false);
   const [showLuck, setShowLuck] = useState(false);
+  const [studentLuck, setStudentLuck] = useState(3);
   const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
   const fileInputRef = useRef(null); // ADD: to clear native file input after submit
  
@@ -400,7 +401,47 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
 
     // displays the effect of luck
     const displayLuck = () => {
-        setShowLuck(true);
+        if (selectedRewards.length <= 0) return (
+            <div>No items selected</div>
+        );
+        const {luckWeights, baseW} = selectedRewards.reduce(
+            (totals, oItem) => {
+                totals.baseW += Number(oItem.weight) || 0;
+                (totals.luckWeights += Number(oItem.luckWeight) || 0);
+                return totals;
+            }, {luckWeights: 0, baseW: 0}
+        )
+        
+        let luckEffect = (studentLuck-1) * Number(form.luckFactor || 0);
+        if (luckEffect < 0) luckEffect = 0;
+        const luckW = luckWeights * luckEffect;
+        const totalW = baseW + luckW;
+
+        // maps each selected item
+        return selectedRewards.map((reward, spot) => {
+            const item = allPrizes.find(p => p._id === reward.itemId);
+            const name = item?.name ?? "Un-selected";
+            let weight = Number(reward.weight) || 2000;
+            if (reward.probability != null)
+            {
+                weight = Number(reward.probability * baseW / 100);
+            }
+            const luckWeight = Number(reward.luckWeight) * luckEffect;
+
+            const probability = (weight + luckWeight) * 100 / totalW;
+            
+            
+            return (
+                <div key={spot} className="flex items-center gap-3 px-1 text-sm">
+                    <span className="flex-1">{name}</span>
+                    <div className="flex items-center gap-2">
+                        <span className="w-12 text-left">{probability.toFixed(2)}</span>
+                    </div>
+                </div>
+            )
+
+
+        })
     }
     const displayWork = () => {
         setShowWork(true);
@@ -738,7 +779,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                         <button
                         className="btn"
                         type="button"
-                        onClick={displayWork}
+                        onClick={() => setShowWork(true)}
                         >
                         How it works
                         </button>
@@ -856,7 +897,8 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                     <button
                     className="btn"
                     type="button"
-                    onClick={displayLuck}
+                    disabled={haltMystery()}
+                    onClick={() => setShowLuck(true)}
                     >
                     Preview Luck Stat effect
                     </button>
@@ -926,9 +968,11 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
      {showWork && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
             <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
-                Work
+                <h3 className="text-2xl font-bold text-success flex items-center gap-2">
+                    How luck factor works
+                </h3>
                 <button
-                className="btn btn-success"
+                className="btn"
                 onClick={() => {
                     setShowWork(false);
                 }}
@@ -941,10 +985,39 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
      {showLuck && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
             <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
-                Luck
+                <h3 className="text-2xl font-bold text-success flex items-center gap-2">
+                    Preview Luck stat effect
+                </h3>
+                <label className="label">
+                    <span className="label-text font-medium">
+                        Set Student Luck <span className='text-error'>*</span>
+                    </span>
+                    </label>
+                    <input
+                    type="number"
+                    className="input input-bordered"
+                    value={studentLuck}
+                    onChange={(e) => setStudentLuck(e.target.value)}
+                    min="1"
+                    />
+
+                {/* Headers - so the user knows what the boxes represent */}
+                {selectedRewards.length > 0 && (
+                <div className="flex items-center gap-3 px-1 text-sm">
+                    <span className="flex-1">Item</span>
+                    <div className="flex items-center gap-2">
+                        <span className="w-8 text-left">%</span>
+                    </div>
+                </div>
+                )}
+                    
+                
+                {/* Shows selected items */}
+                {displayLuck()}
+
                 <button
-                className="btn btn-success"
-                onClick={() => {
+                    className="btn"
+                    onClick={() => {
                     setShowLuck(false);
                 }}
                 >
