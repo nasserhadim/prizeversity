@@ -16,33 +16,31 @@ export function useBazaarTemplates() {
   const [showViewer, setShowViewer] = useState(false);
 
   const fetchTemplates = useCallback(async () => {
-  setLoading(true);
-  try {
-    const res = await listTemplates({ includeClassroomNames: 'true' });
-    console.log('[listTemplates]', res.status, res.data);      
-    setTemplates(res.data.templates || []);
-  } catch (err) {
-    console.error('[listTemplates] failed', err);              
-    toast.error('Could not load templates');
-  } finally {
-    setLoading(false);
-  }
-}, []);
+    setLoading(true);
+    try {
+      const res = await listTemplates({ includeClassroomNames: 'true' });
+      console.log('[listTemplates]', res.status, res.data);
+      setTemplates(res.data.templates || []);
+    } catch (err) {
+      console.error('[listTemplates] failed', err);
+      toast.error('Could not load templates');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-
-
-const saveBazaarTemplate = useCallback(async (bazaarId) => {
-  try {
-    const { data } = await saveTemplateFromBazaar(bazaarId);  
-    toast.success(`Saved as template`);
-    await fetchTemplates();                                    
-    return data?.template || null;                              
-  } catch (err) {
-    console.error(err);
-    toast.error('Failed to save template');
-    return null;
-  }
-}, [fetchTemplates]);
+  const saveBazaarTemplate = useCallback(async (bazaarId) => {
+    try {
+      const { data } = await saveTemplateFromBazaar(bazaarId);
+      toast.success(`Saved as template`);
+      await fetchTemplates();
+      return data?.template || null;
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to save template');
+      return null;
+    }
+  }, [fetchTemplates]);
 
   const applyTemplate = useCallback(async (templateId, targetClassroomId) => {
     try {

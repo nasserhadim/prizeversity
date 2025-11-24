@@ -287,13 +287,16 @@ useEffect(() => {
         
         if (discountData.length)
         {
-            const combined = discountData.reduce(
-                (acc, d) => acc * (1 - (d.discountPercent || 0) / 100), 1
-            );
-            percent = (1 - combined) * 100;
-            const nextGone = discountData.reduce(
-                (min, d) => { return (d.expiresAt < min.expiresAt) ? d : min}
-            );
+          const combined = discountData.reduce(
+            (acc, d) => acc * (1 - (d.discountPercent || 0) / 100), 1
+          );
+         const percentRaw = (1 - combined) * 100;
+          // round to 2 decimal places, then back to Number
+         percent = Number(percentRaw.toFixed(2));
+
+         const nextGone = discountData.reduce(
+            (min, d) => (new Date(d.expiresAt) < new Date(min.expiresAt) ? d : min)
+          );
             // determines time left in days, hours, minutes, seconds
             timeLeft = Math.abs(new Date(nextGone.expiresAt) - Date.now()) / 1000;
 
@@ -352,7 +355,8 @@ useEffect(() => {
         const combined = Discounts.reduce(
             (acc, d) => acc * (1 - (d.discountPercent || 0) / 100), 1
         );
-        const percent = (1 - combined) * 100;
+        const percentRaw = (1 - combined) * 100;
+        const percent = Number(percentRaw.toFixed(2));
 
         // next to expire
         const nextGone = Discounts.reduce(

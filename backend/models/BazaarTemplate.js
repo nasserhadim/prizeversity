@@ -1,14 +1,14 @@
 const mongoose = require('mongoose');
 
-{/* This is the schema for the bazaar template itself, which has multiple item templates */}
+// This is the schema for the bazaar template itself, which has multiple item templates
 const BazaarTemplateSchema = new mongoose.Schema({
-    name: { //the title the instructor gives the bazaar template
+    name: { // the title the instructor gives the bazaar template
         type: String,
         required: true,
         trim: true,
         maxLength: 100,
     },
-    description: { //the description the instructor gives the bazaar template
+    description: { // the description the instructor gives the bazaar template
         type: String,
         trim: true,
         maxLength: 300,
@@ -41,9 +41,9 @@ const BazaarTemplateSchema = new mongoose.Schema({
         default: Date.now,
         index: true,
     },
-    
 });
-//these indexes with help when searching for bazaar templates
-BazaarTemplateSchema.index({owner: 1, createdAt: -1}); //search by the name or tags
+
+// these indexes will help when searching for bazaar templates
+BazaarTemplateSchema.index({ owner: 1, createdAt: -1 }); // search by the name or tags
 
 module.exports = mongoose.model('BazaarTemplate', BazaarTemplateSchema);

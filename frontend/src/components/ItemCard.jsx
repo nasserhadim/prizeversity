@@ -243,12 +243,14 @@ const getDiscounts = async () => {
         let percent = 0;
         if (discountData.length)
         {
-            const combined = discountData.reduce(
-                (acc, d) => acc * (1 - (d.discountPercent || 0) / 100), 1
-            );
-            percent = (1 - combined) * 100;
+          const combined = discountData.reduce(
+            (acc, d) => acc * (1 - (d.discountPercent || 0) / 100), 1
+          );
+          const percentRaw = (1 - combined) * 100;
+          percent = Number(percentRaw.toFixed(2));
         }
         setDiscountPercent(percent);
+
         //console.log("Discount applied: ", percent)
     } catch (err) {
         console.error("Failed to load discounts:", err);
@@ -280,7 +282,7 @@ const getDiscounts = async () => {
           <span className="text-green-600">{finalPrice} ₿</span>
           {discountApplied && (
             <span className="text-xs text-green-600 ml-1">
-                {Math.floor(discountPercent)}% off
+                {Math.round(discountPercent)}% off
                 </span>)}
           {groupBonus && <span className="text-xs text-blue-600 ml-1">(+{Math.round((user.groupMultiplier-1)*100)}% group bonus)</span>}
         </>

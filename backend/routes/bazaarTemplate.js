@@ -8,7 +8,10 @@ const Classroom = require('../models/Classroom');
 const Item = require('../models/Item');
 
 async function copyBazaarIntoClassroom({ sourceBazaarId, targetClassroomId }) {
-  const bazaarSource = await Bazaar.findById(sourceBazaarId).populate('items').lean();
+  const bazaarSource = await Bazaar.findById(sourceBazaarId)
+    .populate('items')
+    .lean();
+
   if (!bazaarSource) throw new Error('The source bazaar was not found.');
 
   const newBazaar = await Bazaar.create({
@@ -18,23 +21,48 @@ async function copyBazaarIntoClassroom({ sourceBazaarId, targetClassroomId }) {
     classroom: new mongoose.Types.ObjectId(targetClassroomId),
   });
 
-  const newItems = await Item.insertMany(
-    (bazaarSource.items || []).map((i) => ({
-      name: i.name,
-      description: i.description,
-      price: i.price,
-      image: i.image,
-      category: i.category,
-      primaryEffect: i.primaryEffect,
-      secondaryEffect: i.secondaryEffect,
-      usesRemaining: i.usesRemaining,
-      active: i.active,
+  const now = new Date();
+
+  // Copy all of the item fields so mystery/discount/etc keep their configurations
+  const itemsPayload = (bazaarSource.items || []).map((i) => {
+    // omit fields that should not be copied over
+    const {
+      _id,
+      __v,
+      bazaar,
+      classroom,
+      owner,
+      createdAt,
+      updatedAt,
+      orders,
+      // add any other runtime-only fields you know you don't want to carry over
+      ...rest
+    } = i;
+
+    return {
+      ...rest,
+      // always point to the new bazaar/classroom
       bazaar: newBazaar._id,
-      createdAt: new Date(),
-    }))
+      classroom: newBazaar.classroom,
+      // items in the bazaar shop should not belong to a specific student
+      owner: undefined,
+      createdAt: now,
+      updatedAt: now,
+      // keep existing flags when present, otherwise default to sensible values
+      active: i.active ?? true,
+      usesRemaining: i.usesRemaining ?? rest.usesRemaining ?? 0,
+    };
+  });
+
+  const newItems = itemsPayload.length
+    ? await Item.insertMany(itemsPayload)
+    : [];
+
+  await Bazaar.findByIdAndUpdate(
+    newBazaar._id,
+    { $set: { items: newItems.map((i) => i._id) } }
   );
 
-  await Bazaar.findByIdAndUpdate(newBazaar._id, { $set: { items: newItems.map(i => i._id) } });
   return newBazaar;
 }
 
