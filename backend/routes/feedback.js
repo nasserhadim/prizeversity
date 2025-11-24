@@ -10,7 +10,7 @@ const { ensureAuthenticated } = require('../config/auth');
 const sendEmail = require('../../send-email'); // root-level send-email.js
 
 // Centralized XP helper
-const { awardXP } = require('../utils/xp');
+const { awardXP, ALLOWED_REWARD_KEYS } = require('../utils/xp');
 
 // helper to format remaining milliseconds into "Xd Yh Zm"
 function formatRemainingMs(ms) {
@@ -146,7 +146,7 @@ router.post('/classroom', ensureAuthenticated, async (req, res) => {
     // --- NEW: feedback reward flow ---
     try {
       const ip = (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim();
-      const cls = await Classroom.findById(classroomId).select('feedbackRewardEnabled feedbackRewardBits feedbackRewardApplyGroupMultipliers feedbackRewardApplyPersonalMultipliers feedbackRewardAllowAnonymous teacher');
+      const cls = await Classroom.findById(classroomId).select('feedbackRewardEnabled feedbackRewardBits feedbackRewardApplyGroupMultipliers feedbackRewardApplyPersonalMultipliers feedbackRewardAllowAnonymous teacher xpSettings');
       console.log('[feedback] reward check:', { classroomId, clsEnabled: !!cls?.feedbackRewardEnabled, bits: cls?.feedbackRewardBits, allowAnonymous: !!cls?.feedbackRewardAllowAnonymous });
 
       if (cls && cls.feedbackRewardEnabled && Number(cls.feedbackRewardBits) > 0) {
@@ -302,7 +302,7 @@ router.post('/classroom', ensureAuthenticated, async (req, res) => {
                     const result = await awardXP({
                         userId: targetId,
                         classroomId,
-                        opts: { rawXP: Number(base) },
+                        opts: { rawXP: Number(base) * (Number(cls.xpSettings.xpRewards.xpPerBitEarned) || 1)},
                     });
                     if (!result || result.ok === false) {
                         return res.status(400).json({ error: result?.reason || 'Failed to add XP' });
