@@ -455,7 +455,7 @@ const Challenge = () => {
             <Lock className={`w-16 h-16 ${isDark ? 'text-base-content/40' : 'text-gray-400'}`} />
             <h2 className={`text-2xl font-semibold ${themeClasses.mutedText}`}>No Active Challenge</h2>
             <p className={`${isDark ? 'text-base-content/60' : 'text-gray-500'}`}>
-              Your instructor hasn't initiated a cyber challenge yet. Check back later!
+              No active challenge(s). Check back later!
             </p>
           </div>
         </div>
