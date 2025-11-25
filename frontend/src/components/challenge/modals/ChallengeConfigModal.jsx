@@ -17,6 +17,10 @@ const ChallengeConfigModal = ({
   templates,
   handleLoadTemplate,
   handleDeleteTemplate,
+  deleteTemplateModal,
+  confirmDeleteTemplate,
+  cancelDeleteTemplate,
+  deletingTemplate,
   setShowSaveTemplateModal,
   setShowHintModal,
   setEditingHints
@@ -1020,6 +1024,45 @@ const ChallengeConfigModal = ({
               )}
             </button>
           </div>
+
+          {/* Delete Template Confirmation Modal (consistent style) */}
+          {deleteTemplateModal && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+              <div className="card bg-base-100 w-full max-w-md shadow-xl border border-base-300">
+                <div className="card-body">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-bold">Delete Template</h3>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={cancelDeleteTemplate}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <p className="text-sm mt-2">
+                    Delete template "<strong>{deleteTemplateModal.name}</strong>"? This cannot be undone.
+                  </p>
+                  <div className="card-actions justify-end gap-2 mt-4">
+                    <button
+                      className="btn btn-ghost"
+                      onClick={cancelDeleteTemplate}
+                      disabled={deletingTemplate}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className={`btn btn-error ${deletingTemplate ? 'loading' : ''}`}
+                      onClick={confirmDeleteTemplate}
+                      disabled={deletingTemplate}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
     </div>

@@ -8,6 +8,10 @@ export const useTemplates = () => {
   const [templateName, setTemplateName] = useState('');
   const [savingTemplate, setSavingTemplate] = useState(false);
 
+  // New: modal state for delete confirmation
+  const [deleteTemplateModal, setDeleteTemplateModal] = useState(null);
+  const [deletingTemplate, setDeletingTemplate] = useState(false);
+
   const fetchTemplates = async () => {
     try {
       const response = await getChallengeTemplates();
@@ -65,6 +69,29 @@ export const useTemplates = () => {
     }
   };
 
+  // Open delete confirmation modal
+  const handleDeleteTemplate = (templateId, templateName) => {
+    setDeleteTemplateModal({ id: templateId, name: templateName });
+  };
+
+  // Confirm deletion
+  const confirmDeleteTemplate = async () => {
+    if (!deleteTemplateModal) return;
+    try {
+      setDeletingTemplate(true);
+      await deleteChallengeTemplate(deleteTemplateModal.id);
+      toast.success('Template deleted successfully!');
+      fetchTemplates();
+      setDeleteTemplateModal(null);
+    } catch (error) {
+      toast.error(error.message || 'Failed to delete template');
+    } finally {
+      setDeletingTemplate(false);
+    }
+  };
+
+  const cancelDeleteTemplate = () => setDeleteTemplateModal(null);
+
   const handleLoadTemplate = (template, setChallengeConfig) => {
     const newConfig = {
       title: template.title,
@@ -98,20 +125,6 @@ export const useTemplates = () => {
     toast.success(`Template "${template.name}" loaded!`);
   };
 
-  const handleDeleteTemplate = async (templateId, templateName) => {
-    if (!confirm(`Are you sure you want to delete the template "${templateName}"?`)) {
-      return;
-    }
-
-    try {
-      await deleteChallengeTemplate(templateId);
-      toast.success('Template deleted successfully!');
-      fetchTemplates();
-    } catch (error) {
-      toast.error(error.message || 'Failed to delete template');
-    }
-  };
-
   return {
     templates,
     setTemplates,
@@ -123,6 +136,11 @@ export const useTemplates = () => {
     fetchTemplates,
     handleSaveTemplate,
     handleLoadTemplate,
-    handleDeleteTemplate
+    handleDeleteTemplate,
+    // expose modal state & handlers for UI
+    deleteTemplateModal,
+    confirmDeleteTemplate,
+    cancelDeleteTemplate,
+    deletingTemplate
   };
 };

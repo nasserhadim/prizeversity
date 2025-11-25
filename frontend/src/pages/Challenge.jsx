@@ -84,7 +84,11 @@ const Challenge = () => {
     fetchTemplates,
     handleSaveTemplate,
     handleLoadTemplate,
-    handleDeleteTemplate
+    handleDeleteTemplate,
+    deleteTemplateModal,
+    confirmDeleteTemplate,
+    cancelDeleteTemplate,
+    deletingTemplate
   } = useTemplates();
 
   // Component state
@@ -195,6 +199,10 @@ const Challenge = () => {
           templates={templates}
           handleLoadTemplate={handleLoadTemplate}
           handleDeleteTemplate={handleDeleteTemplate}
+          deleteTemplateModal={deleteTemplateModal}
+          confirmDeleteTemplate={confirmDeleteTemplate}
+          cancelDeleteTemplate={cancelDeleteTemplate}
+          deletingTemplate={deletingTemplate}
           setShowSaveTemplateModal={setShowSaveTemplateModal}
           setShowHintModal={setShowHintModal}
           setEditingHints={setEditingHints}
