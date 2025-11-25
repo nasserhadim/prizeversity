@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Settings, Zap } from 'lucide-react';
 import { CHALLENGE_NAMES } from '../../../constants/challengeConstants';
+import { DEFAULT_CHALLENGE_CONFIG } from '../../../constants/challengeConstants';
 import { configureChallenge, initiateChallenge } from '../../../API/apiChallenge';
 import IndivTotalToggle from '../IndivTotalToggle';
 import toast from 'react-hot-toast';
+import ConfirmModal from '../../ConfirmModal';
 
 const ChallengeConfigModal = ({ 
   showConfigModal, 
@@ -29,6 +31,7 @@ const ChallengeConfigModal = ({
   const [activeChallengeIndex, setActiveChallengeIndex] = useState(0);
   const [challengePassword, setChallengePassword] = useState('');
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   
   useEffect(() => {
     const checkMobile = () => {
@@ -145,6 +148,12 @@ const ChallengeConfigModal = ({
     }
   };
 
+  const handleResetToDefaults = () => setShowResetConfirm(true);
+  const confirmReset = () => {
+    setChallengeConfig(DEFAULT_CHALLENGE_CONFIG);
+    setShowResetConfirm(false);
+  };
+
   if (!showConfigModal) return null;
 
   if (showPasswordPrompt) {
@@ -213,17 +222,28 @@ const ChallengeConfigModal = ({
           <div className="flex items-center gap-3 mb-4">
             <Settings className="w-6 h-6 text-red-500" />
             <h2 className="text-2xl font-bold">Configure Challenge Series</h2>
+            <div className="ml-auto">
+              <button
+                className="btn btn-sm btn-ghost"
+                onClick={handleResetToDefaults}
+                title="Reset all configuration fields to default settings"
+              >
+                Reset to Defaults
+              </button>
+            </div>
           </div>
-
+ 
           <div className="bg-base-200 rounded-lg p-4 mb-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-semibold">Templates</h3>
-              <button
-                className="btn btn-sm btn-primary"
-                onClick={() => setShowSaveTemplateModal(true)}
-              >
-                Save Current Config
-              </button>
+              <div className="flex gap-2">
+                <button
+                  className="btn btn-sm btn-primary"
+                  onClick={() => setShowSaveTemplateModal(true)}
+                >
+                  Save Current Config
+                </button>
+              </div>
             </div>
             
             {templates.length > 0 ? (
@@ -1132,6 +1152,14 @@ const ChallengeConfigModal = ({
             </div>
           )}
 
+          <ConfirmModal
+            isOpen={showResetConfirm}
+            onClose={() => setShowResetConfirm(false)}
+            title="Reset to defaults"
+            message="Reset all configuration fields to default settings?"
+            confirmText="Reset"
+            onConfirm={confirmReset}
+          />
         </div>
       </div>
     </div>

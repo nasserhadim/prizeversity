@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Edit3, Save } from 'lucide-react';
 import { CHALLENGE_NAMES } from '../../../constants/challengeConstants';
+import { DEFAULT_CHALLENGE_CONFIG } from '../../../constants/challengeConstants';
 import { updateChallenge } from '../../../API/apiChallenge';
 import IndivTotalToggle from '../IndivTotalToggle';
 import toast from 'react-hot-toast';
+import ConfirmModal from '../../ConfirmModal';
 
 const ChallengeUpdateModal = ({ 
   showUpdateModal, 
@@ -101,6 +103,17 @@ const ChallengeUpdateModal = ({
     }
   };
 
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const handleResetToDefaults = () => setShowResetConfirm(true);
+  const confirmReset = () => {
+    setUpdateData(prev => ({
+      ...DEFAULT_CHALLENGE_CONFIG,
+      title: challengeData?.title || prev.title || DEFAULT_CHALLENGE_CONFIG.title,
+      dueDate: prev.dueDate ?? DEFAULT_CHALLENGE_CONFIG.dueDate
+    }));
+    setShowResetConfirm(false);
+  };
+
   if (!showUpdateModal) return null;
 
   return (
@@ -110,7 +123,24 @@ const ChallengeUpdateModal = ({
           <div className="flex items-center gap-3 mb-4">
             <Edit3 className="w-6 h-6 text-blue-500" />
             <h2 className="text-xl sm:text-2xl font-bold">Update Challenge Series</h2>
+            <div className="ml-auto">
+             <button
+               className="btn btn-sm btn-ghost mr-2"
+               onClick={handleResetToDefaults}
+               title="Reset update form to default settings"
+             >
+               Reset to Defaults
+             </button>
+           </div>
           </div>
+          <ConfirmModal
+            isOpen={showResetConfirm}
+            onClose={() => setShowResetConfirm(false)}
+            title="Reset to defaults"
+            message="Reset update form to default challenge settings?"
+            confirmText="Reset"
+            onConfirm={confirmReset}
+          />
           
           <div className="space-y-6">
             <div>
