@@ -4,6 +4,7 @@ import { ThemeContext } from '../context/ThemeContext'; // <-- added import
 import axios from 'axios';
 import socket from '../utils/socket.js';
 import { LoaderIcon, RefreshCw, TrendingUp } from 'lucide-react'; // Removed Award import
+import { Info } from 'lucide-react'; // <-- add this import
 import Footer from '../components/Footer';
 import StatsRadar from '../components/StatsRadar'; // <-- add this import
 import { getThemeClasses } from '../utils/themeUtils'; // <-- new import
@@ -166,6 +167,9 @@ const StudentStats = () => {
                   </h2>
                   <p className={`text-sm ${subtleText}`}>
                     {xpData.xp} / {xpData.nextLevelProgress.xpForNextLevel} XP
+                    <span className="tooltip tooltip-right ml-2" data-tip="Total cumulative XP earned in this classroom (includes all prior levels).">
+                      <Info size={14} className="inline-block text-base-content/60" />
+                    </span>
                   </p>
                 </div>
 

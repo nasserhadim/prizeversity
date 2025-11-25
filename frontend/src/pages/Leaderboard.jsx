@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Coins, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Info } from 'lucide-react'; // <-- add this import
 import socket from '../utils/socket';
 import apiLeaderboard from '../API/apiLeaderboard.js';
 import apiClassroom from '../API/apiClassroom.js';
@@ -238,6 +239,9 @@ const Leaderboard = () => {
                       onClick={() => handleSort('xp')}
                     >
                       XP {getSortIcon('xp')}
+                      <span className="tooltip tooltip-right ml-2" data-tip="Total cumulative XP earned in this classroom (used for leaderboard ordering with level first).">
+                        <Info size={14} className="inline-block text-base-content/60" />
+                      </span>
                     </button>
                   </th>
                   <th>Actions</th>
