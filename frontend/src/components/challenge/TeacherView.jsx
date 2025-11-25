@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 import socket from '../../utils/socket';
 import Footer from '../Footer';
 import ExportButtons from '../ExportButtons';
+import ConfirmModal from '../ConfirmModal'; // <-- NEW import
 
 const TeacherView = ({ 
   challengeData,
@@ -52,6 +53,32 @@ const TeacherView = ({
   const [editingHints, setEditingHints] = useState(null);
   const dropdownRef = useRef(null);
   const themeClasses = getThemeClasses(isDark);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [confirmOptions, setConfirmOptions] = useState({
+    title: 'Confirm',
+    message: '',
+    confirmText: 'Confirm',
+    onConfirm: null
+  });
+
+  // Open a consistent ConfirmModal used across this component
+  const openConfirm = ({ title = 'Confirm', message = '', confirmText = 'Confirm', cancelText = 'Cancel', confirmButtonClass = 'btn-primary', onConfirm = null }) => {
+    setConfirmOptions({ title, message, confirmText, cancelText, confirmButtonClass, onConfirm });
+    setShowConfirm(true);
+  };
+
+  // Called when the modal's Confirm button is pressed
+  const handleConfirm = async () => {
+    setShowConfirm(false);
+    if (typeof confirmOptions.onConfirm === 'function') {
+      try {
+        await confirmOptions.onConfirm();
+      } catch (err) {
+        // caller is responsible for showing errors (toast), swallow here to avoid unhandled rejections
+        console.error('Confirm callback error', err);
+      }
+    }
+  };
 
   useEffect(() => {
     if (challengeData?.settings?.dueDate) {
@@ -1591,15 +1618,21 @@ const TeacherView = ({
                                         className={`text-xs ${!isStarted ? 'text-gray-400' : isCompleted ? 'text-green-600' : 'text-blue-600'}`}
                                         disabled={!isStarted}
                                         onClick={async () => {
-                                          if (confirm(`Reset ${challengeNames[challengeIdx]} for ${uc.userId.firstName} ${uc.userId.lastName}? This will clear their progress for this specific challenge.`)) {
-                                            try {
-                                              await resetSpecificChallenge(classroomId, uc.userId._id, challengeIdx);
-                                              toast.success(`Reset ${challengeNames[challengeIdx]} for ${uc.userId.firstName} ${uc.userId.lastName}`);
-                                              await fetchChallengeData();
-                                            } catch (error) {
-                                              toast.error(`Failed to reset challenge: ${error.message}`);
+                                          // replace window.confirm(...) with modal
+                                          openConfirm({
+                                            title: `Reset ${challengeNames[challengeIdx]}`,
+                                            message: `Reset ${challengeNames[challengeIdx]} for ${uc.userId.firstName} ${uc.userId.lastName}? This will clear their progress for this specific challenge.`,
+                                            confirmText: 'Reset',
+                                            onConfirm: async () => {
+                                              try {
+                                                await resetSpecificChallenge(classroomId, uc.userId._id, challengeIdx);
+                                                toast.success(`Reset ${challengeNames[challengeIdx]} for ${uc.userId.firstName} ${uc.userId.lastName}`);
+                                                await fetchChallengeData();
+                                              } catch (error) {
+                                                toast.error(`Failed to reset challenge: ${error.message}`);
+                                              }
                                             }
-                                          }
+                                          });
                                         }}
                                       >
                                         {isCompleted ? '✅' : isStarted ? '🔄' : '⏹️'} {challengeNames[challengeIdx]}
@@ -1612,15 +1645,20 @@ const TeacherView = ({
                                   <button
                                     className="text-xs text-red-600 font-semibold"
                                     onClick={async () => {
-                                      if (confirm(`Are you sure you want to reset ALL challenges for ${uc.userId.firstName} ${uc.userId.lastName}? This will clear all their progress and they will start from Challenge 1.`)) {
-                                        try {
-                                          await resetStudentChallenge(classroomId, uc.userId._id);
-                                          toast.success(`Reset all challenges for ${uc.userId.firstName} ${uc.userId.lastName}`);
-                                          await fetchChallengeData();
-                                        } catch (error) {
-                                          toast.error(`Failed to reset all challenges: ${error.message}`);
+                                      openConfirm({
+                                        title: 'Reset ALL Challenges',
+                                        message: `Are you sure you want to reset ALL challenges for ${uc.userId.firstName} ${uc.userId.lastName}? This will clear all their progress and they will start from Challenge  1.`,
+                                        confirmText: 'Reset ALL',
+                                        onConfirm: async () => {
+                                          try {
+                                            await resetStudentChallenge(classroomId, uc.userId._id);
+                                            toast.success(`Reset all challenges for ${uc.userId.firstName} ${uc.userId.lastName}`);
+                                            await fetchChallengeData();
+                                          } catch (error) {
+                                            toast.error(`Failed to reset all challenges: ${error.message}`);
+                                          }
                                         }
-                                      }
+                                      });
                                     }}
                                   >
                                     🗑️ Reset ALL Challenges
@@ -1826,6 +1864,17 @@ const TeacherView = ({
             </div>
           </div>
         </div>
+      )}
+
+      {showConfirm && (
+        <ConfirmModal
+          isOpen={showConfirm}
+          onClose={() => setShowConfirm(false)}
+          title={confirmOptions.title}
+          message={confirmOptions.message}
+          confirmText={confirmOptions.confirmText}
+          onConfirm={handleConfirm}
+        />
       )}
       </div>
       <Footer />
