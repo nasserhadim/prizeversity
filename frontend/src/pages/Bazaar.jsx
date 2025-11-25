@@ -20,15 +20,20 @@ import { useBazaarTemplates } from '../hooks/useBazaarTemplates';
 const Bazaar = () => {
   const { classroomId } = useParams();
   const { user } = useAuth();
+  const isTeacher = user?.role === 'teacher' || user?.role === 'admin';
+
   const [bazaar, setBazaar] = useState(null);
   const [classroom, setClassroom] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [showInventory, setShowInventory] = useState(false);
+
+  // tabs: 'items' 'inventory' | 'create'
+  const [activeTab, setActiveTab] = useState('items');
+
+  const [showInventory, setShowInventory] = useState(false); // kept for compatibility
   const [showDiscounts, setShowDiscounts] = useState(false);
   const [Discounts, setDiscounts] = useState([]);
   const [discountPercent, setDiscountPercent] = useState(0);
   const [nextExpireDHMS, setNextExpireDHMS] = useState(''); // Days, hours, minutes, seconds
-  
 
   const [confirmDeleteBazaar, setConfirmDeleteBazaar] = useState(null);
   const [EditBazaar, setEditBazaar] = useState(false);
@@ -261,14 +266,12 @@ const Bazaar = () => {
   };
 
   // added to automatically get discounts
-useEffect(() => {
-  if (user?._id && classroomId) {
-    getDiscounts();
-  }
-  //console.log("Discounts loaded:", discounts);
-}, [user?._id, classroomId]);
-
-
+  useEffect(() => {
+    if (user?._id && classroomId) {
+      getDiscounts();
+    }
+    //console.log("Discounts loaded:", discounts);
+  }, [user?._id, classroomId]);
   // Gets the discounts for the student in the bazaar
   const getDiscounts = async () => {
     try {
@@ -276,7 +279,6 @@ useEffect(() => {
         const discountData = res.data || [];
         
         setDiscounts(discountData);
-
 
         let percent = 0;
         let timeLeft = 0;
@@ -290,37 +292,36 @@ useEffect(() => {
           const combined = discountData.reduce(
             (acc, d) => acc * (1 - (d.discountPercent || 0) / 100), 1
           );
-         const percentRaw = (1 - combined) * 100;
+          const percentRaw = (1 - combined) * 100;
           // round to 2 decimal places, then back to Number
-         percent = Number(percentRaw.toFixed(2));
+          percent = Number(percentRaw.toFixed(2));
 
-         const nextGone = discountData.reduce(
+          const nextGone = discountData.reduce(
             (min, d) => (new Date(d.expiresAt) < new Date(min.expiresAt) ? d : min)
           );
-            // determines time left in days, hours, minutes, seconds
-            timeLeft = Math.abs(new Date(nextGone.expiresAt) - Date.now()) / 1000;
+          // determines time left in days, hours, minutes, seconds
+          timeLeft = Math.abs(new Date(nextGone.expiresAt) - Date.now()) / 1000;
 
-            days = Math.floor(timeLeft / 86400);
-            timeLeft -= days * 86400;
+          days = Math.floor(timeLeft / 86400);
+          timeLeft -= days * 86400;
 
-            hours = Math.floor(timeLeft / 3600);
-            timeLeft -= hours * 3600;
+          hours = Math.floor(timeLeft / 3600);
+          timeLeft -= hours * 3600;
 
-            minutes = Math.floor(timeLeft / 60);
-            timeLeft -= minutes * 60;
-
+          minutes = Math.floor(timeLeft / 60);
+          timeLeft -= minutes * 60;
         }
         // sets output
         let addHours = (hours > 0);
         let addMin = (minutes > 0);
-        // days
+        //days
         if (days > 0)
         {
             timeLeftInDHMS.push(`${days} day${days > 1 ? "s" : ""}`); 
             addHours = true;
             addMin = true;
         }
-        // hours
+        //hours
         if (addHours)
         {
             timeLeftInDHMS.push(`${hours} hour${hours > 1 ? "s" : ""}`);
@@ -335,30 +336,28 @@ useEffect(() => {
     
         setDiscountPercent(percent);
         setNextExpireDHMS(timeLeftInDHMS.join(", "));
-
     } catch (err) {
         console.error("Failed to load discounts:", err);
     }
-};
+  };
 
-// Makes discount update in real-time
-useEffect(() => {
+  // Makes discount update in real-time
+  useEffect(() => {
     if (!Discounts.length) {
         setDiscountPercent(0);
         setNextExpireDHMS('');
         return;
     }
-
-    // makes it run each second
+    //makes it run each second
     const interval = setInterval(() => {
-        // discount percentage
+      //discount percentage
         const combined = Discounts.reduce(
             (acc, d) => acc * (1 - (d.discountPercent || 0) / 100), 1
         );
         const percentRaw = (1 - combined) * 100;
         const percent = Number(percentRaw.toFixed(2));
 
-        // next to expire
+        //next to expire
         const nextGone = Discounts.reduce(
             (min, d) => (new Date(d.expiresAt) < new Date(min.expiresAt) ? d : min)
         );
@@ -378,14 +377,14 @@ useEffect(() => {
         const timeLeftInDHMS = [];
         let addHours = (hours > 0);
         let addMin = (minutes > 0);
-        // days
+        //days
         if (days > 0)
         {
             timeLeftInDHMS.push(`${days} day${days > 1 ? "s" : ""}`); 
             addHours = true;
             addMin = true;
         }
-        // hours
+        //hours
         if (addHours)
         {
             timeLeftInDHMS.push(`${hours} hour${hours > 1 ? "s" : ""}`);
@@ -398,16 +397,18 @@ useEffect(() => {
         }
         timeLeftInDHMS.push(`${Math.floor(timeLeft)} sec`);
 
-    setDiscountPercent(percent);
-    setNextExpireDHMS(timeLeftInDHMS.join(", "));
-  }, 1000);
+        setDiscountPercent(percent);
+        setNextExpireDHMS(timeLeftInDHMS.join(", "));
+    }, 1000);
 
-  return () => clearInterval(interval);
-}, [Discounts]);
+    return () => clearInterval(interval);
+  }, [Discounts]);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-base-200">
-    <span className="loading loading-ring loading-lg"></span>
-  </div>;
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-base-200">
+      <span className="loading loading-ring loading-lg"></span>
+    </div>
+  );
 
   if (!bazaar) {
     return user?.role === "teacher" ? (
@@ -446,7 +447,6 @@ useEffect(() => {
                               const created = await applyTemplate(t._id, classroomId);
                               if (created) {
                                 setBazaar(created);
-                                //toast.success("Template applied");
                               }
                             }}
                           >
@@ -460,7 +460,6 @@ useEffect(() => {
                                   await deleteTemplate(t._id);
                                   setConfirmDeleteId(null);
                                   await fetchTemplates();
-                                  //toast.success('Template deleted');
                                 }}
                               >
                                 Confirm
@@ -543,7 +542,7 @@ useEffect(() => {
             {bazaar.name}
           </h2>
 
-        <p className="text-base-content opacity-70 text-base sm:text-lg whitespace-pre-wrap">
+          <p className="text-base-content opacity-70 text-base sm:text-lg whitespace-pre-wrap">
             {bazaar.description}
           </p>
         </div>
@@ -594,6 +593,39 @@ useEffect(() => {
         )}
       </div>
 
+      {/* Tab bar that spans the entire page */}
+      <div className="w-full">
+        <div
+          role="tablist"
+          className="tabs tabs-boxed w-full flex mb-4"
+        >
+          <button
+            role="tab"
+            className={`tab flex-1 justify-center ${activeTab === 'items' ? 'tab-active' : ''}`}
+            onClick={() => setActiveTab('items')}
+          >
+            Shop
+          </button>
+          <button
+            role="tab"
+            className={`tab flex-1 justify-center ${activeTab === 'inventory' ? 'tab-active' : ''}`}
+            onClick={() => setActiveTab('inventory')}
+          >
+            Inventory
+          </button>
+          {isTeacher && (
+            <button
+              role="tab"
+              className={`tab flex-1 justify-center ${activeTab === 'create' ? 'tab-active' : ''}`}
+              onClick={() => setActiveTab('create')}
+            >
+              Create Item
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Search is still global for items tab */}
       <BazaarSearch
         onFiltersChange={(f) => {
           setPage(1);
@@ -601,119 +633,125 @@ useEffect(() => {
           fetchFilteredItems(f);   
         }}
       />
+
       {/* Discount Section*/}
       {Discounts.length > 0 && (
         <div className="card bg-base-200 shadow-inner border border-base-300">
-            <div className="card-body p-4">
-                <h3 className="text-1xl font-bold text-success flex items-center gap-2">
-                Total Discount: {discountPercent}%
-                </h3>
-                <h3 className="text-1xl font-bold text-success flex items-center gap-2">
-                Next expires in {nextExpireDHMS}
-                </h3>
-          <div className="flex items-center justify-between mb-2">
-            <button
+          <div className="card-body p-4">
+            <h3 className="text-1xl font-bold text-success flex items-center gap-2">
+              Total Discount: {discountPercent}%
+            </h3>
+            <h3 className="text-1xl font-bold text-success flex items-center gap-2">
+              Next expires in {nextExpireDHMS}
+            </h3>
+            <div className="flex items-center justify-between mb-2">
+              <button
                 onClick={() => setShowDiscounts(!showDiscounts)}
                 className={`btn btn-sm transition-all duration-200 ${showDiscounts ? 'btn-outline btn-error' : 'btn-success'}`}
               >
                 {showDiscounts ? 'Hide' : 'Show'} Discounts
-            </button>
-           </div>
-        <div className="flex items-center justify-between">
-            {/* Discount Section */}
-            {showDiscounts && (
-              <div>
-                <ActiveDiscountsSection userId={user._id} classroomId={classroomId} />
-              </div>
-            )}
+              </button>
+            </div>
+            <div className="flex items-center justify-between">
+              {showDiscounts && (
+                <div>
+                  <ActiveDiscountsSection userId={user._id} classroomId={classroomId} />
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-       </div>
-       </div>
       )}
 
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-2xl font-bold text-success flex items-center gap-2">
-            <HandCoins />
-            Items for Sale
-          </h3>
-          <span className="badge badge-outline text-sm hidden md:inline">
-            {filteredItems.length} item{filteredItems.length === 1 ? "" : "s"}
-          </span>
-        </div>
-
-        <div className="divider my-0"></div>
-
-        {searchLoading && (
-          <div className="min-h-[80px] flex items-center text-sm opacity-70">
-            Loading items…
-          </div>
-        )}
-
-        {searchError && (
-          <div className="text-red-600 text-sm">
-            {searchError}
-          </div>
-        )}
-
-        {!searchLoading && !searchError && filteredItems.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-10 text-center text-gray-500">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="w-12 h-12 mb-2 opacity-40"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M20 13V9a2 2 0 00-2-2h-1V5a2 2 0 00-2-2H9a2 2 0 00-2 2v2H6a2 2 0 00-2 2v4M3 17h18M9 21h6"
-              />
-            </svg>
-            <p className="italic">No items match your filters.</p>
-          </div>
-        )}
-
-        {!searchLoading && !searchError && currentPageItems.length > 0 && (
+        {/* Items for sale tab */}
+        {activeTab === 'items' && (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-              {currentPageItems.map((item) => (
-                <ItemCard
-                  key={item._id}
-                  item={item}
-                  role={user?.role}
-                  classroomId={classroomId}
-                  teacherId={classroom?.teacher?._id || classroom?.teacher}
-                  bazaarIdProp={bazaar?._id}
-                  onUpdated={handleItemUpdated}
-                  onDeleted={handleItemDeleted}
-                />
-              ))}
+            <div className="flex items-center justify-between">
+              <h3 className="text-2xl font-bold text-success flex items-center gap-2">
+                <HandCoins />
+                Items for Sale
+              </h3>
+              <span className="badge badge-outline text-sm hidden md:inline">
+                {filteredItems.length} item{filteredItems.length === 1 ? "" : "s"}
+              </span>
             </div>
 
-            <div className="flex items-center justify-between mt-4">
-              <button
-                className="btn btn-sm"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
-              >
-                Previous
-              </button>
-              <div className="text-sm opacity-70">Page {page} of {totalPages}</div>
-              <button
-                className="btn btn-sm"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-              >
-                Next
-              </button>
-            </div>
+            <div className="divider my-0"></div>
+
+            {searchLoading && (
+              <div className="min-h-[80px] flex items-center text-sm opacity-70">
+                Loading items…
+              </div>
+            )}
+
+            {searchError && (
+              <div className="text-red-600 text-sm">
+                {searchError}
+              </div>
+            )}
+
+            {!searchLoading && !searchError && filteredItems.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-10 text-center text-gray-500">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="w-12 h-12 mb-2 opacity-40"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M20 13V9a2 2 0 00-2-2h-1V5a2 2 0 00-2-2H9a2 2 0 00-2 2v2H6a2 2 0 00-2 2v4M3 17h18M9 21h6"
+                  />
+                </svg>
+                <p className="italic">No items match your filters.</p>
+              </div>
+            )}
+
+            {!searchLoading && !searchError && currentPageItems.length > 0 && (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                  {currentPageItems.map((item) => (
+                    <ItemCard
+                      key={item._id}
+                      item={item}
+                      role={user?.role}
+                      classroomId={classroomId}
+                      teacherId={classroom?.teacher?._id || classroom?.teacher}
+                      bazaarIdProp={bazaar?._id}
+                      onUpdated={handleItemUpdated}
+                      onDeleted={handleItemDeleted}
+                    />
+                  ))}
+                </div>
+
+                <div className="flex items-center justify-between mt-4">
+                  <button
+                    className="btn btn-sm"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                  >
+                    Previous
+                  </button>
+                  <div className="text-sm opacity-70">Page {page} of {totalPages}</div>
+                  <button
+                    className="btn btn-sm"
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                  >
+                    Next
+                  </button>
+                </div>
+              </>
+            )}
           </>
         )}
 
-        {user?.role === 'teacher' && (
+        {/* Create item tab (teachers/admins only) */}
+        {isTeacher && activeTab === 'create' && (
           <div className="card card-compact bg-base-100 shadow p-4 border border-base-200">
             <CreateItem
               bazaarId={bazaar._id}
@@ -726,28 +764,29 @@ useEffect(() => {
           </div>
         )}
 
-        <div className="card bg-base-200 shadow-inner border border-base-300">
-          <div className="card-body p-4">
-            <div className="flex items-center justify-between mb-2">
-              <button
-                onClick={() => setShowInventory(!showInventory)}
-                className={`btn btn-sm transition-all duration-200 ${showInventory ? 'btn-outline btn-error' : 'btn-success'}`}
-              >
-                {showInventory ? 'Hide' : 'Show'} Inventory
-              </button>
-            </div>
-
-            {showInventory && (
-              <div className="mt-4">
-                <InventorySection userId={user._id} classroomId={classroomId} />
+        {/* INVENTORY TAB */}
+        {activeTab === 'inventory' && (
+          <div className="card bg-base-200 shadow-inner border border-base-300">
+            <div className="card-body p-4">
+              <div className="flex items-center justify-between mb-2">
+                <button
+                  onClick={() => setShowInventory(!showInventory)}
+                  className={`btn btn-sm transition-all duration-200 ${showInventory ? 'btn-outline btn-error' : 'btn-success'}`}
+                >
+                  {showInventory ? 'Hide' : 'Show'} Inventory
+                </button>
               </div>
-            )}
+
+              {showInventory && (
+                <div className="mt-4">
+                  <InventorySection userId={user._id} classroomId={classroomId} />
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
-        
-
-        {/* This is for editing the Bazaar */}
+        {/* Edit Bazaar Modal */}
         {EditBazaar && (
           <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
             <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-lg">
@@ -961,7 +1000,6 @@ useEffect(() => {
                                       if (created) {
                                         setBazaar(created);
                                         setShowViewer(false);
-                                        //toast.success('Template applied');
                                       }
                                     }}
                                   >
@@ -1010,11 +1048,11 @@ useEffect(() => {
             </div>
           </div>
         )}
+
         <Footer />
       </div>
     </div>
   );
 };
-// issue testing: can you see this
 
 export default Bazaar;
