@@ -16,7 +16,7 @@ import AverageRating from '../components/AverageRating';
  
 const FeedbackPage = () => {
   const { user } = useAuth();
-  const [tab, setTab] = useState('submit');
+  const [tab, setTab] = useState('recent');
   const [rating, setRating] = useState(null);
   const [comment, setComment] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -244,8 +244,8 @@ const FeedbackPage = () => {
 
             {/* Tabs */}
             <div role="tablist" className="tabs tabs-boxed mb-4">
-              <a role="tab" className={`tab ${tab === 'submit' ? 'tab-active' : ''}`} onClick={() => setTab('submit')}>Submit</a>
               <a role="tab" className={`tab ${tab === 'recent' ? 'tab-active' : ''}`} onClick={() => setTab('recent')}>Recent</a>
+              <a role="tab" className={`tab ${tab === 'submit' ? 'tab-active' : ''}`} onClick={() => setTab('submit')}>Submit</a>
             </div>
 
             {/* Tab panes */}

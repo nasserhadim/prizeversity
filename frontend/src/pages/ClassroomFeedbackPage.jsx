@@ -20,7 +20,7 @@ import { Settings } from 'lucide-react'; // ADD
 const ClassroomFeedbackPage = ({ userId }) => {
   const { classroomId } = useParams();
   const { user } = useAuth();
-  const [tab, setTab] = useState('submit'); // 'submit' | 'recent'
+  const [tab, setTab] = useState('recent'); // default to 'recent'
   const [classroom, setClassroom] = useState(null);
   const [rating, setRating] = useState(null);
   const [comment, setComment] = useState("");
@@ -491,8 +491,8 @@ const ClassroomFeedbackPage = ({ userId }) => {
             {/* tabs follow */}
             {/* Tabs */}
             <div role="tablist" className="tabs tabs-boxed mb-4">
-              <a role="tab" className={`tab ${tab === 'submit' ? 'tab-active' : ''}`} onClick={() => setTab('submit')}>Submit</a>
               <a role="tab" className={`tab ${tab === 'recent' ? 'tab-active' : ''}`} onClick={() => setTab('recent')}>Recent</a>
+              <a role="tab" className={`tab ${tab === 'submit' ? 'tab-active' : ''}`} onClick={() => setTab('submit')}>Submit</a>
             </div>
  
             {/* Tab panes */}
