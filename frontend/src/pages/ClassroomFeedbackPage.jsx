@@ -46,6 +46,10 @@ const ClassroomFeedbackPage = ({ userId }) => {
   const [loadingRewardConfig, setLoadingRewardConfig] = useState(false);
   const [savingRewardConfig, setSavingRewardConfig] = useState(false);
 
+  // live non-space character count (used for UI + button disabling)
+  const nonSpaceLength = (comment || '').replace(/\s/g, '').length;
+  const remainingChars = Math.max(0, 50 - nonSpaceLength);
+
   // --- NEW: server-side rating data ---
   const [serverRatingCounts, setServerRatingCounts] = useState(null);
   const [serverAverage, setServerAverage] = useState(null);
@@ -513,7 +517,21 @@ const ClassroomFeedbackPage = ({ userId }) => {
  
                   <div>
                     <label className="label"><span className="label-text">Your Comment</span></label>
-                    <textarea className="textarea textarea-bordered w-full" value={comment} onChange={(e)=>setComment(e.target.value)} placeholder="Type your feedback here..." rows={4} />
+                    <textarea
+                      className="textarea textarea-bordered w-full"
+                      value={comment}
+                      onChange={(e)=>setComment(e.target.value)}
+                      placeholder="Type your feedback here..."
+                      rows={4}
+                    />
+                    <div className="flex items-center justify-between text-xs mt-1">
+                      <div className={nonSpaceLength < 50 ? 'text-error' : 'text-success'}>
+                        Non-space chars: {nonSpaceLength} / 50
+                      </div>
+                      <div className="text-base-content/50">
+                        {remainingChars > 0 ? `${remainingChars} to go` : 'Ready'}
+                      </div>
+                    </div>
                   </div>
  
                   <div className="form-control">

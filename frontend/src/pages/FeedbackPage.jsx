@@ -32,6 +32,9 @@ const FeedbackPage = () => {
   const [reporterEmail, setReporterEmail] = useState('');
   const [serverRatingCounts, setServerRatingCounts] = useState(null);
   const [serverAverage, setServerAverage] = useState(null);
+  // live non-space character count (used for UI + button disabling)
+  const nonSpaceLength = (comment || '').replace(/\s/g, '').length;
+  const remainingChars = Math.max(0, 50 - nonSpaceLength);
  
   const fetchSiteFeedback = async (nextPage = 1, append = false) => {
     try {
@@ -288,6 +291,14 @@ const FeedbackPage = () => {
                         placeholder="Type your feedback here..."
                         rows={4}
                       />
+                      <div className="flex items-center justify-between text-xs mt-1">
+                        <div className={nonSpaceLength < 50 ? 'text-error' : 'text-success'}>
+                          Non-space chars: {nonSpaceLength} / 50
+                        </div>
+                        <div className="text-base-content/50">
+                          {remainingChars > 0 ? `${remainingChars} to go` : 'Ready'}
+                        </div>
+                      </div>
                     </div>
 
                     {user && (
