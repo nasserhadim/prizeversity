@@ -203,6 +203,16 @@ router.post('/:classroomId/configure', ensureAuthenticated, ensureTeacher, async
       });
     }
 
+    // NEW: persist per-challenge visibility when provided in the initial configure payload
+    if (settings && typeof settings.challengeVisibility !== 'undefined') {
+      challenge.settings.challengeVisibility = Array.isArray(settings.challengeVisibility)
+        ? settings.challengeVisibility.map(v => !!v)
+        : [true, true, true, true, true, true, true];
+    } else if (!challenge.settings.challengeVisibility) {
+      // ensure a default exists (backwards compatibility)
+      challenge.settings.challengeVisibility = [true, true, true, true, true, true, true];
+    }
+
     await challenge.save();
 
     res.json({ 
@@ -302,7 +312,7 @@ router.post('/:classroomId/initiate', ensureAuthenticated, ensureTeacher, async 
 router.put('/:classroomId/update', ensureAuthenticated, ensureTeacher, async (req, res) => {
   try {
     const { classroomId } = req.params;
-    const { title, challengeBits, totalRewardBits, rewardMode, challengeMultipliers, totalMultiplier, multiplierMode, challengeLuck, totalLuck, luckMode, challengeDiscounts, totalDiscount, discountMode, challengeShields, totalShield, shieldMode, challengeHints, challengeHintsEnabled, hintPenaltyPercent, maxHintsPerChallenge, dueDateEnabled, dueDate } = req.body;
+    const { title, challengeBits, totalRewardBits, rewardMode, challengeMultipliers, totalMultiplier, multiplierMode, challengeLuck, totalLuck, luckMode, challengeDiscounts, totalDiscount, discountMode, challengeShields, totalShield, shieldMode, challengeHints, challengeHintsEnabled, hintPenaltyPercent, maxHintsPerChallenge, dueDateEnabled, dueDate, challengeVisibility } = req.body;
     const teacherId = req.user._id;
 
     const classroom = await Classroom.findById(classroomId);
@@ -405,6 +415,14 @@ router.put('/:classroomId/update', ensureAuthenticated, ensureTeacher, async (re
 
     if (dueDate !== undefined) {
       challenge.settings.dueDate = dueDateEnabled ? dueDate : null;
+    }
+
+    // NEW: persist per-challenge visibility array
+    if (challengeVisibility !== undefined) {
+      // normalize to booleans and ensure length for 7 challenges
+      challenge.settings.challengeVisibility = Array.isArray(challengeVisibility)
+        ? challengeVisibility.map(v => !!v)
+        : [true, true, true, true, true, true, true];
     }
 
     await challenge.save();

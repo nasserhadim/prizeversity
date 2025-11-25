@@ -112,6 +112,11 @@ const ChallengeConfigModal = ({
         settings.dueDate = '';
       }
 
+      // NEW: persist per-challenge visibility into settings so backend saves it
+      settings.challengeVisibility = Array.isArray(challengeConfig.challengeVisibility)
+        ? challengeConfig.challengeVisibility.map(v => !!v)
+        : [true, true, true, true, true, true, true];
+
       await configureChallenge(classroomId, challengeConfig.title, settings);
       
       setShowPasswordPrompt(true);
@@ -648,6 +653,41 @@ const ChallengeConfigModal = ({
                     </div>
                   </div>
                 </div>
+
+                {/* NEW: Mobile Visibility card (shows per-challenge toggles stacked) */}
+                <div className="card bg-base-200 p-3 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <h3 className="font-semibold">Visibility</h3>
+                      <div className="text-xs text-gray-500">Visible to students</div>
+                    </div>
+                  </div>
+                  <div className="space-y-2 mt-2">
+                    {CHALLENGE_NAMES.map((name, idx) => (
+                      <label key={idx} className="flex items-center justify-between gap-3">
+                        <div className="flex-1 text-sm">
+                          <div className="font-medium">{`CH ${idx + 1}`}</div>
+                          <div className="text-xs text-gray-500 truncate max-w-xs">{name}</div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          className="checkbox checkbox-sm checkbox-primary"
+                          checked={!!challengeConfig.challengeVisibility?.[idx]}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setChallengeConfig(prev => {
+                              const arr = [...(prev.challengeVisibility || [])];
+                              while (arr.length <= idx) arr.push(true);
+                              arr[idx] = checked;
+                              return { ...prev, challengeVisibility: arr };
+                            });
+                          }}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -714,7 +754,7 @@ const ChallengeConfigModal = ({
                             {challengeConfig.challengeHintsEnabled[index] && (
                               <button
                                 type="button"
-                                className="btn btn-xs btn-outline btn-primary"
+                                className="btn btn-xs btn-outline btn-primary min-h-[24px] h-6"
                                 onClick={() => {
                                   setEditingHints({ challengeIndex: index, challengeName });
                                   setShowHintModal(true);
@@ -959,6 +999,35 @@ const ChallengeConfigModal = ({
                         </td>
                       ))}
                     </tr>
+
+                    {/* NEW: Visibility row moved here for consistency with Update modal */}
+                    <tr>
+                      <td className="sticky left-0 bg-base-100 z-10">
+                        <div className="flex items-center gap-3 flex-nowrap text-sm">
+                          <span className="font-semibold inline-block w-36 shrink-0">Visibility</span>
+                          <div className="text-xs text-gray-500">Visible to students</div>
+                        </div>
+                      </td>
+                      {CHALLENGE_NAMES.map((_, index) => (
+                        <td key={index} className="text-center">
+                          <input
+                            type="checkbox"
+                            className="checkbox checkbox-sm checkbox-primary"
+                            checked={!!challengeConfig.challengeVisibility?.[index]}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setChallengeConfig(prev => {
+                                const arr = [...(prev.challengeVisibility || [])];
+                                while (arr.length <= index) arr.push(true);
+                                arr[index] = checked;
+                                return { ...prev, challengeVisibility: arr };
+                              });
+                            }}
+                          />
+                        </td>
+                      ))}
+                    </tr>
+
                   </tbody>
                 </table>
               </div>

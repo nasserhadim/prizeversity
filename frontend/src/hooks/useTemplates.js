@@ -52,6 +52,10 @@ export const useTemplates = () => {
         hintPenaltyPercent: challengeConfig.hintPenaltyPercent,
         maxHintsPerChallenge: challengeConfig.maxHintsPerChallenge,
         totalAttackBonus: challengeConfig.totalAttackBonus,
+        // NEW: persist per-challenge visibility in templates
+        challengeVisibility: Array.isArray(challengeConfig.challengeVisibility)
+          ? challengeConfig.challengeVisibility.map(v => !!v)
+          : [true, true, true, true, true, true, true],
         dueDateEnabled: challengeConfig.dueDateEnabled,
         dueDate: challengeConfig.dueDate,
         difficulty: 'medium'
@@ -118,9 +122,13 @@ export const useTemplates = () => {
       hintPenaltyPercent: template.settings.hintPenaltyPercent ?? 25,
       maxHintsPerChallenge: template.settings.maxHintsPerChallenge ?? 2,
       dueDateEnabled: template.settings.dueDateEnabled || false,
-      dueDate: template.settings.dueDate || ''
+      dueDate: template.settings.dueDate || '',
+      // NEW: restore per-challenge visibility (default to visible)
+      challengeVisibility: Array.isArray(template.settings.challengeVisibility)
+        ? template.settings.challengeVisibility.map(v => !!v)
+        : [true, true, true, true, true, true, true],
     };
-    
+
     setChallengeConfig(newConfig);
     toast.success(`Template "${template.name}" loaded!`);
   };

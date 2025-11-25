@@ -90,7 +90,10 @@ const ChallengeSchema = new mongoose.Schema({
     challengeHints: [{ type: [String], default: [] }],
     hintPenaltyPercent: { type: Number, default: 25, min: 0, max: 100 },
     maxHintsPerChallenge: { type: Number, default: 2, min: 0, max: 10 },
-    
+
+    // NEW: per-challenge visibility (true = visible to students)
+    challengeVisibility: [{ type: Boolean, default: true }],
+
     dueDateEnabled: { type: Boolean, default: false },
     dueDate: { type: Date, default: null },
 

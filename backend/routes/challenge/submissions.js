@@ -4,7 +4,7 @@ const Challenge = require('../../models/Challenge');
 const User = require('../../models/User');
 const { ensureAuthenticated } = require('../../middleware/auth');
 const validators = require('../../validators/challenges');
-const { isChallengeExpired, getChallengeIndex, calculateChallengeRewards, awardChallengeBits } = require('./utils');
+const { isChallengeExpired, getChallengeIndex, calculateChallengeRewards, awardChallengeBits, isChallengeVisibleToUser } = require('./utils');
 const { CHALLENGE_NAMES } = require('./constants');
 const { generateChallengeData } = require('../../utils/tokenGenerator');
 const Classroom = require('../../models/Classroom');
@@ -44,6 +44,7 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
     const { classroomId } = req.params;
     const { answer, challengeId } = req.body;
     const userId = req.user._id;
+    const userRole = req.user.role; // Get the user's role from the request
 
     if (!answer || !answer.trim()) {
       return res.status(400).json({ success: false, message: 'Answer is required' });
@@ -73,6 +74,9 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
     }
 
     const challengeIndex = getChallengeIndex(challengeId);
+    if (!isChallengeVisibleToUser(challenge, userRole, challengeIndex)) {
+      return res.status(403).json({ message: 'This challenge is currently hidden' });
+    }
 
     if (!userChallenge.completedChallenges) {
       userChallenge.completedChallenges = [false, false, false, false, false, false, false];

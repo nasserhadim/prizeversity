@@ -3,7 +3,7 @@ const router = express.Router();
 const Challenge = require('../../models/Challenge');
 const User = require('../../models/User');
 const { ensureAuthenticated } = require('../../middleware/auth');
-const { isChallengeExpired, generateChallenge2Password, calculateChallengeRewards } = require('./utils');
+const { isChallengeExpired, generateChallenge2Password, calculateChallengeRewards, isChallengeVisibleToUser } = require('./utils');
 const { CHALLENGE_NAMES } = require('./constants');
 const Notification = require('../../models/Notification');
 const { populateNotification } = require('../../utils/notifications');
@@ -20,12 +20,13 @@ router.post('/verify-password', ensureAuthenticated, async (req, res) => {
       return res.status(400).json({ message: 'Unique ID and password are required' });
     }
 
-    const challenge = await Challenge.findOne({
-      'userChallenges.uniqueId': uniqueId
-    });
+    const challenge = await Challenge.findOne({ 'userChallenges.uniqueId': uniqueId });
+    if (!challenge) return res.status(404).json({ message: 'Challenge not found' });
 
-    if (!challenge) {
-      return res.status(404).json({ message: 'Challenge not found' });
+    const userRole = req.user.role || 'student';
+    // NEW: block if this specific challenge is hidden to students (index 0)
+    if (!isChallengeVisibleToUser(challenge, userRole, 0)) {
+      return res.status(403).json({ message: 'Challenge is temporarily unavailable' });
     }
 
     const userChallenge = challenge.userChallenges.find(
@@ -104,6 +105,7 @@ router.post('/verify-challenge2-external', ensureAuthenticated, async (req, res)
   try {
     const { uniqueId, password } = req.body;
     const userId = req.user._id;
+    const userRole = req.user?.role || 'student';
 
     if (!uniqueId || !password) {
       return res.status(400).json({ message: 'Unique ID and password are required' });
@@ -115,6 +117,11 @@ router.post('/verify-challenge2-external', ensureAuthenticated, async (req, res)
 
     if (!challenge) {
       return res.status(404).json({ message: 'Challenge not found' });
+    }
+
+    // NEW: per-challenge visibility guard (challenge 2 => index 1)
+    if (!isChallengeVisibleToUser(challenge, userRole, 1)) {
+      return res.status(403).json({ message: 'This challenge is temporarily unavailable' });
     }
 
     const userChallenge = challenge.userChallenges.find(
@@ -352,6 +359,7 @@ router.post('/verify-challenge5-external', ensureAuthenticated, async (req, res)
   try {
     const { uniqueId, verified } = req.body;
     const userId = req.user._id;
+    const userRole = req.user?.role || 'student';
 
     if (!uniqueId || !verified) {
       return res.status(400).json({ message: 'Invalid verification data' });
@@ -363,6 +371,11 @@ router.post('/verify-challenge5-external', ensureAuthenticated, async (req, res)
 
     if (!challenge) {
       return res.status(404).json({ message: 'Challenge not found' });
+    }
+
+    // NEW: per-challenge visibility guard (challenge 5 => index 4)
+    if (!isChallengeVisibleToUser(challenge, userRole, 4)) {
+      return res.status(403).json({ message: 'This challenge is temporarily unavailable' });
     }
 
     const userChallenge = challenge.userChallenges.find(

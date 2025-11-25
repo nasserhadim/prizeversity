@@ -506,6 +506,7 @@ const Challenge = () => {
               userChallenge={userChallenge}
               challengeData={challengeData}
               isDark={isDark}
+              isTeacher={isTeacher} // NEW
               unlockingHint={unlockingHint}
               setUnlockingHint={setUnlockingHint}
               fetchChallengeData={fetchChallengeData}
@@ -523,6 +524,7 @@ const Challenge = () => {
               userChallenge={userChallenge}
               challengeData={challengeData}
               isDark={isDark}
+              isTeacher={isTeacher} // NEW
               unlockingHint={unlockingHint}
               setUnlockingHint={setUnlockingHint}
               fetchChallengeData={fetchChallengeData}
@@ -540,6 +542,7 @@ const Challenge = () => {
               userChallenge={userChallenge}
               challengeData={challengeData}
               isDark={isDark}
+              isTeacher={isTeacher} // NEW
               unlockingHint={unlockingHint}
               setUnlockingHint={setUnlockingHint}
               fetchChallengeData={fetchChallengeData}
@@ -557,6 +560,7 @@ const Challenge = () => {
               userChallenge={userChallenge}
               challengeData={challengeData}
               isDark={isDark}
+              isTeacher={isTeacher} // NEW
               unlockingHint={unlockingHint}
               setUnlockingHint={setUnlockingHint}
               fetchChallengeData={fetchChallengeData}
@@ -574,6 +578,7 @@ const Challenge = () => {
               userChallenge={userChallenge}
               challengeData={challengeData}
               isDark={isDark}
+              isTeacher={isTeacher} // NEW
               unlockingHint={unlockingHint}
               setUnlockingHint={setUnlockingHint}
               fetchChallengeData={fetchChallengeData}
@@ -591,6 +596,7 @@ const Challenge = () => {
               userChallenge={userChallenge}
               challengeData={challengeData}
               isDark={isDark}
+              isTeacher={isTeacher} // NEW
               unlockingHint={unlockingHint}
               setUnlockingHint={setUnlockingHint}
               fetchChallengeData={fetchChallengeData}
@@ -608,6 +614,7 @@ const Challenge = () => {
               userChallenge={userChallenge}
               challengeData={challengeData}
               isDark={isDark}
+              isTeacher={isTeacher} // NEW
               unlockingHint={unlockingHint}
               setUnlockingHint={setUnlockingHint}
               fetchChallengeData={fetchChallengeData}

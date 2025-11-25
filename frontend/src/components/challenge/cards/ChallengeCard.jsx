@@ -20,8 +20,15 @@ const ChallengeCard = ({
   fetchChallengeData,
   classroomId,
   onHintUnlocked,
-  children
+  children,
+  isTeacher // NEW prop
 }) => {
+  // If this particular challenge is hidden and viewer is not teacher, don't render the card
+  const perChallengeVisible = challengeData?.settings?.challengeVisibility?.[challengeIndex];
+  if (!isTeacher && perChallengeVisible === false) {
+    return null; // or render a small "Hidden" placeholder if you prefer
+  }
+
   const [showStartModal, setShowStartModal] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState(null);
   

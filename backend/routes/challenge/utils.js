@@ -31,6 +31,17 @@ function getChallengeIndex(challengeId) {
   else return 0;
 }
 
+function isChallengeVisibleToUser(challenge, userRole, challengeIndex) {
+  if (!userRole) userRole = 'student';
+  if (['teacher','admin'].includes(String(userRole).toLowerCase())) return true;
+  if (challenge && challenge.isVisible === false) return false;
+  const perVisible = challenge?.settings?.challengeVisibility;
+  if (Array.isArray(perVisible) && typeof perVisible[challengeIndex] !== 'undefined') {
+    return perVisible[challengeIndex] !== false;
+  }
+  return true;
+}
+
 function calculateChallengeRewards(user, challenge, challengeIndex, userChallenge, options = {}) {
   const rewardsEarned = {
     bits: 0,
@@ -232,6 +243,7 @@ module.exports = {
   isChallengeExpired,
   generateChallenge2Password,
   getChallengeIndex,
+  isChallengeVisibleToUser,
   awardChallengeBits,
   calculateChallengeRewards
 };

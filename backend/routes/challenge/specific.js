@@ -8,6 +8,26 @@ const { generateCppDebuggingChallenge, generateAndUploadForensicsImage, uploadLo
 const { awardXP } = require('../../utils/awardXP');          // NEW
 const { calculateChallengeRewards } = require('./utils');    // NEW
 
+// NEW helper: centralize per-challenge visibility logic
+function isChallengeVisibleToUser(challenge, userRole, challengeIndex) {
+  // teachers always see everything
+  if (userRole === 'teacher') return true;
+
+  // require the overall challenge to be visible
+  if (challenge.isVisible === false) return false;
+
+  // if there is an explicit per-challenge visibility array, deny when false
+  const perVisible = challenge.settings?.challengeVisibility;
+  if (Array.isArray(perVisible)) {
+    // if index out-of-range, treat as visible (backwards compatible)
+    if (typeof perVisible[challengeIndex] !== 'undefined') {
+      return perVisible[challengeIndex] !== false;
+    }
+  }
+
+  return true;
+}
+
 router.get('/challenge3/:uniqueId/teacher', ensureAuthenticated, async (req, res) => {
   try {
     const { uniqueId } = req.params;
@@ -66,7 +86,8 @@ router.get('/challenge3/:uniqueId', ensureAuthenticated, async (req, res) => {
   try {
     const { uniqueId } = req.params;
     const userId = req.user._id;
-    
+    const userRole = req.user.role;
+
     const challenge = await Challenge.findOne({ 
       'userChallenges.uniqueId': uniqueId,
       'userChallenges.userId': userId 
@@ -76,7 +97,7 @@ router.get('/challenge3/:uniqueId', ensureAuthenticated, async (req, res) => {
       return res.status(404).json({ message: 'Challenge not found' });
     }
 
-    if (!challenge.isVisible) {
+    if (!isChallengeVisibleToUser(challenge, userRole, 2)) {
       return res.status(403).json({ message: 'Challenge is temporarily unavailable' });
     }
 
@@ -316,7 +337,7 @@ router.get('/challenge6/:uniqueId', ensureAuthenticated, async (req, res) => {
       return res.status(404).json({ message: 'Challenge not found' });
     }
 
-    if (userRole !== 'teacher' && !challenge.isVisible) {
+    if (!isChallengeVisibleToUser(challenge, userRole, 5)) {
       return res.status(403).json({ message: 'Challenge is temporarily unavailable' });
     }
 
@@ -452,7 +473,7 @@ router.get('/challenge7/:uniqueId', ensureAuthenticated, async (req, res) => {
       return res.status(404).json({ message: 'Challenge not found' });
     }
 
-    if (userRole !== 'teacher' && !challenge.isVisible) {
+    if (!isChallengeVisibleToUser(challenge, userRole, 6)) {
       return res.status(403).json({ message: 'Challenge is temporarily unavailable' });
     }
 
