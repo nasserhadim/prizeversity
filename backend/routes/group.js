@@ -369,7 +369,7 @@ router.post('/groupset/:groupSetId/group/:groupId/join', ensureAuthenticated, as
 
     const status = groupSet.joinApproval ? 'pending' : 'approved';
 
-    group.members.push({
+      group.members.push({
       _id: req.user._id,
       status,
       joinDate: new Date()
@@ -380,40 +380,56 @@ router.post('/groupset/:groupSetId/group/:groupId/join', ensureAuthenticated, as
     // Award XP only the first time user is approved in this GroupSet
     if (status === 'approved') {
       try {
-        // Reload updated GroupSet after adding user
-        const updatedGroupSet = await GroupSet.findById(req.params.groupSetId)
-          .populate('groups');
+        //skip awarding XP if this user already got join XP for THIS group
+        const alreadyAwardedForThisGroup =
+          Array.isArray(group.joinXPAwardedForUsers) &&
+          group.joinXPAwardedForUsers.some(id => id.equals(req.user._id));
 
-        // Mark user as having joined at least once
-        group.members.forEach(m => {
-          if (m._id.equals(req.user._id)) {
-            m.hasEverJoined = true;
-          }
-        });
-        await group.save();
+        if (!alreadyAwardedForThisGroup) {
+          // Reload updated GroupSet after adding user
+          const updatedGroupSet = await GroupSet.findById(req.params.groupSetId)
+            .populate('groups');
 
-        // Check if user has ever joined any group in this GroupSet
-        const everJoinedBefore = updatedGroupSet.groups.some(g =>
-          g.members.some(m =>
-            m._id.equals(req.user._id) &&
-            m.hasEverJoined === true
-          )
-        );
+          // Mark user as having joined at least once
+          group.members.forEach(m => {
+            if (m._id.equals(req.user._id)) {
+              m.hasEverJoined = true;
+            }
+          });
+          await group.save();
 
-        // Only award XP if first time
-        if (!everJoinedBefore) {
-          const classroom = await Classroom.findById(updatedGroupSet.classroom);
-          const joinXP = Number(
-            classroom?.xpSettings?.xpRewards?.groupJoinXP ?? 0
+          // Check if user has ever joined any group in this GroupSet
+          const everJoinedBefore = updatedGroupSet.groups.some(g =>
+            g.members.some(m =>
+              m._id.equals(req.user._id) &&
+              m.hasEverJoined === true
+            )
           );
 
-          if (joinXP > 0) {
-            const { awardXP } = require('../utils/xp');
-            await awardXP({
-              userId: req.user._id,
-              classroomId: classroom._id,
-              opts: { rawXP: joinXP }
-            });
+          // Only award XP if first time in the GroupSet and not already rewarded for this group
+          if (!everJoinedBefore) {
+            const classroom = await Classroom.findById(updatedGroupSet.classroom);
+            const joinXP = Number(
+              classroom?.xpSettings?.xpRewards?.groupJoinXP ?? 0
+            );
+
+            if (joinXP > 0) {
+              const { awardXP } = require('../utils/xp');
+              await awardXP({
+                userId: req.user._id,
+                classroomId: classroom._id,
+                opts: { rawXP: joinXP }
+              });
+
+              //remember that this user has gotten join XP for this group
+              if (!Array.isArray(group.joinXPAwardedForUsers)) {
+                group.joinXPAwardedForUsers = [];
+              }
+              if (!group.joinXPAwardedForUsers.some(id => id.equals(req.user._id))) {
+                group.joinXPAwardedForUsers.push(req.user._id);
+                await group.save();
+              }
+            }
           }
         }
       } catch (err) {
@@ -618,22 +634,36 @@ router.post('/groupset/:groupSetId/group/:groupId/add-members', ensureAuthentica
         joinDate: new Date()
       });
       
-      // Award XP for teacher-added join
+      // Award XP for teacher-added join (only once per group per user)
       try {
-        const classroom = await Classroom.findById(groupSet.classroom);
-        const joinXP = Number(classroom?.xpSettings?.xpRewards?.groupJoinXP ?? 0);
+        const alreadyAwardedForThisGroup =
+          Array.isArray(group.joinXPAwardedForUsers) &&
+          group.joinXPAwardedForUsers.some(id => id.equals(memberId));
 
-        if (joinXP > 0) {
-          const { awardXP } = require('../utils/xp');
-          await awardXP({
-            userId: memberId,
-            classroomId: classroom._id,
-            opts: { rawXP: joinXP }
-          });
+        if (!alreadyAwardedForThisGroup) {
+          const classroom = await Classroom.findById(groupSet.classroom);
+          const joinXP = Number(classroom?.xpSettings?.xpRewards?.groupJoinXP ?? 0);
+
+          if (joinXP > 0) {
+            const { awardXP } = require('../utils/xp');
+            await awardXP({
+              userId: memberId,
+              classroomId: classroom._id,
+              opts: { rawXP: joinXP }
+            });
+
+            if (!Array.isArray(group.joinXPAwardedForUsers)) {
+              group.joinXPAwardedForUsers = [];
+            }
+            if (!group.joinXPAwardedForUsers.some(id => id.equals(memberId))) {
+              group.joinXPAwardedForUsers.push(memberId);
+            }
+          }
         }
       } catch (err) {
         console.error('Failed to award XP for teacher-added join:', err);
       }
+
     
 
       const notification = await Notification.create({
@@ -907,31 +937,44 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
       const populatedNotification = await populateNotification(notification._id);
       req.app.get('io').to(`user-${memberId}`).emit('notification', populatedNotification);
 
-      // Award XP for joining group
+      // Award XP for joining group (only once per group per user)
       try {
-        const updatedGroupSet = await GroupSet.findById(req.params.groupSetId)
-          .populate('groups');
+        const alreadyAwardedForThisGroup =
+          Array.isArray(group.joinXPAwardedForUsers) &&
+          group.joinXPAwardedForUsers.some(id => id.equals(memberId));
 
-        const everJoinedBefore = updatedGroupSet.groups.some(g =>
-          g.members.some(m =>
-            m._id.equals(memberId) &&
-            m.hasEverJoined === true
-          )
-        );
+        if (!alreadyAwardedForThisGroup) {
+          const updatedGroupSet = await GroupSet.findById(req.params.groupSetId)
+            .populate('groups');
 
-        if (!everJoinedBefore) {
-          const classroom = await Classroom.findById(updatedGroupSet.classroom);
-          const joinXP = Number(
-            classroom?.xpSettings?.xpRewards?.groupJoinXP ?? 0
+          const everJoinedBefore = updatedGroupSet.groups.some(g =>
+            g.members.some(m =>
+              m._id.equals(memberId) &&
+              m.hasEverJoined === true
+            )
           );
 
-          if (joinXP > 0) {
-            const { awardXP } = require('../utils/xp');
-            await awardXP({
-              userId: memberId,
-              classroomId: classroom._id,
-              opts: { rawXP: joinXP }
-            });
+          if (!everJoinedBefore) {
+            const classroom = await Classroom.findById(updatedGroupSet.classroom);
+            const joinXP = Number(
+              classroom?.xpSettings?.xpRewards?.groupJoinXP ?? 0
+            );
+
+            if (joinXP > 0) {
+              const { awardXP } = require('../utils/xp');
+              await awardXP({
+                userId: memberId,
+                classroomId: classroom._id,
+                opts: { rawXP: joinXP }
+              });
+
+              if (!Array.isArray(group.joinXPAwardedForUsers)) {
+                group.joinXPAwardedForUsers = [];
+              }
+              if (!group.joinXPAwardedForUsers.some(id => id.equals(memberId))) {
+                group.joinXPAwardedForUsers.push(memberId);
+              }
+            }
           }
         }
       } catch (err) {
