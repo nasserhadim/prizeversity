@@ -333,6 +333,10 @@ const Wallet = () => {
     fetchUsers();
     fetchBalance(); // Add this to fetch per-classroom balance
 
+    if (socket && classroomId) {
+      socket.emit("join-classroom", classroomId);
+    }
+
     const role = (user.role || '').toString().toLowerCase();
     if ((role === 'teacher' || role === 'admin') && classroomId) {
       // explicit call so teachers see classroom transactions reliably

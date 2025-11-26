@@ -1104,6 +1104,10 @@ router.post('/inventory/:ownedId/open', ensureAuthenticated, async (req, res) =>
     console.warn('[XP] Failed to award XP for mystery box use:', xpErr.message);
   }
 
+  req.app.get('io')
+  .to(`user-${req.user._id}`)
+  .emit('discount_updated');
+  
   return res.json({
     ok: true,
     message: 'Box opened',
