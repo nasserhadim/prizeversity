@@ -45,17 +45,42 @@ router.post('/:challengeId/remove-student', ensureAuthenticated, ensureTeacher, 
         user: studentId,
         actionBy: userId,
         type: 'challenge_removed',
-        message: `You were removed from the challenge series "${challenge.title}" by your teacher.`,
+        message: `You were removed from the challenge series "${challenge.title}".`,
         classroom: challenge.classroomId,
         read: false,
         createdAt: new Date()
       });
       const populated = await populateNotification(notification._id);
-      try { req.app.get('io').to(`user-${studentId}`).emit('notification', populated); } catch(e){/*ignore*/}
+      try { req.app.get('io').to(`user-${studentId}`).emit('notification', populated); } catch (e) { /* ignore socket errors */ }
     } catch (e) {
       console.error('Failed to create removal notification:', e);
     }
 
+    // Notify the classroom teacher for tracking
+    try {
+      // Resolve human-friendly student label
+      const studentDoc = await User.findById(studentId).select('firstName lastName shortId email').lean();
+      const studentLabel = studentDoc
+        ? `${(studentDoc.firstName || '').trim()} ${(studentDoc.lastName || '').trim()}`.trim() || studentDoc.shortId || studentDoc.email || String(studentId)
+        : String(studentId);
+
+      const teacherRecipientId = classroom ? classroom.teacher : userId;
+
+      const teacherNotify = await Notification.create({
+        user: teacherRecipientId,
+        actionBy: userId,
+        type: 'challenge_removed',
+        message: `${studentLabel} was removed from the challenge series "${challenge.title}".`,
+        classroom: challenge.classroomId,
+        read: false,
+        createdAt: new Date()
+      });
+      const populatedTeacher = await populateNotification(teacherNotify._id);
+      try { req.app.get('io').to(`user-${teacherRecipientId}`).emit('notification', populatedTeacher); } catch(e) { /* ignore */ }
+    } catch (e) {
+      console.error('Failed to create teacher removal notification:', e);
+    }
+    
     return res.json({ success: true, message: 'Student removed from challenge' });
   } catch (error) {
     console.error('Error removing student from challenge:', error);
@@ -651,7 +676,7 @@ router.post('/:challengeId/assign-student', ensureAuthenticated, ensureTeacher, 
         user: studentId,
         actionBy: teacherId,
         type: 'challenge_assigned',
-        message: `You were assigned to the challenge series "${challenge.title}" by your teacher.`,
+        message: `You were assigned to the challenge series "${challenge.title}".`,
         classroom: challenge.classroomId,
         read: false,
         createdAt: new Date()
@@ -662,6 +687,33 @@ router.post('/:challengeId/assign-student', ensureAuthenticated, ensureTeacher, 
       console.error('Failed to create assignment notification:', e);
     }
 
+    // Notify the classroom teacher for tracking (in case a TA or admin assigned)
+    try {
+      // resolve student label for human-friendly message
+      const studentDoc = await User.findById(studentId).lean();
+      const studentLabel = studentDoc
+        ? `${(studentDoc.firstName || '').trim()} ${(studentDoc.lastName || '').trim()}`.trim() || (studentDoc.shortId || studentDoc.email || studentId)
+        : studentId;
+
+      const teacherRecipientId = challenge.classroomId
+        ? (await Classroom.findById(challenge.classroomId)).teacher
+        : teacherId;
+
+      const teacherNotify = await Notification.create({
+        user: teacherRecipientId,
+        actionBy: teacherId,
+        type: 'challenge_assigned',
+        message: `${studentLabel} was assigned to the challenge series "${challenge.title}".`,
+        classroom: challenge.classroomId,
+        read: false,
+        createdAt: new Date()
+      });
+      const populatedTeacher = await populateNotification(teacherNotify._id);
+      try { req.app.get('io').to(`user-${teacherRecipientId}`).emit('notification', populatedTeacher); } catch(e) { /* ignore */ }
+    } catch (e) {
+      console.error('Failed to create teacher assignment notification:', e);
+    }
+    
     res.json({ 
       message: 'Student assigned to challenge successfully',
       userChallenge: newUserChallenge
@@ -734,6 +786,47 @@ router.post('/:classroomId/reset-student', ensureAuthenticated, ensureTeacher, a
 
     await challenge.save();
 
+    // Notify student that their challenge(s) were reset
+    try {
+      const studentNotify = await Notification.create({
+        user: studentId,
+        actionBy: userId,
+        type: 'challenge_reset',
+        message: `Your progress for "${challenge.title}" was reset.`,
+        classroom: challenge.classroomId,
+        read: false,
+        createdAt: new Date()
+      });
+      const populatedStudent = await populateNotification(studentNotify._id);
+      try { req.app.get('io').to(`user-${studentId}`).emit('notification', populatedStudent); } catch (e) { /* ignore */ }
+    } catch (e) {
+      console.error('Failed to notify student about challenge reset:', e);
+    }
+
+    // Notify teacher for tracking
+    try {
+      const studentDoc2 = await User.findById(studentId).select('firstName lastName shortId email').lean();
+      const studentLabel2 = studentDoc2
+        ? `${(studentDoc2.firstName || '').trim()} ${(studentDoc2.lastName || '').trim()}`.trim() || studentDoc2.shortId || studentDoc2.email || String(studentId)
+        : String(studentId);
+
+      const teacherRecipientId2 = classroom ? classroom.teacher : userId;
+
+      const teacherNotify = await Notification.create({
+        user: teacherRecipientId2,
+        actionBy: userId,
+        type: 'challenge_reset',
+        message: `Challenge "${challenge.title}" progress was reset for ${studentLabel2}.`,
+        classroom: challenge.classroomId,
+        read: false,
+        createdAt: new Date()
+      });
+      const populatedTeacher = await populateNotification(teacherNotify._id);
+      try { req.app.get('io').to(`user-${teacherRecipientId2}`).emit('notification', populatedTeacher); } catch(e){ /* ignore */ }
+    } catch (e) {
+      console.error('Failed to notify teacher about student challenge reset:', e);
+    }
+    
     res.json({ 
       success: true, 
       message: 'Student challenge progress reset successfully' 
@@ -843,6 +936,47 @@ router.post('/:classroomId/reset-student-challenge', ensureAuthenticated, ensure
 
     await challenge.save();
 
+    // --- NEW: notify student + teacher for a single-challenge reset (reset-student-challenge) ---
+    try {
+      // human label
+      const studentDoc3 = await User.findById(studentId).select('firstName lastName shortId email').lean();
+      const studentLabel3 = studentDoc3
+        ? `${(studentDoc3.firstName || '').trim()} ${(studentDoc3.lastName || '').trim()}`.trim() || studentDoc3.shortId || studentDoc3.email || String(studentId)
+        : String(studentId);
+
+      const challengeNames = ['Challenge 1', 'Challenge 2', 'Challenge 3', 'Challenge 4', 'Challenge 5', 'Challenge 6', 'Challenge 7'];
+      const whichName = challengeNames[challengeIndex] || `Challenge ${challengeIndex + 1}`;
+
+      // student notification
+      const studentSpecificNotify = await Notification.create({
+        user: studentId,
+        actionBy: userId,
+        type: 'challenge_reset',
+        message: `Your progress for "${whichName}" in "${challenge.title}" was reset.`,
+        classroom: challenge.classroomId,
+        read: false,
+        createdAt: new Date()
+      });
+      const popStud = await populateNotification(studentSpecificNotify._id);
+      try { req.app.get('io').to(`user-${studentId}`).emit('notification', popStud); } catch(e) {}
+
+      // teacher notification
+      const teacherRecipientId3 = classroom ? classroom.teacher : userId;
+      const teacherSpecificNotify = await Notification.create({
+        user: teacherRecipientId3,
+        actionBy: userId,
+        type: 'challenge_reset',
+        message: `Challenge ${whichName} was reset for ${studentLabel3} in "${challenge.title}".`,
+        classroom: challenge.classroomId,
+        read: false,
+        createdAt: new Date()
+      });
+      const popTeacher = await populateNotification(teacherSpecificNotify._id);
+      try { req.app.get('io').to(`user-${teacherRecipientId3}`).emit('notification', popTeacher); } catch(e) {}
+    } catch (e) {
+      console.error('Failed to create notifications for specific challenge reset:', e);
+    }
+    
     const challengeNames = ['Challenge 1', 'Challenge 2', 'Challenge 3', 'Challenge 4', 'Challenge 5', 'Challenge 6', 'Challenge 7'];
     
     res.json({ 

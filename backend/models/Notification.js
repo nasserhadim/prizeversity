@@ -43,7 +43,8 @@ const NotificationSchema = new mongoose.Schema({
       'level_up', // Add this line
       // challenge assignment / removal notifications
       'challenge_assigned',
-      'challenge_removed'
+      'challenge_removed',
+      'challenge_reset'  // <-- add this so reset notifications validate
     ],
     required: true 
   },

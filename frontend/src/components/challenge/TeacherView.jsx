@@ -931,15 +931,19 @@ const TeacherView = ({
             
             {challengeData.isActive && challengeData.userChallenges && unassignedStudentIds.length > 0 && (
               <div className="relative" ref={dropdownRef}>
-                <button
-                  className="btn btn-sm btn-primary gap-2"
-                  onClick={() => setShowAssignDropdown(!showAssignDropdown)}
-                >
-                  <UserPlus className="w-4 h-4" />
-                  Assign Students ({unassignedStudentIds.length})
-                </button>
-                
-                {showAssignDropdown && (
+                {/* allow overflow so the floating dropdown / styles don't clip the button text on mobile */}
+                <div className="relative overflow-visible">
+                  <button
+                    className="btn btn-sm btn-primary gap-2 inline-flex items-center whitespace-nowrap min-w-max z-50"
+                    onClick={() => setShowAssignDropdown(!showAssignDropdown)}
+                    type="button"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span className="ml-1">Assign Students ({unassignedStudentIds.length})</span>
+                  </button>
+                </div>
+                 
+                 {showAssignDropdown && (
                   <div className="absolute right-0 top-full mt-1 w-64 bg-base-100 border border-base-300 rounded-lg shadow-lg z-50">
                     <div className="p-3">
                      <input
