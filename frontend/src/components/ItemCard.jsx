@@ -32,6 +32,8 @@ const ItemCard = ({
   description: item.description || '',
   price: item.price || 0,  
 });
+
+
 const [editOpen, setEditOpen] = useState(false); // controls edit modal visibility, edit item to open or close
 
 const [discounts, setDiscounts] = useState([]);
@@ -349,22 +351,49 @@ const getDiscounts = async () => {
 
   const { main, effect } = splitDescriptionEffect(item.description || '');
 
+  const categoryLabel =
+    item?.category?.name ||
+    item?.category ||      
+    'Uncategorized';
+
+
+
   return (
     <div className="card bg-base-100 shadow-md border border-base-200 hover:shadow-lg transition duration-200 rounded-2xl overflow-hidden">
-      
-      <figure className="relative bg-base-100 rounded-t-2xl overflow-hidden">
-        <img
-          src={imgSrc}
-          alt={item.name || 'Item'}
-          className="w-full h-full object-cover"
-          sizes="(max-width: 768px) 100vw, 50vw"
-          onError={(e) => {
-            // swap to placeholder if image fails to load
-            e.currentTarget.onerror = null;
-            e.currentTarget.src = '/images/item-placeholder.svg';
-          }}
-        />
-      </figure>
+
+
+
+
+<figure className="relative h-40 sm:h-48 md:h-52 bg-base-100 rounded-t-2xl overflow-hidden">
+  <img
+    src={imgSrc}
+    alt={item.name || 'Item'}
+    className="w-full h-full object-fill"
+    onError={(e) => {
+      e.currentTarget.onerror = null;
+      e.currentTarget.src = '/images/item-placeholder.svg';
+    }}
+  />
+</figure>
+
+
+{/* <figure className="max-h-full max-w-full object-contain"
+>
+  <img
+    src={imgSrc}
+    alt={item.name || 'Item'}
+    className="w-full h-full object-fill"
+    onError={(e) => {
+      e.currentTarget.onerror = null;
+      e.currentTarget.src = '/images/item-placeholder.svg';
+    }}
+  />
+</figure> */}
+
+
+
+
+
       <div className="card-body px-4 py-3">
         
         {/* Title + description + effect stacked with small gap */}
@@ -448,6 +477,7 @@ const getDiscounts = async () => {
       <div className="card-body gap-4">
         <h3 className="text-xl font-bold">Edit Item</h3>
         <form onSubmit={submitEdit} className="space-y-3">
+
           <label className="form-control">
             <span className="label-text">Name</span>
             <input
@@ -480,6 +510,20 @@ const getDiscounts = async () => {
               className="input input-bordered"
               required
             />
+          </label>
+
+          <label className="form-control">
+            <span className="label-text">Category</span>
+            <input
+              type="text"
+              value={categoryLabel}
+              disabled
+              readOnly
+              className="input input-bordered bg-base-200 text-base-content/70 cursor-not-allowed"
+            />
+            <span className="label-text-alt text-xs text-base-content/60">
+              Category can only be selected when creating an item.
+            </span>
           </label>
 
           <label className="form-control">
