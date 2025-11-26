@@ -193,9 +193,21 @@ try {
 // }; //bazaar shoudlnt open teh box, thats an inventory job. and also because this was causing mongo transaction error i was getting 
 
 
-  const imgSrc = resolveImageSrc(item?.image);
+const imgSrc = resolveImageSrc(item?.image);
 
+// Determine if item is badge-locked for this student
+const classroomData = user?.classroomBalances?.find(
+  cb => String(cb.classroom) === String(classroomId)
+);
 
+const earnedBadges =
+  classroomData?.badges?.map(b => String(b.badge)) || [];
+
+const hasRequiredBadge =
+  !item.requiredBadge || earnedBadges.includes(String(item.requiredBadge));
+
+const isLocked =
+  role === 'student' && item.requiredBadge && !hasRequiredBadge;
 
 
 const handleBuy = async () => {
@@ -408,11 +420,25 @@ const getDiscounts = async () => {
             <span>{calculatePrice()}</span>
 
             {item.requiredBadge && (
-              <span className="text-error flex items-center gap-1 text-xs">
-                <Lock className="w-4 h-4" />
-                Locked
-              </span>
+              <div
+                className="tooltip tooltip-right"
+                data-tip={
+                  isLocked
+                    ? `Requires Badge: ${item.requiredBadgeName || "Unknown Badge"}`
+                    : "You meet the badge requirement"
+                }
+              >
+                <span
+                  className={`flex items-center gap-1 text-xs ${
+                    isLocked ? "text-error" : "text-success"
+                  }`}
+                >
+                  <Lock className="w-4 h-4" />
+                  {isLocked ? "Locked" : "Unlocked"}
+                </span>
+              </div>
             )}
+
           </div>
 
           {role === 'teacher' && user?._id === teacherId && (
@@ -436,17 +462,23 @@ const getDiscounts = async () => {
         {/* Student button sits close under price row */}
         {role === 'student' && (
           <button
-            onClick={() => addToCart(item)}
-            className="btn btn-success btn-sm w-full mt-2"
+            onClick={() => {
+              if (isLocked) {
+                toast.error("You must earn the required badge to purchase this item.");
+                return;
+              }
+              addToCart(item);
+            }}
+            disabled={isLocked}
+            className={`btn btn-sm w-full mt-2 ${
+              isLocked ? "btn-disabled opacity-50 cursor-not-allowed" : "btn-success"
+            }`}
           >
-            Add to Cart
+            {isLocked ? "Locked" : "Add to Cart"}
           </button>
         )}
       </div>
       <div>
-
-      
-
 
       </div>
       {editOpen && (

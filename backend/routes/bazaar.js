@@ -37,6 +37,27 @@ async function awardXpForSpentBits({ userId, classroomId, spentBits }) {
   }
 }
 
+// Badge check helper
+async function userHasBadge(userId, classroomId, badgeId) {
+  if (!badgeId) return true;
+
+  try {
+    const user = await User.findById(userId).lean();
+    if (!user) return false;
+
+    const earned = user.classroomBadges || [];
+    return earned.some(
+      b =>
+        String(b.classroom) === String(classroomId) &&
+        String(b.badge) === String(badgeId)
+    );
+  } catch (err) {
+    console.error('[BadgeCheck] Error:', err);
+    return false;
+  }
+}
+
+
 
 
 
@@ -294,8 +315,33 @@ router.get('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticated
       filter.$or = [{ name: rx }, { description: rx }];
     }
 
-    const items = await Item.find(filter).lean();
-    res.json({ items, count: items.length });
+    // Fetch items
+    let items = await Item.find(filter).lean();
+
+    // Add requiredBadgeName to each item (if applicable)
+    const badgeIds = items
+      .filter(i => i.requiredBadge)
+      .map(i => i.requiredBadge);
+
+    let badgeMap = {};
+    if (badgeIds.length > 0) {
+      const Badge = require('../models/Badge');
+      const badges = await Badge.find({ _id: { $in: badgeIds } })
+        .select('_id name')
+        .lean();
+      badgeMap = Object.fromEntries(badges.map(b => [String(b._id), b.name]));
+    }
+
+    // Inject requiredBadgeName into items
+    items = items.map(item => ({
+      ...item,
+      requiredBadgeName: item.requiredBadge
+        ? badgeMap[String(item.requiredBadge)] || null
+        : null
+    }));
+
+    return res.json({ items, count: items.length });
+
   } catch (err) {
     console.error('[List Bazaar Items] error:', err);
     res.status(500).json({ error: 'Failed to fetch items' });
@@ -329,7 +375,8 @@ router.patch(
         primaryEffect,
         primaryEffectValue,
         secondaryEffects,
-        swapOptions
+        swapOptions,
+        requiredBadge
       } = req.body;
  
       if (req.file) {
@@ -344,6 +391,8 @@ router.patch(
       if (category !== undefined) item.category = category;
       if (primaryEffect !== undefined) item.primaryEffect = primaryEffect;
       if (primaryEffectValue !== undefined) item.primaryEffectValue = Number(primaryEffectValue);
+      if (requiredBadge !== undefined) item.requiredBadge = requiredBadge || null;
+
 
       //parsing json arrays if strings (multipart)
         try {
@@ -484,6 +533,17 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
   const item = await Item.findById(itemId);
 if (!item) return res.status(404).json({ error: 'Item not found' });
 
+// Badge requirement check
+if (item.requiredBadge) {
+  const hasBadge = await userHasBadge(req.user._id, classroomId, item.requiredBadge);
+
+  if (!hasBadge) {
+    return res.status(403).json({
+      error: 'This item requires a badge you do not own.',
+      requiredBadge: item.requiredBadge
+    });
+  }
+}
 const rawQty = req.body.quantity;
 const qty = Number.isFinite(Number(rawQty)) && Number(rawQty) > 0 ? Number(rawQty) : 1;
 const totalCost = item.price * qty;
@@ -618,6 +678,7 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
         resolvedItems.push(it);
       }
     }); //collectes missig and keeps existing
+
  
     if (missingIds.length > 0) {
       // Inform client that items were removed so frontend can remove them from the cart

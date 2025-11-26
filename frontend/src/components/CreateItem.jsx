@@ -536,26 +536,6 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
          />
        </div>
 
-        <div className="form-control">
-          <label className="label">
-           <span className="label-text font-medium">Required Badge (optional)</span>
-         </label>
-         <select
-           className="select select-bordered w-full"
-           value={form.requiredBadge || ''}
-           onChange={(e) =>
-             setForm(prev => ({ ...prev, requiredBadge: e.target.value || '' }))
-           }
-         >
-           <option value="">No badge required</option>
-           {badges.map(b => (
-             <option key={b._id} value={b._id}>
-               {b.name}
-             </option>
-           ))}
-         </select>
-       </div>
-
  
        <div className="form-control">
          <label className="label">
@@ -607,6 +587,27 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
            <option value="" disabled>Select category</option>
            {Object.keys(CATEGORY_OPTIONS).map(cat => (
              <option key={cat} value={cat}>{cat}</option>
+           ))}
+         </select>
+       </div>
+
+        {/* Required Badge Selection */}
+       <div className="form-control">
+          <label className="label">
+           <span className="label-text font-medium">Required Badge (optional)</span>
+         </label>
+         <select
+          name="requiredBadge"
+          className="select select-bordered w-full"
+          value={form.requiredBadge}
+          onChange={handleChange}
+          >
+
+           <option value="">No badge required</option>
+           {badges.map(b => (
+             <option key={b._id} value={b._id}>
+               {b.name}
+             </option>
            ))}
          </select>
        </div>
