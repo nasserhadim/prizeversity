@@ -3,6 +3,8 @@ import { Hammer } from 'lucide-react';
 import toast from 'react-hot-toast';
 import apiBazaar from '../API/apiBazaar';
 import { describeEffectFromForm } from '../utils/itemHelpers';
+import { getBadges } from '../API/apiBadges';
+
 
 // Will define the primary effect options by item category
 const CATEGORY_OPTIONS = {
@@ -54,7 +56,8 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
     swapOptions: [],
     duration: '', // added for discount duration
     prizeWeights: {}, // added for the mystery box prize weights
-    luckFactor: ''
+    luckFactor: '',
+    requiredBadge: ''
   });
   const [loading, setLoading] = useState(false);
   const [effectPreview, setEffectPreview] = useState('');
@@ -66,6 +69,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
   const [selectedRewards, setSelectedRewards] = useState([]); // { itemId: { checked, weight } }
   const [showWork, setShowWork] = useState(false);
   const [showLuck, setShowLuck] = useState(false);
+  const [badges, setBadges] = useState([]);
   const [studentLuck, setStudentLuck] = useState(3);
   const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
   const fileInputRef = useRef(null); // ADD: to clear native file input after submit
@@ -95,6 +99,20 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
     })();
   }, [classroomId, bazaarId]);
 
+  // fetch badges for the item creation dropdown
+  useEffect(() => {
+    if (!classroomId) return;
+    (async () => {
+      try {
+        const res = await getBadges(classroomId);
+        const data = res.data?.badges || res.data || [];
+        setBadges(data);
+      } catch (err) {
+        console.error('Failed to load badges:', err);
+      }
+    })();
+  }, [classroomId]);
+
         
   // Reset form to initial state
   const resetForm = () => {
@@ -111,7 +129,8 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
       swapOptions: [],
       duration: '', // added for discount duration
       prizeWeights: {}, // added for the mystery box prize weights
-      luckFactor: ''
+      luckFactor: '',
+      requiredBadge: ''
     });
     // reset image controls too
     setImageSource('url');
@@ -344,6 +363,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
         fd.append('secondaryEffects', JSON.stringify(form.secondaryEffects || []));
         fd.append('swapOptions', JSON.stringify(form.swapOptions || []));
         fd.append('duration', Number(form.duration));
+        fd.append('requiredBadge', form.requiredBadge || '');
         fd.append('bazaar', bazaarId);
         fd.append('image', imageFile);
         fd.append('rewards', JSON.stringify(buildRewardsPayload()));
@@ -377,6 +397,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
             })),
           swapOptions: form.primaryEffect === 'swapper' ? form.swapOptions : undefined,
           duration: form.primaryEffect === 'discountShop' ? Number(form.duration) : undefined,
+          requiredBadge: form.requiredBadge || null,
           bazaar: bazaarId,
           rewards: buildRewardsPayload(),
           luckFactor: Number(form.luckFactor)
@@ -514,6 +535,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
            min="1"
          />
        </div>
+
  
        <div className="form-control">
          <label className="label">
@@ -565,6 +587,27 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
            <option value="" disabled>Select category</option>
            {Object.keys(CATEGORY_OPTIONS).map(cat => (
              <option key={cat} value={cat}>{cat}</option>
+           ))}
+         </select>
+       </div>
+
+        {/* Required Badge Selection */}
+       <div className="form-control">
+          <label className="label">
+           <span className="label-text font-medium">Required Badge (optional)</span>
+         </label>
+         <select
+          name="requiredBadge"
+          className="select select-bordered w-full"
+          value={form.requiredBadge}
+          onChange={handleChange}
+          >
+
+           <option value="">No badge required</option>
+           {badges.map(b => (
+             <option key={b._id} value={b._id}>
+               {b.name}
+             </option>
            ))}
          </select>
        </div>

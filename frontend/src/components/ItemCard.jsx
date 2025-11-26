@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Trash2, Lock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 import apiBazaar from '../API/apiBazaar.js';
@@ -175,9 +175,21 @@ try {
 
 
 
-  const imgSrc = resolveImageSrc(item?.image);
+const imgSrc = resolveImageSrc(item?.image);
 
+// Determine if item is badge-locked for this student
+const classroomData = user?.classroomBalances?.find(
+  cb => String(cb.classroom) === String(classroomId)
+);
 
+const earnedBadges =
+  classroomData?.badges?.map(b => String(b.badge)) || [];
+
+const hasRequiredBadge =
+  !item.requiredBadge || earnedBadges.includes(String(item.requiredBadge));
+
+const isLocked =
+  role === 'student' && item.requiredBadge && !hasRequiredBadge;
 
 
 const handleBuy = async () => {
@@ -388,9 +400,30 @@ const getDiscounts = async () => {
 
         {/* Price + teacher buttons on one row */}
         <div className="mt-2 flex items-center justify-between gap-2">
-          <p className="text-base-content font-bold text-base">
-            {calculatePrice()}
-          </p>
+          <div className="flex items-center gap-2 text-base-content font-bold text-base">
+            <span>{calculatePrice()}</span>
+
+            {item.requiredBadge && (
+              <div
+                className="tooltip tooltip-right"
+                data-tip={
+                  isLocked
+                    ? `Requires Badge: ${item.requiredBadgeName || "Unknown Badge"}`
+                    : "You meet the badge requirement"
+                }
+              >
+                <span
+                  className={`flex items-center gap-1 text-xs ${
+                    isLocked ? "text-error" : "text-success"
+                  }`}
+                >
+                  <Lock className="w-4 h-4" />
+                  {isLocked ? "Locked" : "Unlocked"}
+                </span>
+              </div>
+            )}
+
+          </div>
 
           {role === 'teacher' && user?._id === teacherId && (
             <div className="flex gap-2">
@@ -413,17 +446,23 @@ const getDiscounts = async () => {
         {/* Student button sits close under price row */}
         {role === 'student' && (
           <button
-            onClick={() => addToCart(item)}
-            className="btn btn-success btn-sm w-full mt-2"
+            onClick={() => {
+              if (isLocked) {
+                toast.error("You must earn the required badge to purchase this item.");
+                return;
+              }
+              addToCart(item);
+            }}
+            disabled={isLocked}
+            className={`btn btn-sm w-full mt-2 ${
+              isLocked ? "btn-disabled opacity-50 cursor-not-allowed" : "btn-success"
+            }`}
           >
-            Add to Cart
+            {isLocked ? "Locked" : "Add to Cart"}
           </button>
         )}
       </div>
       <div>
-
-      
-
 
       </div>
       {editOpen && (
