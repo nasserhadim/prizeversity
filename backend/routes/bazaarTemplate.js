@@ -77,7 +77,29 @@ router.get('/', async (req, res) => {
       templateQuery.populate('sourceClassroom', 'name code');
     }
 
-    const templates = await templateQuery.lean();
+    const rawTemplates = await templateQuery.lean();
+
+    // this is to make sure that the countItem on the apply template is accurate
+    const templates = await Promise.all(
+      (rawTemplates || []).map(async (t) => {
+        try {
+          const bazaar = await Bazaar.findById(t.sourceBazaar)
+            .populate('items', '_id')
+            .lean();
+
+          const countItem = bazaar ? (bazaar.items || []).length : (t.countItem ?? 0);
+
+          return {
+            ...t,
+            countItem,
+          };
+        } catch (e) {
+          console.error('[GET /api/bazaarTemplate] countItem recompute failed', e);
+          return t; // go back to stored value if something goes wrong
+        }
+      })
+    );
+
     res.json({ templates });
   } catch (err) {
     console.error('[GET /api/bazaarTemplate]', err);
@@ -95,10 +117,15 @@ router.post('/save/:bazaarId', async (req, res) => {
     if (!mongoose.isValidObjectId(bazaarId))
       return res.status(400).json({ message: 'Invalid bazaarId' });
 
-    const bazaar = await Bazaar.findById(bazaarId).populate('classroom').lean();
+    const bazaar = await Bazaar.findById(bazaarId)
+      .populate('classroom')
+      .populate('items', '_id')  // include the shop items
+      .lean();
+
     if (!bazaar) return res.status(404).json({ message: 'Bazaar not found' });
 
-    const countItem = await Item.countDocuments({ bazaar: bazaar._id });
+    // Count only the items that are actually attached to the bazaar,
+    const countItem = (bazaar.items || []).length;
 
     const template = await BazaarTemplate.create({
       name: bazaar.name,

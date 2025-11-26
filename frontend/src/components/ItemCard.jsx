@@ -152,10 +152,10 @@ const confirmDeleteItem = async () => {
   if (!item?._id)   return toast.error('Missing item id');     // show error if item id missing
 
   // Build DELETE URL (this matches backend route)
-  const url = `/classroom/${classroomId}/bazaar/${bazaarId}/items/${item._id}`; // final API path
+  const url = `classroom/${classroomId}/bazaar/${bazaarId}/items/${item._id}`; // final API path
 
   // Debug log so we can check what IDs/URL are being used
-  console.log('DELETE →', `/api/bazaar${url}`, { classroomId, bazaarId, itemId: item._id }); // helpful debug info
+  console.log('DELETE →', `/api/bazaar/${url}`, { classroomId, bazaarId, itemId: item._id }); // helpful debug info
 
 try {
   const resp = await apiBazaar.delete(url); // send DELETE request
@@ -173,26 +173,6 @@ try {
 }
 };
 
-
-// const handleOpenMystery = async (item) => {
-//   try {
-//     const res = await fetch(`/api/mystery/open/${item._id}`, {
-//       method: 'POST',
-//       credentials: 'include',
-//       headers: { 'Content-Type': 'application/json' },
-//       body: JSON.stringify({ boxId: item._id })
-//     });
-//     const data = await res.json();
-//     if (res.ok) {
-//       toast.success(`You opened a Mystery Box and got: ${data.awardedItem?.name || 'a surprise!'}`);
-//     } else {
-//       toast.error(data.error || 'Failed to open Mystery Box');
-//     }
-//   } catch (err) {
-//     console.error('Mystery open failed:', err);
-//     toast.error('Mystery box opening failed');
-//   }
-// }; //bazaar shoudlnt open teh box, thats an inventory job. and also because this was causing mongo transaction error i was getting 
 
 
   const imgSrc = resolveImageSrc(item?.image);
@@ -220,20 +200,7 @@ const handleBuy = async () => {
     setLoading(false);
   }
 };
-/* Commenting out due to issue fixing
-// determines the total discounts
-const totalDiscount = () => {
-    letpercent = 0;
-    if (discounts.length)
-    {
-        const combined = discounts.reduce(
-            (acc, d) => acc * (1 - (d.percent || 0) / 100), 1
-        );
-        percent = (1 - combined) * 100;
-    }
-    setDiscountPercent(percent);
-};*/
-// gets and determinesthe discounts
+
 const getDiscounts = async () => {
     try {
         const res = await apiDiscount.get(`/classroom/${classroomId}/user/${user._id}`);
@@ -377,18 +344,6 @@ const getDiscounts = async () => {
 </figure>
 
 
-{/* <figure className="max-h-full max-w-full object-contain"
->
-  <img
-    src={imgSrc}
-    alt={item.name || 'Item'}
-    className="w-full h-full object-fill"
-    onError={(e) => {
-      e.currentTarget.onerror = null;
-      e.currentTarget.src = '/images/item-placeholder.svg';
-    }}
-  />
-</figure> */}
 
 
 
