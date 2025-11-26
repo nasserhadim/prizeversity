@@ -130,7 +130,7 @@ const ItemSchema = new mongoose.Schema({
     enum: ['Attack', 'Defend', 'Utility', 'Passive'], // added 'Passive'
     default: 'Utility',
   },
-  effect: { type: String }, // 'halveBits', 'stealBits', 'shield'
+  effect: { type: String }, // 'halveBits', 'drainBits', 'shield'
   owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   active: { type: Boolean, default: false },
   usesRemaining: { type: Number, default: 1 },

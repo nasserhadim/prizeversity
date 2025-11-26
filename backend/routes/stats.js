@@ -66,7 +66,7 @@ router.get('/student/:id', ensureAuthenticated, async (req, res) => {
       }
     }
 
-    const attackEffects = ['halveBits', 'stealBits', 'swapper', 'nullify'];
+    const attackEffects = ['halveBits', 'drainBits', 'swapper', 'nullify'];
     const attackCount = (items || []).filter((item) => {
       const effect = item.primaryEffect || item.effect;
       const hasUses = (item.usesRemaining ?? 1) > 0 && !item.consumed;

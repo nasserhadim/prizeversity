@@ -7,7 +7,7 @@ import { describeEffectFromForm, normalizeSwapOptions } from '../utils/itemHelpe
 const CATEGORY_OPTIONS = {
   Attack: [
     { label: 'Bit Splitter (halve bits)', value: 'halveBits' },
-    { label: 'Bit Leech (steal %)', value: 'stealBits' },
+    { label: 'Bit Leech (drain %)', value: 'drainBits' },
     { label: 'Attribute Swapper', value: 'swapper' },
     { label: 'Nullifier (reset to default)', value: 'nullify' }
   ],
@@ -513,11 +513,11 @@ const EditItemModal = ({ open, onClose, item, classroomId, bazaarId, onUpdated }
                 </select>
               </div>
 
-              {/* Steal Bits Percentage */}
-              {form.primaryEffect === 'stealBits' && (
+              {/* Drain Bits Percentage */}
+              {form.primaryEffect === 'drainBits' && (
                 <div className="form-control">
                   <label className="label">
-                    <span className="label-text font-medium">Steal Percentage</span>
+                    <span className="label-text font-medium">Drain Percentage</span>
                   </label>
                   <div className="join">
                     <input

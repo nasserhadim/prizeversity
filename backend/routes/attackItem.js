@@ -196,23 +196,23 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
         break;
       }
 
-      case 'stealBits': {
+      case 'drainBits': {
         const tBefore = getClassroomBalance(targetUser, classroomId);
-        const stealAmount = Math.floor(tBefore * (Number(item.primaryEffectValue || 0) / 100));
-        const tAfter  = Math.max(0, tBefore - stealAmount);
+        const drainAmount = Math.floor(tBefore * (Number(item.primaryEffectValue || 0) / 100));
+        const tAfter  = Math.max(0, tBefore - drainAmount);
         setClassroomBalance(targetUser, classroomId, tAfter);
 
         const aBefore = getClassroomBalance(req.user, classroomId);
-        const aAfter  = aBefore + stealAmount;
+        const aAfter  = aBefore + drainAmount;
         setClassroomBalance(req.user, classroomId, aAfter);
 
-        effectNotes.push(`Stole ${item.primaryEffectValue || 0}% bits`);
+        effectNotes.push(`Drained ${item.primaryEffectValue || 0}% bits`);
 
-        if (stealAmount > 0) {
+        if (drainAmount > 0) {
           // target (debit)
           targetUser.transactions.push({
-            amount: -stealAmount,
-            description: `Attack: ${item.name} by ${attackerName} (stolen ${stealAmount} ₿)`,
+            amount: -drainAmount,
+            description: `Attack: ${item.name} by ${attackerName} (drained ${drainAmount} ₿)`,
             assignedBy: req.user._id,
             classroom: classroomId || null,
             createdAt: new Date(),
@@ -221,16 +221,16 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
           });
           walletLogs.push({
             user: targetUser,
-            amount: -stealAmount,
-            message: `You lost ${stealAmount} ₿ due to attack by ${attackerName} (${item.name}). Balance: ${formatArrow(tBefore, tAfter)}`,
+            amount: -drainAmount,
+            message: `You lost ${drainAmount} ₿ due to attack by ${attackerName} (${item.name}). Balance: ${formatArrow(tBefore, tAfter)}`,
             prevBalance: tBefore,
             newBalance: tAfter
           });
 
           // attacker (credit)
           req.user.transactions.push({
-            amount: stealAmount,
-            description: `Attack: ${item.name} vs ${targetName} (received ${stealAmount} ₿)`,
+            amount: drainAmount,
+            description: `Attack: ${item.name} vs ${targetName} (received ${drainAmount} ₿)`,
             assignedBy: req.user._id,
             classroom: classroomId || null,
             createdAt: new Date(),
@@ -239,8 +239,8 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
           });
           walletLogs.push({
             user: req.user,
-            amount: stealAmount,
-            message: `You received ${stealAmount} ₿ from attack on ${targetName} (${item.name}). Balance: ${formatArrow(aBefore, aAfter)}`,
+            amount: drainAmount,
+            message: `You received ${drainAmount} ₿ from attack on ${targetName} (${item.name}). Balance: ${formatArrow(aBefore, aAfter)}`,
             prevBalance: aBefore,
             newBalance: aAfter
           });

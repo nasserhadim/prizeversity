@@ -25,9 +25,9 @@ export const getEffectDescription = (item) => {
       return `Resets target's ${swapOpts.join(', ')} to default`;
     }
     if (item.primaryEffect === 'halveBits') return 'Halves target bits';
-    if (item.primaryEffect === 'stealBits') {
+    if (item.primaryEffect === 'drainBits') {
       const pct = item.primaryEffectValue || 10;
-      return `Steals ${pct}% of target bits`;
+      return `Drains ${pct}% of target bits`;
     }
   }
 
@@ -165,9 +165,9 @@ export const describeEffectFromForm = (form) => {
       primary = `Resets target's ${swapOpts.join(', ')} to default`;
     } else if (form.primaryEffect === 'halveBits') {
       primary = 'Halves target bits';
-    } else if (form.primaryEffect === 'stealBits') {
+    } else if (form.primaryEffect === 'drainBits') {
       const pct = form.primaryEffectValue || 10;
-      primary = `Steals ${pct}% of target bits`;
+      primary = `Drains ${pct}% of target bits`;
     }
 
     const secondaryText = formatSecondary(form.secondaryEffects);
