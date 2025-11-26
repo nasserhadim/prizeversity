@@ -421,22 +421,26 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
         return selectedRewards.map((reward, spot) => {
             const item = allPrizes.find(p => p._id === reward.itemId);
             const name = item?.name ?? "Un-selected";
+            const rarity = item.rarity;
             let weight = Number(reward.weight) || 2000;
             if (reward.probability != null)
             {
                 weight = Number(reward.probability * baseW / 100);
             }
             const luckWeight = Number(reward.luckWeight) * luckEffect;
-
+            
             const probability = (weight + luckWeight) * 100 / totalW;
+            const baseProb = weight * 100 / totalW;
+            const changeProb = probability - baseProb;
             
             
             return (
                 <div key={spot} className="flex items-center gap-3 px-1 text-sm">
                     <span className="flex-1">{name}</span>
-                    <div className="flex items-center gap-2">
-                        <span className="w-12 text-left">{probability.toFixed(2)}</span>
-                    </div>
+                    <span className="flex-1 text-center">{reward.rarity}</span>
+                    <span className="w-16 text-left"> {baseProb.toFixed(2)}%</span>  
+                    <span className="w-16 text-left"> {probability.toFixed(2)}%</span>
+                    <span className="w-16 text-left"> {changeProb.toFixed(2)}%</span>
                 </div>
             )
 
@@ -449,9 +453,16 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
             <h3 className="text-2xl font-bold text-success flex items-center gap-2">
                 How luck factor works
             </h3>
-            <p> The luck factor controls how much impact a student's luck has on item probabilities.</p>
-            <p> Luck Factor of 0: item probabilites are constant</p>
-            <p> Luck Factor of 1: the higher a students luck, the more likely they are to get rare, epic, and legendary items</p>
+            <p>Students with higher <b>luck stats</b> get <b>improved chances</b> for rarer items. The luck factor multiplier controls how much their luck affects the probability distribution.</p>
+            <div className="card card-compact p-4 border">
+                <p className="text-yellow-400"> &#9888; Why do we subtract 1 from luck?</p>
+                <p><b>Baseline Luck is 1.0x</b> (neutral - no bonus). If a student has <b>luck x3.0</b>, we only want to apply the <i>bonus</i> part (3.0 - 1.0 = <b>2.0</b>).</p>
+            </div>
+            <ol>
+                <li>Luck = 1.0 &rarr; Bonus = (1.0 - 1.0) = <b>0.0</b> (no advantage)</li>
+                <li>Luck = 2.0 &rarr; Bonus = (2.0 - 1.0) = <b>1.0</b> (modest boost)</li>
+                <li>Luck = 3.0 &rarr; Bonus = (3.0 - 1.0) = <b>2.0</b> (strong boost)</li>
+            </ol>
             </>
         )
     }
@@ -799,6 +810,24 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                         </span>
                     )}
                 </label>
+                {/* How it works pop-up, plus */}
+                {showWork && (
+                    <div className="flex items-center justify-center z-50">
+                        <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[95%]">
+                            {displayWork()}
+                            <div className="flex items-center justify-center">
+                                <button
+                                className="btn"
+                                onClick={() => {
+                                    setShowWork(false);
+                                }}
+                                >
+                                Close
+                            </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
                 
                 
                 <div className="flex items-center gap-2 mb-2">
@@ -809,9 +838,9 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                     
                 <input
                     type="number"
-                    min="1"
+                    min="0"
                     className="input input-bordered w-20"
-                    value={form.luckFactor || 1}
+                    value={form.luckFactor || 0}
                         onChange={(e) => setForm(prev => ({ ...prev, luckFactor: Number(e.target.value) }))}
                     />
                 </div> 
@@ -906,13 +935,59 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                     <button
                     className="btn"
                     type="button"
-                    disabled={haltMystery()}
+                    //disabled={haltMystery()}
                     onClick={() => setShowLuck(true)}
                     >
                     Preview Luck Impact
                     </button>
+                    
                 </div>
-            
+                    {showLuck && (
+                    <div className="flex items-center justify-center z-50">
+                        <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg">
+                            <h3 className="text-2xl font-bold text-success flex items-center gap-2">
+                                Preview Luck stat effect
+                            </h3>
+                            <label className="label">
+                                <span className="label-text font-medium">
+                                    Set Student Luck
+                                </span>
+                                </label>
+                                <input
+                                type="number"
+                                className="input input-bordered"
+                                value={studentLuck}
+                                onChange={(e) => setStudentLuck(e.target.value)}
+                                min="1"
+                                />
+
+                            {/* Headers - so the user knows what the boxes represent */}
+                            {selectedRewards.length > 0 && (
+                            <div className="flex items-center gap-2">
+                                <span className="flex-1">Item</span>
+                                <span className="flex-1 text-center">Rarity</span>
+                                <span className="w-16 text-left">Base %</span>
+                                <span className="w-16 text-left">Your %</span>
+                                <span className="w-16 text-left">Change</span>
+                            </div>
+                            )}
+                                
+                            
+                            {/* Shows selected items */}
+                            {displayLuck()}
+                            <div className="flex items-center justify-center">
+                                <button
+                                    className="btn"
+                                    onClick={() => {
+                                    setShowLuck(false);
+                                }}
+                                >
+                                Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    )}
            
                 {/* No items selected prompt */}
                 {Object.keys(selectedRewards).length === 0 && allPrizes.length > 0 && (
@@ -973,67 +1048,6 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
          )}
        </button>
      </form>
-     {/* How it works pop-up, plus */}
-     {showWork && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
-                {displayWork()}
-                <button
-                className="btn"
-                onClick={() => {
-                    setShowWork(false);
-                }}
-                >
-                Close
-            </button>
-            </div>
-        </div>
-     )}
-     {showLuck && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
-                <h3 className="text-2xl font-bold text-success flex items-center gap-2">
-                    Preview Luck stat effect
-                </h3>
-                <label className="label">
-                    <span className="label-text font-medium">
-                        Set Student Luck <span className='text-error'>*</span>
-                    </span>
-                    </label>
-                    <input
-                    type="number"
-                    className="input input-bordered"
-                    value={studentLuck}
-                    onChange={(e) => setStudentLuck(e.target.value)}
-                    min="1"
-                    />
-
-                {/* Headers - so the user knows what the boxes represent */}
-                {selectedRewards.length > 0 && (
-                <div className="flex items-center gap-3 px-1 text-sm">
-                    <span className="flex-1">Item</span>
-                    <div className="flex items-center gap-2">
-                        <span className="w-8 text-left">%</span>
-                    </div>
-                </div>
-                )}
-                    
-                
-                {/* Shows selected items */}
-                {displayLuck()}
-
-                <button
-                    className="btn"
-                    onClick={() => {
-                    setShowLuck(false);
-                }}
-                >
-                Close
-            </button>
-            </div>
-        </div>
-
-     )}
     
      </>
    );
