@@ -118,6 +118,7 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items',
     category, 
     primaryEffect, 
     primaryEffectValue,
+    requiredBadge,
   } = req.body;
   // Prefer uploaded file, fallback to image URL
   const image = req.file
@@ -169,6 +170,8 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items',
       category,
       primaryEffect: (category !== 'Passive' && category !== 'Mystery Box') ? primaryEffect : undefined,
       primaryEffectValue: (category !== 'Passive' && category !== 'Mystery Box') ? Number(primaryEffectValue) : undefined,
+
+      requiredBadge: requiredBadge || null,
 
       secondaryEffects: (parsedSecondaryEffects || []).map(se => ({
         effectType: se.effectType,

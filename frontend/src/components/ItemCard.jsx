@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Trash2, Lock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 import apiBazaar from '../API/apiBazaar.js';
@@ -404,9 +404,16 @@ const getDiscounts = async () => {
 
         {/* Price + teacher buttons on one row */}
         <div className="mt-2 flex items-center justify-between gap-2">
-          <p className="text-base-content font-bold text-base">
-            {calculatePrice()}
-          </p>
+          <div className="flex items-center gap-2 text-base-content font-bold text-base">
+            <span>{calculatePrice()}</span>
+
+            {item.requiredBadge && (
+              <span className="text-error flex items-center gap-1 text-xs">
+                <Lock className="w-4 h-4" />
+                Locked
+              </span>
+            )}
+          </div>
 
           {role === 'teacher' && user?._id === teacherId && (
             <div className="flex gap-2">
