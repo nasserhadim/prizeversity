@@ -40,7 +40,10 @@ const NotificationSchema = new mongoose.Schema({
       'feedback_report', // added to support feedback report notifications
       'challenge_series_completed',
       'badge_earned',
-      'level_up' // Add this line
+      'level_up', // Add this line
+      // challenge assignment / removal notifications
+      'challenge_assigned',
+      'challenge_removed'
     ],
     required: true 
   },

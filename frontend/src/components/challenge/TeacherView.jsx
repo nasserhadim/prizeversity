@@ -4,7 +4,7 @@ import { Shield, Settings, Users, Eye, EyeOff, UserPlus, Edit3, Trophy, Coins, T
 import { CHALLENGE_NAMES } from '../../constants/challengeConstants';
 import { getCurrentChallenge } from '../../utils/challengeUtils';
 import { getThemeClasses } from '../../utils/themeUtils';
-import { updateDueDate, toggleChallengeVisibility, resetStudentChallenge, resetSpecificChallenge } from '../../API/apiChallenge';
+import { updateDueDate, toggleChallengeVisibility, resetStudentChallenge, resetSpecificChallenge, removeStudentFromChallenge } from '../../API/apiChallenge';
 import { API_BASE } from '../../config/api';
 import ChallengeUpdateModal from './modals/ChallengeUpdateModal';
 import toast from 'react-hot-toast';
@@ -1601,7 +1601,7 @@ const TeacherView = ({
                           <td>
                             <div className="dropdown dropdown-end">
                               <div tabIndex={0} role="button" className="btn btn-xs btn-outline btn-warning gap-1 hover:btn-warning">
-                                🔄 Reset ▼
+                                🔄 Reset/Remove ▼
                               </div>
                               <ul tabIndex={0} className="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow border border-base-300">
                                 <li className="menu-title">
@@ -1664,9 +1664,36 @@ const TeacherView = ({
                                     🗑️ Reset ALL Challenges
                                   </button>
                                 </li>
-                              </ul>
-                            </div>
-                          </td>
+                                <li>
+                                  <button
+                                    className="text-xs text-red-600 font-semibold"
+                                    onClick={() => {
+                                      openConfirm({
+                                        title: 'Remove from Challenge Series',
+                                        message: `Remove ${uc.userId.firstName} ${uc.userId.lastName} from this challenge series? They can be re-added later via "Assign Students".`,
+                                        confirmText: 'Remove',
+                                        confirmButtonClass: 'btn-warning',
+                                        onConfirm: async () => {
+                                          try {
+                                            const challengeId = challengeData?.challenge?._id || challengeData?._id;
+                                            if (!challengeId) throw new Error('Challenge ID not found');
+                                            await removeStudentFromChallenge(challengeId, uc.userId._id);
+                                            toast.success('Student removed from challenge series');
+                                            await fetchChallengeData();
+                                          } catch (err) {
+                                            console.error('Failed to remove student from challenge:', err);
+                                            toast.error(err.message || 'Failed to remove student');
+                                          }
+                                        }
+                                      });
+                                    }}
+                                  >
+                                    🚫 Remove from Series
+                                  </button>
+                                </li>
+                               </ul>
+                             </div>
+                           </td>
                         </tr>
                       );
                     })}
@@ -1846,6 +1873,7 @@ const TeacherView = ({
                   onClick={() => {
                     setShowHintModal(false);
                     setEditingHints(null);
+     
                   }}
                 >
                   Cancel

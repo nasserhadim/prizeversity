@@ -6,6 +6,62 @@ const User = require('../../models/User');
 const { ensureAuthenticated, ensureTeacher } = require('../../middleware/auth');
 const { createGitHubBranch } = require('./generators');
 const { DEFAULT_CHALLENGE_SETTINGS } = require('./constants');
+const Notification = require('../../models/Notification');
+const { populateNotification } = require('../../utils/notifications');
+
+// Remove a student from the challenge series (teacher only)
+router.post('/:challengeId/remove-student', ensureAuthenticated, ensureTeacher, async (req, res) => {
+  try {
+    const { challengeId } = req.params;
+    const { studentId } = req.body;
+    const userId = req.user._id;
+
+    if (!studentId) {
+      return res.status(400).json({ message: 'Student ID is required' });
+    }
+
+    const challenge = await Challenge.findById(challengeId);
+    if (!challenge) {
+      return res.status(404).json({ message: 'Challenge not found' });
+    }
+
+    const classroom = await Classroom.findById(challenge.classroomId);
+    if (!classroom || classroom.teacher.toString() !== userId.toString()) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const ucIndex = challenge.userChallenges.findIndex(uc => String(uc.userId) === String(studentId));
+    if (ucIndex === -1) {
+      return res.status(404).json({ message: 'Student not assigned to this challenge' });
+    }
+
+    // remove the userChallenge entry
+    challenge.userChallenges.splice(ucIndex, 1);
+    await challenge.save();
+
+    // notify the student
+    try {
+      const notification = await Notification.create({
+        user: studentId,
+        actionBy: userId,
+        type: 'challenge_removed',
+        message: `You were removed from the challenge series "${challenge.title}" by your teacher.`,
+        classroom: challenge.classroomId,
+        read: false,
+        createdAt: new Date()
+      });
+      const populated = await populateNotification(notification._id);
+      try { req.app.get('io').to(`user-${studentId}`).emit('notification', populated); } catch(e){/*ignore*/}
+    } catch (e) {
+      console.error('Failed to create removal notification:', e);
+    }
+
+    return res.json({ success: true, message: 'Student removed from challenge' });
+  } catch (error) {
+    console.error('Error removing student from challenge:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 
 router.get('/:classroomId', ensureAuthenticated, async (req, res) => {
   try {
@@ -587,6 +643,23 @@ router.post('/:challengeId/assign-student', ensureAuthenticated, ensureTeacher, 
       await createGitHubBranch(newUserChallenge.uniqueId, studentId);
     } catch (error) {
       console.error(`Failed to create GitHub branch for new student: ${error.message}`);
+    }
+
+    // Notify the student that they were assigned to the challenge series
+    try {
+      const notification = await Notification.create({
+        user: studentId,
+        actionBy: teacherId,
+        type: 'challenge_assigned',
+        message: `You were assigned to the challenge series "${challenge.title}" by your teacher.`,
+        classroom: challenge.classroomId,
+        read: false,
+        createdAt: new Date()
+      });
+      const populated = await populateNotification(notification._id);
+      try { req.app.get('io').to(`user-${studentId}`).emit('notification', populated); } catch (e) { /* ignore socket errors */ }
+    } catch (e) {
+      console.error('Failed to create assignment notification:', e);
     }
 
     res.json({ 
