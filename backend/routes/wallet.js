@@ -345,19 +345,16 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
 }
           req.app.get('io').to(`user-${student._id}`).emit('notification', populatedNotification); 
       
+    // Correct per-class balance used for realtime updates
+    const perClassBalance = classroomId
+      ? (findClassroomBalance(student, classroomId)?.balance || 0)
+      : (student.balance || 0);
+
     req.app.get('io').to(`classroom-${classroomId}`).emit('balance_update', {
       studentId: student._id,
-      newBalance: student.balance,
+      newBalance: perClassBalance,
       classroomId
     });
-
-    // AFTER saving student(s) and creating notification(s), emit per-classroom update and return per-class balance
-    
-const perClassBalance = classroomId
-  ? (findClassroomBalance(student, classroomId)?.balance || 0)
-  : (student.balance || 0);
-
-
 
 
 //award xp for bits earned

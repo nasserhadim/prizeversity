@@ -621,6 +621,16 @@ const totalCost = item.price * qty;
 
     await user.save();
 
+    // notify student their balance changed
+    req.app.get('io')
+      .to(`user-${user._id}`)
+      .emit('balance_update', {
+        studentId: user._id,
+        newBalance: getClassroomBalance(user, classroomId),
+        classroomId
+      });
+
+
     // Notify classroom about the purchase (unchanged)
     req.app.get('io').to(`classroom-${classroomId}`).emit('bazaar_purchase', {
       itemId,
@@ -840,6 +850,14 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
     });
 
     await user.save();
+
+    req.app.get('io')
+      .to(`user-${userId}`)
+      .emit('balance_update', {
+        studentId: userId,
+        newBalance: getClassroomBalance(user, classroomId),
+        classroomId
+      });
 
     console.log("Checkout successful for user:", userId, "order:", order._id);
 // Award XP for Bits spent (checkout)
@@ -1107,7 +1125,7 @@ router.post('/inventory/:ownedId/open', ensureAuthenticated, async (req, res) =>
   req.app.get('io')
   .to(`user-${req.user._id}`)
   .emit('discount_updated');
-  
+
   return res.json({
     ok: true,
     message: 'Box opened',
