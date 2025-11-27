@@ -421,13 +421,13 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
         return selectedRewards.map((reward, spot) => {
             const item = allPrizes.find(p => p._id === reward.itemId);
             const name = item?.name ?? "Un-selected";
-            const rarity = item.rarity;
-            let weight = Number(reward.weight) || 2000;
+            const rarity = item?.rarity ?? "Common";
+            let weight = Number(reward.weight) || 40000;
             if (reward.probability != null)
             {
                 weight = Number(reward.probability * baseW / 100);
             }
-            const luckWeight = Number(reward.luckWeight) * luckEffect;
+            const luckWeight = (Number(reward.luckWeight) || 2000) * luckEffect;
             
             const probability = (weight + luckWeight) * 100 / totalW;
             const baseProb = weight * 100 / totalW;
@@ -448,22 +448,165 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
         })
     }
     const displayWork = () => {
+        const basePart = [
+            { rarity: "Common", percent: 40, mult: 0.2, colorFinal: "#E3C62B", colorChange: "#FF2632", },
+            { rarity: "Uncommon", percent: 30, mult: 0.4, colorFinal: "#E3C62B", colorChange: "#FF2632" },
+            { rarity: "Rare", percent: 20, mult: 0.6, colorFinal: "", colorChange: "" },
+            { rarity: "Epic", percent: 8, mult: 0.8, colorFinal: "#09D63E", colorChange: "#09D63E" },
+            { rarity: "Legendary", percent: 2, mult: 1.0, colorFinal: "#0E9931", colorChange: "#0E9931", bold: true },
+        ]
         return (
-            <>
-            <h3 className="text-2xl font-bold text-success flex items-center gap-2">
-                How luck factor works
-            </h3>
-            <p>Students with higher <b>luck stats</b> get <b>improved chances</b> for rarer items. The luck factor multiplier controls how much their luck affects the probability distribution.</p>
-            <div className="card card-compact p-4 border">
-                <p className="text-yellow-400"> &#9888; Why do we subtract 1 from luck?</p>
-                <p><b>Baseline Luck is 1.0x</b> (neutral - no bonus). If a student has <b>luck x3.0</b>, we only want to apply the <i>bonus</i> part (3.0 - 1.0 = <b>2.0</b>).</p>
+            <div className="mt-4 p-4 border border-base-300 rounded-lg space-y-3 z-0">
+                <h3 className="text-2xl font-bold text-success flex items-center gap-2">
+                    How luck factor works
+                </h3>
+                <p>Students with higher <b>luck stats</b> get <b>improved chances</b> for rarer items. The luck factor multiplier controls how much their luck affects the probability distribution.</p>
+                <div className="flex card card-compact p-4 border bg-green-600 bg-opacity-20 gap-2 bg-base-100">
+                    <p className="text-yellow-400"><b> ⚠️ Why do we subtract 1 from luck?</b></p>
+                    <p><b>Baseline Luck is 1.0×</b> (neutral - no bonus). If a student has <b>luck ×3.0</b>, we only want to apply the <i>bonus</i> part (3.0 - 1.0 = <b>2.0</b>).</p>
+                </div>
+                <ol>
+                    <li>Luck = 1.0 &rarr; Bonus = (1.0 - 1.0) = <b>0.0</b> (no advantage)</li>
+                    <li>Luck = 2.0 &rarr; Bonus = (2.0 - 1.0) = <b>1.0</b> (modest boost)</li>
+                    <li>Luck = 3.0 &rarr; Bonus = (3.0 - 1.0) = <b>2.0</b> (strong boost)</li>
+                </ol>
+                <div className="flex card card-compact p-4 border bg-green-600 bg-opacity-20 gap-2">
+                    <p>This ensures that <b>luck = 1.0 means "neutral"</b> (standard drop rates), and only <b>values above 1.0</b> provide an advantage.</p>
+                </div>
+                <div className="flex card card-compact p-4 border bg-green-600 bg-opacity-20 gap-2">
+                    <p>📊<b> Rarity Weights (How Much Luck Affects Each Tier)</b></p>
+                </div>
+                <div className="flex card card-compact p-4 border bg-green-600 bg-opacity-20 gap-2">
+                    <div className="flex gap-2 items-center">
+                        <span className="flex-1">
+                            <b>Common</b>
+                            <p>Rank: 1</p>
+                            <p className="text-yellow-600">1 ÷ 5 = 0.2</p>
+                        </span>
+                        <span className="flex-1">
+                            <b>Uncommon</b>
+                            <p>Rank: 2</p>
+                            <p className="text-yellow-600">2 ÷ 5 = 0.4</p>
+                        </span>
+                        <span className="flex-1">
+                            <b>Rare</b>
+                            <p>Rank: 3</p>
+                            <p className="text-yellow-600">3 ÷ 5 = 0.6</p>
+                        </span>
+                        <span className="flex-1">
+                            <b>Epic</b>
+                            <p>Rank: 4</p>
+                            <p className="text-yellow-600">4 ÷ 5 = 0.8</p>
+                        </span>
+                        <span className="flex-1">
+                            <b>Legendary</b>
+                            <p>Rank: 5</p>
+                            <p className="text-yellow-600">5 ÷ 5 = 1.0</p>
+                        </span>
+                    </div>
+                    <p>⚡ <b>Higher weight = more luck boost.</b> Legendary items get the full luck bonus, while common items get only 20%.</p>   
+                </div>
+                <p className="text-blue-400">📊<b> Complete Example: 5-Item Mystery Box</b></p>
+                <div className="flex card card-compact p-4 border bg-green-600 bg-opacity-20 gap-2">
+                    <p><b>Step 1: Base Drop Rates (No Luck)</b></p>
+                        <ul className="w-80">
+                        {basePart.map((r) => (
+                            <li key={r.rarity} className="flex">
+                                <span className="flex-1">{r.rarity}</span>
+                                <span className="flex">{(r.percent).toFixed(1)}%</span>
+                            </li>
+                        ))}
+                        </ul>
+                        <ul className="w-80">
+                            <li className="flex">
+                                <span className="flex-1"><b>TOTAL:</b></span>
+                                <span className="flex text-green-700"><b>100.0%</b></span>
+                            </li>
+                        </ul>
+                </div>
+                <div className="flex card card-compact p-4 border bg-green-600 bg-opacity-20 gap-2">
+                    <p><b>Step 2:  Apply Luck (Student with ×3.0 luck, luck factor multiplier = 1.5)</b></p>
+                    <p><b className="text-blue-400">Why (3.0 - 1)?</b> Luck 1.0 is neutral (no bonus). Student with luck ×3.0 has <b>2.0 bonus points</b> to distribute.</p>
+                    <p>Luck bonus = <b className="text-orange-400">(3.0 - 1)</b> × 1.5 = <b>3.0</b></p>
+                    <ul className="w-80">
+                        {basePart.map((r) => (
+                            <li key={r.rarity} className="flex">
+                                <span className="flex-1">{r.rarity}: {r.percent}% + (3.0 * <b>{r.mult}</b> * 10)</span>
+                                <span className="flex">{(r.percent + (r.mult * 30)).toFixed(1)}%</span>
+                            </li>
+                        ))}
+                    </ul>
+                    <ul className="w-80">
+                        <li className="flex">
+                            <span className="flex-1"><b>TOTAL (before normalization):</b></span>
+                            <span className="flex"><b>190.0%</b></span>
+                        </li>
+                    </ul>
+                </div>
+                <div className="flex card card-compact p-4 border bg-blue-400 bg-opacity-20 gap-2">
+                    <b className="text-blue-400">Where do 0.2, 0.4, 0.6, 0.8, 1.0 come from?</b>
+                    <p>These are the <b>rarity weights</b> shown above (Common=1/5, Uncommon=2/5, etc.). They ensure legendary items get the full luck bonus while common items get only <i>20%</i> of it.</p>
+                </div>
+                <div className="flex card card-compact p-4 border bg-red-400 bg-opacity-20 gap-2">
+                    <b className="text-red-700">Problem: Total is 190%, not 100%!</b>
+                    <p>These are the <b>rarity weights</b> shown above (Common=1/5, Uncommon=2/5, etc.). They ensure legendary items get the full luck bonus while common items get only <i>20%</i> of it.</p>
+                </div>
+                <div className="flex card card-compact p-4 border bg-green-600 bg-opacity-20 gap-2">
+                    <p><b>Step 3:  Normalize (Scale Down to 100%)</b></p>
+                    <p> We divide each by the total (190%), and multiply by 100%</p>
+                    <ul className="w-80">
+                        {basePart.map((r) => (
+                            <li key={r.rarity} className="flex">
+                                <span className="flex-1">{r.rarity}: ({(r.percent + (30 * r.mult)).toFixed(1)} ÷ 190) * 100</span>
+                                <span className="flex">≈{((r.percent + (r.mult * 30)) / 190 * 100).toFixed(1)}%</span>
+                            </li>
+                        ))}
+                    </ul>
+                    <ul className="w-80">
+                        <li className="flex">
+                            <span className="flex-1"><b>FINAL TOTAL:</b></span>
+                            <span className="flex"><b>100.0%</b></span>
+                        </li>
+                    </ul>
+                </div>
+                <b>📈 Before vs After Comparison</b>
+                <ul className="w-full">
+                    <li className="flex">
+                        <b className="flex-1">Item</b>
+                        <b className="flex-1">Base %</b>
+                        <b className="flex-1">Final %</b>
+                        <b className="flex-1">Change</b>
+                    </li>
+                </ul>
+                <ul className="w-full">
+                    {basePart.map((r) => (
+                        <li key={r.rarity} className="flex">
+                            <span className="flex-1" style={{ fontWeight: r.bold ? 'bold' : 'normal' }}>{r.rarity}</span>
+                            <span className="flex-1" style={{ fontWeight: r.bold ? 'bold' : 'normal' }}>{(r.percent).toFixed(1)}%</span>
+                            <span className="flex-1" style={{color: r.colorFinal, fontWeight: r.bold ? 'bold' : 'normal'}}>{((r.percent + (r.mult * 30)) / 190 * 100).toFixed(1)}%</span>
+                            <span className="flex-1" style={{color: r.colorChange, fontWeight: r.bold ? 'bold' : 'normal'}}>{(((r.percent + (r.mult * 30)) / 190 * 100) - r.percent).toFixed(1)}%</span>
+                        </li>
+                    ))}
+                </ul>
+                <p></p>
+                <b className="text-green-700">✓ Legendary is now 8.4× more likely (16.8% vs 2%)!</b>
+                <div className="flex card card-compact p-4 border bg-green-600 bg-opacity-20 gap-2">
+                    <p><b className="text-blue-400">Key Takeaway:</b> Luck <i>redistributes</i> probability from common items toward rare+ items.
+                    All rates are then <b>normalized</b> (proportionally scaled) back to 100% so the system remains mathematically valid.
+                    This ensures lucky students get significantly better odds on rare+ items without breaking the probability model</p>
+                </div>
+
+                <div className="flex items-center justify-center">
+                    <button
+                        className="btn"
+                        onClick={() => {
+                            setShowWork(false);
+                        }}
+                        >
+                        Close
+                    </button>
+                </div>
             </div>
-            <ol>
-                <li>Luck = 1.0 &rarr; Bonus = (1.0 - 1.0) = <b>0.0</b> (no advantage)</li>
-                <li>Luck = 2.0 &rarr; Bonus = (2.0 - 1.0) = <b>1.0</b> (modest boost)</li>
-                <li>Luck = 3.0 &rarr; Bonus = (3.0 - 1.0) = <b>2.0</b> (strong boost)</li>
-            </ol>
-            </>
         )
     }
  
@@ -799,7 +942,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                         <button
                         className="btn"
                         type="button"
-                        onClick={() => setShowWork(true)}
+                        onClick={() => setShowWork(!showWork)}
                         >
                         How it works
                         </button>
@@ -812,19 +955,9 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                 </label>
                 {/* How it works pop-up, plus */}
                 {showWork && (
-                    <div className="flex items-center justify-center z-50">
+                    <div className="flex items-center justify-center">
                         <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[95%]">
                             {displayWork()}
-                            <div className="flex items-center justify-center">
-                                <button
-                                className="btn"
-                                onClick={() => {
-                                    setShowWork(false);
-                                }}
-                                >
-                                Close
-                            </button>
-                            </div>
                         </div>
                     </div>
                 )}
@@ -936,7 +1069,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                     className="btn"
                     type="button"
                     //disabled={haltMystery()}
-                    onClick={() => setShowLuck(true)}
+                    onClick={() => setShowLuck(!showLuck)}
                     >
                     Preview Luck Impact
                     </button>
