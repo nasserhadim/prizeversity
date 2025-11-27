@@ -235,6 +235,58 @@ const Bazaar = () => {
     }
   }, [bazaar?._id]);
 
+  // Live updates for Bazaar (new items, edits, deletes)
+  useEffect(() => {
+    if (!classroomId || !window.socket) return;
+
+    const socket = window.socket;
+
+    // Join classroom room
+    socket.emit("join-classroom", classroomId);
+
+    // When teacher adds an item
+    socket.on("bazaar_update", () => {
+      fetchFilteredItems(filters);
+      fetchBazaar();
+    });
+
+    // When teacher edits an item
+    socket.on("bazaar_item_updated", ({ item }) => {
+      handleItemUpdated(item);
+    });
+
+    // When teacher deletes an item
+    socket.on("bazaar_item_deleted", ({ itemId }) => {
+      handleItemDeleted(itemId);
+    });
+
+    return () => {
+      socket.off("bazaar_update");
+      socket.off("bazaar_item_updated");
+      socket.off("bazaar_item_deleted");
+      socket.emit("leave-classroom", classroomId);
+    };
+  }, [classroomId, bazaar?._id, filters]);
+
+  // Live update: discount changed (student used a discount item)
+  useEffect(() => {
+    if (!window.socket || !user?._id) return;
+
+    const socket = window.socket;
+
+    const refreshDiscounts = () => {
+      getDiscounts();           // re-fetch discount items
+      fetchFilteredItems(filters); // refresh discounted prices
+    };
+
+    socket.on("discount_updated", refreshDiscounts);
+
+    return () => {
+      socket.off("discount_updated", refreshDiscounts);
+    };
+  }, [user?._id, classroomId, filters]);
+
+
   const handleItemUpdated = (updatedItem) => {
     setBazaar(prev => ({
       ...prev,

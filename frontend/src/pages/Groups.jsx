@@ -197,6 +197,10 @@ const Groups = () => {
     socket.on('siphon_create', fetchGroupSets);
     socket.on('siphon_vote', fetchGroupSets);
     socket.on('siphon_update', fetchGroupSets);
+    socket.on('group_delete', fetchGroupSets);
+    socket.on('groupset_delete', fetchGroupSets);
+    socket.on('groupsets_bulk_delete', fetchGroupSets);
+    socket.on('group_bulk_delete', fetchGroupSets);
     
     socket.on('user_deleted', (data) => {
       if (data.classroomId === id) {
@@ -213,6 +217,10 @@ const Groups = () => {
       socket.off('siphon_update', fetchGroupSets);
       socket.off('user_deleted');
       socket.off('classroom_removal', handleClassroomRemoval); // Add cleanup
+      socket.off('group_delete', fetchGroupSets);
+      socket.off('groupset_delete', fetchGroupSets);
+      socket.off('groupsets_bulk_delete', fetchGroupSets);
+      socket.off('group_bulk_delete', fetchGroupSets);
     };
   }, [id, navigate]); // Add navigate to dependencies
 

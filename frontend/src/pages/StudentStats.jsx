@@ -37,25 +37,8 @@ const StudentStats = () => {
  
   // XP summary from backend (single source of truth)
   const [xpSummary, setXpSummary] = useState(null);
- 
-  // Precompute group multiplier for rendering
-  const groupMultiplierValue = Number(
-    stats?.groupMultiplier ?? stats?.student?.groupMultiplier ?? 1
-  );
 
-  // Go to the *student-specific* badge page now
-  const handleViewBadges = () => {
-    if (!classId || !studentId) return;
-    navigate(`/classroom/${classId}/student/${studentId}/badges`, {
-      state: { 
-        from: 'stats'// so badges page knows to go back to stats
-       },
-    });
-  };
-
-  // Fetch student stats + badge count
-  useEffect(() => {
-    const fetchStats = async () => {
+  const fetchStats = async () => {
       try {
         const url = classId
           ? `/api/stats/student/${studentId}?classroomId=${classId}`
@@ -79,7 +62,24 @@ const StudentStats = () => {
         setLoading(false);
       }
     };
+ 
+  // Precompute group multiplier for rendering
+  const groupMultiplierValue = Number(
+    stats?.groupMultiplier ?? stats?.student?.groupMultiplier ?? 1
+  );
 
+  // Go to the *student-specific* badge page now
+  const handleViewBadges = () => {
+    if (!classId || !studentId) return;
+    navigate(`/classroom/${classId}/student/${studentId}/badges`, {
+      state: { 
+        from: 'stats'// so badges page knows to go back to stats
+       },
+    });
+  };
+
+  // Fetch student stats + badge count
+  useEffect(() => {
     if (studentId) fetchStats();
 
     const handleDiscountExpired = () => {
@@ -98,6 +98,7 @@ const StudentStats = () => {
       window.removeEventListener('focus', handleFocus);
     };
   }, [studentId, classId]);
+
 
   // Fetch XP settings for this specific classroom
   useEffect(() => {
