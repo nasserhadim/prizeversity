@@ -63,10 +63,23 @@ export default function ClassroomPage() {
   // Fetch classrooms from backend depending on role
   const fetchClassrooms = async () => {
     try {
-      // Teachers fetch all classrooms, students fetch joined classrooms
       const endpoint = role === 'teacher' ? '/api/classroom' : '/api/classroom/student';
       const res = await axios.get(endpoint);
       setClassrooms(res.data);
+      
+      // If user has at least one classroom, prefer "My Classrooms" view
+      // for students and for teachers (instead of the join/create default).
+      try {
+        if (role === 'student' && Array.isArray(res.data) && res.data.length > 0) {
+          setStudentTab('classrooms');
+        }
+        if (role === 'teacher' && Array.isArray(res.data) && res.data.length > 0) {
+          setTeacherTab('classrooms');
+        }
+      } catch (e) {
+        // non-fatal - keep defaults on error
+        console.debug('Could not set default tab from fetchClassrooms', e);
+      }
     } catch (err) {
       console.error('Error fetching classrooms', err);
     } finally {
