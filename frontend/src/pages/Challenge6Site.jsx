@@ -237,8 +237,8 @@ const Challenge6Site = () => {
           
           <button
             onClick={handleSubmit}
-            disabled={submitting || !input.trim() || maxAttemptsReached}
-            className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-mono py-3 px-4 rounded border border-green-500 transition-colors"
+            disabled={submitting || !input.trim() || maxAttemptsReached || isSuccess}
+            className={`w-full ${submitting || !input.trim() || maxAttemptsReached || isSuccess ? 'bg-gray-600 cursor-not-allowed opacity-70' : 'bg-green-600 hover:bg-green-700'} text-white font-mono py-3 px-4 rounded border border-green-500 transition-colors`}
           >
             {submitting ? (
               <span className="flex items-center justify-center gap-2">
