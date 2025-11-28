@@ -53,7 +53,7 @@ const ChallengeSchema = new mongoose.Schema({
   classroomId: { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom', required: true },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   title: { type: String, default: 'Cyber Challenge Series' },
-  description: { type: String, default: 'Complete all challenges to earn maximum bits!' },
+  description: { type: String, default: 'Defy the odds and conquer the challenges!' },
   isActive: { type: Boolean, default: false },
   isConfigured: { type: Boolean, default: false },
   isVisible: { type: Boolean, default: true },
