@@ -63,12 +63,21 @@ const BACKEND_URL = `${API_BASE}`;
         >
           <option value="">-- target member --</option>
           {group.members
-            .filter(m => String(m._id._id) !== String(user._id))
-            .map(m => (
-              <option key={m._id._id} value={m._id._id}>
-                {`${m._id.firstName || ''} ${m._id.lastName || ''}`.trim() || m._id.email} - {m._id.email}
-              </option>
-            ))
+            // Exclude current user AND exclude members who are not approved (pending/rejected)
+            .filter(m => {
+              const memberId = m._id._id ? String(m._id._id) : String(m._id);
+              const isSelf = memberId === String(user._id);
+              const status = m.status || (m._id && m._id.status) || 'approved';
+              return !isSelf && status === 'approved';
+            })
+            .map(m => {
+              const id = m._id._id ? m._id._id : m._id;
+              return (
+                <option key={id} value={id}>
+                  {`${m._id.firstName || ''} ${m._id.lastName || ''}`.trim() || m._id.email} - {m._id.email}
+                </option>
+              );
+            })
           }
         </select>
 

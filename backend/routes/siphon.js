@@ -30,6 +30,16 @@ router.post(
       const group = await Group.findById(req.params.groupId).populate('members._id', 'balance');
       if (!group) return res.status(404).json({ error: 'Group not found' });
 
+      // Ensure the target is an approved member of this group
+      // (reject siphon requests against non-members or pending/rejected members)
+      const targetMemberEntry = group.members.find(m => {
+        const mid = m._id && (m._id._id ? String(m._id._id) : String(m._id));
+        return String(mid) === String(targetUserId);
+      });
+      if (!targetMemberEntry || String(targetMemberEntry.status) !== 'approved') {
+        return res.status(400).json({ error: 'Target user must be an approved member of this group' });
+      }
+
       const groupSet = await GroupSet.findOne({ groups: req.params.groupId }).populate('classroom');
       if (!groupSet) return res.status(404).json({ error: 'GroupSet not found' });
 
