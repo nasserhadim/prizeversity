@@ -74,6 +74,16 @@ export const CartProvider = ({ children }) => {
     });
   };
 
+  // NEW: clear all carts (useful on account deletion / logout)
+  const clearAllCarts = () => {
+    try {
+      setCarts({});
+      localStorage.removeItem('pv:carts');
+    } catch (e) {
+      console.error('Failed to clear all carts', e);
+    }
+  };
+
   const context = {
     // classroom-aware helpers
     getCart,         // function: getCart(classroomId?)
@@ -83,6 +93,7 @@ export const CartProvider = ({ children }) => {
     addToCart,       // function: addToCart(item, classroomId?)
     removeFromCart,  // function: removeFromCart(index, classroomId?)
     clearCart,       // function: clearCart(classroomId?)
+    clearAllCarts,   // NEW: clear all carts across classrooms
     // raw state if needed
     _allCarts: carts
   };

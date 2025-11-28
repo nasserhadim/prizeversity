@@ -5,11 +5,13 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 import Footer from '../components/Footer';
+import { useCart } from '../context/CartContext'; // <- ADD
 
 const Settings = () => {
     const { theme, toggleTheme } = useContext(ThemeContext);
     const { user, logout } = useContext(AuthContext);
     const navigate = useNavigate();
+    const { clearAllCarts } = useCart(); // <- ADD
 
     const handleDeleteAccount = async () => {
 
@@ -41,6 +43,9 @@ const Settings = () => {
                             toast.dismiss(t.id);
                             try {
                                 await axios.delete(`/api/users/${user._id}`);
+                                // Ensure client-side cart state is wiped to avoid resurrecting old carts
+                                try { clearAllCarts(); } catch (e) { /* ignore */ }
+
                                 toast.success('Account deleted successfully');
                                 logout();
                                 navigate('/');
