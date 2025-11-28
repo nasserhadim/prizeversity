@@ -170,16 +170,36 @@ router.get('/:classroomId', ensureAuthenticated, async (req, res) => {
       });
     }
 
-    res.json({ 
-      challenge: {
-        _id: challenge._id,
-        title: challenge.title,
-        description: challenge.description,
-        isActive: challenge.isActive,
-        settings: challenge.settings
-      },
-      userChallenge,
-      isTeacher: false
+    // After populating and before sending response:
+    let responseChallenge = challenge;
+    let responseUserChallenge = null;
+
+    if (!isTeacher) {
+      // Only include the requesting student's userChallenge (sanitized)
+      const uc = challenge.userChallenges.find(uc => uc.userId && uc.userId._id
+        ? uc.userId._id.toString() === userId.toString()
+        : uc.userId.toString() === userId.toString());
+
+      if (uc) {
+        const ucObj = (typeof uc.toObject === 'function') ? uc.toObject() : JSON.parse(JSON.stringify(uc));
+        delete ucObj.hashedPassword;
+        delete ucObj.challenge2Password;
+        delete ucObj.challenge3Code;
+        delete ucObj.challenge3ExpectedOutput;
+        delete ucObj.challenge4Password;
+        responseUserChallenge = ucObj;
+      }
+
+      // Remove full userChallenges list for students
+      const chObj = (typeof challenge.toObject === 'function') ? challenge.toObject() : JSON.parse(JSON.stringify(challenge));
+      delete chObj.userChallenges;
+      responseChallenge = chObj;
+    }
+
+    res.json({
+      challenge: responseChallenge,
+      userChallenge: responseUserChallenge,
+      isTeacher
     });
 
   } catch (error) {
