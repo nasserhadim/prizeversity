@@ -1747,7 +1747,7 @@ const visibleCount = filteredStudents.length;
                 ) : (
                   <ul className="list-disc ml-5 space-y-1">
                     {group.members
-                      .filter(m => m && m._id && m.status === 'approved') // Add status filter
+                      .filter(m => m && m._id && (m.status === 'approved' || m.status === 'pending')) // include pending
                       .map((m) => {
                         const memberUser = m._id;
                         const userId = memberUser._id || memberUser; // handle populated object or raw id
@@ -1788,6 +1788,7 @@ const visibleCount = filteredStudents.length;
                           })
                         );
                         const canSeeSiphon = isViewerTeacherOrAdmin || isViewerGroupMember;
+                        const isPending = m.status === 'pending';
  
                         return (
                           <li key={String(userId)} className="flex justify-between items-center w-full">
@@ -1797,6 +1798,7 @@ const visibleCount = filteredStudents.length;
                               <span>{displayName}</span>
                               {isBannedMember && <span className="badge badge-error">BANNED</span>}
                               {isSiphoned && canSeeSiphon && <span className="badge badge-warning">SIPHONED</span>}
+                              {isPending && <span className="badge badge-info">PENDING</span>}
                             </span>
 
                             <button
