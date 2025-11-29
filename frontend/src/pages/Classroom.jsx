@@ -90,9 +90,38 @@ const Classroom = () => {
     // If we don't yet have a user, skip socket joins to avoid reading user._id (fixes crash/white page)
     if (!id || !user) return;
 
-    socket.emit('join-classroom', id);
-    socket.emit('join-user', user._id);
-    console.log(`Joined user room: user-${user._id}`);
+    const joinRooms = () => {
+      if (user?._id) {
+        console.debug('[socket] join-user', user._id);
+        socket.emit('join-user', user._id);
+      }
+      if (id) {
+        console.debug('[socket] join-classroom', id);
+        socket.emit('join-classroom', id);
+      }
+
+      // Prevent duplicate auto-checkin requests during the same client session
+      // (guard against joinRooms being called multiple times: immediate + on connect)
+      if (!joinRooms._checkedIn) {
+        joinRooms._checkedIn = true;
+        // Auto check-in: notify server user entered classroom so daily check-in happens
+        (async () => {
+          try {
+            const res = await axios.post(`/api/classroom/${id}/checkin`, {}, { withCredentials: true });
+            console.debug('[checkin] response:', res.data);
+            if (res.data && res.data.alreadyCheckedIn) {
+              // already done for today
+            } else if (res.data && res.data.xpAwarded) {
+              console.info(`[checkin] awarded ${res.data.xpAwarded} XP`);
+            }
+          } catch (err) {
+            console.warn('[checkin] POST failed:', err?.response?.data || err.message);
+          }
+        })();
+      }
+    };
+
+    joinRooms();
 
     const handleNewAnnouncement = (announcement) => {
       setAnnouncements(prev => [announcement, ...prev]);

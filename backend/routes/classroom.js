@@ -9,6 +9,7 @@ const User = require('../models/User');
 const { ensureAuthenticated } = require('../config/auth');
 const blockIfFrozen = require('../middleware/blockIfFrozen');
 const { populateNotification } = require('../utils/notifications');
+const { logStatChanges } = require('../utils/statChangeLog'); // NEW: used for daily check-in + other stat logs
 const { awardXP } = require('../utils/awardXP');
 
 const router = express.Router();
@@ -1320,12 +1321,13 @@ router.get('/:id/stat-changes', ensureAuthenticated, async (req, res) => {
 
 // Add new endpoint for daily check-in
 router.post('/:classroomId/checkin', ensureAuthenticated, async (req, res) => {
-  try {
-    const { classroomId } = req.params;
-    const userId = req.user._id;
+  console.info(`[checkin] route entry: user=${req.user?._id} params.classroomId=${req.params.classroomId}`);
+     try {
+       const { classroomId } = req.params;
+       const userId = req.user._id;
 
-    const user = await User.findById(userId);
-    const classroom = await Classroom.findById(classroomId).select('xpSettings students');
+       const user = await User.findById(userId);
+       const classroom = await Classroom.findById(classroomId).select('xpSettings students');
     
     if (!classroom) {
       return res.status(404).json({ error: 'Classroom not found' });
@@ -1379,13 +1381,38 @@ router.post('/:classroomId/checkin', ensureAuthenticated, async (req, res) => {
     await user.save();
 
     const xpToAward = classroom.xpSettings.dailyCheckIn || 5;
-    const result = await awardXP(
-      userId,
-      classroomId,
-      xpToAward,
-      'daily check-in',
-      classroom.xpSettings
-    );
+    // pass the loaded user document to awardXP to avoid concurrent-save version conflicts
+    const result = await awardXP(userId, classroomId, xpToAward, 'daily check-in', classroom.xpSettings, { user });
+    // DEBUG: log awardXP result and io presence so we can confirm emission path
+    try {
+      console.info('[checkin] awardXP result:', { userId, classroomId, xpToAward, result });
+      const ioInstance = req.app && req.app.get ? req.app.get('io') : null;
+      console.info('[checkin] io present?', !!ioInstance);
+    } catch (e) {
+      console.warn('[checkin] debug logging failed', e);
+    }
+    // Log & emit stat-change so frontend shows "xp: A → B (+Δ)" in realtime
+    try {
+      if (result && typeof result.oldXP !== 'undefined' && typeof result.newXP !== 'undefined' && result.newXP !== result.oldXP) {
+        try {
+          await logStatChanges({
+            io: req.app && req.app.get ? req.app.get('io') : null,
+            classroomId,
+            user,                 // user doc loaded earlier in this route
+            actionBy: null,       // system action (no specific actor)
+            prevStats: { xp: result.oldXP },
+            currStats: { xp: result.newXP },
+            context: 'daily check-in',
+            details: { effectsText: `Daily check-in: +${xpToAward} XP` },
+            forceLog: true
+          });
+        } catch (logErr) {
+          console.warn('[classroom] failed to log daily check-in stat change:', logErr);
+        }
+      }
+    } catch (e) {
+      console.warn('[classroom] daily check-in logging failed:', e);
+    }
 
     res.json({
       message: 'Daily check-in successful!',

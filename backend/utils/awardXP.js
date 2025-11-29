@@ -11,14 +11,16 @@ const { populateNotification } = require('./notifications'); // path matches you
  * @param {number} xpAmount - Amount of XP to award
  * @param {string} reason - Reason for XP award
  * @param {object} xpSettings - Classroom XP settings
+ * @param {object} options - Additional options
  * @returns {Promise<object>} { leveledUp, oldLevel, newLevel, earnedBadges }
  */
-async function awardXP(userId, classroomId, xpAmount, reason, xpSettings) {
+async function awardXP(userId, classroomId, xpAmount, reason, xpSettings, options = {}) {
   if (!xpSettings?.enabled || xpAmount <= 0) {
     return { leveledUp: false, oldLevel: 1, newLevel: 1, earnedBadges: [] };
   }
 
-  const user = await User.findById(userId);
+  // Allow caller to pass an already-loaded mongoose user doc to avoid save/version races
+  const user = options.user || await User.findById(userId);
   if (!user) throw new Error('User not found');
 
   // Find or create classroom XP entry
