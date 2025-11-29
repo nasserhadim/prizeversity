@@ -492,7 +492,7 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
               const delta = Number((afterAggregate - prevAggregate).toFixed(3));
               const groupNamesArr = Array.from(info.groupNames || []);
               const groupContext = groupNamesArr.length ? `applied to ${groupNamesArr.length} group${groupNamesArr.length>1?'s':''}: ${groupNamesArr.slice(0,5).join(', ')}` : '';
-              const effectsText = `Group multiplier ${delta < 0 ? '' : '+'}${delta} (${groupContext}) — Applied by ${attackerName}`;
+              const effectsText = `Group multiplier ${delta < 0 ? '' : '+'}${delta} (${groupContext}) — Applied by ${attackerName} (via ${item.name})`;
 
               await logStatChanges({
                 io: req.app && req.app.get ? req.app.get('io') : null,
@@ -501,7 +501,7 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
                 actionBy: req.user._id,
                 prevStats: { groupMultiplier: prevAggregate },
                 currStats: { groupMultiplier: afterAggregate },
-                context: `Bazaar - Group multiplier reduced`,
+                context: `Bazaar - Group multiplier reduced (${item.name})`,
                 details: { effectsText },
                 forceLog: true
               });
@@ -578,8 +578,8 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
       groupMultiplier: targetUser.passiveAttributes?.groupMultiplier || 1
     };
 
-    // NEW: build effects text already collected; add human names in context
-    const effectsText = effectNotes.join(', ') || undefined;
+    // NEW: build effects text already collected; include item name in human text
+    const effectsText = effectNotes.length ? `${effectNotes.join(', ')} (via ${item.name})` : undefined;
 
     // Include target-side diffs in attacker’s log (prefixed as target.*)
     const targetDiffForAttacker = diffChanges(targetPrev, targetAfter, 'target.');

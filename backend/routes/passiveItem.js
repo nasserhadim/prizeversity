@@ -135,7 +135,7 @@ router.post('/equip/:itemId', ensureAuthenticated, async (req, res) => {
                 const groupNamesArr = Array.from(info.groupNames || []);
                 const groupContext = groupNamesArr.length ? `applied to ${groupNamesArr.length} group${groupNamesArr.length>1?'s':''}: ${groupNamesArr.slice(0,5).join(', ')}` : undefined;
                 const effectsText = [
-                  `Group multiplier +${appliedDelta}${groupContext ? ` (${groupContext})` : ''}`,
+                  `Group multiplier +${appliedDelta}${groupContext ? ` (${groupContext})` : ''} (via ${item.name})`,
                   `Applied by ${req.user.firstName || req.user.email || 'an instructor'}`
                 ].filter(Boolean).join(' — ');
 
@@ -146,7 +146,7 @@ router.post('/equip/:itemId', ensureAuthenticated, async (req, res) => {
                   actionBy: req.user._id,
                   prevStats: { groupMultiplier: prevAggregate, ...(xpResMember ? { xp: xpResMember.oldXP } : {}) },
                   currStats: { groupMultiplier: afterAggregate, ...(xpResMember ? { xp: xpResMember.newXP } : {}) },
-                  context: `Bazaar - Group multiplier applied`,
+                  context: `Bazaar - Group multiplier applied (${item.name})`,
                   details: { effectsText },
                   forceLog: true
                 });
@@ -218,7 +218,8 @@ router.post('/equip/:itemId', ensureAuthenticated, async (req, res) => {
                   actionBy: req.user._id,
                   prevStats: { xp: xpRes.oldXP },
                   currStats: { xp: xpRes.newXP },
-                  context: 'stat increase (passive item)',
+                  // include item name for clearer notification header
+                  context: `stat increase (passive item: ${item.name})`,
                   details: { effectsText: effectsTextForXPSummary },
                   forceLog: true
                 });
