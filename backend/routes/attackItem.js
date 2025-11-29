@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const Item = require('../models/Item');
 const User = require('../models/User');
+const Group = require('../models/Group');
+const GroupSet = require('../models/GroupSet');
 const { ensureAuthenticated } = require('../config/auth');
 const Classroom = require('../models/Classroom');
 const { awardXP } = require('../utils/awardXP');
@@ -432,6 +434,86 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
           break;
       }
     });
+
+    // --- NEW: If attack reduced group multipliers, apply change to classroom-scoped Groups and log for affected members ---
+    try {
+      const groupDecreaseEffects = (item.secondaryEffects || []).filter(se => se.effectType === 'attackGroupMultiplier' && Number(se.value));
+      if (groupDecreaseEffects.length && classroomId) {
+        // load group IDs for this classroom
+        const gs = await GroupSet.find({ classroom: classroomId }).select('groups');
+        const groupIds = gs.flatMap(g => (g.groups || []).map(String));
+
+        // find groups in this classroom where the target is an approved member
+        const groupsToUpdate = await Group.find({
+          _id: { $in: groupIds },
+          'members._id': targetUserId,
+          'members.status': 'approved'
+        });
+
+        if (groupsToUpdate && groupsToUpdate.length) {
+          // capture previous multipliers per group
+          const prevByGroup = new Map();
+          groupsToUpdate.forEach(g => prevByGroup.set(String(g._id), Number(g.groupMultiplier || 1)));
+
+          // apply all decreases (sum multiple attackGroupMultiplier effects)
+          const totalDecreasePerGroup = groupDecreaseEffects.reduce((s, se) => s + (Number(se.value) || 0), 0);
+          groupsToUpdate.forEach(g => {
+            g.groupMultiplier = Math.max(1, (Number(g.groupMultiplier || 1) - totalDecreasePerGroup));
+          });
+
+          // save updated groups
+          await Promise.all(groupsToUpdate.map(g => g.save()));
+
+          // build affected member map (memberId -> { prevAggregate, afterAggregate, groupNames })
+          const memberMap = new Map();
+          for (const g of groupsToUpdate) {
+            const gName = g.name || String(g._id);
+            const prevVal = prevByGroup.get(String(g._id)) || 1;
+            const afterVal = Number(g.groupMultiplier || 1);
+            for (const m of (g.members || [])) {
+              if (!m._id) continue;
+              if (m.status !== 'approved') continue;
+              const id = String(m._id);
+              const cur = memberMap.get(id) || { prevAggregate: 0, afterAggregate: 0, groupNames: new Set() };
+              cur.prevAggregate += prevVal;
+              cur.afterAggregate += afterVal;
+              cur.groupNames.add(gName);
+              memberMap.set(id, cur);
+            }
+          }
+
+          // Log stat change for each affected member (exclude attacker/actor)
+          for (const [memberId, info] of memberMap.entries()) {
+            if (memberId === String(req.user._id)) continue; // actor already sees attack logs
+            try {
+              const targetUserDoc = await User.findById(memberId).select('firstName lastName email');
+              const prevAggregate = Number(info.prevAggregate.toFixed(3));
+              const afterAggregate = Number(info.afterAggregate.toFixed(3));
+              const delta = Number((afterAggregate - prevAggregate).toFixed(3));
+              const groupNamesArr = Array.from(info.groupNames || []);
+              const groupContext = groupNamesArr.length ? `applied to ${groupNamesArr.length} group${groupNamesArr.length>1?'s':''}: ${groupNamesArr.slice(0,5).join(', ')}` : '';
+              const effectsText = `Group multiplier ${delta < 0 ? '' : '+'}${delta} (${groupContext}) — Applied by ${attackerName}`;
+
+              await logStatChanges({
+                io: req.app && req.app.get ? req.app.get('io') : null,
+                classroomId,
+                user: targetUserDoc,
+                actionBy: req.user._id,
+                prevStats: { groupMultiplier: prevAggregate },
+                currStats: { groupMultiplier: afterAggregate },
+                context: `Bazaar - Group multiplier reduced`,
+                details: { effectsText },
+                forceLog: true
+              });
+            } catch (memberLogErr) {
+              console.warn('[attackItem] failed to log group multiplier change for member', memberId, memberLogErr);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[attackItem] group multiplier propagation failed:', e);
+    }
 
     await targetUser.save();
     await req.user.save();
