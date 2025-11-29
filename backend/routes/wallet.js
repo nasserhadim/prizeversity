@@ -11,6 +11,7 @@ const PendingAssignment = require('../models/PendingAssignment');
 const Notification = require('../models/Notification');
 const { populateNotification } = require('../utils/notifications');
 const { awardXP } = require('../utils/awardXP');
+const { logStatChanges } = require('../utils/statChangeLog');
 
 // helper to select basis for XP from bits
 function computeXPBits({ numericAmount, adjustedAmount, xpSettings }) {
@@ -280,12 +281,7 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
     if (classroomId) {
       const classroom = await Classroom.findById(classroomId).select('xpSettings');
       if (classroom?.xpSettings?.enabled) {
-        // OLD:
-        // const xpRate = numericAmount > 0 
-        //   ? (classroom.xpSettings.bitsEarned || 0)
-        //   : (classroom.xpSettings.bitsSpent || 0);
-
-        // NEW: Only award XP for positive (earned) adjustments; skip debits (spend XP handled elsewhere: bazaar/mystery box)
+        // NEW: capture awardXP result and log stat change so students get xp: A → B (+Δ) notifications
         if (numericAmount > 0) {
           const xpRate = (classroom.xpSettings.bitsEarned || 0);
           const xpBits = computeXPBits({
@@ -295,7 +291,28 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
           });
           const xpToAward = xpBits * xpRate;
           if (xpToAward > 0) {
-            await awardXP(student._id, classroomId, xpToAward, 'earning bits', classroom.xpSettings);
+            try {
+              const xpRes = await awardXP(student._id, classroomId, xpToAward, 'earning bits', classroom.xpSettings);
+              if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+                try {
+                  await logStatChanges({
+                    io: req.app && req.app.get ? req.app.get('io') : null,
+                    classroomId,
+                    user: student,
+                    actionBy: req.user ? req.user._id : undefined,
+                    prevStats: { xp: xpRes.oldXP },
+                    currStats: { xp: xpRes.newXP },
+                    context: 'balance assigned',
+                    details: { effectsText: adjustedAmount ? `Balance adjustment: ${adjustedAmount} ₿` : undefined },
+                    forceLog: true
+                  });
+                } catch (logErr) {
+                  console.warn('[wallet] failed to log XP stat change (assign):', logErr);
+                }
+              }
+            } catch (xpErr) {
+              console.warn('[wallet] awardXP failed (assign):', xpErr);
+            }
           }
         }
       }
@@ -553,7 +570,31 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
             });
             const xpToAward = xpBits * xpRate;
             if (xpToAward > 0) {
-              await awardXP(studentId, classroomId, xpToAward, 'earning bits', classroom.xpSettings);
+              try {
+                const xpRes = await awardXP(studentId, classroomId, xpToAward, 'earning bits', classroom.xpSettings);
+                if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+                  try {
+                    const targetUser = await User.findById(studentId);
+                    if (targetUser) {
+                      await logStatChanges({
+                        io: req.app && req.app.get ? req.app.get('io') : null,
+                        classroomId,
+                        user: targetUser,
+                        actionBy: req.user ? req.user._id : undefined,
+                        prevStats: { xp: xpRes.oldXP },
+                        currStats: { xp: xpRes.newXP },
+                        context: 'bulk balance assignment',
+                        details: { effectsText: adjustedAmount ? `Balance adjustment: ${adjustedAmount} ₿` : undefined },
+                        forceLog: true
+                      });
+                    }
+                  } catch (logErr) {
+                    console.warn('[wallet] failed to log XP stat change (bulk):', logErr);
+                  }
+                }
+              } catch (xpErr) {
+                console.warn('[wallet] awardXP failed (bulk):', xpErr);
+              }
             }
           }
         }

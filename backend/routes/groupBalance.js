@@ -7,6 +7,7 @@ const router = express.Router();
 const Notification = require('../models/Notification');
 const { populateNotification } = require('../utils/notifications');
 const { awardXP } = require('../utils/awardXP');
+const { logStatChanges } = require('../utils/statChangeLog');
 const Classroom = require('../models/Classroom');
 const PendingAssignment = require('../models/PendingAssignment'); // Import PendingAssignment model
 
@@ -244,19 +245,33 @@ router.post(
             },
           });
           await user.save();
+          // CREATE & EMIT WALLET TRANSACTION NOTIFICATION FIRST (so credit appears before XP notif)
+          try {
+            const notification = await Notification.create({
+              user: user._id,
+              type: 'wallet_transaction',
+              message: `You were ${amount >= 0 ? 'credited' : 'debited'} ${Math.abs(adjustedAmount)} ₿ in ${group.name}.`,
+              amount: adjustedAmount,
+              description: txDescription,
+              group: group._id,
+              groupSet: req.params.groupSetId,
+              classroom: classroomId,
+              actionBy: req.user._id,
+              createdAt: new Date()
+            });
+            const populated = await populateNotification(notification._id);
+            if (req.app && req.app.get) {
+              const io = req.app.get('io');
+              if (io && populated) io.to(`user-${user._id}`).emit('notification', populated);
+            }
+          } catch (notifErr) {
+            console.warn('[groupBalance] failed to create/emit wallet notification:', notifErr);
+          }
+ 
           // NEW: grant XP for group/classroom adjustments (respect basis)
           if (classroomId) {
             const cls = await Classroom.findById(classroomId).select('xpSettings');
             if (cls?.xpSettings?.enabled) {
-              // OLD:
-              // const xpRate = adjustedAmount > 0
-              //   ? (cls.xpSettings.bitsEarned || 0)
-              //   : (cls.xpSettings.bitsSpent || 0);
-              // const xpBits = (cls.xpSettings.bitsXPBasis === 'base')
-              //   ? Math.abs(numericAmount)
-              //   : Math.abs(adjustedAmount);
-              // const xpToAward = xpBits * xpRate;
-
               // NEW: Only award for positive (earn) adjustments; skip negative redistribution/debits
               if (adjustedAmount > 0) {
                 const xpRate = (cls.xpSettings.bitsEarned || 0);
@@ -265,7 +280,28 @@ router.post(
                   : Math.abs(adjustedAmount);
                 const xpToAward = xpBits * xpRate;
                 if (xpToAward > 0) {
-                  await awardXP(user._id, classroomId, xpToAward, 'earning bits', cls.xpSettings);
+                  try {
+                    const xpRes = await awardXP(user._id, classroomId, xpToAward, 'earning bits', cls.xpSettings);
+                    if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+                      try {
+                        await logStatChanges({
+                          io: req.app && req.app.get ? req.app.get('io') : null,
+                          classroomId,
+                          user,
+                          actionBy: req.user ? req.user._id : undefined,
+                          prevStats: { xp: xpRes.oldXP },
+                          currStats: { xp: xpRes.newXP },
+                          context: 'earning bits',
+                          details: { effectsText: adjustedAmount ? `Group adjust: ${adjustedAmount} ₿` : undefined },
+                          forceLog: true
+                        });
+                      } catch (logErr) {
+                        console.warn('[groupBalance] failed to log XP stat change:', logErr);
+                      }
+                    }
+                  } catch (xpErr) {
+                    console.warn('[groupBalance] awardXP failed:', xpErr);
+                  }
                 }
               }
             }
@@ -283,21 +319,6 @@ router.post(
               total: finalMultiplier
             }
           });
- 
-         // Create notification for this student
-         const notification = await Notification.create({
-           user: user._id,
-           type: 'wallet_transaction',
-           message: `You were ${amount >= 0 ? 'credited' : 'debited'} ${Math.abs(adjustedAmount)} ₿ in ${group.name}.`,
-           amount: adjustedAmount,
-           description: txDescription,
-           group: group._id,
-           groupSet: req.params.groupSetId,
-           classroom: classroomId,
-           actionBy: req.user._id,
-         });
-         const populated = await populateNotification(notification._id);
-         req.app.get('io').to(`user-${user._id}`).emit('notification', populated);
         }
       }
 
