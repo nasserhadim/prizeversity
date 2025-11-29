@@ -116,6 +116,13 @@ router.get('/:classroomId', ensureAuthenticated, async (req, res) => {
       });
     }
 
+    // SANITIZE: filter out orphaned userChallenges (userId missing/null)
+    // Prevent UI from counting deleted users and avoid null .toString() access
+    challenge.userChallenges = (challenge.userChallenges || []).filter(uc => uc && uc.userId);
+
+    // Use sanitized list for stats and responses
+    const userChallengesList = challenge.userChallenges;
+
     if (!isTeacher && !challenge.isVisible) {
       return res.json({ 
         challenge: null, 
@@ -126,11 +133,10 @@ router.get('/:classroomId', ensureAuthenticated, async (req, res) => {
     }
 
     let needsSave = false;
-    for (const userChallenge of challenge.userChallenges) {
+    for (const userChallenge of userChallengesList) {
       // Skip invalid entries (e.g. user deleted -> userId may be null)
-      if (!userChallenge) continue;
-      if (!userChallenge.userId) {
-        console.warn(`[Challenge management] skipping userChallenge ${userChallenge.uniqueId} - missing userId`);
+      if (!userChallenge || !userChallenge.userId) {
+        console.warn(`[Challenge management] skipping userChallenge ${userChallenge?.uniqueId || '<unknown>'} - missing userId`);
         continue;
       }
 
@@ -176,9 +182,12 @@ router.get('/:classroomId', ensureAuthenticated, async (req, res) => {
 
     if (!isTeacher) {
       // Only include the requesting student's userChallenge (sanitized)
-      const uc = challenge.userChallenges.find(uc => uc.userId && uc.userId._id
-        ? uc.userId._id.toString() === userId.toString()
-        : uc.userId.toString() === userId.toString());
+      const uc = challenge.userChallenges.find(uc => {
+        // skip invalid entries (protect against deleted users)
+        if (!uc || !uc.userId) return false;
+        const ucUserIdStr = uc.userId._id ? uc.userId._id.toString() : uc.userId.toString();
+        return ucUserIdStr === userId.toString();
+      });
 
       if (uc) {
         const ucObj = (typeof uc.toObject === 'function') ? uc.toObject() : JSON.parse(JSON.stringify(uc));
@@ -633,17 +642,18 @@ router.get('/:classroomId/stats', ensureAuthenticated, ensureTeacher, async (req
       return res.status(404).json({ message: 'No challenge found for this classroom' });
     }
 
+    const ucList = (challenge.userChallenges || []).filter(uc => uc && uc.userId);
     const stats = {
       ...challenge.stats.toObject(),
       totalPossibleBits: challenge.calculateTotalBits(),
       progressDistribution: {
-        notStarted: challenge.userChallenges.filter(uc => uc.progress === 0).length,
-        challenge1: challenge.userChallenges.filter(uc => uc.progress === 1).length,
-        challenge2: challenge.userChallenges.filter(uc => uc.progress === 2).length,
-        challenge3: challenge.userChallenges.filter(uc => uc.progress === 3).length,
-        challenge4: challenge.userChallenges.filter(uc => uc.progress === 4).length,
-        challenge5: challenge.userChallenges.filter(uc => uc.progress === 5).length,
-        completed: challenge.userChallenges.filter(uc => uc.progress === 6).length
+        notStarted: ucList.filter(uc => uc.progress === 0).length,
+        challenge1: ucList.filter(uc => uc.progress === 1).length,
+        challenge2: ucList.filter(uc => uc.progress === 2).length,
+        challenge3: ucList.filter(uc => uc.progress === 3).length,
+        challenge4: ucList.filter(uc => uc.progress === 4).length,
+        challenge5: ucList.filter(uc => uc.progress === 5).length,
+        completed: ucList.filter(uc => uc.progress === 6).length
       }
     };
 
