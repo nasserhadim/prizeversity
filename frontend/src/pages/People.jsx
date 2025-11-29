@@ -47,6 +47,42 @@ const getEffectsText = (message) => {
   return m?.[1]?.trim() || null;
 };
 
+// add helper near top of file (after imports / before component)
+function formatStatChange(c) {
+  if (!c || !c.field) return '';
+  const f = String(c.field);
+  const safeNum = (v, dec = 1) => {
+    if (v == null || v === '') return 0;
+    const n = Number(v);
+    if (Number.isNaN(n)) return 0;
+    return dec === 0 ? Math.round(n) : Number(n.toFixed(dec));
+  };
+
+  if (f === 'xp') {
+    const from = safeNum(c.from, 0);
+    const to = safeNum(c.to, 0);
+    const delta = to - from;
+    const sign = delta >= 0 ? `+${delta}` : `${delta}`;
+    return `xp: ${from} → ${to} (${sign} XP)`;
+  }
+  if (['multiplier','luck','groupMultiplier'].includes(f)) {
+    const from = safeNum(c.from, 1).toFixed(1);
+    const to = safeNum(c.to, 1).toFixed(1);
+    const delta = (Number(to) - Number(from)).toFixed(1);
+    const sign = Number(delta) >= 0 ? `+${delta}` : `${delta}`;
+    return `${f}: ${from} → ${to} (${sign})`;
+  }
+  if (f === 'discount') {
+    const from = safeNum(c.from, 0);
+    const to = safeNum(c.to, 0);
+    const delta = to - from;
+    const sign = delta >= 0 ? `+${delta}` : `${delta}`;
+    return `discount: ${from} → ${to} (${sign})`;
+  }
+  // fallback
+  return `${c.field}: ${c.from} → ${c.to}`;
+}
+
 // add helper near the top (after imports / before component)
 const computeTotalSpent = (transactions = [], classroomId) => {
   return (transactions || []).reduce((sum, t) => {
@@ -1963,9 +1999,10 @@ const visibleCount = filteredStudents.length;
                             <div className="mt-1">
                               {Array.isArray(s.changes) && s.changes.length ? (
                                 <ul className="list-disc ml-4">
-                                  {s.changes.map((c, i) => (
-                                    <li key={i}>
-                                      {c.field}: {c.field === 'discount' && (c.from === null || c.from === undefined) ? 0 : String(c.from)} → <strong>{String(c.to)}</strong>
+                                  {s.changes.map((c, idx) => (
+                                    <li key={idx} className="flex items-start gap-2">
+                                      <span className="bullet">•</span>
+                                      <span>{formatStatChange(c)}</span>
                                     </li>
                                   ))}
                                 </ul>

@@ -1065,7 +1065,7 @@ router.patch('/:id/feedback-reward', ensureAuthenticated, async (req, res) => {
 router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, res) => {
   try {
     const { classId, userId } = req.params;
-    const { multiplier, luck, discount } = req.body; // discount = percent (e.g. 20) or 0/null to clear
+    const { multiplier, luck, discount, xp } = req.body; // xp is absolute desired XP
 
     const classroom = await Classroom.findById(classId);
     if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
@@ -1086,7 +1086,7 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
       discount: student.passiveAttributes.discount ?? null
     };
 
-    // Apply updates
+    // Apply updates for multiplier/luck/discount like before
     if (typeof multiplier !== 'undefined') {
       student.passiveAttributes.multiplier = Number(multiplier) || 1;
     }
@@ -1102,7 +1102,45 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
       }
     }
 
-    // Build changes array
+    // --- NEW: handle xp adjustment (absolute value) ---
+    let xpChangeRecorded = false;
+    let xpFrom = null;
+    let xpTo = null;
+    if (typeof xp !== 'undefined' && xp !== null && xp !== '') {
+      // enforce XP system enabled
+      if (!classroom.xpSettings?.enabled) {
+        return res.status(400).json({ error: 'XP system is not enabled for this classroom' });
+      }
+
+      // ensure classroomXP array exists
+      if (!Array.isArray(student.classroomXP)) student.classroomXP = [];
+
+      let classroomXPEntry = student.classroomXP.find(cx => String(cx.classroom) === String(classId));
+      if (!classroomXPEntry) {
+        classroomXPEntry = { classroom: classId, xp: 0, level: 1, earnedBadges: [] };
+        student.classroomXP.push(classroomXPEntry);
+      }
+
+      xpFrom = Number(classroomXPEntry.xp || 0);
+      xpTo = Math.max(0, Number(xp) || 0); // absolute new value
+      if (Number.isNaN(xpTo)) {
+        return res.status(400).json({ error: 'Invalid XP value' });
+      }
+
+      if (xpFrom !== xpTo) {
+        classroomXPEntry.xp = xpTo;
+
+        // recompute level from xp using shared helper
+        const { calculateLevelFromXP } = require('../utils/xp');
+        const newLevel = calculateLevelFromXP(xpTo, classroom.xpSettings?.levelingFormula || 'exponential', classroom.xpSettings?.baseXPForLevel2 || 100);
+        classroomXPEntry.level = newLevel;
+
+        xpChangeRecorded = true;
+      }
+    }
+    // --- END: xp adjustment ---
+
+    // Build changes array (including xp if adjusted)
     const changes = [];
     const now = new Date();
     const curr = {
@@ -1110,24 +1148,27 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
       luck: student.passiveAttributes.luck ?? 1,
       discount: student.passiveAttributes.discount ?? null
     };
+
     ['multiplier', 'luck', 'discount'].forEach((f) => {
       const before = prev[f];
       const after = curr[f];
-      // treat null/undefined === null
       if (String(before) !== String(after)) {
         changes.push({ field: f, from: before, to: after });
       }
     });
 
+    if (xpChangeRecorded) {
+      changes.push({ field: 'xp', from: xpFrom, to: xpTo });
+    }
+
     await student.save();
 
-    // after changes array has been built and student.save() completed
-    // Helper to render a readable value (fall back to sensible defaults for known stat fields)
+    // Helper to render a readable value for summary (special-case xp to include delta)
     const renderValue = (field, v) => {
       if (v === null || v === undefined) {
-        // sensible defaults per-field (matches how stats are displayed elsewhere)
         if (field === 'multiplier' || field === 'luck') return 1;
         if (field === 'discount') return 0;
+        if (field === 'xp') return 0;
         return 0;
       }
       return v;
@@ -1135,20 +1176,45 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
 
     const formatChangeSummary = (changes) => {
       if (!Array.isArray(changes) || changes.length === 0) return '';
-      return changes
-        .map(c => {
-          const from = renderValue(c.field, c.from);
-          const to = renderValue(c.field, c.to);
-          return `${c.field}: ${String(from)} → ${String(to)}`;
-        })
-        .join('; ');
+      const fmtNum1 = (n) => Number((Number(n) || 0)).toFixed(1);
+      const fmtInt = (n) => Math.round(Number(n) || 0);
+  
+      const formatOne = (c) => {
+        const f = c.field;
+        if (f === 'xp') {
+          const from = fmtInt(renderValue('xp', c.from));
+          const to = fmtInt(renderValue('xp', c.to));
+          const delta = to - from;
+          const sign = delta >= 0 ? `+${delta}` : `${delta}`;
+          return `xp: ${from} → ${to} (${sign} XP)`;
+        }
+        if (['multiplier','luck','groupMultiplier'].includes(f)) {
+          const from = Number(renderValue(f, c.from) ?? 1);
+          const to = Number(renderValue(f, c.to) ?? 1);
+          const delta = Number((to - from).toFixed(1));
+          const sign = delta >= 0 ? `+${delta.toFixed(1)}` : `${delta.toFixed(1)}`;
+          return `${f}: ${from.toFixed(1)} → ${to.toFixed(1)} (${sign})`;
+        }
+        if (f === 'discount') {
+          const from = fmtInt(renderValue('discount', c.from));
+          const to = fmtInt(renderValue('discount', c.to));
+          const delta = to - from;
+          const sign = delta >= 0 ? `+${delta}` : `${delta}`;
+          return `discount: ${from} → ${to} (${sign})`;
+        }
+        // generic fallback
+        const from = renderValue(c.field, c.from);
+        const to = renderValue(c.field, c.to);
+        return `${c.field}: ${String(from)} → ${String(to)}`;
+      };
+  
+      return changes.map(formatOne).join('; ');
     };
 
-    // Notify the student (targeted notification). Keep this simple & readable for the student.
     const fullName = `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.email;
     const summary = formatChangeSummary(changes) || 'updated by teacher';
 
-    // Create a notification for the student, which also serves as the log entry
+    // Create notification for the student (log entry, included in stat-changes)
     const studentNotification = await Notification.create({
       user: student._id,
       actionBy: req.user._id,
@@ -1161,7 +1227,7 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
       createdAt: now
     });
 
-    // Create a separate notification for the teacher's real-time feedback
+    // Create a separate notification for the teacher's realtime feedback (not a log entry)
     const teacherNotification = await Notification.create({
       user: req.user._id, // Target the teacher
       actionBy: req.user._id,
@@ -1171,9 +1237,10 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
       read: false,
       changes,
       targetUser: student._id,
-      isLogEntry: false // Flag to exclude from stat changes log
+      isLogEntry: false,
+      createdAt: now
     });
- 
+
     // Notify the student in real-time
     const populatedStudentNotification = await populateNotification(studentNotification._id);
     try { req.app.get('io').to(`user-${student._id}`).emit('notification', populatedStudentNotification); } catch(e){/*ignore*/}
@@ -1182,8 +1249,10 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
     const populatedTeacherNotification = await populateNotification(teacherNotification._id);
     try { req.app.get('io').to(`user-${req.user._id}`).emit('notification', populatedTeacherNotification); } catch(e){/*ignore*/}
 
-    // Existing socket emit so clients can update UI
-    req.app.get('io').to(`user-${student._id}`).emit('user_stats_update', { userId: student._id, passiveAttributes: student.passiveAttributes });
+    // emit stats update for the student so clients refresh displays
+    try {
+      req.app.get('io').to(`user-${student._id}`).emit('user_stats_update', { userId: student._id, passiveAttributes: student.passiveAttributes });
+    } catch(e){/*ignore*/}
 
     res.json({ message: 'Stats updated', passiveAttributes: student.passiveAttributes, changes });
   } catch (err) {

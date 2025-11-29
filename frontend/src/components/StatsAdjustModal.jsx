@@ -7,10 +7,14 @@ const BACKEND_URL = `${API_BASE}`;
 
 const StatsAdjustModal = ({ isOpen, onClose, student, classroomId, onUpdated }) => {
   const [loading, setLoading] = useState(false);
-  // keep input values as strings for stable formatting (avoid 7.300000000000001)
   const [multiplier, setMultiplier] = useState('1.0');
   const [luck, setLuck] = useState('1.0');
   const [discount, setDiscount] = useState('0');
+
+  // NEW: XP state
+  const [xp, setXP] = useState('');
+  const [xpEnabled, setXPEnabled] = useState(true);
+  const [xpLoading, setXPLoading] = useState(false);
 
   // load current stats when modal opens / student changes
   useEffect(() => {
@@ -28,6 +32,29 @@ const StatsAdjustModal = ({ isOpen, onClose, student, classroomId, onUpdated }) 
       } catch (err) {
         console.debug('[StatsAdjustModal] failed to load stats', err?.message || err);
       }
+
+      // Fetch XP and XP settings (teacher-only endpoint)
+      if (classroomId) {
+        setXPLoading(true);
+        try {
+          const xpRes = await axios.get(`/api/xp/classroom/${classroomId}/user/${student._id}`, { withCredentials: true });
+          if (!mounted) return;
+          setXP(String(xpRes.data.xp ?? 0));
+        } catch (e) {
+          console.debug('[StatsAdjustModal] failed to fetch xp', e?.message || e);
+          setXP('0');
+        } finally {
+          // fetch xp settings to know whether field should be enabled
+          try {
+            const sres = await axios.get(`/api/xp/classroom/${classroomId}/settings`, { withCredentials: true });
+            if (!mounted) return;
+            setXPEnabled(Boolean(sres.data?.enabled ?? true));
+          } catch (_e) {
+            setXPEnabled(true); // default allow if settings fetch fails
+          }
+          setXPLoading(false);
+        }
+      }
     })();
     return () => { mounted = false; };
   }, [isOpen, student, classroomId]);
@@ -42,7 +69,13 @@ const StatsAdjustModal = ({ isOpen, onClose, student, classroomId, onUpdated }) 
       await axios.patch(
         `/api/classroom/${classroomId}/users/${student._id}/stats`,
         // parse input strings into numeric values
-        { multiplier: Number(multiplier) || 1, luck: Number(luck) || 1, discount: Number(discount) || 0 },
+        {
+          multiplier: Number(multiplier) || 1,
+          luck: Number(luck) || 1,
+          discount: Number(discount) || 0,
+          // send XP as absolute number only if xpEnabled
+          ...(xpEnabled ? { xp: Number(xp || 0) } : {})
+        },
         { withCredentials: true }
       );
       toast.success('Stats updated');
@@ -98,13 +131,32 @@ const StatsAdjustModal = ({ isOpen, onClose, student, classroomId, onUpdated }) 
               onChange={(e) => setDiscount(e.target.value)}
             />
           </label>
+
+          {/* NEW: Manual XP */}
+          <label className="flex flex-col">
+            <span className="text-sm">Manual XP (absolute total)</span>
+            <input
+              type="number"
+              step="1"
+              min="0"
+              className="input input-bordered mt-2"
+              value={xp}
+              onChange={(e) => setXP(e.target.value)}
+              disabled={!xpEnabled || xpLoading}
+            />
+            {!xpEnabled && (
+              <span className="text-xs text-gray-500 mt-1">
+                XP is disabled for this classroom. Enable XP in People → XP & Leveling Settings to adjust.
+              </span>
+            )}
+          </label>
         </div>
 
         <div className="modal-action">
           <button className="btn" onClick={() => { onClose && onClose(); }}>
             Cancel
           </button>
-          <button className={`btn btn-primary ${loading ? 'loading' : ''}`} onClick={handleSave} disabled={loading}>
+          <button className={`btn btn-primary ${loading ? 'loading' : ''}`} onClick={handleSave}>
             Save
           </button>
         </div>

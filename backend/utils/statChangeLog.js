@@ -46,7 +46,40 @@ async function logStatChanges({
   }
   if (!changes.length && !forceLog) return { created: false };
 
-  const changeSummary = changes.map(c => `${c.field}: ${c.from} → ${c.to}`).join('; ');
+  const formatChange = (c) => {
+    const f = c.field;
+    const safeNum = (v, dec = 1) => {
+      if (v == null || v === '') return 0;
+      const n = Number(v);
+      if (Number.isNaN(n)) return 0;
+      return dec === 0 ? Math.round(n) : Number(n.toFixed(dec));
+    };
+
+    if (f === 'xp') {
+      const from = safeNum(c.from, 0);
+      const to = safeNum(c.to, 0);
+      const delta = to - from;
+      const sign = delta >= 0 ? `+${delta}` : `${delta}`;
+      return `xp: ${from} → ${to} (${sign} XP)`;
+    }
+    if (['multiplier','luck','groupMultiplier'].includes(f)) {
+      const from = safeNum(c.from, 1).toFixed(1);
+      const to = safeNum(c.to, 1).toFixed(1);
+      const delta = (Number(to) - Number(from)).toFixed(1);
+      const sign = Number(delta) >= 0 ? `+${delta}` : `${delta}`;
+      return `${f}: ${from} → ${to} (${sign})`;
+    }
+    if (f === 'discount') {
+      const from = safeNum(c.from, 0);
+      const to = safeNum(c.to, 0);
+      const delta = to - from;
+      const sign = delta >= 0 ? `+${delta}` : `${delta}`;
+      return `discount: ${from} → ${to} (${sign})`;
+    }
+    return `${c.field}: ${c.from} → ${c.to}`;
+  };
+
+  const changeSummary = changes.map(formatChange).join('; ');
   const now = new Date();
   const effectsSuffix = details?.effectsText ? ` Effects: ${details.effectsText}.` : '';
 
@@ -54,7 +87,7 @@ async function logStatChanges({
     user: user._id,
     actionBy,
     type: 'stats_adjusted',
-    message: `Your stats were updated via ${context}: ${changeSummary}${changeSummary ? '.' : ''}${effectsSuffix}`,
+    message: `Your stats were updated via ${context}: ${changeSummary}.${effectsSuffix}`,
     classroom: classroomId || null,
     read: false,
     changes,
