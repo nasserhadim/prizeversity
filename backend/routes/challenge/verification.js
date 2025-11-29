@@ -10,7 +10,8 @@ const { populateNotification } = require('../../utils/notifications');
 // Add imports for XP
 const Classroom = require('../../models/Classroom');
 const { awardXP } = require('../../utils/awardXP');
-const { logStatChanges } = require('../../utils/statChangeLog');
+const { getIO } = require('../../utils/io'); // NEW: emit realtime notifications
+const { logStatChanges } = require('../../utils/statChangeLog'); // ensure symbol link
 
 router.post('/verify-password', ensureAuthenticated, async (req, res) => {
   try {
@@ -487,7 +488,7 @@ async function awardChallengeXP({ userId, classroomId, rewards, challengeName })
             try {
               const targetUser = await User.findById(userId).select('firstName lastName');
               await logStatChanges({
-                io: null,
+                io: getIO(), // emit realtime when possible
                 classroomId,
                 user: targetUser,
                 actionBy: null,

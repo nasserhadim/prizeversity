@@ -10,6 +10,7 @@ const { generateChallengeData } = require('../../utils/tokenGenerator');
 const Classroom = require('../../models/Classroom');
 const { awardXP } = require('../../utils/awardXP');
 const { logStatChanges } = require('../../utils/statChangeLog'); // NEW
+const { getIO } = require('../../utils/io'); // NEW: emit realtime notifications
 // helper reused here
 async function awardChallengeXP({ userId, classroomId, rewards, challengeName }) {
   try {
@@ -25,16 +26,16 @@ async function awardChallengeXP({ userId, classroomId, rewards, challengeName })
           try {
             const targetUser = await User.findById(userId).select('firstName lastName');
             await logStatChanges({
-               io: null,
-               classroomId,
-               user: targetUser,
-               actionBy: null,
-               prevStats: { xp: xpRes.oldXP },
-               currStats: { xp: xpRes.newXP },
-              context: `earning bits (challenge reward${challengeName ? `: ${challengeName}` : ''})`,
-              details: { effectsText: `Bits: +${bits}`, challengeName },
-               forceLog: true
-             });
+               io: getIO(),
+                classroomId,
+                user: targetUser,
+                actionBy: null,
+                prevStats: { xp: xpRes.oldXP },
+                currStats: { xp: xpRes.newXP },
+               context: `earning bits (challenge reward${challengeName ? `: ${challengeName}` : ''})`,
+               details: { effectsText: `Bits: +${bits}`, challengeName },
+                forceLog: true
+              });
           } catch (logErr) {
             console.warn('[challenge] failed to log bits-earned XP stat change:', logErr);
           }
@@ -63,16 +64,16 @@ async function awardChallengeXP({ userId, classroomId, rewards, challengeName })
             if ((rewards?.discount || 0) > 0) parts.push(`+${Number(rewards.discount).toFixed(1)}% Discount`);
             if (rewards?.shield) parts.push(`Shield +1`);
             await logStatChanges({
-               io: null,
-               classroomId,
-               user: targetUser,
-               actionBy: null,
-               prevStats: { xp: xpRes.oldXP },
-               currStats: { xp: xpRes.newXP },
-              context: `stat increase (challenge reward${challengeName ? `: ${challengeName}` : ''})`,
-              details: { effectsText: parts.join(', ') || undefined, challengeName },
-               forceLog: true
-             });
+               io: getIO(),
+                classroomId,
+                user: targetUser,
+                actionBy: null,
+                prevStats: { xp: xpRes.oldXP },
+                currStats: { xp: xpRes.newXP },
+               context: `stat increase (challenge reward${challengeName ? `: ${challengeName}` : ''})`,
+               details: { effectsText: parts.join(', ') || undefined, challengeName },
+                forceLog: true
+              });
           } catch (logErr) {
             console.warn('[challenge] failed to log stat-increase XP change:', logErr);
           }
@@ -90,16 +91,16 @@ async function awardChallengeXP({ userId, classroomId, rewards, challengeName })
           try {
             const targetUser = await User.findById(userId).select('firstName lastName');
             await logStatChanges({
-               io: null,
-               classroomId,
-               user: targetUser,
-               actionBy: null,
-               prevStats: { xp: xpRes.oldXP },
-               currStats: { xp: xpRes.newXP },
-              context: `challenge completion${challengeName ? `: ${challengeName}` : ''}`,
-              details: { effectsText: `Completion bonus: +${xp}`, challengeName },
-               forceLog: true
-             });
+               io: getIO(),
+                classroomId,
+                user: targetUser,
+                actionBy: null,
+                prevStats: { xp: xpRes.oldXP },
+                currStats: { xp: xpRes.newXP },
+               context: `challenge completion${challengeName ? `: ${challengeName}` : ''}`,
+               details: { effectsText: `Completion bonus: +${xp}`, challengeName },
+                forceLog: true
+              });
           } catch (logErr) {
             console.warn('[challenge] failed to log completion XP change:', logErr);
           }
