@@ -9,6 +9,7 @@ const { populateNotification } = require('../utils/notifications');
 const { ensureAuthenticated } = require('../config/auth');
 const sendEmail = require('../../send-email'); // root-level send-email.js
 const { awardXP } = require('../utils/awardXP');
+const { logStatChanges } = require('../utils/statChangeLog');
 
 // helper to format remaining milliseconds into "Xd Yh Zm"
 function formatRemainingMs(ms) {
@@ -324,7 +325,27 @@ router.post('/classroom', ensureAuthenticated, async (req, res) => {
                       const xpBits = (cls.xpSettings.bitsXPBasis === 'base') ? Math.abs(base) : Math.abs(award);
                       const xpToAward = xpBits * xpRate;
                       if (xpToAward > 0) {
-                        await awardXP(target._id, classroomId, xpToAward, 'earning bits (feedback reward)', cls.xpSettings);
+                        // award XP for the bits earned and capture result so we can log the stat change
+                        const xpRes = await awardXP(target._id, classroomId, xpToAward, 'earning bits (feedback reward)', cls.xpSettings);
+                        // create a stats_adjusted log/notification for the XP delta so the student sees "xp: A → B (+Δ)"
+                        if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+                          try {
+                            await logStatChanges({
+                              io: req.app && req.app.get ? req.app.get('io') : null,
+                              classroomId,
+                              user: target,
+                              actionBy: req.user ? req.user._id : undefined,
+                              prevStats: { xp: xpRes.oldXP },
+                              currStats: { xp: xpRes.newXP },
+                              context: 'feedback submission',
+                              // show the bits effect explicitly for the bits-earned flow
+                              details: { effectsText: award ? `Feedback reward: ${award} bits` : undefined },
+                              forceLog: true
+                            });
+                          } catch (logErr) {
+                            console.warn('[feedback] failed to log stat change for bits-earned XP:', logErr);
+                          }
+                        }
                       }
                     }
                   } catch (xpErr) {
@@ -339,7 +360,7 @@ router.post('/classroom', ensureAuthenticated, async (req, res) => {
                       const populatedNotification = await Notification.create({
                         user: target._id,
                         type: 'bit_assignment_approved',
-                        message: `You received ${award} bits for submitting feedback.`,
+                        message: `You received ${award} ₿ for submitting feedback.`,
                         classroom: classroomId,
                         actionBy: cls.teacher || undefined,
                         createdAt: new Date()
@@ -365,6 +386,60 @@ router.post('/classroom', ensureAuthenticated, async (req, res) => {
       console.error('Feedback reward flow failed:', rewardErr);
     }
     // --- END NEW flow ---
+
+    // --- AFTER the reward flow (outside / after the try/catch that handles bit award) ---
+    { 
+      // NEW: award XP for the feedback submission itself (independent of bit award)
+      try {
+        // reload classroom xp settings to be safe (or reuse "cls" if in scope)
+        const cls2 = await Classroom.findById(classroomId).select('xpSettings feedbackRewardBits teacher');
+        if (cls2?.xpSettings?.enabled && Number(cls2.xpSettings.feedbackSubmission || 0) > 0) {
+          // determine who to credit (consistent with earlier logic)
+          const targetId2 = (feedback && feedback.userId) ? feedback.userId : (req.user ? req.user._id : null);
+          if (targetId2) {
+            const targetUser = await User.findById(targetId2);
+            if (targetUser) {
+              // Ensure classroomXP entry exists so awardXP can operate and /api/xp reads correct data
+              if (!Array.isArray(targetUser.classroomXP)) targetUser.classroomXP = [];
+              const hasEntry = targetUser.classroomXP.some(cx => String(cx.classroom) === String(classroomId));
+              if (!hasEntry) {
+                targetUser.classroomXP.push({ classroom: classroomId, xp: 0, level: 1, earnedBadges: [] });
+                await targetUser.save();
+              }
+
+              const xpAmount = Number(cls2.xpSettings.feedbackSubmission || 0);
+              const xpRes = await awardXP(targetId2, classroomId, xpAmount, 'feedback submission', cls2.xpSettings);
+
+              // Log stat change so notification shows "xp: A → B (+Δ)"
+              if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+                try {
+                  // only advertise a "Feedback reward: N bits" effect when the classroom actually has the bit reward enabled
+                  const effectsText = (cls2.feedbackRewardEnabled && Number(cls2.feedbackRewardBits) > 0)
+                    ? `Feedback reward: ${cls2.feedbackRewardBits} bits`
+                    : undefined;
+
+                  await logStatChanges({
+                    io: req.app.get('io'),
+                    classroomId,
+                    user: targetUser,
+                    actionBy: req.user ? req.user._id : undefined,
+                    prevStats: { xp: xpRes.oldXP },
+                    currStats: { xp: xpRes.newXP },
+                    context: 'feedback submission',
+                    details: { effectsText },
+                    forceLog: true
+                  });
+                } catch (logErr) {
+                  console.warn('[feedback] failed to log stat change for feedback XP (post-flow):', logErr);
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[feedback] feedbackSubmission XP award failed (post-flow):', err);
+      }
+    }
 
     res.status(201).json({ message: 'Classroom feedback submitted successfully' });
   } catch (err) {

@@ -224,6 +224,23 @@ const XPSettings = ({ classroomId }) => {
                   </label>
                 </div>
 
+                {/* NEW: XP for feedback submission */}
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text">Feedback Submission</span>
+                  </label>
+                  <input
+                    type="number"
+                    className="input input-bordered"
+                    value={settings?.feedbackSubmission ?? 0}
+                    onChange={(e) => setSettings({ ...settings, feedbackSubmission: parseFloat(e.target.value) })}
+                    min={0}
+                  />
+                  <label className="label">
+                    <span className="label-text-alt">XP awarded for submitting feedback</span>
+                  </label>
+                </div>
+
                 <div className="form-control">
                   <label className="label">
                     <span className="label-text">Group Join</span>

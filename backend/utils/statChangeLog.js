@@ -20,13 +20,15 @@ async function logStatChanges({
   forceLog = false,
   extraChanges = []
 }) {
-  const fields = ['multiplier', 'luck', 'discount', 'shield', 'groupMultiplier'];
+  // Include 'xp' so prevStats/currStats xp differences produce readable change lines
+  const fields = ['multiplier', 'luck', 'discount', 'shield', 'groupMultiplier', 'xp'];
 
   const normalize = (field, v) => {
     if (v == null) return v;
     if (['multiplier','luck','groupMultiplier'].includes(field)) return Number(Number(v).toFixed(1));
     if (field === 'discount') return Math.round(Number(v));
     if (field === 'shield') return Math.max(0, parseInt(v, 10));
+    if (field === 'xp') return Math.round(Number(v) || 0);
     return v;
   };
 

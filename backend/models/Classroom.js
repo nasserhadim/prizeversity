@@ -87,7 +87,13 @@ const ClassroomSchema = new mongoose.Schema({
     },
     groupJoin: { 
       type: Number, 
-      default: 15, // 15 XP for joining a group (one-time per group)
+      default: 15, // 15 XP for joining a group (one-time)
+      min: 0
+    },
+    // NEW: XP awarded for submitting classroom feedback (teacher config)
+    feedbackSubmission: {
+      type: Number,
+      default: 0,
       min: 0
     },
     // Leveling formula: 'linear', 'exponential', 'logarithmic'

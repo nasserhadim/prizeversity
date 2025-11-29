@@ -630,7 +630,7 @@ router.post('/:id/teacher-approve', ensureAuthenticated, async (req, res) => {
       const recipientNotification = await Notification.create({
         user: recipientId,
         type: 'siphon_approved',
-        message: `You received ${amountPerRecipient} bits from siphon ${percentStr} against ${targetName} in "${groupName}" (${groupSetName}).`,
+        message: `You received ${amountPerRecipient} ₿ from siphon ${percentStr} against ${targetName} in "${groupName}" (${groupSetName}).`,
         classroom: classroomId,
         group: siphon.group._id,
         actionBy: req.user._id,
