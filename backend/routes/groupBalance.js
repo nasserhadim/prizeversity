@@ -97,6 +97,21 @@ const updateClassroomBalance = (user, classroomId, newBalance) => {
   }
 };
 
+// NEW: format descriptive effectsText for group adjustments so notifications/logs show GroupSet + Group context
+function formatGroupAdjustEffects({ groupSetObj, groupObj, adjustedAmount, xpAmount }) {
+  const parts = [];
+  if (groupSetObj && groupSetObj.name) parts.push(`GroupSet: ${groupSetObj.name}`);
+  if (groupObj && groupObj.name) parts.push(`Group: ${groupObj.name}`);
+  const meta = parts.length ? parts.join(' / ') : null;
+  const amtText = (typeof adjustedAmount !== 'undefined' && adjustedAmount !== null)
+    ? `${Math.abs(adjustedAmount)} ₿${adjustedAmount < 0 ? ' (debit)' : ''}`
+    : undefined;
+  const xpText = xpAmount ? `${xpAmount} XP` : undefined;
+
+  const extras = [meta, amtText, xpText].filter(Boolean);
+  return extras.length ? extras.join(' — ') : undefined;
+}
+
 // Adjust balance for all students in a group, applying group and personal multipliers
 router.post(
   '/groupset/:groupSetId/group/:groupId/adjust-balance',
@@ -292,7 +307,14 @@ router.post(
                           prevStats: { xp: xpRes.oldXP },
                           currStats: { xp: xpRes.newXP },
                           context: 'earning bits',
-                          details: { effectsText: adjustedAmount ? `Group adjust: ${adjustedAmount} ₿` : undefined },
+                          details: {
+                            effectsText: formatGroupAdjustEffects({
+                              groupSetObj: groupSet,   // should be available in outer scope (groupBalance route)
+                              groupObj: group,
+                              adjustedAmount,
+                              xpAmount: Math.round(xpToAward)
+                            })
+                          },
                           forceLog: true
                         });
                       } catch (logErr) {
