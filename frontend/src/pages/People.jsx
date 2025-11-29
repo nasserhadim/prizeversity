@@ -49,8 +49,12 @@ const getEffectsText = (message) => {
 
 // add helper near top of file (after imports / before component)
 function formatStatChange(c) {
-  if (!c || !c.field) return '';
-  const f = String(c.field);
+  if (!c || !c.field) return null;
+  const raw = String(c.field || '');
+  const parts = raw.split('.');
+  const base = parts.pop();
+  const prefix = parts.length ? parts.join('.') + '.' : '';
+
   const safeNum = (v, dec = 1) => {
     if (v == null || v === '') return 0;
     const n = Number(v);
@@ -58,29 +62,79 @@ function formatStatChange(c) {
     return dec === 0 ? Math.round(n) : Number(n.toFixed(dec));
   };
 
-  if (f === 'xp') {
+  const renderArrowBold = (from, to) => (
+    <span>
+      {String(from)} <strong>→ {String(to)}</strong>
+    </span>
+  );
+
+  const renderDelta = (from, to, decimals = null, isXP = false) => {
+    const fromN = safeNum(from, decimals === 0 ? 0 : (decimals ?? 1));
+    const toN = safeNum(to, decimals === 0 ? 0 : (decimals ?? 1));
+    const deltaN = toN - fromN;
+    const deltaText = (decimals === 0) ? `${deltaN}` : `${Number(deltaN).toFixed(decimals ?? 1)}`;
+    const cls = deltaN >= 0 ? 'text-success' : 'text-error';
+    return <span className={cls}>{` (${deltaN >= 0 ? '+' : ''}${deltaText}${isXP ? ' XP' : ''})`}</span>;
+  };
+
+  // xp (integer)
+  if (base === 'xp') {
     const from = safeNum(c.from, 0);
     const to = safeNum(c.to, 0);
-    const delta = to - from;
-    const sign = delta >= 0 ? `+${delta}` : `${delta}`;
-    return `xp: ${from} → ${to} (${sign} XP)`;
+    return (
+      <>
+        {prefix}
+        <strong>xp:</strong> {renderArrowBold(from, to)}
+        {renderDelta(from, to, 0, true)}
+      </>
+    );
   }
-  if (['multiplier','luck','groupMultiplier'].includes(f)) {
-    const from = safeNum(c.from, 1).toFixed(1);
-    const to = safeNum(c.to, 1).toFixed(1);
-    const delta = (Number(to) - Number(from)).toFixed(1);
-    const sign = Number(delta) >= 0 ? `+${delta}` : `${delta}`;
-    return `${f}: ${from} → ${to} (${sign})`;
+
+  // multiplier / luck / groupMultiplier (one decimal)
+  if (['multiplier', 'luck', 'groupMultiplier'].includes(base)) {
+    const fromN = safeNum(c.from, 1);
+    const toN = safeNum(c.to, 1);
+    return (
+      <>
+        {prefix}
+        <strong>{base}:</strong> {renderArrowBold(fromN.toFixed(1), toN.toFixed(1))}
+        {renderDelta(fromN, toN, 1)}
+      </>
+    );
   }
-  if (f === 'discount') {
+
+  // discount (integer percent)
+  if (base === 'discount') {
     const from = safeNum(c.from, 0);
     const to = safeNum(c.to, 0);
-    const delta = to - from;
-    const sign = delta >= 0 ? `+${delta}` : `${delta}`;
-    return `discount: ${from} → ${to} (${sign})`;
+    return (
+      <>
+        {prefix}
+        <strong>discount:</strong> {renderArrowBold(from, to)}
+        {renderDelta(from, to, 0)}
+      </>
+    );
   }
-  // fallback
-  return `${c.field}: ${c.from} → ${c.to}`;
+
+  // shield (integer)
+  if (base === 'shield') {
+    const from = safeNum(c.from, 0);
+    const to = safeNum(c.to, 0);
+    return (
+      <>
+        {prefix}
+        <strong>shield:</strong> {renderArrowBold(from, to)}
+        {renderDelta(from, to, 0)}
+      </>
+    );
+  }
+
+  // fallback: raw text
+  return (
+    <>
+      {raw}: <strong>{String(c.from)} → {String(c.to)}</strong>
+    </>
+  );
 }
 
 // add helper near the top (after imports / before component)
@@ -2002,7 +2056,7 @@ const visibleCount = filteredStudents.length;
                                   {s.changes.map((c, idx) => (
                                     <li key={idx} className="flex items-start gap-2">
                                       <span className="bullet">•</span>
-                                      <span>{formatStatChange(c)}</span>
+                                      <span className="break-words">{formatStatChange(c)}</span>
                                     </li>
                                   ))}
                                 </ul>

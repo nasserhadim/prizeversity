@@ -47,7 +47,12 @@ async function logStatChanges({
   if (!changes.length && !forceLog) return { created: false };
 
   const formatChange = (c) => {
-    const f = c.field;
+    // support dotted fields like "target.shield" or "attacker.multiplier"
+    const rawField = String(c.field || '');
+    const parts = rawField.split('.');
+    const base = parts.pop();
+    const prefix = parts.length ? parts.join('.') + '.' : '';
+
     const safeNum = (v, dec = 1) => {
       if (v == null || v === '') return 0;
       const n = Number(v);
@@ -55,28 +60,46 @@ async function logStatChanges({
       return dec === 0 ? Math.round(n) : Number(n.toFixed(dec));
     };
 
-    if (f === 'xp') {
+    // xp (integer)
+    if (base === 'xp') {
       const from = safeNum(c.from, 0);
       const to = safeNum(c.to, 0);
       const delta = to - from;
       const sign = delta >= 0 ? `+${delta}` : `${delta}`;
-      return `xp: ${from} → ${to} (${sign} XP)`;
+      return `${prefix}xp: ${from} → ${to} (${sign} XP)`;
     }
-    if (['multiplier','luck','groupMultiplier'].includes(f)) {
-      const from = safeNum(c.from, 1).toFixed(1);
-      const to = safeNum(c.to, 1).toFixed(1);
-      const delta = (Number(to) - Number(from)).toFixed(1);
+
+    // multiplier / luck / groupMultiplier (one decimal)
+    if (['multiplier', 'luck', 'groupMultiplier'].includes(base)) {
+      const fromN = safeNum(c.from, 1);
+      const toN = safeNum(c.to, 1);
+      const from = fromN.toFixed(1);
+      const to = toN.toFixed(1);
+      const delta = (toN - fromN).toFixed(1);
       const sign = Number(delta) >= 0 ? `+${delta}` : `${delta}`;
-      return `${f}: ${from} → ${to} (${sign})`;
+      return `${prefix}${base}: ${from} → ${to} (${sign})`;
     }
-    if (f === 'discount') {
+
+    // discount (integer percent)
+    if (base === 'discount') {
       const from = safeNum(c.from, 0);
       const to = safeNum(c.to, 0);
       const delta = to - from;
       const sign = delta >= 0 ? `+${delta}` : `${delta}`;
-      return `discount: ${from} → ${to} (${sign})`;
+      return `${prefix}discount: ${from} → ${to} (${sign})`;
     }
-    return `${c.field}: ${c.from} → ${c.to}`;
+
+    // shield (integer, show +/− delta)
+    if (base === 'shield') {
+      const from = safeNum(c.from, 0);
+      const to = safeNum(c.to, 0);
+      const delta = to - from;
+      const sign = delta >= 0 ? `+${delta}` : `${delta}`;
+      return `${prefix}shield: ${from} → ${to} (${sign})`;
+    }
+
+    // fallback: show raw
+    return `${rawField}: ${c.from} → ${c.to}`;
   };
 
   const changeSummary = changes.map(formatChange).join('; ');
