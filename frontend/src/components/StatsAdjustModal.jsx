@@ -16,6 +16,9 @@ const StatsAdjustModal = ({ isOpen, onClose, student, classroomId, onUpdated }) 
   const [xpEnabled, setXPEnabled] = useState(true);
   const [xpLoading, setXPLoading] = useState(false);
 
+  // NEW: Shield state (numeric count)
+  const [shield, setShield] = useState('0');
+  
   // load current stats when modal opens / student changes
   useEffect(() => {
     if (!isOpen || !student) return;
@@ -29,6 +32,8 @@ const StatsAdjustModal = ({ isOpen, onClose, student, classroomId, onUpdated }) 
         setMultiplier(((Number(s.multiplier ?? 1)).toFixed(1)).toString());
         setLuck(((Number(s.luck ?? 1)).toFixed(1)).toString());
         setDiscount(String(Number(s.discount ?? s.discountShop ?? 0)));
+        // Set shield count
+        setShield(String(Number(s.shieldCount ?? 0)));
       } catch (err) {
         console.debug('[StatsAdjustModal] failed to load stats', err?.message || err);
       }
@@ -74,7 +79,9 @@ const StatsAdjustModal = ({ isOpen, onClose, student, classroomId, onUpdated }) 
           luck: Number(luck) || 1,
           discount: Number(discount) || 0,
           // send XP as absolute number only if xpEnabled
-          ...(xpEnabled ? { xp: Number(xp || 0) } : {})
+          ...(xpEnabled ? { xp: Number(xp || 0) } : {}),
+          // send shield count (integer)
+          shield: Number(shield || 0)
         },
         { withCredentials: true }
       );
@@ -129,6 +136,19 @@ const StatsAdjustModal = ({ isOpen, onClose, student, classroomId, onUpdated }) 
               className="input input-bordered mt-2"
               value={discount}
               onChange={(e) => setDiscount(e.target.value)}
+            />
+          </label>
+
+          {/* NEW: Shield Count */}
+          <label className="flex flex-col">
+            <span className="text-sm">Shield Count (0 to clear)</span>
+            <input
+              type="number"
+              step="1"
+              min="0"
+              className="input input-bordered mt-2"
+              value={shield}
+              onChange={(e) => setShield(e.target.value)}
             />
           </label>
 

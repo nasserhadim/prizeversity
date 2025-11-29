@@ -1065,7 +1065,7 @@ router.patch('/:id/feedback-reward', ensureAuthenticated, async (req, res) => {
 router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, res) => {
   try {
     const { classId, userId } = req.params;
-    const { multiplier, luck, discount, xp } = req.body; // xp is absolute desired XP
+    const { multiplier, luck, discount, xp, shield } = req.body; // xp is absolute desired XP; shield = shield count (integer)
 
     const classroom = await Classroom.findById(classId);
     if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
@@ -1083,7 +1083,8 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
     const prev = {
       multiplier: student.passiveAttributes.multiplier ?? 1,
       luck: student.passiveAttributes.luck ?? 1,
-      discount: student.passiveAttributes.discount ?? null
+      discount: student.passiveAttributes.discount ?? null,
+      shield: student.shieldCount ?? 0
     };
 
     // Apply updates for multiplier/luck/discount like before
@@ -1100,6 +1101,13 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
       } else {
         student.passiveAttributes.discount = d;
       }
+    }
+
+    // Apply shield update if provided: shield is treated as count; activate shield if > 0
+    if (typeof shield !== 'undefined') {
+      const sc = Math.max(0, parseInt(shield, 10) || 0);
+      student.shieldCount = sc;
+      student.shieldActive = sc > 0;
     }
 
     // --- NEW: handle xp adjustment (absolute value) ---
@@ -1146,10 +1154,11 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
     const curr = {
       multiplier: student.passiveAttributes.multiplier ?? 1,
       luck: student.passiveAttributes.luck ?? 1,
-      discount: student.passiveAttributes.discount ?? null
+      discount: student.passiveAttributes.discount ?? null,
+      shield: student.shieldCount ?? 0
     };
 
-    ['multiplier', 'luck', 'discount'].forEach((f) => {
+    ['multiplier', 'luck', 'discount', 'shield'].forEach((f) => {
       const before = prev[f];
       const after = curr[f];
       if (String(before) !== String(after)) {
