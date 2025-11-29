@@ -33,6 +33,13 @@ router.post('/equip/:itemId', ensureAuthenticated, async (req, res) => {
       'members.status': 'approved'
     });
 
+    // capture previous aggregate group multiplier (sum across groupsets / groups)
+    const prevGroupAggregate = (userGroups || []).reduce((s, g) => s + (g.groupMultiplier || 1), 0);
+    // Prepare group context for human-readable effects (count + optional names)
+    const groupNames = (userGroups || []).map(g => (g.name || String(g._id))).filter(Boolean);
+    const groupApplyCount = groupNames.length;
+    const groupNamesPreview = groupNames.slice(0, 5).join(', '); // cap list displayed
+
     // Apply passive effects
     let groupEffectApplied = false;
     item.secondaryEffects.forEach(effect => {
@@ -59,6 +66,10 @@ router.post('/equip/:itemId', ensureAuthenticated, async (req, res) => {
       await Promise.all(userGroups.map(g => g.save()));
     }
 
+    // compute aggregate after applying group changes (real new sum)
+    const afterGroupAggregate = (userGroups || []).reduce((s, g) => s + (g.groupMultiplier || 1), 0);
+    const groupAggregateDelta = afterGroupAggregate - prevGroupAggregate;
+
     // Equip passive item (mark active + timestamp)
     item.active = true;              // ← NEW
     item.activatedAt = new Date();   // ← NEW
@@ -83,7 +94,44 @@ router.post('/equip/:itemId', ensureAuthenticated, async (req, res) => {
         const rate = cls?.xpSettings?.enabled ? (cls.xpSettings.statIncrease || 0) : 0;
         const xp = statCount * rate;
         if (xp > 0) {
-          await awardXP(req.user._id, classroomId, xp, 'stat increase (bazaar item)', cls.xpSettings);
+          try {
+            // build a short effects text to include in the XP stat-change notification
+            const effectsTextForXP = (item.secondaryEffects || []).map(se => {
+              if (se.effectType === 'grantsLuck') return `+${se.value} Luck`;
+              if (se.effectType === 'grantsMultiplier') return `+${se.value}x Multiplier`;
+              if (se.effectType === 'grantsGroupMultiplier' || se.effectType === 'groupMultiplier') return `Group multiplier +${se.value || 1}`;
+              return '';
+            }).filter(Boolean);
+            // if group multiplier applied, append contextual info: total delta + group count/names
+            if (groupEffectApplied) {
+              const groupContext = groupApplyCount
+                ? ` (applied to ${groupApplyCount} group${groupApplyCount>1?'s':''}${groupNamesPreview ? `: ${groupNamesPreview}` : ''})`
+                : '';
+              effectsTextForXP.push(`Group multiplier +${groupAggregateDelta}${groupContext}`);
+            }
+            const effectsTextForXPSummary = effectsTextForXP.join(', ') || undefined;
+
+            const xpRes = await awardXP(req.user._id, classroomId, xp, 'stat increase (bazaar item)', cls.xpSettings);
+            if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+              try {
+                await logStatChanges({
+                  io: req.app && req.app.get ? req.app.get('io') : null,
+                  classroomId,
+                  user: req.user,
+                  actionBy: req.user._id,
+                  prevStats: { xp: xpRes.oldXP },
+                  currStats: { xp: xpRes.newXP },
+                  context: 'stat increase (passive item)',
+                  details: { effectsText: effectsTextForXPSummary },
+                  forceLog: true
+                });
+              } catch (logErr) {
+                console.warn('[passiveItem] failed to log XP stat change:', logErr);
+              }
+            }
+          } catch (xpErr) {
+            console.warn('[passiveItem] awardXP failed (passive):', xpErr);
+          }
         }
       }
     } catch (e) {
@@ -96,20 +144,30 @@ router.post('/equip/:itemId', ensureAuthenticated, async (req, res) => {
       multiplier: req.user.passiveAttributes?.multiplier || 1,
       discount: req.user.passiveAttributes?.discount || 0,
       shield: req.user.shieldCount || 0,
-      // If group effect applied, reflect a +1 virtual change so it appears in the log
-      groupMultiplier: groupEffectApplied ? 2 : undefined
+      // If group effect applied, reflect the real aggregate change so log shows correct delta
+      groupMultiplier: groupEffectApplied ? afterGroupAggregate : undefined
     };
-    const prevWithGroup = { ...before, ...(groupEffectApplied ? { groupMultiplier: 1 } : {}) };
+    const prevWithGroup = { ...before, ...(groupEffectApplied ? { groupMultiplier: prevGroupAggregate } : {}) };
 
     // Build effects text for passive item
     const effects = [];
     (item.secondaryEffects || []).forEach(se => {
       if (se.effectType === 'grantsLuck') effects.push(`+${se.value} Luck`);
       if (se.effectType === 'grantsMultiplier') effects.push(`+${se.value}x Multiplier`);
-      if (se.effectType === 'groupMultiplier') effects.push(`Group multiplier +${se.value || 1}`);
+      if (se.effectType === 'grantsGroupMultiplier' || se.effectType === 'groupMultiplier') {
+        // avoid duplicating textual group effect; we'll compute precise delta below
+        /* noop here */
+      }
     });
-    if (groupEffectApplied && !effects.some(t => /group multiplier/i.test(t))) {
-      effects.push('Group multiplier +1');
+    // If group effect applied, show the actual delta (could be >1 if user in multiple groups)
+    if (groupEffectApplied) {
+      const delta = groupAggregateDelta;
+      if (delta) {
+        const groupContext = groupApplyCount
+          ? ` (applied to ${groupApplyCount} group${groupApplyCount>1?'s':''}${groupNamesPreview ? `: ${groupNamesPreview}` : ''})`
+          : '';
+        effects.push(`Group multiplier +${delta}${groupContext}`);
+      }
     }
 
     await logStatChanges({

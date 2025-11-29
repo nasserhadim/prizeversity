@@ -51,6 +51,8 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
     await item.save();
 
     // award XP for stat increases (multiplier or discount)
+    // NEW: award XP for stat increases and emit a separate xp stat-change log/notification
+    let xpResForStats = null;
     try {
       if (classroomId) {
         const after = {
@@ -65,11 +67,40 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
         const rate = cls?.xpSettings?.enabled ? (cls.xpSettings.statIncrease || 0) : 0;
         const xp = statCount * rate;
         if (xp > 0) {
-          await awardXP(req.user._id, classroomId, xp, 'stat increase (bazaar item)', cls.xpSettings);
+          try {
+            xpResForStats = await awardXP(req.user._id, classroomId, xp, 'stat increase (bazaar item)', cls.xpSettings);
+            if (xpResForStats && typeof xpResForStats.oldXP !== 'undefined' && typeof xpResForStats.newXP !== 'undefined' && xpResForStats.newXP !== xpResForStats.oldXP) {
+              try {
+                // build a short effects text for the XP notification (same description used for the later stat log)
+                let effectsTextForXP;
+                if (item.primaryEffect === 'doubleEarnings') effectsTextForXP = 'Double Earnings (2x multiplier)';
+                if (item.primaryEffect === 'discountShop') {
+                  const pct = req.user.passiveAttributes?.discount ?? item.primaryEffectValue ?? 20;
+                  effectsTextForXP = `${pct}% shop discount`;
+                }
+
+                await logStatChanges({
+                  io: req.app && req.app.get ? req.app.get('io') : null,
+                  classroomId,
+                  user: req.user,
+                  actionBy: req.user._id,
+                  prevStats: { xp: xpResForStats.oldXP },
+                  currStats: { xp: xpResForStats.newXP },
+                  context: `Bazaar - ${item.name}`,
+                  details: { effectsText: effectsTextForXP },
+                  forceLog: true
+                });
+              } catch (logErr) {
+                console.warn('[utilityItem] failed to log XP stat change:', logErr);
+              }
+            }
+          } catch (xpErr) {
+            console.warn('[utilityItem] awardXP failed (stat increase):', xpErr);
+          }
         }
       }
     } catch (e) {
-      console.warn('[utilityItem] awardXP failed:', e);
+      console.warn('[utilityItem] awardXP outer failure:', e);
     }
 
     // NEW: stat-change notifications (only if recognized fields changed)
