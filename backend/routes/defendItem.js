@@ -48,7 +48,32 @@ router.post('/activate/:itemId', ensureAuthenticated, async (req, res) => {
         const cls = await Classroom.findById(classroomId).select('xpSettings');
         const rate = cls?.xpSettings?.enabled ? (cls.xpSettings.statIncrease || 0) : 0;
         if (rate > 0) {
-          await awardXP(req.user._id, classroomId, rate, 'stat increase (shield activated)', cls.xpSettings);
+          try {
+            const xpRes = await awardXP(req.user._id, classroomId, rate, 'stat increase (shield activated)', cls.xpSettings);
+            if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+              try {
+                await logStatChanges({
+                  io: req.app && req.app.get ? req.app.get('io') : null,
+                  classroomId,
+                  user: req.user,
+                  actionBy: req.user._id,
+                  prevStats: { xp: xpRes.oldXP },
+                  currStats: { xp: xpRes.newXP },
+                  context: `stat increase (shield activated: ${item.name})`,
+                  details: {
+                    effectsText: 'Shield +1 (blocks next attack)',
+                    itemName: item.name,
+                    itemId: item._id
+                  },
+                  forceLog: true
+                });
+              } catch (logErr) {
+                console.warn('[defendItem] failed to log XP stat change:', logErr);
+              }
+            }
+          } catch (xpErr) {
+            console.warn('[defendItem] awardXP failed:', xpErr);
+          }
         }
       }
     } catch (e) {

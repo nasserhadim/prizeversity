@@ -9,16 +9,39 @@ const { CHALLENGE_NAMES } = require('./constants');
 const { generateChallengeData } = require('../../utils/tokenGenerator');
 const Classroom = require('../../models/Classroom');
 const { awardXP } = require('../../utils/awardXP');
-
+const { logStatChanges } = require('../../utils/statChangeLog'); // NEW
 // helper reused here
-async function awardChallengeXP({ userId, classroomId, rewards }) {
+async function awardChallengeXP({ userId, classroomId, rewards, challengeName }) {
   try {
     const cls = await Classroom.findById(classroomId).select('xpSettings');
     if (!cls?.xpSettings?.enabled) return;
 
     const bits = Number(rewards?.bits || 0);
     if (bits > 0 && (cls.xpSettings.bitsEarned || 0) > 0) {
-      await awardXP(userId, classroomId, bits * (cls.xpSettings.bitsEarned || 0), 'earning bits (challenge reward)', cls.xpSettings);
+      const xp = bits * (cls.xpSettings.bitsEarned || 0);
+      try {
+        const xpRes = await awardXP(userId, classroomId, xp, 'earning bits (challenge reward)', cls.xpSettings);
+        if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+          try {
+            const targetUser = await User.findById(userId).select('firstName lastName');
+            await logStatChanges({
+               io: null,
+               classroomId,
+               user: targetUser,
+               actionBy: null,
+               prevStats: { xp: xpRes.oldXP },
+               currStats: { xp: xpRes.newXP },
+              context: `earning bits (challenge reward${challengeName ? `: ${challengeName}` : ''})`,
+              details: { effectsText: `Bits: +${bits}`, challengeName },
+               forceLog: true
+             });
+          } catch (logErr) {
+            console.warn('[challenge] failed to log bits-earned XP stat change:', logErr);
+          }
+        }
+      } catch (xpErr) {
+        console.warn('[challenge] awardXP (bits) failed:', xpErr);
+      }
     }
 
     const statCount =
@@ -28,11 +51,62 @@ async function awardChallengeXP({ userId, classroomId, rewards }) {
       (rewards?.shield ? 1 : 0);
 
     if (statCount > 0 && (cls.xpSettings.statIncrease || 0) > 0) {
-      await awardXP(userId, classroomId, statCount * cls.xpSettings.statIncrease, 'stat increase (challenge reward)', cls.xpSettings);
+      const xp = statCount * cls.xpSettings.statIncrease;
+      try {
+        const xpRes = await awardXP(userId, classroomId, xp, 'stat increase (challenge reward)', cls.xpSettings);
+        if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+          try {
+            const targetUser = await User.findById(userId).select('firstName lastName');
+            const parts = [];
+            if ((rewards?.multiplier || 0) > 0) parts.push(`+${Number(rewards.multiplier).toFixed(1)} Multiplier`);
+            if ((rewards?.luck || 1) > 1.0) parts.push(`+${Number((rewards.luck - 1)).toFixed(1)} Luck`);
+            if ((rewards?.discount || 0) > 0) parts.push(`+${Number(rewards.discount).toFixed(1)}% Discount`);
+            if (rewards?.shield) parts.push(`Shield +1`);
+            await logStatChanges({
+               io: null,
+               classroomId,
+               user: targetUser,
+               actionBy: null,
+               prevStats: { xp: xpRes.oldXP },
+               currStats: { xp: xpRes.newXP },
+              context: `stat increase (challenge reward${challengeName ? `: ${challengeName}` : ''})`,
+              details: { effectsText: parts.join(', ') || undefined, challengeName },
+               forceLog: true
+             });
+          } catch (logErr) {
+            console.warn('[challenge] failed to log stat-increase XP change:', logErr);
+          }
+        }
+      } catch (xpErr) {
+        console.warn('[challenge] awardXP (stat increase) failed:', xpErr);
+      }
     }
 
     if ((cls.xpSettings.challengeCompletion || 0) > 0) {
-      await awardXP(userId, classroomId, cls.xpSettings.challengeCompletion, 'challenge completion', cls.xpSettings);
+      const xp = cls.xpSettings.challengeCompletion || 0;
+      try {
+        const xpRes = await awardXP(userId, classroomId, xp, 'challenge completion', cls.xpSettings);
+        if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+          try {
+            const targetUser = await User.findById(userId).select('firstName lastName');
+            await logStatChanges({
+               io: null,
+               classroomId,
+               user: targetUser,
+               actionBy: null,
+               prevStats: { xp: xpRes.oldXP },
+               currStats: { xp: xpRes.newXP },
+              context: `challenge completion${challengeName ? `: ${challengeName}` : ''}`,
+              details: { effectsText: `Completion bonus: +${xp}`, challengeName },
+               forceLog: true
+             });
+          } catch (logErr) {
+            console.warn('[challenge] failed to log completion XP change:', logErr);
+          }
+        }
+      } catch (xpErr) {
+        console.warn('[challenge] awardXP (completion) failed:', xpErr);
+      }
     }
   } catch (e) {
     console.warn('[challenge6] awardChallengeXP failed:', e);
@@ -127,9 +201,10 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
         await user.save();
         // NEW: award XP for challenge 6 rewards + completion
         await awardChallengeXP({
-          userId: user._id,
+          userId: userId,
           classroomId: challenge.classroomId,
-          rewards: rewardsEarned
+          rewards: rewardsEarned,
+          challengeName: (CHALLENGE_NAMES && CHALLENGE_NAMES[challengeIndex]) || challenge.title || 'Challenge'
         });
       }
 
@@ -232,9 +307,10 @@ router.post('/challenge4/:uniqueId/submit', ensureAuthenticated, async (req, res
         await user.save();
         // NEW: award XP for Challenge 4
         await awardChallengeXP({
-          userId: user._id,
+          userId: userId,
           classroomId: challenge.classroomId,
-          rewards: rewardsEarned
+          rewards: rewardsEarned,
+          challengeName: (CHALLENGE_NAMES && CHALLENGE_NAMES[3]) || challenge.title || 'Challenge'
         });
         await challenge.save();
         
@@ -531,9 +607,10 @@ router.post('/submit-challenge6', ensureAuthenticated, async (req, res) => {
         await user.save();
         // NEW: award XP for challenge 6 rewards + completion
         await awardChallengeXP({
-          userId: user._id,
+          userId: userId,
           classroomId: challenge.classroomId,
-          rewards
+          rewards,
+          challengeName: (CHALLENGE_NAMES && CHALLENGE_NAMES[challengeIndex]) || challenge.title || 'Challenge'
         });
       }
       
@@ -714,9 +791,10 @@ router.post('/submit-challenge7', ensureAuthenticated, async (req, res) => {
           await user.save();
           // NEW: award XP for Challenge 7
           await awardChallengeXP({
-            userId: user._id,
+            userId: userId,
             classroomId: challenge.classroomId,
-            rewards
+            rewards,
+            challengeName: (CHALLENGE_NAMES && CHALLENGE_NAMES[challengeIndex]) || challenge.title || 'Challenge'
           });
         }
         
