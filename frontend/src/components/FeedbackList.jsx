@@ -127,7 +127,7 @@ export default function FeedbackList({
              </div>
            </div>
 
-            {f.comment && <p className="text-base-content/80 whitespace-pre-wrap">{f.comment}</p>}
+            {f.comment && <p className="feedback-comment text-base-content/80 whitespace-pre-wrap">{f.comment}</p>}
             {f.hidden && <div className="mt-2 text-xs text-red-500 italic">Hidden by moderator</div>}
          </li>
        ))}
