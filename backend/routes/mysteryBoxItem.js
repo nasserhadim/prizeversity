@@ -6,6 +6,7 @@ const { ensureAuthenticated } = require('../config/auth');
 const blockIfFrozen = require('../middleware/blockIfFrozen');
 const Classroom = require('../models/Classroom');
 const { awardXP } = require('../utils/awardXP');
+const { logStatChanges } = require('../utils/statChangeLog');
 
 // Helper: Get classroom balance
 const getClassroomBalance = (user, classroomId) => {
@@ -301,7 +302,29 @@ router.post('/open/:itemId', ensureAuthenticated, blockIfFrozen, async (req, res
       if (cls?.xpSettings?.enabled) {
         const useRate = cls.xpSettings.mysteryBox || 0;
         if (useRate > 0) {
-          await awardXP(userId, classroomId, useRate, 'mystery box use', cls.xpSettings);
+          try {
+            const xpRes = await awardXP(userId, classroomId, useRate, 'mystery box use', cls.xpSettings);
+            if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+              try {
+                const effectsText = `Mystery Box: ${mysteryBoxItem.name} → Won ${wonItemDoc.name}${wonRarity ? ` (${wonRarity})` : ''} — ${Math.round(useRate)} XP`;
+                await logStatChanges({
+                  io: req.app && req.app.get ? req.app.get('io') : null,
+                  classroomId,
+                  user: userId ? { _id: userId, firstName: undefined } : req.user, // keep same shape used elsewhere
+                  actionBy: req.user ? req.user._id : undefined,
+                  prevStats: { xp: xpRes.oldXP },
+                  currStats: { xp: xpRes.newXP },
+                  context: 'mystery box use',
+                  details: { effectsText },
+                  forceLog: true
+                });
+              } catch (logErr) {
+                console.warn('[mysteryBoxItem] failed to log XP stat change (open):', logErr);
+              }
+            }
+          } catch (xpErr) {
+            console.warn('[mysteryBoxItem] awardXP failed (open):', xpErr);
+          }
         }
       }
     } catch (e) {
