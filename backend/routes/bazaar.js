@@ -57,11 +57,6 @@ async function userHasBadge(userId, classroomId, badgeId) {
   }
 }
 
-
-
-
-
-
 // Middleware: Only teachers allowed for certain actions
 function ensureTeacher(req, res, next) {
   if (req.user.role !== 'teacher') {
@@ -349,6 +344,7 @@ router.get('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticated
 });
 
 // Edit Bazaar Item (teacher only)
+// Edit Bazaar Item (teacher only)
 router.patch(
   '/classroom/:classroomId/bazaar/:bazaarId/items/:itemId',
   ensureAuthenticated,
@@ -357,16 +353,17 @@ router.patch(
   async (req, res) => {
     const { classroomId, bazaarId, itemId } = req.params;
     try {
-// Ensure this bazaar actually belongs to this classroom (prevents cross-class leaks). ensures verivication teacher owns this classroom
+      // Ensure this bazaar actually belongs to this classroom (prevents cross-class leaks). ensures verivication teacher owns this classroom
       const classroom = await Classroom.findById(classroomId).select('teacher'); // only need teacher field stops one teacher from editing another classroom 
       if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
       if (classroom.teacher.toString() !== req.user._id.toString()) {
         return res.status(403).json({ error: 'Only the teacher can edit items' });
       }   
+
       const item = await Item.findById(itemId);
       if (!item) return res.status(404).json({ error: 'Item not found' });
 
-// Parse JSON fields that may arrive as strings when using multipart/form-data
+      // Parse JSON fields that may arrive as strings when using multipart/form-data
       const {
         name,
         description,
@@ -376,36 +373,121 @@ router.patch(
         primaryEffectValue,
         secondaryEffects,
         swapOptions,
-        requiredBadge
+        requiredBadge,
+        luckFactor,   
+        rewards       
       } = req.body;
  
+      // Image (file vs URL)
       if (req.file) {
         item.image = `/uploads/${req.file.filename}`;
       } else if (req.body.image !== undefined) {
         item.image = req.body.image || item.image;
       }
  
+      // these are basic scalar fields
       if (name !== undefined) item.name = name;
       if (description !== undefined) item.description = description;
       if (price !== undefined) item.price = Number(price);
       if (category !== undefined) item.category = category;
       if (primaryEffect !== undefined) item.primaryEffect = primaryEffect;
-      if (primaryEffectValue !== undefined) item.primaryEffectValue = Number(primaryEffectValue);
+      if (primaryEffectValue !== undefined) {
+        item.primaryEffectValue =
+          primaryEffectValue === '' ? undefined : Number(primaryEffectValue);
+      }
       if (requiredBadge !== undefined) item.requiredBadge = requiredBadge || null;
 
-
-      //parsing json arrays if strings (multipart)
-        try {
-        item.secondaryEffects = secondaryEffects ? JSON.parse(secondaryEffects) : item.secondaryEffects;
-      } catch (e) { /* ignore parse error, assume already array */ }
+     
+      try {
+        item.secondaryEffects = secondaryEffects
+          ? JSON.parse(secondaryEffects)
+          : item.secondaryEffects;
+      } catch (e) {
+      }
  
       try {
-        item.swapOptions = swapOptions ? JSON.parse(swapOptions) : item.swapOptions;
-      } catch (e) { /* ignore parse error */ }
+        item.swapOptions = swapOptions
+          ? JSON.parse(swapOptions)
+          : item.swapOptions;
+      } catch (e) {
+        /* ignore parse error */
+      }
+
+      // this is for mystery luckFactor + rewards (so edits survive refresh)
+      const isMystery =
+        item.kind === 'mystery_box' ||
+        item.category === 'Mystery Box' ||
+        item.category === 'Mystery';
+
+      if (isMystery) {
+        // luckFactor
+        if (luckFactor !== undefined) {
+          const lf = Number(luckFactor);
+          item.luckFactor = Number.isNaN(lf) ? 0 : lf;
+        }
+
+        // rewards
+        if (rewards !== undefined) {
+          let rewardFromBody = [];
+
+          try {
+            if (Array.isArray(rewards)) {
+              rewardFromBody = rewards;
+            } else if (typeof rewards === 'string' && rewards.trim()) {
+              rewardFromBody = JSON.parse(rewards);
+            }
+          } catch (e) {
+            console.error('[Edit Item] Failed to parse rewards JSON:', e.message);
+            rewardFromBody = [];
+          }
+
+          if (rewardFromBody.length > 0) {
+            // validate: all rewards in this bazaar & positive weight
+            const rewardIds = rewardFromBody.map((r) => r.itemId);
+            const count = await Item.countDocuments({
+              _id: { $in: rewardIds },
+              bazaar: bazaarId,
+              deletedAt: null,
+            });
+
+            if (count !== rewardIds.length) {
+              return res.status(400).json({
+                error: 'Some rewards are invalid or not in this bazaar',
+              });
+            }
+
+            for (const r of rewardFromBody) {
+              if (!(Number(r.weight) > 0)) {
+                return res.status(400).json({
+                  error: 'Each reward weight must be > 0',
+                });
+              }
+            }
+
+            // metadata.rewards is an array of reward entries for that mystery box.
+            // assign rewards onto metadata.rewards
+            item.metadata = item.metadata || {};
+            item.metadata.rewards = rewardFromBody.map((r) => ({
+              itemId: r.itemId,
+              itemName: r.itemName,
+              weight: Number(r.weight),
+              luckWeight: Number(r.luckWeight || 0),
+            }));
+
+            // if metadata is Mixed, make sure Mongoose actually writes it
+            if (typeof item.markModified === 'function') {
+              item.markModified('metadata');
+            }
+          }
+        }
+      }
  
       await item.save();
+
       // Notify classroom clients item updated
-      req.app.get('io')?.to(`classroom-${classroomId}`).emit('bazaar_item_updated', { item });
+      req.app.get('io')
+        ?.to(`classroom-${classroomId}`)
+        .emit('bazaar_item_updated', { item });
  
       res.json({ item });
     } catch (err) {
@@ -414,7 +496,6 @@ router.patch(
     }
   }
 );
-
 
 // Set rewards for a Mystery Box (teacher only)
 router.put(

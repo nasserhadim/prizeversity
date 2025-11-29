@@ -705,7 +705,7 @@ const TeacherBadgesPage = ({ classroomId }) => {
                             }
                             className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-md text-xs sm:text-sm whitespace-nowrap"
                           >
-                            View
+                            View Badge Collection
                           </button>
                         </div>
                       </td>

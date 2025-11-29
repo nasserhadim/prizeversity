@@ -34,7 +34,6 @@ kind: { type: String, enum: ['standard', 'mystery_box'], default: 'standard' },
     required: function() { return this.category !== 'Passive' && this.category !== 'Mystery'; }
   },
   primaryEffectValue: { type: Number },
-  requiredBadge: { type: mongoose.Schema.Types.ObjectId, ref: 'Badge', default: null },
   
   // Secondary effects configuration
   secondaryEffects: [{
