@@ -4,6 +4,7 @@ const Item = require('../models/Item');
 const User = require('../models/User');
 const Classroom = require('../models/Classroom');
 const { awardXP } = require('../utils/awardXP');
+const { logStatChanges } = require('../utils/statChangeLog');
 const { ensureAuthenticated } = require('../config/auth');
 const router = express.Router();
 const Order = require('../models/Order');
@@ -523,7 +524,35 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
         const xpBits = Math.abs(totalCost);
         const xpToAward = xpBits * xpRate;
         if (xpToAward > 0) {
-          await awardXP(user._id, classroomId, xpToAward, 'spending bits (bazaar purchase)', cls.xpSettings);
+          try {
+            // award XP and capture result so we can create a separate stats_adjusted log/notification
+            const xpRes = await awardXP(user._id, classroomId, xpToAward, 'spending bits (bazaar purchase)', cls.xpSettings);
+            if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+              try {
+                // include purchase context: total cost and item names
+                const itemNames = ownedItems?.map(i => i.name).filter(Boolean).slice(0,5).join(', ');
+                const effectsText = itemNames
+                  ? `Purchase: ${Math.abs(totalCost)} ₿ — ${itemNames}`
+                  : `Purchase: ${Math.abs(totalCost)} ₿`;
+
+                await logStatChanges({
+                  io: req.app && req.app.get ? req.app.get('io') : null,
+                  classroomId,
+                  user,
+                  actionBy: req.user ? req.user._id : undefined,
+                  prevStats: { xp: xpRes.oldXP },
+                  currStats: { xp: xpRes.newXP },
+                  context: 'spending bits (bazaar purchase)',
+                  details: { effectsText },
+                  forceLog: true
+                });
+              } catch (logErr) {
+                console.warn('[bazaar] failed to log XP stat change (purchase):', logErr);
+              }
+            }
+          } catch (xpErr) {
+            console.warn('[bazaar] awardXP failed (purchase):', xpErr);
+          }
         }
       }
     } catch (e) {
@@ -729,7 +758,35 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
         const xpBits = Math.abs(total); // amount actually spent
         const xpToAward = xpBits * xpRate;
         if (xpToAward > 0) {
-          await awardXP(userId, classroomId, xpToAward, 'spending bits (bazaar checkout)', cls.xpSettings);
+          try {
+            // award XP and capture result so we can create a separate stats_adjusted log/notification
+            const xpRes = await awardXP(userId, classroomId, xpToAward, 'spending bits (bazaar checkout)', cls.xpSettings);
+            if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+              try {
+                // include purchase context: total cost and item names
+                const itemNames = ownedItems?.map(i => i.name).filter(Boolean).slice(0,5).join(', ');
+                const effectsText = itemNames
+                  ? `Purchase: ${Math.abs(total)} ₿ — ${itemNames}`
+                  : `Purchase: ${Math.abs(total)} ₿`;
+
+                await logStatChanges({
+                  io: req.app && req.app.get ? req.app.get('io') : null,
+                  classroomId,
+                  user,
+                  actionBy: req.user ? req.user._id : undefined,
+                  prevStats: { xp: xpRes.oldXP },
+                  currStats: { xp: xpRes.newXP },
+                  context: 'spending bits (bazaar checkout)',
+                  details: { effectsText },
+                  forceLog: true
+                });
+              } catch (logErr) {
+                console.warn('[bazaar] failed to log XP stat change (checkout):', logErr);
+              }
+            }
+          } catch (xpErr) {
+            console.warn('[bazaar] awardXP failed (checkout):', xpErr);
+          }
         }
       }
     } catch (e) {
