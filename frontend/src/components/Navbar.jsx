@@ -335,8 +335,18 @@ const Navbar = () => {
             <>
               <li>
                 <Link
+                  to="/classrooms"
+                  className={`flex items-center gap-2 ${hoverClass} ${location.pathname === '/classrooms' ? 'text-green-500' : ''}`}
+                >
+                  <Home size={18} />
+                  <span>Dashboard</span>
+                </Link>
+              </li>
+              <li>
+                <Link
                   to={`/classroom/${classroomId}`}
                   className={`flex items-center gap-2 ${hoverClass} ${location.pathname === `/classroom/${classroomId}` ? 'text-green-500' : ''}`}
+                  title="Classroom"
                 >
                   <School size={18} />
                   <span>Classroom</span>
@@ -346,6 +356,7 @@ const Navbar = () => {
                 <Link
                   to={`/classroom/${classroomId}/bazaar`}
                   className={`flex items-center gap-2 ${hoverClass} ${location.pathname.startsWith(`/classroom/${classroomId}/bazaar`) ? 'text-green-500' : ''}`}
+                  title="Bazaar"
                 >
                   <Briefcase size={18} />
                   <span>Bazaar</span>
@@ -642,8 +653,16 @@ const Navbar = () => {
             {insideClassroom && (
               <>
                 <Link
+                  to="/classrooms"
+                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname === '/classrooms' ? 'text-green-500' : ''} ${hoverClass}`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <Home size={20} />
+                  <span>Dashboard</span>
+                </Link>
+                <Link
                   to={`/classroom/${classroomId}`}
-                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname === `/classroom/${classroomId}` ? 'text-green-500' : ''} ${hoverClass}`}
+                  className={`flex items-center gap-3 p-3 rounded-lg text-base-content ${location.pathname === `/classroom/${classroomId}` ? 'text-green-500' : ''}`}
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   <School size={20} />
