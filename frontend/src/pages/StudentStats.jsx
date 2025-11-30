@@ -162,7 +162,7 @@ const StudentStats = () => {
             <li>Daily Check‑in: <strong>{s.dailyCheckIn ?? 0}</strong> XP</li>
             <li>Mystery Box: <strong>{s.mysteryBox ?? 0}</strong> XP</li>
             <li>Group Join: <strong>{s.groupJoin ?? 0}</strong> XP (one‑time per GroupSet)</li>
-            <li>Feedback Submission: <strong>{s.feedbackSubmission ?? 0}</strong> XP (if enabled)</li>
+            <li>Feedback Submission: <strong>{s.feedbackSubmission ?? 0}</strong> XP</li>
             <li>Bits→XP Basis: <strong>{s.bitsXPBasis === 'base' ? 'Base (before multipliers)' : 'Final (after multipliers)'}</strong></li>
           </ul>
         </div>
@@ -171,8 +171,8 @@ const StudentStats = () => {
           <div className="font-semibold">Applicability notes</div>
           <ul className="list-disc ml-4 mt-1 space-y-1 text-xs">
             <li>Bits earned includes Teacher or Admin/TA balance adjustments, challenge rewards, attack gains, and feedback bit rewards (if enabled).</li>
-            <li>Bits Spent applies to intentional purchases (bazaar purchases) and does NOT include transfers, siphons/attacks, or balance debits.</li>
-            <li>Certain bit awards (e.g., balance adjustments or feedback multipliers) may yield more XP depending on multipliers and the Bits→XP basis setting.</li>
+            <li>Bits Spent applies to intentional spending (i.e. bazaar purchases) and does NOT include balance debits such as wallet transfers or siphons/attacks.</li>
+            <li>Certain bit awards (e.g., balance adjustments or feedback bit rewards if enabled) may yield more XP depending on multipliers and the Bits→XP basis setting.</li>
           </ul>
         </div>
 

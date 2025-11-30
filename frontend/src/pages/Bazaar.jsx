@@ -33,6 +33,8 @@ const Bazaar = () => {
   const [showApplyModal, setShowApplyModal] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [savingTemplate, setSavingTemplate] = useState(false);
+  // NEW: tab state for the "no bazaar" screen
+  const [noBazaarTab, setNoBazaarTab] = useState('apply'); // 'apply' | 'create'
   const [itemSearch, setItemSearch] = useState('');
   const [itemCategory, setItemCategory] = useState('all');
   const [itemSort, setItemSort] = useState('nameAsc');
@@ -219,63 +221,98 @@ const Bazaar = () => {
     return user.role === 'teacher' ? (
       <div className="flex flex-col min-h-screen bg-base-200">
         <div className="flex-grow p-6 space-y-6">
-          {/* Show available templates */}
-          {templates.length > 0 && (
-            <div className="card bg-base-100 shadow-xl border border-base-200 rounded-2xl p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <Package className="w-6 h-6 text-purple-500" />
-                <h2 className="text-2xl font-semibold">Apply Template</h2>
-              </div>
-              <p className="text-base-content/70 mb-4">
-                Quickly set up your bazaar using a saved template:
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {templates.map((template) => (
-                  <div 
-                    key={template._id} 
-                    className="card bg-base-200 shadow-md hover:shadow-lg transition-shadow"
-                  >
-                    <div className="card-body p-4">
-                      <h3 className="font-semibold text-lg">{template.name}</h3>
-                      <p className="text-sm text-base-content/60">
-                        {template.bazaarData.name}
-                      </p>
-                      {/* NEW: Show classroom info */}
-                      {template.sourceClassroom && (
-                        <p className="text-xs text-base-content/50 italic">
-                          From: {template.sourceClassroom.name}
-                          {template.sourceClassroom.code && ` (${template.sourceClassroom.code})`}
-                        </p>
-                      )}
-                      <p className="text-xs text-base-content/50">
-                        {template.items?.length || 0} items • {new Date(template.createdAt).toLocaleDateString()}
-                      </p>
-                      <div className="card-actions justify-end mt-2">
-                        <button
-                          className="btn btn-sm btn-primary"
-                          onClick={() => handleApplyTemplate(template._id)}
-                        >
-                          Apply
-                        </button>
-                        <button
-                          className="btn btn-sm btn-ghost text-error"
-                          onClick={() => handleDeleteTemplate(template._id, template.name)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+          {/* Tabs to switch between Apply Template / Create Bazaar */}
+          <div role="tablist" className="tabs tabs-boxed mb-6">
+            <button
+              role="tab"
+              className={`tab ${noBazaarTab === 'apply' ? 'tab-active' : ''}`}
+              onClick={() => setNoBazaarTab('apply')}
+            >
+              Apply Template
+            </button>
+            <button
+              role="tab"
+              className={`tab ${noBazaarTab === 'create' ? 'tab-active' : ''}`}
+              onClick={() => setNoBazaarTab('create')}
+            >
+              Create Bazaar
+            </button>
+          </div>
+
+          {/* Pane: Apply Template */}
+          {noBazaarTab === 'apply' && (
+            <div className="card bg-base-100 shadow-md rounded-2xl p-6">
+              <h2 className="text-xl font-semibold mb-4">Apply Template</h2>
+              {templates.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
+                  {templates.map((template) => (
+                    <div key={template._id} className="card bg-base-200 shadow">
+                      <div className="card-body p-4">
+                        <h3 className="font-semibold">{template.name}</h3>
+                        <p className="text-sm text-base-content/60">{template.bazaarData.name}</p>
+                        {template.sourceClassroom && (
+                          <p className="text-xs text-base-content/50 italic">
+                            From: {template.sourceClassroom.name}
+                            {template.sourceClassroom.code && ` (${template.sourceClassroom.code})`}
+                          </p>
+                        )}
+                        <div className="card-actions justify-end mt-2">
+                          <button className="btn btn-sm btn-primary" onClick={() => handleApplyTemplate(template._id)}>Apply</button>
+                          <button className="btn btn-sm btn-ghost text-error" onClick={() => handleDeleteTemplate(template._id, template.name)}>
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-              <div className="divider">OR</div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-base-content/60 py-8">No templates saved yet</p>
+              )}
             </div>
           )}
-          
-          {/* Create new bazaar */}
-          <CreateBazaar classroomId={classroomId} onCreate={setBazaar} />
+
+          {/* Pane: Create Bazaar */}
+          {noBazaarTab === 'create' && (
+            <div className="w-full max-w-3xl mx-auto">
+              <CreateBazaar classroomId={classroomId} onCreate={setBazaar} />
+            </div>
+          )}
         </div>
         <Footer />
+        {/* delete-template modal kept as before */}
+        {deleteTemplateModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="card bg-base-100 w-full max-w-md shadow-xl border border-base-300">
+              <div className="card-body space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-bold">Delete Template</h3>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => setDeleteTemplateModal(null)}
+                  >
+                    <X size={16}/>
+                  </button>
+                </div>
+                <p className="text-sm">
+                  Delete template "<strong>{deleteTemplateModal.name}</strong>"? This cannot be undone.
+                </p>
+                <div className="card-actions justify-end gap-2">
+                  <button
+                    className="btn btn-sm"
+                    onClick={() => setDeleteTemplateModal(null)}
+                  >Cancel</button>
+                  <button
+                    className="btn btn-sm btn-error"
+                    onClick={confirmDeleteTemplate}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     ) : (
       <div className="flex flex-col min-h-screen bg-base-200">

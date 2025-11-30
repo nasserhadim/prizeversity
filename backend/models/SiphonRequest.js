@@ -40,8 +40,9 @@ const SiphonRequestSchema = new mongoose.Schema({
   }
 });
 
-// Add index for auto-expiration
-SiphonRequestSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+// Remove TTL index so janitor can mark expired siphons and unfreeze accounts
+// Previously:
+// SiphonRequestSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 module.exports =
   mongoose.models.SiphonRequest || mongoose.model('SiphonRequest', SiphonRequestSchema);

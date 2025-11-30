@@ -579,8 +579,19 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
 
 // Checkout multiple items (updated for per-classroom balances)
 router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) => {
-  console.log(`[Checkout] User ${req.user._id} attempting checkout`);
-  console.log("Received checkout request:", req.body);
+  // NEW: explicit item-count limit to avoid huge JSON payloads (and give friendly message)
+  const MAX_CHECKOUT_ITEMS = 10;
+  const { items } = req.body || {};
+
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'No items provided for checkout' });
+  }
+
+  if (items.length > MAX_CHECKOUT_ITEMS) {
+    return res.status(400).json({
+      error: `Too many items in checkout. Maximum allowed is ${MAX_CHECKOUT_ITEMS} items. Try splitting the purchase.`
+    });
+  }
 
   try {
     const { userId, items, classroomId } = req.body;  // Add classroomId to request body
@@ -801,8 +812,15 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
       orderId: order._id
     });
   } catch (err) {
+    // Improved error message for payload-too-large (body-parser/raw-body)
+    if (err && (err.type === 'entity.too.large' || err.status === 413 || err.name === 'PayloadTooLargeError')) {
+      return res.status(413).json({
+        error: 'Request body too large. Reduce number/size of items (e.g. remove embedded images) or split the checkout into smaller batches (max 10 items).'
+      });
+    }
+
     console.error("Checkout failed:", err);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Checkout failed',
       message: err.message,
       stack: process.env.NODE_ENV === 'development' ? err.stack : undefined

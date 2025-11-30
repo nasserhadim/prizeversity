@@ -132,7 +132,7 @@ const XPSettings = ({ classroomId }) => {
                       <span className="label-text">Bits Earned</span>
                       <span
                         className="tooltip tooltip-bottom"
-                        data-tip="Includes bits from teacher/admin balance adjustments (including group adjustments), challenges (if configured), attacks (swap/drain), and feedback rewards (if enabled). Some bit awards may yield more XP depending on multipliers and the 'bits→XP basis' setting."
+                        data-tip="Includes bits earned from teacher/admin balance adjustments (including group adjustments), challenges (if configured), attacks (swap/drain), and feedback rewards (if enabled). Some bit awards may yield more XP depending on multipliers and the 'bits→XP basis' setting."
                       >
                         <Info className="w-4 h-4 text-base-content/60" />
                       </span>

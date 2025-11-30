@@ -505,7 +505,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
        {/* Primary Effect (for non-passive AND non-mysterybox categories) */}
        {form.category && form.category !== 'Passive' && form.category !== 'MysteryBox' && (
          <div className="space-y-4">
-           <div className="form-control">
+           <div className="form-control overflow-visible">
              <label className="label">
                <span className="label-text font-medium">
                  Primary Effect <span className='text-error'>*</span>
@@ -519,8 +519,10 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                required
              >
                <option value="" disabled>Select effect</option>
-              <option value="none">None (no primary effect — use secondary effects only)</option>
-               {CATEGORY_OPTIONS[form.category].map(effect => (
+               { (CATEGORY_OPTIONS[form.category] || []).length > 1 && (
+                 <option value="none">None (use secondary effects only)</option>
+               )}
+               { (CATEGORY_OPTIONS[form.category] || []).map(effect => (
                  <option key={effect.value} value={effect.value}>
                    {effect.label}
                  </option>
