@@ -1607,8 +1607,8 @@ const Groups = () => {
 
       {/* All existing modals */}
       {showEditGroupSetModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-lg">
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
+          <div className="bg-base-100 dark:bg-base-200 text-base-content dark:text-base-content p-6 rounded-xl shadow-lg w-[90%] max-w-lg border border-base-300 dark:border-base-700">
             <h2 className="text-lg font-semibold mb-4 text-center">Edit Group Set</h2>
 
             <input
@@ -1647,25 +1647,25 @@ const Groups = () => {
               </label>
             </div>
 
-            {/* Image controls moved into modal so edit UI mirrors create form */}
+            {/* Image controls (theme-aware) */}
             <div className="mb-4">
               <label className="label">
                 <span className="label-text">Image</span>
                 <span className="label-text-alt">Optional</span>
               </label>
 
-              <div className="inline-flex rounded-full bg-gray-200 p-1">
+              <div className="inline-flex rounded-full p-1 bg-gray-200 dark:bg-gray-800">
                 <button
                   type="button"
                   onClick={() => setGroupSetImageSource('file')}
-                  className={`px-3 py-1 rounded-full text-sm transition ${groupSetImageSource === 'file' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
+                  className={`px-3 py-1 rounded-full text-sm transition ${groupSetImageSource === 'file' ? 'bg-base-100 dark:bg-base-700 shadow text-base-content' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
                 >
                   Upload
                 </button>
                 <button
                   type="button"
                   onClick={() => setGroupSetImageSource('url')}
-                  className={`ml-1 px-3 py-1 rounded-full text-sm transition ${groupSetImageSource === 'url' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
+                  className={`ml-1 px-3 py-1 rounded-full text-sm transition ${groupSetImageSource === 'url' ? 'bg-base-100 dark:bg-base-700 shadow text-base-content' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
                 >
                   Use image URL
                 </button>
@@ -1678,9 +1678,9 @@ const Groups = () => {
                     type="file"
                     accept="image/png,image/jpeg,image/webp,image/gif"
                     onChange={e => setGroupSetImageFile(e.target.files[0])}
-                    className="file-input file-input-bordered w-full max-w-xs mt-3"
+                    className="file-input file-input-bordered w-full max-w-xs mt-3 bg-base-100 dark:bg-base-100"
                   />
-                  <p className="text-xs text-gray-500">Allowed: jpg, png, webp, gif. Max: 5 MB.</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Allowed: jpg, png, webp, gif. Max: 5 MB.</p>
                 </>
               ) : (
                 <input
@@ -1747,7 +1747,7 @@ const Groups = () => {
                 onChange={(e) => setGroupSetMultiplierIncrement(Math.max(0, e.target.value))}
               />
               <div className="label">
-                <span className="label-text-alt">
+                <span className="label-text-alt text-gray-500 dark:text-gray-400">
                   {groupSetMultiplierIncrement > 0 
                     ? `Group multiplier will be 1x + (members × ${groupSetMultiplierIncrement})`
                     : `No automatic multiplier (groups stay at 1x)`
@@ -1866,7 +1866,7 @@ const Groups = () => {
 
       {confirmDeleteGroup && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
+          <div className="bg-base-100 text-base-content dark:bg-base-100 dark:text-base-content p-6 rounded-xl shadow-lg w-[90%] max-w-sm border border-base-300">
             <h2 className="text-lg font-semibold mb-4 text-center">Confirm Deletion</h2>
             <p className="text-sm text-center">
               Are you sure you want to delete <strong>{confirmDeleteGroup.groupName}</strong>?
@@ -1891,7 +1891,7 @@ const Groups = () => {
 
       {confirmDeleteGroupSet && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
+          <div className="bg-base-100 text-base-content dark:bg-base-100 dark:text-base-content p-6 rounded-xl shadow-lg w-[90%] max-w-sm border border-base-300">
             <h2 className="text-lg font-semibold mb-4 text-center">Delete GroupSet</h2>
             <p className="text-sm text-center">
               Are you sure you want to delete the GroupSet <strong>{confirmDeleteGroupSet.name}</strong>?
@@ -1918,9 +1918,9 @@ const Groups = () => {
 
       {confirmLeaveGroup && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
+          <div className="bg-base-100 text-base-content dark:bg-base-100 dark:text-base-content p-6 rounded-xl shadow-lg w-[90%] max-w-sm border border-base-300">
             <h2 className="text-lg font-semibold mb-4 text-center">Leave Group</h2>
-            <p className="text-sm text-center">
+            <p className="text-sm text-center mb-4">
               Are you sure you want to leave <strong>{confirmLeaveGroup.groupName}</strong>?
             </p>
             <div className="mt-6 flex justify-center gap-4">
@@ -1932,7 +1932,7 @@ const Groups = () => {
               </button>
               <button
                 onClick={handleLeaveGroup}
-                               className="btn btn-sm btn-error"
+                className="btn btn-sm btn-error"
               >
                 Yes, Leave
               </button>
@@ -1943,7 +1943,7 @@ const Groups = () => {
 
       {editGroupModal && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-sm">
+          <div className="bg-base-100 text-base-content dark:bg-base-100 dark:text-base-content p-6 rounded-xl shadow-lg w-[90%] max-w-sm border border-base-300">
             <h2 className="text-lg font-semibold mb-4 text-center">Edit Group</h2>
             <input
               type="text"
@@ -1981,7 +1981,7 @@ const Groups = () => {
       {/* Bulk Delete Groups Confirmation Modal */}
       {confirmBulkDeleteGroups && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-          <div className="bg-white dark:bgbase-100 p-6 rounded-xl shadow-lg w-[90%] max-w-md">
+          <div className="bg-base-100 text-base-content dark:bgbase-100 dark:text-base-content p-6 rounded-xl shadow-lg w-[90%] max-w-md">
             <h2 className="text-lg font-semibold mb-4 text-center">Delete Groups</h2>
             <p className="text-sm text-center mb-4">
               Are you sure you want to delete the following {confirmBulkDeleteGroups.groupIds.length} group(s)?
@@ -2014,14 +2014,14 @@ const Groups = () => {
 
       {confirmDeleteAllGroupSets && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-base-100 p-6 rounded-xl shadow-lg w-[90%] max-w-md">
+          <div className="bg-base-100 text-base-content dark:bg-base-100 dark:text-base-content p-6 rounded-xl shadow-lg w-[90%] max-w-md">
             <h2 className="text-lg font-semibold mb-4 text-center">Delete All GroupSets</h2>
             <p className="text-sm text-center mb-3">
               Are you sure you want to delete all GroupSets in this classroom? This will delete all groups within them.
             </p>
-            <div className="max-h-36 overflow-y-auto mb-4 p-2 bg-gray-50 rounded">
+            <div className="max-h-36 overflow-y-auto mb-4 p-2 bg-gray-50 dark:bg-gray-800 rounded">
               {confirmDeleteAllGroupSets.names.map((n, i) => (
-                <div key={i} className="text-sm py-1">• {n}</div>
+                <div key={i} className="text-sm py-1 text-gray-700 dark:text-gray-200">• {n}</div>
               ))}
             </div>
             <div className="flex justify-center gap-4">
