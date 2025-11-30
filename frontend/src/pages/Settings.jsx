@@ -35,7 +35,7 @@ const Settings = () => {
         // ask via toast instead of window.confirm
         toast((t) => (
             <div className="space-y-2">
-                <p>Are you sure you want to permanently delete your account?</p>
+                <p>Are you sure you want to permanently delete your account? <br /> All data (such as your classroom data including stats accumulation, wallet balance, cart contents, bazaar items, etc.) will be lost and cannot be undone!</p>
                 <div className="flex justify-end space-x-2">
                     <button
                         className="btn btn-error btn-sm"
