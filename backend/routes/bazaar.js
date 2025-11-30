@@ -37,9 +37,25 @@ async function awardXpForSpentBits({ userId, classroomId, spentBits }) {
   }
 }
 
+// Badge check helper
+async function userHasBadge(userId, classroomId, badgeId) {
+  if (!badgeId) return true;
 
+  try {
+    const user = await User.findById(userId).lean();
+    if (!user) return false;
 
-
+    const earned = user.classroomBadges || [];
+    return earned.some(
+      b =>
+        String(b.classroom) === String(classroomId) &&
+        String(b.badge) === String(badgeId)
+    );
+  } catch (err) {
+    console.error('[BadgeCheck] Error:', err);
+    return false;
+  }
+}
 
 // Middleware: Only teachers allowed for certain actions
 function ensureTeacher(req, res, next) {
@@ -118,6 +134,7 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items',
     category, 
     primaryEffect, 
     primaryEffectValue,
+    requiredBadge,
   } = req.body;
   // Prefer uploaded file, fallback to image URL
   const image = req.file
@@ -169,6 +186,8 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items',
       category,
       primaryEffect: (category !== 'Passive' && category !== 'Mystery Box') ? primaryEffect : undefined,
       primaryEffectValue: (category !== 'Passive' && category !== 'Mystery Box') ? Number(primaryEffectValue) : undefined,
+
+      requiredBadge: requiredBadge || null,
 
       secondaryEffects: (parsedSecondaryEffects || []).map(se => ({
         effectType: se.effectType,
@@ -291,14 +310,40 @@ router.get('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticated
       filter.$or = [{ name: rx }, { description: rx }];
     }
 
-    const items = await Item.find(filter).lean();
-    res.json({ items, count: items.length });
+    // Fetch items
+    let items = await Item.find(filter).lean();
+
+    // Add requiredBadgeName to each item (if applicable)
+    const badgeIds = items
+      .filter(i => i.requiredBadge)
+      .map(i => i.requiredBadge);
+
+    let badgeMap = {};
+    if (badgeIds.length > 0) {
+      const Badge = require('../models/Badge');
+      const badges = await Badge.find({ _id: { $in: badgeIds } })
+        .select('_id name')
+        .lean();
+      badgeMap = Object.fromEntries(badges.map(b => [String(b._id), b.name]));
+    }
+
+    // Inject requiredBadgeName into items
+    items = items.map(item => ({
+      ...item,
+      requiredBadgeName: item.requiredBadge
+        ? badgeMap[String(item.requiredBadge)] || null
+        : null
+    }));
+
+    return res.json({ items, count: items.length });
+
   } catch (err) {
     console.error('[List Bazaar Items] error:', err);
     res.status(500).json({ error: 'Failed to fetch items' });
   }
 });
 
+// Edit Bazaar Item (teacher only)
 // Edit Bazaar Item (teacher only)
 router.patch(
   '/classroom/:classroomId/bazaar/:bazaarId/items/:itemId',
@@ -308,16 +353,17 @@ router.patch(
   async (req, res) => {
     const { classroomId, bazaarId, itemId } = req.params;
     try {
-// Ensure this bazaar actually belongs to this classroom (prevents cross-class leaks). ensures verivication teacher owns this classroom
+      // Ensure this bazaar actually belongs to this classroom (prevents cross-class leaks). ensures verivication teacher owns this classroom
       const classroom = await Classroom.findById(classroomId).select('teacher'); // only need teacher field stops one teacher from editing another classroom 
       if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
       if (classroom.teacher.toString() !== req.user._id.toString()) {
         return res.status(403).json({ error: 'Only the teacher can edit items' });
       }   
+
       const item = await Item.findById(itemId);
       if (!item) return res.status(404).json({ error: 'Item not found' });
 
-// Parse JSON fields that may arrive as strings when using multipart/form-data
+      // Parse JSON fields that may arrive as strings when using multipart/form-data
       const {
         name,
         description,
@@ -326,34 +372,122 @@ router.patch(
         primaryEffect,
         primaryEffectValue,
         secondaryEffects,
-        swapOptions
+        swapOptions,
+        requiredBadge,
+        luckFactor,   
+        rewards       
       } = req.body;
  
+      // Image (file vs URL)
       if (req.file) {
         item.image = `/uploads/${req.file.filename}`;
       } else if (req.body.image !== undefined) {
         item.image = req.body.image || item.image;
       }
  
+      // these are basic scalar fields
       if (name !== undefined) item.name = name;
       if (description !== undefined) item.description = description;
       if (price !== undefined) item.price = Number(price);
       if (category !== undefined) item.category = category;
       if (primaryEffect !== undefined) item.primaryEffect = primaryEffect;
-      if (primaryEffectValue !== undefined) item.primaryEffectValue = Number(primaryEffectValue);
+      if (primaryEffectValue !== undefined) {
+        item.primaryEffectValue =
+          primaryEffectValue === '' ? undefined : Number(primaryEffectValue);
+      }
+      if (requiredBadge !== undefined) item.requiredBadge = requiredBadge || null;
 
-      //parsing json arrays if strings (multipart)
-        try {
-        item.secondaryEffects = secondaryEffects ? JSON.parse(secondaryEffects) : item.secondaryEffects;
-      } catch (e) { /* ignore parse error, assume already array */ }
+     
+      try {
+        item.secondaryEffects = secondaryEffects
+          ? JSON.parse(secondaryEffects)
+          : item.secondaryEffects;
+      } catch (e) {
+      }
  
       try {
-        item.swapOptions = swapOptions ? JSON.parse(swapOptions) : item.swapOptions;
-      } catch (e) { /* ignore parse error */ }
+        item.swapOptions = swapOptions
+          ? JSON.parse(swapOptions)
+          : item.swapOptions;
+      } catch (e) {
+        /* ignore parse error */
+      }
+
+      // this is for mystery luckFactor + rewards (so edits survive refresh)
+      const isMystery =
+        item.kind === 'mystery_box' ||
+        item.category === 'Mystery Box' ||
+        item.category === 'Mystery';
+
+      if (isMystery) {
+        // luckFactor
+        if (luckFactor !== undefined) {
+          const lf = Number(luckFactor);
+          item.luckFactor = Number.isNaN(lf) ? 0 : lf;
+        }
+
+        // rewards
+        if (rewards !== undefined) {
+          let rewardFromBody = [];
+
+          try {
+            if (Array.isArray(rewards)) {
+              rewardFromBody = rewards;
+            } else if (typeof rewards === 'string' && rewards.trim()) {
+              rewardFromBody = JSON.parse(rewards);
+            }
+          } catch (e) {
+            console.error('[Edit Item] Failed to parse rewards JSON:', e.message);
+            rewardFromBody = [];
+          }
+
+          if (rewardFromBody.length > 0) {
+            // validate: all rewards in this bazaar & positive weight
+            const rewardIds = rewardFromBody.map((r) => r.itemId);
+            const count = await Item.countDocuments({
+              _id: { $in: rewardIds },
+              bazaar: bazaarId,
+              deletedAt: null,
+            });
+
+            if (count !== rewardIds.length) {
+              return res.status(400).json({
+                error: 'Some rewards are invalid or not in this bazaar',
+              });
+            }
+
+            for (const r of rewardFromBody) {
+              if (!(Number(r.weight) > 0)) {
+                return res.status(400).json({
+                  error: 'Each reward weight must be > 0',
+                });
+              }
+            }
+
+            // metadata.rewards is an array of reward entries for that mystery box.
+            // assign rewards onto metadata.rewards
+            item.metadata = item.metadata || {};
+            item.metadata.rewards = rewardFromBody.map((r) => ({
+              itemId: r.itemId,
+              itemName: r.itemName,
+              weight: Number(r.weight),
+              luckWeight: Number(r.luckWeight || 0),
+            }));
+
+            // if metadata is Mixed, make sure Mongoose actually writes it
+            if (typeof item.markModified === 'function') {
+              item.markModified('metadata');
+            }
+          }
+        }
+      }
  
       await item.save();
+
       // Notify classroom clients item updated
-      req.app.get('io')?.to(`classroom-${classroomId}`).emit('bazaar_item_updated', { item });
+      req.app.get('io')
+        ?.to(`classroom-${classroomId}`)
+        .emit('bazaar_item_updated', { item });
  
       res.json({ item });
     } catch (err) {
@@ -362,7 +496,6 @@ router.patch(
     }
   }
 );
-
 
 // Set rewards for a Mystery Box (teacher only)
 router.put(
@@ -481,6 +614,17 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
   const item = await Item.findById(itemId);
 if (!item) return res.status(404).json({ error: 'Item not found' });
 
+// Badge requirement check
+if (item.requiredBadge) {
+  const hasBadge = await userHasBadge(req.user._id, classroomId, item.requiredBadge);
+
+  if (!hasBadge) {
+    return res.status(403).json({
+      error: 'This item requires a badge you do not own.',
+      requiredBadge: item.requiredBadge
+    });
+  }
+}
 const rawQty = req.body.quantity;
 const qty = Number.isFinite(Number(rawQty)) && Number(rawQty) > 0 ? Number(rawQty) : 1;
 const totalCost = item.price * qty;
@@ -558,6 +702,16 @@ const totalCost = item.price * qty;
 
     await user.save();
 
+    // notify student their balance changed
+    req.app.get('io')
+      .to(`user-${user._id}`)
+      .emit('balance_update', {
+        studentId: user._id,
+        newBalance: getClassroomBalance(user, classroomId),
+        classroomId
+      });
+
+
     // Notify classroom about the purchase (unchanged)
     req.app.get('io').to(`classroom-${classroomId}`).emit('bazaar_purchase', {
       itemId,
@@ -615,6 +769,7 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
         resolvedItems.push(it);
       }
     }); //collectes missig and keeps existing
+
  
     if (missingIds.length > 0) {
       // Inform client that items were removed so frontend can remove them from the cart
@@ -776,6 +931,14 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
     });
 
     await user.save();
+
+    req.app.get('io')
+      .to(`user-${userId}`)
+      .emit('balance_update', {
+        studentId: userId,
+        newBalance: getClassroomBalance(user, classroomId),
+        classroomId
+      });
 
     console.log("Checkout successful for user:", userId, "order:", order._id);
 // Award XP for Bits spent (checkout)
@@ -1039,6 +1202,10 @@ router.post('/inventory/:ownedId/open', ensureAuthenticated, async (req, res) =>
   } catch (xpErr) {
     console.warn('[XP] Failed to award XP for mystery box use:', xpErr.message);
   }
+
+  req.app.get('io')
+  .to(`user-${req.user._id}`)
+  .emit('discount_updated');
 
   return res.json({
     ok: true,

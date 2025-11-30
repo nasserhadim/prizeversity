@@ -8,6 +8,8 @@ const GroupSchema = new mongoose.Schema({
     status: { type: String, enum: ['pending', 'approved'], default: 'approved' }, // Removed 'rejected'
     hasEverJoined: { type: Boolean, default: false }
   }],
+  // Users who have already been awarded XP for this group
+  joinXPAwardedForUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   maxMembers: { type: Number, default: null },
   image: { type: String, default: 'placeholder.jpg' },
   groupMultiplier: {type: Number, default: 1},

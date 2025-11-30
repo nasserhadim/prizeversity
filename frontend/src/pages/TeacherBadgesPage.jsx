@@ -690,10 +690,24 @@ const TeacherBadgesPage = ({ classroomId }) => {
                       <td className="py-3 text-center">{s.xp}</td>
 
                       <td className="py-3 text-center">
-                        <span className="font-medium">{s.badgesEarned}</span>
-                        <span className="opacity-70 ml-1">
-                          / {s.totalBadges ?? 0}
-                        </span>
+                        <div className="flex items-center justify-center gap-2">
+                          <span className="font-medium">{s.badgesEarned}</span>
+                          <span className="opacity-70">
+                            / {s.totalBadges ?? 0}
+                          </span>
+
+                          <button
+                            onClick={() =>
+                              navigate(
+                                `/classroom/${classroomId}/student/${s._id}/badges`,
+                                { state: { from: 'badges' } }
+                              )
+                            }
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-md text-xs sm:text-sm whitespace-nowrap"
+                          >
+                            View Badge Collection
+                          </button>
+                        </div>
                       </td>
 
                       <td className="py-3 text-center">

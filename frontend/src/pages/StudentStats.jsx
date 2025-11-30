@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { LoaderIcon } from 'lucide-react';
+import { LoaderIcon, Info } from 'lucide-react';
 
 import { ThemeContext } from '../context/ThemeContext';
 import socket from '../utils/socket.js';
@@ -37,6 +37,32 @@ const StudentStats = () => {
  
   // XP summary from backend (single source of truth)
   const [xpSummary, setXpSummary] = useState(null);
+  const [showXpInfo, setShowXpInfo] = useState(false); // modal toggle
+
+  const fetchStats = async () => {
+    try {
+      const url = classId
+        ? `/api/stats/student/${studentId}?classroomId=${classId}`
+        : `/api/stats/student/${studentId}`;
+
+      const res = await axios.get(url, { withCredentials: true });
+      setStats(res.data);
+      setError('');
+
+      // badge count for button
+      try {
+        const badgeRes = await getUserBadges(studentId, classId);
+        const earnedCount = badgeRes?.badges?.earned?.length || 0;
+        setBadgeCount(earnedCount);
+      } catch (err) {
+        console.error('Error fetching badge count:', err);
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to load stats');
+    } finally {
+      setLoading(false);
+    }
+  };
  
   // Precompute group multiplier for rendering
   const groupMultiplierValue = Number(
@@ -48,38 +74,13 @@ const StudentStats = () => {
     if (!classId || !studentId) return;
     navigate(`/classroom/${classId}/student/${studentId}/badges`, {
       state: { 
-        from: 'stats'// so badges page knows to go back to stats
-       },
+        from: 'stats' // so badges page knows to go back to stats
+      },
     });
   };
 
   // Fetch student stats + badge count
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const url = classId
-          ? `/api/stats/student/${studentId}?classroomId=${classId}`
-          : `/api/stats/student/${studentId}`;
-
-        const res = await axios.get(url, { withCredentials: true });
-        setStats(res.data);
-        setError('');
-
-        // badge count for button
-        try {
-          const badgeRes = await getUserBadges(studentId, classId);
-          const earnedCount = badgeRes?.badges?.earned?.length || 0;
-          setBadgeCount(earnedCount);
-        } catch (err) {
-          console.error('Error fetching badge count:', err);
-        }
-      } catch (err) {
-        setError(err.response?.data?.error || 'Failed to load stats');
-      } finally {
-        setLoading(false);
-      }
-    };
-
     if (studentId) fetchStats();
 
     const handleDiscountExpired = () => {
@@ -261,6 +262,25 @@ const StudentStats = () => {
     };
   }, [xpState]);
 
+  // XP Gain Rates for this classroom (direct mapping from xpSettings.xpRewards)
+  const xpRates = useMemo(() => {
+    if (!xpSettings) return null;
+    const rewards = xpSettings.xpRewards || {};
+
+    return {
+      perBitEarned: rewards.xpPerBitEarned,         // XP per bit earned
+      perBitSpent: rewards.xpPerBitSpent,           // XP per bit spent
+      perStatIncrease: rewards.xpPerStatsBoost,     // XP per stat boost
+      dailyCheckInLimit: rewards.dailyCheckInLimit, // allowed check-ins per day
+      groupJoin: rewards.groupJoinXP,              // XP for joining groups
+      challenge: rewards.challengeXP,              // XP per challenge
+      mysteryBoxUse: rewards.mysteryBoxUseXP,      // XP per mystery box use
+    };
+  }, [xpSettings]);
+
+  const formatRate = (val, text) =>
+    typeof val === 'number' ? `${val} XP ${text}` : 'Not set';
+
   // Back button
   const backButton = (() => {
     const from = location.state?.from;
@@ -312,7 +332,22 @@ const StudentStats = () => {
         {xpSettings?.isXPEnabled ? (
           <div className="card bg-white border border-green-200 shadow-sm rounded-lg p-4">
             <div className="flex items-center justify-between mb-1">
-              <div className="font-semibold">Level {xpState.level || 1}</div>
+              <div className="flex items-center gap-2">
+                <div className="font-semibold">Level {xpState.level || 1}</div>
+
+                {/* Info icon: XP Gain Rates for this classroom */}
+                {xpSettings && (
+                  <button
+                    type="button"
+                    onClick={() => setShowXpInfo(true)}
+                    className="inline-flex items-center justify-center w-6 h-6 rounded-full border border-gray-300 text-gray-600 text-[10px] hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-300"
+                    aria-label="Show XP Gain Rates for this classroom"
+                  >
+                    <Info className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+
               {/* XP within this level / XP required for next level */}
               <div className="text-sm text-gray-600">
                 {progress.currentXP} / {progress.required || progress.currentXP} XP
@@ -437,6 +472,65 @@ const StudentStats = () => {
           </button>
         )}
       </div>
+
+      {showXpInfo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className={`${themeClasses.cardBase} w-[90%] max-w-md p-4 rounded-2xl shadow-lg`}>
+            <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
+              XP Gain Rates
+            </h2>
+            <p className="text-xs text-base-content/70 mb-3">
+              These XP rewards are specific to this classroom.
+            </p>
+
+            <div className="space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span>Bit Earned</span>
+                  {formatRate(xpRates?.perBitEarned, 'per bit earned')}
+              </div>
+
+              <div className="flex justify-between">
+                <span>Bit Spent</span>
+                  {formatRate(xpRates?.perBitSpent, 'per bit spent')}
+              </div>
+
+              <div className="flex justify-between">
+                <span>Stat Increase</span>
+                  {formatRate(xpRates?.perStatIncrease, 'per stat boost')}
+              </div>
+
+              <div className="flex justify-between">
+                <span>Daily Check-in Limit</span>
+                  {typeof xpRates?.dailyCheckInLimit === 'number'
+                    ? `${xpRates.dailyCheckInLimit} XP earned per day`
+                    : 'Not set'}
+              </div>
+
+              <div className="flex justify-between">
+                <span>Group Join</span>
+                  {formatRate(xpRates?.groupJoin, 'for joining groups (one-time)')}
+              </div>
+
+              <div className="flex justify-between">
+                <span>Challenge Completion</span>
+                  {formatRate(xpRates?.challenge, 'per challenge')}
+              </div>
+
+              <div className="flex justify-between">
+                <span>Mystery Box Use</span>
+                  {formatRate(xpRates?.mysteryBoxUse, 'per mystery box use')}
+              </div>
+            </div>
+
+            <button
+              className="btn btn-sm btn-success w-full mt-4"
+              onClick={() => setShowXpInfo(false)}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
 
       <Footer />
     </>
