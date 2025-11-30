@@ -483,7 +483,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
       const luckWeight = (Number(reward.luckWeight) || 2000) * luckEffect;
 
       const probability = ((weight + luckWeight) * 100) / totalW;
-      const baseProb = (weight * 100) / totalW;
+      const baseProb = (weight * 100) / baseW;
       const changeProb = probability - baseProb;
 
       return (
