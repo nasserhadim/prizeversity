@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { ThemeContext } from '../context/ThemeContext'; // <-- added import
 import axios from 'axios';
 import socket from '../utils/socket.js';
 import { LoaderIcon, RefreshCw, TrendingUp } from 'lucide-react'; // Removed Award import
-import { Info } from 'lucide-react'; // <-- add this import
+import { Info } from 'lucide-react';
 import Footer from '../components/Footer';
 import StatsRadar from '../components/StatsRadar'; // <-- add this import
 import { getThemeClasses } from '../utils/themeUtils'; // <-- new import
@@ -22,6 +22,8 @@ const StudentStats = () => {
   const [error, setError] = useState('');
   const [xpData, setXPData] = useState(null);
   const [badges, setBadges] = useState([]);
+  const [xpPopoverOpen, setXPPopoverOpen] = useState(false);
+  const popoverRef = useRef(null);
   // Precompute group multiplier for rendering
   const groupMultiplierValue = Number(stats?.groupMultiplier ?? stats?.student?.groupMultiplier ?? 1);
 
@@ -116,6 +118,71 @@ const StudentStats = () => {
     }
   })();
 
+  useEffect(() => {
+    const onDocClick = (e) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target)) {
+        setXPPopoverOpen(false);
+      }
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') setXPPopoverOpen(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, []);
+
+  // Replace the old buildXPInfoTip string builder with a JSX popover renderer
+  const renderXPPopoverContent = () => {
+    if (!classroom || !classroom.xpSettings) {
+      return <div className="text-sm">XP info not available.</div>;
+    }
+    const s = classroom.xpSettings;
+    if (!s.enabled) {
+      return <div className="text-sm">XP system is disabled in this classroom.</div>;
+    }
+
+    return (
+      <div className="text-sm space-y-3 max-w-sm">  {/* { changed code } */}
+        <div>
+          <strong>Total cumulative XP</strong>
+          <div className="text-xs text-base-content/70">Total cumulative XP earned in this classroom (includes all prior levels).</div>
+        </div>
+
+        <div>
+          <div className="font-semibold">Configured values for earning XP</div>
+          <ul className="list-disc ml-4 mt-1 space-y-1">
+            <li>Bits Earned: <strong>{s.bitsEarned ?? 0}</strong> XP per bit (balance adjustments)</li>
+            <li>Bits Spent: <strong>{s.bitsSpent ?? 0}</strong> XP per bit (bazaar purchases)</li>
+            <li>Stat Increase: <strong>{s.statIncrease ?? 0}</strong> XP per stat (boosts/increases)</li>
+            <li>Challenge Completion: <strong>{s.challengeCompletion ?? 0}</strong> XP</li>
+            <li>Daily Check‑in: <strong>{s.dailyCheckIn ?? 0}</strong> XP</li>
+            <li>Mystery Box: <strong>{s.mysteryBox ?? 0}</strong> XP</li>
+            <li>Group Join: <strong>{s.groupJoin ?? 0}</strong> XP (one‑time per GroupSet)</li>
+            <li>Feedback Submission: <strong>{s.feedbackSubmission ?? 0}</strong> XP (if enabled)</li>
+            <li>Bits→XP Basis: <strong>{s.bitsXPBasis === 'base' ? 'Base (before multipliers)' : 'Final (after multipliers)'}</strong></li>
+          </ul>
+        </div>
+
+        <div>
+          <div className="font-semibold">Applicability notes</div>
+          <ul className="list-disc ml-4 mt-1 space-y-1 text-xs">
+            <li>Bits earned includes Teacher or Admin/TA balance adjustments, challenge rewards, attack gains, and feedback bit rewards (if enabled).</li>
+            <li>Bits Spent applies to intentional purchases (bazaar purchases) and does NOT include transfers, siphons/attacks, or balance debits.</li>
+            <li>Certain bit awards (e.g., balance adjustments or feedback multipliers) may yield more XP depending on multipliers and the Bits→XP basis setting.</li>
+          </ul>
+        </div>
+
+        <div className="text-right">
+          <button className="btn btn-ghost btn-sm" onClick={() => setXPPopoverOpen(false)}>Close</button>
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-6">
@@ -167,8 +234,28 @@ const StudentStats = () => {
                   </h2>
                   <p className={`text-sm ${subtleText}`}>
                     {xpData.xp} / {xpData.nextLevelProgress.xpForNextLevel} XP
-                    <span className="tooltip tooltip-right ml-2" data-tip="Total cumulative XP earned in this classroom (includes all prior levels).">
-                      <Info size={14} className="inline-block text-base-content/60" />
+                    <span className="relative inline-block ml-2" ref={popoverRef}>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-xs p-0"
+                        onClick={(e) => { e.stopPropagation(); setXPPopoverOpen((v) => !v); }}
+                        aria-expanded={xpPopoverOpen}
+                        aria-haspopup="dialog"
+                        title="XP details"
+                      >
+                        <Info size={16} className="inline-block text-base-content/60" />
+                      </button>
+
+                      {xpPopoverOpen && (
+                        <div
+                          className="absolute top-full mt-2 z-50"
+                          style={{ left: '50%', transform: 'translateX(-38%)' }} // { changed code }
+                        >
+                          <div className={`${themeClasses.cardBase} p-4 rounded shadow-lg w-96 max-w-[92vw]`}>
+                            {renderXPPopoverContent()}
+                          </div>
+                        </div>
+                      )}
                     </span>
                   </p>
                 </div>

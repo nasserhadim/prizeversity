@@ -429,9 +429,9 @@ const Support = () => {
         {
           question: "How does XP and leveling work?",
           answer: [
-            "• XP tracks progress in each classroom and increases your level over time.",
+            "• XP tracks progress in each classroom and increases levels over time.",
             "• Each classroom can use different leveling formulas (Linear/Exponential/Logarithmic).",
-            "• Levels unlock badges as you reach required level thresholds set by your teacher."
+            "• Levels unlock badges if required level thresholds are attained (as configured)."
           ],
           role: ["all"]
         },
@@ -439,17 +439,20 @@ const Support = () => {
           question: "Which actions give XP?",
           answer: [
             "Teachers configure XP awards per classroom. Common sources include:",
-            "• Bits Earned (participation, rewards)",
-            "• Bits Spent (bazaar purchases, mystery boxes)",
-            "• Stat boosts (e.g., power-ups, challenges)",
-            "• Challenges completed",
+            "• Bits Earned (i.e. credits like Teacher or Admin/TA balance adjustments, challenge and/or feedback bit awards)",
+            "• Bits Spent* (i.e. bazaar purchases)",
+            "• Stat boosts (e.g., bazaar item stat power-ups, challenge stat rewards)",
+            "• Challenges completed (if configured)",
             "• Daily check‑ins",
             "• Mystery box usage",
-            "• Joining a group (one‑time)",
+            "• Joining a group (one‑time per GroupSet)",
+            "• Feedback submission (regardless whether or not bit award is enabled for feedback)",
             "",
-            "**About Bits Spent XP:**",
-            "• Spending XP is only awarded on intentional purchases (bazaar checkout, mystery box).",
-            "• It is NOT awarded for negative adjustments like siphons/attacks, teacher/admin debits, or readjustments."
+            "**Tip:** To see the exact XP values and applicability for a classroom, view the Stats and click the small info (i) icon next to the Level — the popover shows the configured settings and notes.",
+            "",
+            "***About Bits Spent XP:**",
+            "• Spending XP is only awarded on intentional purchases (i.e. bazaar item purchases).",
+            "• It is NOT awarded for negative adjustments like siphons/attacks or teacher/admin debits."
           ],
           role: ["all"]
         },
@@ -458,7 +461,7 @@ const Support = () => {
           answer: [
             "Teachers set XP per bit for both earning and spending.",
             "• Bits Earned → XP (e.g., 1 XP per bit)",
-            "• Bits Spent → XP (e.g., 0.5 XP per bit) — purchases only",
+            "• Bits Spent → XP (e.g., 0.5 XP per bit) — purchases",
             "",
             "Teachers also choose how to count bits for XP:",
             "• Final (after multipliers) — current default",
@@ -473,7 +476,7 @@ const Support = () => {
             "You can configure:",
             "• Enable/disable XP system",
             "• XP per bit earned/spent",
-            "• Challenge/daily check‑in/mystery box/group join XP",
+            "• Challenge/daily check‑in/mystery box/group join/feedback submission XP",
             "• Leveling formula and base XP for Level 2 and beyond (since the base is level 1)",
             "• Bits→XP basis (with or without multipliers)"
           ],
@@ -484,9 +487,8 @@ const Support = () => {
           question: "How does leveling impact the Leaderboard?",
           answer: [
             "• Leaderboard ordering (see classroom Leaderboard page) ranks students by Level first, then XP as a tiebreaker.",
-            "• Raising your level can move you ahead of students with slightly more XP but a lower level.",
-            "• Consistent XP sources (bits earned, purchases, daily check‑ins, etc.) accelerate level gains and badge unlocks.",
-            "• Strategy: focus on reliable XP actions to level sooner; spending bits wisely can add XP (if Bits Spent XP enabled).",
+            "• Consistent XP sources (bits earned, stat boosts, daily check‑ins, etc.) accelerate level gains and badge unlocks (if configured).",
+            "• **Strategy:** focus on reliable XP actions to level sooner; spending bits wisely can add XP (if Bits Spent XP enabled).",
             "• High level + high XP within that level maximizes visibility and motivation."
           ],
           role: ["all"]
@@ -495,9 +497,9 @@ const Support = () => {
           question: "Why didn’t I get XP for losing bits or being siphoned?",
           answer: [
             "• To prevent system abuse/spam and keep XP fair, negative transactions do not grant spending XP.",
-            "• Only intentional spending (bazaar purchases and mystery box opens for example) grants Bits Spent XP."
+            "• Only intentional spending (bazaar item purchases for example) grants Bits spent XP."
           ],
-          role: ["all"]
+          role: ["student"]
         }
       ]
     },

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { TrendingUp } from 'lucide-react';
+import { TrendingUp, Info } from 'lucide-react'; // <-- ADD Info
 
 const XPSettings = ({ classroomId }) => {
   const [settings, setSettings] = useState({
@@ -128,7 +128,15 @@ const XPSettings = ({ classroomId }) => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="form-control">
                   <label className="label">
-                    <span className="label-text">Bits Earned</span>
+                    <div className="flex items-center gap-2">
+                      <span className="label-text">Bits Earned</span>
+                      <span
+                        className="tooltip tooltip-bottom"
+                        data-tip="Includes bits from teacher/admin balance adjustments (including group adjustments), challenges (if configured), attacks (swap/drain), and feedback rewards (if enabled). Some bit awards may yield more XP depending on multipliers and the 'bits→XP basis' setting."
+                      >
+                        <Info className="w-4 h-4 text-base-content/60" />
+                      </span>
+                    </div>
                   </label>
                   <input
                     type="number"
@@ -145,7 +153,15 @@ const XPSettings = ({ classroomId }) => {
 
                 <div className="form-control">
                   <label className="label">
-                    <span className="label-text">Bits Spent</span>
+                    <div className="flex items-center gap-2">
+                      <span className="label-text">Bits Spent</span>
+                      <span
+                        className="tooltip tooltip-bottom"
+                        data-tip="Awarded for intentional spending actions (e.g., Bazaar purchases). Does NOT include wallet transfers, siphons/attacks, or teacher/admin debits (i.e. negative balance adjustments)."
+                      >
+                        <Info className="w-4 h-4 text-base-content/60" />
+                      </span>
+                    </div>
                   </label>
                   <input
                     type="number"
@@ -162,7 +178,15 @@ const XPSettings = ({ classroomId }) => {
 
                 <div className="form-control">
                   <label className="label">
-                    <span className="label-text">Stat Increase</span>
+                    <div className="flex items-center gap-2">
+                      <span className="label-text">Stat Increase</span>
+                      <span
+                        className="tooltip tooltip-bottom"
+                        data-tip="Applies when stats are increased (e.g., passive Bazaar item effects, challenge stat boosts, or manual adjustments). XP is awarded per stat changed as configured."
+                      >
+                        <Info className="w-4 h-4 text-base-content/60" />
+                      </span>
+                    </div>
                   </label>
                   <input
                     type="number"
@@ -178,7 +202,15 @@ const XPSettings = ({ classroomId }) => {
 
                 <div className="form-control">
                   <label className="label">
-                    <span className="label-text">Daily Check-in</span>
+                    <div className="flex items-center gap-2">
+                      <span className="label-text">Daily Check-in</span>
+                      <span
+                        className="tooltip tooltip-bottom"
+                        data-tip="XP awarded for daily classroom visits/check‑ins."
+                      >
+                        <Info className="w-4 h-4 text-base-content/60" />
+                      </span>
+                    </div>
                   </label>
                   <input
                     type="number"
@@ -194,7 +226,15 @@ const XPSettings = ({ classroomId }) => {
 
                 <div className="form-control">
                   <label className="label">
-                    <span className="label-text">Challenge Completion</span>
+                    <div className="flex items-center gap-2">
+                      <span className="label-text">Challenge Completion</span>
+                      <span
+                        className="tooltip tooltip-bottom"
+                        data-tip="XP for completing challenges (separate from stat‑increase XP granted by some challenges)."
+                      >
+                        <Info className="w-4 h-4 text-base-content/60" />
+                      </span>
+                    </div>
                   </label>
                   <input
                     type="number"
@@ -210,7 +250,15 @@ const XPSettings = ({ classroomId }) => {
 
                 <div className="form-control">
                   <label className="label">
-                    <span className="label-text">Mystery Box Use</span>
+                    <div className="flex items-center gap-2">
+                      <span className="label-text">Mystery Box Use</span>
+                      <span
+                        className="tooltip tooltip-bottom"
+                        data-tip="XP awarded when opening mystery boxes (per configured rate)."
+                      >
+                        <Info className="w-4 h-4 text-base-content/60" />
+                      </span>
+                    </div>
                   </label>
                   <input
                     type="number"
@@ -224,10 +272,17 @@ const XPSettings = ({ classroomId }) => {
                   </label>
                 </div>
 
-                {/* NEW: XP for feedback submission */}
                 <div className="form-control">
                   <label className="label">
-                    <span className="label-text">Feedback Submission</span>
+                    <div className="flex items-center gap-2">
+                      <span className="label-text">Feedback Submission</span>
+                      <span
+                        className="tooltip tooltip-bottom"
+                        data-tip="XP for submitting classroom feedback. This is not dependent on the feedback submission reward (i.e. bits award) setting."
+                      >
+                        <Info className="w-4 h-4 text-base-content/60" />
+                      </span>
+                    </div>
                   </label>
                   <input
                     type="number"
@@ -243,7 +298,15 @@ const XPSettings = ({ classroomId }) => {
 
                 <div className="form-control">
                   <label className="label">
-                    <span className="label-text">Group Join</span>
+                    <div className="flex items-center gap-2">
+                      <span className="label-text">Group Join</span>
+                      <span
+                        className="tooltip tooltip-bottom"
+                        data-tip="One-time XP awarded when a student joins a group per GroupSet."
+                      >
+                        <Info className="w-4 h-4 text-base-content/60" />
+                      </span>
+                    </div>
                   </label>
                   <input
                     type="number"
