@@ -493,6 +493,16 @@ const ClassroomFeedbackPage = ({ userId }) => {
             <div role="tablist" className="tabs tabs-boxed mb-4">
               <a role="tab" className={`tab ${tab === 'recent' ? 'tab-active' : ''}`} onClick={() => setTab('recent')}>Recent</a>
               <a role="tab" className={`tab ${tab === 'submit' ? 'tab-active' : ''}`} onClick={() => setTab('submit')}>Submit</a>
+              {/* Moderation tab (teacher/admin only) */}
+              {user && (user.role === 'teacher' || user.role === 'admin') && (
+                <a
+                  role="tab"
+                  className={`tab ${tab === 'moderation' ? 'tab-active' : ''}`}
+                  onClick={() => setTab('moderation')}
+                >
+                  Moderation Log
+                </a>
+              )}
             </div>
  
             {/* Tab panes */}
@@ -559,9 +569,13 @@ const ClassroomFeedbackPage = ({ userId }) => {
                   onToggleHide={handleToggleHide}
                   onReport={handleReport}
                 />
-                {user && (user.role === 'teacher' || user.role === 'admin') && (
-                  <ModerationLog classroomId={classroomId} />
-                )}
+                {/* Moderation moved to its own tab */}
+              </div>
+            )}
+ 
+            {tab === 'moderation' && user && (user.role === 'teacher' || user.role === 'admin') && (
+              <div>
+                <ModerationLog classroomId={classroomId} />
               </div>
             )}
  
