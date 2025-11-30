@@ -58,7 +58,8 @@ const Settings = () => {
                         Yes, delete
                     </button>
                     <button
-                        className="btn btn-outline btn-sm"
+                        className="btn btn-ghost btn-sm text-white"
+                        style={{ borderColor: 'rgba(255,255,255,0.08)' }}
                         onClick={() => toast.dismiss(t.id)}
                     >
                         Cancel
