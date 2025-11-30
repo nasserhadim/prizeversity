@@ -1793,11 +1793,21 @@ const Groups = () => {
           <div className="card bg-base-100 p-6 shadow-xl max-w-md w-full">
             <h3 className="text-lg mb-4">Adjust balances for all selected group members</h3>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
+              pattern="-?[0-9]*"
               placeholder="Amount (e.g. 50 or -20)"
               className="input input-bordered w-full mb-2"
               value={adjustAmount}
-              onChange={e => setAdjustAmount(e.target.value)}
+              onChange={e => {
+                const v = e.target.value;
+                if (/^[+-]?\d*$/.test(v)) setAdjustAmount(v);
+              }}
+              onBlur={() => {
+                if (!adjustAmount) return;
+                const n = parseInt(adjustAmount.replace('+',''), 10);
+                setAdjustAmount(Number.isNaN(n) ? '' : String(n));
+              }}
             />
             <input
               type="text"
