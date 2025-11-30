@@ -401,14 +401,22 @@ const Support = () => {
             "Siphoning promotes teamwork and accountability:",
             "• Group members can vote to \"freeze\" uncooperative teammates",
             "• Requires majority vote from group members",
-            "• Frozen member cannot spend bits during review period",
+            "• Frozen member cannot spend bits during review period, including wallet transfers and bazaar purchases",
             "• Teacher reviews and approves/denies the siphon request",
             "• If approved, bits are redistributed to cooperative members",
             "",
             "**Important limits:**",
             "• Only one siphon request per 72 hours (or as configured by teacher in people settings) per group",
-            "• Prevents abuse of the system",
-            "• Encourages genuine collaboration"
+            "• If within the specified cooldown setting the majority of the group had not voted, nor the teacher has acted on a siphon request following a majority vote, the siphoned member's account in that classroom will be automatically unfrozen after the timeout period",
+            "• This limit prevents abuse of the system and encourages genuine collaboration"
+          ],
+          role: ["all"]
+        },
+        {
+          question: "What if a user's account in a classroom remains frozen after the siphon timeout?",
+          answer: [
+            "This may happen due to the TTL index removing expired siphon data before the janitor can run, so the record is gone and thus the system cannot unfreeze the member automatically in such a scenario.",
+            "**Workaround:** A group member can submit another siphon against the frozen user and then vote NO (majority). This forces the system to unfreeze the account."
           ],
           role: ["all"]
         }
