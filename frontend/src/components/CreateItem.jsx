@@ -493,7 +493,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
             return (
                 <div key={spot} className="flex items-center gap-3 px-1 text-sm">
                     <span className="flex-1">{name}</span>
-                    <span className="flex-1 text-center">{rarity}</span>
+                    <span className="flex-1 text-center">{reward.rarity}</span>
                     <span className="w-16 text-left"> {baseProb.toFixed(2)}%</span>  
                     <span className="w-16 text-left"> {probability.toFixed(2)}%</span>
                     <span className="w-16 text-left"> {changeProb.toFixed(2)}%</span>
