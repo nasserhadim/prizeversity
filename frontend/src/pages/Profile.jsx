@@ -661,7 +661,7 @@ export default function Profile() {
                     <InfoRow
                       label="User ID"
                       value={profile?.shortId || '—'}
-                      help="This is your shortId (human‑friendly) code useful for display, search, user-facing reports, or classroom management. A different, 24‑character internal user _id (Mongo ObjectId) is used for programmatic integrations such as API relations, joins, socket connections, etc."
+                      help="This is your shortId (human‑friendly) code useful for display, search, user-facing reports, or classroom management such as wallet transfers. A different, 24‑character internal user _id (Mongo ObjectId) is used for programmatic integrations such as API relations, joins, socket connections, etc."
                     />
                     {profile?.role && <InfoRow label="Role" value={ROLE_LABELS[profile.role] || profile.role} />}
                     
