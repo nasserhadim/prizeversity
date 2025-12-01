@@ -996,15 +996,6 @@ const ItemCard = ({
             View Details
           </button>
         )}
-        {item.kind === 'mystery_box' && (
-
-            <button
-                className="btn btn-sm w-full mt-2"
-                onClick={displayStats}
-            >
-                View Details
-            </button>
-        )}
       </div>
 
       {/* EDIT MODAL */}
