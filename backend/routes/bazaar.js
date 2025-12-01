@@ -1131,7 +1131,7 @@ router.post('/inventory/:ownedId/open', ensureAuthenticated, async (req, res) =>
   // find owners luck
   const luckS = req.user.passiveAttributes.luck - 1;
   // find box luck
-  const luckBox = box.luckFactor - 1;
+  const luckBox = box.luckFactor;
   // Atomically mark this box as opened; only the first request will succeed
   const claim = await Item.updateOne(
     { _id: ownedId, owner: req.user._id, openedAt: null },
