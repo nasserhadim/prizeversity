@@ -30,6 +30,8 @@ const Bazaar = () => {
   // const [showInventory, setShowInventory] = useState(false);
   const [bazaarTab, setBazaarTab] = useState('shop'); // 'shop' | 'inventory'
   const [templates, setTemplates] = useState([]);
+  const [templateSearch, setTemplateSearch] = useState('');
+  const [templateSort, setTemplateSort] = useState('createdDesc'); // 'createdDesc' | 'createdAsc' | 'nameAsc' | 'nameDesc' | 'itemsDesc' | 'itemsAsc'
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showApplyModal, setShowApplyModal] = useState(false);
   const [templateName, setTemplateName] = useState('');
@@ -217,6 +219,39 @@ const Bazaar = () => {
     return list;
   }, [bazaar?.items, itemSearch, itemCategory, itemSort]);
 
+  // Deep search + sort for templates
+  const filteredSortedTemplates = useMemo(() => {
+    const q = (templateSearch || '').trim().toLowerCase();
+    const deepMatch = (t) => {
+      if (!q) return true;
+      const parts = [
+        t.name || '',
+        t.bazaarData?.name || '',
+        t.bazaarData?.description || '',
+        t.sourceClassroom?.name || '',
+        t.sourceClassroom?.code || '',
+        String((t.items || []).length || 0),
+        new Date(t.createdAt).toLocaleString()
+      ].join(' ').toLowerCase();
+      return parts.includes(q);
+    };
+    const list = (templates || []).filter(deepMatch);
+    list.sort((a, b) => {
+      const ai = (a.items?.length || 0);
+      const bi = (b.items?.length || 0);
+      switch (templateSort) {
+        case 'createdDesc': return new Date(b.createdAt) - new Date(a.createdAt);
+        case 'createdAsc': return new Date(a.createdAt) - new Date(b.createdAt);
+        case 'nameAsc': return (a.name || '').localeCompare(b.name || '');
+        case 'nameDesc': return (b.name || '').localeCompare(a.name || '');
+        case 'itemsDesc': return bi - ai;
+        case 'itemsAsc': return ai - bi;
+        default: return 0;
+      }
+    });
+    return list;
+  }, [templates, templateSearch, templateSort]);
+
   // Prefill edit form when bazaar loads
   useEffect(() => {
     if (bazaar) {
@@ -311,26 +346,51 @@ const Bazaar = () => {
           {/* Pane: Apply Template */}
           {noBazaarTab === 'apply' && (
             <div className="card bg-base-100 shadow-md rounded-2xl p-6">
-              <h2 className="text-xl font-semibold mb-4">Apply Template</h2>
+              <h2 className="text-xl font-semibold mb-4">
+                Apply Template {templates?.length ? `(${templates.length})` : ''}
+              </h2>
+             <div className="flex flex-wrap gap-2 mb-3">
+               <input
+                 type="search"
+                 className="input input-bordered flex-1 min-w-[200px]"
+                 placeholder="Search templates..."
+                 value={templateSearch}
+                 onChange={(e) => setTemplateSearch(e.target.value)}
+               />
+               <select
+                 className="select select-bordered w-40"
+                 value={templateSort}
+                 onChange={(e) => setTemplateSort(e.target.value)}
+               >
+                 <option value="createdDesc">Newest</option>
+                 <option value="createdAsc">Oldest</option>
+                 <option value="nameAsc">Name ↑</option>
+                 <option value="nameDesc">Name ↓</option>
+                 <option value="itemsDesc">Items ↓</option>
+                 <option value="itemsAsc">Items ↑</option>
+               </select>
+             </div>
               {templates.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
-                  {templates.map((template) => (
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
+                 {filteredSortedTemplates.map((template) => (
                     <div key={template._id} className="card bg-base-200 shadow">
                       <div className="card-body p-4">
                         <h3 className="font-semibold">{template.name}</h3>
-                        <p className="text-sm text-base-content/60">{template.bazaarData.name}</p>
+                        <p className="text-sm text-base-content/60">
+                          {template.bazaarData.name}
+                        </p>
                         {template.sourceClassroom && (
                           <p className="text-xs text-base-content/50 italic">
                             From: {template.sourceClassroom.name}
                             {template.sourceClassroom.code && ` (${template.sourceClassroom.code})`}
                           </p>
                         )}
-                        <p className="text-xs text-base-content/50 mt-1">
+                        <p className="text-xs text-base-content/50">
                           {template.items?.length || 0} items
                         </p>
-                        <p className="text-xs text-base-content/40">
-                          Created: {new Date(template.createdAt).toLocaleString()}
-                        </p>
+                        <div className="text-xs text-base-content/40">
+                          Created: {new Date(template.createdAt).toLocaleString()
+                        }</div>
                         <div className="card-actions justify-end mt-2">
                           <button className="btn btn-sm btn-primary" onClick={() => handleApplyTemplate(template._id)}>Apply</button>
                           <button className="btn btn-sm btn-ghost text-error" onClick={() => handleDeleteTemplate(template._id, template.name)}>
@@ -342,7 +402,9 @@ const Bazaar = () => {
                   ))}
                 </div>
               ) : (
-                <p className="text-center text-base-content/60 py-8">No templates saved yet</p>
+                <p className="text-center text-base-content/60 py-8">
+                  No templates saved yet
+                </p>
               )}
             </div>
           )}
@@ -659,10 +721,33 @@ const Bazaar = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="card bg-base-100 w-full max-w-3xl my-8 shadow-xl">
             <div className="card-body">
-              <h2 className="text-xl font-bold mb-4">Saved Templates</h2>
+              <h2 className="text-xl font-bold mb-4">
+                Saved Templates {templates?.length ? `(${templates.length})` : ''}
+              </h2>
+             <div className="flex flex-wrap gap-2 mb-3">
+               <input
+                 type="search"
+                 className="input input-bordered flex-1 min-w-[200px]"
+                 placeholder="Search templates..."
+                 value={templateSearch}
+                 onChange={(e) => setTemplateSearch(e.target.value)}
+               />
+               <select
+                 className="select select-bordered w-40"
+                 value={templateSort}
+                 onChange={(e) => setTemplateSort(e.target.value)}
+               >
+                 <option value="createdDesc">Newest</option>
+                 <option value="createdAsc">Oldest</option>
+                 <option value="nameAsc">Name ↑</option>
+                 <option value="nameDesc">Name ↓</option>
+                 <option value="itemsDesc">Items ↓</option>
+                 <option value="itemsAsc">Items ↑</option>
+               </select>
+             </div>
               {templates.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
-                  {templates.map((template) => (
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
+                 {filteredSortedTemplates.map((template) => (
                     <div 
                       key={template._id} 
                       className="card bg-base-200 shadow"
@@ -672,7 +757,6 @@ const Bazaar = () => {
                         <p className="text-sm text-base-content/60">
                           {template.bazaarData.name}
                         </p>
-                        {/* NEW: Show classroom info */}
                         {template.sourceClassroom && (
                           <p className="text-xs text-base-content/50 italic">
                             From: {template.sourceClassroom.name}
@@ -691,6 +775,12 @@ const Bazaar = () => {
                             onClick={() => handleDeleteTemplate(template._id, template.name)}
                           >
                             Delete
+                          </button>
+                          <button
+                            className="btn btn-xs btn-primary"
+                            onClick={() => handleApplyTemplate(template._id)}
+                          >
+                            Apply
                           </button>
                         </div>
                       </div>
