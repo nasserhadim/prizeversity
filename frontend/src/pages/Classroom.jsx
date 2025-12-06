@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { getNews } from '../API/apiNewsfeed';
@@ -32,6 +32,7 @@ const Classroom = () => {
   const [announcements, setAnnouncements] = useState([]);
   const [visibleCount, setVisibleCount] = useState(10);
   const [confirmModal, setConfirmModal] = useState(null);
+  const checkedInRef = useRef(false); // persist across re-renders
 
   // Fetch classroom and student data on mount
   useEffect(() => {
@@ -87,7 +88,7 @@ const Classroom = () => {
   }, [id]);
 
   useEffect(() => {
-    // If we don't yet have a user, skip socket joins to avoid reading user._id (fixes crash/white page)
+    // If we don't yet have a user, skip socket joins
     if (!id || !user) return;
 
     const joinRooms = () => {
@@ -100,11 +101,9 @@ const Classroom = () => {
         socket.emit('join-classroom', id);
       }
 
-      // Prevent duplicate auto-checkin requests during the same client session
-      // (guard against joinRooms being called multiple times: immediate + on connect)
-      if (!joinRooms._checkedIn) {
-        joinRooms._checkedIn = true;
-        // Auto check-in: notify server user entered classroom so daily check-in happens
+      // Auto check-in once per session per classroom
+      if (!checkedInRef.current) {
+        checkedInRef.current = true;
         (async () => {
           try {
             const res = await axios.post(`/api/classroom/${id}/checkin`, {}, { withCredentials: true });
@@ -121,13 +120,13 @@ const Classroom = () => {
       }
     };
 
+    // Call now and on future connects (but guarded by checkedInRef)
     joinRooms();
+    socket.on('connect', joinRooms);
 
     const handleNewAnnouncement = (announcement) => {
       setAnnouncements(prev => [announcement, ...prev]);
     };
-
-    // Add classroom removal handler
     const handleClassroomRemoval = (data) => {
       if (String(data.classroomId) === String(id)) {
         toast.error(data.message || 'You have been removed from this classroom');
@@ -136,22 +135,21 @@ const Classroom = () => {
         }, 2000);
       }
     };
-
-    socket.on('receive-announcement', handleNewAnnouncement);
-    socket.on('classroom_removal', handleClassroomRemoval);
-
-    // listen for personal notifications
     const handleNotification = (notification) => {
       console.log('Realtime notification:', notification);
     };
+
+    socket.on('receive-announcement', handleNewAnnouncement);
+    socket.on('classroom_removal', handleClassroomRemoval);
     socket.on('notification', handleNotification);
 
     return () => {
+      socket.off('connect', joinRooms);
       socket.off('receive-announcement', handleNewAnnouncement);
       socket.off('classroom_removal', handleClassroomRemoval);
       socket.off('notification', handleNotification);
     };
-  }, [id, navigate, user]); // include user so effect re-runs when user becomes available
+  }, [id, navigate, user]);
 
   // Fetch classroom info and ensure user has access
   const fetchClassroomDetails = async () => {
