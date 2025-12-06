@@ -686,14 +686,14 @@ router.get('/:id/students', ensureAuthenticated, async (req, res) => {
       allUsers.map(async (person) => {
         const user = await User.findById(person._id).select('classroomBalances classroomJoinDates');
         const classroomBalance = user.classroomBalances.find(cb => cb.classroom.toString() === req.params.id);
-        
-        // Try to find classroom-specific join date, fall back to account creation date
         const classroomJoinDate = user.classroomJoinDates?.find(cjd => cjd.classroom.toString() === req.params.id);
-        
+
         return {
           ...person.toObject(),
           balance: classroomBalance ? classroomBalance.balance : 0,
-          joinedAt: classroomJoinDate?.joinedAt || person.createdAt
+          joinedAt: classroomJoinDate?.joinedAt || person.createdAt,
+          // NEW: expose lastAccessed
+          lastAccessed: classroomJoinDate?.lastAccessed || null,
         };
       })
     );
@@ -1315,6 +1315,50 @@ router.get('/:id/stat-changes', ensureAuthenticated, async (req, res) => {
     res.json(logs);
   } catch (err) {
     console.error('[Get stat-changes] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Record classroom access (students, teachers, admins)
+router.post('/:id/access', ensureAuthenticated, async (req, res) => {
+  try {
+    const classroomId = req.params.id;
+    const classroom = await Classroom.findById(classroomId).select('_id teacher students');
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+
+    const uid = String(req.user._id);
+    const isTeacher = String(classroom.teacher) === uid;
+    const isStudent = Array.isArray(classroom.students) && classroom.students.map(String).includes(uid);
+    const isAdmin = req.user.role === 'admin';
+
+    if (!(isTeacher || isStudent || isAdmin)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const user = await User.findById(req.user._id).select('classroomJoinDates');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    if (!Array.isArray(user.classroomJoinDates)) user.classroomJoinDates = [];
+
+    const entry = user.classroomJoinDates.find(
+      cjd => String(cjd.classroom) === String(classroomId)
+    );
+    const now = new Date();
+
+    if (entry) {
+      entry.lastAccessed = now;
+    } else {
+      user.classroomJoinDates.push({
+        classroom: classroom._id,
+        joinedAt: now,
+        lastAccessed: now
+      });
+    }
+
+    await user.save();
+    res.json({ ok: true, lastAccessed: now });
+  } catch (err) {
+    console.error('[Record classroom access] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

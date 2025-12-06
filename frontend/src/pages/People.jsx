@@ -69,8 +69,8 @@ function formatStatChange(c) {
   );
 
   const renderDelta = (from, to, decimals = null, isXP = false) => {
-    const fromN = safeNum(from, decimals === 0 ? 0 : (decimals ?? 1));
-    const toN = safeNum(to, decimals === 0 ? 0 : (decimals ?? 1));
+    const fromN = safeNum(from, 0);
+    const toN = safeNum(to, 0);
     const deltaN = toN - fromN;
     const deltaText = (decimals === 0) ? `${deltaN}` : `${Number(deltaN).toFixed(decimals ?? 1)}`;
     const cls = deltaN >= 0 ? 'text-success' : 'text-error';
@@ -283,12 +283,22 @@ const People = () => {
 
   // Initial data fetch + robust realtime handlers
   useEffect(() => {
+    if (!classroomId) return;
+    // Record "Last Accessed" for the current user
+    (async () => {
+      try {
+        await axios.post(`/api/classroom/${classroomId}/access`, {}, { withCredentials: true });
+      } catch (e) {
+        console.debug('[People] failed to record access', e?.message || e);
+      }
+    })();
+
     fetchClassroom();
     fetchStudents();
     fetchGroupSets();
     fetchTaBitPolicy();
     fetchSiphonTimeout();
-    fetchStatChanges(); // <-- NEW: fetch stat changes on mount
+    fetchStatChanges();
 
     // Add classroom removal handler
     const handleClassroomRemoval = (data) => {
@@ -647,6 +657,14 @@ const getBanInfo = (student, classroomObj) => {
         const dateA = new Date(a.joinedAt || a.createdAt || 0);
         const dateB = new Date(b.joinedAt || b.createdAt || 0);
         return dateB - dateA;
+      } else if (sortOption === 'lastAccessedDesc') {
+        const ad = new Date(a.lastAccessed || 0).getTime();
+        const bd = new Date(b.lastAccessed || 0).getTime();
+        return bd - ad;
+      } else if (sortOption === 'lastAccessedAsc') {
+        const ad = new Date(a.lastAccessed || 0).getTime();
+        const bd = new Date(b.lastAccessed || 0).getTime();
+        return ad - bd;
       }
       return 0; // Default order
     });
@@ -836,8 +854,8 @@ const getBanInfo = (student, classroomObj) => {
           ClassroomCode: classroom?.code || '',
           Name: `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.email,
           Email: student.email,
-          UserId: student._id,         // Mongo ObjectId
-          ShortId: student.shortId || '', // ← NEW human-friendly ID
+          UserId: student._id,
+          ShortId: student.shortId || '',
           Role: ROLE_LABELS[student.role] || student.role,
           Balance: student.balance?.toFixed(2) || '0.00',
           TotalSpent: (Number(totalSpentMap[student._id] || 0)).toFixed(2),
@@ -846,6 +864,10 @@ const getBanInfo = (student, classroomObj) => {
             : student.createdAt
               ? new Date(student.createdAt).toLocaleString()
               : 'Unknown',
+          // NEW: LastAccessed
+          LastAccessed: student.lastAccessed
+            ? new Date(student.lastAccessed).toLocaleString()
+            : '—',
           Level: xpData.level || 1,
           XP: xpData.xp || 0,
           Luck: stats.luck || 1,
@@ -862,11 +884,11 @@ const getBanInfo = (student, classroomObj) => {
       })
     );
 
-    // Explicit header ordering
+    // Explicit header ordering (ADD LastAccessed after JoinedDate)
     const headers = [
       'ClassroomId','ClassroomName','ClassroomCode','Name','Email',
       'UserId','ShortId','Role','Balance','TotalSpent',
-      'JoinedDate','Level','XP','Luck','Multiplier','GroupMultiplier','ShieldActive','ShieldCount',
+      'JoinedDate','LastAccessed','Level','XP','Luck','Multiplier','GroupMultiplier','ShieldActive','ShieldCount',
       'AttackPower','DoubleEarnings','DiscountShop','PassiveItemsCount','Groups'
     ];
 
@@ -948,7 +970,7 @@ const getBanInfo = (student, classroomObj) => {
           classroomCode: classroom?.code || '',
           _id: student._id,
           userId: student._id,
-          shortId: student.shortId || null, // ← ensure included in JSON
+          shortId: student.shortId || null,
           name: `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.email,
           firstName: student.firstName,
           lastName: student.lastName,
@@ -961,6 +983,8 @@ const getBanInfo = (student, classroomObj) => {
               : computeTotalSpent(student.transactions || [], classroomId)
           ),
           joinedDate: student.joinedAt || student.createdAt || null,
+          // NEW: lastAccessed (ISO)
+          lastAccessed: student.lastAccessed ? new Date(student.lastAccessed).toISOString() : null,
           level: xpData.level || 1,
           xp: xpData.xp || 0,
           stats: {
@@ -1420,6 +1444,9 @@ const visibleCount = filteredStudents.length;
                    <option value="nameAsc">Name (A → Z)</option>
                    <option value="joinDateDesc">Join Date (Newest)</option>
                    <option value="joinDateAsc">Join Date (Oldest)</option>
+                   {/* NEW: last accessed */}
+                   <option value="lastAccessedDesc">Last Accessed (Newest)</option>
+                   <option value="lastAccessedAsc">Last Accessed (Oldest)</option>
                 </select>
                 {/* loading indicator when a stat-based sort is selected and stats are still loading */}
                 {studentStatsLoading && ['multiplier','luck','shield','attack','discount'].some(f => sortOption.includes(f)) && (
@@ -1528,6 +1555,12 @@ const visibleCount = filteredStudents.length;
                             : student.createdAt
                               ? new Date(student.createdAt).toLocaleString()
                               : 'Unknown'}
+                        </div>
+                        {/* NEW: Last accessed display */}
+                        <div className="text-sm text-gray-500">
+                          Last Accessed: {student.lastAccessed
+                            ? new Date(student.lastAccessed).toLocaleString()
+                            : '—'}
                         </div>
                       </div>
 

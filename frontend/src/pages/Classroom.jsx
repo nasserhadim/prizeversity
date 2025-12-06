@@ -173,6 +173,9 @@ const Classroom = () => {
       }
 
       setClassroom(response.data);
+      // NEW: record access
+      try { await axios.post(`/api/classroom/${id}/access`, {}, { withCredentials: true }); } catch(e){/* ignore */}
+
       await fetchStudents();
     } catch (err) {
       if (err.response?.status === 403) {

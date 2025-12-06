@@ -61,7 +61,9 @@ const UserSchema = new mongoose.Schema({
   // Add classroom join dates tracking
   classroomJoinDates: [{
     classroom: { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom' },
-    joinedAt: { type: Date, default: Date.now }
+    joinedAt: { type: Date, default: Date.now },
+    // NEW: track per-classroom last access
+    lastAccessed: { type: Date, default: Date.now }
   }],
   // Per-classroom freeze flags: list of classroom ids where this user is currently frozen
   classroomFrozen: [{

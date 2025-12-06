@@ -25,7 +25,7 @@ export default function ClassroomPage() {
   // Search state + derived filtered list
   const [searchClassrooms, setSearchClassrooms] = useState('');
   // NEW: sorting state
-  const [sortField, setSortField] = useState('createdAt'); // 'createdAt' | 'name' | 'code' | 'joinedAt'
+  const [sortField, setSortField] = useState('createdAt'); // 'createdAt' | 'name' | 'code' | 'joinedAt' | 'lastAccessed'
   const [sortDirection, setSortDirection] = useState('desc'); // 'asc' | 'desc'
 
   // NEW: map classroomId -> joinedAt for the current user
@@ -33,6 +33,14 @@ export default function ClassroomPage() {
     const map = {};
     (user?.classroomJoinDates || []).forEach(cjd => {
       if (cjd?.classroom) map[String(cjd.classroom)] = cjd.joinedAt;
+    });
+    return map;
+  }, [user]);
+
+  const accessDateMap = useMemo(() => {
+    const map = {};
+    (user?.classroomJoinDates || []).forEach(cjd => {
+      if (cjd?.classroom) map[String(cjd.classroom)] = cjd.lastAccessed;
     });
     return map;
   }, [user]);
@@ -55,6 +63,9 @@ export default function ClassroomPage() {
       } else if (sortField === 'joinedAt') {
         av = new Date(joinDateMap[a._id] || 0).getTime();
         bv = new Date(joinDateMap[b._id] || 0).getTime();
+      } else if (sortField === 'lastAccessed') {
+        av = new Date(accessDateMap[a._id] || 0).getTime();
+        bv = new Date(accessDateMap[b._id] || 0).getTime();
       } else if (sortField === 'name') {
         av = (a.name || '').toLowerCase();
         bv = (b.name || '').toLowerCase();
@@ -67,7 +78,7 @@ export default function ClassroomPage() {
       return 0;
     };
     return list.slice().sort(cmp);
-  }, [classrooms, searchClassrooms, sortField, sortDirection, joinDateMap]);
+  }, [classrooms, searchClassrooms, sortField, sortDirection, joinDateMap, accessDateMap]);
 
   const [classroomName, setClassroomName] = useState('');
   const [classroomCode, setClassroomCode] = useState('');
@@ -245,6 +256,9 @@ export default function ClassroomPage() {
     };
   }, []);
 
+  // Helper: format count label
+  const classroomsCountLabel = `${filteredClassrooms.length} classroom${filteredClassrooms.length === 1 ? '' : 's'}`;
+
   return (
     <div className="min-h-screen flex flex-col p-6">
       <div className="flex-1 space-y-6">
@@ -329,7 +343,13 @@ export default function ClassroomPage() {
             {/* My Classrooms Tab */}
             {studentTab === 'classrooms' && (
               <div>
-                <h2 className="text-xl font-semibold text-center mb-4">My Classrooms</h2>
+                {/* UPDATED header with count */}
+                <h2 className="text-xl font-semibold text-center mb-4">
+                  My Classrooms
+                  <span className="ml-2 text-sm font-normal text-base-content/60">
+                    ({classroomsCountLabel})
+                  </span>
+                </h2>
 
                 <div className="max-w-2xl mx-auto mb-4 flex flex-col sm:flex-row gap-2">
                   <input
@@ -348,6 +368,7 @@ export default function ClassroomPage() {
                   >
                     <option value="createdAt">Created</option>
                     <option value="joinedAt">Joined</option>
+                    <option value="lastAccessed">Last Accessed</option>
                     <option value="name">Name</option>
                     <option value="code">Code</option>
                   </select>
@@ -377,6 +398,7 @@ export default function ClassroomPage() {
                     }
 
                     const joinedAt = joinDateMap[c._id] ? new Date(joinDateMap[c._id]).toLocaleString() : '—';
+                    const lastAt = accessDateMap[c._id] ? new Date(accessDateMap[c._id]).toLocaleString() : '—';
 
                     return (
                       <div
@@ -388,12 +410,15 @@ export default function ClassroomPage() {
                         <div className="card-body">
                           <h2 className="card-title">{c.name}</h2>
                           <p className="text-sm opacity-75">Code: {c.code}</p>
-                          {/* NEW: created + joined timestamps */}
                           <p className="text-xs opacity-60">
                             Created: {c.createdAt ? new Date(c.createdAt).toLocaleString() : '—'}
                           </p>
                           <p className="text-xs opacity-60">
                             Joined: {joinedAt}
+                          </p>
+                          {/* NEW: last accessed */}
+                          <p className="text-xs opacity-60">
+                            Last Accessed: {lastAt}
                           </p>
                         </div>
                       </div>
@@ -541,9 +566,14 @@ export default function ClassroomPage() {
             {/* My Classrooms Tab */}
             {teacherTab === 'classrooms' && (
               <div>
-                <h2 className="text-xl font-semibold text-center mb-4">My Classrooms</h2>
+                {/* UPDATED header with count */}
+                <h2 className="text-xl font-semibold text-center mb-4">
+                  My Classrooms
+                  <span className="ml-2 text-sm font-normal text-base-content/60">
+                    ({classroomsCountLabel})
+                  </span>
+                </h2>
 
-                {/* Search + NEW sort controls */}
                 <div className="max-w-2xl mx-auto mb-4 flex flex-col sm:flex-row gap-2">
                   <input
                     type="search"
@@ -552,6 +582,7 @@ export default function ClassroomPage() {
                     value={searchClassrooms}
                     onChange={e => setSearchClassrooms(e.target.value)}
                   />
+                  {/* ADD: include Last Accessed in sort options */}
                   <select
                     className="select select-bordered"
                     value={sortField}
@@ -559,6 +590,7 @@ export default function ClassroomPage() {
                     title="Sort field"
                   >
                     <option value="createdAt">Created</option>
+                    <option value="lastAccessed">Last Accessed</option>
                     <option value="name">Name</option>
                     <option value="code">Code</option>
                   </select>
@@ -572,54 +604,45 @@ export default function ClassroomPage() {
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
-                  {loading ? (
-                    Array.from({ length: 8 }).map((_, i) => (
-                      <div key={i} className="card bg-base-200 shadow">
+                  {filteredClassrooms.map(c => {
+                    const style = {};
+                    let textClass = 'text-black';
+                    if (c.color && c.color.toLowerCase() !== '#ffffff') {
+                      style.backgroundColor = c.color;
+                      textClass = 'text-white';
+                    }
+                    if (c.backgroundImage) {
+                      const imageUrl = resolveBannerSrc(c.backgroundImage);
+                      style.backgroundImage = `url(${imageUrl})`;
+                      style.backgroundSize = 'cover';
+                      style.backgroundPosition = 'center';
+                      textClass = 'text-white';
+                    }
+
+                    // JOINED may exist for teacher (we add at creation), but we mainly show Last Accessed
+                    const lastAt = accessDateMap[c._id] ? new Date(accessDateMap[c._id]).toLocaleString() : '—';
+
+                    return (
+                      <div
+                        key={c._id}
+                        className={`card bg-base-100 shadow cursor-pointer hover:shadow-lg transition-shadow ${textClass}`}
+                        style={style}
+                        onClick={() => handleCardClick(c._id)}
+                      >
                         <div className="card-body">
-                          <div className="skeleton h-6 w-1/2 mb-2"></div>
-                          <div className="skeleton h-4 w-1/3"></div>
+                          <h2 className="card-title">{c.name}</h2>
+                          <p className="text-sm opacity-75">Code: {c.code}</p>
+                          <p className="text-xs opacity-60">
+                            Created: {c.createdAt ? new Date(c.createdAt).toLocaleString() : '—'}
+                          </p>
+                          {/* ADD: Last Accessed line for teacher cards */}
+                          <p className="text-xs opacity-60">
+                            Last Accessed: {lastAt}
+                          </p>
                         </div>
                       </div>
-                    ))
-                  ) : filteredClassrooms.length === 0 ? (
-                    <div className="col-span-full text-center text-gray-500 py-8">
-                      {searchClassrooms ? 'No classrooms match your search.' : "You haven't created any classrooms yet. Create your first classroom to get started!"}
-                    </div>
-                  ) : (
-                    filteredClassrooms.map(c => {
-                       const style = {};
-                       let textClass = 'text-black';
-                       if (c.color && c.color.toLowerCase() !== '#ffffff') {
-                         style.backgroundColor = c.color;
-                         textClass = 'text-white';
-                       }
-                       if (c.backgroundImage) {
-                         const imageUrl = resolveBannerSrc(c.backgroundImage);
-                         style.backgroundImage = `url(${imageUrl})`;
-                         style.backgroundSize = 'cover';
-                         style.backgroundPosition = 'center';
-                         textClass = 'text-white';
-                       }
-
-                       return (
-                         <div
-                           key={c._id}
-                           className={`card bg-base-100 shadow cursor-pointer hover:shadow-lg transition-shadow ${textClass}`}
-                           style={style}
-                           onClick={() => handleCardClick(c._id)}
-                         >
-                           <div className="card-body">
-                             <h2 className="card-title">{c.name}</h2>
-                             <p className="text-sm opacity-75">Code: {c.code}</p>
-                             {/* NEW: created timestamp */}
-                             <p className="text-xs opacity-60">
-                               Created: {c.createdAt ? new Date(c.createdAt).toLocaleString() : '—'}
-                             </p>
-                           </div>
-                         </div>
-                       );
-                    })
-                  )}
+                    );
+                  })}
                 </div>
               </div>
             )}
