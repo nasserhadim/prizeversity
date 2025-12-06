@@ -40,20 +40,24 @@ const FeedbackPage = () => {
     try {
       const includeHidden = user && (user.role === 'teacher' || user.role === 'admin') ? '&includeHidden=true' : '';
       const res = await axios.get(`${API_BASE}/api/feedback?page=${nextPage}&perPage=${perPage}${includeHidden}`, { withCredentials: true });
+      // STRICTLY use envelope fields from API
       const data = res.data || {};
-      const items = Array.isArray(data) ? data : (data.feedbacks || []);
+      const items = Array.isArray(data.feedbacks) ? data.feedbacks : [];
       if (append) {
         setFeedbacks(prev => [...prev, ...items]);
       } else {
         setFeedbacks(items);
       }
-      setTotal(typeof data.total === 'number' ? data.total : null);
-      setServerRatingCounts(Array.isArray(data.ratingCounts) ? data.ratingCounts : null);
-      setServerAverage(typeof data.average === 'number' ? data.average : null);
-      const totalCount = typeof data.total === 'number' ? data.total : null;
-      setHasMore(totalCount ? (nextPage * perPage < totalCount) : (items.length === perPage));
+      // Always set server-provided totals/counts/average
+      setTotal(typeof data.total === 'number' ? data.total : 0);
+      setServerRatingCounts(Array.isArray(data.ratingCounts) ? data.ratingCounts : [0,0,0,0,0,0]);
+      setServerAverage(typeof data.average === 'number' ? data.average : 0);
+
+      const totalCount = typeof data.total === 'number' ? data.total : 0;
+      setHasMore(totalCount ? (nextPage * perPage < totalCount) : false);
     } catch (err) {
       console.error('Failed to load site feedback', err);
+      toast.error(err.response?.data?.error || 'Failed to load site feedback');
     }
   };
  
