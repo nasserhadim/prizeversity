@@ -24,14 +24,50 @@ export default function ClassroomPage() {
   const [classrooms, setClassrooms] = useState([]);
   // Search state + derived filtered list
   const [searchClassrooms, setSearchClassrooms] = useState('');
+  // NEW: sorting state
+  const [sortField, setSortField] = useState('createdAt'); // 'createdAt' | 'name' | 'code' | 'joinedAt'
+  const [sortDirection, setSortDirection] = useState('desc'); // 'asc' | 'desc'
+
+  // NEW: map classroomId -> joinedAt for the current user
+  const joinDateMap = useMemo(() => {
+    const map = {};
+    (user?.classroomJoinDates || []).forEach(cjd => {
+      if (cjd?.classroom) map[String(cjd.classroom)] = cjd.joinedAt;
+    });
+    return map;
+  }, [user]);
+
   const filteredClassrooms = useMemo(() => {
     const q = (searchClassrooms || '').trim().toLowerCase();
-    if (!q) return classrooms;
-    return (classrooms || []).filter(c =>
-      (c.name || '').toLowerCase().includes(q) ||
-      (c.code || '').toLowerCase().includes(q)
-    );
-  }, [classrooms, searchClassrooms]);
+    let list = classrooms || [];
+    if (q) {
+      list = list.filter(c =>
+        (c.name || '').toLowerCase().includes(q) ||
+        (c.code || '').toLowerCase().includes(q)
+      );
+    }
+    // NEW: apply sorting
+    const cmp = (a, b) => {
+      let av, bv;
+      if (sortField === 'createdAt') {
+        av = new Date(a.createdAt || 0).getTime();
+        bv = new Date(b.createdAt || 0).getTime();
+      } else if (sortField === 'joinedAt') {
+        av = new Date(joinDateMap[a._id] || 0).getTime();
+        bv = new Date(joinDateMap[b._id] || 0).getTime();
+      } else if (sortField === 'name') {
+        av = (a.name || '').toLowerCase();
+        bv = (b.name || '').toLowerCase();
+      } else {
+        av = (a.code || '').toLowerCase();
+        bv = (b.code || '').toLowerCase();
+      }
+      if (av < bv) return sortDirection === 'asc' ? -1 : 1;
+      if (av > bv) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    };
+    return list.slice().sort(cmp);
+  }, [classrooms, searchClassrooms, sortField, sortDirection, joinDateMap]);
 
   const [classroomName, setClassroomName] = useState('');
   const [classroomCode, setClassroomCode] = useState('');
@@ -295,8 +331,7 @@ export default function ClassroomPage() {
               <div>
                 <h2 className="text-xl font-semibold text-center mb-4">My Classrooms</h2>
 
-                {/* Search bar */}
-                <div className="max-w-md mx-auto mb-4">
+                <div className="max-w-2xl mx-auto mb-4 flex flex-col sm:flex-row gap-2">
                   <input
                     type="search"
                     placeholder="Search by classroom name or code..."
@@ -304,49 +339,66 @@ export default function ClassroomPage() {
                     value={searchClassrooms}
                     onChange={e => setSearchClassrooms(e.target.value)}
                   />
+                  {/* NEW: include Joined in sort options for students */}
+                  <select
+                    className="select select-bordered"
+                    value={sortField}
+                    onChange={e => setSortField(e.target.value)}
+                    title="Sort field"
+                  >
+                    <option value="createdAt">Created</option>
+                    <option value="joinedAt">Joined</option>
+                    <option value="name">Name</option>
+                    <option value="code">Code</option>
+                  </select>
+                  <button
+                    className="btn btn-outline"
+                    title="Toggle sort direction"
+                    onClick={() => setSortDirection(d => (d === 'asc' ? 'desc' : 'asc'))}
+                  >
+                    {sortDirection === 'asc' ? 'Asc' : 'Desc'}
+                  </button>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
-                  {loading ? (
-                    Array.from({ length: 4 }).map((_, i) => (
-                      <div key={i} className="card bg-base-200 shadow">
+                  {filteredClassrooms.map(c => {
+                    const style = {};
+                    let textClass = 'text-black';
+                    if (c.color && c.color.toLowerCase() !== '#ffffff') {
+                      style.backgroundColor = c.color;
+                      textClass = 'text-white';
+                    }
+                    if (c.backgroundImage) {
+                      const imageUrl = resolveBannerSrc(c.backgroundImage);
+                      style.backgroundImage = `url(${imageUrl})`;
+                      style.backgroundSize = 'cover';
+                      style.backgroundPosition = 'center';
+                      textClass = 'text-white';
+                    }
+
+                    const joinedAt = joinDateMap[c._id] ? new Date(joinDateMap[c._id]).toLocaleString() : '—';
+
+                    return (
+                      <div
+                        key={c._id}
+                        className={`card bg-base-100 shadow cursor-pointer hover:shadow-lg transition-shadow ${textClass}`}
+                        style={style}
+                        onClick={() => handleCardClick(c._id)}
+                      >
                         <div className="card-body">
-                          <div className="skeleton h-6 w-1/2 mb-2"></div>
-                          <div className="skeleton h-4 w-1/3"></div>
+                          <h2 className="card-title">{c.name}</h2>
+                          <p className="text-sm opacity-75">Code: {c.code}</p>
+                          {/* NEW: created + joined timestamps */}
+                          <p className="text-xs opacity-60">
+                            Created: {c.createdAt ? new Date(c.createdAt).toLocaleString() : '—'}
+                          </p>
+                          <p className="text-xs opacity-60">
+                            Joined: {joinedAt}
+                          </p>
                         </div>
                       </div>
-                    ))
-                  ) : (
-                    filteredClassrooms.map(c => {
-                       const style = {};
-                       let textClass = 'text-black';
-                       if (c.color && c.color.toLowerCase() !== '#ffffff') {
-                         style.backgroundColor = c.color;
-                         textClass = 'text-white';
-                       }
-                       if (c.backgroundImage) {
-                         const imageUrl = resolveBannerSrc(c.backgroundImage);
-                         style.backgroundImage = `url(${imageUrl})`;
-                         style.backgroundSize = 'cover';
-                         style.backgroundPosition = 'center';
-                         textClass = 'text-white';
-                       }
-
-                       return (
-                         <div
-                           key={c._id}
-                           className={`card bg-base-100 shadow cursor-pointer hover:shadow-lg transition-shadow ${textClass}`}
-                           style={style}
-                           onClick={() => handleCardClick(c._id)}
-                         >
-                           <div className="card-body">
-                             <h2 className="card-title">{c.name}</h2>
-                             <p className="text-sm opacity-75">Code: {c.code}</p>
-                           </div>
-                         </div>
-                       );
-                    })
-                  )}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -491,8 +543,8 @@ export default function ClassroomPage() {
               <div>
                 <h2 className="text-xl font-semibold text-center mb-4">My Classrooms</h2>
 
-                {/* Search bar */}
-                <div className="max-w-md mx-auto mb-4">
+                {/* Search + NEW sort controls */}
+                <div className="max-w-2xl mx-auto mb-4 flex flex-col sm:flex-row gap-2">
                   <input
                     type="search"
                     placeholder="Search by classroom name or code..."
@@ -500,6 +552,23 @@ export default function ClassroomPage() {
                     value={searchClassrooms}
                     onChange={e => setSearchClassrooms(e.target.value)}
                   />
+                  <select
+                    className="select select-bordered"
+                    value={sortField}
+                    onChange={e => setSortField(e.target.value)}
+                    title="Sort field"
+                  >
+                    <option value="createdAt">Created</option>
+                    <option value="name">Name</option>
+                    <option value="code">Code</option>
+                  </select>
+                  <button
+                    className="btn btn-outline"
+                    title="Toggle sort direction"
+                    onClick={() => setSortDirection(d => (d === 'asc' ? 'desc' : 'asc'))}
+                  >
+                    {sortDirection === 'asc' ? 'Asc' : 'Desc'}
+                  </button>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
@@ -542,6 +611,10 @@ export default function ClassroomPage() {
                            <div className="card-body">
                              <h2 className="card-title">{c.name}</h2>
                              <p className="text-sm opacity-75">Code: {c.code}</p>
+                             {/* NEW: created timestamp */}
+                             <p className="text-xs opacity-60">
+                               Created: {c.createdAt ? new Date(c.createdAt).toLocaleString() : '—'}
+                             </p>
                            </div>
                          </div>
                        );
