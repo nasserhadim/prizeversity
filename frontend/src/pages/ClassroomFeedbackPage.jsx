@@ -15,11 +15,12 @@ import RatingDistribution from '../components/RatingDistribution';
 import ExportButtons from '../components/ExportButtons';
 import { exportFeedbacksToCSV, exportFeedbacksToJSON } from '../utils/exportFeedbacks';
 import AverageRating from '../components/AverageRating';
+import { Settings } from 'lucide-react'; // ADD
  
 const ClassroomFeedbackPage = ({ userId }) => {
   const { classroomId } = useParams();
   const { user } = useAuth();
-  const [tab, setTab] = useState('submit'); // 'submit' | 'recent'
+  const [tab, setTab] = useState('recent'); // default to 'recent'
   const [classroom, setClassroom] = useState(null);
   const [rating, setRating] = useState(null);
   const [comment, setComment] = useState("");
@@ -44,6 +45,14 @@ const ClassroomFeedbackPage = ({ userId }) => {
   });
   const [loadingRewardConfig, setLoadingRewardConfig] = useState(false);
   const [savingRewardConfig, setSavingRewardConfig] = useState(false);
+
+  // live non-space character count (used for UI + button disabling)
+  const nonSpaceLength = (comment || '').replace(/\s/g, '').length;
+  const remainingChars = Math.max(0, 50 - nonSpaceLength);
+
+  // --- NEW: server-side rating data ---
+  const [serverRatingCounts, setServerRatingCounts] = useState(null);
+  const [serverAverage, setServerAverage] = useState(null);
 
   useEffect(() => {
     const fetchClass = async () => {
@@ -88,14 +97,21 @@ const ClassroomFeedbackPage = ({ userId }) => {
     try {
       const includeHidden = user && (user.role === 'teacher' || user.role === 'admin') ? '&includeHidden=true' : '';
       const res = await axios.get(`${API_BASE}/api/feedback/classroom/${classroomId}?page=${nextPage}&perPage=${perPage}${includeHidden}`, { withCredentials: true });
+      // STRICTLY use envelope fields from API
       const data = res.data || {};
-      const items = Array.isArray(data) ? data : (data.feedbacks || []);
+      const items = Array.isArray(data.feedbacks) ? data.feedbacks : [];
       if (append) setFeedbacks(prev => [...prev, ...items]); else setFeedbacks(items);
-      setTotal(typeof data.total === 'number' ? data.total : null);
-      const totalCount = typeof data.total === 'number' ? data.total : null;
-      setHasMore(totalCount ? (nextPage * perPage < totalCount) : (items.length === perPage));
+
+      // Always set server-provided totals/counts/average
+      setTotal(typeof data.total === 'number' ? data.total : 0);
+      setServerRatingCounts(Array.isArray(data.ratingCounts) ? data.ratingCounts : [0,0,0,0,0,0]);
+      setServerAverage(typeof data.average === 'number' ? data.average : 0);
+
+      const totalCount = typeof data.total === 'number' ? data.total : 0;
+      setHasMore(totalCount ? (nextPage * perPage < totalCount) : false);
     } catch (err) {
       console.error('Failed to load classroom feedback', err);
+      toast.error(err.response?.data?.error || 'Failed to load classroom feedback');
     }
   };
  
@@ -126,6 +142,13 @@ const ClassroomFeedbackPage = ({ userId }) => {
       toast.error('Please enter a comment before submitting.');
       return;
     }
+    // NEW: enforce minimum 50 non-space characters
+    const nonSpaceLength = (comment || '').replace(/\s/g, '').length;
+    if (nonSpaceLength < 50) {
+      toast.error('Please write at least 50 non-space characters so your feedback is specific and helpful.');
+      return;
+    }
+
     try {
       const payload = {
         rating,
@@ -248,36 +271,98 @@ const ClassroomFeedbackPage = ({ userId }) => {
     .replace(/\s+/g, '_')
     .slice(0, 60);                   // limit length
  
+  // pull ALL classroom feedback before exporting (respects includeHidden for teacher/admin)
+  const fetchAllClassroomFeedbackForExport = async () => {
+    if (!classroomId) return [];
+    const includeHidden = user && (user.role === 'teacher' || user.role === 'admin') ? '&includeHidden=true' : '';
+    const per = 200; // batch size
+    let pageNum = 1;
+    let all = [];
+    while (true) {
+      const res = await axios.get(`${API_BASE}/api/feedback/classroom/${classroomId}?page=${pageNum}&perPage=${per}${includeHidden}`, { withCredentials: true });
+      const data = res.data || {};
+      const items = Array.isArray(data) ? data : (data.feedbacks || []);
+      all = all.concat(items);
+      const totalCount = typeof data.total === 'number' ? data.total : all.length;
+      if (all.length >= totalCount || items.length < per) break;
+      pageNum++;
+    }
+    return all;
+  };
+
   const handleExportClassroomFeedbacks = async () => {
-    const idPart = classroom?.code || classroomId || (classroom?._id) || 'unknown';
-    const namePart = classroom?.name ? sanitize(classroom.name) : '';
-    const baseName = `classroom_feedbacks_${String(idPart).replace(/\s+/g, '_')}${namePart ? `_${namePart}` : ''}`;
-    return exportFeedbacksToCSV(feedbacks || [], baseName);
+    const all = await fetchAllClassroomFeedbackForExport();
+    // Inject classroom meta if missing
+    const withMeta = all.map(f => ({
+      ...f,
+      classroomName: f.classroomName || f.classroom?.name || classroom?.name || '',
+      classroomCode: f.classroomCode || f.classroom?.code || classroom?.code || ''
+    }));
+    const namePart = String(classroom?.name || 'classroom').replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_\-]/g,'');
+    const codePart = classroom?.code ? `_${classroom.code}` : '';
+    const baseName = `classroom_feedbacks_${namePart}${codePart}`;
+    return exportFeedbacksToCSV(withMeta, baseName);
   };
- 
+
   const handleExportClassroomFeedbacksJSON = async () => {
-    const idPart = classroom?.code || classroomId || (classroom?._id) || 'unknown';
-    const namePart = classroom?.name ? sanitize(classroom.name) : '';
-    const baseName = `classroom_feedbacks_${String(idPart).replace(/\s+/g, '_')}${namePart ? `_${namePart}` : ''}`;
-    return exportFeedbacksToJSON(feedbacks || [], baseName);
+    const all = await fetchAllClassroomFeedbackForExport();
+    const withMeta = all.map(f => ({
+      ...f,
+      classroomName: f.classroomName || f.classroom?.name || classroom?.name || '',
+      classroomCode: f.classroomCode || f.classroom?.code || classroom?.code || ''
+    }));
+    const namePart = String(classroom?.name || 'classroom').replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_\-]/g,'');
+    const codePart = classroom?.code ? `_${classroom.code}` : '';
+    const baseName = `classroom_feedbacks_${namePart}${codePart}`;
+    return exportFeedbacksToJSON(withMeta, baseName);
   };
  
+  // NEW: collapsed state for the reward settings (persisted per classroom)
+  const [showRewardSettings, setShowRewardSettings] = useState(() => {
+    try { return localStorage.getItem(`cfp_reward_settings_open_${classroomId}`) === '1'; } catch { return false; }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(`cfp_reward_settings_open_${classroomId}`, showRewardSettings ? '1' : '0');
+    } catch {}
+  }, [showRewardSettings, classroomId]);
+
   return (
     <div className="min-h-screen bg-base-200 flex flex-col justify-between">
       <div className="flex-grow p-4">
         <div className="card w-full max-w-3xl mx-auto shadow-xl bg-base-100 mt-8">
           <div className="card-body">
-            <h2 className="card-title text-primary mb-4">
-              {classroom ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''} Feedback` : 'Classroom Feedback'}
-            </h2>
+            {/* HEADER + gear toggle */}
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <h2 className="card-title text-primary">
+                {classroom ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''} Feedback` : 'Classroom Feedback'}
+              </h2>
+              {user && user.role === 'teacher' && (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm gap-2"
+                  onClick={() => setShowRewardSettings(s => !s)}
+                  title="Feedback reward settings"
+                >
+                  <Settings size={16} />
+                  {showRewardSettings ? 'Hide settings' : 'Show settings'}
+                </button>
+              )}
+            </div>
 
             <AverageRating
               feedbacks={feedbacks}
               user={user}
               yourRatingLocal={Number(localStorage.getItem(`feedback_your_rating_classroom_${classroomId}`)) || null}
+              totalOverride={total}
+              ratingCountsOverride={serverRatingCounts}
+              averageOverride={serverAverage}
             />
-
-            <RatingDistribution feedbacks={feedbacks} />
+            <RatingDistribution
+              feedbacks={feedbacks}
+              ratingCountsOverride={serverRatingCounts}
+              totalOverride={total}
+            />
 
             {/* STUDENT: show reward badge if enabled */}
             {classroom && classroom.feedbackRewardEnabled && (
@@ -301,8 +386,8 @@ const ClassroomFeedbackPage = ({ userId }) => {
               </div>
             )}
 
-            {/* TEACHER: Feedback reward settings */}
-            {user && user.role === 'teacher' && (
+            {/* TEACHER: Feedback reward settings (collapsible) */}
+            {user && user.role === 'teacher' && showRewardSettings && (
               <div className="card bg-base-100 border border-base-200 p-4 mt-4 max-w-3xl mx-auto">
                 <h4 className="font-semibold mb-2">Feedback Reward (₿its)</h4>
                 {loadingRewardConfig ? (
@@ -339,7 +424,6 @@ const ClassroomFeedbackPage = ({ userId }) => {
                           onChange={(e) => setFeedbackRewardConfig(prev => ({ ...prev, feedbackRewardBits: Number(e.target.value || 0) }))}
                         />
                       </div>
-
                       <div>
                         <label className="label"><span className="label-text">Apply group multipliers</span></label>
                         <input
@@ -349,16 +433,16 @@ const ClassroomFeedbackPage = ({ userId }) => {
                           onChange={(e) => setFeedbackRewardConfig(prev => ({ ...prev, feedbackRewardApplyGroupMultipliers: e.target.checked }))}
                         />
                       </div>
+                    </div>
 
-                      <div>
-                        <label className="label"><span className="label-text">Apply personal multipliers</span></label>
-                        <input
-                          type="checkbox"
-                          className="toggle toggle-primary"
-                          checked={feedbackRewardConfig.feedbackRewardApplyPersonalMultipliers}
-                          onChange={(e) => setFeedbackRewardConfig(prev => ({ ...prev, feedbackRewardApplyPersonalMultipliers: e.target.checked }))}
-                        />
-                      </div>
+                    <div>
+                      <label className="label"><span className="label-text">Apply personal multipliers</span></label>
+                      <input
+                        type="checkbox"
+                        className="toggle toggle-primary"
+                        checked={feedbackRewardConfig.feedbackRewardApplyPersonalMultipliers}
+                        onChange={(e) => setFeedbackRewardConfig(prev => ({ ...prev, feedbackRewardApplyPersonalMultipliers: e.target.checked }))}
+                      />
                     </div>
 
                     <div className="flex gap-2 justify-end">
@@ -412,8 +496,18 @@ const ClassroomFeedbackPage = ({ userId }) => {
             {/* tabs follow */}
             {/* Tabs */}
             <div role="tablist" className="tabs tabs-boxed mb-4">
-              <a role="tab" className={`tab ${tab === 'submit' ? 'tab-active' : ''}`} onClick={() => setTab('submit')}>Submit</a>
               <a role="tab" className={`tab ${tab === 'recent' ? 'tab-active' : ''}`} onClick={() => setTab('recent')}>Recent</a>
+              <a role="tab" className={`tab ${tab === 'submit' ? 'tab-active' : ''}`} onClick={() => setTab('submit')}>Submit</a>
+              {/* Moderation tab (teacher/admin only) */}
+              {user && (user.role === 'teacher' || user.role === 'admin') && (
+                <a
+                  role="tab"
+                  className={`tab ${tab === 'moderation' ? 'tab-active' : ''}`}
+                  onClick={() => setTab('moderation')}
+                >
+                  Moderation Log
+                </a>
+              )}
             </div>
  
             {/* Tab panes */}
@@ -438,7 +532,21 @@ const ClassroomFeedbackPage = ({ userId }) => {
  
                   <div>
                     <label className="label"><span className="label-text">Your Comment</span></label>
-                    <textarea className="textarea textarea-bordered w-full" value={comment} onChange={(e)=>setComment(e.target.value)} placeholder="Type your feedback here..." rows={4} />
+                    <textarea
+                      className="textarea textarea-bordered w-full"
+                      value={comment}
+                      onChange={(e)=>setComment(e.target.value)}
+                      placeholder="Type your feedback here..."
+                      rows={4}
+                    />
+                    <div className="flex items-center justify-between text-xs mt-1">
+                      <div className={nonSpaceLength < 50 ? 'text-error' : 'text-success'}>
+                        Non-space chars: {nonSpaceLength} / 50
+                      </div>
+                      <div className="text-base-content/50">
+                        {remainingChars > 0 ? `${remainingChars} to go` : 'Ready'}
+                      </div>
+                    </div>
                   </div>
  
                   <div className="form-control">
@@ -466,9 +574,13 @@ const ClassroomFeedbackPage = ({ userId }) => {
                   onToggleHide={handleToggleHide}
                   onReport={handleReport}
                 />
-                {user && (user.role === 'teacher' || user.role === 'admin') && (
-                  <ModerationLog classroomId={classroomId} />
-                )}
+                {/* Moderation moved to its own tab */}
+              </div>
+            )}
+ 
+            {tab === 'moderation' && user && (user.role === 'teacher' || user.role === 'admin') && (
+              <div>
+                <ModerationLog classroomId={classroomId} />
               </div>
             )}
  

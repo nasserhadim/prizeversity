@@ -493,7 +493,7 @@ const Home = () => {
                     </div>
                     <div>
                       <h4 className="font-semibold">Level</h4>
-                      <p className="text-gray-600 text-sm">Visual representation of overall progress and experience. <span className="text-purple-600 font-medium">(Coming Soon)</span></p>
+                      <p className="text-gray-600 text-sm">Visual representation of overall progress and experience. <span className="text-purple-600 font-medium"></span></p>
                     </div>
                   </div>
                   

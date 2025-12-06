@@ -66,9 +66,12 @@ router.get('/student/:id', ensureAuthenticated, async (req, res) => {
       }
     }
 
-    const attackCount = (items || []).filter((item) =>
-      ['halveBits', 'stealBits'].includes(item.primaryEffect)
-    ).length;
+    const attackEffects = ['halveBits', 'drainBits', 'swapper', 'nullify'];
+    const attackCount = (items || []).filter((item) => {
+      const effect = item.primaryEffect || item.effect;
+      const hasUses = (item.usesRemaining ?? 1) > 0 && !item.consumed;
+      return hasUses && item.category === 'Attack' && attackEffects.includes(effect);
+    }).length;
 
     const passiveItems = (items || []).filter((item) => item.category === 'Passive');
 

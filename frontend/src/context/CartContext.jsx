@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
 const CartContext = createContext();
 
@@ -47,6 +48,9 @@ export const CartProvider = ({ children }) => {
     // attach a small stable entry id per cart entry so duplicate product ids don't collide as React keys
     const entry = { ...item, _entryId: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}` };
     setCarts(prev => ({ ...prev, [id]: [...(prev[id] || []), entry] }));
+    // NEW: toast feedback
+    const name = item?.name ? `"${item.name}"` : 'item';
+    toast.success(`Item ${name} added to cart!`);
   };
 
   // remove by index (component should pass index) for predictable behaviour
@@ -70,6 +74,16 @@ export const CartProvider = ({ children }) => {
     });
   };
 
+  // NEW: clear all carts (useful on account deletion / logout)
+  const clearAllCarts = () => {
+    try {
+      setCarts({});
+      localStorage.removeItem('pv:carts');
+    } catch (e) {
+      console.error('Failed to clear all carts', e);
+    }
+  };
+
   const context = {
     // classroom-aware helpers
     getCart,         // function: getCart(classroomId?)
@@ -79,6 +93,7 @@ export const CartProvider = ({ children }) => {
     addToCart,       // function: addToCart(item, classroomId?)
     removeFromCart,  // function: removeFromCart(index, classroomId?)
     clearCart,       // function: clearCart(classroomId?)
+    clearAllCarts,   // NEW: clear all carts across classrooms
     // raw state if needed
     _allCarts: carts
   };

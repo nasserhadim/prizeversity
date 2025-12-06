@@ -55,48 +55,63 @@ const Wallet = () => {
       throw new Error('No transactions to export');
     }
     
-    const csvHeaders = ['Date', 'Amount', 'Description', 'Type', 'Role'];
+    // Include User ID and Classroom Name/Code next to their IDs
+    const csvHeaders = ['User','User ID','Transaction ID','Classroom ID','Classroom Name','Classroom Code','Date','Amount','Description','Type','Role'];
     const csvRows = filteredTx.map(tx => {
-      const isSiphon = tx.description?.toLowerCase().includes('siphon') || 
-                      tx.type === 'siphon' ||
-                      (tx.description?.includes('transferred from') && tx.description?.includes('group'));
-      
-      // For siphon transactions, we can extract the source from the description
-      let assignerInfo = 'System';
-      let assignerRole = 'system';
-      
-      if (!isSiphon && tx.assignedBy) {
-        assignerInfo = `${tx.assignedBy.firstName || ''} ${tx.assignedBy.lastName || ''}`.trim() || tx.assignedBy.email;
-        assignerRole = tx.assignedBy.role || 'unknown';
-      } else if (isSiphon) {
-        // For siphon transactions, we can extract info from description if available
-        assignerInfo = 'Siphon System';
-        assignerRole = 'siphon';
-      }
-      
+      const isSiphon =
+        tx.description?.toLowerCase().includes('siphon') ||
+        tx.type === 'siphon' ||
+        (tx.description?.includes('transferred from') && tx.description?.includes('group'));
+
+      const ownerName =
+        tx.studentName ||
+        (tx.studentEmail ? tx.studentEmail : null) ||
+        ((user?.firstName || user?.lastName)
+          ? `${user.firstName || ''} ${user.lastName || ''}`.trim()
+          : (user?.email || 'Unknown'));
+
+      // NEW: ownerId for CSV
+      const ownerId = tx.studentId || user?._id || '';
+
+      let assignerRole = 'unknown';
+      if (isSiphon) assignerRole = 'siphon';
+      else if (tx.assignedBy?.role) assignerRole = tx.assignedBy.role;
+
+      // IDs and classroom label data
+      const txnId = tx._id || '';
+      const classroomObj = (tx.classroom && typeof tx.classroom === 'object') ? tx.classroom : null;
+      const classroomIdVal = classroomObj ? (classroomObj._id || classroomObj.id || '') : (tx.classroom || '');
+      const classroomNameVal = classroomObj?.name || classroom?.name || '';
+      const classroomCodeVal = classroomObj?.code || classroom?.code || '';
+
       return [
-        new Date(tx.createdAt).toLocaleString(),
+        ownerName,
+        ownerId,
+        txnId,
+        classroomIdVal,
+        classroomNameVal,
+        classroomCodeVal,
+        new Date(tx.createdAt || tx.date).toLocaleString(),
         tx.amount,
         tx.description || '',
-        isSiphon ? 'siphon' : 'adjustment',
+        isSiphon ? 'siphon' : (tx.type || 'adjustment'),
         assignerRole
-      ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(',');
+      ].map(field => `"${String(field ?? '').replace(/"/g, '""')}"`).join(',');
     });
-    
+
     const csvContent = [csvHeaders.join(','), ...csvRows].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    
-    // Include classroom code in filename
+
     const classroomName = classroom?.name || 'wallet';
     const classroomCode = classroom?.code || '';
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = classroomCode 
       ? `${classroomName}_${classroomCode}_transactions_${timestamp}.csv`
       : `${classroomName}_transactions_${timestamp}.csv`;
-    
+
     a.download = filename;
     document.body.appendChild(a);
     a.click();
@@ -109,12 +124,22 @@ const Wallet = () => {
     if (!filteredTx.length) {
       throw new Error('No transactions to export');
     }
-    
+
     const data = filteredTx.map(tx => {
-      const isSiphon = tx.description?.toLowerCase().includes('siphon') || 
-                      tx.type === 'siphon' ||
-                      (tx.description?.includes('transferred from') && tx.description?.includes('group'));
-      
+      const isSiphon =
+        tx.description?.toLowerCase().includes('siphon') ||
+        tx.type === 'siphon' ||
+        (tx.description?.includes('transferred from') && tx.description?.includes('group'));
+
+      const ownerName =
+        tx.studentName ||
+        (tx.studentEmail ? tx.studentEmail : null) ||
+        ((user?.firstName || user?.lastName)
+          ? `${user.firstName || ''} ${user.lastName || ''}`.trim()
+          : (user?.email || 'Unknown'));
+      const ownerEmail = tx.studentEmail || user?.email || null;
+      const ownerId = tx.studentId || user?._id || null;
+
       let assignerInfo = null;
       if (!isSiphon && tx.assignedBy) {
         assignerInfo = {
@@ -124,38 +149,45 @@ const Wallet = () => {
           role: tx.assignedBy.role
         };
       } else if (isSiphon) {
-        assignerInfo = {
-          _id: null,
-          name: 'Siphon System',
-          email: null,
-          role: 'siphon'
-        };
+        assignerInfo = { _id: null, name: 'Siphon System', email: null, role: 'siphon' };
       }
-      
+
+      const classroomObj = (tx.classroom && typeof tx.classroom === 'object') ? tx.classroom : null;
+      const classroomIdVal = classroomObj ? (classroomObj._id || classroomObj.id || null) : (tx.classroom ?? null);
+      const classroomNameVal = classroomObj?.name || classroom?.name || null;
+      const classroomCodeVal = classroomObj?.code || classroom?.code || null;
+
       return {
-        _id: tx._id,
-        date: tx.createdAt,
+        _id: tx._id, // Transaction ID
+        userId: ownerId, // NEW: flat userId next to user object
+        user: {
+          _id: ownerId,
+          name: ownerName,
+          email: ownerEmail
+        },
+        date: tx.createdAt || tx.date || null,
         amount: tx.amount,
         description: tx.description,
         assignedBy: assignerInfo,
-        classroom: tx.classroom,
-        type: isSiphon ? 'siphon' : 'adjustment'
+        classroom: classroomIdVal,          // Classroom ID
+        classroomName: classroomNameVal,    // NEW
+        classroomCode: classroomCodeVal,    // NEW
+        type: isSiphon ? 'siphon' : (tx.type || 'adjustment')
       };
     });
-    
+
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    
-    // Include classroom code in filename
+
     const classroomName = classroom?.name || 'wallet';
     const classroomCode = classroom?.code || '';
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = classroomCode 
       ? `${classroomName}_${classroomCode}_transactions_${timestamp}.json`
       : `${classroomName}_transactions_${timestamp}.json`;
-    
+
     a.download = filename;
     document.body.appendChild(a);
     a.click();
@@ -562,7 +594,15 @@ useEffect(() => {
       // `assignedBy` is populated by backend for the student's own transactions route:
       // see router.get('/transactions') in backend/routes/wallet.js
       const assignerRole = (t.assignedBy && t.assignedBy.role) ? String(t.assignedBy.role).toLowerCase() : '';
+
+      // Exclude teacher/admin adjustments
       if (assignerRole === 'teacher' || assignerRole === 'admin') {
+        return sum;
+      }
+
+      // Exclude attacks and siphons from "spent"
+      const tType = String(t?.type || t?.metadata?.type || '').toLowerCase();
+      if (tType === 'attack' || tType === 'siphon') {
         return sum;
       }
 

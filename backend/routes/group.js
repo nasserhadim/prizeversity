@@ -3,12 +3,26 @@ const GroupSet = require('../models/GroupSet');
 const Group = require('../models/Group');
 const Notification = require('../models/Notification');
 const Classroom = require('../models/Classroom');
+const User = require('../models/User'); // <-- ensure User is available for post-award logging
 const { ensureAuthenticated } = require('../config/auth');
 const blockIfFrozen = require('../middleware/blockIfFrozen');
 const router = express.Router();
 const io = require('socket.io')();
 const { populateNotification } = require('../utils/notifications');
 const upload = require('../middleware/upload'); // ADD: reuse existing upload middleware
+const { awardXP } = require('../utils/awardXP'); // <-- ADD THIS IMPORT
+const { logStatChanges } = require('../utils/statChangeLog'); // NEW: log xp deltas as stats_adjusted
+
+// Helper: format a descriptive effectsText for group-join XP so logs/notifications show GroupSet + Group names
+function formatGroupJoinEffects({ groupSetObj, groupObj, xpAmount }) {
+  const parts = [];
+  if (groupSetObj && groupSetObj.name) parts.push(`GroupSet: ${groupSetObj.name}`);
+  if (groupObj && groupObj.name) parts.push(`Group: ${groupObj.name}`);
+  const meta = parts.length ? parts.join(' / ') : null;
+  if (meta && xpAmount) return `${meta} — ${xpAmount} XP`;
+  if (meta) return meta;
+  return xpAmount ? `${xpAmount} XP` : undefined;
+}
 
 // Create GroupSet
 router.post('/groupset/create', ensureAuthenticated, upload.single('image'), async (req, res) => {
@@ -380,6 +394,54 @@ router.post('/groupset/:groupSetId/group/:groupId/join', ensureAuthenticated, as
     // Update group multiplier after member joins
     await group.updateMultiplier();
 
+    // --- FIX: remove unconditional award; award only when not previously awarded in this GroupSet ---
+    groupSet.joinXPAwarded = Array.isArray(groupSet.joinXPAwarded) ? groupSet.joinXPAwarded : [];
+
+    if (status === 'approved') {
+      const classroom = await Classroom.findById(groupSet.classroom).select('xpSettings');
+      if (classroom?.xpSettings?.enabled && (classroom.xpSettings.groupJoin || 0) > 0) {
+        const already = groupSet.joinXPAwarded.some(id => String(id) === String(req.user._id));
+        if (!already) {
+          try {
+            const xpRes = await awardXP(
+              req.user._id,
+              groupSet.classroom,
+              classroom.xpSettings.groupJoin,
+              'group join',
+              classroom.xpSettings
+            );
+            if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+              try {
+                await logStatChanges({
+                  io: req.app && req.app.get ? req.app.get('io') : null,
+                  classroomId: groupSet.classroom,
+                  user: req.user,
+                  actionBy: req.user._id,
+                  prevStats: { xp: xpRes.oldXP },
+                  currStats: { xp: xpRes.newXP },
+                  context: 'group join',
+                  details: {
+                    effectsText: formatGroupJoinEffects({
+                      groupSetObj: groupSet,
+                      groupObj: group,
+                      xpAmount: classroom.xpSettings?.groupJoin
+                    })
+                  },
+                  forceLog: true
+                });
+              } catch (logErr) {
+                console.warn('[group] failed to log XP stat change (join):', logErr);
+              }
+            }
+          } catch (xpErr) {
+            console.warn('[group] awardXP failed (join):', xpErr);
+          }
+           groupSet.joinXPAwarded.push(req.user._id);
+           await groupSet.save();
+         }
+       }
+     }
+
     const populatedGroup = await Group.findById(group._id)
       .populate('members._id', 'email isFrozen firstName lastName classroomFrozen avatar profileImage');
 
@@ -566,6 +628,9 @@ router.post('/groupset/:groupSetId/group/:groupId/add-members', ensureAuthentica
       return res.status(400).json({ error: errors.join(' ') });
     }
 
+    // prepare ledger
+    groupSet.joinXPAwarded = Array.isArray(groupSet.joinXPAwarded) ? groupSet.joinXPAwarded : [];
+    let gsDirty = false;
     // --- Add Members ---
     for (const memberId of membersToAdd) {
       group.members.push({
@@ -585,7 +650,49 @@ router.post('/groupset/:groupSetId/group/:groupId/add-members', ensureAuthentica
       });
       const populatedNotification = await populateNotification(notification._id);
       req.app.get('io').to(`user-${memberId}`).emit('notification', populatedNotification);
-    }
+
+      // --- ADD: one-time per GroupSet award ---
+      const cls = await Classroom.findById(groupSet.classroom).select('xpSettings');
+      if (cls?.xpSettings?.enabled && (cls.xpSettings.groupJoin || 0) > 0) {
+        const already = groupSet.joinXPAwarded.some(id => String(id) === String(memberId));
+        if (!already) {
+          try {
+            const xpRes = await awardXP(memberId, groupSet.classroom, cls.xpSettings.groupJoin, 'group join', cls.xpSettings);
+            if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+              try {
+                const targetUser = await User.findById(memberId);
+                if (targetUser) {
+                  await logStatChanges({
+                    io: req.app && req.app.get ? req.app.get('io') : null,
+                    classroomId: groupSet.classroom,
+                    user: targetUser,
+                    actionBy: req.user ? req.user._id : undefined,
+                    prevStats: { xp: xpRes.oldXP },
+                    currStats: { xp: xpRes.newXP },
+                    context: 'group join',
+                    details: {
+                      effectsText: formatGroupJoinEffects({
+                        groupSetObj: groupSet,
+                        groupObj: group,
+                        xpAmount: cls.xpSettings?.groupJoin
+                      })
+                    },
+                    forceLog: true
+                  });
+                }
+              } catch (logErr) {
+                console.warn('[group] failed to log XP stat change (add-members):', logErr);
+              }
+            }
+          } catch (xpErr) {
+            console.warn('[group] awardXP failed (add-members):', xpErr);
+          }
+           groupSet.joinXPAwarded.push(memberId);
+           gsDirty = true;
+         }
+       }
+     }
+    if (gsDirty) await groupSet.save();
 
     await group.updateMultiplier();
     await group.save();
@@ -843,6 +950,53 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
       const populatedNotification = await populateNotification(notification._id);
       req.app.get('io').to(`user-${memberId}`).emit('notification', populatedNotification);
     }
+
+    // --- ADD: one-time per GroupSet award ---
+    const classroom = await Classroom.findById(groupSet.classroom).select('xpSettings');
+    groupSet.joinXPAwarded = Array.isArray(groupSet.joinXPAwarded) ? groupSet.joinXPAwarded : [];
+    let gsDirty = false;
+
+    if (classroom?.xpSettings?.enabled && (classroom.xpSettings.groupJoin || 0) > 0) {
+      for (const memberId of approved) {
+        const already = groupSet.joinXPAwarded.some(id => String(id) === String(memberId));
+        if (!already) {
+          try {
+            const xpRes = await awardXP(memberId, groupSet.classroom, classroom.xpSettings.groupJoin, 'group join', classroom.xpSettings);
+            if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+              try {
+                const targetUser = await User.findById(memberId);
+                if (targetUser) {
+                  await logStatChanges({
+                    io: req.app && req.app.get ? req.app.get('io') : null,
+                    classroomId: groupSet.classroom,
+                    user: targetUser,
+                    actionBy: req.user ? req.user._id : undefined,
+                    prevStats: { xp: xpRes.oldXP },
+                    currStats: { xp: xpRes.newXP },
+                    context: 'group join',
+                    details: {
+                      effectsText: formatGroupJoinEffects({
+                        groupSetObj: groupSet,
+                        groupObj: group,
+                        xpAmount: classroom.xpSettings?.groupJoin
+                      })
+                    },
+                    forceLog: true
+                  });
+                }
+              } catch (logErr) {
+                console.warn('[group] failed to log XP stat change (approve):', logErr);
+              }
+            }
+          } catch (xpErr) {
+            console.warn('[group] awardXP failed (approve):', xpErr);
+          }
+           groupSet.joinXPAwarded.push(memberId);
+           gsDirty = true;
+         }
+       }
+     }
+    if (gsDirty) await groupSet.save();
 
     // After successful member status change
     const populatedGroup = await Group.findById(group._id)
@@ -1262,6 +1416,53 @@ router.post('/groupset/:groupSetId/group/:groupId/approve', ensureAuthenticated,
       const populatedNotification = await populateNotification(notification._id);
       req.app.get('io').to(`user-${memberId}`).emit('notification', populatedNotification);
     }
+
+    // --- ADD: one-time per GroupSet award ---
+    const classroom = await Classroom.findById(groupSet.classroom).select('xpSettings');
+    groupSet.joinXPAwarded = Array.isArray(groupSet.joinXPAwarded) ? groupSet.joinXPAwarded : [];
+    let gsDirty = false;
+
+    if (classroom?.xpSettings?.enabled && (classroom.xpSettings.groupJoin || 0) > 0) {
+      for (const memberId of approved) {
+        const already = groupSet.joinXPAwarded.some(id => String(id) === String(memberId));
+        if (!already) {
+          try {
+            const xpRes = await awardXP(memberId, groupSet.classroom, classroom.xpSettings.groupJoin, 'group join', classroom.xpSettings);
+            if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+              try {
+                const targetUser = await User.findById(memberId);
+                if (targetUser) {
+                  await logStatChanges({
+                    io: req.app && req.app.get ? req.app.get('io') : null,
+                    classroomId: groupSet.classroom,
+                    user: targetUser,
+                    actionBy: req.user ? req.user._id : undefined,
+                    prevStats: { xp: xpRes.oldXP },
+                    currStats: { xp: xpRes.newXP },
+                    context: 'group join',
+                    details: {
+                      effectsText: formatGroupJoinEffects({
+                        groupSetObj: groupSet,
+                        groupObj: group,
+                        xpAmount: classroom.xpSettings?.groupJoin
+                      })
+                    },
+                    forceLog: true
+                  });
+                }
+              } catch (logErr) {
+                console.warn('[group] failed to log XP stat change (approve):', logErr);
+              }
+            }
+          } catch (xpErr) {
+            console.warn('[group] awardXP failed (approve):', xpErr);
+          }
+           groupSet.joinXPAwarded.push(memberId);
+           gsDirty = true;
+         }
+       }
+     }
+    if (gsDirty) await groupSet.save();
 
     // After successful member status change
     const populatedGroup = await Group.findById(group._id)

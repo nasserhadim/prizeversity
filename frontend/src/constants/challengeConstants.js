@@ -9,7 +9,7 @@ export const CHALLENGE_NAMES = [
 ];
 
 export const DEFAULT_CHALLENGE_CONFIG = {
-  title: 'Cyber Challenge Series - Fall Semester',
+  title: 'Cyber Challenge Series',
   rewardMode: 'individual',
   challengeBits: [50, 75, 100, 125, 150, 175, 200],
   totalRewardBits: 775,
@@ -29,6 +29,8 @@ export const DEFAULT_CHALLENGE_CONFIG = {
   challengeHints: [[], [], [], [], [], [], []],
   hintPenaltyPercent: 25,
   maxHintsPerChallenge: 2,
+  // NEW: per-challenge visibility (true = visible)
+  challengeVisibility: [true, true, true, true, true, true, true],
   dueDateEnabled: false,
   dueDate: '',
 };

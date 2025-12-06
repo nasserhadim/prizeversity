@@ -53,7 +53,7 @@ const ChallengeSchema = new mongoose.Schema({
   classroomId: { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom', required: true },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   title: { type: String, default: 'Cyber Challenge Series' },
-  description: { type: String, default: 'Complete all challenges to earn maximum bits!' },
+  description: { type: String, default: 'Defy the odds and conquer the challenges!' },
   isActive: { type: Boolean, default: false },
   isConfigured: { type: Boolean, default: false },
   isVisible: { type: Boolean, default: true },
@@ -90,7 +90,10 @@ const ChallengeSchema = new mongoose.Schema({
     challengeHints: [{ type: [String], default: [] }],
     hintPenaltyPercent: { type: Number, default: 25, min: 0, max: 100 },
     maxHintsPerChallenge: { type: Number, default: 2, min: 0, max: 10 },
-    
+
+    // NEW: per-challenge visibility (true = visible to students)
+    challengeVisibility: [{ type: Boolean, default: true }],
+
     dueDateEnabled: { type: Boolean, default: false },
     dueDate: { type: Date, default: null },
 

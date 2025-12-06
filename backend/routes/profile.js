@@ -111,7 +111,7 @@ router.get('/student/:id/stats', ensureAuthenticated, async (req, res) => {
       items.some((item) => item.effect === effectName);
 
     const attackCount = items.filter((item) =>
-      ['halveBits', 'stealBits'].includes(item.effect)
+      ['halveBits', 'drainBits'].includes(item.effect)
     ).length;
 
     return res.json({

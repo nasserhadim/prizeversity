@@ -126,7 +126,7 @@ const Terms = () => {
       content: [
         "**Educational Privacy:**",
         "• We comply with FERPA and COPPA by acting as a service provider to educational institutions.",
-        "• We rely on the school/teacher to obtain parental consent for students to use the platform.",
+        "• Depending on the age of the student, the school/teacher may be responsible for obtaining parental consent for students to use the platform.",
         "• Parents/guardians should direct any requests for access to or correction of student data to their educational institution.",
         "",
         "**Data Collection:**",

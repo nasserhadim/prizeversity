@@ -16,7 +16,7 @@ import AverageRating from '../components/AverageRating';
  
 const FeedbackPage = () => {
   const { user } = useAuth();
-  const [tab, setTab] = useState('submit');
+  const [tab, setTab] = useState('recent');
   const [rating, setRating] = useState(null);
   const [comment, setComment] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -30,24 +30,34 @@ const FeedbackPage = () => {
   const [reportingId, setReportingId] = useState(null);
   const [reportReason, setReportReason] = useState('');
   const [reporterEmail, setReporterEmail] = useState('');
+  const [serverRatingCounts, setServerRatingCounts] = useState(null);
+  const [serverAverage, setServerAverage] = useState(null);
+  // live non-space character count (used for UI + button disabling)
+  const nonSpaceLength = (comment || '').replace(/\s/g, '').length;
+  const remainingChars = Math.max(0, 50 - nonSpaceLength);
  
   const fetchSiteFeedback = async (nextPage = 1, append = false) => {
     try {
       const includeHidden = user && (user.role === 'teacher' || user.role === 'admin') ? '&includeHidden=true' : '';
       const res = await axios.get(`${API_BASE}/api/feedback?page=${nextPage}&perPage=${perPage}${includeHidden}`, { withCredentials: true });
+      // STRICTLY use envelope fields from API
       const data = res.data || {};
-      const items = Array.isArray(data) ? data : (data.feedbacks || []);
+      const items = Array.isArray(data.feedbacks) ? data.feedbacks : [];
       if (append) {
         setFeedbacks(prev => [...prev, ...items]);
       } else {
         setFeedbacks(items);
       }
-      setTotal(typeof data.total === 'number' ? data.total : null);
-      // prefer total if provided
-      const totalCount = typeof data.total === 'number' ? data.total : null;
-      setHasMore(totalCount ? (nextPage * perPage < totalCount) : (items.length === perPage));
+      // Always set server-provided totals/counts/average
+      setTotal(typeof data.total === 'number' ? data.total : 0);
+      setServerRatingCounts(Array.isArray(data.ratingCounts) ? data.ratingCounts : [0,0,0,0,0,0]);
+      setServerAverage(typeof data.average === 'number' ? data.average : 0);
+
+      const totalCount = typeof data.total === 'number' ? data.total : 0;
+      setHasMore(totalCount ? (nextPage * perPage < totalCount) : false);
     } catch (err) {
       console.error('Failed to load site feedback', err);
+      toast.error(err.response?.data?.error || 'Failed to load site feedback');
     }
   };
  
@@ -75,6 +85,13 @@ const FeedbackPage = () => {
       toast.error("Please select a star rating before submitting.");
       return;
     }
+    // NEW: enforce minimum 50 non-space characters
+    const nonSpaceLength = (comment || '').replace(/\s/g, '').length;
+    if (nonSpaceLength < 50) {
+      toast.error('Please write at least 50 non-space characters so we can understand your feedback.');
+      return;
+    }
+
     try {
       await axios.post(`${API_BASE}/api/feedback`, {
         rating,
@@ -166,14 +183,34 @@ const FeedbackPage = () => {
     );
   };
 
+  // pull ALL site feedback before exporting (respects includeHidden for admin/teacher)
+  const fetchAllSiteFeedbackForExport = async () => {
+    const includeHidden = user && (user.role === 'teacher' || user.role === 'admin') ? '&includeHidden=true' : '';
+    const per = 200; // batch size
+    let pageNum = 1;
+    let all = [];
+    while (true) {
+      const res = await axios.get(`${API_BASE}/api/feedback?page=${pageNum}&perPage=${per}${includeHidden}`, { withCredentials: true });
+      const data = res.data || {};
+      const items = Array.isArray(data) ? data : (data.feedbacks || []);
+      all = all.concat(items);
+      const totalCount = typeof data.total === 'number' ? data.total : all.length;
+      if (all.length >= totalCount || items.length < per) break;
+      pageNum++;
+    }
+    return all;
+  };
+
   const handleExportFeedbacks = async () => {
+    const all = await fetchAllSiteFeedbackForExport();
     const base = user ? `${(user.firstName || '')}_${(user.lastName || '')}_feedbacks`.replace(/\s+/g, '_') : 'site_feedbacks';
-    return exportFeedbacksToCSV(feedbacks || [], base);
+    return exportFeedbacksToCSV(all, base);
   };
 
   const handleExportFeedbacksJSON = async () => {
+    const all = await fetchAllSiteFeedbackForExport();
     const base = user ? `${(user.firstName || '')}_${(user.lastName || '')}_feedbacks`.replace(/\s+/g, '_') : 'site_feedbacks';
-    return exportFeedbacksToJSON(feedbacks || [], base);
+    return exportFeedbacksToJSON(all, base);
   };
 
   return (
@@ -187,10 +224,15 @@ const FeedbackPage = () => {
               feedbacks={feedbacks}
               user={user}
               yourRatingLocal={Number(localStorage.getItem('feedback_your_rating_site')) || null}
+              totalOverride={total}
+              ratingCountsOverride={serverRatingCounts}
+              averageOverride={serverAverage}
             />
-
-            {/* shared distribution component (centralized) */}
-            <RatingDistribution feedbacks={feedbacks} />
+            <RatingDistribution
+              feedbacks={feedbacks}
+              ratingCountsOverride={serverRatingCounts}
+              totalOverride={total}
+            />
 
             {/* Export buttons (CSV) */}
             <div className="flex items-center mb-4">
@@ -206,8 +248,8 @@ const FeedbackPage = () => {
 
             {/* Tabs */}
             <div role="tablist" className="tabs tabs-boxed mb-4">
-              <a role="tab" className={`tab ${tab === 'submit' ? 'tab-active' : ''}`} onClick={() => setTab('submit')}>Submit</a>
               <a role="tab" className={`tab ${tab === 'recent' ? 'tab-active' : ''}`} onClick={() => setTab('recent')}>Recent</a>
+              <a role="tab" className={`tab ${tab === 'submit' ? 'tab-active' : ''}`} onClick={() => setTab('submit')}>Submit</a>
             </div>
 
             {/* Tab panes */}
@@ -253,6 +295,14 @@ const FeedbackPage = () => {
                         placeholder="Type your feedback here..."
                         rows={4}
                       />
+                      <div className="flex items-center justify-between text-xs mt-1">
+                        <div className={nonSpaceLength < 50 ? 'text-error' : 'text-success'}>
+                          Non-space chars: {nonSpaceLength} / 50
+                        </div>
+                        <div className="text-base-content/50">
+                          {remainingChars > 0 ? `${remainingChars} to go` : 'Ready'}
+                        </div>
+                      </div>
                     </div>
 
                     {user && (

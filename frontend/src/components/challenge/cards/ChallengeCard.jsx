@@ -20,12 +20,37 @@ const ChallengeCard = ({
   fetchChallengeData,
   classroomId,
   onHintUnlocked,
-  children
+  children,
+  isTeacher // NEW prop
 }) => {
+  // initialize colors early (used by the visibility placeholder)
+  const colors = getChallengeColors(challengeIndex, isDark);
+  
+  // If this particular challenge is hidden and viewer is not teacher, don't render the card
+  const perChallengeVisible = challengeData?.settings?.challengeVisibility?.[challengeIndex];
+  if (!isTeacher && perChallengeVisible === false) {
+    // Render a visible-but-disabled placeholder so students see ordering but cannot access content
+    return (
+      <div className={`collapse collapse-arrow ${colors.cardBg} opacity-70`}>
+        <input type="checkbox" defaultChecked={false} className="peer" />
+        <div className="collapse-title flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className={`badge badge-sm ${isDark ? 'badge-ghost' : 'badge-ghost'}`}>{`Ch ${challengeIndex + 1}`}</div>
+            <div className={`text-base font-medium ${colors.textColor}`}>{challengeName}</div>
+          </div>
+          <div className={`text-sm ${isDark ? 'text-base-content/70' : 'text-gray-500'}`}>Hidden / Maintenance</div>
+        </div>
+        <div className={`collapse-content p-4 bg-base-100 text-sm ${isDark ? 'text-base-content/70' : 'text-gray-600'}`}>
+          <p className={`font-semibold mb-1 ${isDark ? 'text-base-content' : ''}`}>This challenge is temporarily unavailable</p>
+          <p className="text-xs">The challenge is currently hidden and is inaccessible at this time.</p>
+        </div>
+      </div>
+    );
+  }
+  
   const [showStartModal, setShowStartModal] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState(null);
   
-  const colors = getChallengeColors(challengeIndex, isDark);
   const isCompleted = userChallenge?.completedChallenges?.[challengeIndex] || false;
   const isChallengeStarted = (userChallenge?.currentChallenge !== undefined && userChallenge?.currentChallenge === challengeIndex) || isCompleted;
   

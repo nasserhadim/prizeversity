@@ -5,11 +5,13 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 import Footer from '../components/Footer';
+import { useCart } from '../context/CartContext'; // <- ADD
 
 const Settings = () => {
     const { theme, toggleTheme } = useContext(ThemeContext);
     const { user, logout } = useContext(AuthContext);
     const navigate = useNavigate();
+    const { clearAllCarts } = useCart(); // <- ADD
 
     const handleDeleteAccount = async () => {
 
@@ -33,7 +35,7 @@ const Settings = () => {
         // ask via toast instead of window.confirm
         toast((t) => (
             <div className="space-y-2">
-                <p>Are you sure you want to permanently delete your account?</p>
+                <p>Are you sure you want to permanently delete your account? <br /> All data (such as your classroom data including stats accumulation, wallet balance, cart contents, bazaar item purchases, etc.) will be lost and cannot be undone!</p>
                 <div className="flex justify-end space-x-2">
                     <button
                         className="btn btn-error btn-sm"
@@ -41,6 +43,9 @@ const Settings = () => {
                             toast.dismiss(t.id);
                             try {
                                 await axios.delete(`/api/users/${user._id}`);
+                                // Ensure client-side cart state is wiped to avoid resurrecting old carts
+                                try { clearAllCarts(); } catch (e) { /* ignore */ }
+
                                 toast.success('Account deleted successfully');
                                 logout();
                                 navigate('/');
@@ -53,7 +58,8 @@ const Settings = () => {
                         Yes, delete
                     </button>
                     <button
-                        className="btn btn-outline btn-sm"
+                        className="btn btn-ghost btn-sm text-white"
+                        style={{ borderColor: 'rgba(255,255,255,0.08)' }}
                         onClick={() => toast.dismiss(t.id)}
                     >
                         Cancel

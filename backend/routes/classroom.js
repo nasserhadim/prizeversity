@@ -9,6 +9,8 @@ const User = require('../models/User');
 const { ensureAuthenticated } = require('../config/auth');
 const blockIfFrozen = require('../middleware/blockIfFrozen');
 const { populateNotification } = require('../utils/notifications');
+const { logStatChanges } = require('../utils/statChangeLog'); // NEW: used for daily check-in + other stat logs
+const { awardXP } = require('../utils/awardXP');
 
 const router = express.Router();
 
@@ -684,14 +686,14 @@ router.get('/:id/students', ensureAuthenticated, async (req, res) => {
       allUsers.map(async (person) => {
         const user = await User.findById(person._id).select('classroomBalances classroomJoinDates');
         const classroomBalance = user.classroomBalances.find(cb => cb.classroom.toString() === req.params.id);
-        
-        // Try to find classroom-specific join date, fall back to account creation date
         const classroomJoinDate = user.classroomJoinDates?.find(cjd => cjd.classroom.toString() === req.params.id);
-        
+
         return {
           ...person.toObject(),
           balance: classroomBalance ? classroomBalance.balance : 0,
-          joinedAt: classroomJoinDate?.joinedAt || person.createdAt
+          joinedAt: classroomJoinDate?.joinedAt || person.createdAt,
+          // NEW: expose lastAccessed
+          lastAccessed: classroomJoinDate?.lastAccessed || null,
         };
       })
     );
@@ -766,7 +768,8 @@ router.delete('/:id/students/:studentId', ensureAuthenticated, async (req, res) 
     const populated = await populateNotification(notification._id);
     req.app.get('io').to(`user-${req.params.studentId}`).emit('notification', populated);
     req.app.get('io').to(`user-${req.params.studentId}`).emit('classroom_removal', {
-      classroomId: classroom._id.toString(), // Convert to string
+      classroomId: classroom._id.toString(),
+      userId: req.params.studentId, // add target user id
       message: `You have been removed from classroom "${classroom.name}"`
     });
 
@@ -1064,7 +1067,7 @@ router.patch('/:id/feedback-reward', ensureAuthenticated, async (req, res) => {
 router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, res) => {
   try {
     const { classId, userId } = req.params;
-    const { multiplier, luck, discount } = req.body; // discount = percent (e.g. 20) or 0/null to clear
+    const { multiplier, luck, discount, xp, shield } = req.body; // xp is absolute desired XP; shield = shield count (integer)
 
     const classroom = await Classroom.findById(classId);
     if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
@@ -1082,10 +1085,11 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
     const prev = {
       multiplier: student.passiveAttributes.multiplier ?? 1,
       luck: student.passiveAttributes.luck ?? 1,
-      discount: student.passiveAttributes.discount ?? null
+      discount: student.passiveAttributes.discount ?? null,
+      shield: student.shieldCount ?? 0
     };
 
-    // Apply updates
+    // Apply updates for multiplier/luck/discount like before
     if (typeof multiplier !== 'undefined') {
       student.passiveAttributes.multiplier = Number(multiplier) || 1;
     }
@@ -1101,32 +1105,81 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
       }
     }
 
-    // Build changes array
+    // Apply shield update if provided: shield is treated as count; activate shield if > 0
+    if (typeof shield !== 'undefined') {
+      const sc = Math.max(0, parseInt(shield, 10) || 0);
+      student.shieldCount = sc;
+      student.shieldActive = sc > 0;
+    }
+
+    // --- NEW: handle xp adjustment (absolute value) ---
+    let xpChangeRecorded = false;
+    let xpFrom = null;
+    let xpTo = null;
+    if (typeof xp !== 'undefined' && xp !== null && xp !== '') {
+      // enforce XP system enabled
+      if (!classroom.xpSettings?.enabled) {
+        return res.status(400).json({ error: 'XP system is not enabled for this classroom' });
+      }
+
+      // ensure classroomXP array exists
+      if (!Array.isArray(student.classroomXP)) student.classroomXP = [];
+
+      let classroomXPEntry = student.classroomXP.find(cx => String(cx.classroom) === String(classId));
+      if (!classroomXPEntry) {
+        classroomXPEntry = { classroom: classId, xp: 0, level: 1, earnedBadges: [] };
+        student.classroomXP.push(classroomXPEntry);
+      }
+
+      xpFrom = Number(classroomXPEntry.xp || 0);
+      xpTo = Math.max(0, Number(xp) || 0); // absolute new value
+      if (Number.isNaN(xpTo)) {
+        return res.status(400).json({ error: 'Invalid XP value' });
+      }
+
+      if (xpFrom !== xpTo) {
+        classroomXPEntry.xp = xpTo;
+
+        // recompute level from xp using shared helper
+        const { calculateLevelFromXP } = require('../utils/xp');
+        const newLevel = calculateLevelFromXP(xpTo, classroom.xpSettings?.levelingFormula || 'exponential', classroom.xpSettings?.baseXPForLevel2 || 100);
+        classroomXPEntry.level = newLevel;
+
+        xpChangeRecorded = true;
+      }
+    }
+    // --- END: xp adjustment ---
+
+    // Build changes array (including xp if adjusted)
     const changes = [];
     const now = new Date();
     const curr = {
       multiplier: student.passiveAttributes.multiplier ?? 1,
       luck: student.passiveAttributes.luck ?? 1,
-      discount: student.passiveAttributes.discount ?? null
+      discount: student.passiveAttributes.discount ?? null,
+      shield: student.shieldCount ?? 0
     };
-    ['multiplier', 'luck', 'discount'].forEach((f) => {
+
+    ['multiplier', 'luck', 'discount', 'shield'].forEach((f) => {
       const before = prev[f];
       const after = curr[f];
-      // treat null/undefined === null
       if (String(before) !== String(after)) {
         changes.push({ field: f, from: before, to: after });
       }
     });
 
+    if (xpChangeRecorded) {
+      changes.push({ field: 'xp', from: xpFrom, to: xpTo });
+    }
+
     await student.save();
 
-    // after changes array has been built and student.save() completed
-    // Helper to render a readable value (fall back to sensible defaults for known stat fields)
+    // Helper to render a readable value for summary (special-case xp to include delta)
     const renderValue = (field, v) => {
       if (v === null || v === undefined) {
-        // sensible defaults per-field (matches how stats are displayed elsewhere)
         if (field === 'multiplier' || field === 'luck') return 1;
         if (field === 'discount') return 0;
+        if (field === 'xp') return 0;
         return 0;
       }
       return v;
@@ -1134,20 +1187,45 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
 
     const formatChangeSummary = (changes) => {
       if (!Array.isArray(changes) || changes.length === 0) return '';
-      return changes
-        .map(c => {
-          const from = renderValue(c.field, c.from);
-          const to = renderValue(c.field, c.to);
-          return `${c.field}: ${String(from)} → ${String(to)}`;
-        })
-        .join('; ');
+      const fmtNum1 = (n) => Number((Number(n) || 0)).toFixed(1);
+      const fmtInt = (n) => Math.round(Number(n) || 0);
+  
+      const formatOne = (c) => {
+        const f = c.field;
+        if (f === 'xp') {
+          const from = fmtInt(renderValue('xp', c.from));
+          const to = fmtInt(renderValue('xp', c.to));
+          const delta = to - from;
+          const sign = delta >= 0 ? `+${delta}` : `${delta}`;
+          return `xp: ${from} → ${to} (${sign} XP)`;
+        }
+        if (['multiplier','luck','groupMultiplier'].includes(f)) {
+          const from = Number(renderValue(f, c.from) ?? 1);
+          const to = Number(renderValue(f, c.to) ?? 1);
+          const delta = Number((to - from).toFixed(1));
+          const sign = delta >= 0 ? `+${delta.toFixed(1)}` : `${delta.toFixed(1)}`;
+          return `${f}: ${from.toFixed(1)} → ${to.toFixed(1)} (${sign})`;
+        }
+        if (f === 'discount') {
+          const from = fmtInt(renderValue('discount', c.from));
+          const to = fmtInt(renderValue('discount', c.to));
+          const delta = to - from;
+          const sign = delta >= 0 ? `+${delta}` : `${delta}`;
+          return `discount: ${from} → ${to} (${sign})`;
+        }
+        // generic fallback
+        const from = renderValue(c.field, c.from);
+        const to = renderValue(c.field, c.to);
+        return `${c.field}: ${String(from)} → ${String(to)}`;
+      };
+  
+      return changes.map(formatOne).join('; ');
     };
 
-    // Notify the student (targeted notification). Keep this simple & readable for the student.
     const fullName = `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.email;
     const summary = formatChangeSummary(changes) || 'updated by teacher';
 
-    // Create a notification for the student, which also serves as the log entry
+    // Create notification for the student (log entry, included in stat-changes)
     const studentNotification = await Notification.create({
       user: student._id,
       actionBy: req.user._id,
@@ -1160,7 +1238,7 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
       createdAt: now
     });
 
-    // Create a separate notification for the teacher's real-time feedback
+    // Create a separate notification for the teacher's realtime feedback (not a log entry)
     const teacherNotification = await Notification.create({
       user: req.user._id, // Target the teacher
       actionBy: req.user._id,
@@ -1170,9 +1248,10 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
       read: false,
       changes,
       targetUser: student._id,
-      isLogEntry: false // Flag to exclude from stat changes log
+      isLogEntry: false,
+      createdAt: now
     });
- 
+
     // Notify the student in real-time
     const populatedStudentNotification = await populateNotification(studentNotification._id);
     try { req.app.get('io').to(`user-${student._id}`).emit('notification', populatedStudentNotification); } catch(e){/*ignore*/}
@@ -1181,8 +1260,10 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
     const populatedTeacherNotification = await populateNotification(teacherNotification._id);
     try { req.app.get('io').to(`user-${req.user._id}`).emit('notification', populatedTeacherNotification); } catch(e){/*ignore*/}
 
-    // Existing socket emit so clients can update UI
-    req.app.get('io').to(`user-${student._id}`).emit('user_stats_update', { userId: student._id, passiveAttributes: student.passiveAttributes });
+    // emit stats update for the student so clients refresh displays
+    try {
+      req.app.get('io').to(`user-${student._id}`).emit('user_stats_update', { userId: student._id, passiveAttributes: student.passiveAttributes });
+    } catch(e){/*ignore*/}
 
     res.json({ message: 'Stats updated', passiveAttributes: student.passiveAttributes, changes });
   } catch (err) {
@@ -1235,6 +1316,156 @@ router.get('/:id/stat-changes', ensureAuthenticated, async (req, res) => {
     res.json(logs);
   } catch (err) {
     console.error('[Get stat-changes] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Record classroom access (students, teachers, admins)
+router.post('/:id/access', ensureAuthenticated, async (req, res) => {
+  try {
+    const classroomId = req.params.id;
+    const classroom = await Classroom.findById(classroomId).select('_id teacher students');
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+
+    const uid = String(req.user._id);
+    const isTeacher = String(classroom.teacher) === uid;
+    const isStudent = Array.isArray(classroom.students) && classroom.students.map(String).includes(uid);
+    const isAdmin = req.user.role === 'admin';
+
+    if (!(isTeacher || isStudent || isAdmin)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const user = await User.findById(req.user._id).select('classroomJoinDates');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    if (!Array.isArray(user.classroomJoinDates)) user.classroomJoinDates = [];
+
+    const entry = user.classroomJoinDates.find(
+      cjd => String(cjd.classroom) === String(classroomId)
+    );
+    const now = new Date();
+
+    if (entry) {
+      entry.lastAccessed = now;
+    } else {
+      user.classroomJoinDates.push({
+        classroom: classroom._id,
+        joinedAt: now,
+        lastAccessed: now
+      });
+    }
+
+    await user.save();
+    res.json({ ok: true, lastAccessed: now });
+  } catch (err) {
+    console.error('[Record classroom access] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Add new endpoint for daily check-in
+router.post('/:classroomId/checkin', ensureAuthenticated, async (req, res) => {
+  console.info(`[checkin] route entry: user=${req.user?._id} params.classroomId=${req.params.classroomId}`);
+     try {
+       const { classroomId } = req.params;
+       const userId = req.user._id;
+
+       const user = await User.findById(userId);
+       const classroom = await Classroom.findById(classroomId).select('xpSettings students');
+    
+    if (!classroom) {
+      return res.status(404).json({ error: 'Classroom not found' });
+    }
+
+    if (!classroom.students.includes(userId)) {
+      return res.status(403).json({ error: 'Not a member of this classroom' });
+    }
+
+    if (!classroom.xpSettings?.enabled) {
+      return res.json({ message: 'XP system not enabled', xpAwarded: 0 });
+    }
+
+    // Find classroom XP entry
+    let classroomXP = user.classroomXP.find(
+      cx => cx.classroom.toString() === classroomId.toString()
+    );
+
+    if (!classroomXP) {
+      classroomXP = {
+        classroom: classroomId,
+        xp: 0,
+        level: 1,
+        earnedBadges: []
+      };
+      user.classroomXP.push(classroomXP);
+    }
+
+    // Check if already checked in today
+    const now = new Date();
+    const lastCheckIn = classroomXP.lastDailyCheckIn;
+    
+    if (lastCheckIn) {
+      const lastDate = new Date(lastCheckIn);
+      const isSameDay = 
+        lastDate.getFullYear() === now.getFullYear() &&
+        lastDate.getMonth() === now.getMonth() &&
+        lastDate.getDate() === now.getDate();
+
+      if (isSameDay) {
+        return res.json({ 
+          message: 'Already checked in today', 
+          xpAwarded: 0,
+          alreadyCheckedIn: true
+        });
+      }
+    }
+
+    // Award daily check-in XP
+    classroomXP.lastDailyCheckIn = now;
+    await user.save();
+
+    const xpToAward = classroom.xpSettings.dailyCheckIn || 5;
+    // pass the loaded user document to awardXP to avoid concurrent-save version conflicts
+    const result = await awardXP(userId, classroomId, xpToAward, 'daily check-in', classroom.xpSettings, { user });
+    // DEBUG: log awardXP result and io presence so we can confirm emission path
+    try {
+      console.info('[checkin] awardXP result:', { userId, classroomId, xpToAward, result });
+      const ioInstance = req.app && req.app.get ? req.app.get('io') : null;
+      console.info('[checkin] io present?', !!ioInstance);
+    } catch (e) {
+      console.warn('[checkin] debug logging failed', e);
+    }
+    // Log & emit stat-change so frontend shows "xp: A → B (+Δ)" in realtime
+    try {
+      if (result && typeof result.oldXP !== 'undefined' && typeof result.newXP !== 'undefined' && result.newXP !== result.oldXP) {
+        try {
+          await logStatChanges({
+            io: req.app && req.app.get ? req.app.get('io') : null,
+            classroomId,
+            user,                 // user doc loaded earlier in this route
+            actionBy: null,       // system action (no specific actor)
+            prevStats: { xp: result.oldXP },
+            currStats: { xp: result.newXP },
+            context: 'daily check-in',
+            details: { effectsText: `Daily check-in: +${xpToAward} XP` },
+            forceLog: true
+          });
+        } catch (logErr) {
+          console.warn('[classroom] failed to log daily check-in stat change:', logErr);
+        }
+      }
+    } catch (e) {
+      console.warn('[classroom] daily check-in logging failed:', e);
+    }
+
+    res.json({
+      message: 'Daily check-in successful!',
+      xpAwarded: xpToAward,
+      ...result
+    });
+  } catch (err) {
+    console.error('Check-in error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

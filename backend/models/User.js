@@ -61,7 +61,9 @@ const UserSchema = new mongoose.Schema({
   // Add classroom join dates tracking
   classroomJoinDates: [{
     classroom: { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom' },
-    joinedAt: { type: Date, default: Date.now }
+    joinedAt: { type: Date, default: Date.now },
+    // NEW: track per-classroom last access
+    lastAccessed: { type: Date, default: Date.now }
   }],
   // Per-classroom freeze flags: list of classroom ids where this user is currently frozen
   classroomFrozen: [{
@@ -87,6 +89,36 @@ const UserSchema = new mongoose.Schema({
     match: /^[A-Z]{2}\d{4}$/,
   },
 
+  // Add classroom-specific XP and levels
+  classroomXP: [{
+    classroom: { 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: 'Classroom' 
+    },
+    xp: { 
+      type: Number, 
+      default: 0,
+      min: 0
+    },
+    level: { 
+      type: Number, 
+      default: 1,
+      min: 1
+    },
+    lastDailyCheckIn: { 
+      type: Date 
+    },
+    earnedBadges: [{
+      badge: { 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'Badge' 
+      },
+      earnedAt: { 
+        type: Date, 
+        default: Date.now 
+      }
+    }]
+  }],
 }, { 
   timestamps: true  // This should be here to automatically add createdAt and updatedAt
 });

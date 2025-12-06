@@ -82,8 +82,18 @@ export default function FeedbackList({
        </div>
  
      <ul className="space-y-4">
-       {sorted.map(f => (
+       {sorted.map((f, idx) => (
          <li key={f._id} className={`feedback-card p-4 bg-base-100 border rounded-lg shadow-sm ${f.hidden ? 'opacity-60' : ''}`}>
+           <div className="flex items-center mb-1 text-xs text-base-content/50 gap-2">
+             <span>#{idx + 1}</span>
+             <span className="font-mono">{middleTruncateId(f._id)}</span>
+             <button
+               type="button"
+               className="btn btn-xs"
+               onClick={() => navigator.clipboard.writeText(String(f._id))}
+               title="Copy full ID"
+             >Copy</button>
+           </div>
            <div className="card-row mb-2">
              <div className="card-left flex items-center gap-2 min-w-0">
                <div className="flex items-center gap-0.5">
@@ -117,7 +127,7 @@ export default function FeedbackList({
              </div>
            </div>
 
-            {f.comment && <p className="text-base-content/80 whitespace-pre-wrap">{f.comment}</p>}
+            {f.comment && <p className="feedback-comment text-base-content/80 whitespace-pre-wrap">{f.comment}</p>}
             {f.hidden && <div className="mt-2 text-xs text-red-500 italic">Hidden by moderator</div>}
          </li>
        ))}
@@ -125,3 +135,10 @@ export default function FeedbackList({
      </div>
      );
    }
+
+   const middleTruncateId = (id) => {
+     if (!id) return '';
+     const s = String(id);
+     if (s.length <= 16) return s;
+     return `${s.slice(0,6)}…${s.slice(-6)}`;
+   };

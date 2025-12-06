@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" fill="none">
+  <!-- Background -->
+  <rect width="400" height="400" fill="#1a1a2e"/>
+  
+  <!-- Gift box body -->
+  <rect x="120" y="180" width="160" height="140" fill="#f59e0b" stroke="#d97706" stroke-width="4"/>
+  
+  <!-- Gift box lid -->
+  <path d="M110 180 L290 180 L270 140 L130 140 Z" fill="#fbbf24" stroke="#d97706" stroke-width="4"/>
+  
+  <!-- Ribbon vertical -->
+  <rect x="190" y="140" width="20" height="180" fill="#dc2626"/>
+  
+  <!-- Ribbon horizontal -->
+  <rect x="120" y="240" width="160" height="20" fill="#dc2626"/>
+  
+  <!-- Bow -->
+  <circle cx="200" cy="150" r="15" fill="#ef4444"/>
+  <ellipse cx="185" cy="145" rx="20" ry="12" fill="#ef4444"/>
+  <ellipse cx="215" cy="145" rx="20" ry="12" fill="#ef4444"/>
+  
+  <!-- Question mark -->
+  <text x="200" y="270" font-family="Arial, sans-serif" font-size="60" font-weight="bold" fill="#fff" text-anchor="middle">?</text>
+  
+  <!-- Sparkles -->
+  <circle cx="100" cy="160" r="3" fill="#fbbf24"/>
+  <circle cx="300" cy="170" r="4" fill="#fbbf24"/>
+  <circle cx="110" cy="280" r="3" fill="#fbbf24"/>
+  <circle cx="290" cy="290" r="4" fill="#fbbf24"/>
+</svg>

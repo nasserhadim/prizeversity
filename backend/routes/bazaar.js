@@ -3,6 +3,8 @@ const Bazaar = require('../models/Bazaar');
 const Item = require('../models/Item');
 const User = require('../models/User');
 const Classroom = require('../models/Classroom');
+const { awardXP } = require('../utils/awardXP');
+const { logStatChanges } = require('../utils/statChangeLog');
 const { ensureAuthenticated } = require('../config/auth');
 const router = express.Router();
 const Order = require('../models/Order');
@@ -73,14 +75,15 @@ router.get('/classroom/:classroomId/bazaar', ensureAuthenticated, async (req, re
 router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticated, ensureTeacher, upload.single('image'), async (req, res) => {
   const { bazaarId } = req.params;
   const { name, description, price, category, primaryEffect, primaryEffectValue } = req.body;
-  // Prefer uploaded file, fallback to image URL
   const image = req.file
     ? `/uploads/${req.file.filename}`
     : (req.body.image || undefined);
-
-  // Parse JSON fields that may arrive as strings when using multipart/form-data
+  
+  // Parse JSON fields
   let parsedSecondaryEffects = [];
   let parsedSwapOptions = [];
+  let parsedMysteryBoxConfig = null;
+  
   try {
     if (Array.isArray(req.body.secondaryEffects)) {
       parsedSecondaryEffects = req.body.secondaryEffects;
@@ -90,6 +93,7 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticate
   } catch (err) {
     parsedSecondaryEffects = [];
   }
+  
   try {
     if (Array.isArray(req.body.swapOptions)) {
       parsedSwapOptions = req.body.swapOptions;
@@ -99,31 +103,127 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticate
   } catch (err) {
     parsedSwapOptions = [];
   }
+  
+  // Parse mystery box config if category is MysteryBox
+  if (category === 'MysteryBox') {
+    try {
+      if (typeof req.body.mysteryBoxConfig === 'object') {
+        parsedMysteryBoxConfig = req.body.mysteryBoxConfig;
+      } else if (req.body.mysteryBoxConfig) {
+        parsedMysteryBoxConfig = JSON.parse(req.body.mysteryBoxConfig);
+      }
+      
+      // ADD: Log to see what we're receiving
+      console.log('[Create Item] Received mysteryBoxConfig:', JSON.stringify(parsedMysteryBoxConfig, null, 2));
+      
+    } catch (err) {
+      return res.status(400).json({ error: 'Invalid mysteryBoxConfig format' });
+    }
+  }
 
   // Basic validation
   if (!name || !price || !category) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
+  // Mystery Box specific validation
+  if (category === 'MysteryBox') {
+    if (!parsedMysteryBoxConfig || !parsedMysteryBoxConfig.itemPool) {
+      return res.status(400).json({ error: 'Mystery box must have an item pool' });
+    }
+
+    const itemPool = parsedMysteryBoxConfig.itemPool;
+    
+    // ADD: Log the itemPool
+    console.log('[Create Item] Item pool to save:', JSON.stringify(itemPool, null, 2));
+    
+    // Check for duplicates
+    const itemIds = itemPool.map(p => p.item.toString());
+    const uniqueItemIds = new Set(itemIds);
+    if (itemIds.length !== uniqueItemIds.size) {
+      return res.status(400).json({ 
+        error: 'Each item can only be added once to the mystery box. Please remove duplicates.' 
+      });
+    }
+
+    // Verify drop chances sum to 100%
+    const totalChance = itemPool.reduce((sum, item) => sum + Number(item.baseDropChance), 0);
+    if (Math.abs(totalChance - 100) > 0.01) {
+      return res.status(400).json({ 
+        error: `Drop chances must sum to 100% (currently ${totalChance.toFixed(2)}%)` 
+      });
+    }
+
+    // Verify all items exist in the bazaar and are not mystery boxes
+    const Item = require('../models/Item');
+    const items = await Item.find({ 
+      _id: { $in: itemIds },
+      bazaar: bazaarId,
+      category: { $ne: 'MysteryBox' } // Exclude mystery boxes from pool
+    });
+    
+    if (items.length !== itemIds.length) {
+      return res.status(400).json({ 
+        error: 'One or more items do not exist in this bazaar or are invalid (mystery boxes cannot contain other mystery boxes)' 
+      });
+    }
+  }
+
   try {
     // Create item
-    const item = new Item({
+    const itemData = {
       name: name.trim(),
       description: description?.trim(),
       price: Number(price),
       image: image?.trim(),
       category,
-      primaryEffect: category !== 'Passive' ? primaryEffect : undefined,
-      primaryEffectValue: category !== 'Passive' ? Number(primaryEffectValue) : undefined,
-      secondaryEffects: (parsedSecondaryEffects || []).map(se => ({
+      bazaar: bazaarId
+    };
+
+    // Add category-specific fields
+    if (category === 'MysteryBox') {
+      console.log('[Create Item] parsedMysteryBoxConfig:', parsedMysteryBoxConfig);
+      console.log('[Create Item] itemPool from config:', parsedMysteryBoxConfig.itemPool);
+      
+      itemData.mysteryBoxConfig = {
+        luckMultiplier: Number(parsedMysteryBoxConfig.luckMultiplier || 1.5),
+        pityEnabled: !!parsedMysteryBoxConfig.pityEnabled,
+        guaranteedItemAfter: Number(parsedMysteryBoxConfig.guaranteedItemAfter || 10),
+        pityMinimumRarity: parsedMysteryBoxConfig.pityMinimumRarity || 'rare',
+        maxOpensPerStudent: parsedMysteryBoxConfig.maxOpensPerStudent ? Number(parsedMysteryBoxConfig.maxOpensPerStudent) : null,
+        itemPool: parsedMysteryBoxConfig.itemPool.map(p => ({
+          item: p.item,
+          rarity: p.rarity,
+          baseDropChance: Number(p.baseDropChance)
+        }))
+      };
+      
+      // ADD: Log what we're about to save
+      console.log('[Create Item] Saving mysteryBoxConfig:', JSON.stringify(itemData.mysteryBoxConfig, null, 2));
+    } else if (category !== 'Passive') {
+      itemData.primaryEffect = primaryEffect;
+      itemData.primaryEffectValue = Number(primaryEffectValue);
+    }
+
+    // Add secondary effects and swap options for all categories except MysteryBox
+    if (category !== 'MysteryBox') {
+      itemData.secondaryEffects = (parsedSecondaryEffects || []).map(se => ({
         effectType: se.effectType,
         value: Number(se.value)
-      })),
-      swapOptions: parsedSwapOptions && parsedSwapOptions.length ? parsedSwapOptions : undefined,
-      bazaar: bazaarId
-    });
+      }));
+      // ALWAYS persist a canonical array (may be empty) so later purchases have the field
+      itemData.swapOptions = Array.isArray(parsedSwapOptions) ? parsedSwapOptions : [];
+    }
 
+    const item = new Item(itemData);
+    
+    // ADD: Log before save
+    console.log('[Create Item] Item before save:', JSON.stringify(item.mysteryBoxConfig, null, 2));
+    
     await item.save();
+    
+    // ADD: Log after save
+    console.log('[Create Item] Item after save:', JSON.stringify(item.mysteryBoxConfig, null, 2));
 
     // Update bazaar
     await Bazaar.findByIdAndUpdate(
@@ -141,9 +241,196 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticate
     res.status(201).json({ item });
   } catch (err) {
     console.error('[Add Bazaar Item] error:', err);
-    res.status(500).json({ error: 'Failed to add item', details: err.message });
+    res.status(500).json({ error: 'Failed to create item' });
   }
 });
+
+// UPDATE bazaar item (teacher)
+router.put(
+  '/classroom/:classroomId/bazaar/:bazaarId/items/:itemId',
+  ensureAuthenticated,
+  ensureTeacher,
+  upload.single('image'),
+  async (req, res) => {
+    const { itemId } = req.params;
+    try {
+      const item = await Item.findById(itemId);
+      if (!item) return res.status(404).json({ error: 'Item not found' });
+
+      const up = {};
+      ['name','description','price','primaryEffect','primaryEffectValue','category','image']
+        .forEach(f => {
+          if (typeof req.body[f] !== 'undefined') {
+            // Skip empty strings to avoid NaN casting
+            const val = req.body[f];
+            if (val === '' || val === null) return;
+
+            // Only allow primaryEffectValue when category is not Passive/MysteryBox
+            if (f === 'primaryEffectValue') {
+              const cat = req.body.category || item.category;
+              if (cat === 'Passive' || cat === 'MysteryBox') return;
+            }
+
+            up[f] = (f === 'price' || f === 'primaryEffectValue')
+              ? Number(val)
+              : (val.trim?.() || val);
+          }
+        });
+
+      if (req.file) {
+        up.image = `/uploads/${req.file.filename}`;
+      }
+
+      // Parse arrays/objects if provided
+      if (req.body.secondaryEffects) {
+        try { up.secondaryEffects = JSON.parse(req.body.secondaryEffects); } catch {}
+      }
+      if (req.body.swapOptions) {
+        try { up.swapOptions = JSON.parse(req.body.swapOptions); } catch {}
+      }
+      if (req.body.mysteryBoxConfig) {
+        try { up.mysteryBoxConfig = JSON.parse(req.body.mysteryBoxConfig); } catch {}
+      }
+
+      Object.assign(item, up);
+      await item.save();
+
+      req.app.get('io').to(`classroom-${req.params.classroomId}`).emit('bazaar_item_updated', {
+        itemId: item._id,
+        item
+      });
+
+      res.json({ item });
+    } catch (e) {
+      console.error('[Update Item] error', e);
+      res.status(500).json({ error: 'Failed to update item' });
+    }
+  }
+);
+
+// DELETE bazaar item (teacher)
+router.delete(
+  '/classroom/:classroomId/bazaar/:bazaarId/items/:itemId',
+  ensureAuthenticated,
+  ensureTeacher,
+  async (req, res) => {
+    const { bazaarId, itemId, classroomId } = req.params;
+    try {
+      const item = await Item.findById(itemId);
+      if (!item) return res.status(404).json({ error: 'Item not found' });
+
+      await Item.findByIdAndDelete(itemId);
+      // remove from bazaar.items array
+      await Bazaar.findByIdAndUpdate(bazaarId, { $pull: { items: itemId } });
+
+      req.app.get('io').to(`classroom-${classroomId}`).emit('bazaar_item_deleted', {
+        itemId
+      });
+
+      res.json({ deleted: true });
+    } catch (e) {
+      console.error('[Delete Item] error', e);
+      res.status(500).json({ error: 'Failed to delete item' });
+    }
+  }
+);
+
+// UPDATE Bazaar (teacher)
+router.put(
+  '/classroom/:classroomId/bazaar/:bazaarId',
+  ensureAuthenticated,
+  ensureTeacher,
+  upload.single('image'),
+  async (req, res) => {
+    try {
+      const { classroomId, bazaarId } = req.params;
+      const bazaar = await Bazaar.findById(bazaarId);
+      if (!bazaar || String(bazaar.classroom) !== String(classroomId)) {
+        return res.status(404).json({ error: 'Bazaar not found' });
+      }
+      const up = {};
+      if (typeof req.body.name !== 'undefined') up.name = String(req.body.name).trim();
+      if (typeof req.body.description !== 'undefined') up.description = req.body.description || '';
+      if (req.file) up.image = `/uploads/${req.file.filename}`;
+      else if (typeof req.body.image !== 'undefined') up.image = req.body.image || '';
+
+      Object.assign(bazaar, up);
+      await bazaar.save();
+
+      res.json({ bazaar });
+    } catch (e) {
+      console.error('[Update Bazaar] error:', e);
+      res.status(500).json({ error: 'Failed to update bazaar' });
+    }
+  }
+);
+
+// DELETE Bazaar (teacher) — removes bazaar and its items
+router.delete(
+  '/classroom/:classroomId/bazaar/:bazaarId',
+  ensureAuthenticated,
+  ensureTeacher,
+  async (req, res) => {
+    try {
+      const { classroomId, bazaarId } = req.params;
+      const bazaar = await Bazaar.findById(bazaarId);
+      if (!bazaar || String(bazaar.classroom) !== String(classroomId)) {
+        return res.status(404).json({ error: 'Bazaar not found' });
+      }
+
+      // Delete items belonging to this bazaar
+      await Item.deleteMany({ bazaar: bazaarId });
+      // Delete bazaar
+      await Bazaar.findByIdAndDelete(bazaarId);
+
+      req.app.get('io').to(`classroom-${classroomId}`).emit('bazaar_deleted', { bazaarId });
+      res.json({ deleted: true });
+    } catch (e) {
+      console.error('[Delete Bazaar] error:', e);
+      res.status(500).json({ error: 'Failed to delete bazaar' });
+    }
+  }
+);
+
+// Add helper near top of file (or in a utils file)
+function normalizeSwapOptionsServer(swapOptions) {
+  if (!swapOptions) return [];
+  let arr = Array.isArray(swapOptions) ? swapOptions : [];
+  if (typeof swapOptions === 'string') {
+    try { arr = JSON.parse(swapOptions); } catch (e) {
+      arr = swapOptions.split(',').map(s => s.trim()).filter(Boolean);
+    }
+  }
+  const canonical = (s) => {
+    if (!s) return null;
+    const val = String(s).toLowerCase().trim();
+    if (['bits','bit','b'].includes(val)) return 'bits';
+    if (['multiplier','mult','mul','x'].includes(val)) return 'multiplier';
+    if (['luck','l'].includes(val)) return 'luck';
+    return null;
+  };
+  const set = new Set();
+  arr.forEach(it => {
+    if (!it) return;
+    if (typeof it === 'string' || typeof it === 'number') {
+      const c = canonical(it);
+      if (c) set.add(c);
+      return;
+    }
+    if (typeof it === 'object') {
+      ['attribute','from','to'].forEach(k => {
+        if (it[k]) {
+          const c = canonical(it[k]);
+          if (c) set.add(c);
+        }
+      });
+      ['bits','multiplier','luck'].forEach(k => {
+        if (it[k] === true || it[k] === 'true') set.add(k);
+      });
+    }
+  });
+  return Array.from(set);
+}
 
 // Helper functions (add these at the top of the file, after imports)
 const getClassroomBalance = (user, classroomId) => {
@@ -166,8 +453,16 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
   const { quantity } = req.body;
 
   try {
-    const item = await Item.findById(itemId);
+    // POPULATE itemPool.item for mystery boxes
+    const item = await Item.findById(itemId).populate('mysteryBoxConfig.itemPool.item');
     if (!item) return res.status(404).json({ error: 'Item not found' });
+
+    console.log('[Buy Item] Item after populate:', JSON.stringify({
+      category: item.category,
+      hasMysteryBoxConfig: !!item.mysteryBoxConfig,
+      itemPoolLength: item.mysteryBoxConfig?.itemPool?.length,
+      firstPoolItem: item.mysteryBoxConfig?.itemPool?.[0]
+    }, null, 2));
 
     const user = await User.findById(req.user._id);
     const totalCost = item.price * quantity;
@@ -178,10 +473,10 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
       return res.status(400).json({ error: 'Insufficient balance' });
     }
 
-    // Create owned copies for quantity and collect summaries (unchanged, but now with per-classroom context)
+    // Create owned copies for quantity and collect summaries
     const ownedItems = [];
     for (let i = 0; i < quantity; i++) {
-      const ownedItem = await Item.create({
+      const ownedItemData = {
         name: item.name,
         description: item.description,
         price: item.price,
@@ -191,9 +486,53 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
         primaryEffect: item.primaryEffect,
         primaryEffectValue: item.primaryEffectValue,
         secondaryEffects: item.secondaryEffects,
-        owner: user._id
+        // Ensure owned copy always stores canonical swapOptions (string[] of 'bits'|'multiplier'|'luck')
+        swapOptions: normalizeSwapOptionsServer(item.swapOptions),
+        owner: req.user._id
+      };
+      console.log('[Buy Item] ownedItemData.swapOptions ->', ownedItemData.swapOptions);
+
+      // Copy mysteryBoxConfig for MysteryBox items
+      if (item.category === 'MysteryBox' && item.mysteryBoxConfig) {
+        console.log('[Buy Item] Copying mysteryBoxConfig:', JSON.stringify({
+          hasItemPool: !!item.mysteryBoxConfig.itemPool,
+          itemPoolLength: item.mysteryBoxConfig.itemPool?.length
+        }, null, 2));
+
+        ownedItemData.mysteryBoxConfig = {
+          luckMultiplier: item.mysteryBoxConfig.luckMultiplier,
+          pityEnabled: item.mysteryBoxConfig.pityEnabled,
+          guaranteedItemAfter: item.mysteryBoxConfig.guaranteedItemAfter,
+          pityMinimumRarity: item.mysteryBoxConfig.pityMinimumRarity,
+          maxOpensPerStudent: item.mysteryBoxConfig.maxOpensPerStudent,
+          itemPool: item.mysteryBoxConfig.itemPool.map(p => ({
+            item: p.item._id || p.item, // Handle both populated and non-populated
+            rarity: p.rarity,
+            baseDropChance: p.baseDropChance
+          }))
+        };
+
+        console.log('[Buy Item] Created mysteryBoxConfig with itemPool:', 
+          ownedItemData.mysteryBoxConfig.itemPool.length, 'items');
+      }
+
+      const ownedItem = await Item.create(ownedItemData);
+      
+      console.log('[Buy Item] Owned item created:', JSON.stringify({
+        id: ownedItem._id,
+        category: ownedItem.category,
+        hasMysteryBoxConfig: !!ownedItem.mysteryBoxConfig,
+        itemPoolLength: ownedItem.mysteryBoxConfig?.itemPool?.length
+      }, null, 2));
+      
+      ownedItems.push({
+        id: ownedItem._id,
+        name: ownedItem.name,
+        description: ownedItem.description,
+        price: ownedItem.price,
+        category: ownedItem.category,
+        image: ownedItem.image || null
       });
-      ownedItems.push(ownedItem);
     }
 
     // Deduct from per-classroom balance and record detailed transaction
@@ -221,6 +560,70 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
 
     await user.save();
 
+    // CHANGED: Store item details in order metadata so they persist after item deletion
+    const order = new Order({
+      user: req.user._id,
+      items: ownedItems.map(oi => oi.id),
+      total: totalCost,
+      classroom: classroomId,
+      type: 'purchase',
+      metadata: {
+        itemDetails: ownedItems.map(oi => ({
+          _id: oi.id,
+          name: oi.name,
+          description: oi.description,
+          price: oi.price,
+          category: oi.category,
+          image: oi.image
+        }))
+      }
+    });
+    await order.save();
+
+    // ADD: award XP for spending bits
+    try {
+      const cls = await Classroom.findById(classroomId).select('xpSettings');
+      if (cls?.xpSettings?.enabled) {
+        const xpRate = cls.xpSettings.bitsSpent || 0;
+        // final vs base: for purchases, base == final unless you later apply in-route discounts
+        const xpBits = Math.abs(totalCost);
+        const xpToAward = xpBits * xpRate;
+        if (xpToAward > 0) {
+          try {
+            // award XP and capture result so we can create a separate stats_adjusted log/notification
+            const xpRes = await awardXP(user._id, classroomId, xpToAward, 'spending bits (bazaar purchase)', cls.xpSettings);
+            if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+              try {
+                // include purchase context: total cost and item names
+                const itemNames = ownedItems?.map(i => i.name).filter(Boolean).slice(0,5).join(', ');
+                const effectsText = itemNames
+                  ? `Purchase: ${Math.abs(totalCost)} ₿ — ${itemNames}`
+                  : `Purchase: ${Math.abs(totalCost)} ₿`;
+
+                await logStatChanges({
+                  io: req.app && req.app.get ? req.app.get('io') : null,
+                  classroomId,
+                  user,
+                  actionBy: req.user ? req.user._id : undefined,
+                  prevStats: { xp: xpRes.oldXP },
+                  currStats: { xp: xpRes.newXP },
+                  context: 'spending bits (bazaar purchase)',
+                  details: { effectsText },
+                  forceLog: true
+                });
+              } catch (logErr) {
+                console.warn('[bazaar] failed to log XP stat change (purchase):', logErr);
+              }
+            }
+          } catch (xpErr) {
+            console.warn('[bazaar] awardXP failed (purchase):', xpErr);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[bazaar] failed to award XP (buy):', e);
+    }
+
     // Notify classroom about the purchase (unchanged)
     req.app.get('io').to(`classroom-${classroomId}`).emit('bazaar_purchase', {
       itemId,
@@ -241,8 +644,19 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
 
 // Checkout multiple items (updated for per-classroom balances)
 router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) => {
-  console.log(`[Checkout] User ${req.user._id} attempting checkout`);
-  console.log("Received checkout request:", req.body);
+  // NEW: explicit item-count limit to avoid huge JSON payloads (and give friendly message)
+  const MAX_CHECKOUT_ITEMS = 10;
+  const { items } = req.body || {};
+
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'No items provided for checkout' });
+  }
+
+  if (items.length > MAX_CHECKOUT_ITEMS) {
+    return res.status(400).json({
+      error: `Too many items in checkout. Maximum allowed is ${MAX_CHECKOUT_ITEMS} items. Try splitting the purchase.`
+    });
+  }
 
   try {
     const { userId, items, classroomId } = req.body;  // Add classroomId to request body
@@ -297,13 +711,15 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
     // Process each item (unchanged, but now with per-classroom context)
     const ownedItems = [];
     for (const itemData of items) {
-      const item = await Item.findById(itemData._id || itemData.id);
+      const item = await Item.findById(itemData._id || itemData.id)
+        .populate('mysteryBoxConfig.itemPool.item'); // ADD: populate for mystery boxes
+      
       if (!item) {
         console.error("Item not found:", itemData._id);
         continue;
       }
 
-      const ownedItem = await Item.create({
+      const ownedItemData = {
         name: item.name,
         description: item.description,
         price: item.price,
@@ -313,8 +729,50 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
         primaryEffect: item.primaryEffect,
         primaryEffectValue: item.primaryEffectValue,
         secondaryEffects: item.secondaryEffects,
+        // Ensure checkout-created owned item preserves canonical swapOptions (defensive checks)
+        swapOptions: normalizeSwapOptionsServer(
+          item.swapOptions ||
+          item.swap_options ||
+          (item.metadata && item.metadata.swapOptions) ||
+          []
+        ),
         owner: userId
-      });
+      };
+      
+      console.log('[Checkout] ownedItemData.swapOptions ->', ownedItemData.swapOptions);
+      
+      // ADD: Copy mysteryBoxConfig for MysteryBox items
+      if (item.category === 'MysteryBox' && item.mysteryBoxConfig) {
+        console.log('[Checkout] Copying mysteryBoxConfig:', JSON.stringify({
+          hasItemPool: !!item.mysteryBoxConfig.itemPool,
+          itemPoolLength: item.mysteryBoxConfig.itemPool?.length
+        }, null, 2));
+
+        ownedItemData.mysteryBoxConfig = {
+          luckMultiplier: item.mysteryBoxConfig.luckMultiplier,
+          pityEnabled: item.mysteryBoxConfig.pityEnabled,
+          guaranteedItemAfter: item.mysteryBoxConfig.guaranteedItemAfter,
+          pityMinimumRarity: item.mysteryBoxConfig.pityMinimumRarity,
+          maxOpensPerStudent: item.mysteryBoxConfig.maxOpensPerStudent,
+          itemPool: item.mysteryBoxConfig.itemPool.map(p => ({
+            item: p.item._id || p.item, // Handle both populated and non-populated
+            rarity: p.rarity,
+            baseDropChance: p.baseDropChance
+          }))
+        };
+
+        console.log('[Checkout] Created mysteryBoxConfig with itemPool:', 
+          ownedItemData.mysteryBoxConfig.itemPool.length, 'items');
+      }
+
+      const ownedItem = await Item.create(ownedItemData);
+      
+      console.log('[Checkout] Owned item created:', JSON.stringify({
+        id: ownedItem._id,
+        category: ownedItem.category,
+        hasMysteryBoxConfig: !!ownedItem.mysteryBoxConfig,
+        itemPoolLength: ownedItem.mysteryBoxConfig?.itemPool?.length
+      }, null, 2));
 
       ownedItems.push(ownedItem);
     }
@@ -325,7 +783,22 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
     const order = new Order({
       user: userId,
       items: ownedItems.map(i => i._id),
-      total
+      total,
+      classroom: classroomId,
+      type: 'purchase',
+      metadata: {
+        itemDetails: ownedItems.map(i => ({
+          _id: i._id,
+          name: i.name,
+          description: i.description,
+          price: i.price,
+          category: i.category,
+          primaryEffect: i.primaryEffect,
+          primaryEffectValue: i.primaryEffectValue,
+          secondaryEffects: i.secondaryEffects,
+          image: i.image
+        }))
+      }
     });
     await order.save();
 
@@ -353,6 +826,49 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
 
     await user.save();
 
+    // ADD: award XP for spending bits at checkout
+    try {
+      const cls = await Classroom.findById(classroomId).select('xpSettings');
+      if (cls?.xpSettings?.enabled) {
+        const xpRate = cls.xpSettings.bitsSpent || 0;
+        const xpBits = Math.abs(total); // amount actually spent
+        const xpToAward = xpBits * xpRate;
+        if (xpToAward > 0) {
+          try {
+            // award XP and capture result so we can create a separate stats_adjusted log/notification
+            const xpRes = await awardXP(userId, classroomId, xpToAward, 'spending bits (bazaar checkout)', cls.xpSettings);
+            if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+              try {
+                // include purchase context: total cost and item names
+                const itemNames = ownedItems?.map(i => i.name).filter(Boolean).slice(0,5).join(', ');
+                const effectsText = itemNames
+                  ? `Purchase: ${Math.abs(total)} ₿ — ${itemNames}`
+                  : `Purchase: ${Math.abs(total)} ₿`;
+
+                await logStatChanges({
+                  io: req.app && req.app.get ? req.app.get('io') : null,
+                  classroomId,
+                  user,
+                  actionBy: req.user ? req.user._id : undefined,
+                  prevStats: { xp: xpRes.oldXP },
+                  currStats: { xp: xpRes.newXP },
+                  context: 'spending bits (bazaar checkout)',
+                  details: { effectsText },
+                  forceLog: true
+                });
+              } catch (logErr) {
+                console.warn('[bazaar] failed to log XP stat change (checkout):', logErr);
+              }
+            }
+          } catch (xpErr) {
+            console.warn('[bazaar] awardXP failed (checkout):', xpErr);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[bazaar] failed to award XP (checkout):', e);
+    }
+
     console.log("Checkout successful for user:", userId, "order:", order._id);
     res.status(200).json({
       message: 'Purchase successful',
@@ -360,10 +876,16 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
       balance: getClassroomBalance(user, classroomId),  // Return per-classroom balance
       orderId: order._id
     });
-
   } catch (err) {
+    // Improved error message for payload-too-large (body-parser/raw-body)
+    if (err && (err.type === 'entity.too.large' || err.status === 413 || err.name === 'PayloadTooLargeError')) {
+      return res.status(413).json({
+        error: 'Request body too large. Reduce number/size of items (e.g. remove embedded images) or split the checkout into smaller batches (max 10 items).'
+      });
+    }
+
     console.error("Checkout failed:", err);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Checkout failed',
       message: err.message,
       stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
@@ -464,6 +986,7 @@ router.get('/orders/user/:userId', ensureAuthenticated, async (req, res) => {
       // Self (student) or admin/teacher viewing own orders: return all orders for that user
       orders = await Order.find({ user: userId })
         .populate('items')
+        .populate('classroom', 'name code') // ADD: Populate classroom directly
         .populate({
           path: 'items',
           populate: {
@@ -501,13 +1024,16 @@ router.get('/orders/:orderId', async (req, res) => {
 // Get the inventory page for the user to see what items they have
 router.get('/inventory/:userId', async (req, res) => {
   const { userId } = req.params;
-  const { classroomId } = req.query; // Add classroom filter
+  const { classroomId } = req.query;
   
   try {
     let items;
     if (classroomId) {
-      // Filter items to only those from the specified classroom's bazaar
-      items = await Item.find({ owner: userId })
+      items = await Item.find({ 
+        owner: userId,
+        consumed: { $ne: true }, // Filter out consumed items
+        usesRemaining: { $gt: 0 } // Only show items with uses remaining
+      })
         .populate({
           path: 'bazaar',
           populate: {
@@ -516,21 +1042,118 @@ router.get('/inventory/:userId', async (req, res) => {
           }
         });
       
-      // Filter to only items from the specified classroom
       items = items.filter(item => 
         item.bazaar && 
         item.bazaar.classroom && 
         item.bazaar.classroom._id.toString() === classroomId.toString()
       );
     } else {
-      // If no classroom specified, return all items (existing behavior)
-      items = await Item.find({ owner: userId });
+      items = await Item.find({ 
+        owner: userId,
+        consumed: { $ne: true }, // Filter out consumed items
+        usesRemaining: { $gt: 0 } // Only show items with uses remaining
+      });
     }
     
     res.json({ items });
   } catch (err) {
     console.error('Failed to fetch inventory:', err);
     res.status(500).json({ error: 'Failed to fetch inventory' });
+  }
+});
+
+// Get populated Mystery Box details
+router.get('/mystery-box/:itemId', ensureAuthenticated, async (req, res) => {
+  try {
+    const { itemId } = req.params;
+    const box = await Item.findById(itemId)
+      .populate('mysteryBoxConfig.itemPool.item');
+    if (!box || box.category !== 'MysteryBox') {
+      return res.status(404).json({ error: 'Mystery box not found' });
+    }
+    res.json({ item: box });
+  } catch (e) {
+    console.error('[MysteryBox details] error:', e);
+    res.status(500).json({ error: 'Failed to load mystery box details' });
+  }
+});
+
+// Delete a single owned inventory item
+router.delete('/inventory/:itemId', ensureAuthenticated, async (req, res) => {
+  try {
+    const { itemId } = req.params;
+    const classroomId = req.query.classroomId;
+    const item = await Item.findById(itemId).populate('bazaar');
+
+    if (!item) return res.status(404).json({ error: 'Item not found' });
+    if (String(item.owner) !== String(req.user._id))
+      return res.status(403).json({ error: 'Not your item' });
+
+    // Optional classroom scoping
+    if (classroomId && (!item.bazaar || String(item.bazaar.classroom) !== String(classroomId)))
+      return res.status(400).json({ error: 'Item not in this classroom' });
+
+    // DO NOT delete the Item document — preserve it for historical Orders.
+    // Instead mark it as consumed and remove ownership so it no longer appears in inventory.
+    await Item.findByIdAndUpdate(itemId, {
+      $set: { consumed: true, usesRemaining: 0 },
+      $unset: { owner: "" }
+    });
+
+    req.app.get('io').to(`classroom-${classroomId || item.bazaar?.classroom}`).emit('inventory_update', {
+      userId: req.user._id
+    });
+
+    res.json({ deleted: true });
+  } catch (e) {
+    console.error('[Inventory delete] error', e);
+    res.status(500).json({ error: 'Failed to delete item' });
+  }
+});
+
+// Clear all inventory items (self or teacher/admin on student)
+router.delete('/inventory/user/:userId/clear', ensureAuthenticated, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const classroomId = req.query.classroomId;
+
+    const canManage =
+      String(req.user._id) === String(userId) ||
+      ['teacher', 'admin'].includes(req.user.role);
+
+    if (!canManage) return res.status(403).json({ error: 'Not allowed' });
+
+    // Build query
+    const query = { owner: userId };
+
+    if (classroomId) {
+      // Need bazaar classroom match; fetch item ids first
+      const scopedItems = await Item.find(query)
+        .populate('bazaar', 'classroom')
+        .select('_id bazaar');
+      const ids = scopedItems
+        .filter(i => i.bazaar && String(i.bazaar.classroom) === String(classroomId))
+        .map(i => i._id);
+      if (!ids.length) return res.json({ cleared: 0 });
+
+      // Instead of deleting, mark consumed/unowned so Orders stay valid
+      const result = await Item.updateMany(
+        { _id: { $in: ids } },
+        { $set: { consumed: true, usesRemaining: 0 }, $unset: { owner: "" } }
+      );
+      req.app.get('io').to(`classroom-${classroomId}`).emit('inventory_update', { userId });
+      return res.json({ cleared: result.modifiedCount ?? result.nModified ?? 0 });
+    }
+
+    const result = await Item.updateMany(
+      query,
+      { $set: { consumed: true, usesRemaining: 0 }, $unset: { owner: "" } }
+    );
+    req.app.get('io').emit('inventory_update', { userId });
+    res.json({ cleared: result.modifiedCount ?? result.nModified ?? 0 });
+  } catch (e) {
+    console.error('[Inventory clear] error', e);
+    res.status(500).json({ error: 'Failed to clear inventory' });
   }
 });
 

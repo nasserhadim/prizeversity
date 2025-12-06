@@ -8,84 +8,53 @@ import { API_BASE } from '../config/api';
 
 const BACKEND_URL = `${API_BASE}`;
  
- function SiphonModal({group, onClose, classroomId}) { // Add classroomId prop
+ function SiphonModal({group, onClose, classroomId}) {
   console.log('[SiphonModal] group object:', group);
   const { user } = useAuth();
   const [target,setTarget] = useState('');
   const [reason,setReason]=useState('');
-  const [amount,setAmount]=useState('');
   const [file,setFile] = useState(null);
-  const [targetBalance, setTargetBalance] = useState(null);
-  const [loadingBal,  setLoadingBal]  = useState(false);
 
-  /* ───────────────── balance lookup ───────────────── */
+  // NEW: percentage-based selection (default 50%)
+  const [percent, setPercent] = useState(50);
+
+  // remove balance fetch; only track target id now
   const handleTargetChange = async (e) => {
     const id = e.target.value;
     setTarget(id);
-    setTargetBalance(null);
-    setAmount('');
-    if (!id) return;
-
-    try {
-      setLoadingBal(true);
-      const { data } = await axios.get(
-        classroomId 
-          ? `${BACKEND_URL}/api/wallet/${id}/balance?classroomId=${classroomId}`
-          : `${BACKEND_URL}/api/wallet/${id}/balance`,
-        { withCredentials: true }
-      );
-      setTargetBalance(data.balance);
-    } catch (err) {
-      toast.error('Failed to load balance');
-      setTargetBalance(null);
-    } finally {
-      setLoadingBal(false);
-    }
   };
 
   const create = async () => {
     try {
-     if (!target) return toast.error('Choose someone to siphon');
-     if (Number(amount) < 1) return toast.error('Amount must be ≥ 1');
-     /* ---------- build multipart/form‑data ---------- */
-     const fd = new FormData();
-     fd.append('targetUserId', target);
-     fd.append('reason', reason);
-     fd.append('amount', Number(amount));
-     if (file) fd.append('proof', file);
+      if (!target) return toast.error('Choose someone to siphon');
+      if (!reason) return toast.error('Enter a reason');
 
-     await axios.post(
+      const fd = new FormData();
+      fd.append('targetUserId', target);
+      fd.append('reason', reason);
+      // send a percentage; backend will compute the amount using private balance
+      fd.append('percentage', String(percent));
+      if (file) fd.append('proof', file);
+
+      await axios.post(
         `${BACKEND_URL}/api/siphon/group/${group._id}/create`,
         fd,
-        { withCredentials: true,
-          headers: { 'Content-Type': 'multipart/form-data' } }
-     );
+        { withCredentials: true, headers: { 'Content-Type': 'multipart/form-data' } }
+      );
       toast.success('Request submitted');
       onClose();
     } catch (err) {
-      
-      const msg =
-        err.response?.data?.error ||
-        'Failed to submit siphon request';
+      const msg = err.response?.data?.error || 'Failed to submit siphon request';
       toast.error(msg);
     }
-  };
-
-  const quillModules = {
-    toolbar: [
-      [{ font: [] }, { size: [] }],
-      ['bold', 'italic', 'underline', 'strike'],
-      [{ color: [] }, { background: [] }],
-      [{ list: 'ordered' }, { list: 'bullet' }],
-      ['clean'],
-    ],
   };
 
   return (
     <dialog open className="modal">
       <div className="modal-box">
         <h3 className="font-bold text-lg">New siphon request</h3>
-        {/* 1️⃣ the dropdown itself */}
+
+        {/* Target dropdown */}
         <select
           className="select w-full"
           value={target}
@@ -94,27 +63,25 @@ const BACKEND_URL = `${API_BASE}`;
         >
           <option value="">-- target member --</option>
           {group.members
-            .filter(m => String(m._id._id) !== String(user._id))
-            .map(m => (
-              <option key={m._id._id} value={m._id._id}>
-                {`${m._id.firstName || ''} ${m._id.lastName || ''}`.trim() || m._id.email} - {m._id.email}
-              </option>
-            ))
+            // Exclude current user AND exclude members who are not approved (pending/rejected)
+            .filter(m => {
+              const memberId = m._id._id ? String(m._id._id) : String(m._id);
+              const isSelf = memberId === String(user._id);
+              const status = m.status || (m._id && m._id.status) || 'approved';
+              return !isSelf && status === 'approved';
+            })
+            .map(m => {
+              const id = m._id._id ? m._id._id : m._id;
+              return (
+                <option key={id} value={id}>
+                  {`${m._id.firstName || ''} ${m._id.lastName || ''}`.trim() || m._id.email} - {m._id.email}
+                </option>
+              );
+            })
           }
         </select>
 
-        {/* balance*/}
-        {loadingBal && (
-          <p className="text-sm mt-1">Loading balance…</p>
-        )}
-        {targetBalance != null && !loadingBal && (
-          <p className="text-sm mt-1">
-            Current balance:&nbsp;
-            <strong>{targetBalance}</strong>&nbsp;₿
-          </p>
-        )}
-
-                {/* text */}
+        {/* Reason editor */}
         <ReactQuill
           className="mt-2"
           theme="snow"
@@ -131,25 +98,28 @@ const BACKEND_URL = `${API_BASE}`;
           }}
           placeholder="Reason…"
         />
-        <input
-            type="number"
-            min="1"
-            step="1"                               
-            placeholder="Enter siphon amount"    
-            className="input input-bordered w-full mt-2"
-            max={targetBalance ?? undefined}
-            value={amount}
-            onChange={e => {
-              const val = e.target.value;
-              if (targetBalance != null && Number(val) > targetBalance) {
-                toast.error('Amount exceeds selected balance');
-                return;
-              }
-              setAmount(val);
-            }}
-        required  />
 
-         {/* proof file */}
+        {/* NEW: percentage chooser (no balance shown) */}
+        <div className="mt-3">
+          <span className="label-text mb-1 block">Siphon amount</span>
+          <div className="flex gap-2">
+            {[25, 50, 75, 100].map(p => (
+              <button
+                key={p}
+                type="button"
+                className={`btn btn-sm ${percent === p ? 'btn-primary' : 'btn-outline'}`}
+                onClick={() => setPercent(p)}
+              >
+                {p}%
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-base-content/70 mt-1">
+            Percentage is applied to the user’s current balance privately on submission.
+          </p>
+        </div>
+
+        {/* Proof file */}
         <label className="label mt-2">
           <span className="label-text">Attach proof (PDF or image ≤ 5 MB)</span>
         </label>
@@ -162,28 +132,18 @@ const BACKEND_URL = `${API_BASE}`;
         {file && (
           <p className="text-sm mt-1">
             Selected: <strong>{file.name}</strong>{' '}
-            <button
-              className="btn btn-xs ml-2"
-              onClick={() => setFile(null)}
-            >
-              remove
-            </button>
+            <button className="btn btn-xs ml-2" onClick={() => setFile(null)}>remove</button>
           </p>
         )}
-        
+
         <div className="modal-action">
-           <button
-       className="btn"
-       onClick={create}
-       disabled={
-         !target ||
-         !reason ||
-         Number(amount) < 1 ||
-         (targetBalance != null && Number(amount) > targetBalance)
-       }
-     >
-       Submit
-     </button>
+          <button
+            className="btn"
+            onClick={create}
+            disabled={!target || !reason || !percent}
+          >
+            Submit
+          </button>
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
         </div>
       </div>

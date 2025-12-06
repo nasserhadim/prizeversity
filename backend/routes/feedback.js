@@ -8,6 +8,8 @@ const Notification = require('../models/Notification');
 const { populateNotification } = require('../utils/notifications');
 const { ensureAuthenticated } = require('../config/auth');
 const sendEmail = require('../../send-email'); // root-level send-email.js
+const { awardXP } = require('../utils/awardXP');
+const { logStatChanges } = require('../utils/statChangeLog');
 
 // helper to format remaining milliseconds into "Xd Yh Zm"
 function formatRemainingMs(ms) {
@@ -27,8 +29,19 @@ function formatRemainingMs(ms) {
 router.post('/', ensureAuthenticated, async (req, res) => {
   try {
     const { rating, comment, classroomId, anonymous } = req.body;
+    const numericRating = Number(rating);
+    if (!(numericRating >= 1 && numericRating <= 5)) return res.status(400).json({ error: 'Invalid rating' });
+
     // If the client requested anonymous, do not attach the authenticated user's id
     const resolvedUserId = anonymous ? undefined : req.user._id;
+
+    // NEW: enforce minimum 50 non-space characters on the server
+    const nonSpaceLength = (comment || '').replace(/\s/g, '').length;
+    if (nonSpaceLength < 50) {
+      return res.status(400).json({
+        error: 'Feedback comment must be at least 50 non-space characters long.'
+      });
+    }
 
     // Rate limit: per-user, scoped separately for site vs each classroom.
     // Submitting feedback in one classroom should not block submitting in other classrooms or site feedback.
@@ -57,7 +70,7 @@ router.post('/', ensureAuthenticated, async (req, res) => {
     }
 
     const feedback = new Feedback({
-      rating,
+      rating: numericRating,
       comment,
       classroom: classroomId || undefined,
       userId: resolvedUserId, // will be undefined for anonymous submissions
@@ -94,44 +107,65 @@ router.post('/', ensureAuthenticated, async (req, res) => {
 router.post('/classroom', ensureAuthenticated, async (req, res) => {
   try {
     const { rating, comment, classroomId, userId: bodyUserId, anonymous } = req.body;
-    // Respect anonymous flag here as well
+    const numericRating = Number(rating);
+    if (!(numericRating >= 1 && numericRating <= 5)) return res.status(400).json({ error: 'Invalid rating' });
     const resolvedUserId = anonymous ? undefined : ((req.user) ? req.user._id : (bodyUserId || undefined));
+
+    // DEFINE ip early (was referenced before definition)
+    const ip = (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim();
+
+    // NEW: enforce minimum 50 non-space characters for classroom feedback
+    const nonSpaceLength = (comment || '').replace(/\s/g, '').length;
+    if (nonSpaceLength < 50) {
+      return res.status(400).json({
+        error: 'Feedback comment must be at least 50 non-space characters long.'
+      });
+    }
 
     // DEBUG: log incoming classroom feedback requests so we can confirm this handler runs
     console.log('[feedback] POST /classroom received', {
       classroomId,
       user: req.user ? { _id: String(req.user._id), role: req.user.role } : null,
       anonymous: !!anonymous,
-      ip: (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim()
+      ip
     });
 
-    // Rate limit (per-classroom). Signed-in users limited by userId; unauthenticated by IP.
+    // Rate limit (per-classroom). Allow multiple signed-in users on same IP.
     const cooldownDays = Number(process.env.FEEDBACK_COOLDOWN_DAYS || 7);
     const cutoff = new Date(Date.now() - cooldownDays * 24 * 60 * 60 * 1000);
-    const ip = (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim();
 
-    // Rate-limit by userId OR IP. This ensures signed-in users who post anonymously
-    // still hit cooldown checks (and anonymous submitters by IP cannot spam).
-    const recentQuery = {
-      classroom: classroomId,
-      createdAt: { $gte: cutoff },
-      $or: []
-    };
-    if (req.user) recentQuery.$or.push({ userId: req.user._id });
-    if (ip) recentQuery.$or.push({ ip });
-
-    if (recentQuery.$or.length) {
-      const recent = await Feedback.findOne(recentQuery);
-      if (recent) {
-        const cooldownMs = cooldownDays * 24 * 60 * 60 * 1000;
-        const remainingMs = (new Date(recent.createdAt).getTime() + cooldownMs) - Date.now();
-        const remainingText = formatRemainingMs(remainingMs);
-        return res.status(429).json({ error: `You can submit feedback for this classroom only once every ${cooldownDays} day(s). Try again in ~${remainingText}.` });
-      }
+    let recent;
+    if (resolvedUserId) {
+      // Signed-in user: only check their own prior submission
+      recent = await Feedback.findOne({
+        classroom: classroomId,
+        userId: resolvedUserId,
+        createdAt: { $gte: cutoff }
+      });
+    } else if (!resolvedUserId && ip) {
+      // Truly anonymous (no user id): IP-based cooldown
+      recent = await Feedback.findOne({
+        classroom: classroomId,
+        userId: { $exists: false },
+        ip,
+        createdAt: { $gte: cutoff }
+      });
+    }
+    if (recent) {
+      console.log('[feedback] classroom cooldown hit', {
+        classroomId,
+        forUser: resolvedUserId || null,
+        ip,
+        recentId: recent._id
+      });
+      const cooldownMs = cooldownDays * 24 * 60 * 60 * 1000;
+      const remainingMs = (new Date(recent.createdAt).getTime() + cooldownMs) - Date.now();
+      const remainingText = formatRemainingMs(remainingMs);
+      return res.status(429).json({ error: `You can submit feedback for this classroom only once every ${cooldownDays} day(s). Try again in ~${remainingText}.` });
     }
 
     const feedback = new Feedback({
-      rating,
+      rating: numericRating,
       comment,
       classroom: classroomId || undefined,
       userId: resolvedUserId,
@@ -140,49 +174,55 @@ router.post('/classroom', ensureAuthenticated, async (req, res) => {
     });
     await feedback.save();
 
-    // --- NEW: feedback reward flow ---
+    // --- reward flow (remove duplicate const ip) ---
     try {
-      const ip = (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim();
-      const cls = await Classroom.findById(classroomId).select('feedbackRewardEnabled feedbackRewardBits feedbackRewardApplyGroupMultipliers feedbackRewardApplyPersonalMultipliers feedbackRewardAllowAnonymous teacher');
+      const cls = await Classroom.findById(classroomId)
+        .select('feedbackRewardEnabled feedbackRewardBits feedbackRewardApplyGroupMultipliers feedbackRewardApplyPersonalMultipliers feedbackRewardAllowAnonymous teacher xpSettings');
       console.log('[feedback] reward check:', { classroomId, clsEnabled: !!cls?.feedbackRewardEnabled, bits: cls?.feedbackRewardBits, allowAnonymous: !!cls?.feedbackRewardAllowAnonymous });
 
       if (cls && cls.feedbackRewardEnabled && Number(cls.feedbackRewardBits) > 0) {
-        // --- clearer duplicate-checks with debug logging ---
         const excludeCurrent = { _id: { $ne: feedback._id } };
+        const allowAnon = !!cls.feedbackRewardAllowAnonymous;
+
         let already = null;
 
-        // If classroom allows anonymous awarding → any prior submission by the same user/IP blocks reward
-        if (cls.feedbackRewardAllowAnonymous) {
-          if (req.user) {
-            already = await Feedback.findOne({ classroom: classroomId, userId: req.user._id, ...excludeCurrent });
-            if (already) console.log('[feedback] prior submission found (user) blocking award', { priorId: already._id, anonymous: !!already.anonymous });
-          }
-          if (!already && ip) {
-            already = await Feedback.findOne({ classroom: classroomId, ip, ...excludeCurrent });
-            if (already) console.log('[feedback] prior submission found (ip) blocking award', { priorId: already._id, anonymous: !!already.anonymous });
-          }
-        } else {
-          // If anonymous awarding is disallowed → only prior NON-ANONYMOUS submissions block reward
-          if (req.user) {
-            already = await Feedback.findOne({ classroom: classroomId, userId: req.user._id, anonymous: { $ne: true }, ...excludeCurrent });
-            if (already) console.log('[feedback] prior non-anon submission found (user) blocking award', { priorId: already._id });
-            else {
-              // Log if prior anonymous exists (informational)
-              const priorAnon = await Feedback.findOne({ classroom: classroomId, userId: req.user._id, anonymous: true, ...excludeCurrent });
-              if (priorAnon) console.log('[feedback] prior anonymous submission exists (user) — should NOT block award when allowAnonymous=false', { priorId: priorAnon._id });
-            }
-          }
-          if (!already && ip) {
-            already = await Feedback.findOne({ classroom: classroomId, ip, anonymous: { $ne: true }, ...excludeCurrent });
-            if (already) console.log('[feedback] prior non-anon submission found (ip) blocking award', { priorId: already._id });
-            else {
-              const priorAnonByIp = await Feedback.findOne({ classroom: classroomId, ip, anonymous: true, ...excludeCurrent });
-              if (priorAnonByIp) console.log('[feedback] prior anonymous submission exists (ip) — should NOT block award when allowAnonymous=false', { priorId: priorAnonByIp._id });
+        if (req.user) {
+          // Signed-in submitter: block by userId only
+          already = await Feedback.findOne({
+            classroom: classroomId,
+            userId: req.user._id,
+            ...(allowAnon ? {} : { anonymous: { $ne: true } }),
+            ...excludeCurrent
+          });
+          if (already) console.log('[feedback] prior submission found (user) blocking award', { priorId: already._id, anonymous: !!already.anonymous });
+        } else if (ip) {
+          // No user (true anonymous): fall back to IP-based check
+          already = await Feedback.findOne({
+            classroom: classroomId,
+            ip,
+            ...(allowAnon ? {} : { anonymous: { $ne: true } }),
+            ...excludeCurrent
+          });
+          if (already) console.log('[feedback] prior submission found (ip) blocking award', { priorId: already._id, anonymous: !!already.anonymous });
+        }
+
+        // NEW: guard against re-award when first submission was anonymous
+        if (!already) {
+          // who would be credited for this award?
+          const targetId = (feedback && feedback.userId) ? feedback.userId : (req.user ? req.user._id : null);
+          if (targetId) {
+            const priorAward = await User.exists({
+              _id: targetId,
+              transactions: { $elemMatch: { type: 'feedback_reward', classroom: classroomId } }
+            });
+            if (priorAward) {
+              already = true;
+              console.log('[feedback] prior feedback_reward transaction found for user; skipping award');
             }
           }
         }
 
-        console.log('[feedback] duplicate-check result', { matchedExisting: !!already, allowAnonymous: !!cls.feedbackRewardAllowAnonymous });
+        console.log('[feedback] duplicate-check result', { matchedExisting: !!already, allowAnonymous: allowAnon });
 
         if (!already) {
           // If feedback was anonymous and classroom disallows anonymous awarding, skip
@@ -263,7 +303,54 @@ router.post('/classroom', ensureAuthenticated, async (req, res) => {
                   });
 
                   await target.save();
+
+                  // Ensure classroom XP entry exists so /api/xp can read it
+                  try {
+                    if (!Array.isArray(target.classroomXP)) target.classroomXP = [];
+                    const hasEntry = target.classroomXP.some(cx => String(cx.classroom) === String(classroomId));
+                    if (!hasEntry) {
+                      target.classroomXP.push({ classroom: classroomId, xp: 0, level: 1, earnedBadges: [] });
+                    }
+                    await target.save();
+                  } catch (e) {
+                    console.warn('[feedback] classroomXP upsert failed:', e);
+                  }
+
                   console.log(`[feedback] awarded ${award} bits -> user ${target._id} (classroom ${classroomId})`);
+
+                  // Award XP for bits earned via feedback reward (unchanged)
+                  try {
+                    if (cls?.xpSettings?.enabled) {
+                      const xpRate = cls.xpSettings.bitsEarned || 0;
+                      const xpBits = (cls.xpSettings.bitsXPBasis === 'base') ? Math.abs(base) : Math.abs(award);
+                      const xpToAward = xpBits * xpRate;
+                      if (xpToAward > 0) {
+                        // award XP for the bits earned and capture result so we can log the stat change
+                        const xpRes = await awardXP(target._id, classroomId, xpToAward, 'earning bits (feedback reward)', cls.xpSettings);
+                        // create a stats_adjusted log/notification for the XP delta so the student sees "xp: A → B (+Δ)"
+                        if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+                          try {
+                            await logStatChanges({
+                              io: req.app && req.app.get ? req.app.get('io') : null,
+                              classroomId,
+                              user: target,
+                              actionBy: req.user ? req.user._id : undefined,
+                              prevStats: { xp: xpRes.oldXP },
+                              currStats: { xp: xpRes.newXP },
+                              context: 'feedback submission',
+                              // show the bits effect explicitly for the bits-earned flow
+                              details: { effectsText: award ? `Feedback reward: ${award} bits` : undefined },
+                              forceLog: true
+                            });
+                          } catch (logErr) {
+                            console.warn('[feedback] failed to log stat change for bits-earned XP:', logErr);
+                          }
+                        }
+                      }
+                    }
+                  } catch (xpErr) {
+                    console.warn('[feedback] failed to award XP for feedback reward:', xpErr);
+                  }
 
                   // Emit socket events so frontend updates (emit to classroom and user rooms)
                   try {
@@ -273,7 +360,7 @@ router.post('/classroom', ensureAuthenticated, async (req, res) => {
                       const populatedNotification = await Notification.create({
                         user: target._id,
                         type: 'bit_assignment_approved',
-                        message: `You received ${award} bits for submitting feedback.`,
+                        message: `You received ${award} ₿ for submitting feedback.`,
                         classroom: classroomId,
                         actionBy: cls.teacher || undefined,
                         createdAt: new Date()
@@ -300,6 +387,60 @@ router.post('/classroom', ensureAuthenticated, async (req, res) => {
     }
     // --- END NEW flow ---
 
+    // --- AFTER the reward flow (outside / after the try/catch that handles bit award) ---
+    { 
+      // NEW: award XP for the feedback submission itself (independent of bit award)
+      try {
+        // reload classroom xp settings to be safe (or reuse "cls" if in scope)
+        const cls2 = await Classroom.findById(classroomId).select('xpSettings feedbackRewardBits teacher');
+        if (cls2?.xpSettings?.enabled && Number(cls2.xpSettings.feedbackSubmission || 0) > 0) {
+          // determine who to credit (consistent with earlier logic)
+          const targetId2 = (feedback && feedback.userId) ? feedback.userId : (req.user ? req.user._id : null);
+          if (targetId2) {
+            const targetUser = await User.findById(targetId2);
+            if (targetUser) {
+              // Ensure classroomXP entry exists so awardXP can operate and /api/xp reads correct data
+              if (!Array.isArray(targetUser.classroomXP)) targetUser.classroomXP = [];
+              const hasEntry = targetUser.classroomXP.some(cx => String(cx.classroom) === String(classroomId));
+              if (!hasEntry) {
+                targetUser.classroomXP.push({ classroom: classroomId, xp: 0, level: 1, earnedBadges: [] });
+                await targetUser.save();
+              }
+
+              const xpAmount = Number(cls2.xpSettings.feedbackSubmission || 0);
+              const xpRes = await awardXP(targetId2, classroomId, xpAmount, 'feedback submission', cls2.xpSettings);
+
+              // Log stat change so notification shows "xp: A → B (+Δ)"
+              if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+                try {
+                  // only advertise a "Feedback reward: N bits" effect when the classroom actually has the bit reward enabled
+                  const effectsText = (cls2.feedbackRewardEnabled && Number(cls2.feedbackRewardBits) > 0)
+                    ? `Feedback reward: ${cls2.feedbackRewardBits} bits`
+                    : undefined;
+
+                  await logStatChanges({
+                    io: req.app.get('io'),
+                    classroomId,
+                    user: targetUser,
+                    actionBy: req.user ? req.user._id : undefined,
+                    prevStats: { xp: xpRes.oldXP },
+                    currStats: { xp: xpRes.newXP },
+                    context: 'feedback submission',
+                    details: { effectsText },
+                    forceLog: true
+                  });
+                } catch (logErr) {
+                  console.warn('[feedback] failed to log stat change for feedback XP (post-flow):', logErr);
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[feedback] feedbackSubmission XP award failed (post-flow):', err);
+      }
+    }
+
     res.status(201).json({ message: 'Classroom feedback submitted successfully' });
   } catch (err) {
     console.error('Error submitting classroom feedback:', err);
@@ -317,16 +458,40 @@ router.get('/', async (req, res) => {
     const filter = { classroom: { $exists: false } };
     if (!includeHidden) filter.hidden = { $ne: true };
 
-    const [total, feedbacks] = await Promise.all([
+    const [total, feedbacksRaw, countsRaw] = await Promise.all([
       Feedback.countDocuments(filter),
       Feedback.find(filter)
         .sort({ createdAt: -1 })
         .skip((page - 1) * perPage)
         .limit(perPage)
         .populate('userId', 'firstName lastName email')
+        .populate('classroom', 'name code') // <-- ADD
+      ,
+      Feedback.aggregate([
+        { $match: filter },
+        { $project: { ratingValue: { $ifNull: ['$rating', '$feedbackRating'] } } },
+        { $match: { ratingValue: { $gte: 1, $lte: 5 } } },
+        { $group: { _id: '$ratingValue', count: { $sum: 1 } } }
+      ])
     ]);
 
-    res.json({ feedbacks, total, page, perPage });
+    // Normalize rating field on returned docs (legacy support)
+    const feedbacks = feedbacksRaw.map(f => {
+      if (f.rating == null && f.feedbackRating != null) {
+        f.rating = f.feedbackRating;
+      }
+      return f;
+    });
+
+    const ratingCounts = [0,0,0,0,0,0];
+    countsRaw.forEach(c => {
+      const r = Number(c._id);
+      if (r >= 1 && r <= 5) ratingCounts[r] = c.count;
+    });
+    const sum = ratingCounts.reduce((acc, cnt, r) => r >= 1 ? acc + cnt * r : acc, 0);
+    const average = total ? sum / total : 0;
+
+    res.json({ feedbacks, total, page, perPage, ratingCounts, average });
   } catch (err) {
     console.error('Error fetching site feedback:', err);
     res.status(500).json({ error: 'Failed to fetch feedback' });
@@ -343,16 +508,27 @@ router.get('/classroom/:id', async (req, res) => {
     const filter = { classroom: req.params.id };
     if (!includeHidden) filter.hidden = { $ne: true };
 
-    const [total, feedbacks] = await Promise.all([
+    const [total, feedbacks, countsRaw] = await Promise.all([
       Feedback.countDocuments(filter),
       Feedback.find(filter)
         .sort({ createdAt: -1 })
         .skip((page - 1) * perPage)
         .limit(perPage)
-        .populate('userId', 'firstName lastName email')
+        .populate('userId', 'firstName lastName email'),
+      Feedback.aggregate([
+        { $match: filter },
+        { $group: { _id: '$rating', count: { $sum: 1 } } }
+      ])
     ]);
 
-    res.json({ feedbacks, total, page, perPage });
+    const ratingCounts = [0,0,0,0,0,0];
+    countsRaw.forEach(c => {
+      const r = Number(c._id);
+      if (r >= 1 && r <= 5) ratingCounts[r] = c.count;
+    });
+    const sum = ratingCounts.reduce((acc, cnt, r) => r >= 1 ? acc + cnt * r : acc, 0);
+    const average = total ? sum / total : 0;
+    res.json({ feedbacks, total, page, perPage, ratingCounts, average });
   } catch (err) {
     console.error('Error fetching classroom feedback:', err);
     res.status(500).json({ error: 'Failed to fetch classroom feedback' });
@@ -606,6 +782,7 @@ router.get('/moderation-log', ensureAuthenticated, async (req, res) => {
         .limit(perPage)
         .populate('feedback', 'comment rating classroom hidden')
         .populate('moderator', 'firstName lastName email')
+        .populate('classroom', 'name code') // NEW
     ]);
 
     res.json({ logs, total, page, perPage });

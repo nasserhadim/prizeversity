@@ -360,11 +360,22 @@ const BulkBalanceEditor = ({onSuccess}) => {
             {selectedIds.size === 1 ? 'student' : 'students'}
           </p>
           <input
-            type="number"
+            type="text"
+            inputMode="numeric"
+            pattern="-?[0-9]*"
             className="input input-bordered w-full mb-4"
             placeholder="+ / –"
             value={amount}
-            onChange={e => setAmount(e.target.value)}
+            onChange={e => {
+              const v = e.target.value;
+              // allow optional leading +/-, digits only
+              if (/^[+-]?\d*$/.test(v)) setAmount(v);
+            }}
+            onBlur={() => {
+              if (!amount) return;
+              const n = parseInt(amount.replace('+',''), 10);
+              setAmount(Number.isNaN(n) ? '' : String(n));
+            }}
           />
           <input
             type="text"

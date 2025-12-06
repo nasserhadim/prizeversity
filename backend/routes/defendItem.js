@@ -3,18 +3,27 @@ const router = express.Router();
 const Item = require('../models/Item');
 const User = require('../models/User');
 const { ensureAuthenticated } = require('../config/auth');
+const Classroom = require('../models/Classroom');
+const { awardXP } = require('../utils/awardXP');
+const { logStatChanges } = require('../utils/statChangeLog');
 
 // Defend item is another category for the bazaar items that protect the user from any attack items.
 
 router.post('/activate/:itemId', ensureAuthenticated, async (req, res) => {
   try {
+    const classroomId = req.body.classroomId || req.query.classroomId;
     const item = await Item.findById(req.params.itemId);
-    
     if (!item || item.owner.toString() !== req.user._id.toString()) {
       return res.status(404).json({ error: 'Item not found' });
     }
 
-    // Allow stacking shields
+    // snapshot before
+    const prev = {
+      multiplier: req.user.passiveAttributes?.multiplier || 1,
+      luck: req.user.passiveAttributes?.luck || 1,
+      discount: req.user.passiveAttributes?.discount || 0,
+      shield: req.user.shieldCount || 0
+    };
 
     // Deactivate any other active defense items (just in case)
     await Item.updateMany(
@@ -24,18 +33,77 @@ router.post('/activate/:itemId', ensureAuthenticated, async (req, res) => {
 
     // Activate shield
     item.active = true;
+    item.usesRemaining = Math.max(0, (item.usesRemaining || 1) - 1);
+    item.consumed = item.usesRemaining === 0;
+    item.activatedAt = new Date(); // ← NEW
     await item.save();
-    
-    // Update user's shield status
+
     req.user.shieldCount = (req.user.shieldCount || 0) + 1;
     req.user.shieldActive = true;
     await req.user.save();
 
+    // Award stat-increase XP (existing)
+    try {
+      if (classroomId) {
+        const cls = await Classroom.findById(classroomId).select('xpSettings');
+        const rate = cls?.xpSettings?.enabled ? (cls.xpSettings.statIncrease || 0) : 0;
+        if (rate > 0) {
+          try {
+            const xpRes = await awardXP(req.user._id, classroomId, rate, 'stat increase (shield activated)', cls.xpSettings);
+            if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+              try {
+                await logStatChanges({
+                  io: req.app && req.app.get ? req.app.get('io') : null,
+                  classroomId,
+                  user: req.user,
+                  actionBy: req.user._id,
+                  prevStats: { xp: xpRes.oldXP },
+                  currStats: { xp: xpRes.newXP },
+                  context: `stat increase (shield activated: ${item.name})`,
+                  details: {
+                    effectsText: 'Shield +1 (blocks next attack)',
+                    itemName: item.name,
+                    itemId: item._id
+                  },
+                  forceLog: true
+                });
+              } catch (logErr) {
+                console.warn('[defendItem] failed to log XP stat change:', logErr);
+              }
+            }
+          } catch (xpErr) {
+            console.warn('[defendItem] awardXP failed:', xpErr);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[defendItem] awardXP failed:', e);
+    }
+
+    // NEW: stat-change notifications
+    const after = {
+      multiplier: req.user.passiveAttributes?.multiplier || 1,
+      luck: req.user.passiveAttributes?.luck || 1,
+      discount: req.user.passiveAttributes?.discount || 0,
+      shield: req.user.shieldCount || 0
+    };
+    await logStatChanges({
+      io: req.app.get('io'),
+      classroomId,
+      user: req.user,
+      actionBy: req.user._id,
+      prevStats: prev,
+      currStats: after,
+      context: `Bazaar - Shield activated`,
+      details: { effectsText: 'Shield +1 (blocks next attack)' }
+    });
+
     res.json({ 
-      message: 'Shield activated - will protect against next attack',
-      usesRemaining: 1 // Single-use shield
+      message: 'Shield activated successfully',
+      shieldCount: req.user.shieldCount
     });
   } catch (err) {
+    console.error('Shield activation error:', err);
     res.status(500).json({ error: 'Failed to activate shield' });
   }
 });

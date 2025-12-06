@@ -12,6 +12,7 @@ export default function ModerationLog({ classroomId = null }) {
   const [page, setPage] = useState(1);
   const perPage = 20;
   const [total, setTotal] = useState(0);
+  const [classroomMeta, setClassroomMeta] = useState(null);
 
   const fetchLogs = async (p = 1) => {
     try {
@@ -39,13 +40,23 @@ export default function ModerationLog({ classroomId = null }) {
     return () => unsub();
   }, [classroomId, user]);
 
+  // fetch classroom metadata (name, code) for classroomId
+  useEffect(() => {
+    if (!classroomId) { setClassroomMeta(null); return; }
+    axios.get(`/api/classroom/${classroomId}`, { withCredentials: true })
+      .then(r => setClassroomMeta(r.data))
+      .catch(()=>setClassroomMeta(null));
+  }, [classroomId]);
+
   // Export helpers for moderation logs (CSV + JSON)
   const exportLogsToCSV = async (logsArr = [], filenameBase = 'moderation_logs') => {
     function esc(v) { if (v === null || v === undefined) return ''; return `"${String(v).replace(/"/g, '""')}"`; }
-    const header = ['id','action','reason','reporterEmail','moderatorId','moderatorName','feedbackId','feedbackRating','classroom','createdAt'];
+    const header = ['id','action','reason','reporterEmail','moderatorId','moderatorName','feedbackId','feedbackRating','classroomId'];
+    if (classroomId) header.push('classroomName','classroomCode');
+    header.push('createdAt');
     const rows = (logsArr || []).map(l => {
       const moderatorName = l.moderator ? `${l.moderator.firstName || ''} ${l.moderator.lastName || ''}`.trim() : '';
-      return [
+      const row = [
         esc(l._id),
         esc(l.action),
         esc(l.reason),
@@ -55,8 +66,15 @@ export default function ModerationLog({ classroomId = null }) {
         esc(l.feedback ? (l.feedback._id || l.feedback) : ''),
         esc(l.feedback && l.feedback.rating ? l.feedback.rating : ''),
         esc(l.classroom || ''),
-        esc(new Date(l.createdAt || '').toISOString())
-      ].join(',');
+      ];
+      if (classroomId) {
+        row.push(
+          esc(classroomMeta?.name || ''),
+          esc(classroomMeta?.code || '')
+        );
+      }
+      row.push(esc(new Date(l.createdAt || '').toISOString()));
+      return row.join(',');
     });
     const csv = [header.join(','), ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -74,16 +92,26 @@ export default function ModerationLog({ classroomId = null }) {
   };
 
   const exportLogsToJSON = async (logsArr = [], filenameBase = 'moderation_logs') => {
-    const data = (logsArr || []).map(l => ({
-      _id: l._id,
-      action: l.action,
-      reason: l.reason,
-      reporterEmail: l.reporterEmail,
-      moderator: l.moderator || null,
-      feedback: l.feedback || null,
-      classroom: l.classroom || null,
-      createdAt: l.createdAt
-    }));
+    const data = (logsArr || []).map(l => {
+      const moderatorName = l.moderator ? `${l.moderator.firstName || ''} ${l.moderator.lastName || ''}`.trim() : '';
+      const baseObj = {
+        id: l._id,
+        action: l.action,
+        reason: l.reason,
+        reporterEmail: l.reporterEmail,
+        moderatorId: l.moderator ? (l.moderator._id || l.moderator) : null,
+        moderatorName,
+        feedbackId: l.feedback ? (l.feedback._id || l.feedback) : null,
+        feedbackRating: l.feedback && l.feedback.rating ? l.feedback.rating : null,
+        classroomId: l.classroom || null,
+        createdAt: l.createdAt
+      };
+      if (classroomId) {
+        baseObj.classroomName = classroomMeta?.name || null;
+        baseObj.classroomCode = classroomMeta?.code || null;
+      }
+      return baseObj;
+    });
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -96,6 +124,12 @@ export default function ModerationLog({ classroomId = null }) {
     a.remove();
     URL.revokeObjectURL(url);
     return filename;
+  };
+
+  const middleTruncateId = (id) => {
+    if (!id) return '';
+    const s = String(id);
+    return s.length <= 16 ? s : `${s.slice(0,6)}…${s.slice(-6)}`;
   };
 
   if (!user || !(user.role === 'teacher' || user.role === 'admin' || classroomId === null)) {
@@ -113,7 +147,10 @@ export default function ModerationLog({ classroomId = null }) {
               - site-wide: site_moderation_logs
           */}
           {(() => {
-            const base = classroomId ? `classroom_${classroomId}_moderation_logs` : 'site_moderation_logs';
+            const safe = (s='') => s.replace(/[^a-zA-Z0-9_-]/g,'_');
+            const base = classroomId
+              ? `classroom_${safe(classroomMeta?.name || 'class')}${classroomMeta?.code ? `_${safe(classroomMeta.code)}` : ''}_moderation_logs`
+              : 'site_moderation_logs';
             return (
               <ExportButtons
                 onExportCSV={() => exportLogsToCSV(logs || [], base)}
@@ -132,12 +169,30 @@ export default function ModerationLog({ classroomId = null }) {
           {logs.map(l => (
             <div key={l._id} className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1">
               <div className="min-w-0">
-                <div className="text-sm text-base-content/60">{new Date(l.createdAt).toLocaleString()}</div>
+                <div className="text-xs text-base-content/60">{new Date(l.createdAt).toLocaleString()}</div>
                 <div className="text-sm text-base-content/80 mt-1">
-                  <span className="font-semibold text-base-content/90 mr-2">{l.action?.toUpperCase()}</span>
-                  <span className="text-base-content/70">— rating {l.feedback?.rating ?? '—'}</span>
+                  <span className="font-semibold mr-2">{l.action?.toUpperCase()}</span>
+                  {l.feedback && (
+                    <>
+                      <span>rating {l.feedback.rating}</span>
+                      <span className="ml-2 font-mono">
+                        {middleTruncateId(l.feedback._id)}
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-xs ml-1"
+                          onClick={() => navigator.clipboard.writeText(String(l.feedback._id))}
+                          title="Copy feedback id"
+                        >Copy</button>
+                      </span>
+                      {l.feedback.comment && (
+                        <span className="ml-2 italic text-base-content/50">
+                          “{String(l.feedback.comment).slice(0,60)}{l.feedback.comment.length > 60 ? '…' : ''}”
+                        </span>
+                      )}
+                    </>
+                  )}
                 </div>
-                {/* show reporter email only to teachers/admins */}
+                {/* reporter email */}
                 {l.reporterEmail && user && (user.role === 'admin' || user.role === 'teacher') && (
                   <div className="text-xs text-base-content/60 mt-1">Reporter: {l.reporterEmail}</div>
                 )}
