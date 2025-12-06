@@ -67,7 +67,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
   const [availableItems, setAvailableItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [effectPreview, setEffectPreview] = useState('');
-  const [imageSource, setImageSource] = useState('url');
+  const [imageSource, setImageSource] = useState('file');
   const [imageFile, setImageFile] = useState(null);
   const [imageUrlLocal, setImageUrlLocal] = useState('');
   const [showLuckPreview, setShowLuckPreview] = useState(false);
@@ -454,8 +454,20 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
          </label>
          <div className="flex items-center gap-2 mb-2">
            <div className="inline-flex rounded-full bg-gray-200 p-1">
-             <button type="button" onClick={() => setImageSource('url')} className={`px-3 py-1 rounded-full text-sm ${imageSource === 'url' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}>URL</button>
-             <button type="button" onClick={() => setImageSource('file')} className={`ml-1 px-3 py-1 rounded-full text-sm ${imageSource === 'file' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}>Upload</button>
+             <button
+               type="button"
+               onClick={() => setImageSource('file')}
+               className={`px-3 py-1 rounded-full ${imageSource === 'file' ? 'bg-white shadow' : 'text-gray-600'}`}
+             >
+               Upload
+             </button>
+             <button
+               type="button"
+               onClick={() => setImageSource('url')}
+               className={`ml-1 px-3 py-1 rounded-full ${imageSource === 'url' ? 'bg-white shadow' : 'text-gray-600'}`}
+             >
+               URL
+             </button>
            </div>
          </div>
  

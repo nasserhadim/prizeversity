@@ -9,7 +9,7 @@ const AddItem = ({ bazaarId, onAdd }) => {
   const [category, setCategory] = useState('');
   const [effect, setEffect] = useState('');
   const [passiveAttributes, setPassiveAttributes] = useState('');
-  const [imageSource, setImageSource] = useState('url');
+  const [imageSource, setImageSource] = useState('file');
   const [imageFile, setImageFile] = useState(null);
   const [imageUrlLocal, setImageUrlLocal] = useState('');
   const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -65,10 +65,22 @@ const AddItem = ({ bazaarId, onAdd }) => {
         required
       />
       <div>
-        <label>Image URL / Upload</label>
+        <label>Upload / Image URL</label>
         <div className="inline-flex rounded-full bg-gray-200 p-1 my-2">
-          <button type="button" onClick={() => setImageSource('url')} className={imageSource === 'url' ? 'bg-white px-3 py-1 rounded' : 'px-3 py-1 rounded text-gray-600'}>URL</button>
-          <button type="button" onClick={() => setImageSource('file')} className={imageSource === 'file' ? 'bg-white px-3 py-1 rounded ml-1' : 'px-3 py-1 rounded ml-1 text-gray-600'}>Upload</button>
+          <button
+            type="button"
+            onClick={() => setImageSource('file')}
+            className={`px-3 py-1 rounded-full ${imageSource === 'file' ? 'bg-white shadow' : 'text-gray-600'}`}
+          >
+            Upload
+          </button>
+          <button
+            type="button"
+            onClick={() => setImageSource('url')}
+            className={`ml-1 px-3 py-1 rounded-full ${imageSource === 'url' ? 'bg-white shadow' : 'text-gray-600'}`}
+          >
+            URL
+          </button>
         </div>
 
         {imageSource === 'file' ? (

@@ -18,6 +18,7 @@ import { getBazaarTemplates, saveBazaarTemplate, deleteBazaarTemplate, applyBaza
 import { Package, Save, Trash2 } from 'lucide-react';
 import EditItemModal from '../components/EditItemModal';
 import { X } from 'lucide-react';
+import ConfirmModal from '../components/ConfirmModal';
 
 const Bazaar = () => {
   const { classroomId } = useParams();
@@ -34,7 +35,7 @@ const Bazaar = () => {
   const [templateName, setTemplateName] = useState('');
   const [savingTemplate, setSavingTemplate] = useState(false);
   // NEW: tab state for the "no bazaar" screen
-  const [noBazaarTab, setNoBazaarTab] = useState('apply'); // 'apply' | 'create'
+  const [noBazaarTab, setNoBazaarTab] = useState('create'); // 'create' | 'apply'
   const [itemSearch, setItemSearch] = useState('');
   const [itemCategory, setItemCategory] = useState('all');
   const [itemSort, setItemSort] = useState('nameAsc');
@@ -46,6 +47,10 @@ const Bazaar = () => {
   // NEW: bulk delete state
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [showEditBazaar, setShowEditBazaar] = useState(false);
+  const [editBazaarForm, setEditBazaarForm] = useState({ name: '', description: '', imageSource: 'file', imageFile: null, imageUrl: '' });
+  const [deletingBazaar, setDeletingBazaar] = useState(false);
+  const [confirmDeleteBazaar, setConfirmDeleteBazaar] = useState(false);
 
   // Fetch classroom details
   const fetchClassroom = async () => {
@@ -212,6 +217,63 @@ const Bazaar = () => {
     return list;
   }, [bazaar?.items, itemSearch, itemCategory, itemSort]);
 
+  // Prefill edit form when bazaar loads
+  useEffect(() => {
+    if (bazaar) {
+      setEditBazaarForm(prev => ({
+        ...prev,
+        name: bazaar.name || '',
+        description: bazaar.description || '',
+        imageSource: 'file',
+        imageFile: null,
+        imageUrl: bazaar.image || ''
+      }));
+    }
+  }, [bazaar]);
+
+  const handleUpdateBazaar = async () => {
+    try {
+      let res;
+      const url = `/classroom/${classroomId}/bazaar/${bazaar._id}`;
+      if (editBazaarForm.imageSource === 'file' && editBazaarForm.imageFile) {
+        const fd = new FormData();
+        fd.append('name', editBazaarForm.name.trim());
+        fd.append('description', editBazaarForm.description);
+        fd.append('image', editBazaarForm.imageFile);
+        res = await apiBazaar.put(url, fd);
+      } else {
+        res = await apiBazaar.put(url, {
+          name: editBazaarForm.name.trim(),
+          description: editBazaarForm.description,
+          image: editBazaarForm.imageUrl
+        });
+      }
+      setBazaar(res.data.bazaar);
+      toast.success('Bazaar updated');
+      setShowEditBazaar(false);
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Failed to update bazaar');
+    }
+  };
+
+  const handleDeleteBazaar = () => {
+    setConfirmDeleteBazaar(true);
+  };
+
+  const confirmDeleteBazaarAction = async () => {
+    setDeletingBazaar(true);
+    try {
+      await apiBazaar.delete(`/classroom/${classroomId}/bazaar/${bazaar._id}`);
+      toast.success('Bazaar deleted');
+      setBazaar(null);
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Failed to delete bazaar');
+    } finally {
+      setDeletingBazaar(false);
+      setConfirmDeleteBazaar(false);
+    }
+  };
+
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-base-200">
                         <span className="loading loading-ring loading-lg"></span>
                       </div>
@@ -225,19 +287,26 @@ const Bazaar = () => {
           <div role="tablist" className="tabs tabs-boxed mb-6">
             <button
               role="tab"
-              className={`tab ${noBazaarTab === 'apply' ? 'tab-active' : ''}`}
-              onClick={() => setNoBazaarTab('apply')}
-            >
-              Apply Template
-            </button>
-            <button
-              role="tab"
               className={`tab ${noBazaarTab === 'create' ? 'tab-active' : ''}`}
               onClick={() => setNoBazaarTab('create')}
             >
               Create Bazaar
             </button>
+            <button
+              role="tab"
+              className={`tab ${noBazaarTab === 'apply' ? 'tab-active' : ''}`}
+              onClick={() => setNoBazaarTab('apply')}
+            >
+              Apply Template
+            </button>
           </div>
+
+          {/* Pane: Create Bazaar */}
+          {noBazaarTab === 'create' && (
+            <div className="w-full max-w-3xl mx-auto">
+              <CreateBazaar classroomId={classroomId} onCreate={setBazaar} />
+            </div>
+          )}
 
           {/* Pane: Apply Template */}
           {noBazaarTab === 'apply' && (
@@ -256,6 +325,12 @@ const Bazaar = () => {
                             {template.sourceClassroom.code && ` (${template.sourceClassroom.code})`}
                           </p>
                         )}
+                        <p className="text-xs text-base-content/50 mt-1">
+                          {template.items?.length || 0} items
+                        </p>
+                        <p className="text-xs text-base-content/40">
+                          Created: {new Date(template.createdAt).toLocaleString()}
+                        </p>
                         <div className="card-actions justify-end mt-2">
                           <button className="btn btn-sm btn-primary" onClick={() => handleApplyTemplate(template._id)}>Apply</button>
                           <button className="btn btn-sm btn-ghost text-error" onClick={() => handleDeleteTemplate(template._id, template.name)}>
@@ -269,13 +344,6 @@ const Bazaar = () => {
               ) : (
                 <p className="text-center text-base-content/60 py-8">No templates saved yet</p>
               )}
-            </div>
-          )}
-
-          {/* Pane: Create Bazaar */}
-          {noBazaarTab === 'create' && (
-            <div className="w-full max-w-3xl mx-auto">
-              <CreateBazaar classroomId={classroomId} onCreate={setBazaar} />
             </div>
           )}
         </div>
@@ -373,38 +441,46 @@ const Bazaar = () => {
       {user.role === 'teacher' && (
         <div className="card card-compact bg-base-100 shadow p-4 border border-base-200">
           <div className="flex flex-wrap gap-2 items-center justify-between">
-            <button
-              className="btn btn-sm btn-outline btn-success gap-2"
-              onClick={() => setShowTemplateModal(true)}
-            >
-              <Save className="w-4 h-4" />
-              Save as Template
-            </button>
-            {templates.length > 0 && (
-              <button
-                className="btn btn-sm btn-outline btn-info gap-2"
-                onClick={() => setShowApplyModal(true)}
-              >
-                <Package className="w-4 h-4" />
-                View Templates ({templates.length})
+            <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+              <button className="btn btn-sm btn-outline btn-success gap-2" onClick={() => setShowTemplateModal(true)}>
+                <Save className="w-4 h-4" />
+                Save as Template
               </button>
-            )}
+              {templates.length > 0 && (
+                <button
+                  className="btn btn-sm btn-outline btn-info gap-2 whitespace-nowrap"
+                  onClick={() => setShowApplyModal(true)}
+                >
+                  <Package className="w-4 h-4" />
+                  View Templates ({templates.length})
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+              <button className="btn btn-sm btn-outline" onClick={() => setShowEditBazaar(true)}>
+                Edit Bazaar
+              </button>
+              <button className="btn btn-sm btn-error" onClick={handleDeleteBazaar} disabled={deletingBazaar}>
+                {deletingBazaar ? <span className="loading loading-spinner loading-xs" /> : <Trash2 className="w-4 h-4" />}
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* TABS */}
-      <div role="tablist" className="tabs tabs-boxed w-full">
+      <div role="tablist" className="tabs tabs-boxed w-full sticky top-0 z-10">
         <button
           role="tab"
-          className={`tab ${bazaarTab === 'shop' ? 'tab-active' : ''}`}
+          className={`tab text-sm whitespace-nowrap ${bazaarTab === 'shop' ? 'tab-active' : ''}`}
           onClick={() => setBazaarTab('shop')}
         >
           🛍️ Shop
         </button>
         <button
           role="tab"
-          className={`tab ${bazaarTab === 'inventory' ? 'tab-active' : ''}`}
+          className={`tab text-sm whitespace-nowrap ${bazaarTab === 'inventory' ? 'tab-active' : ''}`}
           onClick={() => setBazaarTab('inventory')}
         >
           🎒 Inventory
@@ -412,7 +488,7 @@ const Bazaar = () => {
         {user.role === 'teacher' && (
           <button
             role="tab"
-            className={`tab ${bazaarTab === 'create' ? 'tab-active' : ''}`}
+            className={`tab text-sm whitespace-nowrap ${bazaarTab === 'create' ? 'tab-active' : ''}`}
             onClick={() => setBazaarTab('create')}
           >
             ➕ Add Item
@@ -606,9 +682,9 @@ const Bazaar = () => {
                         <p className="text-xs text-base-content/50">
                           {template.items?.length || 0} items
                         </p>
-                        <p className="text-xs text-base-content/40">
-                          Created: {new Date(template.createdAt).toLocaleDateString()}
-                        </p>
+                        <div className="text-xs text-base-content/40">
+                          Created: {new Date(template.createdAt).toLocaleString()}
+                        </div>
                         <div className="card-actions justify-end mt-2">
                           <button
                             className="btn btn-xs btn-ghost text-error"
@@ -775,6 +851,69 @@ const Bazaar = () => {
           </div>
         </div>
       )}
+
+      {/* Edit Bazaar Modal */}
+      {showEditBazaar && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="card bg-base-100 w-full max-w-md shadow-xl border border-base-300">
+            <div className="card-body space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold">Edit Bazaar</h3>
+                <button className="btn btn-ghost btn-sm" onClick={() => setShowEditBazaar(false)}>Close</button>
+              </div>
+              <label className="form-control">
+                <span className="label-text">Name</span>
+                <input className="input input-bordered" value={editBazaarForm.name}
+                       onChange={e => setEditBazaarForm(f => ({ ...f, name: e.target.value }))} />
+              </label>
+              <label className="form-control">
+                <span className="label-text">Description</span>
+                <textarea className="textarea textarea-bordered" value={editBazaarForm.description}
+                          onChange={e => setEditBazaarForm(f => ({ ...f, description: e.target.value }))} />
+              </label>
+              <div className="form-control">
+                <label className="label"><span className="label-text">Image</span><span className="label-text-alt">Optional</span></label>
+                <div className="inline-flex rounded-full bg-gray-200 p-1 mb-2">
+                  <button type="button" onClick={() => setEditBazaarForm(f => ({ ...f, imageSource: 'file' }))} className={`px-3 py-1 rounded-full ${editBazaarForm.imageSource === 'file' ? 'bg-white shadow' : 'text-gray-600'}`}>Upload</button>
+                  <button type="button" onClick={() => setEditBazaarForm(f => ({ ...f, imageSource: 'url' }))} className={`ml-1 px-3 py-1 rounded-full ${editBazaarForm.imageSource === 'url' ? 'bg-white shadow' : 'text-gray-600'}`}>URL</button>
+                </div>
+                {editBazaarForm.imageSource === 'file' ? (
+                  <>
+                    <input type="file" accept="image/png,image/jpeg,image/webp,image/gif"
+                           className="file-input file-input-bordered w-full"
+                           onChange={e => setEditBazaarForm(f => ({ ...f, imageFile: e.target.files[0] }))} />
+                    <p className="text-xs text-gray-500 mt-1">Allowed: jpg, png, webp, gif. Max: 5 MB.</p>
+                  </>
+                ) : (
+                  <>
+                    <input type="url" className="input input-bordered w-full"
+                           placeholder="https://example.com/image.jpg"
+                           value={editBazaarForm.imageUrl}
+                           onChange={e => setEditBazaarForm(f => ({ ...f, imageUrl: e.target.value }))} />
+                    <p className="text-xs text-gray-500 mt-1">Use a direct image URL (jpg, png, webp, gif).</p>
+                  </>
+                )}
+              </div>
+              <div className="card-actions justify-end">
+                <button className="btn btn-ghost" onClick={() => setShowEditBazaar(false)}>Cancel</button>
+                <button className="btn btn-success" onClick={handleUpdateBazaar}>Save</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm delete bazaar modal */}
+      <ConfirmModal
+        isOpen={confirmDeleteBazaar}
+        onClose={() => setConfirmDeleteBazaar(false)}
+        onConfirm={confirmDeleteBazaarAction}
+        title="Delete Bazaar?"
+        message="Delete this Bazaar and all its items? This cannot be undone."
+        confirmText={deletingBazaar ? 'Deleting...' : 'Delete'}
+        cancelText="Cancel"
+        confirmButtonClass="btn-error"
+      />
 
       <Footer />
     </div>

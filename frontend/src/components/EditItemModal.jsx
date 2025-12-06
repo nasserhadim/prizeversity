@@ -27,7 +27,7 @@ const PITY_RARITY_OPTIONS = ['uncommon','rare','epic','legendary'];
 const EditItemModal = ({ open, onClose, item, classroomId, bazaarId, onUpdated }) => {
   const fileInputRef = useRef(null);
   const [loading, setLoading] = useState(false);
-  const [imageSource, setImageSource] = useState('url');
+  const [imageSource, setImageSource] = useState('file');
   const [imageFile, setImageFile] = useState(null);
   const [imageUrlLocal, setImageUrlLocal] = useState('');
   const [effectPreview, setEffectPreview] = useState('');
@@ -307,7 +307,9 @@ const EditItemModal = ({ open, onClose, item, classroomId, bazaarId, onUpdated }
         image: (imageSource === 'url' ? normalizeUrl(imageUrlLocal) : form.image).trim(),
         category: form.category,
         primaryEffect: form.category !== 'Passive' && form.category !== 'MysteryBox' ? form.primaryEffect : undefined,
-        primaryEffectValue: form.category !== 'Passive' && form.category !== 'MysteryBox' ? Number(form.primaryEffectValue) : undefined,
+        ...(form.category !== 'Passive' && form.category !== 'MysteryBox' && form.primaryEffectValue !== ''
+          ? { primaryEffectValue: Number(form.primaryEffectValue) }
+          : {}),
         secondaryEffects: form.secondaryEffects
           .filter(effect => effect.effectType)
           .map(effect => ({
@@ -425,17 +427,21 @@ const EditItemModal = ({ open, onClose, item, classroomId, bazaarId, onUpdated }
             <label className="label">
               <span className="label-text font-medium">Image</span>
             </label>
-            <div className="inline-flex rounded-full bg-gray-200 p-1 mb-2">
-              <button
-                type="button"
-                onClick={() => setImageSource('url')}
-                className={`px-3 py-1 rounded-full text-sm ${imageSource === 'url' ? 'bg-white shadow' : 'text-gray-600 hover:bg-gray-100'}`}
-              >URL</button>
+            <div className="inline-flex rounded-full bg-gray-200 p-1">
               <button
                 type="button"
                 onClick={() => setImageSource('file')}
-                className={`px-3 py-1 rounded-full text-sm ml-1 ${imageSource === 'file' ? 'bg-white shadow' : 'text-gray-600 hover:bg-gray-100'}`}
-              >Upload</button>
+                className={`px-3 py-1 rounded-full ${imageSource === 'file' ? 'bg-white shadow' : 'text-gray-600'}`}
+              >
+                Upload
+              </button>
+              <button
+                type="button"
+                onClick={() => setImageSource('url')}
+                className={`ml-1 px-3 py-1 rounded-full ${imageSource === 'url' ? 'bg-white shadow' : 'text-gray-600'}`}
+              >
+                URL
+              </button>
             </div>
 
             {imageSource === 'file' ? (
@@ -447,6 +453,9 @@ const EditItemModal = ({ open, onClose, item, classroomId, bazaarId, onUpdated }
                   onChange={e => setImageFile(e.target.files[0])}
                   className="file-input file-input-bordered w-full max-w-xs"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Allowed: jpg, png, webp, gif. Max: 5 MB.
+                </p>
                 {imageFile && (
                   <div className="text-xs mt-1">
                     Selected: {imageFile.name}{' '}
@@ -464,13 +473,18 @@ const EditItemModal = ({ open, onClose, item, classroomId, bazaarId, onUpdated }
                 )}
               </>
             ) : (
-              <input
-                type="url"
-                className="input input-bordered w-full"
-                placeholder="https://example.com/item.jpg"
-                value={imageUrlLocal}
-                onChange={e => setImageUrlLocal(e.target.value)}
-              />
+              <>
+                <input
+                  type="url"
+                  className="input input-bordered w-full"
+                  placeholder="https://example.com/item.jpg"
+                  value={imageUrlLocal}
+                  onChange={e => setImageUrlLocal(e.target.value)}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Use a direct image URL (jpg, png, webp, gif). Recommended size ≤ 5 MB.
+                </p>
+              </>
             )}
           </div>
 

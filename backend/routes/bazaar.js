@@ -257,14 +257,23 @@ router.put(
       const item = await Item.findById(itemId);
       if (!item) return res.status(404).json({ error: 'Item not found' });
 
-      // Accept basic fields
       const up = {};
       ['name','description','price','primaryEffect','primaryEffectValue','category','image']
         .forEach(f => {
           if (typeof req.body[f] !== 'undefined') {
-            up[f] = f === 'price' || f === 'primaryEffectValue'
-              ? Number(req.body[f])
-              : req.body[f].trim?.() || req.body[f];
+            // Skip empty strings to avoid NaN casting
+            const val = req.body[f];
+            if (val === '' || val === null) return;
+
+            // Only allow primaryEffectValue when category is not Passive/MysteryBox
+            if (f === 'primaryEffectValue') {
+              const cat = req.body.category || item.category;
+              if (cat === 'Passive' || cat === 'MysteryBox') return;
+            }
+
+            up[f] = (f === 'price' || f === 'primaryEffectValue')
+              ? Number(val)
+              : (val.trim?.() || val);
           }
         });
 
@@ -272,7 +281,7 @@ router.put(
         up.image = `/uploads/${req.file.filename}`;
       }
 
-      // Parse arrays if provided
+      // Parse arrays/objects if provided
       if (req.body.secondaryEffects) {
         try { up.secondaryEffects = JSON.parse(req.body.secondaryEffects); } catch {}
       }
@@ -286,7 +295,6 @@ router.put(
       Object.assign(item, up);
       await item.save();
 
-      // Broadcast change
       req.app.get('io').to(`classroom-${req.params.classroomId}`).emit('bazaar_item_updated', {
         itemId: item._id,
         item
@@ -323,6 +331,63 @@ router.delete(
     } catch (e) {
       console.error('[Delete Item] error', e);
       res.status(500).json({ error: 'Failed to delete item' });
+    }
+  }
+);
+
+// UPDATE Bazaar (teacher)
+router.put(
+  '/classroom/:classroomId/bazaar/:bazaarId',
+  ensureAuthenticated,
+  ensureTeacher,
+  upload.single('image'),
+  async (req, res) => {
+    try {
+      const { classroomId, bazaarId } = req.params;
+      const bazaar = await Bazaar.findById(bazaarId);
+      if (!bazaar || String(bazaar.classroom) !== String(classroomId)) {
+        return res.status(404).json({ error: 'Bazaar not found' });
+      }
+      const up = {};
+      if (typeof req.body.name !== 'undefined') up.name = String(req.body.name).trim();
+      if (typeof req.body.description !== 'undefined') up.description = req.body.description || '';
+      if (req.file) up.image = `/uploads/${req.file.filename}`;
+      else if (typeof req.body.image !== 'undefined') up.image = req.body.image || '';
+
+      Object.assign(bazaar, up);
+      await bazaar.save();
+
+      res.json({ bazaar });
+    } catch (e) {
+      console.error('[Update Bazaar] error:', e);
+      res.status(500).json({ error: 'Failed to update bazaar' });
+    }
+  }
+);
+
+// DELETE Bazaar (teacher) — removes bazaar and its items
+router.delete(
+  '/classroom/:classroomId/bazaar/:bazaarId',
+  ensureAuthenticated,
+  ensureTeacher,
+  async (req, res) => {
+    try {
+      const { classroomId, bazaarId } = req.params;
+      const bazaar = await Bazaar.findById(bazaarId);
+      if (!bazaar || String(bazaar.classroom) !== String(classroomId)) {
+        return res.status(404).json({ error: 'Bazaar not found' });
+      }
+
+      // Delete items belonging to this bazaar
+      await Item.deleteMany({ bazaar: bazaarId });
+      // Delete bazaar
+      await Bazaar.findByIdAndDelete(bazaarId);
+
+      req.app.get('io').to(`classroom-${classroomId}`).emit('bazaar_deleted', { bazaarId });
+      res.json({ deleted: true });
+    } catch (e) {
+      console.error('[Delete Bazaar] error:', e);
+      res.status(500).json({ error: 'Failed to delete bazaar' });
     }
   }
 );

@@ -22,7 +22,7 @@ const CreateBazaar = ({ classroomId, onCreate }) => {
 
   // loading state for submit button
   const [loading, setLoading] = useState(false);
-  const [imageSource, setImageSource] = useState('url'); // ADD - default was text
+  const [imageSource, setImageSource] = useState('file'); // Upload first by default
   const [imageFile, setImageFile] = useState(null); // ADD
   const [imageUrlLocal, setImageUrlLocal] = useState(''); // ADD
   const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -110,8 +110,20 @@ const CreateBazaar = ({ classroomId, onCreate }) => {
         <label className="label"><span className="label-text">Image</span><span className="label-text-alt">Optional</span></label>
         <div className="flex items-center gap-2 mb-2">
           <div className="inline-flex rounded-full bg-gray-200 p-1">
-            <button type="button" onClick={() => setImageSource('url')} className={`px-3 py-1 rounded-full ${imageSource === 'url' ? 'bg-white shadow' : 'text-gray-600'}`}>URL</button>
-            <button type="button" onClick={() => setImageSource('file')} className={`ml-1 px-3 py-1 rounded-full ${imageSource === 'file' ? 'bg-white shadow' : 'text-gray-600'}`}>Upload</button>
+            <button
+              type="button"
+              onClick={() => setImageSource('file')}
+              className={`px-3 py-1 rounded-full ${imageSource === 'file' ? 'bg-white shadow' : 'text-gray-600'}`}
+            >
+              Upload
+            </button>
+            <button
+              type="button"
+              onClick={() => setImageSource('url')}
+              className={`ml-1 px-3 py-1 rounded-full ${imageSource === 'url' ? 'bg-white shadow' : 'text-gray-600'}`}
+            >
+              URL
+            </button>
           </div>
         </div>
 
