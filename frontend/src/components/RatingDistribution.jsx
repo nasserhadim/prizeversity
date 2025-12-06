@@ -4,14 +4,29 @@ import React from 'react';
    Props:
    - feedbacks: array of feedback objects (each should have .rating)
    - className: optional extra classes for wrapper
+   - ratingCountsOverride: optional array of 6 numbers representing the counts for each rating
+   - totalOverride: optional number representing the total count of feedbacks
 */
-export default function RatingDistribution({ feedbacks = [], className = '' }) {
-  const counts = [0, 0, 0, 0, 0, 0];
-  (feedbacks || []).forEach(f => {
-    const r = Math.max(1, Math.min(5, Number(f?.rating) || 0));
-    counts[r] = (counts[r] || 0) + 1;
-  });
-  const total = (feedbacks || []).length;
+export default function RatingDistribution({ feedbacks = [], className = '', ratingCountsOverride = null, totalOverride = null }) {
+  let counts = ratingCountsOverride && Array.isArray(ratingCountsOverride) ? ratingCountsOverride.slice() : [0,0,0,0,0,0];
+  if (ratingCountsOverride) {
+    const overrideSum = ratingCountsOverride.slice(1).reduce((a,b)=>a+b,0);
+    if (overrideSum > 0) {
+      counts = ratingCountsOverride.slice();
+    } else {
+      // fallback to computed counts from feedbacks if override looks invalid
+      (feedbacks || []).forEach(f => {
+        const r = Math.max(1, Math.min(5, Number(f?.rating) || 0));
+        counts[r] = (counts[r] || 0) + 1;
+      });
+    }
+  } else {
+    (feedbacks || []).forEach(f => {
+      const r = Math.max(1, Math.min(5, Number(f?.rating) || 0));
+      counts[r] = (counts[r] || 0) + 1;
+    });
+  }
+  const total = typeof totalOverride === 'number' ? totalOverride : (feedbacks || []).length;
   if (!total) return null;
 
   return (

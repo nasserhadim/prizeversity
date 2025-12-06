@@ -188,7 +188,7 @@ router.get('/student/:id', ensureAuthenticated, async (req, res) =&gt; {
 <span class="cstat-no" title="statement not covered" >      items.some((item) =&gt; item.effect === effectName);</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >    const attackCount = items.filter((item) =&gt;</span>
-<span class="cstat-no" title="statement not covered" >      ['halveBits', 'stealBits'].includes(item.effect)</span>
+<span class="cstat-no" title="statement not covered" >      ['halveBits', 'drainBits'].includes(item.effect)</span>
 <span class="cstat-no" title="statement not covered" >    ).length;</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >    const passiveItems = items.filter((item) =&gt; item.category === 'Passive');</span>

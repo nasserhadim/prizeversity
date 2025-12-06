@@ -4,15 +4,122 @@ const Challenge = require('../../models/Challenge');
 const User = require('../../models/User');
 const { ensureAuthenticated } = require('../../middleware/auth');
 const validators = require('../../validators/challenges');
-const { isChallengeExpired, getChallengeIndex, calculateChallengeRewards, awardChallengeBits } = require('./utils');
+const { isChallengeExpired, getChallengeIndex, calculateChallengeRewards, awardChallengeBits, isChallengeVisibleToUser } = require('./utils');
 const { CHALLENGE_NAMES } = require('./constants');
 const { generateChallengeData } = require('../../utils/tokenGenerator');
+const Classroom = require('../../models/Classroom');
+const { awardXP } = require('../../utils/awardXP');
+const { logStatChanges } = require('../../utils/statChangeLog'); // NEW
+const { getIO } = require('../../utils/io'); // NEW: emit realtime notifications
+// helper reused here
+async function awardChallengeXP({ userId, classroomId, rewards, challengeName }) {
+  try {
+    const cls = await Classroom.findById(classroomId).select('xpSettings');
+    if (!cls?.xpSettings?.enabled) return;
+
+    const bits = Number(rewards?.bits || 0);
+    if (bits > 0 && (cls.xpSettings.bitsEarned || 0) > 0) {
+      const xp = bits * (cls.xpSettings.bitsEarned || 0);
+      try {
+        const xpRes = await awardXP(userId, classroomId, xp, 'earning bits (challenge reward)', cls.xpSettings);
+        if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+          try {
+            const targetUser = await User.findById(userId).select('firstName lastName');
+            await logStatChanges({
+               io: getIO(),
+                classroomId,
+                user: targetUser,
+                actionBy: null,
+                prevStats: { xp: xpRes.oldXP },
+                currStats: { xp: xpRes.newXP },
+               context: `earning bits (challenge reward${challengeName ? `: ${challengeName}` : ''})`,
+               details: { effectsText: `Bits: +${bits}`, challengeName },
+                forceLog: true
+              });
+          } catch (logErr) {
+            console.warn('[challenge] failed to log bits-earned XP stat change:', logErr);
+          }
+        }
+      } catch (xpErr) {
+        console.warn('[challenge] awardXP (bits) failed:', xpErr);
+      }
+    }
+
+    const statCount =
+      (rewards?.multiplier > 0 ? 1 : 0) +
+      ((rewards?.luck || 1) > 1.0 ? 1 : 0) +
+      ((rewards?.discount || 0) > 0 ? 1 : 0) +
+      (rewards?.shield ? 1 : 0);
+
+    if (statCount > 0 && (cls.xpSettings.statIncrease || 0) > 0) {
+      const xp = statCount * cls.xpSettings.statIncrease;
+      try {
+        const xpRes = await awardXP(userId, classroomId, xp, 'stat increase (challenge reward)', cls.xpSettings);
+        if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+          try {
+            const targetUser = await User.findById(userId).select('firstName lastName');
+            const parts = [];
+            if ((rewards?.multiplier || 0) > 0) parts.push(`+${Number(rewards.multiplier).toFixed(1)} Multiplier`);
+            if ((rewards?.luck || 1) > 1.0) parts.push(`+${Number((rewards.luck - 1)).toFixed(1)} Luck`);
+            if ((rewards?.discount || 0) > 0) parts.push(`+${Number(rewards.discount).toFixed(1)}% Discount`);
+            if (rewards?.shield) parts.push(`Shield +1`);
+            await logStatChanges({
+               io: getIO(),
+                classroomId,
+                user: targetUser,
+                actionBy: null,
+                prevStats: { xp: xpRes.oldXP },
+                currStats: { xp: xpRes.newXP },
+               context: `stat increase (challenge reward${challengeName ? `: ${challengeName}` : ''})`,
+               details: { effectsText: parts.join(', ') || undefined, challengeName },
+                forceLog: true
+              });
+          } catch (logErr) {
+            console.warn('[challenge] failed to log stat-increase XP change:', logErr);
+          }
+        }
+      } catch (xpErr) {
+        console.warn('[challenge] awardXP (stat increase) failed:', xpErr);
+      }
+    }
+
+    if ((cls.xpSettings.challengeCompletion || 0) > 0) {
+      const xp = cls.xpSettings.challengeCompletion || 0;
+      try {
+        const xpRes = await awardXP(userId, classroomId, xp, 'challenge completion', cls.xpSettings);
+        if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+          try {
+            const targetUser = await User.findById(userId).select('firstName lastName');
+            await logStatChanges({
+               io: getIO(),
+                classroomId,
+                user: targetUser,
+                actionBy: null,
+                prevStats: { xp: xpRes.oldXP },
+                currStats: { xp: xpRes.newXP },
+               context: `challenge completion${challengeName ? `: ${challengeName}` : ''}`,
+               details: { effectsText: `Completion bonus: +${xp}`, challengeName },
+                forceLog: true
+              });
+          } catch (logErr) {
+            console.warn('[challenge] failed to log completion XP change:', logErr);
+          }
+        }
+      } catch (xpErr) {
+        console.warn('[challenge] awardXP (completion) failed:', xpErr);
+      }
+    }
+  } catch (e) {
+    console.warn('[challenge6] awardChallengeXP failed:', e);
+  }
+}
 
 router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
   try {
     const { classroomId } = req.params;
     const { answer, challengeId } = req.body;
     const userId = req.user._id;
+    const userRole = req.user.role; // Get the user's role from the request
 
     if (!answer || !answer.trim()) {
       return res.status(400).json({ success: false, message: 'Answer is required' });
@@ -42,6 +149,9 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
     }
 
     const challengeIndex = getChallengeIndex(challengeId);
+    if (!isChallengeVisibleToUser(challenge, userRole, challengeIndex)) {
+      return res.status(403).json({ message: 'This challenge is currently hidden' });
+    }
 
     if (!userChallenge.completedChallenges) {
       userChallenge.completedChallenges = [false, false, false, false, false, false, false];
@@ -90,6 +200,13 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
       if (user) {
         rewardsEarned = calculateChallengeRewards(user, challenge, challengeIndex, userChallenge);
         await user.save();
+        // NEW: award XP for challenge 6 rewards + completion
+        await awardChallengeXP({
+          userId: userId,
+          classroomId: challenge.classroomId,
+          rewards: rewardsEarned,
+          challengeName: (CHALLENGE_NAMES && CHALLENGE_NAMES[challengeIndex]) || challenge.title || 'Challenge'
+        });
       }
 
       if (userChallenge.progress === 7) {
@@ -189,6 +306,13 @@ router.post('/challenge4/:uniqueId/submit', ensureAuthenticated, async (req, res
         const user = await User.findById(userId);
         const rewardsEarned = calculateChallengeRewards(user, challenge, 3, userChallenge);
         await user.save();
+        // NEW: award XP for Challenge 4
+        await awardChallengeXP({
+          userId: userId,
+          classroomId: challenge.classroomId,
+          rewards: rewardsEarned,
+          challengeName: (CHALLENGE_NAMES && CHALLENGE_NAMES[3]) || challenge.title || 'Challenge'
+        });
         await challenge.save();
         
         res.json({
@@ -482,6 +606,13 @@ router.post('/submit-challenge6', ensureAuthenticated, async (req, res) => {
       if (user) {
         rewards = calculateChallengeRewards(user, challenge, challengeIndex, userChallenge);
         await user.save();
+        // NEW: award XP for challenge 6 rewards + completion
+        await awardChallengeXP({
+          userId: userId,
+          classroomId: challenge.classroomId,
+          rewards,
+          challengeName: (CHALLENGE_NAMES && CHALLENGE_NAMES[challengeIndex]) || challenge.title || 'Challenge'
+        });
       }
       
       if (!userChallenge.completedChallenges) {
@@ -659,6 +790,13 @@ router.post('/submit-challenge7', ensureAuthenticated, async (req, res) => {
         if (user) {
           rewards = calculateChallengeRewards(user, challenge, challengeIndex, userChallenge);
           await user.save();
+          // NEW: award XP for Challenge 7
+          await awardChallengeXP({
+            userId: userId,
+            classroomId: challenge.classroomId,
+            rewards,
+            challengeName: (CHALLENGE_NAMES && CHALLENGE_NAMES[challengeIndex]) || challenge.title || 'Challenge'
+          });
         }
         
         if (!userChallenge.completedChallenges) {

@@ -282,3 +282,12 @@
   .rating-label { flex-basis: 40px; font-size: 0.95rem; }
   .rating-count { flex-basis: 36px; font-size: 0.9rem; }
 }
+
+/* Ensure long/unbroken feedback text wraps and doesn't overflow the card */
+.feedback-comment {
+  white-space: pre-wrap;       /* keep intentional line breaks */
+  overflow-wrap: anywhere;     /* allow breaking long words / runs */
+  word-break: break-word;      /* fallback for some browsers */
+  hyphens: auto;               /* optional: hyphenate where supported */
+  max-width: 100%;             /* ensure it respects container width */
+}

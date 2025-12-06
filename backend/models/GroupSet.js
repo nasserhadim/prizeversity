@@ -10,6 +10,8 @@ const GroupSetSchema = new mongoose.Schema({
   groupMultiplierIncrement: { type: Number, default: 0 }, // Default to 0, not 0.1
   image: { type: String, default: 'placeholder.jpg' },
   groups: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Group' }],
+  // NEW: one-time XP per GroupSet
+  joinXPAwarded: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User', default: [] }],
   createdAt: { type: Date, default: Date.now }
 });
 

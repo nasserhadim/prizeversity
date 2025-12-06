@@ -7,6 +7,7 @@ import ClassroomBanner from '../components/ClassroomBanner';
 import { getClassroom } from '../API/apiClassroom';
 import Footer from '../components/Footer';
 import socket from '../utils/socket';
+import { resolveBannerSrc } from '../utils/image';
 
 
 export default function StudentNewsfeed() {
@@ -38,10 +39,10 @@ export default function StudentNewsfeed() {
         <div className="flex flex-col min-h-screen bg-base-200">
             <div className="flex-grow">
                 <ClassroomBanner
-                    name={classroomName}
-                    code={classroomCode}
-                    bgColor={bgColor}
-                    backgroundImage={backgroundImage}
+                  name={classroomName}
+                  code={classroomCode}
+                  bgColor={bgColor}
+                  backgroundImage={resolveBannerSrc(backgroundImage)}
                 />
                 <div className="max-w-3xl mx-auto p-6 bg-green-50 rounded-lg">
                     <p className="mb-4">

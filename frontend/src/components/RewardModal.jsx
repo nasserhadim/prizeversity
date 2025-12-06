@@ -61,7 +61,7 @@ const RewardModal = ({ isOpen, onClose, rewards, challengeName, allCompleted, ne
                   <div className="flex items-center justify-between bg-green-50 p-2 rounded-lg border border-green-200">
                     <div className="flex items-center gap-2">
                       <Clover className="w-5 h-5 text-green-600" />
-                      <span className="font-medium text-gray-800 text-sm">Luck Multiplier</span>
+                      <span className="font-medium text-gray-800 text-sm">Luck Factor/Multiplier</span>
                     </div>
                     <span className="text-base font-bold text-green-600">×{rewards.luck.toFixed(2)}</span>
                   </div>

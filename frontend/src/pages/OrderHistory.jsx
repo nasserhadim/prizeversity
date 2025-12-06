@@ -15,11 +15,16 @@ import formatExportFilename from '../utils/formatExportFilename';
 // helper: compute classroom label for an order (moved to module scope to avoid TDZ)
 function classroomLabel(o) {
   if (!o) return '—';
-  // prefer an explicit classroom on the order, otherwise fall back to the first item's bazaar classroom
-  const c = o.classroom || o.items?.[0]?.bazaar?.classroom;
-  if (!c) return '—';
-  // include code if present
-  return c.name ? `${c.name}${c.code ? ` (${c.code})` : ''}` : '—';
+  const c = o.items?.[0]?.bazaar?.classroom || o.classroom;
+  if (c && typeof c === 'object' && c.name) {
+    return `${c.name}${c.code ? ` (${c.code})` : ''}`;
+  }
+  if (o.metadata?.classroomName) {
+    return o.metadata.classroomCode
+      ? `${o.metadata.classroomName} (${o.metadata.classroomCode})`
+      : o.metadata.classroomName;
+  }
+  return '—';
 }
 
 export default function OrderHistory() {
@@ -139,10 +144,17 @@ export default function OrderHistory() {
     });
 
     useEffect(() => {
+        if (!user) return;
+        setLoading(true);
         axios
             .get(`/api/bazaar/orders/user/${user._id}`)
             .then(res => {
-                setOrders(res.data || []);
+                // CHANGED: Keep all orders including mystery box opens (total: 0)
+                const validOrders = (res.data || []).filter(order => 
+                    order.items && order.items.length > 0
+                    // Removed the total > 0 filter to include mystery box opens
+                );
+                setOrders(validOrders);
                 setLoading(false);
             })
             .catch(err => {
@@ -192,23 +204,14 @@ export default function OrderHistory() {
     };
 
     const exportCSV = async () => {
-        if (!visibleOrders.length) {
-            throw new Error('No orders to export');
-        }
-        const displayName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.email || 'user';
-        const base = formatExportFilename(displayName, 'order_history');
-        exportOrdersToCSV(visibleOrders, base);
-        return `${base}.csv`;
+        const display = `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.email || 'orders';
+        const base = formatExportFilename(display, 'order_history');
+        return exportOrdersToCSV(visibleOrders, base, { user }); // pass user
     };
-
     const exportJSON = async () => {
-        if (!visibleOrders.length) {
-            throw new Error('No orders to export');
-        }
-        const displayName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.email || 'user';
-        const base = formatExportFilename(displayName, 'order_history');
-        exportOrdersToJSON(visibleOrders, base);
-        return `${base}.json`;
+        const display = `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.email || 'orders';
+        const base = formatExportFilename(display, 'order_history');
+        return exportOrdersToJSON(visibleOrders, base, { user }); // pass user
     };
 
     if (loading) return <p>Loading your purchase history…</p>;

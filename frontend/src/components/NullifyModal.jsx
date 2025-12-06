@@ -1,65 +1,34 @@
 import React from 'react';
 
-// The NullifyModal will show after the user has bougth an item nullification (which will give an option to reset bits, multiplier, or luck to the default value)
 const NullifyModal = ({ 
   isOpen, 
   onClose, 
-  onSelect, 
-  targetName 
+  onConfirm, 
+  targetName,
+  allowedOptions = ['bits', 'multiplier', 'luck']
 }) => {
   if (!isOpen) return null;
 
+  const showDefaultMessage = !Array.isArray(allowedOptions) || allowedOptions.length === 0;
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full">
-        <h3 className="text-xl font-bold mb-4">
-          Nullify Attributes for {targetName}
-        </h3>
-        
-        <p className="mb-4 text-gray-600">
-          Select which attribute you want to reset to default:
-        </p>
-        
+      <div className="bg-base-100 text-base-content p-6 rounded-lg shadow-xl max-w-md w-full border border-base-300">
+        <h3 className="text-xl font-bold mb-4">Nullify Attributes for {targetName}</h3>
+        <p className="mb-4 text-base-content/70">Select which attribute you want to reset to default:</p>
         <div className="space-y-3">
-          <button
-            onClick={() => onSelect('bits')}
-            className="btn btn-block btn-outline hover:bg-red-50"
-          >
-            <div className="flex items-center justify-between w-full">
-              <span>💰 ₿ (Set to 0)</span>
-              <span className="badge badge-error">Nullify</span>
-            </div>
-          </button>
-          
-          <button
-            onClick={() => onSelect('multiplier')}
-            className="btn btn-block btn-outline hover:bg-red-50"
-          >
-            <div className="flex items-center justify-between w-full">
-              <span>✖️ Multiplier (Set to 1x)</span>
-              <span className="badge badge-error">Nullify</span>
-            </div>
-          </button>
-          
-          <button
-            onClick={() => onSelect('luck')}
-            className="btn btn-block btn-outline hover:bg-red-50"
-          >
-            <div className="flex items-center justify-between w-full">
-              <span>🍀 Luck (Set to 1x)</span>
-              <span className="badge badge-error">Nullify</span>
-            </div>
-          </button>
+          {showDefaultMessage && (
+            <div className="text-sm text-center text-gray-500">This item has no attributes configured to nullify.</div>
+          )}
+          {!showDefaultMessage && (
+            <>
+              {allowedOptions.includes('bits') && <button onClick={() => onConfirm('bits')} className="btn btn-block btn-outline hover:bg-base-200">💰 Reset Bits to 0</button>}
+              {allowedOptions.includes('multiplier') && <button onClick={() => onConfirm('multiplier')} className="btn btn-block btn-outline hover:bg-base-200">✖️ Reset Multiplier to 1x</button>}
+              {allowedOptions.includes('luck') && <button onClick={() => onConfirm('luck')} className="btn btn-block btn-outline hover:bg-base-200">🍀 Reset Luck to 1</button>}
+            </>
+          )}
         </div>
-        
-        <div className="mt-4 flex justify-end">
-          <button 
-            onClick={onClose}
-            className="btn btn-ghost"
-          >
-            Cancel
-          </button>
-        </div>
+        <button onClick={onClose} className="btn btn-ghost w-full mt-4">Cancel</button>
       </div>
     </div>
   );

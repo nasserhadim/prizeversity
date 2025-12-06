@@ -378,3 +378,22 @@ export const resetSpecificChallenge = async (classroomId, studentId, challengeIn
     throw error;
   }
 };
+
+export const removeStudentFromChallenge = async (challengeId, studentId) => {
+  try {
+    const response = await fetch(`${API_BASE}/api/challenges/${challengeId}/remove-student`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ studentId })
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Error removing student from challenge:', error);
+    throw error;
+  }
+};

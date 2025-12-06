@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Settings, Zap } from 'lucide-react';
 import { CHALLENGE_NAMES } from '../../../constants/challengeConstants';
+import { DEFAULT_CHALLENGE_CONFIG } from '../../../constants/challengeConstants';
 import { configureChallenge, initiateChallenge } from '../../../API/apiChallenge';
 import IndivTotalToggle from '../IndivTotalToggle';
 import toast from 'react-hot-toast';
+import ConfirmModal from '../../ConfirmModal';
 
 const ChallengeConfigModal = ({ 
   showConfigModal, 
@@ -17,6 +19,10 @@ const ChallengeConfigModal = ({
   templates,
   handleLoadTemplate,
   handleDeleteTemplate,
+  deleteTemplateModal,
+  confirmDeleteTemplate,
+  cancelDeleteTemplate,
+  deletingTemplate,
   setShowSaveTemplateModal,
   setShowHintModal,
   setEditingHints
@@ -25,6 +31,7 @@ const ChallengeConfigModal = ({
   const [activeChallengeIndex, setActiveChallengeIndex] = useState(0);
   const [challengePassword, setChallengePassword] = useState('');
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   
   useEffect(() => {
     const checkMobile = () => {
@@ -108,6 +115,11 @@ const ChallengeConfigModal = ({
         settings.dueDate = '';
       }
 
+      // NEW: persist per-challenge visibility into settings so backend saves it
+      settings.challengeVisibility = Array.isArray(challengeConfig.challengeVisibility)
+        ? challengeConfig.challengeVisibility.map(v => !!v)
+        : [true, true, true, true, true, true, true];
+
       await configureChallenge(classroomId, challengeConfig.title, settings);
       
       setShowPasswordPrompt(true);
@@ -134,6 +146,12 @@ const ChallengeConfigModal = ({
     } finally {
       setConfiguring(false);
     }
+  };
+
+  const handleResetToDefaults = () => setShowResetConfirm(true);
+  const confirmReset = () => {
+    setChallengeConfig(DEFAULT_CHALLENGE_CONFIG);
+    setShowResetConfirm(false);
   };
 
   if (!showConfigModal) return null;
@@ -204,17 +222,28 @@ const ChallengeConfigModal = ({
           <div className="flex items-center gap-3 mb-4">
             <Settings className="w-6 h-6 text-red-500" />
             <h2 className="text-2xl font-bold">Configure Challenge Series</h2>
+            <div className="ml-auto">
+              <button
+                className="btn btn-sm btn-ghost"
+                onClick={handleResetToDefaults}
+                title="Reset all configuration fields to default settings"
+              >
+                Reset to Defaults
+              </button>
+            </div>
           </div>
-
+ 
           <div className="bg-base-200 rounded-lg p-4 mb-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-semibold">Templates</h3>
-              <button
-                className="btn btn-sm btn-primary"
-                onClick={() => setShowSaveTemplateModal(true)}
-              >
-                Save Current Config
-              </button>
+              <div className="flex gap-2">
+                <button
+                  className="btn btn-sm btn-primary"
+                  onClick={() => setShowSaveTemplateModal(true)}
+                >
+                  Save Current Config
+                </button>
+              </div>
             </div>
             
             {templates.length > 0 ? (
@@ -644,6 +673,41 @@ const ChallengeConfigModal = ({
                     </div>
                   </div>
                 </div>
+
+                {/* NEW: Mobile Visibility card (shows per-challenge toggles stacked) */}
+                <div className="card bg-base-200 p-3 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <h3 className="font-semibold">Visibility</h3>
+                      <div className="text-xs text-gray-500">Visible to students</div>
+                    </div>
+                  </div>
+                  <div className="space-y-2 mt-2">
+                    {CHALLENGE_NAMES.map((name, idx) => (
+                      <label key={idx} className="flex items-center justify-between gap-3">
+                        <div className="flex-1 text-sm">
+                          <div className="font-medium">{`CH ${idx + 1}`}</div>
+                          <div className="text-xs text-gray-500 truncate max-w-xs">{name}</div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          className="checkbox checkbox-sm checkbox-primary"
+                          checked={!!challengeConfig.challengeVisibility?.[idx]}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setChallengeConfig(prev => {
+                              const arr = [...(prev.challengeVisibility || [])];
+                              while (arr.length <= idx) arr.push(true);
+                              arr[idx] = checked;
+                              return { ...prev, challengeVisibility: arr };
+                            });
+                          }}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -710,7 +774,7 @@ const ChallengeConfigModal = ({
                             {challengeConfig.challengeHintsEnabled[index] && (
                               <button
                                 type="button"
-                                className="btn btn-xs btn-outline btn-primary"
+                                className="btn btn-xs btn-outline btn-primary min-h-[24px] h-6"
                                 onClick={() => {
                                   setEditingHints({ challengeIndex: index, challengeName });
                                   setShowHintModal(true);
@@ -955,6 +1019,35 @@ const ChallengeConfigModal = ({
                         </td>
                       ))}
                     </tr>
+
+                    {/* NEW: Visibility row moved here for consistency with Update modal */}
+                    <tr>
+                      <td className="sticky left-0 bg-base-100 z-10">
+                        <div className="flex items-center gap-3 flex-nowrap text-sm">
+                          <span className="font-semibold inline-block w-36 shrink-0">Visibility</span>
+                          <div className="text-xs text-gray-500">Visible to students</div>
+                        </div>
+                      </td>
+                      {CHALLENGE_NAMES.map((_, index) => (
+                        <td key={index} className="text-center">
+                          <input
+                            type="checkbox"
+                            className="checkbox checkbox-sm checkbox-primary"
+                            checked={!!challengeConfig.challengeVisibility?.[index]}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setChallengeConfig(prev => {
+                                const arr = [...(prev.challengeVisibility || [])];
+                                while (arr.length <= index) arr.push(true);
+                                arr[index] = checked;
+                                return { ...prev, challengeVisibility: arr };
+                              });
+                            }}
+                          />
+                        </td>
+                      ))}
+                    </tr>
+
                   </tbody>
                 </table>
               </div>
@@ -1020,6 +1113,53 @@ const ChallengeConfigModal = ({
               )}
             </button>
           </div>
+
+          {/* Delete Template Confirmation Modal (consistent style) */}
+          {deleteTemplateModal && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+              <div className="card bg-base-100 w-full max-w-md shadow-xl border border-base-300">
+                <div className="card-body">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-bold">Delete Template</h3>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={cancelDeleteTemplate}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <p className="text-sm mt-2">
+                    Delete template "<strong>{deleteTemplateModal.name}</strong>"? This cannot be undone.
+                  </p>
+                  <div className="card-actions justify-end gap-2 mt-4">
+                    <button
+                      className="btn btn-ghost"
+                      onClick={cancelDeleteTemplate}
+                      disabled={deletingTemplate}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className={`btn btn-error ${deletingTemplate ? 'loading' : ''}`}
+                      onClick={confirmDeleteTemplate}
+                      disabled={deletingTemplate}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <ConfirmModal
+            isOpen={showResetConfirm}
+            onClose={() => setShowResetConfirm(false)}
+            title="Reset to defaults"
+            message="Reset all configuration fields to default settings?"
+            confirmText="Reset"
+            onConfirm={confirmReset}
+          />
         </div>
       </div>
     </div>

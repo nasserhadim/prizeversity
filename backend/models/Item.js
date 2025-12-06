@@ -10,13 +10,13 @@ const ItemSchema = new mongoose.Schema({
   bazaar: { type: mongoose.Schema.Types.ObjectId, ref: 'Bazaar', required: true },
   category: {
     type: String,
-    enum: ['Attack', 'Defend', 'Utility', 'Passive'],
+    enum: ['Attack', 'Defend', 'Utility', 'Passive', 'MysteryBox'],
     default: 'Utility',
   },
   // Primary effect configuration
   primaryEffect: { 
     type: String,
-    required: function() { return this.category !== 'Passive' }
+    required: function() { return this.category !== 'Passive' && this.category !== 'MysteryBox' }
   },
   primaryEffectValue: { type: Number },
   
@@ -26,17 +26,55 @@ const ItemSchema = new mongoose.Schema({
     value: Number
   }],
   
+  // Swap / Nullify options (canonical strings: 'bits' | 'multiplier' | 'luck')
+  swapOptions: {
+    type: [String],
+    default: []
+  },
+  
   // Usage tracking
   usesRemaining: { 
     type: Number, 
     default: function() {
-      return this.category === 'Defend' ? 1 : undefined;
+      // Mystery boxes can have multiple uses
+      if (this.category === 'MysteryBox') {
+        return this.mysteryBoxConfig?.maxOpensPerStudent || 1;
+      }
+      // Most items are single-use
+      return 1;
     }
   },
+  consumed: { 
+    type: Boolean, 
+    default: false 
+  }, // ADD: Track if item is fully consumed
   active: { type: Boolean, default: false },
+  activatedAt: { type: Date }, // ← NEW: when effect was activated/equipped
   
   owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now },
+  
+  // ADD: Mystery Box specific fields
+  mysteryBoxConfig: {
+    luckMultiplier: { type: Number, default: 1.5 },
+    pityEnabled: { type: Boolean, default: false },
+    guaranteedItemAfter: { type: Number, default: 10 },
+    pityMinimumRarity: { 
+      type: String, 
+      enum: ['uncommon', 'rare', 'epic', 'legendary'],
+      default: 'rare'
+    },
+    maxOpensPerStudent: { type: Number, default: null },
+    itemPool: [{
+      item: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' },
+      rarity: { 
+        type: String, 
+        enum: ['common', 'uncommon', 'rare', 'epic', 'legendary'],
+        default: 'common'
+      },
+      baseDropChance: { type: Number, min: 0, max: 100 }
+    }]
+  },
 });
 
 module.exports = mongoose.model('Item', ItemSchema);

@@ -14,6 +14,8 @@ const SiphonRequestSchema = new mongoose.Schema({
   targetUser:   { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   reasonHtml:   { type: String, required: true },
   amount:       { type: Number,  min: 1, required: true },
+  requestedPercent: { type: Number, min: 1, max: 100 },
+  executedAmount: { type: Number }, // NEW: actual amount transferred (may differ if balance changed)
   classroom:    { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom', required: true },
   expiresAt:    { type: Date, required: true }, // Auto-expire date
 
@@ -38,8 +40,9 @@ const SiphonRequestSchema = new mongoose.Schema({
   }
 });
 
-// Add index for auto-expiration
-SiphonRequestSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+// Remove TTL index so janitor can mark expired siphons and unfreeze accounts
+// Previously:
+// SiphonRequestSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 module.exports =
   mongoose.models.SiphonRequest || mongoose.model('SiphonRequest', SiphonRequestSchema);

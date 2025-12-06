@@ -48,7 +48,74 @@ const ClassroomSchema = new mongoose.Schema({
   // NEW: whether teacher allows awarding even when student chose "anonymous"
   feedbackRewardAllowAnonymous: { type: Boolean, default: false },
 
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now },
+  xpSettings: {
+    enabled: { 
+      type: Boolean, 
+      default: true 
+    },
+    // XP gain rates (recommended defaults)
+    bitsEarned: { 
+      type: Number, 
+      default: 1, // 1 XP per bit earned
+      min: 0
+    },
+    bitsSpent: { 
+      type: Number, 
+      default: 0.5, // 0.5 XP per bit spent
+      min: 0
+    },
+    statIncrease: { 
+      type: Number, 
+      default: 10, // 10 XP per stat increase
+      min: 0
+    },
+    dailyCheckIn: { 
+      type: Number, 
+      default: 5, // 5 XP per daily check-in
+      min: 0
+    },
+    challengeCompletion: { 
+      type: Number, 
+      default: 20, // 20 XP per challenge completed
+      min: 0
+    },
+    mysteryBox: { 
+      type: Number, 
+      default: 3, // 3 XP per mystery box use
+      min: 0
+    },
+    groupJoin: { 
+      type: Number, 
+      default: 15, // 15 XP for joining a group (one-time)
+      min: 0
+    },
+    // NEW: XP awarded for submitting classroom feedback (teacher config)
+    feedbackSubmission: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+    // Leveling formula: 'linear', 'exponential', 'logarithmic'
+    levelingFormula: { 
+      type: String, 
+      enum: ['linear', 'exponential', 'logarithmic'],
+      default: 'exponential'
+    },
+    // Base XP required for level 2
+    baseXPForLevel2: { 
+      type: Number, 
+      default: 100,
+      min: 10
+    },
+
+    // NEW: basis used for XP-per-bit calculation ('final' includes multipliers; 'base' ignores them)
+    bitsXPBasis: {
+      type: String,
+      enum: ['final', 'base'],
+      default: 'final'
+    }
+  }
 });
 
 module.exports = mongoose.model('Classroom', ClassroomSchema);

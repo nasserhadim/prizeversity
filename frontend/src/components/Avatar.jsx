@@ -1,33 +1,27 @@
 import React, { useState } from 'react';
 import { getAvatarSrc, getInitials } from '../utils/avatar';
 
-const Avatar = ({ user, size = 32, className = '' }) => {
-  const [failed, setFailed] = useState(false);
+export default function Avatar({ user, size = 32, showStatus = true }) {
   const src = getAvatarSrc(user);
   const initials = getInitials(user);
-
-  if (!src || failed) {
-    return (
-      <div
-        className={`rounded-full bg-base-300 text-base-content/70 flex items-center justify-center font-bold ${className}`}
-        style={{ width: size, height: size, minWidth: size }}
-        title={initials}
-      >
-        <span className="text-xs">{initials}</span>
-      </div>
-    );
-  }
+  const isOnline = user && user._id && window.__classroomOnlineSet?.has(String(user._id)); // fallback if needed
 
   return (
-    <img
-      alt="User Avatar"
-      src={src}
-      width={size}
-      height={size}
-      className={`rounded-full object-cover ${className}`}
-      onError={() => setFailed(true)}
-    />
+    <div className="relative inline-block" style={{ width: size, height: size }}>
+      {src ? (
+        <img src={src} alt="Avatar" className="w-full h-full rounded-full object-cover" />
+      ) : (
+        <div className="w-full h-full rounded-full bg-gray-300 flex items-center justify-center text-xs font-bold text-gray-700">
+          {initials}
+        </div>
+      )}
+      {showStatus && (
+        <span
+          className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${isOnline ? 'bg-green-500' : 'bg-gray-400'}`}
+          aria-label={isOnline ? 'Online' : 'Offline'}
+          title={isOnline ? 'Online' : 'Offline'}
+        />
+      )}
+    </div>
   );
-};
-
-export default Avatar;
+}

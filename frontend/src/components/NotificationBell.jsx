@@ -29,17 +29,27 @@ const NotificationBell = () => {
   useEffect(() => {
     fetchNotifications();
     const unsubscribe = subscribeToNotifications((notification) => {
+      // defensive: ignore null/undefined malformed payloads that sometimes arrive
+      if (!notification) {
+        console.warn('[NotificationBell] ignored empty notification payload');
+        return;
+      }
       console.log('Received new notification:', notification);
       setNotifications(prev => [notification, ...prev]);
 
-      // Handle classroom removal notification
-      if (notification.type === 'classroom_removal') {
-        const classLabel = getClassLabel(notification) || 'this classroom';
-        alert(`You have been removed from classroom "${classLabel}"`);
-        // If currently in that classroom, redirect to home
-        const currentPath = window.location.pathname;
-        if (currentPath.includes(`/classroom/${notification.classroom._id}`)) {
-          window.location.href = '/';
+      // Only alert/redirect if this notification targets ME
+      if (notification?.type === 'classroom_removal') {
+        const myId = String(user?._id || '');
+        const targetId = String(notification?.user || notification?.userId || notification?.targetUser || '');
+        const classId = notification?.classroom?._id || notification?.classroom;
+
+        if (myId && targetId && myId === targetId) {
+          const classLabel = getClassLabel(notification) || 'this classroom';
+          alert(`You have been removed from classroom "${classLabel}"`);
+          const currentPath = window.location.pathname;
+          if (classId && currentPath.includes(`/classroom/${classId}`)) {
+            window.location.href = '/';
+          }
         }
       }
     });
@@ -85,8 +95,9 @@ const NotificationBell = () => {
     }
   };
 
-  // Filter and sort notifications
-  const filteredNotifications = notifications
+  // Work only with non-null notifications to avoid runtime errors
+  const safeNotifications = (notifications || []).filter(Boolean);
+  const filteredNotifications = safeNotifications
     .filter(notification => {
       if (filterBy === 'all') return true;
       if (filterBy.includes(',')) {
@@ -97,7 +108,8 @@ const NotificationBell = () => {
       return notification.type === filterBy;
     })
     .filter(notification =>
-      notification.message.toLowerCase().includes(searchTerm.toLowerCase())
+      // guard message access
+      (notification.message || '').toLowerCase().includes(searchTerm.toLowerCase())
     )
     .sort((a, b) => {
       if (sortBy === 'date') {

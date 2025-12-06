@@ -1,11 +1,20 @@
 const mongoose = require('mongoose');
-const Schema = mongoose.Schema;
 
-const OrderSchema = new Schema({
-    user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    items: [{ type: Schema.Types.ObjectId, ref: 'Item' }],
-    total: { type: Number, required: true },
-    createdAt: { type: Date, default: Date.now }
+const OrderSchema = new mongoose.Schema({
+  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  items: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Item' }],
+  total: { type: Number, required: true },
+  classroom: { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom' }, // ADD if not present
+  description: { type: String }, // ADD: Optional description for mystery boxes
+  type: { 
+    type: String, 
+    enum: ['purchase', 'mystery_box'], 
+    default: 'purchase' 
+  }, // ADD: Order type
+  metadata: { 
+    type: mongoose.Schema.Types.Mixed 
+  }, // ADD: Flexible metadata field
+  createdAt: { type: Date, default: Date.now }
 });
 
 module.exports = mongoose.model('Order', OrderSchema);

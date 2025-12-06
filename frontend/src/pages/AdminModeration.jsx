@@ -165,7 +165,15 @@ export default function AdminModeration() {
                 <div className="flex justify-between items-start">
                   <div>
                     <div className="text-xs text-gray-500">{new Date(l.createdAt).toLocaleString()}</div>
-                    <div className="font-medium">{l.action.toUpperCase()} {l.feedback ? `— rating ${l.feedback.rating}` : ''}</div>
+                    <div className="font-medium">
+                      {l.action.toUpperCase()}
+                      {l.feedback ? ` — rating ${l.feedback.rating}` : ''}
+                      {l.feedback?.comment && (
+                        <span className="ml-2 text-xs text-gray-500">
+                          “{String(l.feedback.comment).slice(0,60)}{l.feedback.comment.length > 60 ? '…' : ''}”
+                        </span>
+                      )}
+                    </div>
                     {l.reason && <div className="mt-1">{l.reason}</div>}
                     {l.reporterEmail && <div className="text-xs text-gray-500">Reporter: {l.reporterEmail}</div>}
                   </div>

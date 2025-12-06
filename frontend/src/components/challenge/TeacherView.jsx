@@ -4,13 +4,14 @@ import { Shield, Settings, Users, Eye, EyeOff, UserPlus, Edit3, Trophy, Coins, T
 import { CHALLENGE_NAMES } from '../../constants/challengeConstants';
 import { getCurrentChallenge } from '../../utils/challengeUtils';
 import { getThemeClasses } from '../../utils/themeUtils';
-import { updateDueDate, toggleChallengeVisibility, resetStudentChallenge, resetSpecificChallenge } from '../../API/apiChallenge';
+import { updateDueDate, toggleChallengeVisibility, resetStudentChallenge, resetSpecificChallenge, removeStudentFromChallenge } from '../../API/apiChallenge';
 import { API_BASE } from '../../config/api';
 import ChallengeUpdateModal from './modals/ChallengeUpdateModal';
 import toast from 'react-hot-toast';
 import socket from '../../utils/socket';
 import Footer from '../Footer';
 import ExportButtons from '../ExportButtons';
+import ConfirmModal from '../ConfirmModal'; // <-- NEW import
 
 const TeacherView = ({ 
   challengeData,
@@ -52,6 +53,32 @@ const TeacherView = ({
   const [editingHints, setEditingHints] = useState(null);
   const dropdownRef = useRef(null);
   const themeClasses = getThemeClasses(isDark);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [confirmOptions, setConfirmOptions] = useState({
+    title: 'Confirm',
+    message: '',
+    confirmText: 'Confirm',
+    onConfirm: null
+  });
+
+  // Open a consistent ConfirmModal used across this component
+  const openConfirm = ({ title = 'Confirm', message = '', confirmText = 'Confirm', cancelText = 'Cancel', confirmButtonClass = 'btn-primary', onConfirm = null }) => {
+    setConfirmOptions({ title, message, confirmText, cancelText, confirmButtonClass, onConfirm });
+    setShowConfirm(true);
+  };
+
+  // Called when the modal's Confirm button is pressed
+  const handleConfirm = async () => {
+    setShowConfirm(false);
+    if (typeof confirmOptions.onConfirm === 'function') {
+      try {
+        await confirmOptions.onConfirm();
+      } catch (err) {
+        // caller is responsible for showing errors (toast), swallow here to avoid unhandled rejections
+        console.error('Confirm callback error', err);
+      }
+    }
+  };
 
   useEffect(() => {
     if (challengeData?.settings?.dueDate) {
@@ -904,15 +931,19 @@ const TeacherView = ({
             
             {challengeData.isActive && challengeData.userChallenges && unassignedStudentIds.length > 0 && (
               <div className="relative" ref={dropdownRef}>
-                <button
-                  className="btn btn-sm btn-primary gap-2"
-                  onClick={() => setShowAssignDropdown(!showAssignDropdown)}
-                >
-                  <UserPlus className="w-4 h-4" />
-                  Assign Students ({unassignedStudentIds.length})
-                </button>
-                
-                {showAssignDropdown && (
+                {/* allow overflow so the floating dropdown / styles don't clip the button text on mobile */}
+                <div className="relative overflow-visible">
+                  <button
+                    className="btn btn-sm btn-primary gap-2 inline-flex items-center whitespace-nowrap min-w-max z-50"
+                    onClick={() => setShowAssignDropdown(!showAssignDropdown)}
+                    type="button"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span className="ml-1">Assign Students ({unassignedStudentIds.length})</span>
+                  </button>
+                </div>
+                 
+                 {showAssignDropdown && (
                   <div className="absolute right-0 top-full mt-1 w-64 bg-base-100 border border-base-300 rounded-lg shadow-lg z-50">
                     <div className="p-3">
                      <input
@@ -1574,7 +1605,7 @@ const TeacherView = ({
                           <td>
                             <div className="dropdown dropdown-end">
                               <div tabIndex={0} role="button" className="btn btn-xs btn-outline btn-warning gap-1 hover:btn-warning">
-                                🔄 Reset ▼
+                                🔄 Reset/Remove ▼
                               </div>
                               <ul tabIndex={0} className="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow border border-base-300">
                                 <li className="menu-title">
@@ -1591,15 +1622,21 @@ const TeacherView = ({
                                         className={`text-xs ${!isStarted ? 'text-gray-400' : isCompleted ? 'text-green-600' : 'text-blue-600'}`}
                                         disabled={!isStarted}
                                         onClick={async () => {
-                                          if (confirm(`Reset ${challengeNames[challengeIdx]} for ${uc.userId.firstName} ${uc.userId.lastName}? This will clear their progress for this specific challenge.`)) {
-                                            try {
-                                              await resetSpecificChallenge(classroomId, uc.userId._id, challengeIdx);
-                                              toast.success(`Reset ${challengeNames[challengeIdx]} for ${uc.userId.firstName} ${uc.userId.lastName}`);
-                                              await fetchChallengeData();
-                                            } catch (error) {
-                                              toast.error(`Failed to reset challenge: ${error.message}`);
+                                          // replace window.confirm(...) with modal
+                                          openConfirm({
+                                            title: `Reset ${challengeNames[challengeIdx]}`,
+                                            message: `Reset ${challengeNames[challengeIdx]} for ${uc.userId.firstName} ${uc.userId.lastName}? This will clear their progress for this specific challenge.`,
+                                            confirmText: 'Reset',
+                                            onConfirm: async () => {
+                                              try {
+                                                await resetSpecificChallenge(classroomId, uc.userId._id, challengeIdx);
+                                                toast.success(`Reset ${challengeNames[challengeIdx]} for ${uc.userId.firstName} ${uc.userId.lastName}`);
+                                                await fetchChallengeData();
+                                              } catch (error) {
+                                                toast.error(`Failed to reset challenge: ${error.message}`);
+                                              }
                                             }
-                                          }
+                                          });
                                         }}
                                       >
                                         {isCompleted ? '✅' : isStarted ? '🔄' : '⏹️'} {challengeNames[challengeIdx]}
@@ -1612,23 +1649,55 @@ const TeacherView = ({
                                   <button
                                     className="text-xs text-red-600 font-semibold"
                                     onClick={async () => {
-                                      if (confirm(`Are you sure you want to reset ALL challenges for ${uc.userId.firstName} ${uc.userId.lastName}? This will clear all their progress and they will start from Challenge 1.`)) {
-                                        try {
-                                          await resetStudentChallenge(classroomId, uc.userId._id);
-                                          toast.success(`Reset all challenges for ${uc.userId.firstName} ${uc.userId.lastName}`);
-                                          await fetchChallengeData();
-                                        } catch (error) {
-                                          toast.error(`Failed to reset all challenges: ${error.message}`);
+                                      openConfirm({
+                                        title: 'Reset ALL Challenges',
+                                        message: `Are you sure you want to reset ALL challenges for ${uc.userId.firstName} ${uc.userId.lastName}? This will clear all their progress and they will start from Challenge  1.`,
+                                        confirmText: 'Reset ALL',
+                                        onConfirm: async () => {
+                                          try {
+                                            await resetStudentChallenge(classroomId, uc.userId._id);
+                                            toast.success(`Reset all challenges for ${uc.userId.firstName} ${uc.userId.lastName}`);
+                                            await fetchChallengeData();
+                                          } catch (error) {
+                                            toast.error(`Failed to reset all challenges: ${error.message}`);
+                                          }
                                         }
-                                      }
+                                      });
                                     }}
                                   >
                                     🗑️ Reset ALL Challenges
                                   </button>
                                 </li>
-                              </ul>
-                            </div>
-                          </td>
+                                <li>
+                                  <button
+                                    className="text-xs text-red-600 font-semibold"
+                                    onClick={() => {
+                                      openConfirm({
+                                        title: 'Remove from Challenge Series',
+                                        message: `Remove ${uc.userId.firstName} ${uc.userId.lastName} from this challenge series? They can be re-added later via "Assign Students".`,
+                                        confirmText: 'Remove',
+                                        confirmButtonClass: 'btn-warning',
+                                        onConfirm: async () => {
+                                          try {
+                                            const challengeId = challengeData?.challenge?._id || challengeData?._id;
+                                            if (!challengeId) throw new Error('Challenge ID not found');
+                                            await removeStudentFromChallenge(challengeId, uc.userId._id);
+                                            toast.success('Student removed from challenge series');
+                                            await fetchChallengeData();
+                                          } catch (err) {
+                                            console.error('Failed to remove student from challenge:', err);
+                                            toast.error(err.message || 'Failed to remove student');
+                                          }
+                                        }
+                                      });
+                                    }}
+                                  >
+                                    🚫 Remove from Series
+                                  </button>
+                                </li>
+                               </ul>
+                             </div>
+                           </td>
                         </tr>
                       );
                     })}
@@ -1808,6 +1877,7 @@ const TeacherView = ({
                   onClick={() => {
                     setShowHintModal(false);
                     setEditingHints(null);
+     
                   }}
                 >
                   Cancel
@@ -1826,6 +1896,17 @@ const TeacherView = ({
             </div>
           </div>
         </div>
+      )}
+
+      {showConfirm && (
+        <ConfirmModal
+          isOpen={showConfirm}
+          onClose={() => setShowConfirm(false)}
+          title={confirmOptions.title}
+          message={confirmOptions.message}
+          confirmText={confirmOptions.confirmText}
+          onConfirm={handleConfirm}
+        />
       )}
       </div>
       <Footer />

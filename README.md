@@ -8,9 +8,9 @@
 
 - Custom classroom creation and management (including **News/Announcements**, **GroupSets/sub-groups**, **role-based access control (RBAC)** between Teachers, Students ⇌ Admins/TAs, and more!)
 - Virtual currency economy (**Bits**)
-- Reward system with dynamic **Bazaar**
-- Gamified **stat-based mechanics** (such as **Discount**, **multiplier**, **luck**, **Shield**, and **Attack Bonus**)
-- User stats, profiles, leaderboard, and transaction history dashboards.
+- Reward system with dynamic **Bazaar** including **Mystery Box**
+- Gamified **stat-based mechanics** (such as **leveling & XP**, **Discount**, **multiplier**, **luck**, **Shield**, and **Attack Bonus**)
+- User stats, profiles, leaderboard, badges, and transaction history dashboards.
 - OSINT inspired **Challenges**
 
 ...and more!
@@ -293,6 +293,10 @@ npm install lucide-react
 npm install react-hot-toast
 
 npm install xlsx
+
+npm install emoji-picker-react
+
+npm install @emoji-mart/react @emoji-mart/data
 
 npm install file-saver
 

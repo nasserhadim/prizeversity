@@ -3,15 +3,27 @@ const router = express.Router();
 const Item = require('../models/Item');
 const User = require('../models/User');
 const { ensureAuthenticated } = require('../config/auth');
+const Classroom = require('../models/Classroom');
+const { awardXP } = require('../utils/awardXP');
+const { logStatChanges } = require('../utils/statChangeLog');
 
 // Utility item is another category for items in the bazaar workign with a discount and multipleir
 router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
   try {
+    const classroomId = req.body.classroomId || req.query.classroomId;
     const item = await Item.findById(req.params.itemId);
     
     if (!item || item.owner.toString() !== req.user._id.toString()) {
       return res.status(404).json({ error: 'Item not found' });
     }
+
+    // snapshot before
+    const before = {
+      multiplier: req.user.passiveAttributes?.multiplier || 1,
+      discount: req.user.passiveAttributes?.discount || 0,
+      luck: req.user.passiveAttributes?.luck || 1,
+      shield: req.user.shieldCount || 0
+    };
 
     // Apply utility effect
     switch(item.primaryEffect) {
@@ -24,19 +36,111 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
         setTimeout(async () => {
           req.user.discountShop = false;
           await req.user.save();
+          req.app.get('io').to(`user-${req.user._id}`).emit('discount_expired');
         }, 24 * 60 * 60 * 1000);
         break;
+      default:
+        return res.status(400).json({ error: 'Unsupported utility effect' });
     }
 
     await req.user.save();
-    await Item.findByIdAndDelete(item._id); // Remove after use
+    item.usesRemaining = Math.max(0, (item.usesRemaining || 1) - 1);
+    item.consumed = item.usesRemaining === 0;
+    item.active = true;              // ← NEW (so UI can show activation)
+    item.activatedAt = new Date();   // ← NEW
+    await item.save();
+
+    // award XP for stat increases (multiplier or discount)
+    // NEW: award XP for stat increases and emit a separate xp stat-change log/notification
+    let xpResForStats = null;
+    try {
+      if (classroomId) {
+        const after = {
+          multiplier: req.user.passiveAttributes?.multiplier || 1,
+          discount: req.user.discountShop ? 20 : 0
+        };
+        let statCount = 0;
+        if (after.multiplier !== before.multiplier) statCount += 1;
+        if (after.discount > before.discount) statCount += 1;
+
+        const cls = await Classroom.findById(classroomId).select('xpSettings');
+        const rate = cls?.xpSettings?.enabled ? (cls.xpSettings.statIncrease || 0) : 0;
+        const xp = statCount * rate;
+        if (xp > 0) {
+          try {
+            xpResForStats = await awardXP(req.user._id, classroomId, xp, 'stat increase (bazaar item)', cls.xpSettings);
+            if (xpResForStats && typeof xpResForStats.oldXP !== 'undefined' && typeof xpResForStats.newXP !== 'undefined' && xpResForStats.newXP !== xpResForStats.oldXP) {
+              try {
+                // build a short effects text for the XP notification (same description used for the later stat log)
+                let effectsTextForXP;
+                if (item.primaryEffect === 'doubleEarnings') effectsTextForXP = 'Double Earnings (2x multiplier)';
+                if (item.primaryEffect === 'discountShop') {
+                  const pct = req.user.passiveAttributes?.discount ?? item.primaryEffectValue ?? 20;
+                  effectsTextForXP = `${pct}% shop discount`;
+                }
+
+                await logStatChanges({
+                  io: req.app && req.app.get ? req.app.get('io') : null,
+                  classroomId,
+                  user: req.user,
+                  actionBy: req.user._id,
+                  prevStats: { xp: xpResForStats.oldXP },
+                  currStats: { xp: xpResForStats.newXP },
+                  context: `Bazaar - ${item.name}`,
+                  details: { effectsText: effectsTextForXP },
+                  forceLog: true
+                });
+              } catch (logErr) {
+                console.warn('[utilityItem] failed to log XP stat change:', logErr);
+              }
+            }
+          } catch (xpErr) {
+            console.warn('[utilityItem] awardXP failed (stat increase):', xpErr);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[utilityItem] awardXP outer failure:', e);
+    }
+
+    // NEW: stat-change notifications (only if recognized fields changed)
+    const after = {
+      multiplier: req.user.passiveAttributes?.multiplier || 1,
+      discount: req.user.passiveAttributes?.discount || 0,
+      luck: req.user.passiveAttributes?.luck || 1,
+      shield: req.user.shieldCount || 0
+    };
+    // Describe utility effect
+    let effectsText;
+    if (item.primaryEffect === 'doubleEarnings') effectsText = 'Double Earnings (2x multiplier)';
+    if (item.primaryEffect === 'discountShop') {
+      const pct = req.user.passiveAttributes?.discount ?? item.primaryEffectValue ?? 20;
+      effectsText = `${pct}% shop discount`;
+    }
+
+    await logStatChanges({
+      io: req.app.get('io'),
+      classroomId,
+      user: req.user,
+      actionBy: req.user._id,
+      prevStats: before,
+      currStats: after,
+      context: `Bazaar - ${item.name}`,
+      details: { effectsText }
+    });
 
     res.json({ 
-      message: 'Utility item applied',
-      effect: item.primaryEffect
+      message: 'Utility item used',
+      effect: item.primaryEffect,
+      stats: req.user.passiveAttributes,
+      discountShop: req.user.discountShop
     });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to use item' });
+    console.error('Utility use error:', err);
+    res.status(500).json({ 
+      error: 'Failed to use item',
+      details: err.message
+    });
   }
 });
 

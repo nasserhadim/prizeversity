@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Edit3, Save } from 'lucide-react';
 import { CHALLENGE_NAMES } from '../../../constants/challengeConstants';
+import { DEFAULT_CHALLENGE_CONFIG } from '../../../constants/challengeConstants';
 import { updateChallenge } from '../../../API/apiChallenge';
 import IndivTotalToggle from '../IndivTotalToggle';
 import toast from 'react-hot-toast';
+import ConfirmModal from '../../ConfirmModal';
 
 const ChallengeUpdateModal = ({ 
   showUpdateModal, 
@@ -38,6 +40,7 @@ const ChallengeUpdateModal = ({
     challengeHints: [[], [], [], [], [], [], []],
     hintPenaltyPercent: 25,
     maxHintsPerChallenge: 2,
+    challengeVisibility: [true, true, true, true, true, true, true],
     dueDateEnabled: false,
     dueDate: ''
   });
@@ -59,7 +62,7 @@ const ChallengeUpdateModal = ({
     if (challengeData && showUpdateModal) {
       setUpdateData({
         title: challengeData.title || '',
-        challengeBits: challengeData.settings?.challengeBits || [50, 75, 100, 125, 150, 175, 200],
+        challengeBits: challengeData.settings?.challengeBits || [50,75,100,125,150,175,200],
         totalRewardBits: challengeData.settings?.totalRewardBits || 0,
         rewardMode: challengeData.settings?.rewardMode || 'individual',
         challengeMultipliers: challengeData.settings?.challengeMultipliers || [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
@@ -71,7 +74,8 @@ const ChallengeUpdateModal = ({
         challengeDiscounts: challengeData.settings?.challengeDiscounts || [0, 0, 0, 0, 0, 0, 0],
         totalDiscount: challengeData.settings?.totalDiscount || 0,
         discountMode: challengeData.settings?.discountMode || 'individual',
-        challengeShields: challengeData.settings?.challengeShields || [false, false, false, false, false, false, false],
+        challengeShields: challengeData.settings?.challengeShields || [false,false,false,false,false,false,false],
+        challengeVisibility: challengeData.settings?.challengeVisibility || [true, true, true, true, true, true, true],
         totalShield: challengeData.settings?.totalShield || false,
         shieldMode: challengeData.settings?.shieldMode || 'individual',
         challengeHintsEnabled: challengeData.settings?.challengeHintsEnabled || [false, false, false, false, false, false, false],
@@ -79,7 +83,7 @@ const ChallengeUpdateModal = ({
         hintPenaltyPercent: challengeData.settings?.hintPenaltyPercent || 25,
         maxHintsPerChallenge: challengeData.settings?.maxHintsPerChallenge || 2,
         dueDateEnabled: challengeData.settings?.dueDateEnabled || false,
-        dueDate: challengeData.settings?.dueDate ? new Date(challengeData.settings.dueDate).toISOString().slice(0, 16) : ''
+        dueDate: challengeData.settings?.dueDate ? new Date(challengeData.settings.dueDate).toISOString().slice(0,16) : ''
       });
     }
   }, [challengeData, showUpdateModal]);
@@ -99,6 +103,17 @@ const ChallengeUpdateModal = ({
     }
   };
 
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const handleResetToDefaults = () => setShowResetConfirm(true);
+  const confirmReset = () => {
+    setUpdateData(prev => ({
+      ...DEFAULT_CHALLENGE_CONFIG,
+      title: challengeData?.title || prev.title || DEFAULT_CHALLENGE_CONFIG.title,
+      dueDate: prev.dueDate ?? DEFAULT_CHALLENGE_CONFIG.dueDate
+    }));
+    setShowResetConfirm(false);
+  };
+
   if (!showUpdateModal) return null;
 
   return (
@@ -108,7 +123,24 @@ const ChallengeUpdateModal = ({
           <div className="flex items-center gap-3 mb-4">
             <Edit3 className="w-6 h-6 text-blue-500" />
             <h2 className="text-xl sm:text-2xl font-bold">Update Challenge Series</h2>
+            <div className="ml-auto">
+             <button
+               className="btn btn-sm btn-ghost mr-2"
+               onClick={handleResetToDefaults}
+               title="Reset update form to default settings"
+             >
+               Reset to Defaults
+             </button>
+           </div>
           </div>
+          <ConfirmModal
+            isOpen={showResetConfirm}
+            onClose={() => setShowResetConfirm(false)}
+            title="Reset to defaults"
+            message="Reset update form to default challenge settings?"
+            confirmText="Reset"
+            onConfirm={confirmReset}
+          />
           
           <div className="space-y-6">
             <div>
@@ -480,6 +512,40 @@ const ChallengeUpdateModal = ({
                     </div>
                   </div>
                 </div>
+
+                {/* NEW: Mobile Visibility card for Update modal */}
+                <div className="card bg-base-200 p-3 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <h3 className="font-semibold">Visibility</h3>
+                      <div className="text-xs text-gray-500">Visible to students</div>
+                    </div>
+                  </div>
+                  <div className="space-y-2 mt-2">
+                    {CHALLENGE_NAMES.map((name, idx) => (
+                      <label key={idx} className="flex items-center justify-between gap-3">
+                        <div className="flex-1 text-sm">
+                          <div className="font-medium">{`CH ${idx + 1}`}</div>
+                          <div className="text-xs text-gray-500 truncate max-w-xs">{name}</div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          className="checkbox checkbox-sm checkbox-primary"
+                          checked={!!updateData.challengeVisibility?.[idx]}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setUpdateData(prev => {
+                              const arr = [...(prev.challengeVisibility || [])];
+                              while (arr.length <= idx) arr.push(true);
+                              arr[idx] = checked;
+                              return { ...prev, challengeVisibility: arr };
+                            });
+                          }}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </div>
               </div>
             ) : (
               <div className="overflow-x-auto overflow-y-visible touch-pan-x" style={{ WebkitOverflowScrolling: 'touch' }}>
@@ -787,6 +853,33 @@ const ChallengeUpdateModal = ({
                               });
                             }}
                             disabled={updateData.shieldMode !== 'individual'}
+                          />
+                        </td>
+                      ))}
+                    </tr>
+
+                    <tr>
+                      <td className="sticky left-0 bg-base-100 z-10">
+                        <div className="flex items-center gap-3 flex-nowrap text-sm">
+                          <span className="font-semibold inline-block w-36 shrink-0">Visibility</span>
+                          <div className="text-xs text-gray-500">Visible to students</div>
+                        </div>
+                      </td>
+                      {CHALLENGE_NAMES.map((_, index) => (
+                        <td key={index} className="text-center">
+                          <input
+                            type="checkbox"
+                            className="checkbox checkbox-sm checkbox-primary"
+                            checked={!!updateData.challengeVisibility[index]}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setUpdateData(prev => {
+                                const arr = [...(prev.challengeVisibility || [])];
+                                while (arr.length <= index) arr.push(true);
+                                arr[index] = checked;
+                                return { ...prev, challengeVisibility: arr };
+                              });
+                            }}
                           />
                         </td>
                       ))}

@@ -3,8 +3,15 @@ const router = express.Router();
 const Challenge = require('../../models/Challenge');
 const User = require('../../models/User');
 const { ensureAuthenticated } = require('../../middleware/auth');
-const { isChallengeExpired, generateChallenge2Password, calculateChallengeRewards } = require('./utils');
+const { isChallengeExpired, generateChallenge2Password, calculateChallengeRewards, isChallengeVisibleToUser } = require('./utils');
 const { CHALLENGE_NAMES } = require('./constants');
+const Notification = require('../../models/Notification');
+const { populateNotification } = require('../../utils/notifications');
+// Add imports for XP
+const Classroom = require('../../models/Classroom');
+const { awardXP } = require('../../utils/awardXP');
+const { getIO } = require('../../utils/io'); // NEW: emit realtime notifications
+const { logStatChanges } = require('../../utils/statChangeLog'); // ensure symbol link
 
 router.post('/verify-password', ensureAuthenticated, async (req, res) => {
   try {
@@ -15,12 +22,13 @@ router.post('/verify-password', ensureAuthenticated, async (req, res) => {
       return res.status(400).json({ message: 'Unique ID and password are required' });
     }
 
-    const challenge = await Challenge.findOne({
-      'userChallenges.uniqueId': uniqueId
-    });
+    const challenge = await Challenge.findOne({ 'userChallenges.uniqueId': uniqueId });
+    if (!challenge) return res.status(404).json({ message: 'Challenge not found' });
 
-    if (!challenge) {
-      return res.status(404).json({ message: 'Challenge not found' });
+    const userRole = req.user.role || 'student';
+    // NEW: block if this specific challenge is hidden to students (index 0)
+    if (!isChallengeVisibleToUser(challenge, userRole, 0)) {
+      return res.status(403).json({ message: 'Challenge is temporarily unavailable' });
     }
 
     const userChallenge = challenge.userChallenges.find(
@@ -67,12 +75,18 @@ router.post('/verify-password', ensureAuthenticated, async (req, res) => {
       if (user) {
         rewardsEarned = calculateChallengeRewards(user, challenge, 0, userChallenge);
         await user.save();
+        // NEW: award XP for rewards and completion
+        await awardChallengeXP({
+          userId: user._id,
+          classroomId: challenge.classroomId,
+          rewards: rewardsEarned,
+          challengeName: (typeof CHALLENGE_NAMES !== 'undefined' && CHALLENGE_NAMES[0]) || challenge.title || 'Challenge'
+        });
       }
       
       await challenge.save();
     }
 
-    const { CHALLENGE_NAMES } = require('./constants');
     res.json({ 
       success: true,
       message: `Correct! ${CHALLENGE_NAMES[0]} completed!`,
@@ -93,6 +107,7 @@ router.post('/verify-challenge2-external', ensureAuthenticated, async (req, res)
   try {
     const { uniqueId, password } = req.body;
     const userId = req.user._id;
+    const userRole = req.user?.role || 'student';
 
     if (!uniqueId || !password) {
       return res.status(400).json({ message: 'Unique ID and password are required' });
@@ -104,6 +119,11 @@ router.post('/verify-challenge2-external', ensureAuthenticated, async (req, res)
 
     if (!challenge) {
       return res.status(404).json({ message: 'Challenge not found' });
+    }
+
+    // NEW: per-challenge visibility guard (challenge 2 => index 1)
+    if (!isChallengeVisibleToUser(challenge, userRole, 1)) {
+      return res.status(403).json({ message: 'This challenge is temporarily unavailable' });
     }
 
     const userChallenge = challenge.userChallenges.find(
@@ -166,6 +186,13 @@ router.post('/verify-challenge2-external', ensureAuthenticated, async (req, res)
         Object.assign(rewardsEarned, rewards);
         bitsAwarded = rewards.bits;
         await user.save();
+        // NEW
+        await awardChallengeXP({
+          userId: user._id,
+          classroomId: challenge.classroomId,
+          rewards: rewardsEarned,
+          challengeName: (typeof CHALLENGE_NAMES !== 'undefined' && CHALLENGE_NAMES[1]) || challenge.title || 'Challenge'
+        });
       }
       
       await challenge.save();
@@ -306,6 +333,13 @@ router.post('/challenge3/:uniqueId/verify', ensureAuthenticated, async (req, res
       
       rewardsEarned = calculateChallengeRewards(user, challenge, 2, userChallenge);
       await user.save();
+      // NEW: award XP for Challenge 3
+      await awardChallengeXP({
+        userId: user._id,
+        classroomId: challenge.classroomId,
+        rewards: rewardsEarned,
+        challengeName: (typeof CHALLENGE_NAMES !== 'undefined' && CHALLENGE_NAMES[2]) || challenge.title || 'Challenge'
+      });
       await challenge.save();
     }
 
@@ -329,6 +363,7 @@ router.post('/verify-challenge5-external', ensureAuthenticated, async (req, res)
   try {
     const { uniqueId, verified } = req.body;
     const userId = req.user._id;
+    const userRole = req.user?.role || 'student';
 
     if (!uniqueId || !verified) {
       return res.status(400).json({ message: 'Invalid verification data' });
@@ -340,6 +375,11 @@ router.post('/verify-challenge5-external', ensureAuthenticated, async (req, res)
 
     if (!challenge) {
       return res.status(404).json({ message: 'Challenge not found' });
+    }
+
+    // NEW: per-challenge visibility guard (challenge 5 => index 4)
+    if (!isChallengeVisibleToUser(challenge, userRole, 4)) {
+      return res.status(403).json({ message: 'This challenge is temporarily unavailable' });
     }
 
     const userChallenge = challenge.userChallenges.find(
@@ -386,6 +426,13 @@ router.post('/verify-challenge5-external', ensureAuthenticated, async (req, res)
     if (user) {
       rewardsEarned = calculateChallengeRewards(user, challenge, 4, userChallenge);
       await user.save();
+      // NEW
+      await awardChallengeXP({
+        userId: user._id,
+        classroomId: challenge.classroomId,
+        rewards: rewardsEarned,
+        challengeName: (typeof CHALLENGE_NAMES !== 'undefined' && CHALLENGE_NAMES[4]) || challenge.title || 'Challenge'
+      });
     }
     
     await challenge.save();
@@ -422,5 +469,118 @@ router.post('/verify-challenge5-external', ensureAuthenticated, async (req, res)
     res.status(500).json({ message: 'Server error' });
   }
 });
+
+// Helper: award XP for challenge outcome (bits + stat increases + completion)
+async function awardChallengeXP({ userId, classroomId, rewards, challengeName }) {
+  try {
+    const cls = await Classroom.findById(classroomId).select('xpSettings');
+    if (!cls?.xpSettings?.enabled) return;
+
+    // 1) Bits-earned XP
+    const bits = Number(rewards?.bits || 0);
+    const rateBits = cls.xpSettings.bitsEarned || 0;
+    if (bits > 0 && rateBits > 0) {
+      const xp = bits * rateBits; // challenge bits are already "final"
+      if (xp > 0) {
+        try {
+          const xpRes = await awardXP(userId, classroomId, xp, 'earning bits (challenge reward)', cls.xpSettings);
+          if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+            try {
+              const targetUser = await User.findById(userId).select('firstName lastName');
+              await logStatChanges({
+                io: getIO(), // emit realtime when possible
+                classroomId,
+                user: targetUser,
+                actionBy: null,
+                prevStats: { xp: xpRes.oldXP },
+                currStats: { xp: xpRes.newXP },
+                // include challenge name for clarity
+                context: `earning bits (challenge reward${challengeName ? `: ${challengeName}` : ''})`,
+                details: { effectsText: `Bits: +${bits}`, challengeName },
+                forceLog: true
+              });
+            } catch (logErr) {
+              console.warn('[challenge] failed to log bits-earned XP stat change:', logErr);
+            }
+          }
+        } catch (xpErr) {
+          console.warn('[challenge] awardXP (bits) failed:', xpErr);
+        }
+      }
+    }
+
+    // 2) Stat-increase XP (count changed stats: multiplier, luck, discount, shield)
+    const statCount =
+      (rewards?.multiplier > 0 ? 1 : 0) +
+      ((rewards?.luck || 1) > 1.0 ? 1 : 0) +
+      ((rewards?.discount || 0) > 0 ? 1 : 0) +
+      (rewards?.shield ? 1 : 0);
+
+    const rateStat = cls.xpSettings.statIncrease || 0;
+    if (statCount > 0 && rateStat > 0) {
+      const xp = statCount * rateStat;
+      if (xp > 0) {
+        try {
+          const xpRes = await awardXP(userId, classroomId, xp, 'stat increase (challenge reward)', cls.xpSettings);
+          if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+            try {
+              const targetUser = await User.findById(userId).select('firstName lastName');
+              const parts = [];
+              if ((rewards?.multiplier || 0) > 0) parts.push(`+${Number(rewards.multiplier).toFixed(1)} Multiplier`);
+              if ((rewards?.luck || 1) > 1.0) parts.push(`+${Number((rewards.luck - 1)).toFixed(1)} Luck`);
+              if ((rewards?.discount || 0) > 0) parts.push(`+${Number(rewards.discount).toFixed(1)}% Discount`);
+              if (rewards?.shield) parts.push(`Shield +1`);
+              await logStatChanges({
+                io: null,
+                classroomId,
+                user: targetUser,
+                actionBy: null,
+                prevStats: { xp: xpRes.oldXP },
+                currStats: { xp: xpRes.newXP },
+                context: `stat increase (challenge reward${challengeName ? `: ${challengeName}` : ''})`,
+                details: { effectsText: parts.join(', ') || undefined, challengeName },
+                forceLog: true
+              });
+            } catch (logErr) {
+              console.warn('[challenge] failed to log stat-increase XP change:', logErr);
+            }
+          }
+        } catch (xpErr) {
+          console.warn('[challenge] awardXP (stat increase) failed:', xpErr);
+        }
+      }
+    }
+
+    // 3) Challenge-completion XP
+    const rateCompletion = cls.xpSettings.challengeCompletion || 0;
+    if (rateCompletion > 0) {
+      try {
+        const xpRes = await awardXP(userId, classroomId, rateCompletion, 'challenge completion', cls.xpSettings);
+        if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+          try {
+            const targetUser = await User.findById(userId).select('firstName lastName');
+            await logStatChanges({
+              io: null,
+              classroomId,
+              user: targetUser,
+              actionBy: null,
+              prevStats: { xp: xpRes.oldXP },
+              currStats: { xp: xpRes.newXP },
+              context: `challenge completion${challengeName ? `: ${challengeName}` : ''}`,
+              details: { effectsText: `Completion bonus: +${rateCompletion}`, challengeName },
+              forceLog: true
+            });
+          } catch (logErr) {
+            console.warn('[challenge] failed to log completion XP change:', logErr);
+          }
+        }
+      } catch (xpErr) {
+        console.warn('[challenge] awardXP (completion) failed:', xpErr);
+      }
+    }
+  } catch (e) {
+    console.warn('[challenge] awardChallengeXP failed:', e);
+  }
+}
 
 module.exports = router;

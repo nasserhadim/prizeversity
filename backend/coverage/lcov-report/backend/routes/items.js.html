@@ -461,7 +461,7 @@ router.post('/:itemId/use', async (req, res) =&gt; {
 <span class="cstat-no" title="statement not covered" >    let target = null;</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >    // If attack item requires a target</span>
-<span class="cstat-no" title="statement not covered" >    if (['halveBits', 'stealBits'].includes(item.effect)) {</span>
+<span class="cstat-no" title="statement not covered" >    if (['halveBits', 'drainBits'].includes(item.effect)) {</span>
 <span class="cstat-no" title="statement not covered" >      if (!targetUserId) return res.status(400).json({ error: 'Target required' });</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >      target = await User.findById(targetUserId);</span>
@@ -487,10 +487,10 @@ router.post('/:itemId/use', async (req, res) =&gt; {
 <span class="cstat-no" title="statement not covered" >      await target.save();</span>
 <span class="cstat-no" title="statement not covered" >    }</span>
 <span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >    if (item.effect === 'stealBits') {</span>
-<span class="cstat-no" title="statement not covered" >      const stolen = Math.floor(target.balance * 0.1);</span>
-<span class="cstat-no" title="statement not covered" >      target.balance -= stolen;</span>
-<span class="cstat-no" title="statement not covered" >      user.balance += stolen;</span>
+<span class="cstat-no" title="statement not covered" >    if (item.effect === 'drainBits') {</span>
+<span class="cstat-no" title="statement not covered" >      const drained = Math.floor(target.balance * 0.1);</span>
+<span class="cstat-no" title="statement not covered" >      target.balance -= drained;</span>
+<span class="cstat-no" title="statement not covered" >      user.balance += drained;</span>
 <span class="cstat-no" title="statement not covered" >      await target.save();</span>
 <span class="cstat-no" title="statement not covered" >      await user.save();</span>
 <span class="cstat-no" title="statement not covered" >    }</span>

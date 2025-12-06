@@ -49,14 +49,14 @@ So we concluded that it will be much efficient if we separate them in each file.
 //       }
 
 //       const targetUpdates = {};
-//       let stolenAmount = 0;
+//       let drainedAmount = 0;
       
 //       // Handle primary effect
 //       if (item.primaryEffect === 'halveBits') {
 //         targetUpdates.balance = Math.floor(target.balance / 2);
-//       } else if (item.primaryEffect === 'stealBits') {
-//         stolenAmount = Math.floor(target.balance * 0.1 * (item.effectStrength || 1));
-//         targetUpdates.balance = target.balance - stolenAmount;
+//       } else if (item.primaryEffect === 'drainBits') {
+//         drainedAmount = Math.floor(target.balance * 0.1 * (item.effectStrength || 1));
+//         targetUpdates.balance = target.balance - drainedAmount;
 //       }
 
 //       // Handle secondary effects
@@ -102,10 +102,10 @@ So we concluded that it will be much efficient if we separate them in each file.
 //         await User.findByIdAndUpdate(targetUserId, { $set: targetUpdates });
 //       }
 
-//       // Update attacker's balance if bits were stolen
-//       if (stolenAmount > 0) {
+//       // Update attacker's balance if bits were drained
+//       if (drainedAmount > 0) {
 //         await User.findByIdAndUpdate(userId, {
-//           $inc: { balance: stolenAmount }
+//           $inc: { balance: drainedAmount }
 //         });
 //       }
 

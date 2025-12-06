@@ -1,9 +1,32 @@
 const express = require('express');
 const router = express.Router();
 const Challenge = require('../../models/Challenge');
-const User = require('../../models/User');
+const User = require('../../models/User');                   // NEW
+const Classroom = require('../../models/Classroom');         // NEW
 const { ensureAuthenticated } = require('../../middleware/auth');
 const { generateCppDebuggingChallenge, generateAndUploadForensicsImage, uploadLocks } = require('./generators');
+const { awardXP } = require('../../utils/awardXP');          // NEW
+const { calculateChallengeRewards } = require('./utils');    // NEW
+
+// NEW helper: centralize per-challenge visibility logic
+function isChallengeVisibleToUser(challenge, userRole, challengeIndex) {
+  // teachers always see everything
+  if (userRole === 'teacher') return true;
+
+  // require the overall challenge to be visible
+  if (challenge.isVisible === false) return false;
+
+  // if there is an explicit per-challenge visibility array, deny when false
+  const perVisible = challenge.settings?.challengeVisibility;
+  if (Array.isArray(perVisible)) {
+    // if index out-of-range, treat as visible (backwards compatible)
+    if (typeof perVisible[challengeIndex] !== 'undefined') {
+      return perVisible[challengeIndex] !== false;
+    }
+  }
+
+  return true;
+}
 
 router.get('/challenge3/:uniqueId/teacher', ensureAuthenticated, async (req, res) => {
   try {
@@ -63,7 +86,8 @@ router.get('/challenge3/:uniqueId', ensureAuthenticated, async (req, res) => {
   try {
     const { uniqueId } = req.params;
     const userId = req.user._id;
-    
+    const userRole = req.user.role;
+
     const challenge = await Challenge.findOne({ 
       'userChallenges.uniqueId': uniqueId,
       'userChallenges.userId': userId 
@@ -73,7 +97,7 @@ router.get('/challenge3/:uniqueId', ensureAuthenticated, async (req, res) => {
       return res.status(404).json({ message: 'Challenge not found' });
     }
 
-    if (!challenge.isVisible) {
+    if (!isChallengeVisibleToUser(challenge, userRole, 2)) {
       return res.status(403).json({ message: 'Challenge is temporarily unavailable' });
     }
 
@@ -313,7 +337,7 @@ router.get('/challenge6/:uniqueId', ensureAuthenticated, async (req, res) => {
       return res.status(404).json({ message: 'Challenge not found' });
     }
 
-    if (userRole !== 'teacher' && !challenge.isVisible) {
+    if (!isChallengeVisibleToUser(challenge, userRole, 5)) {
       return res.status(403).json({ message: 'Challenge is temporarily unavailable' });
     }
 
@@ -449,7 +473,7 @@ router.get('/challenge7/:uniqueId', ensureAuthenticated, async (req, res) => {
       return res.status(404).json({ message: 'Challenge not found' });
     }
 
-    if (userRole !== 'teacher' && !challenge.isVisible) {
+    if (!isChallengeVisibleToUser(challenge, userRole, 6)) {
       return res.status(403).json({ message: 'Challenge is temporarily unavailable' });
     }
 
@@ -628,6 +652,36 @@ router.get('/challenge7/:uniqueId/teacher', ensureAuthenticated, async (req, res
   }
 });
 
+// NEW: local helper to grant XP for bits/stat boosts/completion
+async function awardChallengeXP({ userId, classroomId, rewards }) {
+  try {
+    const cls = await Classroom.findById(classroomId).select('xpSettings');
+    if (!cls?.xpSettings?.enabled) return;
+
+    const bits = Number(rewards?.bits || 0);
+    if (bits > 0 && (cls.xpSettings.bitsEarned || 0) > 0) {
+      await awardXP(userId, classroomId, bits * (cls.xpSettings.bitsEarned || 0), 'earning bits (challenge reward)', cls.xpSettings);
+    }
+
+    const statCount =
+      (rewards?.multiplier > 0 ? 1 : 0) +
+      ((rewards?.luck || 1) > 1.0 ? 1 : 0) +
+      ((rewards?.discount || 0) > 0 ? 1 : 0) +
+      (rewards?.shield ? 1 : 0);
+
+    if (statCount > 0 && (cls.xpSettings.statIncrease || 0) > 0) {
+      await awardXP(userId, classroomId, statCount * cls.xpSettings.statIncrease, 'stat increase (challenge reward)', cls.xpSettings);
+    }
+
+    if ((cls.xpSettings.challengeCompletion || 0) > 0) {
+      await awardXP(userId, classroomId, cls.xpSettings.challengeCompletion, 'challenge completion', cls.xpSettings);
+    }
+  } catch (e) {
+    console.warn('[teacher-complete] awardChallengeXP failed:', e);
+  }
+}
+
+// Challenge 6: teacher "Skip to Completion"
 router.post('/challenge6/:uniqueId/complete', ensureAuthenticated, async (req, res) => {
   try {
     const { uniqueId } = req.params;
@@ -670,6 +724,24 @@ router.post('/challenge6/:uniqueId/complete', ensureAuthenticated, async (req, r
       userChallenge.progress = 6;
     }
 
+    // NEW: compute rewards and award XP
+    const studentId = userChallenge.userId;
+    const user = await User.findById(studentId);
+    if (user) {
+      const rewards = calculateChallengeRewards(user, challenge, 5, userChallenge);
+      await user.save();
+
+      // persist rewards for this challenge entry
+      if (!userChallenge.challengeRewards) userChallenge.challengeRewards = {};
+      userChallenge.challengeRewards[5] = rewards;
+
+      await awardChallengeXP({
+        userId: user._id,
+        classroomId: challenge.classroomId,
+        rewards
+      });
+    }
+
     challenge.markModified('userChallenges');
     await challenge.save();
 
@@ -681,6 +753,7 @@ router.post('/challenge6/:uniqueId/complete', ensureAuthenticated, async (req, r
   }
 });
 
+// Challenge 7: teacher "Skip to Completion"
 router.post('/challenge7/:uniqueId/complete', ensureAuthenticated, async (req, res) => {
   try {
     const { uniqueId } = req.params;
@@ -735,6 +808,25 @@ router.post('/challenge7/:uniqueId/complete', ensureAuthenticated, async (req, r
     if (userChallenge.progress === 6) {
       userChallenge.progress = 7;
       userChallenge.completedAt = new Date();
+    }
+
+    // NEW: compute rewards and award XP
+    {
+      const studentId = userChallenge.userId;
+      const user = await User.findById(studentId);
+      if (user) {
+        const rewards = calculateChallengeRewards(user, challenge, 6, userChallenge);
+        await user.save();
+
+        if (!userChallenge.challengeRewards) userChallenge.challengeRewards = {};
+        userChallenge.challengeRewards[6] = rewards;
+
+        await awardChallengeXP({
+          userId: user._id,
+          classroomId: challenge.classroomId,
+          rewards
+        });
+      }
     }
 
     challenge.markModified('userChallenges');

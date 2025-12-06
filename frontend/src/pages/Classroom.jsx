@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { getNews } from '../API/apiNewsfeed';
@@ -32,6 +32,7 @@ const Classroom = () => {
   const [announcements, setAnnouncements] = useState([]);
   const [visibleCount, setVisibleCount] = useState(10);
   const [confirmModal, setConfirmModal] = useState(null);
+  const checkedInRef = useRef(false); // persist across re-renders
 
   // Fetch classroom and student data on mount
   useEffect(() => {
@@ -87,42 +88,73 @@ const Classroom = () => {
   }, [id]);
 
   useEffect(() => {
-    // If we don't yet have a user, skip socket joins to avoid reading user._id (fixes crash/white page)
+    // If we don't yet have a user, skip socket joins
     if (!id || !user) return;
 
-    socket.emit('join-classroom', id);
-    socket.emit('join-user', user._id);
-    console.log(`Joined user room: user-${user._id}`);
+    const joinRooms = () => {
+      if (user?._id) {
+        console.debug('[socket] join-user', user._id);
+        socket.emit('join-user', user._id);
+      }
+      if (id) {
+        console.debug('[socket] join-classroom', id);
+        socket.emit('join-classroom', id);
+      }
+
+      // Auto check-in once per session per classroom
+      if (!checkedInRef.current) {
+        checkedInRef.current = true;
+        (async () => {
+          try {
+            const res = await axios.post(`/api/classroom/${id}/checkin`, {}, { withCredentials: true });
+            console.debug('[checkin] response:', res.data);
+            if (res.data && res.data.alreadyCheckedIn) {
+              // already done for today
+            } else if (res.data && res.data.xpAwarded) {
+              console.info(`[checkin] awarded ${res.data.xpAwarded} XP`);
+            }
+          } catch (err) {
+            console.warn('[checkin] POST failed:', err?.response?.data || err.message);
+          }
+        })();
+      }
+    };
+
+    // Call now and on future connects (but guarded by checkedInRef)
+    joinRooms();
+    socket.on('connect', joinRooms);
 
     const handleNewAnnouncement = (announcement) => {
       setAnnouncements(prev => [announcement, ...prev]);
     };
-
-    // Add classroom removal handler
     const handleClassroomRemoval = (data) => {
-      if (String(data.classroomId) === String(id)) {
+      // data may include userId and classroomId
+      const payloadUserId = String(data?.userId || data?.targetUser || '');
+      const myId = String(user?._id || '');
+      const sameClass = String(data?.classroomId) === String(classroomId);
+
+      // Only react if this removal targets ME and it’s for THIS classroom
+      if (sameClass && payloadUserId && payloadUserId === myId) {
+        try { socket.emit('leave-classroom', classroomId, { userId: user._id }); } catch(e){/*ignore*/}
         toast.error(data.message || 'You have been removed from this classroom');
-        setTimeout(() => {
-          navigate('/classrooms');
-        }, 2000);
+        setTimeout(() => navigate('/classrooms'), 2000);
       }
+    };
+    const handleNotification = (notification) => {
+      console.log('Realtime notification:', notification);
     };
 
     socket.on('receive-announcement', handleNewAnnouncement);
     socket.on('classroom_removal', handleClassroomRemoval);
-
-    // listen for personal notifications
-    const handleNotification = (notification) => {
-      console.log('Realtime notification:', notification);
-    };
     socket.on('notification', handleNotification);
 
     return () => {
+      socket.off('connect', joinRooms);
       socket.off('receive-announcement', handleNewAnnouncement);
       socket.off('classroom_removal', handleClassroomRemoval);
       socket.off('notification', handleNotification);
     };
-  }, [id, navigate, user]); // include user so effect re-runs when user becomes available
+  }, [id, navigate, user]);
 
   // Fetch classroom info and ensure user has access
   const fetchClassroomDetails = async () => {
@@ -146,6 +178,9 @@ const Classroom = () => {
       }
 
       setClassroom(response.data);
+      // NEW: record access
+      try { await axios.post(`/api/classroom/${id}/access`, {}, { withCredentials: true }); } catch(e){/* ignore */}
+
       await fetchStudents();
     } catch (err) {
       if (err.response?.status === 403) {
@@ -180,6 +215,8 @@ const Classroom = () => {
       onConfirm: async () => {
         try {
           await axios.post(`/api/classroom/${id}/leave`);
+          // Drop presence immediately
+          try { socket.emit('leave-classroom', id, { userId: user._id }); } catch(e){/*ignore*/}
           toast.success('Left classroom successfully!');
           navigate('/classrooms');
         } catch (err) {

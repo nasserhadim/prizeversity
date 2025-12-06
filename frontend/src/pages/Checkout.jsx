@@ -10,6 +10,7 @@ import { resolveImageSrc } from '../utils/image';
 import { getEffectDescription, splitDescriptionEffect } from '../utils/itemHelpers';
 import Footer from '../components/Footer';
 import apiClassroom from '../API/apiClassroom';
+import ConfirmModal from '../components/ConfirmModal';
 
 const Checkout = () => {
   const { classroomId } = useParams();
@@ -23,6 +24,7 @@ const Checkout = () => {
   const [balance, setBalance] = useState(0);
   const [hasDiscount, setHasDiscount] = useState(user?.discountShop || false);
   const [classroom, setClassroom] = useState(null);
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
 
   useEffect(() => {
     setHasDiscount(user?.discountShop || false);
@@ -143,6 +145,18 @@ const Checkout = () => {
               : 'Checkout'}
           </h2>
 
+          {/* Row with Clear cart */}
+          <div className="flex items-center justify-end mb-2">
+            {cartItems.length > 0 && (
+              <button
+                className="btn btn-ghost btn-sm text-error"
+                onClick={() => setConfirmClearOpen(true)}
+              >
+                Clear cart
+              </button>
+            )}
+          </div>
+
           {user?.discountShop && (
               <div className="bg-success/10 text-success p-3 rounded mb-4 text-sm">
                   🎉 20% discount applied to all items!
@@ -246,6 +260,20 @@ const Checkout = () => {
                   </button>
               </>
           )}
+
+          <ConfirmModal
+            isOpen={confirmClearOpen}
+            title="Clear cart"
+            message="Remove all items from your cart?"
+            confirmText="Clear"
+            cancelText="Cancel"
+            confirmButtonClass="btn-error"
+            onClose={() => setConfirmClearOpen(false)}
+            onConfirm={() => {
+              clearCart(classroomId);
+              setConfirmClearOpen(false);
+            }}
+          />
         </div>
       </main>
 

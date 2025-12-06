@@ -1,16 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import PendingApprovals from '../components/PendingApprovals';
-import socket, { joinClassroom, joinUserRoom } from '../utils/socket';
+import socket, { joinUserRoom, joinClassroom } from '../utils/socket';
 import Footer from '../components/Footer';
 import ExportButtons from '../components/ExportButtons';
 import formatExportFilename from '../utils/formatExportFilename';
 import StatsAdjustModal from '../components/StatsAdjustModal';
 import Avatar from '../components/Avatar';
+import XPSettings from '../components/XPSettings';
+import { ThemeContext } from '../context/ThemeContext'; // NEW
 
 const ROLE_LABELS = {
   student: 'Student',
@@ -18,15 +20,140 @@ const ROLE_LABELS = {
   teacher: 'Teacher',
 };
 
+// Extract a human‑readable source from a stats_adjusted message
+const getStatChangeSource = (message) => {
+  if (!message) return null;
+  const text = String(message);
+
+  // Prefer "via ...:"
+  const via = text.match(/via\s+(.+?):/i);
+  if (via?.[1]) return via[1].trim();
+
+  // Fallback to "from ...:"
+  const from = text.match(/from\s+(.+?):/i);
+  if (from?.[1]) return from[1].trim();
+
+  // Last resort: detect Bazaar context like "Bazaar - Shield activated"
+  if (/bazaar/i.test(text)) {
+    const m = text.match(/Bazaar\s*-\s*([^-:]+)(?=$|[.:])/i);
+    return (m?.[1] || 'Bazaar').trim();
+  }
+  return null;
+};
+
+// NEW: parse "Effects: ..." (image parsing removed)
+const getEffectsText = (message) => {
+  const m = String(message || '').match(/Effects:\s*(.+?)(?:\s*\[img:|$)/i);
+  return m?.[1]?.trim() || null;
+};
+
+// add helper near top of file (after imports / before component)
+function formatStatChange(c) {
+  if (!c || !c.field) return null;
+  const raw = String(c.field || '');
+  const parts = raw.split('.');
+  const base = parts.pop();
+  const prefix = parts.length ? parts.join('.') + '.' : '';
+
+  const safeNum = (v, dec = 1) => {
+    if (v == null || v === '') return 0;
+    const n = Number(v);
+    if (Number.isNaN(n)) return 0;
+    return dec === 0 ? Math.round(n) : Number(n.toFixed(dec));
+  };
+
+  const renderArrowBold = (from, to) => (
+    <span>
+      {String(from)} <strong>→ {String(to)}</strong>
+    </span>
+  );
+
+  const renderDelta = (from, to, decimals = null, isXP = false) => {
+    const fromN = safeNum(from, 0);
+    const toN = safeNum(to, 0);
+    const deltaN = toN - fromN;
+    const deltaText = (decimals === 0) ? `${deltaN}` : `${Number(deltaN).toFixed(decimals ?? 1)}`;
+    const cls = deltaN >= 0 ? 'text-success' : 'text-error';
+    return <span className={cls}>{` (${deltaN >= 0 ? '+' : ''}${deltaText}${isXP ? ' XP' : ''})`}</span>;
+  };
+
+  // xp (integer)
+  if (base === 'xp') {
+    const from = safeNum(c.from, 0);
+    const to = safeNum(c.to, 0);
+    return (
+      <>
+        {prefix}
+        <strong>xp:</strong> {renderArrowBold(from, to)}
+        {renderDelta(from, to, 0, true)}
+      </>
+    );
+  }
+
+  // multiplier / luck / groupMultiplier (one decimal)
+  if (['multiplier', 'luck', 'groupMultiplier'].includes(base)) {
+    const fromN = safeNum(c.from, 1);
+    const toN = safeNum(c.to, 1);
+    return (
+      <>
+        {prefix}
+        <strong>{base}:</strong> {renderArrowBold(fromN.toFixed(1), toN.toFixed(1))}
+        {renderDelta(fromN, toN, 1)}
+      </>
+    );
+  }
+
+  // discount (integer percent)
+  if (base === 'discount') {
+    const from = safeNum(c.from, 0);
+    const to = safeNum(c.to, 0);
+    return (
+      <>
+        {prefix}
+        <strong>discount:</strong> {renderArrowBold(from, to)}
+        {renderDelta(from, to, 0)}
+      </>
+    );
+  }
+
+  // shield (integer)
+  if (base === 'shield') {
+    const from = safeNum(c.from, 0);
+    const to = safeNum(c.to, 0);
+    return (
+      <>
+        {prefix}
+        <strong>shield:</strong> {renderArrowBold(from, to)}
+        {renderDelta(from, to, 0)}
+      </>
+    );
+  }
+
+  // fallback: raw text
+  return (
+    <>
+      {raw}: <strong>{String(c.from)} → {String(c.to)}</strong>
+    </>
+  );
+}
+
 // add helper near the top (after imports / before component)
 const computeTotalSpent = (transactions = [], classroomId) => {
   return (transactions || []).reduce((sum, t) => {
     const amt = Number(t?.amount) || 0;
     if (amt >= 0) return sum;
-    const assignerRole = t?.assignedBy?.role ? String(t.assignedBy.role).toLowerCase() : '';
-    // Exclude teacher/admin adjustments from "total spent"
-    if (assignerRole === 'teacher' || assignerRole === 'admin') return sum;
+
+    // Skip attacks and siphons from "Total Spent"
+    const tType = String(t?.type || t?.metadata?.type || '').toLowerCase();
+    if (tType === 'attack' || tType === 'siphon') return sum;
+
+    // Keep classroom filter
     if (classroomId && t?.classroom && String(t.classroom) !== String(classroomId)) return sum;
+
+    // Exclude teacher/admin adjustments
+    const assignerRole = t?.assignedBy?.role ? String(t.assignedBy.role).toLowerCase() : '';
+    if (assignerRole === 'teacher' || assignerRole === 'admin') return sum;
+
     return sum + Math.abs(amt);
   }, 0);
 };
@@ -35,6 +162,12 @@ const People = () => {
   // Get classroom ID from URL params
   const { id: classroomId } = useParams();
   const { user } = useAuth();
+  // NEW: theme-aware muted text helpers
+  const { theme } = useContext(ThemeContext);
+  const isDark = theme === 'dark';
+  const subtleText = isDark ? 'text-base-content/70' : 'text-gray-600';
+  const extraSubtleText = isDark ? 'text-base-content/60' : 'text-gray-500';
+
   const [studentSendEnabled, setStudentSendEnabled] = useState(null);
   const [tab, setTab] = useState('everyone');
   const [statSearch, setStatSearch] = useState('');
@@ -62,6 +195,46 @@ const People = () => {
   // NEW: stat-change log (teacher view only)
   const [statChanges, setStatChanges] = useState([]);
   const [loadingStatChanges, setLoadingStatChanges] = useState(false);
+  const [onlineUserIds, setOnlineUserIds] = useState(new Set());
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'online' | 'offline'
+  // Helper: compute online presence for a student
+  const isStudentOnline = (s) => onlineUserIds.has(String(s._id));
+
+  // Presence: initial fetch + live updates
+  useEffect(() => {
+    if (!classroomId || !user?._id) return;
+
+    // ensure server gets my userId regardless of socket auth
+    socket.emit('join', `classroom-${classroomId}`, { userId: user._id });
+    socket.emit('join-classroom', classroomId, { userId: user._id });
+
+    const onPresence = (payload) => {
+      if (String(payload?.classroomId) !== String(classroomId)) return;
+      const ids = (payload?.onlineUserIds || []).map(String);
+      const set = new Set(ids);
+      setOnlineUserIds(set);
+      window.__classroomOnlineSet = set;
+    };
+    socket.on('presence:update', onPresence);
+
+    // initial presence fetch
+    axios.get(`/api/classroom/${classroomId}/online-users`, { withCredentials: true })
+      .then(r => {
+        const ids = (r.data?.onlineUserIds || []).map(String);
+        const set = new Set(ids);
+        setOnlineUserIds(set);
+        window.__classroomOnlineSet = set;
+      })
+      .catch(() => {
+        setOnlineUserIds(new Set());
+        window.__classroomOnlineSet = new Set();
+      });
+
+    return () => {
+      // Remove listener only; do NOT emit leave-classroom on tab switch
+      socket.off('presence:update', onPresence);
+    };
+  }, [classroomId, user?._id]);
 
   const navigate = useNavigate();
 
@@ -150,21 +323,35 @@ const People = () => {
 
   // Initial data fetch + robust realtime handlers
   useEffect(() => {
+    if (!classroomId) return;
+    // Record "Last Accessed" for the current user
+    (async () => {
+      try {
+        await axios.post(`/api/classroom/${classroomId}/access`, {}, { withCredentials: true });
+      } catch (e) {
+        console.debug('[People] failed to record access', e?.message || e);
+      }
+    })();
+
     fetchClassroom();
     fetchStudents();
     fetchGroupSets();
     fetchTaBitPolicy();
     fetchSiphonTimeout();
-    fetchStatChanges(); // <-- NEW: fetch stat changes on mount
+    fetchStatChanges();
 
     // Add classroom removal handler
     const handleClassroomRemoval = (data) => {
-      if (String(data.classroomId) === String(classroomId) && String(data.userId) === String(user._id)) {
+      // data may include userId and classroomId
+      const payloadUserId = String(data?.userId || data?.targetUser || '');
+      const myId = String(user?._id || '');
+      const sameClass = String(data?.classroomId) === String(classroomId);
+
+      // Only react if this removal targets ME and it’s for THIS classroom
+      if (sameClass && payloadUserId && payloadUserId === myId) {
+        try { socket.emit('leave-classroom', classroomId, { userId: user._id }); } catch(e){/*ignore*/}
         toast.error(data.message || 'You have been removed from this classroom');
-        // Redirect to classroom dashboard after a short delay
-        setTimeout(() => {
-          navigate('/classrooms');
-        }, 2000);
+        setTimeout(() => navigate('/classrooms'), 2000);
       }
     };
 
@@ -425,6 +612,9 @@ const getBanInfo = (student, classroomObj) => {
       }
       const matchesRole = roleFilter === 'all' || student.role === roleFilter;
       
+      if (statusFilter === 'online' && !isStudentOnline(student)) return false;
+      if (statusFilter === 'offline' && isStudentOnline(student)) return false;
+
       return matchesSearch && matchesRole;
     })
     .sort((a, b) => {
@@ -514,6 +704,14 @@ const getBanInfo = (student, classroomObj) => {
         const dateA = new Date(a.joinedAt || a.createdAt || 0);
         const dateB = new Date(b.joinedAt || b.createdAt || 0);
         return dateB - dateA;
+      } else if (sortOption === 'lastAccessedDesc') {
+        const ad = new Date(a.lastAccessed || 0).getTime();
+        const bd = new Date(b.lastAccessed || 0).getTime();
+        return bd - ad;
+      } else if (sortOption === 'lastAccessedAsc') {
+        const ad = new Date(a.lastAccessed || 0).getTime();
+        const bd = new Date(b.lastAccessed || 0).getTime();
+        return ad - bd;
       }
       return 0; // Default order
     });
@@ -664,31 +862,33 @@ const getBanInfo = (student, classroomObj) => {
       throw new Error('No students to export');
     }
 
-    // Build comprehensive data including stats and groups
     const dataToExport = await Promise.all(
       filteredStudents.map(async (student) => {
         let stats = {};
         let groups = [];
-        
+        let xpData = {};
+
+        // Fetch stats + XP (run in parallel)
         try {
-          // Fetch student stats
-          const statsRes = await axios.get(`/api/stats/student/${student._id}?classroomId=${classroomId}`, { withCredentials: true });
-          stats = statsRes.data;
+          const [statsRes, xpRes] = await Promise.all([
+            axios.get(`/api/stats/student/${student._id}?classroomId=${classroomId}`, { withCredentials: true }),
+            axios.get(`/api/xp/classroom/${classroomId}/user/${student._id}`, { withCredentials: true })
+          ]);
+          stats = statsRes.data || {};
+          xpData = xpRes.data || {};
         } catch (err) {
-          console.error('Failed to fetch stats for student:', student._id);
+          console.error('Failed to fetch stats/xp for student:', student._id);
         }
 
+        // Collect groups
         try {
-          // Find groups this student belongs to
           groupSets.forEach(groupSet => {
             groupSet.groups.forEach(group => {
-              const isMember = group.members.some(member => 
-                String(member._id._id || member._id) === String(student._id) && 
-                member.status === 'approved' // Only count approved members
+              const isMember = group.members.some(member =>
+                String(member._id._id || member._id) === String(student._id) &&
+                member.status === 'approved'
               );
-              if (isMember) {
-                groups.push(`${groupSet.name}: ${group.name}`);
-              }
+              if (isMember) groups.push(`${groupSet.name}: ${group.name}`);
             });
           });
         } catch (err) {
@@ -696,17 +896,26 @@ const getBanInfo = (student, classroomObj) => {
         }
 
         return {
+          ClassroomId: classroomId,
+          ClassroomName: classroom?.name || '',
+          ClassroomCode: classroom?.code || '',
           Name: `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.email,
           Email: student.email,
+          UserId: student._id,
+          ShortId: student.shortId || '',
           Role: ROLE_LABELS[student.role] || student.role,
           Balance: student.balance?.toFixed(2) || '0.00',
-          // Include Total spent for CSV export (uses per-student totals loaded into totalSpentMap)
           TotalSpent: (Number(totalSpentMap[student._id] || 0)).toFixed(2),
-          JoinedDate: student.joinedAt 
-            ? new Date(student.joinedAt).toLocaleString() 
-            : student.createdAt 
+          JoinedDate: student.joinedAt
+            ? new Date(student.joinedAt).toLocaleString()
+            : student.createdAt
               ? new Date(student.createdAt).toLocaleString()
               : 'Unknown',
+          LastAccessed: student.lastAccessed
+            ? new Date(student.lastAccessed).toLocaleString()
+            : '—',
+          Level: xpData.level || 1,
+          XP: xpData.xp || 0,
           Luck: stats.luck || 1,
           Multiplier: stats.multiplier || 1,
           GroupMultiplier: stats.groupMultiplier || 1,
@@ -716,23 +925,29 @@ const getBanInfo = (student, classroomObj) => {
           DoubleEarnings: stats.doubleEarnings ? 'Yes' : 'No',
           DiscountShop: stats.discountShop || 0,
           PassiveItemsCount: stats.passiveItemsCount || 0,
-          Groups: groups.length > 0 ? groups.join('; ') : 'Unassigned'
+          Groups: groups.length > 0 ? groups.join('; ') : 'Unassigned',
+          // ADD: OnlineStatus value to match CSV header
+          OnlineStatus: onlineUserIds.has(String(student._id)) ? 'Online' : 'Offline',
         };
       })
     );
 
-    // Create CSV
-    const headers = Object.keys(dataToExport[0]);
+    // Explicit header ordering (ADD LastAccessed after JoinedDate)
+    const headers = [
+      'ClassroomId','ClassroomName','ClassroomCode','Name','Email',
+      'UserId','ShortId','Role','Balance','TotalSpent',
+      'JoinedDate','LastAccessed','Level','XP','Luck','Multiplier','GroupMultiplier','ShieldActive','ShieldCount',
+      'AttackPower','DoubleEarnings','DiscountShop','PassiveItemsCount','Groups','OnlineStatus' // add here
+    ];
+
     const csvContent = [
       headers.join(','),
-      ...dataToExport.map(row => 
+      ...dataToExport.map(row =>
         headers.map(header => {
           const value = row[header];
-          // Escape CSV values that contain commas, quotes, or newlines
-          if (typeof value === 'string' && (value.includes(',') || value.includes('"') || value.includes('\n'))) {
-            return `"${value.replace(/"/g, '""')}"`;
-          }
-          return value;
+          if (value === null || value === undefined) return '';
+          const str = String(value);
+          return (/[",\n]/.test(str)) ? `"${str.replace(/"/g, '""')}"` : str;
         }).join(',')
       )
     ].join('\n');
@@ -740,18 +955,15 @@ const getBanInfo = (student, classroomObj) => {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
-    
     const classroomName = classroom?.name || 'Unknown';
     const classroomCode = classroom?.code || classroomId;
     const base = formatExportFilename(`${classroomName}_${classroomCode}_people`, 'export');
     a.download = `${base}.csv`;
-    
+    a.href = url;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    
     return `${base}.csv`;
   };
 
@@ -764,22 +976,25 @@ const getBanInfo = (student, classroomObj) => {
       filteredStudents.map(async (student) => {
         let stats = {};
         let groups = [];
-        
+        let xpData = {};
+
         try {
-          // Fetch student stats
-          const statsRes = await axios.get(`/api/stats/student/${student._id}?classroomId=${classroomId}`, { withCredentials: true });
-          stats = statsRes.data;
+          const [statsRes, xpRes] = await Promise.all([
+            axios.get(`/api/stats/student/${student._id}?classroomId=${classroomId}`, { withCredentials: true }),
+            axios.get(`/api/xp/classroom/${classroomId}/user/${student._id}`, { withCredentials: true })
+          ]);
+          stats = statsRes.data || {};
+          xpData = xpRes.data || {};
         } catch (err) {
-          console.error('Failed to fetch stats for student:', student._id);
+          console.error('Failed to fetch stats/xp for student:', student._id);
         }
 
         try {
-          // Find groups this student belongs to
           groupSets.forEach(groupSet => {
             groupSet.groups.forEach(group => {
-              const isMember = group.members.some(member => 
-                String(member._id._id || member._id) === String(student._id) && 
-                member.status === 'approved' // Only count approved members
+              const isMember = group.members.some(member =>
+                String(member._id._id || member._id) === String(student._id) &&
+                member.status === 'approved'
               );
               if (isMember) {
                 groups.push({
@@ -798,22 +1013,27 @@ const getBanInfo = (student, classroomObj) => {
         const banInfo = getBanInfo(student, classroom);
 
         return {
+          classroomId,
+          classroomName: classroom?.name || '',
+          classroomCode: classroom?.code || '',
           _id: student._id,
+          userId: student._id,
+          shortId: student.shortId || null,
           name: `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.email,
           firstName: student.firstName,
           lastName: student.lastName,
           email: student.email,
           role: student.role,
           balance: student.balance || 0,
-          // include numeric totalSpent for JSON export
-          // Prefer server-side precomputed `totalSpentMap` but fall back to computing
-          // from per-student `transactions` if available (exclude teacher/admin adjustments)
           totalSpent: Number(
             (totalSpentMap && typeof totalSpentMap[student._id] !== 'undefined')
               ? totalSpentMap[student._id]
               : computeTotalSpent(student.transactions || [], classroomId)
           ),
           joinedDate: student.joinedAt || student.createdAt || null,
+          lastAccessed: student.lastAccessed ? new Date(student.lastAccessed).toISOString() : null,
+          level: xpData.level || 1,
+          xp: xpData.xp || 0,
           stats: {
             luck: stats.luck || 1,
             multiplier: stats.multiplier || 1,
@@ -825,16 +1045,13 @@ const getBanInfo = (student, classroomObj) => {
             discountShop: stats.discountShop || 0,
             passiveItemsCount: stats.passiveItemsCount || 0
           },
-          groups: groups.length > 0 ? groups : ['Unassigned'],
-          classroom: {
-            _id: classroomId,
-            name: classroom?.name,
-            code: classroom?.code
-          },
-          // NEW: standardized ban/status fields
+          groups: groups.length ? groups : ['Unassigned'],
+          classroom: { _id: classroomId, name: classroom?.name, code: classroom?.code },
           status: banInfo.banned ? 'banned' : (student.role || 'unknown'),
           banReason: banInfo.reason || '',
           banTimestamp: banInfo.bannedAt ? new Date(banInfo.bannedAt).toISOString() : null,
+          // ADD: online boolean for JSON export
+          online: onlineUserIds.has(String(student._id)),
           exportedAt: new Date().toISOString(),
           exportedFrom: 'people_page'
         };
@@ -844,18 +1061,15 @@ const getBanInfo = (student, classroomObj) => {
     const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
-    
     const classroomName = classroom?.name || 'Unknown';
     const classroomCode = classroom?.code || classroomId;
     const base = formatExportFilename(`${classroomName}_${classroomCode}_people`, 'export');
     a.download = `${base}.json`;
-    
+    a.href = url;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    
     return `${base}.json`;
   };
   // ── Join each student's user room so per-user notifications/balance events are received ──
@@ -1010,7 +1224,7 @@ const visibleCount = filteredStudents.length;
           </h1>
 
           {/* New: show counts */}
-          <div className="text-sm text-gray-600 mt-1">
+          <div className={`text-sm ${subtleText} mt-1`}>
             Showing {visibleCount} of {totalPeople} people
           </div>
         </div>
@@ -1207,6 +1421,9 @@ const visibleCount = filteredStudents.length;
     {taBitPolicy === 'approval' && (
       <PendingApprovals classroomId={classroomId} />
     )}
+
+    {/* XP & Leveling Settings */}
+    <XPSettings classroomId={classroomId} />
           </div>
         )}
         {/* ───────────────────────────────────────────── */}
@@ -1236,6 +1453,17 @@ const visibleCount = filteredStudents.length;
                   <option value="admin">Admin/TAs</option>
                   <option value="teacher">Teachers</option>
                   <option value="banned">Banned</option> {/* <-- NEW */}
+                </select>
+
+                {/* Status Filter - NEW */}
+                <select
+                  className="select select-bordered"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                >
+                  <option value="all">All Status</option>
+                  <option value="online">Online</option>
+                  <option value="offline">Offline</option>
                 </select>
 
                 {/* Sort */}
@@ -1276,6 +1504,9 @@ const visibleCount = filteredStudents.length;
                    <option value="nameAsc">Name (A → Z)</option>
                    <option value="joinDateDesc">Join Date (Newest)</option>
                    <option value="joinDateAsc">Join Date (Oldest)</option>
+                   {/* NEW: last accessed */}
+                   <option value="lastAccessedDesc">Last Accessed (Newest)</option>
+                   <option value="lastAccessedAsc">Last Accessed (Oldest)</option>
                 </select>
                 {/* loading indicator when a stat-based sort is selected and stats are still loading */}
                 {studentStatsLoading && ['multiplier','luck','shield','attack','discount'].some(f => sortOption.includes(f)) && (
@@ -1330,13 +1561,13 @@ const visibleCount = filteredStudents.length;
                       <div>
                         <div className="flex items-center gap-3">
                           {/* NEW: avatar next to the name */}
-                          <Avatar user={student} size={36} />
+                          <Avatar user={student} size={36} showStatus />
                         </div>
                         <div className="font-medium text-lg">
                           {student.firstName || student.lastName
                             ? `${student.firstName || ''} ${student.lastName || ''}`.trim()
                             : student.name || student.email}
-                        <span className="ml-2 text-gray-600 text-sm">
+                        <span className={`ml-2 ${subtleText} text-sm`}>
                           – Role: {ROLE_LABELS[student.role] || student.role}
                         </span>
                         </div>
@@ -1384,6 +1615,12 @@ const visibleCount = filteredStudents.length;
                             : student.createdAt
                               ? new Date(student.createdAt).toLocaleString()
                               : 'Unknown'}
+                        </div>
+                        {/* NEW: Last accessed display */}
+                        <div className="text-sm text-gray-500">
+                          Last Accessed: {student.lastAccessed
+                            ? new Date(student.lastAccessed).toLocaleString()
+                            : '—'}
                         </div>
                       </div>
 
@@ -1438,6 +1675,8 @@ const visibleCount = filteredStudents.length;
                               Remove
                             </button>
 
+
+
                             {/* Show Unban if banned, otherwise show Ban */}
                             {isBanned ? (
                               <button
@@ -1486,7 +1725,7 @@ const visibleCount = filteredStudents.length;
                                             } catch (err) {
                                               console.error('Failed to ban', err);
                                               toast.error(err.response?.data?.error || 'Failed to ban student');
-                                            }
+                                                                                       }
                                           }}
                                         >
                                           Yes
@@ -1578,7 +1817,7 @@ const visibleCount = filteredStudents.length;
                 <p className="text-gray-500 italic">All students are assigned to groups!</p>
               ) : (
                 <div className="space-y-2">
-                  <p className="text-sm text-gray-600 mb-3">
+                  <p className={`text-sm ${subtleText} mb-3`}>
                     Students who haven't joined any group yet:
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -1655,6 +1894,8 @@ const visibleCount = filteredStudents.length;
         })
         .map((gs) => (
         <div key={gs._id} className="w-full min-w-0">
+
+
           <h2 className="text-xl font-semibold">{gs.name}</h2>
           <div className="mt-2 grid grid-cols-1 gap-4 w-full">
             {gs.groups
@@ -1677,9 +1918,9 @@ const visibleCount = filteredStudents.length;
               <div key={group._id} className="border p-4 rounded w-full min-w-0 bg-base-100">
                  <h3 className="text-lg font-bold">{group.name}</h3>
                  {/* Add group multiplier display */}
-                 <p className="text-sm text-gray-600">
+                 <p className={`text-sm ${subtleText}`}>
                   Members: {group.members.filter(m => m._id && m.status === 'approved').length}/{group.maxMembers || 'No limit'} • 
-                  Multiplier: {group.groupMultiplier || 1}x
+                  Multiplier: {Number(group.groupMultiplier || 1).toFixed(2).replace(/\.?0+$/,'')}x
                    {group.isAutoMultiplier ? (
                      <span className="text-green-600 text-xs ml-1">(Auto)</span>
                    ) : (
@@ -1691,7 +1932,7 @@ const visibleCount = filteredStudents.length;
                 ) : (
                   <ul className="list-disc ml-5 space-y-1">
                     {group.members
-                      .filter(m => m && m._id && m.status === 'approved') // Add status filter
+                      .filter(m => m && m._id && (m.status === 'approved' || m.status === 'pending')) // include pending
                       .map((m) => {
                         const memberUser = m._id;
                         const userId = memberUser._id || memberUser; // handle populated object or raw id
@@ -1732,6 +1973,7 @@ const visibleCount = filteredStudents.length;
                           })
                         );
                         const canSeeSiphon = isViewerTeacherOrAdmin || isViewerGroupMember;
+                        const isPending = m.status === 'pending';
  
                         return (
                           <li key={String(userId)} className="flex justify-between items-center w-full">
@@ -1741,6 +1983,7 @@ const visibleCount = filteredStudents.length;
                               <span>{displayName}</span>
                               {isBannedMember && <span className="badge badge-error">BANNED</span>}
                               {isSiphoned && canSeeSiphon && <span className="badge badge-warning">SIPHONED</span>}
+                              {isPending && <span className="badge badge-info">PENDING</span>}
                             </span>
 
                             <button
@@ -1838,29 +2081,40 @@ const visibleCount = filteredStudents.length;
                      }
 
                      if (!q) return true;
+
                      // target user
                      const target = s.targetUser || {};
                      const targetName = `${target.firstName || ''} ${target.lastName || ''}`.trim().toLowerCase();
                      const targetEmail = (target.email || '').toLowerCase();
                      if (targetName.includes(q) || targetEmail.includes(q)) return true;
+
                      // actionBy
                      const actor = s.actionBy || {};
                      const actorName = `${actor.firstName || ''} ${actor.lastName || ''}`.trim().toLowerCase();
                      const actorEmail = (actor.email || '').toLowerCase();
                      if (actorName.includes(q) || actorEmail.includes(q)) return true;
+
+                     // NEW: search the label shown in UI (“via …”) and the effects text
+                     const label = (getStatChangeSource(s.message) || '').toLowerCase();
+                     if (label && label.includes(q)) return true;
+
+                     const effects = (getEffectsText(s.message) || '').toLowerCase();
+                     if (effects && effects.includes(q)) return true;
+
                      // changes content
                      if (Array.isArray(s.changes)) {
-                          for (const c of s.changes) {
-                            const field = String(c.field || '').toLowerCase();
-                            const from = String(c.from || '').toLowerCase();
-                            const to = String(c.to || '').toLowerCase();
-                            if (field.includes(q) || from.includes(q) || to.includes(q)) return true;
-                          }
-                        }
-                        // fallback: createdAt
-                        if ((s.createdAt || '').toLowerCase().includes(q)) return true;
-                        return false;
-                    });
+                       for (const c of s.changes) {
+                         const field = String(c.field || '').toLowerCase();
+                         const from = String(c.from || '').toLowerCase();
+                         const to = String(c.to || '').toLowerCase();
+                         if (field.includes(q) || from.includes(q) || to.includes(q)) return true;
+                       }
+                     }
+
+                     // fallback: createdAt
+                     if ((s.createdAt || '').toLowerCase().includes(q)) return true;
+                     return false;
+                   });
 
                     filtered.sort((a, b) => {
                       const ad = new Date(a.createdAt || 0).getTime();
@@ -1874,10 +2128,13 @@ const visibleCount = filteredStudents.length;
                           <li key={s._id} className="p-2 border border-base-300 rounded bg-base-100">
                             <div className="text-xs text-base-content/60 mb-1">
                               {new Date(s.createdAt).toLocaleString()}
-                              {s.actionBy && (s.message.includes('updated by your teacher') || s.message.includes('Updated stats for')) ? (
+                              {s.actionBy && (s.message?.includes('updated by your teacher') || s.message?.includes('Updated stats for')) ? (
                                 ` — by ${s.actionBy.firstName || ''} ${s.actionBy.lastName || ''}`.trim()
                               ) : (
-                                ` — from ${s.message.match(/from (.*?):/)?.[1] || 'System'}`
+                                (() => {
+                                  const src = getStatChangeSource(s.message);
+                                  return src ? ` — via ${src}` : ' — from System';
+                                })()
                               )}
                             </div>
                             {/* For students, don't show target user name since it's always them */}
@@ -1891,15 +2148,29 @@ const visibleCount = filteredStudents.length;
                             <div className="mt-1">
                               {Array.isArray(s.changes) && s.changes.length ? (
                                 <ul className="list-disc ml-4">
-                                  {s.changes.map((c, i) => (
-                                    <li key={i}>
-                                      {c.field}: {c.field === 'discount' && (c.from === null || c.from === undefined) ? 0 : String(c.from)} → <strong>{String(c.to)}</strong>
+                                  {s.changes.map((c, idx) => (
+                                    <li key={idx} className="flex items-start gap-2">
+                                      <span className="bullet">•</span>
+                                      <span className="break-words">{formatStatChange(c)}</span>
                                     </li>
                                   ))}
                                 </ul>
                               ) : (
                                 <div className="text-xs text-base-content/60">No details available</div>
                               )}
+                            </div>
+                            <div className="mt-1">
+                              {(() => {
+                                const effects = getEffectsText(s.message);
+                                if (!effects) return null;
+                                return (
+                                  <div className="flex items-start gap-2 mt-1">
+                                    <div className="text-xs text-base-content/60 flex-1">
+                                      Effects: <span className="italic">{effects}</span>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
                             </div>
                           </li>
                         ))}

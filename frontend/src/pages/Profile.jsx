@@ -16,6 +16,7 @@ import ExportButtons from '../components/ExportButtons';
 import { exportOrdersToCSV, exportOrdersToJSON } from '../utils/exportOrders';
 import formatExportFilename from '../utils/formatExportFilename';
 import { useLocation, Link } from 'react-router-dom';
+import { Info } from 'lucide-react'; // ADD
 
 const ROLE_LABELS = {
     student: 'Student',
@@ -26,9 +27,16 @@ const ROLE_LABELS = {
 // helper: compute classroom label for an order (module scope so usable before render)
 function classroomLabel(o) {
   if (!o) return '—';
-  const c = o.classroom || o.items?.[0]?.bazaar?.classroom;
-  if (!c) return '—';
-  return c.name ? `${c.name}${c.code ? ` (${c.code})` : ''}` : '—';
+  const c = o.items?.[0]?.bazaar?.classroom || o.classroom;
+  if (c && typeof c === 'object' && c.name) {
+    return `${c.name}${c.code ? ` (${c.code})` : ''}`;
+  }
+  if (o.metadata?.classroomName) {
+    return o.metadata.classroomCode
+      ? `${o.metadata.classroomName} (${o.metadata.classroomCode})`
+      : o.metadata.classroomName;
+  }
+  return '—';
 }
 
 export default function Profile() {
@@ -73,6 +81,8 @@ export default function Profile() {
     if (navFrom === 'groups' && navClassroomId) return { to: `/classroom/${navClassroomId}/groups`, label: 'Groups' };
     // If opened from the Wallet, send users back to the classroom wallet view
     if (navFrom === 'wallet' && navClassroomId) return { to: `/classroom/${navClassroomId}/wallet`, label: 'Wallet' };
+    // NEW: return to badges dashboard
+    if (navFrom === 'badges' && navClassroomId) return { to: `/classroom/${navClassroomId}/badges`, label: 'Badges' };
     if (navClassroomId) return { to: `/classroom/${navClassroomId}`, label: 'Classroom' };
     return { to: '/classrooms', label: 'My Classrooms' };
   })();
@@ -132,7 +142,11 @@ export default function Profile() {
                   withCredentials: true
               })
               .then(res => {
-                  setOrders(res.data);
+                  // ADD: Filter out orders that are just mystery box opens (they don't have items)
+                  const validOrders = (res.data || []).filter(order => 
+                    order.items && order.items.length > 0
+                  );
+                  setOrders(validOrders);
                   setLoadingOrders(false);
               })
               .catch(err => {
@@ -272,7 +286,7 @@ export default function Profile() {
     if (!visibleOrders.length) throw new Error('No orders to export');
     const displayName = `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim() || profile?.email || `profile_${profileId || 'user'}`;
     const base = formatExportFilename(displayName, 'purchase_history');
-    exportOrdersToCSV(visibleOrders, base);
+    exportOrdersToCSV(visibleOrders, base, { user: profile || user }); // pass subject
     return `${base}.csv`;
   };
 
@@ -280,7 +294,7 @@ export default function Profile() {
     if (!visibleOrders.length) throw new Error('No orders to export');
     const displayName = `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim() || profile?.email || `profile_${profileId || 'user'}`;
     const base = formatExportFilename(displayName, 'purchase_history');
-    exportOrdersToJSON(visibleOrders, base);
+    exportOrdersToJSON(visibleOrders, base, { user: profile || user }); // pass subject
     return `${base}.json`;
   };
 
@@ -644,7 +658,11 @@ export default function Profile() {
                       </div>
                     ) : ([profile?.firstName, profile?.lastName].filter(Boolean).join(' ') || 'Not set (Complete your profile)')} />
                     <InfoRow label="Email" value={profile?.email || 'N/A'} />
-                    <InfoRow label="User ID" value={profile?.shortId || '—'} />
+                    <InfoRow
+                      label="User ID"
+                      value={profile?.shortId || '—'}
+                      help="This is your shortId (human‑friendly) code useful for display, search, user-facing reports, or classroom management such as wallet transfers. A different, 24‑character internal user _id (Mongo ObjectId) is used for programmatic integrations such as API relations, joins, socket connections, etc."
+                    />
                     {profile?.role && <InfoRow label="Role" value={ROLE_LABELS[profile.role] || profile.role} />}
                     
                     {/* Add Member Since row */}
@@ -773,9 +791,16 @@ export default function Profile() {
   );
 }
 
-const InfoRow = ({ label, value }) => (
+const InfoRow = ({ label, value, help }) => (
   <div className="flex justify-between border-b border-base-300 pb-2">
-      <span className="font-medium text-base-content/70">{label}:</span>
-      <span className="text-base-content">{value}</span>
+    <span className="font-medium text-base-content/70 inline-flex items-center gap-1">
+      {label}:
+      {help && (
+        <span className="tooltip tooltip-right" data-tip={help} aria-label={help}>
+          <Info size={14} className="inline-block text-base-content/60" />
+        </span>
+      )}
+    </span>
+    <span className="text-base-content">{value}</span>
   </div>
 );

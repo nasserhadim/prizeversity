@@ -2,12 +2,15 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Coins, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Info } from 'lucide-react'; // <-- add this import
 import socket from '../utils/socket';
 import apiLeaderboard from '../API/apiLeaderboard.js';
 import apiClassroom from '../API/apiClassroom.js';
 import Footer from '../components/Footer';
 import { useAuth } from '../context/AuthContext'; // Add this import
 import Avatar from '../components/Avatar';
+import ExportButtons from '../components/ExportButtons';
+import formatExportFilename from '../utils/formatExportFilename';
 
 const Leaderboard = () => {
   const { classId } = useParams();
@@ -17,8 +20,8 @@ const Leaderboard = () => {
   const [classroom, setClassroom] = useState(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortField, setSortField] = useState('balance');
-  const [sortDirection, setSortDirection] = useState('desc');
+  const [sortField, setSortField] = useState('level'); // default to level
+  const [sortDirection, setSortDirection] = useState('desc'); // highest first
   const [studentsCanViewStats, setStudentsCanViewStats] = useState(true); // Add this
   const navigate = useNavigate();
 
@@ -82,35 +85,93 @@ const Leaderboard = () => {
       return displayName.includes(searchTerm.toLowerCase());
     });
 
-    // Sort students by name only (remove balance sorting)
+    // Sort students by selected field
     filtered.sort((a, b) => {
-      const aValue = getDisplayName(a).toLowerCase();
-      const bValue = getDisplayName(b).toLowerCase();
-
-      if (sortDirection === 'asc') {
-        return aValue.localeCompare(bValue);
-      } else {
-        return bValue.localeCompare(aValue);
+      // Level sorting with XP tiebreaker
+      if (sortField === 'level') {
+        const al = a.level || 1;
+        const bl = b.level || 1;
+        if (al !== bl) return sortDirection === 'asc' ? al - bl : bl - al;
+        // tie: sort by XP desc as tiebreaker
+        const ax = a.xp || 0;
+        const bx = b.xp || 0;
+        if (bx !== ax) return bx - ax;
+        return getDisplayName(a).localeCompare(getDisplayName(b));
       }
+
+      // XP sorting
+      if (sortField === 'xp') {
+        const ax = a.xp || 0;
+        const bx = b.xp || 0;
+        return sortDirection === 'asc' ? ax - bx : bx - ax;
+      }
+
+      // Name sorting (fallback)
+      const an = getDisplayName(a).toLowerCase();
+      const bn = getDisplayName(b).toLowerCase();
+      return sortDirection === 'asc' ? an.localeCompare(bn) : bn.localeCompare(an);
     });
 
     setFilteredStudents(filtered);
   }, [students, searchTerm, sortField, sortDirection]);
 
   const handleSort = (field) => {
-    if (field === 'name') {
-      if (sortField === field) {
-        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-      } else {
-        setSortField(field);
-        setSortDirection('asc');
-      }
+    if (sortField === field) {
+      // Toggle direction if clicking the same field
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Set new field and default to descending for level/xp, ascending for name
+      setSortField(field);
+      setSortDirection(field === 'name' ? 'asc' : 'desc');
     }
   };
 
+  // Icon for current sort state
   const getSortIcon = (field) => {
-    if (sortField !== field) return <ArrowUpDown size={14} className="opacity-50" />;
-    return sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />;
+    if (sortField !== field) return <ArrowUpDown size={14} className="opacity-40 inline-block" />;
+    return sortDirection === 'asc'
+      ? <ArrowUp size={14} className="inline-block" />
+      : <ArrowDown size={14} className="inline-block" />;
+  };
+
+  // --- Export visible leaderboard ---
+  const buildRow = (s, idx) => ({
+    rank: idx + 1,
+    name: getDisplayName(s),
+    email: s.email,
+    level: s.level || 1,
+    xp: s.xp || 0
+  });
+
+  const exportCSV = async () => {
+    if (!filteredStudents.length) throw new Error('No students to export');
+    const rows = filteredStudents.map(buildRow);
+    const headers = ['rank','name','email','level','xp'];
+    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const csv = [headers.join(','), ...rows.map(r => headers.map(h => esc(r[h])).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const label = 'leaderboard';
+    const display = classroom ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''}` : 'classroom';
+    const base = formatExportFilename(display, label);
+    a.href = url; a.download = `${base}.csv`;
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    return `${base}.csv`;
+  };
+
+  const exportJSON = async () => {
+    if (!filteredStudents.length) throw new Error('No students to export');
+    const rows = filteredStudents.map(buildRow);
+    const blob = new Blob([JSON.stringify(rows, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const label = 'leaderboard';
+    const display = classroom ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''}` : 'classroom';
+    const base = formatExportFilename(display, label);
+    a.href = url; a.download = `${base}.json`;
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    return `${base}.json`;
   };
 
   return (
@@ -134,9 +195,17 @@ const Leaderboard = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          
-          <div className="text-sm text-base-content/70">
-            Showing {filteredStudents.length} of {students.length} students
+
+          <div className="flex items-center gap-3">
+            <div className="text-sm text-base-content/70">
+              Showing {filteredStudents.length} of {students.length} students
+            </div>
+            <ExportButtons
+              onExportCSV={exportCSV}
+              onExportJSON={exportJSON}
+              userName={classroom ? classroom.name : 'classroom'}
+              exportLabel="leaderboard"
+            />
           </div>
         </div>
 
@@ -154,6 +223,25 @@ const Leaderboard = () => {
                       onClick={() => handleSort('name')}
                     >
                       Name {getSortIcon('name')}
+                    </button>
+                  </th>
+                  <th>
+                    <button
+                      className="flex items-center gap-2 hover:text-primary transition-colors"
+                      onClick={() => handleSort('level')}
+                    >
+                      Level {getSortIcon('level')}
+                    </button>
+                  </th>
+                  <th>
+                    <button
+                      className="flex items-center gap-2 hover:text-primary transition-colors"
+                      onClick={() => handleSort('xp')}
+                    >
+                      XP {getSortIcon('xp')}
+                      <span className="tooltip tooltip-right ml-2" data-tip="Total cumulative XP earned in this classroom (used for leaderboard ordering with level first).">
+                        <Info size={14} className="inline-block text-base-content/60" />
+                      </span>
                     </button>
                   </th>
                   <th>Actions</th>
@@ -182,6 +270,18 @@ const Leaderboard = () => {
                           <Avatar user={student} size={28} />
                           {getDisplayName(student)}
                         </div>
+                      </td>
+                      <td>
+                        <div className="badge badge-primary badge-sm sm:badge-lg whitespace-nowrap px-2 sm:px-3 gap-1">
+                          <span className="inline sm:hidden">Lv</span>
+                          <span className="hidden sm:inline">Level</span>
+                          {student.level || 1}
+                        </div>
+                      </td>
+                      <td>
+                        <span className="text-sm text-base-content/70">
+                          {student.xp || 0} XP
+                        </span>
                       </td>
                       <td>
                         <div className="flex flex-col sm:flex-row gap-2">
