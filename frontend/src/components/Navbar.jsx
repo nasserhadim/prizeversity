@@ -9,7 +9,7 @@ import { useState, useEffect, useRef } from 'react';
 import NotificationBell from './NotificationBell';
 import Logo from './Logo'; // Import the new Logo component
 import { API_BASE } from '../config/api';
-import socket, { joinUserRoom, joinClassroom } from '../utils/socket'; // <-- updated import
+import socket, { joinUserRoom, joinClassroom } from '../utils/socket';
 import axios from 'axios';
 import ConfirmModal from './ConfirmModal';
 
@@ -90,6 +90,7 @@ const Navbar = () => {
   const cartRef = useRef(null);
   const [balance, setBalance] = useState(0);
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
+  const lastClassroomRef = useRef(null);
 
   useEffect(() => {
     const fetchBalance = async () => {
@@ -183,6 +184,47 @@ const Navbar = () => {
       socket.off('balance_adjust', balanceAdjustHandler);
     };
   }, [user, classroomId]);
+
+  // presence join whenever we’re inside a classroom route
+  useEffect(() => {
+    if (!user?._id) return;
+
+    const prev = lastClassroomRef.current;
+    const curr = insideClassroom ? classroomId : null;
+
+    // If we were in a classroom and now left it (or switched), emit leave for the previous classroom
+    if (prev && prev !== curr) {
+      try { socket.emit('leave-classroom', prev, { userId: user._id }); } catch(e){/*ignore*/}
+    }
+
+    // Join current classroom presence (if any)
+    if (curr) {
+      joinUserRoom(user._id);
+      socket.emit('join-classroom', curr, { userId: user._id });
+
+      const onPresence = (payload) => {
+        if (String(payload?.classroomId) !== String(curr)) return;
+        const set = new Set((payload.onlineUserIds || []).map(String));
+        window.__classroomOnlineSet = set;
+      };
+      socket.on('presence:update', onPresence);
+
+      axios.get(`/api/classroom/${curr}/online-users`, { withCredentials: true })
+        .then(r => { window.__classroomOnlineSet = new Set((r.data?.onlineUserIds || []).map(String)); })
+        .catch(() => { window.__classroomOnlineSet = new Set(); });
+
+      // Remember current classroom
+      lastClassroomRef.current = curr;
+
+      return () => {
+        socket.off('presence:update', onPresence);
+      };
+    } else {
+      // Not inside any classroom
+      window.__classroomOnlineSet = new Set();
+      lastClassroomRef.current = null;
+    }
+  }, [insideClassroom, classroomId, user?._id]);
 
   // Close mobile menu when route changes
   useEffect(() => {

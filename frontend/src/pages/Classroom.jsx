@@ -128,11 +128,16 @@ const Classroom = () => {
       setAnnouncements(prev => [announcement, ...prev]);
     };
     const handleClassroomRemoval = (data) => {
-      if (String(data.classroomId) === String(id)) {
+      // data may include userId and classroomId
+      const payloadUserId = String(data?.userId || data?.targetUser || '');
+      const myId = String(user?._id || '');
+      const sameClass = String(data?.classroomId) === String(classroomId);
+
+      // Only react if this removal targets ME and it’s for THIS classroom
+      if (sameClass && payloadUserId && payloadUserId === myId) {
+        try { socket.emit('leave-classroom', classroomId, { userId: user._id }); } catch(e){/*ignore*/}
         toast.error(data.message || 'You have been removed from this classroom');
-        setTimeout(() => {
-          navigate('/classrooms');
-        }, 2000);
+        setTimeout(() => navigate('/classrooms'), 2000);
       }
     };
     const handleNotification = (notification) => {
@@ -210,6 +215,8 @@ const Classroom = () => {
       onConfirm: async () => {
         try {
           await axios.post(`/api/classroom/${id}/leave`);
+          // Drop presence immediately
+          try { socket.emit('leave-classroom', id, { userId: user._id }); } catch(e){/*ignore*/}
           toast.success('Left classroom successfully!');
           navigate('/classrooms');
         } catch (err) {

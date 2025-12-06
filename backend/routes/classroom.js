@@ -768,7 +768,8 @@ router.delete('/:id/students/:studentId', ensureAuthenticated, async (req, res) 
     const populated = await populateNotification(notification._id);
     req.app.get('io').to(`user-${req.params.studentId}`).emit('notification', populated);
     req.app.get('io').to(`user-${req.params.studentId}`).emit('classroom_removal', {
-      classroomId: classroom._id.toString(), // Convert to string
+      classroomId: classroom._id.toString(),
+      userId: req.params.studentId, // add target user id
       message: `You have been removed from classroom "${classroom.name}"`
     });
 

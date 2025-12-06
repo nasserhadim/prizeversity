@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import PendingApprovals from '../components/PendingApprovals';
-import socket, { joinClassroom, joinUserRoom } from '../utils/socket';
+import socket, { joinUserRoom, joinClassroom } from '../utils/socket';
 import Footer from '../components/Footer';
 import ExportButtons from '../components/ExportButtons';
 import formatExportFilename from '../utils/formatExportFilename';
@@ -195,6 +195,46 @@ const People = () => {
   // NEW: stat-change log (teacher view only)
   const [statChanges, setStatChanges] = useState([]);
   const [loadingStatChanges, setLoadingStatChanges] = useState(false);
+  const [onlineUserIds, setOnlineUserIds] = useState(new Set());
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'online' | 'offline'
+  // Helper: compute online presence for a student
+  const isStudentOnline = (s) => onlineUserIds.has(String(s._id));
+
+  // Presence: initial fetch + live updates
+  useEffect(() => {
+    if (!classroomId || !user?._id) return;
+
+    // ensure server gets my userId regardless of socket auth
+    socket.emit('join', `classroom-${classroomId}`, { userId: user._id });
+    socket.emit('join-classroom', classroomId, { userId: user._id });
+
+    const onPresence = (payload) => {
+      if (String(payload?.classroomId) !== String(classroomId)) return;
+      const ids = (payload?.onlineUserIds || []).map(String);
+      const set = new Set(ids);
+      setOnlineUserIds(set);
+      window.__classroomOnlineSet = set;
+    };
+    socket.on('presence:update', onPresence);
+
+    // initial presence fetch
+    axios.get(`/api/classroom/${classroomId}/online-users`, { withCredentials: true })
+      .then(r => {
+        const ids = (r.data?.onlineUserIds || []).map(String);
+        const set = new Set(ids);
+        setOnlineUserIds(set);
+        window.__classroomOnlineSet = set;
+      })
+      .catch(() => {
+        setOnlineUserIds(new Set());
+        window.__classroomOnlineSet = new Set();
+      });
+
+    return () => {
+      // Remove listener only; do NOT emit leave-classroom on tab switch
+      socket.off('presence:update', onPresence);
+    };
+  }, [classroomId, user?._id]);
 
   const navigate = useNavigate();
 
@@ -302,12 +342,16 @@ const People = () => {
 
     // Add classroom removal handler
     const handleClassroomRemoval = (data) => {
-      if (String(data.classroomId) === String(classroomId) && String(data.userId) === String(user._id)) {
+      // data may include userId and classroomId
+      const payloadUserId = String(data?.userId || data?.targetUser || '');
+      const myId = String(user?._id || '');
+      const sameClass = String(data?.classroomId) === String(classroomId);
+
+      // Only react if this removal targets ME and it’s for THIS classroom
+      if (sameClass && payloadUserId && payloadUserId === myId) {
+        try { socket.emit('leave-classroom', classroomId, { userId: user._id }); } catch(e){/*ignore*/}
         toast.error(data.message || 'You have been removed from this classroom');
-        // Redirect to classroom dashboard after a short delay
-        setTimeout(() => {
-          navigate('/classrooms');
-        }, 2000);
+        setTimeout(() => navigate('/classrooms'), 2000);
       }
     };
 
@@ -568,6 +612,9 @@ const getBanInfo = (student, classroomObj) => {
       }
       const matchesRole = roleFilter === 'all' || student.role === roleFilter;
       
+      if (statusFilter === 'online' && !isStudentOnline(student)) return false;
+      if (statusFilter === 'offline' && isStudentOnline(student)) return false;
+
       return matchesSearch && matchesRole;
     })
     .sort((a, b) => {
@@ -864,7 +911,6 @@ const getBanInfo = (student, classroomObj) => {
             : student.createdAt
               ? new Date(student.createdAt).toLocaleString()
               : 'Unknown',
-          // NEW: LastAccessed
           LastAccessed: student.lastAccessed
             ? new Date(student.lastAccessed).toLocaleString()
             : '—',
@@ -879,7 +925,9 @@ const getBanInfo = (student, classroomObj) => {
           DoubleEarnings: stats.doubleEarnings ? 'Yes' : 'No',
           DiscountShop: stats.discountShop || 0,
           PassiveItemsCount: stats.passiveItemsCount || 0,
-          Groups: groups.length > 0 ? groups.join('; ') : 'Unassigned'
+          Groups: groups.length > 0 ? groups.join('; ') : 'Unassigned',
+          // ADD: OnlineStatus value to match CSV header
+          OnlineStatus: onlineUserIds.has(String(student._id)) ? 'Online' : 'Offline',
         };
       })
     );
@@ -889,7 +937,7 @@ const getBanInfo = (student, classroomObj) => {
       'ClassroomId','ClassroomName','ClassroomCode','Name','Email',
       'UserId','ShortId','Role','Balance','TotalSpent',
       'JoinedDate','LastAccessed','Level','XP','Luck','Multiplier','GroupMultiplier','ShieldActive','ShieldCount',
-      'AttackPower','DoubleEarnings','DiscountShop','PassiveItemsCount','Groups'
+      'AttackPower','DoubleEarnings','DiscountShop','PassiveItemsCount','Groups','OnlineStatus' // add here
     ];
 
     const csvContent = [
@@ -983,7 +1031,6 @@ const getBanInfo = (student, classroomObj) => {
               : computeTotalSpent(student.transactions || [], classroomId)
           ),
           joinedDate: student.joinedAt || student.createdAt || null,
-          // NEW: lastAccessed (ISO)
           lastAccessed: student.lastAccessed ? new Date(student.lastAccessed).toISOString() : null,
           level: xpData.level || 1,
           xp: xpData.xp || 0,
@@ -1003,6 +1050,8 @@ const getBanInfo = (student, classroomObj) => {
           status: banInfo.banned ? 'banned' : (student.role || 'unknown'),
           banReason: banInfo.reason || '',
           banTimestamp: banInfo.bannedAt ? new Date(banInfo.bannedAt).toISOString() : null,
+          // ADD: online boolean for JSON export
+          online: onlineUserIds.has(String(student._id)),
           exportedAt: new Date().toISOString(),
           exportedFrom: 'people_page'
         };
@@ -1406,6 +1455,17 @@ const visibleCount = filteredStudents.length;
                   <option value="banned">Banned</option> {/* <-- NEW */}
                 </select>
 
+                {/* Status Filter - NEW */}
+                <select
+                  className="select select-bordered"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                >
+                  <option value="all">All Status</option>
+                  <option value="online">Online</option>
+                  <option value="offline">Offline</option>
+                </select>
+
                 {/* Sort */}
                 <div className="flex items-center gap-2">
                 <select
@@ -1501,7 +1561,7 @@ const visibleCount = filteredStudents.length;
                       <div>
                         <div className="flex items-center gap-3">
                           {/* NEW: avatar next to the name */}
-                          <Avatar user={student} size={36} />
+                          <Avatar user={student} size={36} showStatus />
                         </div>
                         <div className="font-medium text-lg">
                           {student.firstName || student.lastName
@@ -1615,6 +1675,8 @@ const visibleCount = filteredStudents.length;
                               Remove
                             </button>
 
+
+
                             {/* Show Unban if banned, otherwise show Ban */}
                             {isBanned ? (
                               <button
@@ -1663,7 +1725,7 @@ const visibleCount = filteredStudents.length;
                                             } catch (err) {
                                               console.error('Failed to ban', err);
                                               toast.error(err.response?.data?.error || 'Failed to ban student');
-                                            }
+                                                                                       }
                                           }}
                                         >
                                           Yes

@@ -210,57 +210,90 @@ app.get('/', (req, res) => {
   res.redirect(redirectBase);
 });
 
+const classroomPresence = new Map(); // classroomId => Set(userId)
+
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log('New client connected');
 
-  socket.on('join', async (room) => {
-    // Remove existing socket from all rooms before joining new one
-    const rooms = [...socket.rooms];
-    rooms.forEach(r => {
-      if (r !== socket.id) {
-        socket.leave(r);
-      }
-    });
-
+  const handleJoin = (room, payload = {}) => {
     socket.join(room);
+    if (room?.startsWith('classroom-')) {
+      const classroomId = room.slice('classroom-'.length);
+      const userId =
+        socket.request?.user?._id?.toString() ||
+        (payload?.userId ? String(payload.userId) : null) ||
+        (socket.handshake?.auth?.userId ? String(socket.handshake.auth.userId) : null);
 
-
-    // Extract user ID from room name (removes 'user-' prefix)
-    if (room.startsWith('user-')) {
-      const userId = room.replace('user-', '');
-      try {
-        const User = require('./models/User');
-        const user = await User.findById(userId);
-        console.log(`Socket joined room: ${room} (${user ? user.email : 'unknown user'})`);
-      } catch (err) {
-        console.log(`Error fetching user details for ${room}:`, err.message);
+      if (classroomId && userId) {
+        if (!classroomPresence.has(classroomId)) classroomPresence.set(classroomId, new Set());
+        classroomPresence.get(classroomId).add(userId);
+        io.to(room).emit('presence:update', {
+          classroomId,
+          onlineUserIds: Array.from(classroomPresence.get(classroomId))
+        });
       }
-    } else {
-      console.log(`Socket joined room: ${room}`);
     }
+  };
+
+  socket.on('join', handleJoin);
+  socket.on('join-classroom', (classroomId, payload = {}) => handleJoin(`classroom-${classroomId}`, payload));
+
+  // Handle explicit classroom leave to drop presence immediately
+  socket.on('leave-classroom', (classroomId, payload = {}) => {
+    const cid = String(classroomId);
+    const userId =
+      socket.request?.user?._id?.toString() ||
+      (payload?.userId ? String(payload.userId) : null) ||
+      (socket.handshake?.auth?.userId ? String(socket.handshake.auth.userId) : null);
+
+    if (!cid || !userId) return;
+
+    // Update presence set
+    const set = classroomPresence.get(cid);
+    if (set) {
+      set.delete(userId);
+      io.to(`classroom-${cid}`).emit('presence:update', {
+        classroomId: cid,
+        onlineUserIds: Array.from(set),
+      });
+    }
+
+    // Leave the actual socket room
+    try { socket.leave(`classroom-${cid}`); } catch (e) { /* ignore */ }
   });
 
-      // NEW: classroom join
-  socket.on('join-classroom', (classId) => {
-    socket.join(`classroom-${classId}`);
-    console.log(`Socket joined classroom room: classroom-${classId}`);
-  });
-
-  // Optional: leave classroom
-  socket.on('leave-classroom', (classId) => {
-    socket.leave(`classroom-${classId}`);
-    console.log(`Socket left classroom room: classroom-${classId}`);
-  });
-
-
-  socket.on('disconnect', () => {
-    console.log('Client disconnected');
-  });
+  // Handle leave/disconnect
+  const removeFromPresence = () => {
+    const userId = socket.request?.user?._id?.toString();
+    if (!userId) return;
+    for (const room of socket.rooms) {
+      if (room.startsWith('classroom-')) {
+        const classroomId = room.slice('classroom-'.length);
+        const set = classroomPresence.get(classroomId);
+        if (set) {
+          set.delete(userId);
+          io.to(room).emit('presence:update', {
+            classroomId,
+            onlineUserIds: Array.from(set)
+          });
+        }
+      }
+    }
+  };
+  socket.on('disconnecting', removeFromPresence);
+  socket.on('disconnect', removeFromPresence);
 });
 
 // Make io accessible to routes (optional / keep for compatibility)
 app.set('io', io);
+
+// Expose per-classroom presence for initial load
+app.get('/api/classroom/:id/online-users', (req, res) => {
+  const { id } = req.params;
+  const set = classroomPresence.get(String(id));
+  res.json({ onlineUserIds: set ? Array.from(set) : [] });
+});
 
 // Start Server
 httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));

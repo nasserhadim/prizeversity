@@ -37,14 +37,19 @@ const NotificationBell = () => {
       console.log('Received new notification:', notification);
       setNotifications(prev => [notification, ...prev]);
 
-      // Handle classroom removal notification (guard access)
+      // Only alert/redirect if this notification targets ME
       if (notification?.type === 'classroom_removal') {
-        const classLabel = getClassLabel(notification) || 'this classroom';
-        alert(`You have been removed from classroom "${classLabel}"`);
-        // If currently in that classroom, redirect to home
-        const currentPath = window.location.pathname;
-        if (notification.classroom && currentPath.includes(`/classroom/${notification.classroom._id}`)) {
-          window.location.href = '/';
+        const myId = String(user?._id || '');
+        const targetId = String(notification?.user || notification?.userId || notification?.targetUser || '');
+        const classId = notification?.classroom?._id || notification?.classroom;
+
+        if (myId && targetId && myId === targetId) {
+          const classLabel = getClassLabel(notification) || 'this classroom';
+          alert(`You have been removed from classroom "${classLabel}"`);
+          const currentPath = window.location.pathname;
+          if (classId && currentPath.includes(`/classroom/${classId}`)) {
+            window.location.href = '/';
+          }
         }
       }
     });
