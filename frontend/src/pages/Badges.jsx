@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Award, Lock, Trophy, Plus, Edit2, Trash2, Calendar, TrendingUp, ArrowUp, ArrowDown } from 'lucide-react';
+import { Award, Lock, Trophy, Plus, Edit2, Trash2, Calendar, TrendingUp, ArrowUp, ArrowDown, Package, Save } from 'lucide-react';
 import axios from 'axios';
 import Footer from '../components/Footer';
 import { useAuth } from '../context/AuthContext';
@@ -9,6 +9,7 @@ import { resolveBadgeSrc } from '../utils/image';
 import socket from '../utils/socket'; // Add this import
 import { useLocation, useNavigate, useParams, Link } from 'react-router-dom';
 import EmojiPicker from '../components/EmojiPicker'; // Import the new EmojiPicker component
+import { getBadgeTemplates, saveBadgeTemplate, deleteBadgeTemplate, applyBadgeTemplate } from '../API/apiBadgeTemplate';
 
 const Badges = () => {
   const location = useLocation();
@@ -50,6 +51,17 @@ const Badges = () => {
   const [badgeFilter, setBadgeFilter] = useState('all'); // 'all', 'hasBadges', 'noBadges'
   const [sortField, setSortField] = useState('name'); // 'name', 'level', 'xp', 'badges'
   const [sortDirection, setSortDirection] = useState('asc'); // 'asc' or 'desc'
+
+  // NEW: badge template states
+  const [badgeTemplates, setBadgeTemplates] = useState([]);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [showApplyModal, setShowApplyModal] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [deleteTemplateModal, setDeleteTemplateModal] = useState(null);
+  // NEW: search/sort state
+  const [templateSearch, setTemplateSearch] = useState('');
+  const [templateSort, setTemplateSort] = useState('createdDesc'); // createdDesc|createdAsc|nameAsc|nameDesc|badgesDesc|badgesAsc
 
   useEffect(() => {
     if (!classroomId || !user) return;
@@ -414,6 +426,49 @@ const Badges = () => {
     return { to: `/classroom/${classroomId}/people`, label: '← Back to People' };
   }, [source, classroomId]);
 
+  useEffect(() => {
+    // teacher only
+    if (!isTeacher) return;
+    (async () => {
+      try {
+        const res = await getBadgeTemplates();
+        setBadgeTemplates(res.templates || []);
+      } catch {}
+    })();
+  }, [isTeacher]);
+
+  // NEW: filtered + sorted templates (like Bazaar)
+  const filteredSortedBadgeTemplates = useMemo(() => {
+    const q = (templateSearch || '').trim().toLowerCase();
+    const deepMatch = (t) => {
+      if (!q) return true;
+      const parts = [
+        t.name || '',
+        t.sourceClassroom?.name || '',
+        t.sourceClassroom?.code || '',
+        String((t.badges || []).length || 0),
+        t.createdAt ? new Date(t.createdAt).toLocaleString() : ''
+      ].join(' ').toLowerCase();
+      return parts.includes(q);
+    };
+    const list = (badgeTemplates || []).filter(deepMatch);
+    list.sort((a, b) => {
+      const ac = new Date(a.createdAt || 0), bc = new Date(b.createdAt || 0);
+      const an = (a.name || ''), bn = (b.name || '');
+      const ai = (a.badges?.length || 0), bi = (b.badges?.length || 0);
+      switch (templateSort) {
+        case 'createdDesc': return bc - ac;
+        case 'createdAsc':  return ac - bc;
+        case 'nameAsc':     return an.localeCompare(bn);
+        case 'nameDesc':    return bn.localeCompare(an);
+        case 'badgesDesc':  return bi - ai;
+        case 'badgesAsc':   return ai - bi;
+        default: return 0;
+      }
+    });
+    return list;
+  }, [badgeTemplates, templateSearch, templateSort]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -438,7 +493,7 @@ const Badges = () => {
                   ← Back to Classroom
                 </Link>
               </div>
-              <div className="flex items-center justify-between">
+             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
                   <h1 className="text-4xl font-bold flex items-center gap-3">
                     <Trophy className="w-10 h-10 text-yellow-500" />
@@ -453,16 +508,26 @@ const Badges = () => {
                 
                 {/* Teacher: Create Badge Button */}
                 {isTeacher && (
-                  <button
-                    className="btn btn-primary gap-2"
-                    onClick={() => {
-                      resetForm();
-                      setShowModal(true);
-                    }}
-                  >
-                    <Plus className="w-5 h-5" />
-                    Create Badge
-                  </button>
+                 <div className="flex flex-wrap gap-2 w-full sm:w-auto sm:justify-end">
+                    <button
+                      className="btn btn-primary gap-2 w-full sm:w-auto"
+                      onClick={() => {
+                        resetForm();
+                        setShowModal(true);
+                      }}
+                    >
+                      <Plus className="w-5 h-5" />
+                      Create Badge
+                    </button>
+                    <button className="btn btn-sm btn-outline gap-2 w-full sm:w-auto" onClick={() => setShowTemplateModal(true)}>
+                      <Save className="w-4 h-4" /> Save as Template
+                    </button>
+                    {badgeTemplates.length > 0 && (
+                     <button className="btn btn-sm btn-outline btn-info gap-2 w-full sm:w-auto" onClick={() => setShowApplyModal(true)}>
+                        <Package className="w-4 h-4" /> View Templates ({badgeTemplates.length})
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
@@ -1048,39 +1113,45 @@ const Badges = () => {
                   <span className="label-text">Badge Image (Optional)</span>
                 </label>
 
-                {/* NEW: URL / Upload switch */}
+                {/* Toggle: Upload first, then URL */}
                 <div className="inline-flex rounded-full bg-gray-200 p-1 mb-2">
                   <button
                     type="button"
-                    onClick={() => setImageSource('url')}
-                    className={`px-3 py-1 rounded-full text-sm transition ${imageSource === 'url' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
+                    onClick={() => setImageSource('file')}
+                    className={`px-3 py-1 rounded-full text-sm transition ${imageSource === 'file' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
                   >
-                    Use image URL
+                    Upload
                   </button>
                   <button
                     type="button"
-                    onClick={() => setImageSource('file')}
-                    className={`ml-1 px-3 py-1 rounded-full text-sm transition ${imageSource === 'file' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
+                    onClick={() => setImageSource('url')}
+                    className={`ml-1 px-3 py-1 rounded-full text-sm transition ${imageSource === 'url' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
                   >
-                    Upload
+                    Use image URL
                   </button>
                 </div>
 
                 {imageSource === 'file' ? (
-                  <input
-                    type="file"
-                    className="file-input file-input-bordered"
-                    accept="image/*"
-                    onChange={(e) => setFormData({ ...formData, image: e.target.files[0] })}
-                  />
+                  <>
+                    <input
+                      type="file"
+                      className="file-input file-input-bordered"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      onChange={(e) => setFormData({ ...formData, image: e.target.files[0] })}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Allowed: jpg, png, webp, gif. Max: 5 MB.</p>
+                  </>
                 ) : (
-                  <input
-                    type="url"
-                    placeholder="https://example.com/badge.png"
-                    className="input input-bordered"
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
-                  />
+                  <>
+                    <input
+                      type="url"
+                      placeholder="https://example.com/badge.png"
+                      className="input input-bordered"
+                      value={imageUrl}
+                      onChange={(e) => setImageUrl(e.target.value)}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Use a direct image URL (jpg, png, webp, gif). Recommended ≤ 5 MB.</p>
+                  </>
                 )}
               </div>
 
@@ -1100,6 +1171,178 @@ const Badges = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Save Template Modal */}
+      {showTemplateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="card bg-base-100 w-full max-w-md shadow-xl border border-base-300">
+            <div className="card-body space-y-3">
+              <h3 className="text-lg font-bold">Save Badge Template</h3>
+              <input
+                type="text"
+                placeholder="Template name (e.g., 'Fall 2024 Badges')"
+                className="input input-bordered w-full"
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                autoFocus
+              />
+              <div className="text-xs text-base-content/60">
+                This will save {badges.length} badge(s) from this classroom.
+              </div>
+              <div className="card-actions justify-end">
+                <button className="btn btn-ghost" onClick={() => setShowTemplateModal(false)}>Cancel</button>
+                <button
+                  className="btn btn-primary"
+                  disabled={savingTemplate}
+                  onClick={async () => {
+                    try {
+                      setSavingTemplate(true);
+                      await saveBadgeTemplate(templateName.trim(), classroomId);
+                      toast.success('Template saved');
+                      const res = await getBadgeTemplates();
+                      setBadgeTemplates(res.templates || []);
+                      setShowTemplateModal(false);
+                      setTemplateName('');
+                    } catch (e) {
+                      toast.error(e.message || 'Failed to save template');
+                    } finally {
+                      setSavingTemplate(false);
+                    }
+                  }}
+                >
+                  {savingTemplate ? <span className="loading loading-spinner loading-xs" /> : 'Save'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Apply Template Modal */}
+      {showApplyModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="card bg-base-100 w-full max-w-3xl shadow-xl border border-base-300">
+            <div className="card-body space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold">
+                  Apply Badge Template {badgeTemplates?.length ? `(${badgeTemplates.length})` : ''}
+                </h3>
+                <button className="btn btn-ghost btn-sm" onClick={() => setShowApplyModal(false)}>✕</button>
+              </div>
+
+              {/* Collapsible: how templating works */}
+              <div className="collapse collapse-arrow bg-base-200 rounded">
+                <input type="checkbox" />
+                <div className="collapse-title text-sm font-semibold">
+                  How templating works
+                </div>
+                <div className="collapse-content text-sm space-y-1">
+                  <p>• Applying a template will add any missing badges to this classroom.</p>
+                  <p>• Badges with the same name and level are skipped to avoid duplicates.</p>
+                  <p>• You can apply templates even if the classroom already has badges.</p>
+                </div>
+              </div>
+
+              {/* search + sort */}
+              <div className="flex flex-wrap gap-2 mb-2">
+                <input
+                  type="search"
+                  className="input input-bordered flex-1 min-w-[200px]"
+                  placeholder="Search templates..."
+                  value={templateSearch}
+                  onChange={(e) => setTemplateSearch(e.target.value)}
+                />
+                <select
+                  className="select select-bordered w-40"
+                  value={templateSort}
+                  onChange={(e) => setTemplateSort(e.target.value)}
+                >
+                  <option value="createdDesc">Newest</option>
+                  <option value="createdAsc">Oldest</option>
+                  <option value="nameAsc">Name ↑</option>
+                  <option value="nameDesc">Name ↓</option>
+                  <option value="badgesDesc">Badges ↓</option>
+                  <option value="badgesAsc">Badges ↑</option>
+                </select>
+              </div>
+
+              {filteredSortedBadgeTemplates.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-96 overflow-y-auto">
+                  {filteredSortedBadgeTemplates.map((t) => (
+                    <div key={t._id} className="flex items-center justify-between bg-base-200 p-3 rounded">
+                      <div>
+                        <div className="font-medium">{t.name}</div>
+                        <div className="text-xs text-base-content/60">
+                          {(t.sourceClassroom?.name || '')}{t.sourceClassroom?.code ? ` (${t.sourceClassroom.code})` : ''}
+                        </div>
+                        <div className="text-xs text-base-content/60">
+                          {t.badges?.length || 0} badge(s)
+                        </div>
+                        <div className="text-xs text-base-content/50">
+                          Created: {t.createdAt ? new Date(t.createdAt).toLocaleString() : '—'}
+                        </div>
+                      </div>
+                      <div className="flex gap-1">
+                        <button
+                          className="btn btn-xs btn-primary"
+                          onClick={async () => {
+                            try {
+                              const res = await applyBadgeTemplate(t._id, classroomId);
+                              toast.success(res.message || 'Template applied');
+                              await fetchBadges?.();
+                              setShowApplyModal(false);
+                            } catch (e) {
+                              toast.error(e.message || 'Failed to apply template');
+                            }
+                          }}
+                        >Apply</button>
+                        <button
+                          className="btn btn-xs btn-ghost text-error"
+                          onClick={() => setDeleteTemplateModal({ id: t._id, name: t.name })}
+                        >Delete</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-base-content/60 py-8">No templates saved yet</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete template confirm */}
+      {deleteTemplateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="card bg-base-100 w-full max-w-md shadow-xl border border-base-300">
+            <div className="card-body space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold">Delete Template</h3>
+                <button className="btn btn-ghost btn-sm" onClick={() => setDeleteTemplateModal(null)}>✕</button>
+              </div>
+              <p className="text-sm">Delete template “{deleteTemplateModal.name}”?</p>
+              <div className="card-actions justify-end">
+                <button className="btn btn-ghost" onClick={() => setDeleteTemplateModal(null)}>Cancel</button>
+                <button
+                  className="btn btn-error btn-sm"
+                  onClick={async () => {
+                    try {
+                      await deleteBadgeTemplate(deleteTemplateModal.id);
+                      toast.success('Template deleted');
+                      const res = await getBadgeTemplates();
+                      setBadgeTemplates(res.templates || []);
+                      setDeleteTemplateModal(null);
+                    } catch (e) {
+                      toast.error(e.message || 'Failed to delete template');
+                    }
+                  }}
+                >Delete</button>
+              </div>
+            </div>
           </div>
         </div>
       )}
