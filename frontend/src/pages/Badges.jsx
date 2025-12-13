@@ -1132,7 +1132,7 @@ const Badges = () => {
                           {earnedInfo?.earnedAt && (
                             <div className="flex items-center gap-1 text-xs text-base-content/60 mt-2">
                               <Calendar className="w-3 h-3" />
-                              {new Date(earnedInfo.earnedAt).toLocaleDateString()}
+                              {new Date(earnedInfo.earnedAt).toLocaleString()}
                             </div>
                           )}
                         </div>
@@ -1271,7 +1271,7 @@ const Badges = () => {
                   className="input input-bordered"
                   value={formData.levelRequired}
                   onChange={(e) => setFormData({ ...formData, levelRequired: parseInt(e.target.value) })}
-                  min={1}
+                  min={2}
                   required
                 />
               </div>

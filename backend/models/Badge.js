@@ -20,7 +20,7 @@ const BadgeSchema = new mongoose.Schema({
   levelRequired: { 
     type: Number, 
     required: true,
-    min: 1
+    min: 2
   },
   icon: { 
     type: String, 
