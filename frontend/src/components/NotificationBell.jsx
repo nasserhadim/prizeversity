@@ -102,8 +102,8 @@ const NotificationBell = () => {
   const filteredNotifications = safeNotifications
     .filter(notification => {
       if (filterBy === 'all') return true;
+      if (filterBy === 'unread') return !notification.read;              // NEW
       if (filterBy.includes(',')) {
-        // Handle multiple types
         const types = filterBy.split(',');
         return types.includes(notification.type);
       }
@@ -208,12 +208,24 @@ const NotificationBell = () => {
                 className="select select-bordered"
               >
                 <option value="all">All</option>
+                <option value="unread">Unread</option>                                      {/* NEW */}
+                <option value="announcement">Announcements</option>                          {/* NEW */}
+                <option value="group_add">Group Adds</option>                                {/* NEW */}
                 <option value="group_approval">Approvals</option>
                 <option value="group_rejection">Rejections</option>
                 <option value="classroom_removal">Removals</option>
                 <option value="group_suspension">Suspensions</option>
                 <option value="group_deletion,classroom_deletion,groupset_deletion">Deletions</option>
                 <option value="classroom_update,groupset_update,group_update">Updates</option>
+                <option value="siphon_request,siphon_review,siphon_approved,siphon_rejected">Siphon</option>  {/* NEW */}
+                <option value="classroom_ban,classroom_unban,group_suspension">Bans & Suspensions</option>     {/* NEW */}
+                <option value="wallet_topup,wallet_transaction">Wallet</option>                                 {/* NEW */}
+                <option value="attack,defend">Attacks/Defends</option>                                          {/* NEW */}
+                <option value="stats_adjusted">Stat Changes</option>                                            {/* NEW */}
+                <option value="level_up,badge_earned,challenge_series_completed">XP/Leveling/Badges</option>            {/* NEW */}
+                <option value="challenge_assigned,challenge_removed,challenge_reset,challenge_series_completed">Challenges</option> {/* NEW */}
+                <option value="feedback_report">Feedback</option>                                    {/* NEW */}
+                <option value="bit_assignment_request,bit_assignment_approved,bit_assignment_rejected">Bit Assignment</option>       {/* NEW */}
               </select>
               <button
                 onClick={handleDismissAll}
