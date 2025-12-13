@@ -1407,7 +1407,10 @@ const Groups = () => {
                                     </span>
                                   )}
                                 </div> {/* FIX: was </p> */}
-                                <div className="italic text-xs mb-1" dangerouslySetInnerHTML={{ __html: r.reasonHtml }} />
+                                <div
+                                  className="italic text-xs mb-1 siphon-reason"
+                                  dangerouslySetInnerHTML={{ __html: r.reasonHtml }}
+                                />
                                 
                                 {/* Show proof file if available - KEEP ONLY THIS ONE */}
                                 {r.proof && r.proof.originalName && (

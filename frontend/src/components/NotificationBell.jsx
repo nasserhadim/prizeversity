@@ -25,6 +25,8 @@ const NotificationBell = () => {
   const notificationsPerPage = 2;
   const dropdownRef = useRef(null);
   const nodeRef = useRef(null); // Add this new ref for CSSTransition
+// NEW: explicit sort direction
+  const [sortDir, setSortDir] = useState('desc');
 
   useEffect(() => {
     fetchNotifications();
@@ -112,10 +114,14 @@ const NotificationBell = () => {
       (notification.message || '').toLowerCase().includes(searchTerm.toLowerCase())
     )
     .sort((a, b) => {
+      // NEW: apply direction
       if (sortBy === 'date') {
-        return new Date(b.createdAt) - new Date(a.createdAt);
+        const ad = new Date(a.createdAt).getTime();
+        const bd = new Date(b.createdAt).getTime();
+        return sortDir === 'asc' ? ad - bd : bd - ad;
       }
-      return a.message.localeCompare(b.message);
+      const cmp = a.message.localeCompare(b.message);
+      return sortDir === 'asc' ? cmp : -cmp;
     });
 
   const paginatedNotifications = filteredNotifications.slice(
@@ -164,7 +170,7 @@ const NotificationBell = () => {
                      w-[350px] right-0
                      sm:w-[350px] sm:right-0
                      max-sm:fixed max-sm:inset-x-4 max-sm:w-auto max-sm:right-4 max-sm:left-4
-                     max-h-[80vh] overflow-hidden"
+                     max-h-[80vh] flex flex-col overflow-hidden"
         >
           <div className="p-4 border-b border-base-300">
             <h3 className="text-lg font-semibold text-base-content">Notifications</h3>
@@ -184,6 +190,18 @@ const NotificationBell = () => {
                 <option value="date">Sort by Date</option>
                 <option value="message">Sort by Message</option>
               </select>
+              {/* NEW: direction toggle */}
+              <button
+                className="btn btn-outline btn-sm"
+                onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+                title={sortBy === 'date'
+                  ? (sortDir === 'asc' ? 'Oldest first' : 'Newest first')
+                  : (sortDir === 'asc' ? 'A→Z' : 'Z→A')}
+              >
+                {sortBy === 'date'
+                  ? (sortDir === 'asc' ? 'Oldest' : 'Newest')
+                  : (sortDir === 'asc' ? 'A→Z' : 'Z→A')}
+              </button>
               <select
                 value={filterBy}
                 onChange={(e) => setFilterBy(e.target.value)}
@@ -206,7 +224,7 @@ const NotificationBell = () => {
             </div>
           </div>
 
-          <div className="max-h-[60vh] overflow-y-auto scroll-smooth divide-y divide-base-300">
+          <div className="flex-1 min-h-0 overflow-y-auto scroll-smooth divide-y divide-base-300 pr-1 pb-2">
             {paginatedNotifications.length > 0 ? (
               <>
                 {paginatedNotifications.map(notification => (
@@ -217,7 +235,9 @@ const NotificationBell = () => {
                     }`}
                   >
                     <div className="flex-1">
-                      <p className="text-sm text-base-content">{notification.message}</p>
+                      <p className="text-sm text-base-content whitespace-pre-wrap break-words">
+                        {notification.message}
+                      </p>
                       <small className="text-base-content/60 block mt-1">
                         by {getDisplayName(notification.actionBy)} at{' '}
                         {new Date(notification.createdAt).toLocaleString()}
@@ -235,29 +255,31 @@ const NotificationBell = () => {
                     )}
                   </div>
                 ))}
-                <div className="flex justify-center items-center gap-4 py-3 border-t border-base-300">
-                  <button
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                    className="btn btn-sm"
-                  >
-                    Previous
-                  </button>
-                  <span className="text-sm text-base-content/60">{currentPage} of {totalPages}</span>
-                  <button
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                    className="btn btn-sm"
-                  >
-                    Next
-                  </button>
-                </div>
               </>
             ) : (
               <div className="p-4 text-center text-sm text-base-content/60">
                 {searchTerm ? 'No matching notifications' : 'No notifications'}
               </div>
             )}
+          </div>
+
+          {/* Always-visible pager footer */}
+          <div className="bg-base-100 border-t border-base-300 p-3 flex justify-center items-center gap-4">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="btn btn-sm"
+            >
+              Previous
+            </button>
+            <span className="text-sm text-base-content/60">{currentPage} of {totalPages}</span>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="btn btn-sm"
+            >
+              Next
+            </button>
           </div>
         </div>
       </CSSTransition>

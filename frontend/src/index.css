@@ -148,3 +148,12 @@ img, svg, picture, video {
 [data-theme='dark'] .ql-toolbar.ql-snow + .ql-container.ql-snow {
   border-top: 1px solid #374151;
 }
+
+/* Wrap long/unbroken siphon reason text */
+.siphon-reason {
+  white-space: pre-wrap;      /* preserve intentional breaks */
+  overflow-wrap: anywhere;    /* break long runs */
+  word-break: break-word;     /* fallback for older browsers */
+  hyphens: auto;              /* optional hyphenation */
+  max-width: 100%;            /* respect container width */
+}

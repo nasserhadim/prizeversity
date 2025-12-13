@@ -54,6 +54,37 @@ const BACKEND_URL = `${API_BASE}`;
       <div className="modal-box">
         <h3 className="font-bold text-lg">New siphon request</h3>
 
+        {/* Helper: What is siphoning? */}
+        <div className="mt-2 mb-3">
+          <details className="collapse collapse-arrow bg-base-200 rounded">
+            <summary className="collapse-title text-sm font-medium">
+              About siphoning
+            </summary>
+            <div className="collapse-content text-sm space-y-2">
+              <p>
+                Siphoning is a group accountability tool:
+              </p>
+              <ul className="list-disc ml-5 space-y-1">
+                <li>Group members can vote to temporarily freeze a teammate’s spending, and potentially redistribute their bits.</li>
+                <li>Requires a majority vote from approved group members.</li>
+                <li>Frozen members cannot spend bits during the review period.</li>
+                <li>The teacher reviews the request and approves or rejects it.</li>
+                <li>If approved, bits are redistributed to cooperative members.</li>
+              </ul>
+              <p className="mt-2">
+                Limits and timing:
+              </p>
+              <ul className="list-disc ml-5 space-y-1">
+                <li>Only one siphon per configured cooldown window (e.g., default 72 hours) per group.</li>
+                <li>If the majority and teacher action don’t occur within the timeout, the account is automatically unfrozen.</li>
+              </ul>
+              <p className="mt-2">
+                Tip: Be clear and factual in the reason. You can attach proof (PDF/image).
+              </p>
+            </div>
+          </details>
+        </div>
+
         {/* Target dropdown */}
         <select
           className="select w-full"
@@ -99,6 +130,11 @@ const BACKEND_URL = `${API_BASE}`;
           placeholder="Reason…"
         />
 
+        {/* NEW: inline guidance under reason */}
+        <p className="text-xs text-base-content/70 mt-2">
+          Provide a clear summary of the issue(s). Include helpful context such as dates, actions, and impact on group cooperation. You may attach proof below.
+        </p>
+
         {/* NEW: percentage chooser (no balance shown) */}
         <div className="mt-3">
           <span className="label-text mb-1 block">Siphon amount</span>
@@ -115,7 +151,7 @@ const BACKEND_URL = `${API_BASE}`;
             ))}
           </div>
           <p className="text-xs text-base-content/70 mt-1">
-            Percentage is applied to the user’s current balance privately on submission.
+            Percentage is applied to the user’s current balance privately on submission. Final transfer is recalculated at teacher review time.
           </p>
         </div>
 
