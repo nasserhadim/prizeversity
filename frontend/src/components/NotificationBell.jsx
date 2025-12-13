@@ -247,7 +247,9 @@ const NotificationBell = () => {
                     }`}
                   >
                     <div className="flex-1">
-                      <p className="text-sm text-base-content whitespace-pre-wrap break-words">
+                      <p
+                        className="notification-message text-sm text-base-content whitespace-pre-wrap break-words"
+                      >
                         {notification.message}
                       </p>
                       <small className="text-base-content/60 block mt-1">

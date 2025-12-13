@@ -189,3 +189,12 @@ img, svg, picture, video {
   word-break: break-word;
   hyphens: auto;
 }
+
+/* Ensure long/unbroken notification messages wrap */
+.notification-message {
+  white-space: pre-wrap;     /* preserve intentional line breaks */
+  overflow-wrap: anywhere;   /* break long runs like bbbbb... */
+  word-break: break-word;    /* fallback for older browsers */
+  hyphens: auto;             /* optional hyphenation */
+  max-width: 100%;
+}
