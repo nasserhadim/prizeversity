@@ -148,10 +148,10 @@ const ItemCard = ({ item, onUse, showUseButton = true, classroomId, role, onEdit
  
        {/* Content - unchanged from original */}
        <div className="card-body space-y-2">
-         <h3 className="card-title text-lg md:text-xl font-semibold">
+         <h3 className="card-title text-lg md:text-xl font-semibold wrap-any">
            {item.name}
          </h3>
-        <p className="text-sm text-base-content/70 whitespace-pre-wrap">
+        <p className="text-sm text-base-content/70 whitespace-pre-wrap wrap-any">
           {main || 'No description provided.'}
         </p>
 

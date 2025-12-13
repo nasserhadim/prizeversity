@@ -3,8 +3,12 @@ import { useParams, Link, useLocation } from 'react-router-dom';
 import { ThemeContext } from '../context/ThemeContext'; // <-- added import
 import axios from 'axios';
 import socket from '../utils/socket.js';
-import { LoaderIcon, RefreshCw, TrendingUp } from 'lucide-react'; // Removed Award import
-import { Info } from 'lucide-react';
+import {
+  LoaderIcon,
+  RefreshCw,
+  TrendingUp,
+  Info,
+} from 'lucide-react'; // Removed Award import
 import Footer from '../components/Footer';
 import StatsRadar from '../components/StatsRadar'; // <-- add this import
 import { getThemeClasses } from '../utils/themeUtils'; // <-- new import
@@ -208,6 +212,30 @@ const StudentStats = () => {
     );
   }
 
+  // Add a stat help text map near the top of the file
+  const STAT_HELP = {
+    attackPower: 'Bazaar items that let students target others’ stats (e.g., swap, nullify) to gain advantage.',
+    shield: 'Protects against attack effects; shields are stackable and consumed when triggered.',
+    multiplier: 'Boosts earnings from classroom rewards; higher multiplier means faster bit/XP growth.',
+    groupMultiplier: 'Adds additional earning scaling based on group size; applies when enabled by the teacher.',
+    discountShop: 'Reduces purchase prices in the classroom Bazaar, stretching bits further.',
+    luck: 'Improves chances for better outcomes in activities like Mystery Box.',
+  };
+
+  // Helper to render a title with an Info tooltip
+  const StatTitle = ({ children, statKey }) => (
+    <div className="flex items-center gap-1">
+      <span>{children}</span>
+      <span
+        className="tooltip tooltip-bottom"
+        data-tip={STAT_HELP[statKey] || ''}
+        aria-label={STAT_HELP[statKey] || ''}
+      >
+        <Info size={14} className="inline-block text-base-content/60 cursor-help" />
+      </span>
+    </div>
+  );
+
   return (
     <>
       <div className={`${themeClasses.cardBase} max-w-md mx-auto mt-10 space-y-6`}>
@@ -331,28 +359,28 @@ const StudentStats = () => {
         <div className="stats stats-vertical shadow w-full">
           {/* Attack, Shield, Multiplier (existing items) */}
           <div className="stat">
-            <div className="stat-figure text-secondary">
-              ⚔️
+            <div className="stat-figure text-secondary">⚔️</div>
+            <div className="stat-title">
+              <StatTitle statKey="attackPower">Attack Bonus</StatTitle>
             </div>
-            <div className="stat-title">Attack Bonus</div>
             <div className="stat-value">{stats.attackPower || 0}</div>
           </div>
-          
+
           <div className="stat">
-            <div className="stat-figure text-secondary">
-              🛡
+            <div className="stat-figure text-secondary">🛡</div>
+            <div className="stat-title">
+              <StatTitle statKey="shield">Shield</StatTitle>
             </div>
-            <div className="stat-title">Shield</div>
             <div className="stat-value">
               {stats.shieldActive ? `Active x${stats.shieldCount}` : 'Inactive'}
             </div>
           </div>
-          
+
           <div className="stat">
-            <div className="stat-figure text-secondary">
-              ✖️
+            <div className="stat-figure text-secondary">✖️</div>
+            <div className="stat-title">
+              <StatTitle statKey="multiplier">Multiplier</StatTitle>
             </div>
-            <div className="stat-title">Multiplier</div>
             <div className="stat-value">
               x{Number(stats.multiplier || stats.student?.multiplier || 1).toFixed(1)}
             </div>
@@ -361,35 +389,34 @@ const StudentStats = () => {
           {/* ONLY render Group Multiplier when > 1 */}
           {groupMultiplierValue > 1 && (
             <div className="stat">
-              <div className="stat-figure text-secondary">
-                👥
+              <div className="stat-figure text-secondary">👥</div>
+              <div className="stat-title">
+                <StatTitle statKey="groupMultiplier">Group Multiplier</StatTitle>
               </div>
-              <div className="stat-title">Group Multiplier</div>
               <div className="stat-value">
-                x{groupMultiplierValue.toFixed(1)}
+                x{Number(groupMultiplierValue).toFixed(1)}
               </div>
-              <div className="stat-desc">Includes group bonus</div>
+              <div className="text-xs text-base-content/60">Includes group bonus</div>
             </div>
           )}
-          
+
           <div className="stat">
-            <div className="stat-figure text-secondary">
-              🏷️
+            <div className="stat-figure text-secondary">🏷️</div>
+            <div className="stat-title">
+              <StatTitle statKey="discountShop">Discount</StatTitle>
             </div>
-            <div className="stat-title">Discount</div>
             <div className="stat-value">
-              {stats.discount > 0 ? `${stats.discount}%` : 'None'}
+              {Number(stats.discountShop || stats.student?.discountShop || 0) > 0
+                ? `${Number(stats.discountShop || stats.student?.discountShop || 0)}%`
+                : 'None'}
             </div>
-            {stats.discount > 0 && (
-              <div className="stat-desc">Active in bazaar</div>
-            )}
           </div>
-          
+
           <div className="stat">
-            <div className="stat-figure text-secondary">
-              🍀
+            <div className="stat-figure text-secondary">🍀</div>
+            <div className="stat-title">
+              <StatTitle statKey="luck">Luck</StatTitle>
             </div>
-            <div className="stat-title">Luck</div>
             <div className="stat-value">x{displayLuck}</div>
           </div>
         </div>

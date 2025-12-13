@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Award, Lock, Trophy, Plus, Edit2, Trash2, Calendar, TrendingUp, ArrowUp, ArrowDown } from 'lucide-react';
+import { Award, Lock, Trophy, Plus, Edit2, Trash2, Calendar, TrendingUp, ArrowUp, ArrowDown, Package, Save } from 'lucide-react';
 import axios from 'axios';
 import Footer from '../components/Footer';
 import { useAuth } from '../context/AuthContext';
@@ -9,6 +9,8 @@ import { resolveBadgeSrc } from '../utils/image';
 import socket from '../utils/socket'; // Add this import
 import { useLocation, useNavigate, useParams, Link } from 'react-router-dom';
 import EmojiPicker from '../components/EmojiPicker'; // Import the new EmojiPicker component
+import { getBadgeTemplates, saveBadgeTemplate, deleteBadgeTemplate, applyBadgeTemplate } from '../API/apiBadgeTemplate';
+import ConfirmModal from '../components/ConfirmModal';
 
 const Badges = () => {
   const location = useLocation();
@@ -50,6 +52,71 @@ const Badges = () => {
   const [badgeFilter, setBadgeFilter] = useState('all'); // 'all', 'hasBadges', 'noBadges'
   const [sortField, setSortField] = useState('name'); // 'name', 'level', 'xp', 'badges'
   const [sortDirection, setSortDirection] = useState('asc'); // 'asc' or 'desc'
+
+  // NEW: badge template states
+  const [badgeTemplates, setBadgeTemplates] = useState([]);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [showApplyModal, setShowApplyModal] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [deleteTemplateModal, setDeleteTemplateModal] = useState(null);
+  // NEW: search/sort state
+  const [templateSearch, setTemplateSearch] = useState('');
+  const [templateSort, setTemplateSort] = useState('createdDesc'); // createdDesc|createdAsc|nameAsc|nameDesc|badgesDesc|badgesAsc
+
+  // NEW: badge management filters
+  const [badgeSearch, setBadgeSearch] = useState('');
+  const [badgeSort, setBadgeSort] = useState('addedDesc'); // addedDesc|addedAsc|nameAsc|nameDesc|levelAsc|levelDesc
+
+  // NEW: deep match helper (name + description + level + icon)
+  const deepMatchesBadge = (badge, term) => {
+    const q = (term || '').trim().toLowerCase();
+    if (!q) return true;
+    const parts = [
+      badge.name || '',
+      badge.description || '',
+      String(badge.levelRequired || ''),
+      badge.icon || ''
+    ].join(' ').toLowerCase();
+    return parts.includes(q);
+  };
+
+  // NEW: sorted + filtered badges for management grid
+  const sortedFilteredBadges = useMemo(() => {
+    const list = (badges || []).filter(b => deepMatchesBadge(b, badgeSearch));
+    list.sort((a, b) => {
+      switch (badgeSort) {
+        case 'addedDesc': return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+        case 'addedAsc':  return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+        case 'nameAsc':   return (a.name || '').localeCompare(b.name || '');
+        case 'nameDesc':  return (b.name || '').localeCompare(a.name || '');
+        case 'levelAsc':  return (a.levelRequired || 0) - (b.levelRequired || 0);
+        case 'levelDesc': return (b.levelRequired || 0) - (a.levelRequired || 0);
+        default: return 0;
+      }
+    });
+    return list;
+  }, [badges, badgeSearch, badgeSort]);
+
+  // NEW: bulk delete (teacher)
+  const [confirmDeleteAllBadges, setConfirmDeleteAllBadges] = useState(false);
+  const [bulkDeletingBadges, setBulkDeletingBadges] = useState(false);
+
+  const handleBulkDeleteBadges = async () => {
+    setBulkDeletingBadges(true);
+    try {
+      const toDelete = sortedFilteredBadges.map(b => b._id);
+      await Promise.all(toDelete.map(id => axios.delete(`/api/badge/${id}`, { withCredentials: true })));
+      toast.success(`Deleted ${toDelete.length} badge(s)`);
+      // Refresh
+      fetchBadges();
+      setConfirmDeleteAllBadges(false);
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Bulk delete failed');
+    } finally {
+      setBulkDeletingBadges(false);
+    }
+  };
 
   useEffect(() => {
     if (!classroomId || !user) return;
@@ -186,16 +253,10 @@ const Badges = () => {
     }
   };
 
+  const [confirmDeleteBadge, setConfirmDeleteBadge] = useState(null);
+
   const handleDelete = async (badgeId) => {
-    if (!confirm('Are you sure you want to delete this badge?')) return;
-    
-    try {
-      await axios.delete(`/api/badge/${badgeId}`, { withCredentials: true });
-      toast.success('Badge deleted successfully');
-      fetchBadges();
-    } catch (err) {
-      toast.error('Failed to delete badge');
-    }
+    setConfirmDeleteBadge({ id: badgeId });
   };
 
   const resetForm = () => {
@@ -414,6 +475,93 @@ const Badges = () => {
     return { to: `/classroom/${classroomId}/people`, label: '← Back to People' };
   }, [source, classroomId]);
 
+  useEffect(() => {
+    // teacher only
+    if (!isTeacher) return;
+    (async () => {
+      try {
+        const res = await getBadgeTemplates();
+        setBadgeTemplates(res.templates || []);
+      } catch {}
+    })();
+  }, [isTeacher]);
+
+  // NEW: filtered + sorted templates (like Bazaar)
+  const filteredSortedBadgeTemplates = useMemo(() => {
+    const q = (templateSearch || '').trim().toLowerCase();
+    const deepMatch = (t) => {
+      if (!q) return true;
+      const parts = [
+        t.name || '',
+        t.sourceClassroom?.name || '',
+        t.sourceClassroom?.code || '',
+        String((t.badges || []).length || 0),
+        t.createdAt ? new Date(t.createdAt).toLocaleString() : ''
+      ].join(' ').toLowerCase();
+      return parts.includes(q);
+    };
+    const list = (badgeTemplates || []).filter(deepMatch);
+    list.sort((a, b) => {
+      const ac = new Date(a.createdAt || 0), bc = new Date(b.createdAt || 0);
+      const an = (a.name || ''), bn = (b.name || '');
+      const ai = (a.badges?.length || 0), bi = (b.badges?.length || 0);
+      switch (templateSort) {
+        case 'createdDesc': return bc - ac;
+        case 'createdAsc':  return ac - bc;
+        case 'nameAsc':     return an.localeCompare(bn);
+        case 'nameDesc':    return bn.localeCompare(an);
+        case 'badgesDesc':  return bi - ai;
+        case 'badgesAsc':   return ai - bi;
+        default: return 0;
+      }
+    });
+    return list;
+  }, [badgeTemplates, templateSearch, templateSort]);
+
+  // NEW: student collection search/sort
+  const [collectionSearch, setCollectionSearch] = useState('');
+  const [collectionSort, setCollectionSort] = useState('levelAsc'); // levelAsc|levelDesc|nameAsc|nameDesc|addedDesc|addedAsc
+
+  // Helper: deep match by name/description/level/icon
+  const deepMatchBadge = (b, q) => {
+    const term = (q || '').trim().toLowerCase();
+    if (!term) return true;
+    return [
+      b.name || '',
+      b.description || '',
+      String(b.levelRequired || ''),
+      b.icon || ''
+    ].join(' ').toLowerCase().includes(term);
+  };
+
+  // Helper: sort badges
+  const sortBadges = (list, sort) => {
+    const arr = list.slice();
+    arr.sort((a, b) => {
+      switch (sort) {
+        case 'levelAsc':  return (a.levelRequired || 0) - (b.levelRequired || 0);
+        case 'levelDesc': return (b.levelRequired || 0) - (a.levelRequired || 0);
+        case 'nameAsc':   return (a.name || '').localeCompare(b.name || '');
+        case 'nameDesc':  return (b.name || '').localeCompare(a.name || '');
+        case 'addedDesc': return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+        case 'addedAsc':  return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+        default: return 0;
+      }
+    });
+    return arr;
+  };
+
+  // Derive filtered+sorted lists for student view
+  const earnedFilteredSorted = useMemo(() => {
+    const base = (badges || []).filter(b => earnedBadgeIds.includes(String(b._id)));
+    return sortBadges(base.filter(b => deepMatchBadge(b, collectionSearch)), collectionSort);
+  }, [badges, earnedBadgeIds, collectionSearch, collectionSort]);
+
+  const lockedFilteredSorted = useMemo(() => {
+    const base = (badges || []).filter(b => !earnedBadgeIds.includes(String(b._id)));
+    return sortBadges(base.filter(b => deepMatchBadge(b, collectionSearch)), collectionSort);
+  }, [badges, earnedBadgeIds, collectionSearch, collectionSort]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -438,7 +586,7 @@ const Badges = () => {
                   ← Back to Classroom
                 </Link>
               </div>
-              <div className="flex items-center justify-between">
+             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
                   <h1 className="text-4xl font-bold flex items-center gap-3">
                     <Trophy className="w-10 h-10 text-yellow-500" />
@@ -453,16 +601,26 @@ const Badges = () => {
                 
                 {/* Teacher: Create Badge Button */}
                 {isTeacher && (
-                  <button
-                    className="btn btn-primary gap-2"
-                    onClick={() => {
-                      resetForm();
-                      setShowModal(true);
-                    }}
-                  >
-                    <Plus className="w-5 h-5" />
-                    Create Badge
-                  </button>
+                 <div className="flex flex-wrap gap-2 w-full sm:w-auto sm:justify-end">
+                    <button
+                      className="btn btn-primary gap-2 w-full sm:w-auto"
+                      onClick={() => {
+                        resetForm();
+                        setShowModal(true);
+                      }}
+                    >
+                      <Plus className="w-5 h-5" />
+                      Create Badge
+                    </button>
+                    <button className="btn btn-sm btn-outline gap-2 w-full sm:w-auto" onClick={() => setShowTemplateModal(true)}>
+                      <Save className="w-4 h-4" /> Save as Template
+                    </button>
+                    {badgeTemplates.length > 0 && (
+                     <button className="btn btn-sm btn-outline btn-info gap-2 w-full sm:w-auto" onClick={() => setShowApplyModal(true)}>
+                        <Package className="w-4 h-4" /> View Templates ({badgeTemplates.length})
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
@@ -470,10 +628,44 @@ const Badges = () => {
             {/* Badge List */}
             <div className="card bg-base-100 shadow-lg">
               <div className="card-body">
-                <h2 className="card-title text-2xl mb-4">
-                  All Badges ({badges.length})
-                </h2>
-                
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                  <h2 className="card-title text-2xl">
+                    All Badges ({sortedFilteredBadges.length}/{badges.length})
+                  </h2>
+                  {isManagement && (
+                    <div className="flex flex-wrap gap-2">
+                      <input
+                        type="search"
+                        placeholder="Deep search badges..."
+                        className="input input-bordered w-full sm:w-56"
+                        value={badgeSearch}
+                        onChange={(e) => setBadgeSearch(e.target.value)}
+                      />
+                      <select
+                        className="select select-bordered w-40"
+                        value={badgeSort}
+                        onChange={(e) => setBadgeSort(e.target.value)}
+                      >
+                        <option value="nameAsc">Name ↑</option>
+                        <option value="nameDesc">Name ↓</option>
+                        <option value="levelAsc">Level ↑</option>
+                        <option value="levelDesc">Level ↓</option>
+                        <option value="addedDesc">Added: Newest</option>
+                        <option value="addedAsc">Added: Oldest</option>
+                      </select>
+                      {sortedFilteredBadges.length > 0 && (
+                        <button
+                          className="btn btn-outline btn-error gap-2"
+                          onClick={() => setConfirmDeleteAllBadges(true)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Delete {sortedFilteredBadges.length === badges.length ? 'All' : 'Filtered'}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {badges.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">
                     <Award className="w-16 h-16 mx-auto mb-4 opacity-50" />
@@ -481,7 +673,7 @@ const Badges = () => {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {badges.map((badge) => (
+                   {sortedFilteredBadges.map((badge) => (
                       <div 
                         key={badge._id}
                         className="card bg-base-200 border-2 border-primary/20 shadow-md hover:shadow-lg transition-all"
@@ -506,26 +698,29 @@ const Badges = () => {
                               </button>
                             </div>
                           </div>
-                          <h3 className="card-title text-lg">{badge.name}</h3>
-                          <p className="text-sm text-base-content/70 mb-2">
-                            {badge.description}
-                          </p>
-                          <div className="badge badge-primary gap-2">
-                            <Lock className="w-3 h-3" />
-                            Level {badge.levelRequired} Required
-                          </div>
+
+                          {/* Optional image (shown under icon) */}
                           {badge.image && (
-                            <img 
+                            <img
                               src={resolveBadgeSrc(badge.image)}
                               alt={badge.name}
-                              className="w-full max-h-56 object-contain"
+                              className="w-full max-h-40 object-contain mb-2"
                               onError={(e) => {
                                 e.currentTarget.onerror = null;
-                                // Fallback to showing just the icon if image fails
+                                // Hide broken image, keep the emoji icon
                                 e.currentTarget.style.display = 'none';
                               }}
                             />
                           )}
+
+                          <h3 className="card-title text-lg badge-name break-words">{badge.name}</h3>
+                          <p className="text-sm text-base-content/70 mb-2 badge-description">
+                            {badge.description}
+                          </p>
+                          <div className="badge badge-primary gap-2">
+                            <Lock className="w-3 h-3" />
+                            Level {badge.levelRequired}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -533,6 +728,45 @@ const Badges = () => {
                 )}
               </div>
             </div>
+
+            {/* Confirm bulk delete badges */}
+            {confirmDeleteAllBadges && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="card bg-base-100 w-full max-w-md shadow-xl border border-base-300">
+                  <div className="card-body space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-bold text-error">Confirm Delete</h3>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => !bulkDeletingBadges && setConfirmDeleteAllBadges(false)}
+                      >✕</button>
+                    </div>
+                    <p className="text-sm">
+                      Delete <strong>{sortedFilteredBadges.length}</strong> badge(s)?
+                      {sortedFilteredBadges.length < badges.length && (
+                        <span className="block mt-2 text-warning">
+                          This will delete only the currently filtered badges, not all badges.
+                        </span>
+                      )}
+                    </p>
+                    <div className="card-actions justify-end gap-2">
+                      <button
+                        className="btn btn-sm"
+                        disabled={bulkDeletingBadges}
+                        onClick={() => setConfirmDeleteAllBadges(false)}
+                      >Cancel</button>
+                      <button
+                        className="btn btn-sm btn-error"
+                        disabled={bulkDeletingBadges}
+                        onClick={handleBulkDeleteBadges}
+                      >
+                        {bulkDeletingBadges ? <span className="loading loading-spinner loading-xs" /> : 'Delete'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Student Progress Dashboard */}
             <div className="card bg-base-100 shadow-lg">
@@ -823,15 +1057,38 @@ const Badges = () => {
               </div>
             </div>
 
+            {/* INSERT controls below stats for student view */}
+            <div className="flex flex-wrap items-center gap-2 my-4">
+              <input
+                type="search"
+                placeholder="Deep search badges..."
+                className="input input-bordered flex-1 min-w-[220px]"
+                value={collectionSearch}
+                onChange={(e) => setCollectionSearch(e.target.value)}
+              />
+              <select
+                className="select select-bordered w-40"
+                value={collectionSort}
+                onChange={(e) => setCollectionSort(e.target.value)}
+              >
+                <option value="levelAsc">Level ↑</option>
+                <option value="levelDesc">Level ↓</option>
+                <option value="nameAsc">Name ↑</option>
+                <option value="nameDesc">Name ↓</option>
+                <option value="addedDesc">Added: Newest</option>
+                <option value="addedAsc">Added: Oldest</option>
+              </select>
+            </div>
+
             {/* Earned Badges */}
             {earnedBadges.length > 0 && (
               <div>
                 <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
                   <Award className="w-6 h-6 text-yellow-500" />
-                  Earned Badges ({earnedBadges.length})
+                  Earned Badges ({earnedFilteredSorted.length}/{earnedBadges.length})
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {earnedBadges.map((badge) => {
+                  {earnedFilteredSorted.map((badge) => {
                     // Use myXP for collection view; fall back to table data if available
                     const earnedInfo =
                       (myXP?.earnedBadges || []).find(
@@ -863,8 +1120,8 @@ const Badges = () => {
                             />
                           )}
                           
-                          <h3 className="card-title text-lg">{badge.name}</h3>
-                          <p className="text-sm text-base-content/80 mb-2">
+                          <h3 className="card-title text-lg badge-name">{badge.name}</h3>
+                          <p className="text-sm text-base-content/80 mb-2 badge-description">
                             {badge.description}
                           </p>
                           <div className="badge badge-success gap-2">
@@ -875,7 +1132,7 @@ const Badges = () => {
                           {earnedInfo?.earnedAt && (
                             <div className="flex items-center gap-1 text-xs text-base-content/60 mt-2">
                               <Calendar className="w-3 h-3" />
-                              {new Date(earnedInfo.earnedAt).toLocaleDateString()}
+                              {new Date(earnedInfo.earnedAt).toLocaleString()}
                             </div>
                           )}
                         </div>
@@ -891,10 +1148,10 @@ const Badges = () => {
               <div>
                 <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
                   <Lock className="w-6 h-6 text-gray-500" />
-                  Locked Badges ({lockedBadges.length})
+                  Locked Badges ({lockedFilteredSorted.length}/{lockedBadges.length})
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {lockedBadges.map((badge) => {
+                  {lockedFilteredSorted.map((badge) => {
                     // Use the fetched XP (works for students and teacher viewing a student)
                     const currentLevel = myXP?.level || 1; // ← remove undefined "current"
                     const levelsNeeded = Math.max(0, badge.levelRequired - currentLevel);
@@ -925,8 +1182,8 @@ const Badges = () => {
                             </div>
                           )}
                           
-                          <h3 className="card-title text-lg text-base-content/80">{badge.name}</h3>
-                          <p className="text-sm text-base-content/60 mb-2">
+                          <h3 className="card-title text-lg text-base-content/80 badge-name break-words">{badge.name}</h3>
+                          <p className="text-sm text-base-content/60 mb-2 badge-description">
                             {badge.description}
                           </p>
                           <div className="badge badge-error gap-2">
@@ -1014,7 +1271,7 @@ const Badges = () => {
                   className="input input-bordered"
                   value={formData.levelRequired}
                   onChange={(e) => setFormData({ ...formData, levelRequired: parseInt(e.target.value) })}
-                  min={1}
+                  min={2}
                   required
                 />
               </div>
@@ -1048,39 +1305,45 @@ const Badges = () => {
                   <span className="label-text">Badge Image (Optional)</span>
                 </label>
 
-                {/* NEW: URL / Upload switch */}
+                {/* Toggle: Upload first, then URL */}
                 <div className="inline-flex rounded-full bg-gray-200 p-1 mb-2">
                   <button
                     type="button"
-                    onClick={() => setImageSource('url')}
-                    className={`px-3 py-1 rounded-full text-sm transition ${imageSource === 'url' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
+                    onClick={() => setImageSource('file')}
+                    className={`px-3 py-1 rounded-full text-sm transition ${imageSource === 'file' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
                   >
-                    Use image URL
+                    Upload
                   </button>
                   <button
                     type="button"
-                    onClick={() => setImageSource('file')}
-                    className={`ml-1 px-3 py-1 rounded-full text-sm transition ${imageSource === 'file' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
+                    onClick={() => setImageSource('url')}
+                    className={`ml-1 px-3 py-1 rounded-full text-sm transition ${imageSource === 'url' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
                   >
-                    Upload
+                    Use image URL
                   </button>
                 </div>
 
                 {imageSource === 'file' ? (
-                  <input
-                    type="file"
-                    className="file-input file-input-bordered"
-                    accept="image/*"
-                    onChange={(e) => setFormData({ ...formData, image: e.target.files[0] })}
-                  />
+                  <>
+                    <input
+                      type="file"
+                      className="file-input file-input-bordered"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      onChange={(e) => setFormData({ ...formData, image: e.target.files[0] })}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Allowed: jpg, png, webp, gif. Max: 5 MB.</p>
+                  </>
                 ) : (
-                  <input
-                    type="url"
-                    placeholder="https://example.com/badge.png"
-                    className="input input-bordered"
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
-                  />
+                  <>
+                    <input
+                      type="url"
+                      placeholder="https://example.com/badge.png"
+                      className="input input-bordered"
+                      value={imageUrl}
+                      onChange={(e) => setImageUrl(e.target.value)}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Use a direct image URL (jpg, png, webp, gif). Recommended ≤ 5 MB.</p>
+                  </>
                 )}
               </div>
 
@@ -1103,6 +1366,198 @@ const Badges = () => {
           </div>
         </div>
       )}
+
+      {/* Save Template Modal */}
+      {showTemplateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="card bg-base-100 w-full max-w-md shadow-xl border border-base-300">
+            <div className="card-body space-y-3">
+              <h3 className="text-lg font-bold">Save Badge Template</h3>
+              <input
+                type="text"
+                placeholder="Template name (e.g., 'Fall 2024 Badges')"
+                className="input input-bordered w-full"
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                autoFocus
+              />
+              <div className="text-xs text-base-content/60">
+                This will save {badges.length} badge(s) from this classroom.
+              </div>
+              <div className="card-actions justify-end">
+                <button className="btn btn-ghost" onClick={() => setShowTemplateModal(false)}>Cancel</button>
+                <button
+                  className="btn btn-primary"
+                  disabled={savingTemplate}
+                  onClick={async () => {
+                    try {
+                      setSavingTemplate(true);
+                      await saveBadgeTemplate(templateName.trim(), classroomId);
+                      toast.success('Template saved');
+                      const res = await getBadgeTemplates();
+                      setBadgeTemplates(res.templates || []);
+                      setShowTemplateModal(false);
+                      setTemplateName('');
+                    } catch (e) {
+                      toast.error(e.message || 'Failed to save template');
+                    } finally {
+                      setSavingTemplate(false);
+                    }
+                  }}
+                >
+                  {savingTemplate ? <span className="loading loading-spinner loading-xs" /> : 'Save'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Apply Template Modal */}
+      {showApplyModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="card bg-base-100 w-full max-w-3xl shadow-xl border border-base-300">
+            <div className="card-body space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold">
+                  Apply Badge Template {badgeTemplates?.length ? `(${badgeTemplates.length})` : ''}
+                </h3>
+                <button className="btn btn-ghost btn-sm" onClick={() => setShowApplyModal(false)}>✕</button>
+              </div>
+
+              {/* Collapsible: how templating works */}
+              <div className="collapse collapse-arrow bg-base-200 rounded">
+                <input type="checkbox" />
+                <div className="collapse-title text-sm font-semibold">
+                  How templating works
+                </div>
+                <div className="collapse-content text-sm space-y-1">
+                  <p>• Applying a template will add any missing badges to this classroom.</p>
+                  <p>• Badges with the same name and level are skipped to avoid duplicates.</p>
+                  <p>• You can apply templates even if the classroom already has badges.</p>
+                </div>
+              </div>
+
+              {/* search + sort */}
+              <div className="flex flex-wrap gap-2 mb-2">
+                <input
+                  type="search"
+                  className="input input-bordered flex-1 min-w-[200px]"
+                  placeholder="Search templates..."
+                  value={templateSearch}
+                  onChange={(e) => setTemplateSearch(e.target.value)}
+                />
+                <select
+                  className="select select-bordered w-40"
+                  value={templateSort}
+                  onChange={(e) => setTemplateSort(e.target.value)}
+                >
+                  <option value="createdDesc">Newest</option>
+                  <option value="createdAsc">Oldest</option>
+                  <option value="nameAsc">Name ↑</option>
+                  <option value="nameDesc">Name ↓</option>
+                  <option value="badgesDesc">Badges ↓</option>
+                  <option value="badgesAsc">Badges ↑</option>
+                </select>
+              </div>
+
+              {filteredSortedBadgeTemplates.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-96 overflow-y-auto">
+                  {filteredSortedBadgeTemplates.map((t) => (
+                    <div key={t._id} className="flex items-center justify-between bg-base-200 p-3 rounded">
+                      <div>
+                        <div className="font-medium template-name break-words">{t.name}</div>
+                        <div className="text-xs text-base-content/60">
+                          {(t.sourceClassroom?.name || '')}{t.sourceClassroom?.code ? ` (${t.sourceClassroom.code})` : ''}
+                        </div>
+                        <div className="text-xs text-base-content/60">
+                          {t.badges?.length || 0} badge(s)
+                        </div>
+                        <div className="text-xs text-base-content/50">
+                          Created: {t.createdAt ? new Date(t.createdAt).toLocaleString() : '—'}
+                        </div>
+                      </div>
+                      <div className="flex gap-1">
+                        <button
+                          className="btn btn-xs btn-primary"
+                          onClick={async () => {
+                            try {
+                              const res = await applyBadgeTemplate(t._id, classroomId);
+                              toast.success(res.message || 'Template applied');
+                              await fetchBadges?.();
+                              setShowApplyModal(false);
+                            } catch (e) {
+                              toast.error(e.message || 'Failed to apply template');
+                            }
+                          }}
+                        >Apply</button>
+                        <button
+                          className="btn btn-xs btn-ghost text-error"
+                          onClick={() => setDeleteTemplateModal({ id: t._id, name: t.name })}
+                        >Delete</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-base-content/60 py-8">No templates saved yet</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete template confirm */}
+      {deleteTemplateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="card bg-base-100 w-full max-w-md shadow-xl border border-base-300">
+            <div className="card-body space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold">Delete Template</h3>
+                <button className="btn btn-ghost btn-sm" onClick={() => setDeleteTemplateModal(null)}>✕</button>
+              </div>
+              <p className="text-sm">Delete template “{deleteTemplateModal.name}”?</p>
+              <div className="card-actions justify-end">
+                <button className="btn btn-ghost" onClick={() => setDeleteTemplateModal(null)}>Cancel</button>
+                <button
+                  className="btn btn-error btn-sm"
+                  onClick={async () => {
+                    try {
+                      await deleteBadgeTemplate(deleteTemplateModal.id);
+                      toast.success('Template deleted');
+                      const res = await getBadgeTemplates();
+                      setBadgeTemplates(res.templates || []);
+                      setDeleteTemplateModal(null);
+                    } catch (e) {
+                      toast.error(e.message || 'Failed to delete template');
+                    }
+                  }}
+                >Delete</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ConfirmModal
+        isOpen={!!confirmDeleteBadge}
+        onClose={() => setConfirmDeleteBadge(null)}
+        onConfirm={async () => {
+          try {
+            await axios.delete(`/api/badge/${confirmDeleteBadge.id}`, { withCredentials: true });
+            toast.success('Badge deleted successfully');
+            setConfirmDeleteBadge(null);
+            fetchBadges();
+          } catch (err) {
+            toast.error(err.response?.data?.error || 'Failed to delete badge');
+          }
+        }}
+        title="Delete Badge?"
+        message="Are you sure you want to delete this badge? This cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmButtonClass="btn-error"
+      />
 
       <Footer />
     </div>

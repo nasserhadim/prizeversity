@@ -181,10 +181,10 @@ export default function OrderCard({ order }) {
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold truncate">
+                    <div className="font-semibold truncate wrap-any">
                       {item.name}{g.count > 1 && <span className="ml-1 text-xs badge badge-outline">x{g.count}</span>} {priceLabel}
                     </div>
-                    {main && <div className="text-xs text-base-content/70 whitespace-pre-wrap">{main}</div>}
+                    {main && <div className="text-xs text-base-content/70 whitespace-pre-wrap wrap-any">{main}</div>}
                     {effect && (
                       <div className="text-xs text-base-content/60 mt-1">
                         <strong>Effect:</strong> {effect}

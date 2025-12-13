@@ -221,7 +221,7 @@ const BadgeManager = ({ classroomId }) => {
                   className="input input-bordered"
                   value={formData.levelRequired}
                   onChange={(e) => setFormData({ ...formData, levelRequired: parseInt(e.target.value) })}
-                  min={1}
+                  min={2}
                   required
                 />
               </div>

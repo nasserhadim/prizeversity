@@ -148,3 +148,61 @@ img, svg, picture, video {
 [data-theme='dark'] .ql-toolbar.ql-snow + .ql-container.ql-snow {
   border-top: 1px solid #374151;
 }
+
+/* Wrap long/unbroken siphon reason text */
+.siphon-reason {
+  white-space: pre-wrap;      /* preserve intentional breaks */
+  overflow-wrap: anywhere;    /* break long runs */
+  word-break: break-word;     /* fallback for older browsers */
+  hyphens: auto;              /* optional hyphenation */
+  max-width: 100%;            /* respect container width */
+}
+
+.announcement-content {
+  white-space: pre-wrap;      /* preserve intentional line breaks */
+  overflow-wrap: anywhere;    /* break long runs like nnnnnnn... */
+  word-break: break-word;     /* fallback for older browsers */
+  hyphens: auto;              /* optional hyphenation */
+  max-width: 100%;
+}
+
+/* Ensure long/unbroken badge descriptions wrap */
+.badge-description {
+  white-space: pre-wrap;      /* keep intentional line breaks */
+  overflow-wrap: anywhere;    /* break long runs like nnnnnnn... */
+  word-break: break-word;     /* fallback for older browsers */
+  hyphens: auto;              /* optional hyphenation */
+}
+
+/* Ensure long/unbroken badge names wrap */
+.badge-name {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  hyphens: auto;
+}
+
+/* Wrap long/unbroken template names */
+.template-name {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  hyphens: auto;
+}
+
+/* Ensure long/unbroken notification messages wrap */
+.notification-message {
+  white-space: pre-wrap;     /* preserve intentional line breaks */
+  overflow-wrap: anywhere;   /* break long runs like bbbbb... */
+  word-break: break-word;    /* fallback for older browsers */
+  hyphens: auto;             /* optional hyphenation */
+  max-width: 100%;
+}
+
+/* Utility to wrap long/unbroken strings anywhere */
+.wrap-any {
+  white-space: normal;        /* allow normal wrapping */
+  overflow-wrap: anywhere;    /* break long runs like aaaaaaaaa... */
+  word-break: break-word;     /* fallback for older browsers */
+  hyphens: auto;              /* optional hyphenation */
+}

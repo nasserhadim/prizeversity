@@ -202,9 +202,11 @@ app.use('/api/mystery-box-item', require('./routes/mysteryBoxItem'));
 
 const badgeRoutes = require('./routes/badge');
 const xpRoutes = require('./routes/xp');
+const badgeTemplateRoutes = require('./routes/badgeTemplate');
 
 app.use('/api/badge', badgeRoutes);
 app.use('/api/xp', xpRoutes);
+app.use('/api/badge-templates', badgeTemplateRoutes);
 // Root Route
 app.get('/', (req, res) => {
   res.redirect(redirectBase);

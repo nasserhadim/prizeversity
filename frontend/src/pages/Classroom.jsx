@@ -394,7 +394,7 @@ const Classroom = () => {
               <div key={item._id} className="bg-white p-4 border border-green-200 rounded-lg shadow-sm mx-auto">
                 {/* render formatted HTML */}
                 <div
-                  className="text-gray-700 mb-2"
+                  className="text-gray-700 mb-2 announcement-content"
                   dangerouslySetInnerHTML={{ __html: item.content }}
                 />
 

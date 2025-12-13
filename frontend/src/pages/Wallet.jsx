@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import Footer from '../components/Footer';
 import socket from '../utils/socket';
 import ExportButtons from '../components/ExportButtons';
+import { Info } from 'lucide-react';
 
 const Wallet = () => {
   const { user } = useAuth();
@@ -896,8 +897,16 @@ useEffect(() => {
             <div className="mt-6">
               <div className="mb-4">
                 <p className="font-medium">Base Balance: {balance} ₿</p>
-                {/* Total spent line */}
-                <p className="text-sm text-gray-500">Total spent: ₿{totalSpent.toFixed(2)}</p>
+                {/* Total spent line with info tooltip */}
+                <p className="text-sm text-gray-500 flex items-center gap-2">
+                  Total spent: ₿{totalSpent.toFixed(2)}
+                  <span
+                    className="tooltip tooltip-bottom"
+                    data-tip="Includes bazaar purchases and wallet transfers. Excludes siphons/attacks and teacher/admin debits."
+                  >
+                    <Info className="w-4 h-4 text-base-content/60" />
+                  </span>
+                </p>
               </div>
               <h2 className="text-lg font-semibold">
                 Transaction History <span className="text-sm text-gray-500">({transactionCount})</span>
