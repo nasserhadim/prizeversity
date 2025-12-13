@@ -125,12 +125,16 @@ const Checkout = () => {
         response: err.response?.data,
         status: err.response?.status
       });
-      
+
       // Handle siphon-specific errors
       if (err.response?.data?.siphonActive) {
         toast.error(`Cannot checkout: ${err.response.data.error}`);
       } else {
-        toast.error(err.response?.data?.error || 'Checkout failed');
+        // NEW: show detailed missing/wrong items info, keep cart so user can remove entries
+        const msg = err.response?.data?.details
+          ? `${err.response.data.error}\n${err.response.data.details}`
+          : (err.response?.data?.error || 'Checkout failed');
+        toast.error(msg);
       }
     }
   };

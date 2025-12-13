@@ -698,6 +698,36 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
       }
     }
 
+    // NEW: validate items still exist and belong to this classroom bazaar
+    const ids = items.map(i => String(i._id || i.id)).filter(Boolean);
+    const dbItems = await Item.find({ _id: { $in: ids } })
+      .populate({
+        path: 'bazaar',
+        populate: { path: 'classroom', select: '_id' }
+      })
+      .lean();
+
+    const existingIds = new Set(dbItems.map(di => String(di._id)));
+    const missing = items.filter(i => !existingIds.has(String(i._id || i.id)));
+
+    // Also ensure each found item is in the correct classroom bazaar
+    const wrongClass = dbItems.filter(di =>
+      !di.bazaar || !di.bazaar.classroom || String(di.bazaar.classroom._id) !== String(classroomId)
+    );
+
+    if (missing.length || wrongClass.length) {
+      // Build a friendly error message with names to help the student remove them
+      const missingNames = missing.map(m => m.name || m._id || m.id);
+      const wrongNames = wrongClass.map(w => w.name || w._id);
+      const parts = [];
+      if (missingNames.length) parts.push(`Removed/deleted: ${missingNames.join(', ')}`);
+      if (wrongNames.length) parts.push(`Not available in this classroom: ${wrongNames.join(', ')}`);
+      return res.status(400).json({
+        error: 'Some items in your cart are no longer available. Please remove them and try again.',
+        details: parts.join(' | ')
+      });
+    }
+
     const total = items.reduce((sum, item) => sum + item.price, 0);
     console.log(`Calculated total: ${total}, User per-classroom balance: ${getClassroomBalance(user, classroomId)}`);
 
