@@ -198,3 +198,11 @@ img, svg, picture, video {
   hyphens: auto;             /* optional hyphenation */
   max-width: 100%;
 }
+
+/* Utility to wrap long/unbroken strings anywhere */
+.wrap-any {
+  white-space: normal;        /* allow normal wrapping */
+  overflow-wrap: anywhere;    /* break long runs like aaaaaaaaa... */
+  word-break: break-word;     /* fallback for older browsers */
+  hyphens: auto;              /* optional hyphenation */
+}

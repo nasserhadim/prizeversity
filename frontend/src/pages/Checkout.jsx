@@ -191,7 +191,7 @@ const Checkout = () => {
                               {/* Name + Description */}
                               <div className="flex-1 min-w-0">
                                   <div className="flex items-center justify-between">
-                                      <span className="block font-medium text-base-content truncate">{item.name}</span>
+                                      <span className="block font-medium text-base-content truncate wrap-any">{item.name}</span>
                                       <button
                                           onClick={() => removeFromCart(/* was item._id */ idx, classroomId)}
                                           className="text-error text-sm ml-4"
@@ -204,7 +204,7 @@ const Checkout = () => {
                                     const { main, effect } = splitDescriptionEffect(item.description || '');
                                     return (
                                       <>
-                                        <p className="text-sm text-base-content/70 mt-1 line-clamp-2 whitespace-pre-wrap">
+                                        <p className="text-sm text-base-content/70 mt-1 line-clamp-2 whitespace-pre-wrap wrap-any">
                                           {main || 'No description provided.'}
                                         </p>
 

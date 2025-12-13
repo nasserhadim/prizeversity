@@ -395,12 +395,12 @@ const InventorySection = ({ userId, classroomId }) => {
           </div>
 
           <div className="flex-1 space-y-1">
-            <h4 className="text-lg font-semibold">{item.name}</h4>
+            <h4 className="text-lg font-semibold wrap-any">{item.name}</h4>
             {(() => {
               const { main, effect } = splitDescriptionEffect(item.description || '');
               return (
                 <>
-                  <p className="text-sm text-base-content/70 whitespace-pre-wrap">{main}</p>
+                  <p className="text-sm text-base-content/70 whitespace-pre-wrap wrap-any">{main}</p>
                   {effect && (
                     <div className="text-sm text-base-content/60 mt-1">
                       <strong>Effect:</strong> {effect}
