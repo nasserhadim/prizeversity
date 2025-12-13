@@ -66,7 +66,7 @@ const Badges = () => {
 
   // NEW: badge management filters
   const [badgeSearch, setBadgeSearch] = useState('');
-  const [badgeSort, setBadgeSort] = useState('addedDesc'); // addedDesc|addedAsc|nameAsc|nameDesc
+  const [badgeSort, setBadgeSort] = useState('addedDesc'); // addedDesc|addedAsc|nameAsc|nameDesc|levelAsc|levelDesc
 
   // NEW: deep match helper (name + description + level + icon)
   const deepMatchesBadge = (badge, term) => {
@@ -90,6 +90,8 @@ const Badges = () => {
         case 'addedAsc':  return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
         case 'nameAsc':   return (a.name || '').localeCompare(b.name || '');
         case 'nameDesc':  return (b.name || '').localeCompare(a.name || '');
+        case 'levelAsc':  return (a.levelRequired || 0) - (b.levelRequired || 0);
+        case 'levelDesc': return (b.levelRequired || 0) - (a.levelRequired || 0);
         default: return 0;
       }
     });
@@ -516,6 +518,50 @@ const Badges = () => {
     return list;
   }, [badgeTemplates, templateSearch, templateSort]);
 
+  // NEW: student collection search/sort
+  const [collectionSearch, setCollectionSearch] = useState('');
+  const [collectionSort, setCollectionSort] = useState('levelAsc'); // levelAsc|levelDesc|nameAsc|nameDesc|addedDesc|addedAsc
+
+  // Helper: deep match by name/description/level/icon
+  const deepMatchBadge = (b, q) => {
+    const term = (q || '').trim().toLowerCase();
+    if (!term) return true;
+    return [
+      b.name || '',
+      b.description || '',
+      String(b.levelRequired || ''),
+      b.icon || ''
+    ].join(' ').toLowerCase().includes(term);
+  };
+
+  // Helper: sort badges
+  const sortBadges = (list, sort) => {
+    const arr = list.slice();
+    arr.sort((a, b) => {
+      switch (sort) {
+        case 'levelAsc':  return (a.levelRequired || 0) - (b.levelRequired || 0);
+        case 'levelDesc': return (b.levelRequired || 0) - (a.levelRequired || 0);
+        case 'nameAsc':   return (a.name || '').localeCompare(b.name || '');
+        case 'nameDesc':  return (b.name || '').localeCompare(a.name || '');
+        case 'addedDesc': return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+        case 'addedAsc':  return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+        default: return 0;
+      }
+    });
+    return arr;
+  };
+
+  // Derive filtered+sorted lists for student view
+  const earnedFilteredSorted = useMemo(() => {
+    const base = (badges || []).filter(b => earnedBadgeIds.includes(String(b._id)));
+    return sortBadges(base.filter(b => deepMatchBadge(b, collectionSearch)), collectionSort);
+  }, [badges, earnedBadgeIds, collectionSearch, collectionSort]);
+
+  const lockedFilteredSorted = useMemo(() => {
+    const base = (badges || []).filter(b => !earnedBadgeIds.includes(String(b._id)));
+    return sortBadges(base.filter(b => deepMatchBadge(b, collectionSearch)), collectionSort);
+  }, [badges, earnedBadgeIds, collectionSearch, collectionSort]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -602,6 +648,8 @@ const Badges = () => {
                       >
                         <option value="nameAsc">Name ↑</option>
                         <option value="nameDesc">Name ↓</option>
+                        <option value="levelAsc">Level ↑</option>
+                        <option value="levelDesc">Level ↓</option>
                         <option value="addedDesc">Added: Newest</option>
                         <option value="addedAsc">Added: Oldest</option>
                       </select>
@@ -1009,6 +1057,29 @@ const Badges = () => {
               </div>
             </div>
 
+            {/* INSERT controls below stats for student view */}
+            <div className="flex flex-wrap items-center gap-2 my-4">
+              <input
+                type="search"
+                placeholder="Deep search badges..."
+                className="input input-bordered flex-1 min-w-[220px]"
+                value={collectionSearch}
+                onChange={(e) => setCollectionSearch(e.target.value)}
+              />
+              <select
+                className="select select-bordered w-40"
+                value={collectionSort}
+                onChange={(e) => setCollectionSort(e.target.value)}
+              >
+                <option value="levelAsc">Level ↑</option>
+                <option value="levelDesc">Level ↓</option>
+                <option value="nameAsc">Name ↑</option>
+                <option value="nameDesc">Name ↓</option>
+                <option value="addedDesc">Added: Newest</option>
+                <option value="addedAsc">Added: Oldest</option>
+              </select>
+            </div>
+
             {/* Earned Badges */}
             {earnedBadges.length > 0 && (
               <div>
@@ -1017,7 +1088,7 @@ const Badges = () => {
                   Earned Badges ({earnedBadges.length})
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {earnedBadges.map((badge) => {
+                  {earnedFilteredSorted.map((badge) => {
                     // Use myXP for collection view; fall back to table data if available
                     const earnedInfo =
                       (myXP?.earnedBadges || []).find(
@@ -1080,7 +1151,7 @@ const Badges = () => {
                   Locked Badges ({lockedBadges.length})
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {lockedBadges.map((badge) => {
+                  {lockedFilteredSorted.map((badge) => {
                     // Use the fetched XP (works for students and teacher viewing a student)
                     const currentLevel = myXP?.level || 1; // ← remove undefined "current"
                     const levelsNeeded = Math.max(0, badge.levelRequired - currentLevel);
