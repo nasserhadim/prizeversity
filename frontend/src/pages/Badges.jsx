@@ -630,7 +630,7 @@ const Badges = () => {
               <div className="card-body">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                   <h2 className="card-title text-2xl">
-                    All Badges ({badges.length})
+                    All Badges ({sortedFilteredBadges.length}/{badges.length})
                   </h2>
                   {isManagement && (
                     <div className="flex flex-wrap gap-2">
@@ -1085,7 +1085,7 @@ const Badges = () => {
               <div>
                 <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
                   <Award className="w-6 h-6 text-yellow-500" />
-                  Earned Badges ({earnedBadges.length})
+                  Earned Badges ({earnedFilteredSorted.length}/{earnedBadges.length})
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {earnedFilteredSorted.map((badge) => {
@@ -1148,7 +1148,7 @@ const Badges = () => {
               <div>
                 <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
                   <Lock className="w-6 h-6 text-gray-500" />
-                  Locked Badges ({lockedBadges.length})
+                  Locked Badges ({lockedFilteredSorted.length}/{lockedBadges.length})
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {lockedFilteredSorted.map((badge) => {
