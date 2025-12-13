@@ -10,6 +10,7 @@ import socket from '../utils/socket'; // Add this import
 import { useLocation, useNavigate, useParams, Link } from 'react-router-dom';
 import EmojiPicker from '../components/EmojiPicker'; // Import the new EmojiPicker component
 import { getBadgeTemplates, saveBadgeTemplate, deleteBadgeTemplate, applyBadgeTemplate } from '../API/apiBadgeTemplate';
+import ConfirmModal from '../components/ConfirmModal';
 
 const Badges = () => {
   const location = useLocation();
@@ -62,6 +63,58 @@ const Badges = () => {
   // NEW: search/sort state
   const [templateSearch, setTemplateSearch] = useState('');
   const [templateSort, setTemplateSort] = useState('createdDesc'); // createdDesc|createdAsc|nameAsc|nameDesc|badgesDesc|badgesAsc
+
+  // NEW: badge management filters
+  const [badgeSearch, setBadgeSearch] = useState('');
+  const [badgeSort, setBadgeSort] = useState('addedDesc'); // addedDesc|addedAsc|nameAsc|nameDesc
+
+  // NEW: deep match helper (name + description + level + icon)
+  const deepMatchesBadge = (badge, term) => {
+    const q = (term || '').trim().toLowerCase();
+    if (!q) return true;
+    const parts = [
+      badge.name || '',
+      badge.description || '',
+      String(badge.levelRequired || ''),
+      badge.icon || ''
+    ].join(' ').toLowerCase();
+    return parts.includes(q);
+  };
+
+  // NEW: sorted + filtered badges for management grid
+  const sortedFilteredBadges = useMemo(() => {
+    const list = (badges || []).filter(b => deepMatchesBadge(b, badgeSearch));
+    list.sort((a, b) => {
+      switch (badgeSort) {
+        case 'addedDesc': return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+        case 'addedAsc':  return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+        case 'nameAsc':   return (a.name || '').localeCompare(b.name || '');
+        case 'nameDesc':  return (b.name || '').localeCompare(a.name || '');
+        default: return 0;
+      }
+    });
+    return list;
+  }, [badges, badgeSearch, badgeSort]);
+
+  // NEW: bulk delete (teacher)
+  const [confirmDeleteAllBadges, setConfirmDeleteAllBadges] = useState(false);
+  const [bulkDeletingBadges, setBulkDeletingBadges] = useState(false);
+
+  const handleBulkDeleteBadges = async () => {
+    setBulkDeletingBadges(true);
+    try {
+      const toDelete = sortedFilteredBadges.map(b => b._id);
+      await Promise.all(toDelete.map(id => axios.delete(`/api/badge/${id}`, { withCredentials: true })));
+      toast.success(`Deleted ${toDelete.length} badge(s)`);
+      // Refresh
+      fetchBadges();
+      setConfirmDeleteAllBadges(false);
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Bulk delete failed');
+    } finally {
+      setBulkDeletingBadges(false);
+    }
+  };
 
   useEffect(() => {
     if (!classroomId || !user) return;
@@ -198,16 +251,10 @@ const Badges = () => {
     }
   };
 
+  const [confirmDeleteBadge, setConfirmDeleteBadge] = useState(null);
+
   const handleDelete = async (badgeId) => {
-    if (!confirm('Are you sure you want to delete this badge?')) return;
-    
-    try {
-      await axios.delete(`/api/badge/${badgeId}`, { withCredentials: true });
-      toast.success('Badge deleted successfully');
-      fetchBadges();
-    } catch (err) {
-      toast.error('Failed to delete badge');
-    }
+    setConfirmDeleteBadge({ id: badgeId });
   };
 
   const resetForm = () => {
@@ -535,10 +582,42 @@ const Badges = () => {
             {/* Badge List */}
             <div className="card bg-base-100 shadow-lg">
               <div className="card-body">
-                <h2 className="card-title text-2xl mb-4">
-                  All Badges ({badges.length})
-                </h2>
-                
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                  <h2 className="card-title text-2xl">
+                    All Badges ({badges.length})
+                  </h2>
+                  {isManagement && (
+                    <div className="flex flex-wrap gap-2">
+                      <input
+                        type="search"
+                        placeholder="Deep search badges..."
+                        className="input input-bordered w-full sm:w-56"
+                        value={badgeSearch}
+                        onChange={(e) => setBadgeSearch(e.target.value)}
+                      />
+                      <select
+                        className="select select-bordered w-40"
+                        value={badgeSort}
+                        onChange={(e) => setBadgeSort(e.target.value)}
+                      >
+                        <option value="nameAsc">Name ↑</option>
+                        <option value="nameDesc">Name ↓</option>
+                        <option value="addedDesc">Added: Newest</option>
+                        <option value="addedAsc">Added: Oldest</option>
+                      </select>
+                      {sortedFilteredBadges.length > 0 && (
+                        <button
+                          className="btn btn-outline btn-error gap-2"
+                          onClick={() => setConfirmDeleteAllBadges(true)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Delete {sortedFilteredBadges.length === badges.length ? 'All' : 'Filtered'}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {badges.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">
                     <Award className="w-16 h-16 mx-auto mb-4 opacity-50" />
@@ -546,7 +625,7 @@ const Badges = () => {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {badges.map((badge) => (
+                   {sortedFilteredBadges.map((badge) => (
                       <div 
                         key={badge._id}
                         className="card bg-base-200 border-2 border-primary/20 shadow-md hover:shadow-lg transition-all"
@@ -571,26 +650,29 @@ const Badges = () => {
                               </button>
                             </div>
                           </div>
-                          <h3 className="card-title text-lg">{badge.name}</h3>
-                          <p className="text-sm text-base-content/70 mb-2">
-                            {badge.description}
-                          </p>
-                          <div className="badge badge-primary gap-2">
-                            <Lock className="w-3 h-3" />
-                            Level {badge.levelRequired} Required
-                          </div>
+
+                          {/* Optional image (shown under icon) */}
                           {badge.image && (
-                            <img 
+                            <img
                               src={resolveBadgeSrc(badge.image)}
                               alt={badge.name}
-                              className="w-full max-h-56 object-contain"
+                              className="w-full max-h-40 object-contain mb-2"
                               onError={(e) => {
                                 e.currentTarget.onerror = null;
-                                // Fallback to showing just the icon if image fails
+                                // Hide broken image, keep the emoji icon
                                 e.currentTarget.style.display = 'none';
                               }}
                             />
                           )}
+
+                          <h3 className="card-title text-lg badge-name break-words">{badge.name}</h3>
+                          <p className="text-sm text-base-content/70 mb-2 badge-description">
+                            {badge.description}
+                          </p>
+                          <div className="badge badge-primary gap-2">
+                            <Lock className="w-3 h-3" />
+                            Level {badge.levelRequired}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -598,6 +680,45 @@ const Badges = () => {
                 )}
               </div>
             </div>
+
+            {/* Confirm bulk delete badges */}
+            {confirmDeleteAllBadges && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="card bg-base-100 w-full max-w-md shadow-xl border border-base-300">
+                  <div className="card-body space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-bold text-error">Confirm Delete</h3>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => !bulkDeletingBadges && setConfirmDeleteAllBadges(false)}
+                      >✕</button>
+                    </div>
+                    <p className="text-sm">
+                      Delete <strong>{sortedFilteredBadges.length}</strong> badge(s)?
+                      {sortedFilteredBadges.length < badges.length && (
+                        <span className="block mt-2 text-warning">
+                          This will delete only the currently filtered badges, not all badges.
+                        </span>
+                      )}
+                    </p>
+                    <div className="card-actions justify-end gap-2">
+                      <button
+                        className="btn btn-sm"
+                        disabled={bulkDeletingBadges}
+                        onClick={() => setConfirmDeleteAllBadges(false)}
+                      >Cancel</button>
+                      <button
+                        className="btn btn-sm btn-error"
+                        disabled={bulkDeletingBadges}
+                        onClick={handleBulkDeleteBadges}
+                      >
+                        {bulkDeletingBadges ? <span className="loading loading-spinner loading-xs" /> : 'Delete'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Student Progress Dashboard */}
             <div className="card bg-base-100 shadow-lg">
@@ -928,8 +1049,8 @@ const Badges = () => {
                             />
                           )}
                           
-                          <h3 className="card-title text-lg">{badge.name}</h3>
-                          <p className="text-sm text-base-content/80 mb-2">
+                          <h3 className="card-title text-lg badge-name">{badge.name}</h3>
+                          <p className="text-sm text-base-content/80 mb-2 badge-description">
                             {badge.description}
                           </p>
                           <div className="badge badge-success gap-2">
@@ -990,8 +1111,8 @@ const Badges = () => {
                             </div>
                           )}
                           
-                          <h3 className="card-title text-lg text-base-content/80">{badge.name}</h3>
-                          <p className="text-sm text-base-content/60 mb-2">
+                          <h3 className="card-title text-lg text-base-content/80 badge-name break-words">{badge.name}</h3>
+                          <p className="text-sm text-base-content/60 mb-2 badge-description">
                             {badge.description}
                           </p>
                           <div className="badge badge-error gap-2">
@@ -1274,7 +1395,7 @@ const Badges = () => {
                   {filteredSortedBadgeTemplates.map((t) => (
                     <div key={t._id} className="flex items-center justify-between bg-base-200 p-3 rounded">
                       <div>
-                        <div className="font-medium">{t.name}</div>
+                        <div className="font-medium template-name break-words">{t.name}</div>
                         <div className="text-xs text-base-content/60">
                           {(t.sourceClassroom?.name || '')}{t.sourceClassroom?.code ? ` (${t.sourceClassroom.code})` : ''}
                         </div>
@@ -1346,6 +1467,26 @@ const Badges = () => {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={!!confirmDeleteBadge}
+        onClose={() => setConfirmDeleteBadge(null)}
+        onConfirm={async () => {
+          try {
+            await axios.delete(`/api/badge/${confirmDeleteBadge.id}`, { withCredentials: true });
+            toast.success('Badge deleted successfully');
+            setConfirmDeleteBadge(null);
+            fetchBadges();
+          } catch (err) {
+            toast.error(err.response?.data?.error || 'Failed to delete badge');
+          }
+        }}
+        title="Delete Badge?"
+        message="Are you sure you want to delete this badge? This cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmButtonClass="btn-error"
+      />
 
       <Footer />
     </div>

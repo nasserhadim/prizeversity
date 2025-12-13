@@ -165,3 +165,27 @@ img, svg, picture, video {
   hyphens: auto;              /* optional hyphenation */
   max-width: 100%;
 }
+
+/* Ensure long/unbroken badge descriptions wrap */
+.badge-description {
+  white-space: pre-wrap;      /* keep intentional line breaks */
+  overflow-wrap: anywhere;    /* break long runs like nnnnnnn... */
+  word-break: break-word;     /* fallback for older browsers */
+  hyphens: auto;              /* optional hyphenation */
+}
+
+/* Ensure long/unbroken badge names wrap */
+.badge-name {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  hyphens: auto;
+}
+
+/* Wrap long/unbroken template names */
+.template-name {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  hyphens: auto;
+}
