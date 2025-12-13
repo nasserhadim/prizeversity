@@ -204,8 +204,8 @@ export default function TeacherNewsfeed() {
                             </small>
                             {/* Render formatted content */}
                             <div
-                                className="mb-2 text-gray-800"
-                                dangerouslySetInnerHTML={{ __html: i.content }}
+                              className="mb-2 text-gray-800 announcement-content"
+                              dangerouslySetInnerHTML={{ __html: i.content }}
                             />
 
                             {/* List attachments, if present */}

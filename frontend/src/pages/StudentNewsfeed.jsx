@@ -64,9 +64,9 @@ export default function StudentNewsfeed() {
                                 </small>
                                 {/* Render formatted content */}
                                 <div
-                                    className="mb-2 text-gray-800 text-xl"
-                                    dangerouslySetInnerHTML={{ __html: i.content }}
-                                />
+  className="mb-2 text-gray-800 text-xl announcement-content"
+  dangerouslySetInnerHTML={{ __html: i.content }}
+/>
 
                                 {/* List attachments, if present */}
                                 {i.attachments && i.attachments.length > 0 && (

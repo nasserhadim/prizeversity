@@ -157,3 +157,11 @@ img, svg, picture, video {
   hyphens: auto;              /* optional hyphenation */
   max-width: 100%;            /* respect container width */
 }
+
+.announcement-content {
+  white-space: pre-wrap;      /* preserve intentional line breaks */
+  overflow-wrap: anywhere;    /* break long runs like nnnnnnn... */
+  word-break: break-word;     /* fallback for older browsers */
+  hyphens: auto;              /* optional hyphenation */
+  max-width: 100%;
+}
