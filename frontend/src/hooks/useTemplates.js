@@ -21,14 +21,19 @@ export const useTemplates = () => {
     }
   };
 
-  const handleSaveTemplate = async (challengeConfig) => {
+  const handleSaveTemplate = async (challengeConfig, classroomId) => {
     if (!templateName.trim()) {
       toast.error('Please enter a template name');
+      return;
+    }
+    if (!classroomId) {
+      toast.error('Missing classroom id');
       return;
     }
 
     try {
       setSavingTemplate(true);
+
       const settings = {
         rewardMode: challengeConfig.rewardMode,
         multiplierMode: challengeConfig.multiplierMode,
@@ -61,7 +66,7 @@ export const useTemplates = () => {
         difficulty: 'medium'
       };
 
-      await saveChallengeTemplate(templateName.trim(), challengeConfig.title, settings);
+      await saveChallengeTemplate(templateName.trim(), challengeConfig.title, settings, classroomId); // NEW
       toast.success('Template saved successfully!');
       setShowSaveTemplateModal(false);
       setTemplateName('');
