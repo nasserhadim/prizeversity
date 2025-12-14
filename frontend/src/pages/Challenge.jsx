@@ -244,7 +244,7 @@ const Challenge = () => {
                   </button>
                   <button
                     className="btn btn-primary"
-                    onClick={() => handleSaveTemplate(challengeConfig)}
+                    onClick={() => handleSaveTemplate(challengeConfig, classroomId)} // NEW
                     disabled={savingTemplate || !templateName.trim()}
                   >
                     {savingTemplate ? (

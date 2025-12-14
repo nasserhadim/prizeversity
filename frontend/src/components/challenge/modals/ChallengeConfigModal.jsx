@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react'; // NEW: useMemo
 import { Settings, Zap } from 'lucide-react';
 import { CHALLENGE_NAMES } from '../../../constants/challengeConstants';
 import { DEFAULT_CHALLENGE_CONFIG } from '../../../constants/challengeConstants';
@@ -33,6 +33,10 @@ const ChallengeConfigModal = ({
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   
+  // NEW: template search/sort state (like Bazaar/Badges)
+  const [templateSearch, setTemplateSearch] = useState('');
+  const [templateSort, setTemplateSort] = useState('createdDesc'); // createdDesc|createdAsc|nameAsc|nameDesc
+
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
@@ -154,6 +158,39 @@ const ChallengeConfigModal = ({
     setShowResetConfirm(false);
   };
 
+  const filteredSortedTemplates = useMemo(() => {
+    const q = (templateSearch || '').trim().toLowerCase();
+
+    const deepMatch = (t) => {
+      if (!q) return true;
+      const parts = [
+        t.name || '',
+        t.title || '',
+        t.sourceClassroom?.name || '',
+        t.sourceClassroom?.code || '',
+        t.createdAt ? new Date(t.createdAt).toLocaleString() : ''
+      ].join(' ').toLowerCase();
+      return parts.includes(q);
+    };
+
+    const list = (templates || []).filter(deepMatch);
+    list.sort((a, b) => {
+      const ac = new Date(a.createdAt || 0).getTime();
+      const bc = new Date(b.createdAt || 0).getTime();
+      const an = (a.name || '');
+      const bn = (b.name || '');
+      switch (templateSort) {
+        case 'createdDesc': return bc - ac;
+        case 'createdAsc':  return ac - bc;
+        case 'nameAsc':     return an.localeCompare(bn);
+        case 'nameDesc':    return bn.localeCompare(an);
+        default: return 0;
+      }
+    });
+
+    return list;
+  }, [templates, templateSearch, templateSort]);
+
   if (!showConfigModal) return null;
 
   if (showPasswordPrompt) {
@@ -235,7 +272,9 @@ const ChallengeConfigModal = ({
  
           <div className="bg-base-200 rounded-lg p-4 mb-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold">Templates</h3>
+              <h3 className="text-lg font-semibold">
+                Templates {templates?.length ? `(${templates.length})` : ''}
+              </h3>
               <div className="flex gap-2">
                 <button
                   className="btn btn-sm btn-primary"
@@ -246,17 +285,48 @@ const ChallengeConfigModal = ({
               </div>
             </div>
             
-            {templates.length > 0 ? (
+            {/* NEW: search + sort controls */}
+            <div className="flex flex-wrap gap-2 mb-3">
+              <input
+                type="search"
+                className="input input-bordered flex-1 min-w-[220px]"
+                placeholder="Search templates..."
+                value={templateSearch}
+                onChange={(e) => setTemplateSearch(e.target.value)}
+              />
+              <select
+                className="select select-bordered w-44"
+                value={templateSort}
+                onChange={(e) => setTemplateSort(e.target.value)}
+                title="Sort templates"
+              >
+                <option value="createdDesc">Newest</option>
+                <option value="createdAsc">Oldest</option>
+                <option value="nameAsc">Name ↑</option>
+                <option value="nameDesc">Name ↓</option>
+              </select>
+            </div>
+
+            {filteredSortedTemplates.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {templates.map((template) => (
+                {filteredSortedTemplates.map((template) => (
                   <div key={template._id} className="flex items-center justify-between bg-base-100 p-3 rounded">
-                    <div>
-                      <div className="font-medium">{template.name}</div>
-                      <div className="text-xs text-gray-500">
-                        {new Date(template.createdAt).toLocaleDateString()}
+                    <div className="min-w-0">
+                      <div className="font-medium break-words">{template.name}</div>
+
+                      {/* NEW: source classroom */}
+                      <div className="text-xs text-base-content/60 break-words">
+                        From: {(template.sourceClassroom?.name || 'Unknown classroom')}
+                        {template.sourceClassroom?.code ? ` (${template.sourceClassroom.code})` : ''}
+                      </div>
+
+                      {/* created date */}
+                      <div className="text-xs text-base-content/60">
+                        {template.createdAt ? new Date(template.createdAt).toLocaleString() : '—'}
                       </div>
                     </div>
-                    <div className="flex gap-1">
+
+                    <div className="flex gap-1 flex-shrink-0">
                       <button
                         className="btn btn-xs btn-ghost"
                         onClick={() => handleLoadTemplate(template, setChallengeConfig)}
@@ -276,10 +346,13 @@ const ChallengeConfigModal = ({
                 ))}
               </div>
             ) : (
-              <div className="text-center text-gray-500 py-3">
-                No saved templates. Configure your settings below and save them as a template.
+              <div className="text-sm text-base-content/70">
+                {(templates?.length || 0) === 0
+                  ? 'No templates saved yet.'
+                  : 'No templates match your search.'}
               </div>
-            )}
+            )
+            }
           </div>
           
           <div className="space-y-6">

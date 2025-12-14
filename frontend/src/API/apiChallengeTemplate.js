@@ -12,14 +12,14 @@ export const getChallengeTemplates = async () => {
   return response.json();
 };
 
-export const saveChallengeTemplate = async (name, title, settings) => {
+export const saveChallengeTemplate = async (name, title, settings, classroomId) => {
   const response = await fetch(`${API_BASE}/api/challenge-templates`, {
     method: 'POST',
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ name, title, settings })
+    body: JSON.stringify({ name, title, settings, classroomId })
   });
   
   if (!response.ok) {

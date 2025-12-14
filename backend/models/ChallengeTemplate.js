@@ -12,6 +12,14 @@ const ChallengeTemplateSchema = new mongoose.Schema({
     ref: 'User', 
     required: true 
   },
+
+  // NEW: Store classroom info for reference (like Bazaar/Badges templates)
+  sourceClassroom: {
+    classroomId: { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom' },
+    name: { type: String },
+    code: { type: String }
+  },
+
   settings: {
     type: mongoose.Schema.Types.Mixed,
     required: true,

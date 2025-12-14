@@ -12,7 +12,7 @@ const BadgeManager = ({ classroomId }) => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    levelRequired: 1,
+    levelRequired: 2,
     icon: '🏅',
     image: null
   });
@@ -103,7 +103,7 @@ const BadgeManager = ({ classroomId }) => {
     setFormData({
       name: '',
       description: '',
-      levelRequired: 1,
+      levelRequired: 2,
       icon: '🏅',
       image: null
     });

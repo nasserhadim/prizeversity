@@ -37,6 +37,7 @@ router.post('/', ensureAuthenticated, ensureTeacher, async (req, res) => {
     if (existing) return res.status(400).json({ message: 'A template with this name already exists' });
 
     const badges = await Badge.find({ classroom: classroomId }).populate('unlockedBazaarItems', '_id');
+
     const tpl = new BadgeTemplate({
       name: name.trim(),
       teacherId: req.user._id,
@@ -44,7 +45,10 @@ router.post('/', ensureAuthenticated, ensureTeacher, async (req, res) => {
       badges: badges.map(b => ({
         name: b.name,
         description: b.description,
-        levelRequired: b.levelRequired,
+
+        // FIX: normalize legacy badges (some old docs may have levelRequired=1)
+        levelRequired: Math.max(2, Number(b.levelRequired) || 2),
+
         icon: b.icon,
         image: b.image,
         unlockedBazaarItems: (b.unlockedBazaarItems || []).map(i => i._id)
@@ -119,10 +123,42 @@ router.post('/:templateId/apply', ensureAuthenticated, ensureTeacher, async (req
       }
     }
 
+    // NEW: summary + richer message (like bazaar template apply)
+    const skippedByReason = skipped.reduce((acc, s) => {
+      const r = s?.reason || 'unknown';
+      acc[r] = (acc[r] || 0) + 1;
+      return acc;
+    }, {});
+
+    const topSkippedNames = skipped
+      .map(s => s?.name)
+      .filter(Boolean)
+      .slice(0, 5);
+
+    const summary = {
+      createdTotal: created.length,
+      skippedTotal: skipped.length,
+      skippedByReason,
+      topSkippedNames
+    };
+
+    const reasonText = Object.entries(skippedByReason)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join(', ');
+
+    const examplesText =
+      topSkippedNames.length
+        ? ` Examples: ${topSkippedNames.join(', ')}${skipped.length > topSkippedNames.length ? ', …' : ''}`
+        : '';
+
     return res.json({
-      message: `Applied template. Created ${created.length} badge(s), skipped ${skipped.length}.`,
+      message:
+        `Applied template. Created ${summary.createdTotal} badge(s), skipped ${summary.skippedTotal}.` +
+        (summary.skippedTotal ? ` (${reasonText}).` : '') +
+        (summary.skippedTotal ? examplesText : ''),
       badges: created,
-      skipped
+      skipped,
+      summary
     });
   } catch (e) {
     console.error('Apply badge template failed:', e);

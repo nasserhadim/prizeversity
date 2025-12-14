@@ -40,7 +40,9 @@ router.post('/', ensureAuthenticated, ensureTeacher, async (req, res) => {
 
     // Fetch the bazaar with populated items
     const Bazaar = require('../models/Bazaar');
-    const bazaar = await Bazaar.findById(bazaarId).populate('items');
+    const bazaar = await Bazaar.findById(bazaarId)
+      .populate('items')
+      .populate('items.mysteryBoxConfig.itemPool.item'); // NEW: needed to capture pool item names
     
     if (!bazaar) {
       return res.status(404).json({ message: 'Bazaar not found' });
@@ -70,7 +72,28 @@ router.post('/', ensureAuthenticated, ensureTeacher, async (req, res) => {
       primaryEffect: item.primaryEffect,
       primaryEffectValue: item.primaryEffectValue,
       secondaryEffects: item.secondaryEffects || [],
-      swapOptions: item.swapOptions || []
+      swapOptions: item.swapOptions || [],
+
+      // NEW: MysteryBox support
+      mysteryBoxConfig: item.category === 'MysteryBox' && item.mysteryBoxConfig
+        ? {
+            luckMultiplier: item.mysteryBoxConfig.luckMultiplier,
+            pityEnabled: item.mysteryBoxConfig.pityEnabled,
+            guaranteedItemAfter: item.mysteryBoxConfig.guaranteedItemAfter,
+            pityMinimumRarity: item.mysteryBoxConfig.pityMinimumRarity,
+            maxOpensPerStudent: item.mysteryBoxConfig.maxOpensPerStudent ?? null,
+            itemPool: (item.mysteryBoxConfig.itemPool || [])
+              .map(p => ({
+                itemName:
+                  (p?.itemName) ||
+                  (p?.item && typeof p.item === 'object' ? p.item.name : '') ||
+                  '',
+                rarity: p.rarity || 'common',
+                baseDropChance: Number(p.baseDropChance || 0)
+              }))
+              .filter(p => p.itemName) // drop broken entries
+          }
+        : undefined
     }));
 
     // NEW: Store classroom info
@@ -193,55 +216,222 @@ router.post('/:templateId/apply', ensureAuthenticated, ensureTeacher, async (req
     const { classroomId } = req.body;
     const teacherId = req.user._id;
 
+    const mode = String(req.query.mode || req.body.mode || 'replace').toLowerCase(); // 'replace' | 'merge'
+
+    // ADD: shared helper (used by both merge + create branches)
+    const summarizeApply = (created = [], skipped = []) => {
+      const createdMystery = created.filter(i => i?.category === 'MysteryBox').length;
+      const createdRegular = created.length - createdMystery;
+
+      const skippedByReason = skipped.reduce((acc, s) => {
+        const r = s?.reason || 'unknown';
+        acc[r] = (acc[r] || 0) + 1;
+        return acc;
+      }, {});
+
+      const topSkippedNames = skipped
+        .map(s => s?.name)
+        .filter(Boolean)
+        .slice(0, 5);
+
+      return {
+        createdTotal: created.length,
+        createdRegular,
+        createdMystery,
+        skippedTotal: skipped.length,
+        skippedByReason,
+        topSkippedNames
+      };
+    };
+
     if (!classroomId) {
       return res.status(400).json({ message: 'Classroom ID is required' });
     }
 
-    const template = await BazaarTemplate.findOne({ 
-      _id: templateId, 
-      teacherId 
-    });
+    const template = await BazaarTemplate.findOne({ _id: templateId, teacherId });
+    if (!template) return res.status(404).json({ message: 'Template not found' });
 
-    if (!template) {
-      return res.status(404).json({ message: 'Template not found' });
-    }
-
-    // Verify teacher owns the classroom
     const Classroom = require('../models/Classroom');
-    const classroom = await Classroom.findOne({ 
-      _id: classroomId, 
-      teacher: teacherId 
-    });
+    const classroom = await Classroom.findOne({ _id: classroomId, teacher: teacherId });
+    if (!classroom) return res.status(404).json({ message: 'Classroom not found or unauthorized' });
 
-    if (!classroom) {
-      return res.status(404).json({ message: 'Classroom not found or unauthorized' });
-    }
-
-    // Check if bazaar already exists
     const Bazaar = require('../models/Bazaar');
-    const existingBazaar = await Bazaar.findOne({ classroom: classroomId });
-    
+    const Item = require('../models/Item');
+
+    const normalizeName = (s) => String(s || '').trim().toLowerCase();
+
+    const resolvePool = (byName, itemData) => {
+      const pool = itemData?.mysteryBoxConfig?.itemPool || [];
+      const resolved = [];
+      const missing = [];
+
+      for (const p of pool) {
+        // Back-compat: accept multiple shapes
+        const poolItemName =
+          p?.itemName ||
+          p?.name ||
+          p?.item?.name || // legacy: { item: { name } }
+          p?.item?.title || // (just in case)
+          '';
+
+        const key = normalizeName(poolItemName);
+        const found = key ? byName.get(key) : null;
+
+        if (!found) {
+          // If we *only* have an id (legacy templates), surface that clearly
+          const legacyId = p?.item || p?.itemId || p?.id;
+          missing.push(
+            poolItemName
+              ? poolItemName
+              : legacyId
+                ? `(legacy pool ref missing itemName: ${legacyId})`
+                : '(missing name)'
+          );
+          continue;
+        }
+        if (found.category === 'MysteryBox') {
+          missing.push(`${found.name} (is MysteryBox)`);
+          continue;
+        }
+
+        resolved.push({
+          item: found._id,
+          rarity: p?.rarity || 'common',
+          baseDropChance: Number(p?.baseDropChance || 0)
+        });
+      }
+
+      return { resolved, missing };
+    };
+
+    const existingBazaar = await Bazaar.findOne({ classroom: classroomId }).populate('items');
+
+    // If bazaar exists: either block (replace mode) OR merge items
     if (existingBazaar) {
-      return res.status(400).json({ 
-        message: 'Bazaar already exists for this classroom. Delete it first to apply template.' 
+      if (mode !== 'merge') {
+        return res.status(400).json({
+          message: 'Bazaar already exists for this classroom. Delete it first to apply template.'
+        });
+      }
+
+      const byName = new Map(
+        (existingBazaar.items || [])
+          .filter(i => i?.name)
+          .map(i => [normalizeName(i.name), i])
+      );
+
+      const created = [];
+      const skipped = [];
+      const pendingMystery = [];
+
+      // Pass 1: create non-mystery items
+      for (const itemData of template.items || []) {
+        const nameKey = normalizeName(itemData?.name);
+        if (!nameKey || byName.has(nameKey)) {
+          skipped.push({ name: itemData?.name, reason: !nameKey ? 'missing-name' : 'name-conflict' });
+          continue;
+        }
+
+        if (itemData?.category === 'MysteryBox') {
+          pendingMystery.push(itemData);
+          continue;
+        }
+
+        const doc = new Item({
+          name: itemData.name,
+          description: itemData.description,
+          price: itemData.price,
+          image: itemData.image,
+          category: itemData.category,
+          primaryEffect: itemData.primaryEffect,
+          primaryEffectValue: itemData.primaryEffectValue,
+          secondaryEffects: itemData.secondaryEffects || [],
+          swapOptions: itemData.swapOptions || [],
+          bazaar: existingBazaar._id
+        });
+
+        await doc.save();
+        created.push(doc);
+        byName.set(nameKey, doc);
+      }
+
+      // Pass 2: create mystery boxes (resolve pool by itemName)
+      for (const itemData of pendingMystery) {
+        const nameKey = normalizeName(itemData?.name);
+        if (!nameKey || byName.has(nameKey)) {
+          skipped.push({ name: itemData?.name, reason: !nameKey ? 'missing-name' : 'name-conflict' });
+          continue;
+        }
+
+        const { resolved, missing } = resolvePool(byName, itemData);
+        if (!resolved.length || missing.length) {
+          skipped.push({ name: itemData?.name, reason: 'missing-pool-items', missing });
+          continue;
+        }
+
+        const doc = new Item({
+          name: itemData.name,
+          description: itemData.description,
+          price: itemData.price,
+          image: itemData.image,
+          category: 'MysteryBox',
+          bazaar: existingBazaar._id,
+          mysteryBoxConfig: {
+            luckMultiplier: Number(itemData.mysteryBoxConfig?.luckMultiplier || 1.5),
+            pityEnabled: !!itemData.mysteryBoxConfig?.pityEnabled,
+            guaranteedItemAfter: Number(itemData.mysteryBoxConfig?.guaranteedItemAfter || 10),
+            pityMinimumRarity: itemData.mysteryBoxConfig?.pityMinimumRarity || 'rare',
+            maxOpensPerStudent: itemData.mysteryBoxConfig?.maxOpensPerStudent ?? null,
+            itemPool: resolved
+          }
+        });
+
+        await doc.save();
+        created.push(doc);
+        byName.set(nameKey, doc);
+      }
+
+      await Bazaar.findByIdAndUpdate(existingBazaar._id, {
+        $push: { items: { $each: created.map(d => d._id) } }
+      });
+      
+      await existingBazaar.populate('items');
+
+      const summary = summarizeApply(created, skipped);
+
+      return res.status(200).json({
+        message:
+          `Imported ${summary.createdTotal} item(s) ` +
+          `(${summary.createdRegular} regular, ${summary.createdMystery} MysteryBox). ` +
+          `Skipped ${summary.skippedTotal}.`,
+        bazaar: existingBazaar,
+        created: created.map(d => ({ _id: d._id, name: d.name, category: d.category })),
+        skipped,
+        summary
       });
     }
 
-    // Create new bazaar from template
+    // (No bazaar exists) -> create bazaar + items (two-pass for MysteryBox)
     const bazaar = new Bazaar({
       name: template.bazaarData.name,
       description: template.bazaarData.description,
       image: template.bazaarData.image,
       classroom: classroomId
     });
-
     await bazaar.save();
 
-    // Create items from template
-    const Item = require('../models/Item');
-    const createdItems = [];
+    const byName = new Map();
+    const createdIds = [];
+    const pendingMystery = [];
+    const skipped = []; // ADD: track skipped items (reasons)
 
-    for (const itemData of template.items) {
+    // Pass 1: create non-mystery items
+    for (const itemData of template.items || []) {
+      if (itemData?.category === 'MysteryBox') {
+        pendingMystery.push(itemData);
+        continue;
+      }
+
       const item = new Item({
         name: itemData.name,
         description: itemData.description,
@@ -256,19 +446,59 @@ router.post('/:templateId/apply', ensureAuthenticated, ensureTeacher, async (req
       });
 
       await item.save();
-      createdItems.push(item._id);
+      createdIds.push(item._id);
+      byName.set(normalizeName(item.name), item);
     }
 
-    // Update bazaar with items
-    bazaar.items = createdItems;
-    await bazaar.save();
+    // Pass 2: create mystery boxes
+    for (const itemData of pendingMystery) {
+      const { resolved, missing } = resolvePool(byName, itemData);
 
-    // Populate items for response
+      // CHANGE: skip instead of failing the entire apply
+      if (!resolved.length || missing.length) {
+        skipped.push({ name: itemData?.name, reason: 'missing-pool-items', missing });
+        continue;
+      }
+
+      const item = new Item({
+        name: itemData.name,
+        description: itemData.description,
+        price: itemData.price,
+        image: itemData.image,
+        category: 'MysteryBox',
+        bazaar: bazaar._id,
+        mysteryBoxConfig: {
+          luckMultiplier: Number(itemData.mysteryBoxConfig?.luckMultiplier || 1.5),
+          pityEnabled: !!itemData.mysteryBoxConfig?.pityEnabled,
+          guaranteedItemAfter: Number(itemData.mysteryBoxConfig?.guaranteedItemAfter || 10),
+          pityMinimumRarity: itemData.mysteryBoxConfig?.pityMinimumRarity || 'rare',
+          maxOpensPerStudent: itemData.mysteryBoxConfig?.maxOpensPerStudent ?? null,
+          itemPool: resolved
+        }
+      });
+
+      await item.save();
+      createdIds.push(item._id);
+      byName.set(normalizeName(item.name), item);
+    }
+
+    bazaar.items = createdIds;
+    await bazaar.save();
     await bazaar.populate('items');
 
-    res.status(201).json({ 
-      message: 'Template applied successfully',
-      bazaar 
+    const createdDocs = await Item.find({ _id: { $in: createdIds } }, { name: 1, category: 1 });
+    const summary = summarizeApply(createdDocs, skipped);
+
+    return res.status(201).json({
+      message:
+        `Applied template and created bazaar. ` +
+        `Created ${summary.createdTotal} item(s) ` +
+        `(${summary.createdRegular} regular, ${summary.createdMystery} MysteryBox). ` +
+        `Skipped ${summary.skippedTotal}.`,
+      bazaar,
+      created: createdDocs.map(d => ({ _id: d._id, name: d.name, category: d.category })),
+      skipped,
+      summary
     });
   } catch (error) {
     console.error('Error applying bazaar template:', error);
