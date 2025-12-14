@@ -218,6 +218,32 @@ router.post('/:templateId/apply', ensureAuthenticated, ensureTeacher, async (req
 
     const mode = String(req.query.mode || req.body.mode || 'replace').toLowerCase(); // 'replace' | 'merge'
 
+    // ADD: shared helper (used by both merge + create branches)
+    const summarizeApply = (created = [], skipped = []) => {
+      const createdMystery = created.filter(i => i?.category === 'MysteryBox').length;
+      const createdRegular = created.length - createdMystery;
+
+      const skippedByReason = skipped.reduce((acc, s) => {
+        const r = s?.reason || 'unknown';
+        acc[r] = (acc[r] || 0) + 1;
+        return acc;
+      }, {});
+
+      const topSkippedNames = skipped
+        .map(s => s?.name)
+        .filter(Boolean)
+        .slice(0, 5);
+
+      return {
+        createdTotal: created.length,
+        createdRegular,
+        createdMystery,
+        skippedTotal: skipped.length,
+        skippedByReason,
+        topSkippedNames
+      };
+    };
+
     if (!classroomId) {
       return res.status(400).json({ message: 'Classroom ID is required' });
     }
@@ -371,31 +397,6 @@ router.post('/:templateId/apply', ensureAuthenticated, ensureTeacher, async (req
       
       await existingBazaar.populate('items');
 
-      const summarizeApply = (created = [], skipped = []) => {
-        const createdMystery = created.filter(i => i?.category === 'MysteryBox').length;
-        const createdRegular = created.length - createdMystery;
-  
-        const skippedByReason = skipped.reduce((acc, s) => {
-          const r = s?.reason || 'unknown';
-          acc[r] = (acc[r] || 0) + 1;
-          return acc;
-        }, {});
-  
-        const topSkippedNames = skipped
-          .map(s => s?.name)
-          .filter(Boolean)
-          .slice(0, 5);
-  
-        return {
-          createdTotal: created.length,
-          createdRegular,
-          createdMystery,
-          skippedTotal: skipped.length,
-          skippedByReason,
-          topSkippedNames
-        };
-      };
-
       const summary = summarizeApply(created, skipped);
 
       return res.status(200).json({
@@ -422,6 +423,7 @@ router.post('/:templateId/apply', ensureAuthenticated, ensureTeacher, async (req
     const byName = new Map();
     const createdIds = [];
     const pendingMystery = [];
+    const skipped = []; // ADD: track skipped items (reasons)
 
     // Pass 1: create non-mystery items
     for (const itemData of template.items || []) {
@@ -451,12 +453,11 @@ router.post('/:templateId/apply', ensureAuthenticated, ensureTeacher, async (req
     // Pass 2: create mystery boxes
     for (const itemData of pendingMystery) {
       const { resolved, missing } = resolvePool(byName, itemData);
+
+      // CHANGE: skip instead of failing the entire apply
       if (!resolved.length || missing.length) {
-        // On fresh create, fail fast so teacher knows template is incomplete
-        return res.status(400).json({
-          message: `Cannot create MysteryBox "${itemData?.name}". Missing pool item(s): ${missing.join(', ')}`,
-          missing
-        });
+        skipped.push({ name: itemData?.name, reason: 'missing-pool-items', missing });
+        continue;
       }
 
       const item = new Item({
@@ -485,18 +486,18 @@ router.post('/:templateId/apply', ensureAuthenticated, ensureTeacher, async (req
     await bazaar.save();
     await bazaar.populate('items');
 
-    // NEW: return a detailed summary for create+apply as well
     const createdDocs = await Item.find({ _id: { $in: createdIds } }, { name: 1, category: 1 });
-    const summary = summarizeApply(createdDocs, []);
+    const summary = summarizeApply(createdDocs, skipped);
 
     return res.status(201).json({
       message:
         `Applied template and created bazaar. ` +
         `Created ${summary.createdTotal} item(s) ` +
-        `(${summary.createdRegular} regular, ${summary.createdMystery} MysteryBox).`,
+        `(${summary.createdRegular} regular, ${summary.createdMystery} MysteryBox). ` +
+        `Skipped ${summary.skippedTotal}.`,
       bazaar,
       created: createdDocs.map(d => ({ _id: d._id, name: d.name, category: d.category })),
-      skipped: [],
+      skipped,
       summary
     });
   } catch (error) {

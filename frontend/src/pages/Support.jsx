@@ -744,6 +744,18 @@ const Support = () => {
           role: ["all"]
         },
         {
+          question: "I applied a template, but I don’t see the new items/badges. What should I do?",
+          answer: [
+            "Sometimes the page may not immediately re-sync after applying a template (Bazaar items or Badge templates). Try:",
+            "1. Close and re-open the Templates modal (if it’s still open).",
+            "2. Wait a few seconds—changes may load shortly after the success message.",
+            "3. Refresh the page (Ctrl+R / Cmd+R). This forces a full reload and usually shows the newly applied items/badges.",
+            "",
+            "If it still doesn’t appear after refreshing, the template may have skipped duplicates (same-name items/badges), or the apply action may have partially completed. Try applying again or contact support."
+          ],
+          role: ["teacher"]
+        },
+        {
           question: "How do I switch between light and dark mode?",
           answer: [
             "You can change themes in multiple ways:",

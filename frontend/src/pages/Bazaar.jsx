@@ -220,6 +220,11 @@ const Bazaar = () => {
       setShowApplyModal(false);
     } catch (error) {
       toast.error(error.message || 'Failed to apply template');
+
+      // ADD: best-effort resync in case backend created the bazaar before error
+      try {
+        await fetchBazaar();
+      } catch {}
     }
   };
 
@@ -537,13 +542,16 @@ const Bazaar = () => {
         </div>
 
         {/* Text Section */}
-        <div className="flex-1 space-y-2 text-center md:text-left">
-          <h2 className="text-3xl sm:text-4xl font-bold text-success leading-tight break-words flex items-center gap-2">
+        {/* CHANGED: add min-w-0 so text can shrink/wrap inside flex */}
+        <div className="flex-1 min-w-0 space-y-2 text-center md:text-left">
+          {/* CHANGED: add wrap-any for long/unbroken bazaar names */}
+          <h2 className="text-3xl sm:text-4xl font-bold text-success leading-tight flex items-center gap-2 wrap-any">
             <Store />
             {bazaar.name}
           </h2>
 
-          <p className="text-base-content opacity-70 text-base sm:text-lg whitespace-pre-wrap">
+          {/* CHANGED: add wrap-any for long/unbroken description text */}
+          <p className="text-base-content opacity-70 text-base sm:text-lg whitespace-pre-wrap wrap-any">
             {bazaar.description}
           </p>
         </div>
