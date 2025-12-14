@@ -20,6 +20,25 @@ import EditItemModal from '../components/EditItemModal';
 import { X } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 
+const TemplateHelpCollapse = ({ hasBazaar }) => {
+  const title = 'How templating works';
+  const line1 = hasBazaar
+    ? 'Importing a template will add any missing items to your existing bazaar (it will not delete current items).'
+    : 'Applying a template will create a bazaar for this classroom and add the template items.';
+  return (
+    <div className="collapse collapse-arrow bg-base-200 rounded">
+      <input type="checkbox" />
+      <div className="collapse-title text-sm font-semibold">{title}</div>
+      <div className="collapse-content text-sm space-y-1">
+        <p>• {line1}</p>
+        <p>• Items with the same name are skipped to avoid duplicates.</p>
+        <p>• Mystery Box pools are matched by item name; missing/invalid pool entries are skipped and summarized.</p>
+        {hasBazaar && <p>• If a bazaar already exists, templates are applied in “merge/import” mode (no replace).</p>}
+      </div>
+    </div>
+  );
+};
+
 const Bazaar = () => {
   const { classroomId } = useParams();
   const { user } = useAuth();
@@ -164,16 +183,39 @@ const Bazaar = () => {
     }
   };
 
-  // Apply template to current classroom
-  const handleApplyTemplate = async (templateId) => {
-    if (bazaar) {
-      toast.error('Delete existing bazaar first before applying a template');
-      return;
+  const formatTemplateApplyMessage = (res, hasBazaar) => {
+    const s = res?.summary;
+    if (!s) return res?.message || (hasBazaar ? 'Items imported.' : 'Template applied.');
+
+    const parts = [];
+    parts.push(
+      hasBazaar
+        ? `Imported ${s.createdTotal} item(s) (${s.createdRegular} regular, ${s.createdMystery} MysteryBox).`
+        : `Created ${s.createdTotal} item(s) (${s.createdRegular} regular, ${s.createdMystery} MysteryBox).`
+    );
+
+    if (s.skippedTotal > 0) {
+      const reasons = s.skippedByReason || {};
+      const reasonText = Object.entries(reasons)
+        .map(([k, v]) => `${k}: ${v}`)
+        .join(', ');
+      parts.push(`Skipped ${s.skippedTotal}${reasonText ? ` (${reasonText})` : ''}.`);
+      if (Array.isArray(s.topSkippedNames) && s.topSkippedNames.length) {
+        parts.push(`Examples: ${s.topSkippedNames.join(', ')}${s.skippedTotal > s.topSkippedNames.length ? ', …' : ''}`);
+      }
     }
 
+    return parts.join(' ');
+  };
+
+  // Apply template to current classroom
+  const handleApplyTemplate = async (templateId, opts = {}) => {
     try {
-      const res = await applyBazaarTemplate(templateId, classroomId);
-      toast.success('Template applied successfully!');
+      const mode = bazaar ? 'merge' : 'replace';
+      const res = await applyBazaarTemplate(templateId, classroomId, { mode, ...opts });
+
+      toast.success(formatTemplateApplyMessage(res, !!bazaar));
+
       setBazaar(res.bazaar);
       setShowApplyModal(false);
     } catch (error) {
@@ -309,6 +351,9 @@ const Bazaar = () => {
     }
   };
 
+  // helper label (optional but keeps it consistent)
+  const getTemplateApplyLabel = (hasBazaar) => (hasBazaar ? 'Import Items' : 'Apply (Create Bazaar)');
+
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-base-200">
                         <span className="loading loading-ring loading-lg"></span>
                       </div>
@@ -349,6 +394,9 @@ const Bazaar = () => {
               <h2 className="text-xl font-semibold mb-4">
                 Apply Template {templates?.length ? `(${templates.length})` : ''}
               </h2>
+
+              <TemplateHelpCollapse hasBazaar={false} />
+
              <div className="flex flex-wrap gap-2 mb-3">
                <input
                  type="search"
@@ -375,7 +423,9 @@ const Bazaar = () => {
                  {filteredSortedTemplates.map((template) => (
                     <div key={template._id} className="card bg-base-200 shadow">
                       <div className="card-body p-4">
-                        <h3 className="font-semibold">{template.name}</h3>
+                        <h3 className="font-semibold template-name">
+                          {template.name}
+                        </h3>
                         <p className="text-sm text-base-content/60">
                           {template.bazaarData.name}
                         </p>
@@ -724,6 +774,9 @@ const Bazaar = () => {
               <h2 className="text-xl font-bold mb-4">
                 Saved Templates {templates?.length ? `(${templates.length})` : ''}
               </h2>
+
+              <TemplateHelpCollapse hasBazaar={true} />
+
              <div className="flex flex-wrap gap-2 mb-3">
                <input
                  type="search"
@@ -753,7 +806,9 @@ const Bazaar = () => {
                       className="card bg-base-200 shadow"
                     >
                       <div className="card-body p-4">
-                        <h3 className="font-semibold">{template.name}</h3>
+                        <h3 className="font-semibold template-name">
+                          {template.name}
+                        </h3>
                         <p className="text-sm text-base-content/60">
                           {template.bazaarData.name}
                         </p>
@@ -780,7 +835,7 @@ const Bazaar = () => {
                             className="btn btn-xs btn-primary"
                             onClick={() => handleApplyTemplate(template._id)}
                           >
-                            Apply
+                            {getTemplateApplyLabel(!!bazaar)}
                           </button>
                         </div>
                       </div>
