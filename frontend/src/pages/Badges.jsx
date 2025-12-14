@@ -36,7 +36,7 @@ const Badges = () => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    levelRequired: 1,
+    levelRequired: 2,
     icon: '🏅',
     image: null
   });
@@ -263,7 +263,7 @@ const Badges = () => {
     setFormData({
       name: '',
       description: '',
-      levelRequired: 1,
+      levelRequired: 2,
       icon: '🏅',
       image: null
     });
@@ -561,6 +561,28 @@ const Badges = () => {
     const base = (badges || []).filter(b => !earnedBadgeIds.includes(String(b._id)));
     return sortBadges(base.filter(b => deepMatchBadge(b, collectionSearch)), collectionSort);
   }, [badges, earnedBadgeIds, collectionSearch, collectionSort]);
+
+  const formatBadgeTemplateApplyMessage = (res) => {
+    const s = res?.summary;
+    if (!s) return res?.message || 'Template applied.';
+
+    const parts = [];
+    parts.push(`Applied template. Created ${s.createdTotal} badge(s), skipped ${s.skippedTotal}.`);
+
+    if (s.skippedTotal > 0) {
+      const reasons = s.skippedByReason || {};
+      const reasonText = Object.entries(reasons)
+        .map(([k, v]) => `${k}: ${v}`)
+        .join(', ');
+      if (reasonText) parts.push(`(${reasonText}).`);
+
+      if (Array.isArray(s.topSkippedNames) && s.topSkippedNames.length) {
+        parts.push(`Examples: ${s.topSkippedNames.join(', ')}${s.skippedTotal > s.topSkippedNames.length ? ', …' : ''}`);
+      }
+    }
+
+    return parts.join(' ');
+  };
 
   if (loading) {
     return (
@@ -1483,7 +1505,7 @@ const Badges = () => {
                           onClick={async () => {
                             try {
                               const res = await applyBadgeTemplate(t._id, classroomId);
-                              toast.success(res.message || 'Template applied');
+                              toast.success(formatBadgeTemplateApplyMessage(res));
                               await fetchBadges?.();
                               setShowApplyModal(false);
                             } catch (e) {

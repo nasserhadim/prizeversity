@@ -31,8 +31,22 @@ const BazaarTemplateSchema = new mongoose.Schema({
     category: { type: String },
     primaryEffect: { type: String },
     primaryEffectValue: { type: Number },
-    secondaryEffects: [{ type: mongoose.Schema.Types.Mixed }],
-    swapOptions: [{ type: mongoose.Schema.Types.Mixed }]
+    secondaryEffects: { type: Array, default: [] },
+    swapOptions: { type: Array, default: [] },
+
+    // NEW: MysteryBox support (portable via itemName)
+    mysteryBoxConfig: {
+      luckMultiplier: { type: Number },
+      pityEnabled: { type: Boolean },
+      guaranteedItemAfter: { type: Number },
+      pityMinimumRarity: { type: String },
+      maxOpensPerStudent: { type: Number, default: null },
+      itemPool: [{
+        itemName: { type: String, required: true }, // portable reference
+        rarity: { type: String, default: 'common' },
+        baseDropChance: { type: Number, default: 0 }
+      }]
+    }
   }]
 }, {
   timestamps: true
