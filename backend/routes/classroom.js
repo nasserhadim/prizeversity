@@ -1246,9 +1246,8 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
     const fullName = `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.email;
     const summary = formatChangeSummary(changes) || 'updated by teacher';
 
-    // NEW: append note using the same "Effects:" convention used elsewhere
-    // so existing UI parsing can show it consistently.
-    const noteSuffix = noteText ? ` Effects: ${noteText}.` : '';
+    // NOTE: manual teacher adjustments should use "Reason" wording (not "Effects")
+    const noteSuffix = noteText ? ` Reason: ${noteText}.` : '';
 
     const studentNotification = await Notification.create({
       user: student._id,
