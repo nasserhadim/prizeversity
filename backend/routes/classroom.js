@@ -1067,7 +1067,7 @@ router.patch('/:id/feedback-reward', ensureAuthenticated, async (req, res) => {
 router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, res) => {
   try {
     const { classId, userId } = req.params;
-    const { multiplier, luck, discount, xp, shield } = req.body; // xp is absolute desired XP; shield = shield count (integer)
+    const { multiplier, luck, discount, xp, shield, note } = req.body; // NEW: note
 
     const classroom = await Classroom.findById(classId);
     if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
@@ -1172,6 +1172,27 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
       changes.push({ field: 'xp', from: xpFrom, to: xpTo });
     }
 
+    // Normalize optional note (avoid huge payloads)
+    const noteText = (typeof note === 'string') ? note.trim().slice(0, 500) : '';
+
+    // NEW: if nothing changed, don't notify/log; just return a no-op response
+    if (!changes.length) {
+      // Optional: persist any incidental doc init (e.g., classroomXP entry creation)
+      // without spamming notifications.
+      try {
+        if (typeof student.isModified === 'function' && student.isModified()) {
+          await student.save();
+        }
+      } catch (_e) { /* ignore */ }
+
+      return res.json({
+        message: 'No stats were adjusted',
+        noChange: true,
+        passiveAttributes: student.passiveAttributes,
+        changes: []
+      });
+    }
+
     await student.save();
 
     // Helper to render a readable value for summary (special-case xp to include delta)
@@ -1225,12 +1246,15 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
     const fullName = `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.email;
     const summary = formatChangeSummary(changes) || 'updated by teacher';
 
-    // Create notification for the student (log entry, included in stat-changes)
+    // NEW: append note using the same "Effects:" convention used elsewhere
+    // so existing UI parsing can show it consistently.
+    const noteSuffix = noteText ? ` Effects: ${noteText}.` : '';
+
     const studentNotification = await Notification.create({
       user: student._id,
       actionBy: req.user._id,
       type: 'stats_adjusted',
-      message: `Your stats were updated by your teacher: ${summary}.`,
+      message: `Your stats were updated by your teacher: ${summary}.${noteSuffix}`,
       classroom: classId,
       read: false,
       changes,
@@ -1238,12 +1262,11 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
       createdAt: now
     });
 
-    // Create a separate notification for the teacher's realtime feedback (not a log entry)
     const teacherNotification = await Notification.create({
-      user: req.user._id, // Target the teacher
+      user: req.user._id,
       actionBy: req.user._id,
       type: 'stats_adjusted',
-      message: `You updated stats for ${fullName}: ${summary}.`,
+      message: `You updated stats for ${fullName}: ${summary}.${noteSuffix}`,
       classroom: classId,
       read: false,
       changes,

@@ -2,9 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { CSSTransition } from 'react-transition-group';
 import { subscribeToNotifications } from '../utils/socket';
-// import './NotificationBell.css';
-
 import { Bell } from 'lucide-react';
+import { useAuth } from '../context/AuthContext'; // NEW
 
 // helper: stable classroom label used across notifications
 function getClassLabel(notification) {
@@ -16,6 +15,7 @@ function getClassLabel(notification) {
 }
 
 const NotificationBell = () => {
+  const { user } = useAuth(); // NEW
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -30,12 +30,42 @@ const NotificationBell = () => {
 
   useEffect(() => {
     fetchNotifications();
+    // Close dropdown when clicking outside
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowNotifications(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  useEffect(() => {
     const unsubscribe = subscribeToNotifications((notification) => {
-      // defensive: ignore null/undefined malformed payloads that sometimes arrive
       if (!notification) {
         console.warn('[NotificationBell] ignored empty notification payload');
         return;
       }
+
+      // NEW: only accept notifications addressed to ME
+      const myId = String(user?._id || '');
+      const recipientId = String(
+        notification?.user?._id ||
+        notification?.userId ||
+        notification?.user ||
+        notification?.targetUser?._id ||
+        notification?.targetUser ||
+        ''
+      );
+
+      if (myId && recipientId && myId !== recipientId) {
+        console.debug('[NotificationBell] ignored notification not addressed to current user', { myId, recipientId });
+        return;
+      }
+
       console.log('Received new notification:', notification);
       setNotifications(prev => [notification, ...prev]);
 
@@ -56,19 +86,8 @@ const NotificationBell = () => {
       }
     });
 
-    // Close dropdown when clicking outside
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setShowNotifications(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      unsubscribe();
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
+    return () => unsubscribe();
+  }, [user?._id]); // NEW: depend on user id so filter stays correct
 
   const fetchNotifications = async () => {
     try {
