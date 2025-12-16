@@ -118,6 +118,37 @@ const Badges = () => {
     }
   };
 
+  // NEW: bulk delete badge templates
+  const [confirmDeleteAllBadgeTemplates, setConfirmDeleteAllBadgeTemplates] = useState(false);
+  const [bulkDeletingBadgeTemplates, setBulkDeletingBadgeTemplates] = useState(false);
+
+  const handleBulkDeleteBadgeTemplates = async () => {
+    try {
+      setBulkDeletingBadgeTemplates(true);
+
+      const ids = (filteredSortedBadgeTemplates || []).map(t => t._id).filter(Boolean);
+      if (!ids.length) {
+        toast.error('No templates to delete');
+        return;
+      }
+
+      const results = await Promise.allSettled(ids.map(id => deleteBadgeTemplate(id)));
+      const deleted = results.filter(r => r.status === 'fulfilled').length;
+      const failed = results.length - deleted;
+
+      if (deleted) toast.success(`Deleted ${deleted} template(s)`);
+      if (failed) toast.error(`Failed to delete ${failed} template(s)`);
+
+      const res = await getBadgeTemplates();
+      setBadgeTemplates(res.templates || []);
+      setConfirmDeleteAllBadgeTemplates(false);
+    } catch (e) {
+      toast.error(e?.message || 'Failed to delete templates');
+    } finally {
+      setBulkDeletingBadgeTemplates(false);
+    }
+  };
+
   useEffect(() => {
     if (!classroomId || !user) return;
 
@@ -593,7 +624,7 @@ const Badges = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen bg-base-200">
       <div className="flex-1 p-6 space-y-8">
         {/* TEACHER MANAGEMENT DASHBOARD */}
         {isManagement && (
@@ -1481,6 +1512,17 @@ const Badges = () => {
                   <option value="badgesDesc">Badges ↓</option>
                   <option value="badgesAsc">Badges ↑</option>
                 </select>
+
+                {(badgeTemplates?.length || 0) > 0 && (filteredSortedBadgeTemplates?.length || 0) > 0 && (
+                  <button
+                    className="btn btn-outline btn-error btn-sm"
+                    onClick={() => setConfirmDeleteAllBadgeTemplates(true)}
+                    disabled={bulkDeletingBadgeTemplates}
+                    title="Delete all (or currently filtered) templates"
+                  >
+                    Delete {filteredSortedBadgeTemplates.length === badgeTemplates.length ? 'All' : 'Filtered'}
+                  </button>
+                )}
               </div>
 
               {filteredSortedBadgeTemplates.length > 0 ? (
@@ -1528,6 +1570,17 @@ const Badges = () => {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={confirmDeleteAllBadgeTemplates}
+        onClose={() => !bulkDeletingBadgeTemplates && setConfirmDeleteAllBadgeTemplates(false)}
+        title="Delete Templates?"
+        message={`Delete ${filteredSortedBadgeTemplates.length} template(s)? This cannot be undone.`}
+        confirmText={bulkDeletingBadgeTemplates ? 'Deleting...' : 'Delete'}
+        cancelText="Cancel"
+        confirmButtonClass="btn-error"
+        onConfirm={handleBulkDeleteBadgeTemplates}
+      />
 
       {/* Delete template confirm */}
       {deleteTemplateModal && (

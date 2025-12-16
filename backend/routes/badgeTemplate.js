@@ -100,19 +100,23 @@ router.post('/:templateId/apply', ensureAuthenticated, ensureTeacher, async (req
         continue;
       }
 
+      // NEW: normalize legacy/invalid levelRequired at apply-time too
+      const safeLevelRequired = Math.max(2, Number(b.levelRequired) || 2);
+
       try {
         const doc = new Badge({
           name: b.name,
           description: b.description,
           classroom: classroomId,
-          levelRequired: b.levelRequired,
+          levelRequired: safeLevelRequired, // <-- changed
           icon: b.icon,
           image: b.image,
           unlockedBazaarItems: b.unlockedBazaarItems || [],
           createdBy: req.user._id
         });
+
         await doc.save();
-        existingNames.add(nameKey); // guard against duplicates within template
+        existingNames.add(nameKey);
         created.push(doc);
       } catch (e) {
         if (e.code === 11000) {

@@ -73,6 +73,10 @@ const Bazaar = () => {
   const [deletingBazaar, setDeletingBazaar] = useState(false);
   const [confirmDeleteBazaar, setConfirmDeleteBazaar] = useState(false);
 
+  // NEW: bulk delete templates
+  const [confirmDeleteAllTemplates, setConfirmDeleteAllTemplates] = useState(false);
+  const [bulkDeletingTemplates, setBulkDeletingTemplates] = useState(false);
+
   // Fetch classroom details
   const fetchClassroom = async () => {
     try {
@@ -183,6 +187,33 @@ const Bazaar = () => {
     }
   };
 
+  // ADD: bulk delete templates (Delete All / Delete Filtered)
+  const handleBulkDeleteTemplates = async () => {
+    try {
+      setBulkDeletingTemplates(true);
+
+      const ids = (filteredSortedTemplates || []).map(t => t?._id).filter(Boolean);
+      if (!ids.length) {
+        toast.error('No templates to delete');
+        return;
+      }
+
+      const results = await Promise.allSettled(ids.map(id => deleteBazaarTemplate(id)));
+      const deleted = results.filter(r => r.status === 'fulfilled').length;
+      const failed = results.length - deleted;
+
+      if (deleted) toast.success(`Deleted ${deleted} template(s)`);
+      if (failed) toast.error(`Failed to delete ${failed} template(s)`);
+
+      await fetchTemplates();
+      setConfirmDeleteAllTemplates(false);
+    } catch (e) {
+      toast.error(e?.message || 'Failed to delete templates');
+    } finally {
+      setBulkDeletingTemplates(false);
+    }
+  };
+
   const formatTemplateApplyMessage = (res, hasBazaar) => {
     const s = res?.summary;
     if (!s) return res?.message || (hasBazaar ? 'Items imported.' : 'Template applied.');
@@ -252,14 +283,19 @@ const Bazaar = () => {
       list = list.filter(i => deepMatches(i, itemSearch));
     }
     list.sort((a, b) => {
+      const aName = String(a?.name ?? '');
+      const bName = String(b?.name ?? '');
+      const aCat = String(a?.category ?? '');
+      const bCat = String(b?.category ?? '');
+
       switch (itemSort) {
-        case 'nameAsc': return a.name.localeCompare(b.name);
-        case 'nameDesc': return b.name.localeCompare(a.name);
-        case 'priceAsc': return (a.price || 0) - (b.price || 0);
-        case 'priceDesc': return (b.price || 0) - (a.price || 0);
-        case 'category': return a.category.localeCompare(b.category);
-        case 'addedDesc': return new Date(b.createdAt) - new Date(a.createdAt);
-        case 'addedAsc': return new Date(a.createdAt) - new Date(b.createdAt);
+        case 'nameAsc': return aName.localeCompare(bName);
+        case 'nameDesc': return bName.localeCompare(aName);
+        case 'priceAsc': return (Number(a?.price) || 0) - (Number(b?.price) || 0);
+        case 'priceDesc': return (Number(b?.price) || 0) - (Number(a?.price) || 0);
+        case 'category': return aCat.localeCompare(bCat);
+        case 'addedDesc': return new Date(b?.createdAt || 0) - new Date(a?.createdAt || 0);
+        case 'addedAsc': return new Date(a?.createdAt || 0) - new Date(b?.createdAt || 0);
         default: return 0;
       }
     });
@@ -682,9 +718,9 @@ const Bazaar = () => {
 
             {sortedFilteredItems.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-                {sortedFilteredItems.map(item => (
+                {sortedFilteredItems.map((item, idx) => (
                   <ItemCard
-                    key={item._id}
+                    key={item?._id || item?.id || `${item?.name || 'item'}-${idx}`}
                     item={item}
                     role={user.role}
                     classroomId={classroomId}
@@ -692,7 +728,7 @@ const Bazaar = () => {
                       setEditItem(it);
                       setShowEditModal(true);
                     }}
-                    onDelete={(it) => setDeleteItem(it)} // OPEN MODAL
+                    onDelete={(it) => setDeleteItem(it)}
                   />
                 ))}
               </div>
@@ -805,6 +841,17 @@ const Bazaar = () => {
                  <option value="itemsDesc">Items ↓</option>
                  <option value="itemsAsc">Items ↑</option>
                </select>
+
+                {templates.length > 0 && filteredSortedTemplates.length > 0 && (
+                  <button
+                    className="btn btn-outline btn-error btn-sm"
+                    onClick={() => setConfirmDeleteAllTemplates(true)}
+                    disabled={bulkDeletingTemplates}
+                    title="Delete all (or currently filtered) templates"
+                  >
+                    Delete {filteredSortedTemplates.length === templates.length ? 'All' : 'Filtered'}
+                  </button>
+                )}
              </div>
               {templates.length > 0 ? (
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
@@ -1066,6 +1113,17 @@ const Bazaar = () => {
         confirmText={deletingBazaar ? 'Deleting...' : 'Delete'}
         cancelText="Cancel"
         confirmButtonClass="btn-error"
+      />
+
+      <ConfirmModal
+        isOpen={confirmDeleteAllTemplates}
+        onClose={() => !bulkDeletingTemplates && setConfirmDeleteAllTemplates(false)}
+        title="Delete Templates?"
+        message={`Delete ${filteredSortedTemplates.length} template(s)? This cannot be undone.`}
+        confirmText={bulkDeletingTemplates ? 'Deleting...' : 'Delete'}
+        cancelText="Cancel"
+        confirmButtonClass="btn-error"
+        onConfirm={handleBulkDeleteTemplates}
       />
 
       <Footer />
