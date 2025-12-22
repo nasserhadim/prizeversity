@@ -25,7 +25,9 @@ const ChallengeConfigModal = ({
   deletingTemplate,
   setShowSaveTemplateModal,
   setShowHintModal,
-  setEditingHints
+  setEditingHints,
+  bulkDeleteTemplates,
+  bulkDeletingTemplates
 }) => {
   const [isMobile, setIsMobile] = useState(false);
   const [activeChallengeIndex, setActiveChallengeIndex] = useState(0);
@@ -36,6 +38,12 @@ const ChallengeConfigModal = ({
   // NEW: template search/sort state (like Bazaar/Badges)
   const [templateSearch, setTemplateSearch] = useState('');
   const [templateSort, setTemplateSort] = useState('createdDesc'); // createdDesc|createdAsc|nameAsc|nameDesc
+
+  // NEW: bulk delete confirm modal state
+  const [confirmDeleteAllTemplates, setConfirmDeleteAllTemplates] = useState(false);
+
+  // NEW: collapsible Templates panel
+  const [templatesOpen, setTemplatesOpen] = useState(true);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -191,6 +199,9 @@ const ChallengeConfigModal = ({
     return list;
   }, [templates, templateSearch, templateSort]);
 
+  const bulkDeleteLabel =
+    filteredSortedTemplates.length === (templates?.length || 0) ? 'All' : 'Filtered';
+
   if (!showConfigModal) return null;
 
   if (showPasswordPrompt) {
@@ -270,89 +281,134 @@ const ChallengeConfigModal = ({
             </div>
           </div>
  
-          <div className="bg-base-200 rounded-lg p-4 mb-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold">
-                Templates {templates?.length ? `(${templates.length})` : ''}
-              </h3>
-              <div className="flex gap-2">
-                <button
-                  className="btn btn-sm btn-primary"
-                  onClick={() => setShowSaveTemplateModal(true)}
+          {/* REPLACE the existing Templates container with this collapsible */}
+          <div className="collapse collapse-arrow bg-base-200 rounded-lg p-0 mb-4">
+            <input
+              type="checkbox"
+              checked={templatesOpen}
+              onChange={(e) => setTemplatesOpen(e.target.checked)}
+              className="pointer-events-none" // IMPORTANT: don't let the checkbox steal clicks
+            />
+
+            <div
+              className="collapse-title p-4 cursor-pointer select-none"
+              onClick={() => setTemplatesOpen((v) => !v)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setTemplatesOpen((v) => !v);
+                }
+              }}
+            >
+              {/* add right padding so the arrow area stays clear */}
+              <div className="flex items-center justify-between pr-12">
+                <h3 className="text-lg font-semibold">
+                  Templates {templates?.length ? `(${templates.length})` : ''}
+                </h3>
+
+                {/* Keep actions clickable and don't toggle collapse */}
+                <div
+                  className="flex gap-2 relative z-10"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
                 >
-                  Save Current Config
-                </button>
+                  <button
+                    className="btn btn-sm btn-primary"
+                    onClick={() => setShowSaveTemplateModal(true)}
+                    type="button"
+                  >
+                    Save Current Config
+                  </button>
+                </div>
               </div>
             </div>
-            
-            {/* NEW: search + sort controls */}
-            <div className="flex flex-wrap gap-2 mb-3">
-              <input
-                type="search"
-                className="input input-bordered flex-1 min-w-[220px]"
-                placeholder="Search templates..."
-                value={templateSearch}
-                onChange={(e) => setTemplateSearch(e.target.value)}
-              />
-              <select
-                className="select select-bordered w-44"
-                value={templateSort}
-                onChange={(e) => setTemplateSort(e.target.value)}
-                title="Sort templates"
-              >
-                <option value="createdDesc">Newest</option>
-                <option value="createdAsc">Oldest</option>
-                <option value="nameAsc">Name ↑</option>
-                <option value="nameDesc">Name ↓</option>
-              </select>
+
+            <div className="collapse-content px-4 pb-4 pt-0">
+              {/* NEW: search + sort controls */}
+              <div className="flex flex-wrap gap-2 mb-3">
+                <input
+                  type="search"
+                  className="input input-bordered flex-1 min-w-[220px]"
+                  placeholder="Search templates..."
+                  value={templateSearch}
+                  onChange={(e) => setTemplateSearch(e.target.value)}
+                />
+                <select
+                  className="select select-bordered w-44"
+                  value={templateSort}
+                  onChange={(e) => setTemplateSort(e.target.value)}
+                  title="Sort templates"
+                >
+                  <option value="createdDesc">Newest</option>
+                  <option value="createdAsc">Oldest</option>
+                  <option value="nameAsc">Name ↑</option>
+                  <option value="nameDesc">Name ↓</option>
+                </select>
+
+                {(templates?.length || 0) > 0 && filteredSortedTemplates.length > 0 && (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline btn-error"
+                    onClick={() => setConfirmDeleteAllTemplates(true)}
+                    disabled={bulkDeletingTemplates}
+                    title="Delete all (or currently filtered) templates"
+                  >
+                    Delete {bulkDeleteLabel}
+                  </button>
+                )}
+              </div>
+
+              {filteredSortedTemplates.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {filteredSortedTemplates.map((template) => (
+                    <div key={template._id} className="flex items-center justify-between bg-base-100 p-3 rounded">
+                      <div className="min-w-0">
+                        <div className="font-medium break-words">{template.name}</div>
+
+                        {/* NEW: source classroom */}
+                        <div className="text-xs text-base-content/60 break-words">
+                          From: {(template.sourceClassroom?.name || 'Unknown classroom')}
+                          {template.sourceClassroom?.code ? ` (${template.sourceClassroom.code})` : ''}
+                        </div>
+
+                        {/* created date */}
+                        <div className="text-xs text-base-content/60">
+                          {template.createdAt ? new Date(template.createdAt).toLocaleString() : '—'}
+                        </div>
+                      </div>
+
+                      <div className="flex gap-1 flex-shrink-0">
+                        <button
+                          className="btn btn-xs btn-ghost"
+                          onClick={() => handleLoadTemplate(template, setChallengeConfig)}
+                          title="Load template"
+                        >
+                          Load
+                        </button>
+                        <button
+                          className="btn btn-xs btn-ghost text-error"
+                          onClick={() => handleDeleteTemplate(template._id, template.name)}
+                          title="Delete template"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm text-base-content/70">
+                  {(templates?.length || 0) === 0
+                    ? 'No templates saved yet.'
+                    : 'No templates match your search.'}
+                </div>
+              )
+              }
             </div>
-
-            {filteredSortedTemplates.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {filteredSortedTemplates.map((template) => (
-                  <div key={template._id} className="flex items-center justify-between bg-base-100 p-3 rounded">
-                    <div className="min-w-0">
-                      <div className="font-medium break-words">{template.name}</div>
-
-                      {/* NEW: source classroom */}
-                      <div className="text-xs text-base-content/60 break-words">
-                        From: {(template.sourceClassroom?.name || 'Unknown classroom')}
-                        {template.sourceClassroom?.code ? ` (${template.sourceClassroom.code})` : ''}
-                      </div>
-
-                      {/* created date */}
-                      <div className="text-xs text-base-content/60">
-                        {template.createdAt ? new Date(template.createdAt).toLocaleString() : '—'}
-                      </div>
-                    </div>
-
-                    <div className="flex gap-1 flex-shrink-0">
-                      <button
-                        className="btn btn-xs btn-ghost"
-                        onClick={() => handleLoadTemplate(template, setChallengeConfig)}
-                        title="Load template"
-                      >
-                        Load
-                      </button>
-                      <button
-                        className="btn btn-xs btn-ghost text-error"
-                        onClick={() => handleDeleteTemplate(template._id, template.name)}
-                        title="Delete template"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-sm text-base-content/70">
-                {(templates?.length || 0) === 0
-                  ? 'No templates saved yet.'
-                  : 'No templates match your search.'}
-              </div>
-            )
-            }
           </div>
           
           <div className="space-y-6">
@@ -1232,6 +1288,21 @@ const ChallengeConfigModal = ({
             message="Reset all configuration fields to default settings?"
             confirmText="Reset"
             onConfirm={confirmReset}
+          />
+
+          <ConfirmModal
+            isOpen={confirmDeleteAllTemplates}
+            onClose={() => !bulkDeletingTemplates && setConfirmDeleteAllTemplates(false)}
+            title={`Delete ${bulkDeleteLabel} Templates?`}
+            message={`Delete ${filteredSortedTemplates.length} template(s)? This cannot be undone.`}
+            confirmText={bulkDeletingTemplates ? 'Deleting...' : `Delete ${bulkDeleteLabel}`}
+            cancelText="Cancel"
+            confirmButtonClass="btn-error"
+            onConfirm={async () => {
+              const ids = filteredSortedTemplates.map(t => t._id).filter(Boolean);
+              await bulkDeleteTemplates(ids);
+              setConfirmDeleteAllTemplates(false);
+            }}
           />
         </div>
       </div>

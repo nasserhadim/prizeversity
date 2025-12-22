@@ -47,6 +47,25 @@ const getEffectsText = (message) => {
   return m?.[1]?.trim() || null;
 };
 
+// Extract a trailing suffix from stats_adjusted messages.
+// Supports both "Effects:" (system/item) and "Reason:" (manual teacher adjustment).
+const getMessageSuffix = (message) => {
+  if (!message) return null;
+  const text = String(message);
+
+  const reasonIdx = text.lastIndexOf('Reason:');
+  if (reasonIdx !== -1) {
+    return { label: 'Reason', text: text.slice(reasonIdx + 'Reason:'.length).trim() };
+  }
+
+  const effectsIdx = text.lastIndexOf('Effects:');
+  if (effectsIdx !== -1) {
+    return { label: 'Effects', text: text.slice(effectsIdx + 'Effects:'.length).trim() };
+  }
+
+  return null;
+};
+
 // add helper near top of file (after imports / before component)
 function formatStatChange(c) {
   if (!c || !c.field) return null;
@@ -2161,12 +2180,12 @@ const visibleCount = filteredStudents.length;
                             </div>
                             <div className="mt-1">
                               {(() => {
-                                const effects = getEffectsText(s.message);
-                                if (!effects) return null;
+                                const suffix = getMessageSuffix(s.message);
+                                if (!suffix?.text) return null;
                                 return (
                                   <div className="flex items-start gap-2 mt-1">
                                     <div className="text-xs text-base-content/60 flex-1">
-                                      Effects: <span className="italic">{effects}</span>
+                                      {suffix.label}: <span className="italic">{suffix.text}</span>
                                     </div>
                                   </div>
                                 );

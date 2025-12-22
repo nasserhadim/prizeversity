@@ -18,7 +18,10 @@ const StatsAdjustModal = ({ isOpen, onClose, student, classroomId, onUpdated }) 
 
   // NEW: Shield state (numeric count)
   const [shield, setShield] = useState('0');
-  
+
+  // NEW: optional note/reason for audit trail
+  const [note, setNote] = useState('');
+
   // load current stats when modal opens / student changes
   useEffect(() => {
     if (!isOpen || !student) return;
@@ -64,6 +67,11 @@ const StatsAdjustModal = ({ isOpen, onClose, student, classroomId, onUpdated }) 
     return () => { mounted = false; };
   }, [isOpen, student, classroomId]);
 
+  useEffect(() => {
+    // reset note when opening for a new student/session
+    setNote('');
+  }, [isOpen, student, classroomId]);
+
   if (!isOpen || !student) return null;
 
   const fullName = `${(student.firstName || '').trim()} ${(student.lastName || '').trim()}`.trim() || student.email;
@@ -71,20 +79,28 @@ const StatsAdjustModal = ({ isOpen, onClose, student, classroomId, onUpdated }) 
   const handleSave = async () => {
     setLoading(true);
     try {
-      await axios.patch(
+      const res = await axios.patch(
         `/api/classroom/${classroomId}/users/${student._id}/stats`,
-        // parse input strings into numeric values
         {
           multiplier: Number(multiplier) || 1,
           luck: Number(luck) || 1,
           discount: Number(discount) || 0,
-          // send XP as absolute number only if xpEnabled
           ...(xpEnabled ? { xp: Number(xp || 0) } : {}),
-          // send shield count (integer)
-          shield: Number(shield || 0)
+          shield: Number(shield || 0),
+          note: (note || '').trim() || undefined
         },
         { withCredentials: true }
       );
+
+      const noChange =
+        !!res.data?.noChange ||
+        (Array.isArray(res.data?.changes) && res.data.changes.length === 0);
+
+      if (noChange) {
+        toast('No stats were adjusted');
+        return; // keep modal open so they can edit
+      }
+
       toast.success('Stats updated');
       if (onUpdated) onUpdated();
       onClose && onClose();
@@ -169,6 +185,22 @@ const StatsAdjustModal = ({ isOpen, onClose, student, classroomId, onUpdated }) 
                 XP is disabled for this classroom. Enable XP in People → XP & Leveling Settings to adjust.
               </span>
             )}
+          </label>
+
+          {/* NEW: Optional note */}
+          <label className="flex flex-col">
+            <span className="text-sm">Reason / note (optional)</span>
+            <textarea
+              className="textarea textarea-bordered mt-2"
+              rows={3}
+              maxLength={500}
+              placeholder="e.g. Bonus for leadership in project week"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+            <span className="text-xs text-base-content/60 mt-1">
+              Included in the student’s stat-change notification/log.
+            </span>
           </label>
         </div>
 

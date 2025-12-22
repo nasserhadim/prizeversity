@@ -12,6 +12,9 @@ export const useTemplates = () => {
   const [deleteTemplateModal, setDeleteTemplateModal] = useState(null);
   const [deletingTemplate, setDeletingTemplate] = useState(false);
 
+  // NEW: bulk delete state
+  const [bulkDeletingTemplates, setBulkDeletingTemplates] = useState(false);
+
   const fetchTemplates = async () => {
     try {
       const response = await getChallengeTemplates();
@@ -138,6 +141,32 @@ export const useTemplates = () => {
     toast.success(`Template "${template.name}" loaded!`);
   };
 
+  // NEW: bulk delete helper (Delete All / Delete Filtered)
+  const bulkDeleteTemplates = async (templateIds = []) => {
+    const ids = (templateIds || []).filter(Boolean);
+    if (!ids.length) {
+      toast.error('No templates to delete');
+      return;
+    }
+
+    try {
+      setBulkDeletingTemplates(true);
+
+      const results = await Promise.allSettled(ids.map(id => deleteChallengeTemplate(id)));
+      const deleted = results.filter(r => r.status === 'fulfilled').length;
+      const failed = results.length - deleted;
+
+      if (deleted) toast.success(`Deleted ${deleted} template(s)`);
+      if (failed) toast.error(`Failed to delete ${failed} template(s)`);
+
+      await fetchTemplates();
+    } catch (e) {
+      toast.error(e?.message || 'Bulk delete failed');
+    } finally {
+      setBulkDeletingTemplates(false);
+    }
+  };
+
   return {
     templates,
     setTemplates,
@@ -154,6 +183,10 @@ export const useTemplates = () => {
     deleteTemplateModal,
     confirmDeleteTemplate,
     cancelDeleteTemplate,
-    deletingTemplate
+    deletingTemplate,
+
+    // NEW exports
+    bulkDeleteTemplates,
+    bulkDeletingTemplates
   };
 };

@@ -12,20 +12,27 @@ const ConfirmModal = ({
   cancelText = 'Cancel',
   confirmButtonClass = 'btn-primary'
 }) => {
-  if (!isOpen) return null;
-
+  // ✅ Hooks must be called unconditionally
   const { theme } = useContext(ThemeContext);
 
   useEffect(() => {
+    if (!isOpen) return;
+
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    const esc = (e) => e.key === 'Escape' && onClose?.();
+
+    const esc = (e) => {
+      if (e.key === 'Escape') onClose?.();
+    };
+
     window.addEventListener('keydown', esc);
     return () => {
       document.body.style.overflow = prev;
       window.removeEventListener('keydown', esc);
     };
-  }, [onClose]);
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
 
   return createPortal(
     <dialog open data-theme={theme} className="modal z-[100000]">
@@ -45,7 +52,6 @@ const ConfirmModal = ({
           </button>
         </div>
       </div>
-      {/* click outside to close */}
       <form method="dialog" className="modal-backdrop">
         <button onClick={onClose}>close</button>
       </form>

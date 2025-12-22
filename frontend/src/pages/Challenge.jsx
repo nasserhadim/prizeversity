@@ -88,7 +88,11 @@ const Challenge = () => {
     deleteTemplateModal,
     confirmDeleteTemplate,
     cancelDeleteTemplate,
-    deletingTemplate
+    deletingTemplate,
+
+    // NEW
+    bulkDeleteTemplates,
+    bulkDeletingTemplates
   } = useTemplates();
 
   // Component state
@@ -206,6 +210,8 @@ const Challenge = () => {
           setShowSaveTemplateModal={setShowSaveTemplateModal}
           setShowHintModal={setShowHintModal}
           setEditingHints={setEditingHints}
+          bulkDeleteTemplates={bulkDeleteTemplates}
+          bulkDeletingTemplates={bulkDeletingTemplates}
         />
 
         {showSaveTemplateModal && (
