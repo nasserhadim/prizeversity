@@ -8,6 +8,26 @@ import CustomChallengeBuilder from '../CustomChallengeBuilder';
 import toast from 'react-hot-toast';
 import ConfirmModal from '../../ConfirmModal';
 
+const utcToLocalDateTime = (utcISOString) => {
+  if (!utcISOString) return '';
+  const date = new Date(utcISOString);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
+const localDateTimeToUTC = (localDateTimeString) => {
+  if (!localDateTimeString) return '';
+  const [datePart, timePart] = localDateTimeString.split('T');
+  const [year, month, day] = datePart.split('-').map(Number);
+  const [hours, minutes] = timePart.split(':').map(Number);
+  const localDate = new Date(year, month - 1, day, hours, minutes);
+  return localDate.toISOString();
+};
+
 const ChallengeUpdateModal = ({ 
   showUpdateModal, 
   setShowUpdateModal, 
@@ -129,7 +149,7 @@ const ChallengeUpdateModal = ({
         hintPenaltyPercent: challengeData.settings?.hintPenaltyPercent || 25,
         maxHintsPerChallenge: challengeData.settings?.maxHintsPerChallenge || 2,
         dueDateEnabled: challengeData.settings?.dueDateEnabled || false,
-        dueDate: challengeData.settings?.dueDate ? new Date(challengeData.settings.dueDate).toISOString().slice(0,16) : ''
+        dueDate: challengeData.settings?.dueDate ? utcToLocalDateTime(challengeData.settings.dueDate) : ''
       });
     }
   }, [challengeData, showUpdateModal]);
@@ -137,7 +157,13 @@ const ChallengeUpdateModal = ({
   const handleUpdateChallenge = async () => {
     try {
       setUpdating(true);
-      await updateChallenge(classroomId, updateData);
+      const updatePayload = {
+        ...updateData,
+        dueDate: updateData.dueDateEnabled && updateData.dueDate 
+          ? localDateTimeToUTC(updateData.dueDate) 
+          : (updateData.dueDateEnabled ? null : undefined)
+      };
+      await updateChallenge(classroomId, updatePayload);
       toast.success('Challenge updated successfully');
       setShowUpdateModal(false);
       await fetchChallengeData();
