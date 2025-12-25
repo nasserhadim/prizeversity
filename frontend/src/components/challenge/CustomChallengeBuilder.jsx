@@ -840,6 +840,14 @@ const CustomChallengeBuilder = ({
                     )}
                   </div>
                   <div className="text-xs text-gray-500 flex items-center gap-2 flex-wrap">
+                    {/* NEW: Hidden indicator */}
+                    {!challenge.visible && (
+                      <span className="flex items-center gap-1 text-warning">
+                        <EyeOff className="w-3 h-3" />
+                        hidden
+                      </span>
+                    )}
+
                     <span>{challenge.bits} bits</span>
 
                     {Number(challenge.multiplier || 1) > 1 && (
