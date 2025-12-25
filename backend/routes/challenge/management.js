@@ -323,6 +323,16 @@ router.post('/:classroomId/configure', ensureAuthenticated, ensureTeacher, async
       challenge.settings.challengeVisibility = [true, true, true, true, true, true, true];
     }
 
+    // Series type: legacy, mixed, or custom
+    if (settings && settings.seriesType) {
+      challenge.seriesType = settings.seriesType;
+      
+      // If custom-only, hide all legacy challenges
+      if (settings.seriesType === 'custom') {
+        challenge.settings.challengeVisibility = [false, false, false, false, false, false, false];
+      }
+    }
+
     await challenge.save();
 
     res.json({ 

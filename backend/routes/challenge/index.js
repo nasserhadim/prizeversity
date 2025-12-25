@@ -5,10 +5,12 @@ const managementRoutes = require('./management');
 const verificationRoutes = require('./verification');
 const submissionRoutes = require('./submissions');
 const specificRoutes = require('./specific');
+const customRoutes = require('./custom');
 
 router.use('/', managementRoutes);
 router.use('/', verificationRoutes);
 router.use('/', submissionRoutes);
 router.use('/', specificRoutes);
+router.use('/', customRoutes);
 
 module.exports = router;

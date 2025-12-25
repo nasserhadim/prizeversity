@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
 
 function generateRandomString(length = 6) {
   const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -16,6 +17,91 @@ function caesarCipher(text, shift = 3) {
     return String.fromCharCode(shifted);
   });
 }
+
+// Schema for file attachments on custom challenges
+const AttachmentSchema = new mongoose.Schema({
+  filename: { type: String, required: true },
+  originalName: { type: String, required: true },
+  mimetype: { type: String, required: true },
+  path: { type: String, required: true },
+  size: { type: Number, required: true }
+}, { _id: true });
+
+// Schema for teacher-created custom challenges
+const CustomChallengeSchema = new mongoose.Schema({
+  order: { type: Number, required: true },
+  title: { type: String, required: true, maxlength: 200 },
+  description: { type: String, maxlength: 5000 },
+  externalUrl: { type: String, maxlength: 500 },
+  
+  // For 'passcode' mode: teacher sets a static solution
+  solutionHash: { type: String },
+  
+  // Template configuration
+  templateType: { 
+    type: String, 
+    enum: ['passcode', 'cipher', 'hash', 'hidden-message', 'pattern-find'],
+    default: 'passcode'
+  },
+  templateConfig: {
+    // Cipher template settings
+    cipherType: { type: String, enum: ['caesar', 'base64', 'rot13', 'atbash', 'vigenere'] },
+    difficulty: { type: String, enum: ['easy', 'medium', 'hard'], default: 'medium' },
+    
+    // Hash template settings
+    wordCategory: { type: String },  // 'planets', 'animals', 'colors', 'custom'
+    customWordList: [{ type: String }],
+    hashAlgorithm: { type: String, enum: ['md5', 'sha256'], default: 'sha256' },
+    
+    // Code trace template settings
+    codeTemplate: { type: String },  // Template code with {{var1}}, {{var2}} placeholders
+    language: { type: String, enum: ['javascript', 'python', 'pseudocode'], default: 'pseudocode' },
+    variableRanges: { type: mongoose.Schema.Types.Mixed },  // { var1: { min: 1, max: 100 }, var2: { min: 1, max: 50 } }
+    
+    // Hidden message template settings (image metadata)
+    baseImagePath: { type: String },
+    embedMethod: { type: String, enum: ['exif', 'filename'], default: 'exif' },
+    
+    // Pattern find template settings
+    patternLength: { type: Number, default: 6, min: 4, max: 12 },
+    noiseLevel: { type: String, enum: ['low', 'medium', 'high'], default: 'medium' }
+  },
+  
+  attachments: [AttachmentSchema],
+  maxAttempts: { type: Number, default: null },
+  hintsEnabled: { type: Boolean, default: false },
+  hints: [{ type: String, maxlength: 500 }],
+  // Per-challenge rewards
+  bits: { type: Number, default: 50, min: 0 },
+  multiplier: { type: Number, default: 1.0, min: 0 },
+  luck: { type: Number, default: 1.0, min: 0 },
+  discount: { type: Number, default: 0, min: 0, max: 100 },
+  shield: { type: Boolean, default: false },
+  visible: { type: Boolean, default: true },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+}, { _id: true });
+
+// Schema for tracking user progress on custom challenges
+const CustomChallengeProgressSchema = new mongoose.Schema({
+  challengeId: { type: mongoose.Schema.Types.ObjectId, required: true },
+  attempts: { type: Number, default: 0 },
+  completed: { type: Boolean, default: false },
+  completedAt: { type: Date },
+  startedAt: { type: Date },
+  hintsUsed: { type: Number, default: 0 },
+  hintsUnlocked: [{ type: String }],
+  bitsAwarded: { type: Number, default: 0 },
+  
+  // Template-generated content for this student
+  generatedContent: {
+    displayData: { type: String },       // What the student sees (encrypted text, hash, code, etc.)
+    expectedAnswer: { type: String },    // The unique answer they must submit
+    generationSeed: { type: String },    // For reproducibility
+    generatedAt: { type: Date },
+    metadata: { type: mongoose.Schema.Types.Mixed }  // Template-specific data
+  }
+}, { _id: false });
 
 const UserChallengeSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -46,6 +132,9 @@ const UserChallengeSchema = new mongoose.Schema({
     totalWords: { type: Number, default: 0 },
     wordAttempts: { type: Map, of: Number, default: new Map() } 
   },
+  
+  // Progress tracking for custom (teacher-created) challenges
+  customChallengeProgress: [CustomChallengeProgressSchema]
 
 }, { _id: true });
 
@@ -57,6 +146,16 @@ const ChallengeSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: false },
   isConfigured: { type: Boolean, default: false },
   isVisible: { type: Boolean, default: true },
+  
+  // Series type: legacy (only hardcoded), mixed (legacy + custom), custom (only custom)
+  seriesType: { type: String, enum: ['legacy', 'mixed', 'custom'], default: 'legacy' },
+  
+  // Teacher-created custom challenges
+  customChallenges: [CustomChallengeSchema],
+  
+  // Which legacy challenges are included (for mixed series)
+  // Array of indices: [0, 1, 3] = Caesar, GitHub, Forensics
+  includedLegacyChallenges: [{ type: Number, min: 0, max: 6 }],
   
   settings: {
     rewardMode: { type: String, enum: ['individual', 'total'], default: 'individual' },
@@ -305,6 +404,91 @@ ChallengeSchema.methods.addChallenge = function(bits = 50, multiplier = 1.0, luc
 
 ChallengeSchema.methods.getTotalChallenges = function() {
   return this.settings.challengeBits?.length || 7;
+};
+
+// Get total number of all challenges (legacy + custom)
+ChallengeSchema.methods.getAllChallengesCount = function() {
+  const legacyCount = (this.includedLegacyChallenges || []).length;
+  const customCount = (this.customChallenges || []).length;
+  
+  if (this.seriesType === 'legacy') {
+    return this.settings.challengeBits?.length || 7;
+  }
+  return legacyCount + customCount;
+};
+
+// Add a custom challenge with hashed solution or template configuration
+ChallengeSchema.methods.addCustomChallenge = async function(challengeData) {
+  if (!this.customChallenges) this.customChallenges = [];
+  
+  const templateType = challengeData.templateType || 'passcode';
+  let solutionHash = null;
+  
+  // Only hash solution for passcode-type challenges
+  if (templateType === 'passcode' && challengeData.solution) {
+    solutionHash = await bcrypt.hash(challengeData.solution, 10);
+  }
+  
+  const newChallenge = {
+    order: this.customChallenges.length,
+    title: challengeData.title,
+    description: challengeData.description || '',
+    externalUrl: challengeData.externalUrl || '',
+    solutionHash: solutionHash,
+    templateType: templateType,
+    templateConfig: challengeData.templateConfig || {},
+    attachments: challengeData.attachments || [],
+    maxAttempts: challengeData.maxAttempts || null,
+    hintsEnabled: challengeData.hintsEnabled || false,
+    hints: challengeData.hints || [],
+    bits: challengeData.bits || 50,
+    multiplier: challengeData.multiplier || 1.0,
+    luck: challengeData.luck || 1.0,
+    discount: challengeData.discount || 0,
+    shield: challengeData.shield || false,
+    visible: challengeData.visible !== false,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  };
+  
+  this.customChallenges.push(newChallenge);
+  
+  // Update series type
+  if (this.seriesType === 'legacy' && (this.includedLegacyChallenges || []).length > 0) {
+    this.seriesType = 'mixed';
+  } else if ((this.includedLegacyChallenges || []).length === 0) {
+    this.seriesType = 'custom';
+  }
+  
+  return this.customChallenges[this.customChallenges.length - 1];
+};
+
+// Verify a custom challenge passcode
+ChallengeSchema.methods.verifyCustomChallengeSolution = async function(challengeId, passcode) {
+  const customChallenge = this.customChallenges.id(challengeId);
+  if (!customChallenge) {
+    return { valid: false, error: 'Challenge not found' };
+  }
+  
+  const isMatch = await bcrypt.compare(passcode, customChallenge.solutionHash);
+  return { valid: isMatch, challenge: customChallenge };
+};
+
+// Get custom challenge rewards config
+ChallengeSchema.methods.getCustomChallengeRewards = function(challengeId) {
+  const customChallenge = this.customChallenges.id(challengeId);
+  if (!customChallenge) return null;
+  
+  return {
+    bits: customChallenge.bits || 0,
+    multiplier: customChallenge.multiplier || 1.0,
+    luck: customChallenge.luck || 1.0,
+    discount: customChallenge.discount || 0,
+    shield: customChallenge.shield || false,
+    hintsEnabled: customChallenge.hintsEnabled || false,
+    hints: customChallenge.hints || [],
+    maxAttempts: customChallenge.maxAttempts
+  };
 };
 
 ChallengeSchema.index({ classroomId: 1 }, { unique: true });
