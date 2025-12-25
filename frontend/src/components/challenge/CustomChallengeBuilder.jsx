@@ -745,7 +745,9 @@ const CustomChallengeBuilder = ({
               {expandedCards[challenge._id] && (
                 <div className="mt-3 pt-3 border-t border-base-content/10 space-y-3">
                   {challenge.description && (
-                    <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
+                    <p
+                      className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap wrap-any"
+                    >
                       {challenge.description}
                     </p>
                   )}

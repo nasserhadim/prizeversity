@@ -300,8 +300,8 @@ const CustomChallengeCard = ({
         <input type="checkbox" className="peer" defaultChecked={false} />
         
         <div className="collapse-title">
-          <div className="flex flex-col gap-2 sm:hidden">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-2 sm:hidden min-w-0">
+            <div className="flex items-center gap-2 flex-wrap min-w-0">
               <span className={`badge badge-sm gap-1 ${isCompleted ? 'badge-success' : isFailed ? 'badge-error' : `badge-${templateInfo.color}`}`}>
                 <TemplateIcon className="w-3 h-3" />
                 {templateInfo.name}
@@ -310,21 +310,29 @@ const CustomChallengeCard = ({
                 {isCompleted ? 'Completed' : isFailed ? 'Failed' : isStarted ? 'In Progress' : 'Not Started'}
               </span>
             </div>
-            <span className={`font-medium ${isCompleted ? 'text-success' : ''}`}>
+
+            {/* CHANGED: allow long/unbroken titles to wrap without pushing rewards off-screen */}
+            <span className={`font-medium min-w-0 wrap-any ${isCompleted ? 'text-success' : ''}`}>
               {challenge.title}
             </span>
+
             <RewardsDisplay rewards={rewards} isDark={isDark} isCompleted={isCompleted} size="sm" />
           </div>
 
-          <div className="hidden sm:flex items-center gap-3">
+          {/* CHANGED: add min-w-0 + flex-wrap so right-side items don't get pushed out */}
+          <div className="hidden sm:flex items-center gap-3 flex-wrap min-w-0">
             <span className={`badge gap-1 ${isCompleted ? 'badge-success' : isFailed ? 'badge-error' : `badge-${templateInfo.color}`}`}>
               <TemplateIcon className="w-3 h-3" />
               {templateInfo.name}
             </span>
-            <span className={`flex-1 font-medium ${isCompleted ? 'text-success' : ''}`}>
+
+            {/* CHANGED: wrap-any + min-w-0 to break long runs */}
+            <span className={`flex-1 min-w-0 font-medium wrap-any ${isCompleted ? 'text-success' : ''}`}>
               {challenge.title}
             </span>
+
             <RewardsDisplay rewards={rewards} isDark={isDark} isCompleted={isCompleted} size="sm" />
+
             <span className={`text-sm ${isDark ? 'text-base-content/50' : 'text-gray-400'}`}>
               {isCompleted ? 'Completed' : isFailed ? 'Failed' : isStarted ? 'In Progress' : 'Not Started'}
             </span>
@@ -334,9 +342,12 @@ const CustomChallengeCard = ({
         <div className="collapse-content" onClick={(e) => e.stopPropagation()}>
           <div className="pt-4 space-y-4">
             {!isStarted && !isCompleted && (
+              // CHANGED: allow warning text to wrap instead of stretching container
               <div className="alert alert-warning">
-                <AlertTriangle className="w-4 h-4" />
-                <span className="text-sm">You must start this challenge before submitting answers</span>
+                <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span className="text-sm wrap-any">You must start this challenge before submitting answers</span>
+                </div>
               </div>
             )}
 
@@ -349,7 +360,8 @@ const CustomChallengeCard = ({
 
             {challenge.description && (
               <div className="prose prose-sm max-w-none">
-                <p className={`whitespace-pre-wrap ${isDark ? 'text-base-content' : 'text-gray-700'}`}>
+                {/* CHANGED: wrap-any breaks long unbroken strings; keeps your pre-wrap behavior */}
+                <p className={`whitespace-pre-wrap wrap-any ${isDark ? 'text-base-content' : 'text-gray-700'}`}>
                   {challenge.description}
                 </p>
               </div>
