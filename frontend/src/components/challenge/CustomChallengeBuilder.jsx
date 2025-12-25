@@ -1,37 +1,80 @@
 import { useState, useEffect, useContext, useRef } from 'react';
-import { Plus, Trash2, GripVertical, ExternalLink, Paperclip, X, Eye, EyeOff, ChevronDown, ChevronUp, Shield, AlertTriangle } from 'lucide-react';
-import { ThemeContext } from '../../context/ThemeContext';
 import { 
-  createCustomChallenge, 
-  updateCustomChallenge, 
+  Plus, Trash2, GripVertical, ExternalLink, Paperclip, X, Eye, EyeOff, 
+  ChevronDown, ChevronUp, Shield, AlertTriangle,
+  Target, Lightbulb, Clover, Percent // <-- add
+} from 'lucide-react';
+import { ThemeContext } from '../../context/ThemeContext';
+import {
+  createCustomChallenge,
+  updateCustomChallenge,
   deleteCustomChallenge,
   uploadCustomChallengeAttachment,
   deleteCustomChallengeAttachment,
-  getCustomChallengeAttachmentUrl
+  getCustomChallengeAttachmentUrl,
+  reorderCustomChallenges // <-- ADD
 } from '../../API/apiChallenge';
 import TemplateSelector from './TemplateSelector';
 import toast from 'react-hot-toast';
+import ConfirmModal from '../ConfirmModal';
 
-const CustomChallengeBuilder = ({ 
-  classroomId, 
-  customChallenges = [], 
+const CustomChallengeBuilder = ({
+  classroomId,
+  customChallenges = [],
   onUpdate,
   isActive = false,
-  allowAddBeforeActive = false,  // New prop to allow adding during config
-  onFileSelectionChange  // Callback to notify parent when file selection starts/ends
+  allowAddBeforeActive = false,
+  onFileSelectionChange
 }) => {
   const canAdd = isActive || allowAddBeforeActive;
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
-  
+
   const [challenges, setChallenges] = useState(customChallenges);
+  const [draggingId, setDraggingId] = useState(null); // <-- ADD
+
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showSolution, setShowSolution] = useState({});
   const [expandedCards, setExpandedCards] = useState({});
-  
+
+  // NEW: confirmation modal state/handlers (replaces window.confirm)
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [confirmOptions, setConfirmOptions] = useState({
+    title: 'Confirm',
+    message: '',
+    confirmText: 'Confirm',
+    cancelText: 'Cancel',
+    confirmButtonClass: 'btn-primary',
+    onConfirm: null
+  });
+
+  const openConfirm = ({
+    title = 'Confirm',
+    message = '',
+    confirmText = 'Confirm',
+    cancelText = 'Cancel',
+    confirmButtonClass = 'btn-primary',
+    onConfirm = null
+  }) => {
+    setConfirmOptions({ title, message, confirmText, cancelText, confirmButtonClass, onConfirm });
+    setShowConfirm(true);
+  };
+
+  const handleConfirm = async () => {
+    setShowConfirm(false);
+    const fn = confirmOptions?.onConfirm;
+    if (typeof fn === 'function') {
+      try {
+        await fn();
+      } catch (err) {
+        console.error('Confirm callback error', err);
+      }
+    }
+  };
+
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -292,17 +335,25 @@ const CustomChallengeBuilder = ({
   };
 
   const handleDelete = async (challengeId) => {
-    if (!window.confirm('Are you sure you want to delete this challenge? This action cannot be undone.')) {
-      return;
-    }
+    const challenge = challenges.find(c => c._id?.toString() === challengeId?.toString());
+    const label = challenge?.title ? `"${challenge.title}"` : 'this challenge';
 
-    try {
-      await deleteCustomChallenge(classroomId, challengeId);
-      toast.success('Challenge deleted');
-      if (onUpdate) onUpdate();
-    } catch (error) {
-      toast.error(error.message || 'Failed to delete challenge');
-    }
+    openConfirm({
+      title: 'Delete Custom Challenge',
+      message: `Are you sure you want to delete ${label}? This action cannot be undone.`,
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      confirmButtonClass: 'btn-error',
+      onConfirm: async () => {
+        try {
+          await deleteCustomChallenge(classroomId, challengeId);
+          toast.success('Challenge deleted');
+          if (onUpdate) onUpdate();
+        } catch (error) {
+          toast.error(error.message || 'Failed to delete challenge');
+        }
+      }
+    });
   };
 
   const handleFileUpload = async (challengeId, file) => {
@@ -358,6 +409,77 @@ const CustomChallengeBuilder = ({
 
   const toggleCardExpanded = (id) => {
     setExpandedCards(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  // Keep these aligned with backend upload limits/types:
+  // - size: backend/middleware/upload.js => 10MB for challengeAttachment
+  // - types: accept list matches the create flow
+  const ATTACHMENT_MAX_SIZE_TEXT = 'Max 10MB per file.';
+  const ATTACHMENT_TYPES_TEXT = 'PDFs, images, documents, ZIPs, TXT/CSV/JSON allowed.';
+  const ATTACHMENT_ACCEPT =
+    '.pdf,.zip,.txt,.csv,.json,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.webp';
+
+  const moveItem = (arr, fromIndex, toIndex) => {
+    const next = [...arr];
+    const [item] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, item);
+    return next;
+  };
+
+  const persistOrder = async (nextChallenges) => {
+    const order = nextChallenges.map(c => c._id);
+    await reorderCustomChallenges(classroomId, order);
+    if (onUpdate) onUpdate();
+  };
+
+  const handleDragStart = (e, challengeId) => {
+    setDraggingId(challengeId);
+    try {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(challengeId));
+    } catch {
+      // ignore (some browsers can be finicky)
+    }
+  };
+
+  const handleDragOver = (e) => {
+    // required to allow dropping
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = async (e, targetChallengeId) => {
+    e.preventDefault();
+
+    const sourceId = draggingId || e.dataTransfer.getData('text/plain');
+    if (!sourceId || sourceId === targetChallengeId) {
+      setDraggingId(null);
+      return;
+    }
+
+    const prev = challenges;
+    const fromIndex = prev.findIndex(c => String(c._id) === String(sourceId));
+    const toIndex = prev.findIndex(c => String(c._id) === String(targetChallengeId));
+    if (fromIndex === -1 || toIndex === -1) {
+      setDraggingId(null);
+      return;
+    }
+
+    const next = moveItem(prev, fromIndex, toIndex);
+
+    // optimistic UI
+    setChallenges(next);
+
+    try {
+      await persistOrder(next);
+      toast.success('Reordered custom challenges');
+    } catch (err) {
+      // revert on failure
+      setChallenges(prev);
+      toast.error(err?.message || 'Failed to reorder challenges');
+    } finally {
+      setDraggingId(null);
+    }
   };
 
   return (
@@ -679,9 +801,22 @@ const CustomChallengeBuilder = ({
             <div
               key={challenge._id}
               className={`card ${isDark ? 'bg-base-300' : 'bg-base-200'} p-3`}
+              onDragOver={handleDragOver}                 // <-- ADD
+              onDrop={(e) => handleDrop(e, challenge._id)} // <-- ADD
             >
               <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 text-gray-400">
+                {/* Drag handle */}
+                <div
+                  className={`flex items-center gap-2 text-gray-400 select-none ${
+                    String(draggingId) === String(challenge._id) ? 'opacity-60' : ''
+                  }`}
+                  draggable // <-- ADD
+                  onDragStart={(e) => handleDragStart(e, challenge._id)} // <-- ADD
+                  onDragEnd={() => setDraggingId(null)} // <-- ADD
+                  title="Drag to reorder"
+                  aria-label="Drag to reorder"
+                  style={{ cursor: 'grab' }}
+                >
                   <GripVertical className="w-4 h-4" />
                   <span className="text-sm font-mono">{index + 1}</span>
                 </div>
@@ -706,8 +841,50 @@ const CustomChallengeBuilder = ({
                   </div>
                   <div className="text-xs text-gray-500 flex items-center gap-2 flex-wrap">
                     <span>{challenge.bits} bits</span>
-                    {challenge.multiplier > 1 && <span>+{(challenge.multiplier - 1).toFixed(1)}x mult</span>}
+
+                    {Number(challenge.multiplier || 1) > 1 && (
+                      <span>+{(Number(challenge.multiplier) - 1).toFixed(1)}x mult</span>
+                    )}
+
+                    {Number(challenge.luck || 1) > 1 && (
+                      <span className="flex items-center gap-1">
+                        <Clover className="w-3 h-3" />
+                        ×{Number(challenge.luck).toFixed(1)} luck
+                      </span>
+                    )}
+
+                    {Number(challenge.discount || 0) > 0 && (
+                      <span className="flex items-center gap-1">
+                        <Percent className="w-3 h-3" />
+                        {challenge.discount}% disc
+                      </span>
+                    )}
+
+                    {challenge.shield && (
+                      <span className="flex items-center gap-1">
+                        <Shield className="w-3 h-3" />
+                        shield
+                      </span>
+                    )}
+
+                    {/* NEW: Attempts indicator */}
+                    {challenge.maxAttempts ? (
+                      <span className="flex items-center gap-1">
+                        <Target className="w-3 h-3" />
+                        {challenge.maxAttempts} attempt{Number(challenge.maxAttempts) === 1 ? '' : 's'}
+                      </span>
+                    ) : null}
+
+                    {/* NEW: Hints indicator */}
+                    {challenge.hintsEnabled ? (
+                      <span className="flex items-center gap-1">
+                        <Lightbulb className="w-3 h-3" />
+                        {(challenge.hints || []).filter(h => (h || '').trim()).length} hint(s)
+                      </span>
+                    ) : null}
+
                     {challenge.externalUrl && <ExternalLink className="w-3 h-3" />}
+
                     {(challenge.attachments?.length || 0) > 0 && (
                       <span className="flex items-center gap-1">
                         <Paperclip className="w-3 h-3" />
@@ -757,28 +934,37 @@ const CustomChallengeBuilder = ({
                       href={challenge.externalUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="link link-primary text-sm flex items-center gap-1"
+                      className="link link-primary text-sm flex items-center gap-1 min-w-0 max-w-full flex-wrap"
                     >
-                      <ExternalLink className="w-3 h-3" />
-                      {challenge.externalUrl}
+                      <ExternalLink className="w-3 h-3 shrink-0" />
+                      <span className="min-w-0 break-all">{challenge.externalUrl}</span>
                     </a>
                   )}
 
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium">Attachments</span>
-                      <label className="btn btn-ghost btn-xs gap-1">
-                        <Plus className="w-3 h-3" />
-                        Upload
-                        <input
-                          type="file"
-                          className="hidden"
-                          onChange={(e) => handleFileUpload(challenge._id, e.target.files?.[0])}
-                          disabled={uploading}
-                        />
-                      </label>
+
+                      <div className="flex items-center gap-2">
+                        <label className="btn btn-ghost btn-xs gap-1">
+                          <Plus className="w-3 h-3" />
+                          Upload
+                          <input
+                            type="file"
+                            className="hidden"
+                            accept={ATTACHMENT_ACCEPT}
+                            onChange={(e) => handleFileUpload(challenge._id, e.target.files?.[0])}
+                            disabled={uploading}
+                          />
+                        </label>
+                      </div>
                     </div>
-                    
+
+                    {/* NEW: helper text for update/edit flow */}
+                    <div className="text-xs text-gray-500">
+                      {ATTACHMENT_MAX_SIZE_TEXT} {ATTACHMENT_TYPES_TEXT}
+                    </div>
+
                     {(challenge.attachments?.length || 0) > 0 ? (
                       <div className="flex flex-wrap gap-2">
                         {challenge.attachments.map(att => (
@@ -818,6 +1004,18 @@ const CustomChallengeBuilder = ({
           <p className="text-sm">Click "Add Challenge" to create your first one.</p>
         </div>
       )}
+
+      {/* NEW: consistent confirmation modal */}
+      <ConfirmModal
+        isOpen={showConfirm}
+        onClose={() => setShowConfirm(false)}
+        title={confirmOptions.title}
+        message={confirmOptions.message}
+        confirmText={confirmOptions.confirmText}
+        cancelText={confirmOptions.cancelText}
+        confirmButtonClass={confirmOptions.confirmButtonClass}
+        onConfirm={handleConfirm}
+      />
     </div>
   );
 };

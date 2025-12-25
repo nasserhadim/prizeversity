@@ -56,6 +56,44 @@ router.get('/templates/metadata', ensureAuthenticated, ensureTeacher, async (req
   }
 });
 
+// Reorder custom challenges (MUST be before '/:classroomId/custom/:challengeId' routes)
+router.put('/:classroomId/custom/reorder', ensureAuthenticated, ensureTeacher, async (req, res) => {
+  try {
+    const { classroomId } = req.params;
+    const { order } = req.body;
+
+    if (!Array.isArray(order)) {
+      return res.status(400).json({ success: false, message: 'Order must be an array of challenge IDs' });
+    }
+
+    const challenge = await Challenge.findOne({ classroomId });
+    if (!challenge) {
+      return res.status(404).json({ success: false, message: 'Challenge series not found' });
+    }
+
+    if (challenge.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Only the challenge creator can reorder challenges' });
+    }
+
+    const challengeMap = new Map();
+    challenge.customChallenges.forEach(cc => {
+      challengeMap.set(cc._id.toString(), cc);
+    });
+
+    order.forEach((id, index) => {
+      const cc = challengeMap.get(id);
+      if (cc) cc.order = index;
+    });
+
+    challenge.customChallenges.sort((a, b) => a.order - b.order);
+    await challenge.save();
+
+    res.json({ success: true, message: 'Challenges reordered' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to reorder challenges' });
+  }
+});
+
 // Create a new custom challenge
 router.post('/:classroomId/custom', ensureAuthenticated, ensureTeacher, async (req, res) => {
   try {
@@ -316,46 +354,6 @@ router.delete('/:classroomId/custom/:challengeId', ensureAuthenticated, ensureTe
     res.json({ success: true, message: 'Custom challenge deleted' });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to delete custom challenge' });
-  }
-});
-
-// Reorder custom challenges
-router.put('/:classroomId/custom/reorder', ensureAuthenticated, ensureTeacher, async (req, res) => {
-  try {
-    const { classroomId } = req.params;
-    const { order } = req.body;
-
-    if (!Array.isArray(order)) {
-      return res.status(400).json({ success: false, message: 'Order must be an array of challenge IDs' });
-    }
-
-    const challenge = await Challenge.findOne({ classroomId });
-    if (!challenge) {
-      return res.status(404).json({ success: false, message: 'Challenge series not found' });
-    }
-
-    if (challenge.createdBy.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ success: false, message: 'Only the challenge creator can reorder challenges' });
-    }
-
-    const challengeMap = new Map();
-    challenge.customChallenges.forEach(cc => {
-      challengeMap.set(cc._id.toString(), cc);
-    });
-
-    order.forEach((id, index) => {
-      const cc = challengeMap.get(id);
-      if (cc) {
-        cc.order = index;
-      }
-    });
-
-    challenge.customChallenges.sort((a, b) => a.order - b.order);
-    await challenge.save();
-
-    res.json({ success: true, message: 'Challenges reordered' });
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to reorder challenges' });
   }
 });
 

@@ -1743,58 +1743,97 @@ const TeacherView = ({
                   <tbody>
                     {challengeData.userChallenges?.filter(uc => uc.userId).map(uc => {
                       const totalChallenges = challengeData.customChallenges.length;
-                      const completedChallenges = challengeData.customChallenges.filter(cc => {
-                        const progress = uc.customChallengeProgress?.find(p => p.challengeId.toString() === cc._id.toString());
-                        return progress?.completed || false;
-                      }).length;
-                      
-                      const startedChallenges = challengeData.customChallenges.filter(cc => {
-                        const progress = uc.customChallengeProgress?.find(p => p.challengeId.toString() === cc._id.toString());
-                        return progress?.startedAt;
-                      }).length;
-                      
-                      const hasStarted = startedChallenges > 0;
-                      const allCompleted = completedChallenges === totalChallenges && totalChallenges > 0;
-                      const currentChallenge = challengeData.customChallenges.find(cc => {
-                        const progress = uc.customChallengeProgress?.find(p => p.challengeId.toString() === cc._id.toString());
-                        return progress?.startedAt && !progress?.completed;
+
+                      // Build quick lookup for this student's progress by custom challenge id
+                      const progressByChallengeId = new Map(
+                        (uc.customChallengeProgress || []).map(p => [String(p.challengeId), p])
+                      );
+
+                      const perChallenge = (challengeData.customChallenges || []).map(cc => {
+                        const p = progressByChallengeId.get(String(cc._id));
+                        const started = !!p?.startedAt;
+                        const completed = !!p?.completed;
+                        const attempts = Number(p?.attempts || 0);
+
+                        const maxAttempts = cc.maxAttempts; // comes from backend custom challenge definition
+                        const failed = !!(started && !completed && maxAttempts && attempts >= maxAttempts);
+
+                        return { cc, p, started, completed, failed, attempts, maxAttempts };
                       });
-                      
-                      const currentProgress = currentChallenge ? uc.customChallengeProgress?.find(p => p.challengeId.toString() === currentChallenge._id.toString()) : null;
-                      const currentSolution = currentProgress?.generatedContent?.expectedAnswer || null;
-                      
-                      const firstStartedAt = uc.customChallengeProgress
-                        ?.filter(p => p.startedAt)
+
+                      const completedChallenges = perChallenge.filter(x => x.completed).length;
+                      const hasStarted = perChallenge.some(x => x.started);
+                      const allCompleted = totalChallenges > 0 && completedChallenges === totalChallenges;
+                      const anyFailed = perChallenge.some(x => x.failed);
+
+                      // "Working on" should ignore failed challenges
+                      const currentChallengeEntry = perChallenge.find(x => x.started && !x.completed && !x.failed);
+                      const currentChallenge = currentChallengeEntry?.cc || null;
+                      const currentProgress = currentChallenge
+                        ? progressByChallengeId.get(String(currentChallenge._id))
+                        : null;
+
+                      // Status label for the badge
+                      const statusLabel = allCompleted
+                        ? 'Completed'
+                        : anyFailed
+                          ? 'Failed'
+                          : hasStarted
+                            ? 'In Progress'
+                            : 'Not Started';
+
+                      const firstStartedAt = (uc.customChallengeProgress || [])
+                        .filter(p => p.startedAt)
                         .map(p => new Date(p.startedAt))
                         .sort((a, b) => a - b)[0];
-                      
-                      const lastCompletedAt = uc.customChallengeProgress
-                        ?.filter(p => p.completedAt)
+
+                      const lastCompletedAt = (uc.customChallengeProgress || [])
+                        .filter(p => p.completedAt)
                         .map(p => new Date(p.completedAt))
                         .sort((a, b) => b - a)[0];
-                      
+
+                      const currentSolution = currentProgress?.generatedContent?.expectedAnswer || null;
+
                       return (
                         <tr key={uc._id} className="align-top">
                           <td className="font-medium">
                             {uc.userId.firstName} {uc.userId.lastName}
                           </td>
+
                           <td>
                             <div className="flex flex-col">
                               <span className="font-medium">
                                 {completedChallenges}/{totalChallenges} completed
                               </span>
-                              {currentChallenge && (
+                              {currentChallenge ? (
                                 <span className="text-xs text-gray-500">
                                   Working on: {currentChallenge.title}
                                 </span>
-                              )}
+                              ) : anyFailed && !allCompleted ? (
+                                <span className="text-xs text-gray-500">
+                                  No active challenge (failed / max attempts reached)
+                                </span>
+                              ) : null}
                             </div>
                           </td>
+
                           <td>
-                            <span className={`badge ${allCompleted ? 'badge-success' : hasStarted ? 'badge-warning' : 'badge-ghost'}`}>
-                              {allCompleted ? 'Completed' : hasStarted ? 'In Progress' : 'Not Started'}
+                            <span
+                              className={[
+                                'badge',
+                                statusLabel === 'Completed'
+                                  ? 'badge-success'
+                                  : statusLabel === 'Failed'
+                                    ? 'badge-error'
+                                    : statusLabel === 'In Progress'
+                                      ? 'badge-warning'
+                                      : 'badge-ghost'
+                              ].join(' ')}
+                            >
+                              {statusLabel}
                             </span>
                           </td>
+
                           <td className="hidden lg:table-cell">
                             {currentSolution ? (
                               <div className="flex items-center gap-2">
