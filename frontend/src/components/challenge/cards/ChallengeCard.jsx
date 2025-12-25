@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play, Eye, AlertTriangle } from 'lucide-react';
+import { Play, Eye, AlertTriangle, Lightbulb } from 'lucide-react';
 import { getChallengeColors } from '../../../utils/themeUtils';
 import { getRewardDataForChallenge } from '../../../utils/challengeUtils';
 import { unlockHint, startChallenge } from '../../../API/apiChallenge';
@@ -49,6 +49,7 @@ const ChallengeCard = ({
   }
   
   const [showStartModal, setShowStartModal] = useState(false);
+  const [showHintModal, setShowHintModal] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState(null);
   
   const isCompleted = userChallenge?.completedChallenges?.[challengeIndex] || false;
@@ -83,7 +84,11 @@ const ChallengeCard = ({
   const rewardData = getRewardDataForChallenge(challengeIndex, challengeData, userChallenge, CHALLENGE_NAMES);
   const challengeRewards = rewardData?.rewards;
   
-  const handleUnlockHint = async () => {
+  const handleHintClick = () => {
+    setShowHintModal(true);
+  };
+
+  const handleConfirmUnlockHint = async () => {
     try {
       setUnlockingHint(prev => ({ ...prev, [challengeId]: true }));
       const res = await unlockHint(classroomId, challengeId);
@@ -91,6 +96,7 @@ const ChallengeCard = ({
         if (res.hint && onHintUnlocked) {
           onHintUnlocked(res.hint, challengeName, res.hintsUsed || 1);
         }
+        setShowHintModal(false);
         await fetchChallengeData();
       } else {
         toast.error(res.message || 'Unable to unlock hint');
@@ -101,6 +107,16 @@ const ChallengeCard = ({
       setUnlockingHint(prev => ({ ...prev, [challengeId]: false }));
     }
   };
+
+  // Calculate hint penalty info for legacy challenges
+  const hintPenaltyPercent = challengeData?.settings?.hintPenaltyPercent || 25;
+  const hintsUsed = userChallenge?.hintsUsed?.[challengeIndex] || 0;
+  const maxHints = challengeData?.settings?.maxHintsPerChallenge || 3;
+  const baseBits = challengeData?.settings?.challengeBits?.[challengeIndex] || 0;
+  const currentPenalty = Math.min(80, hintsUsed * hintPenaltyPercent);
+  const currentBits = baseBits > 0 ? Math.round(baseBits * (1 - currentPenalty / 100)) : 0;
+  const nextPenalty = Math.min(80, (hintsUsed + 1) * hintPenaltyPercent);
+  const bitsAfterNextHint = baseBits > 0 ? Math.round(baseBits * (1 - nextPenalty / 100)) : 0;
 
   const handleStartChallenge = async () => {
     try {
@@ -358,10 +374,10 @@ const ChallengeCard = ({
                   onClick={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
-                    handleUnlockHint();
+                    handleHintClick();
                   }}
                 >
-                  {unlockingHint[challengeId] ? 'Unlocking...' : '💡 Unlock Hint'}
+                  💡 Unlock Hint
                 </button>
               </div>
               
@@ -437,6 +453,65 @@ const ChallengeCard = ({
               >
                 <Play className="w-4 h-4" />
                 Start & Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {showHintModal && (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className={`card w-full max-w-md shadow-2xl ${isDark ? 'bg-base-200' : 'bg-white'}`}>
+          <div className="card-body text-center space-y-4">
+            <div className="flex justify-center">
+              <div className="w-12 h-12 rounded-full bg-info/20 flex items-center justify-center">
+                <Lightbulb className="w-6 h-6 text-info" />
+              </div>
+            </div>
+            
+            <h3 className="text-lg font-bold">Unlock Hint?</h3>
+            
+            <div className="space-y-2">
+              <p className="text-sm text-gray-500">
+                This will be hint <strong>{hintsUsed + 1}</strong> of <strong>{maxHints}</strong> for <strong>{challengeName}</strong>.
+              </p>
+              
+              {hintPenaltyPercent > 0 ? (
+                <div className={`p-3 rounded-lg ${isDark ? 'bg-warning/10' : 'bg-warning/5'} border border-warning/30`}>
+                  <p className="text-sm text-warning font-medium">
+                    ⚠️ Penalty: -{hintPenaltyPercent}% bits
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Reward will change: {currentBits} → {bitsAfterNextHint} bits
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm text-success">✓ No penalty for using hints</p>
+              )}
+            </div>
+
+            <div className="flex justify-center gap-3">
+              <button 
+                onClick={() => setShowHintModal(false)} 
+                className="btn btn-ghost"
+                disabled={unlockingHint[challengeId]}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleConfirmUnlockHint} 
+                className="btn btn-info gap-2"
+                disabled={unlockingHint[challengeId]}
+              >
+                {unlockingHint[challengeId] ? (
+                  <span className="loading loading-spinner loading-sm"></span>
+                ) : (
+                  <>
+                    <Lightbulb className="w-4 h-4" />
+                    Unlock Hint
+                  </>
+                )}
               </button>
             </div>
           </div>

@@ -104,6 +104,7 @@ const CustomChallengeBuilder = ({
     maxAttempts: '',
     hintsEnabled: false,
     hints: ['', ''],
+    hintPenaltyPercent: '',
     bits: 50,
     multiplier: 1.0,
     luck: 1.0,
@@ -163,6 +164,7 @@ const CustomChallengeBuilder = ({
       maxAttempts: '',
       hintsEnabled: false,
       hints: ['', ''],
+      hintPenaltyPercent: '',
       bits: 50,
       multiplier: 1.0,
       luck: 1.0,
@@ -252,6 +254,7 @@ const CustomChallengeBuilder = ({
       maxAttempts: challenge.maxAttempts || '',
       hintsEnabled: challenge.hintsEnabled || false,
       hints: challenge.hints?.length ? [...challenge.hints] : ['', ''],
+      hintPenaltyPercent: challenge.hintPenaltyPercent ?? '',
       bits: challenge.bits || 50,
       multiplier: challenge.multiplier || 1.0,
       luck: challenge.luck || 1.0,
@@ -282,6 +285,11 @@ const CustomChallengeBuilder = ({
       return;
     }
 
+    if (form.hintsEnabled && form.hints.filter(h => h.trim()).length === 0) {
+      toast.error('Please add at least one hint or disable hints');
+      return;
+    }
+
     setSaving(true);
     try {
       const payload = {
@@ -291,6 +299,7 @@ const CustomChallengeBuilder = ({
         maxAttempts: form.maxAttempts ? parseInt(form.maxAttempts) : null,
         hintsEnabled: form.hintsEnabled,
         hints: form.hints.filter(h => h.trim()),
+        hintPenaltyPercent: form.hintPenaltyPercent !== '' ? parseInt(form.hintPenaltyPercent) : null,
         bits: parseInt(form.bits) || 0,
         multiplier: parseFloat(form.multiplier) || 1.0,
         luck: parseFloat(form.luck) || 1.0,
@@ -760,30 +769,51 @@ const CustomChallengeBuilder = ({
           </div>
 
           {form.hintsEnabled && (
-            <div className="space-y-2">
-              <label className="label"><span className="label-text">Hints</span></label>
-              {form.hints.map((hint, index) => (
-                <div key={index} className="flex gap-2">
-                  <input
-                    type="text"
-                    className="input input-bordered flex-1"
-                    value={hint}
-                    onChange={(e) => updateHint(index, e.target.value)}
-                    placeholder={`Hint ${index + 1}`}
-                    maxLength={500}
-                  />
-                  {form.hints.length > 1 && (
-                    <button type="button" onClick={() => removeHintField(index)} className="btn btn-ghost btn-sm">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="label"><span className="label-text">Hints</span></label>
+                {form.hints.map((hint, index) => (
+                  <div key={index} className="flex gap-2">
+                    <input
+                      type="text"
+                      className="input input-bordered flex-1"
+                      value={hint}
+                      onChange={(e) => updateHint(index, e.target.value)}
+                      placeholder={`Hint ${index + 1}`}
+                      maxLength={500}
+                    />
+                    {form.hints.length > 1 && (
+                      <button type="button" onClick={() => removeHintField(index)} className="btn btn-ghost btn-sm">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {form.hints.length < 5 && (
+                  <button type="button" onClick={addHintField} className="btn btn-ghost btn-sm gap-2">
+                    <Plus className="w-4 h-4" /> Add Hint
+                  </button>
+                )}
+              </div>
+              
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text">Hint Penalty % (optional)</span>
+                  <span className="label-text-alt">Leave blank to use series default</span>
+                </label>
+                <input
+                  type="number"
+                  className="input input-bordered w-32"
+                  value={form.hintPenaltyPercent}
+                  onChange={(e) => setForm(prev => ({ ...prev, hintPenaltyPercent: e.target.value }))}
+                  placeholder="25"
+                  min={0}
+                  max={100}
+                />
+                <div className="text-xs text-gray-500 mt-1">
+                  Reduces bit reward by this % for each hint used
                 </div>
-              ))}
-              {form.hints.length < 5 && (
-                <button type="button" onClick={addHintField} className="btn btn-ghost btn-sm gap-2">
-                  <Plus className="w-4 h-4" /> Add Hint
-                </button>
-              )}
+              </div>
             </div>
           )}
 

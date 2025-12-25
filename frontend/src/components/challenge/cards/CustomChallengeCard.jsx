@@ -28,6 +28,7 @@ const CustomChallengeCard = ({
   const [submitting, setSubmitting] = useState(false);
   const [unlockingHint, setUnlockingHint] = useState(false);
   const [showStartModal, setShowStartModal] = useState(false);
+  const [showHintModal, setShowHintModal] = useState(false);
   const [pendingExternalUrl, setPendingExternalUrl] = useState(null);
   const [generatedData, setGeneratedData] = useState(null);
   const [localAttemptsLeft, setLocalAttemptsLeft] = useState(null);
@@ -52,6 +53,9 @@ const CustomChallengeCard = ({
   const isTemplateChallenge = templateType !== 'passcode';
   const templateInfo = TEMPLATE_DISPLAY[templateType] || TEMPLATE_DISPLAY.passcode;
   const TemplateIcon = templateInfo.icon;
+  
+  // Compute hintsCount from hints array if not provided
+  const hintsCount = challenge.hintsCount ?? (challenge.hints?.length || 0);
 
   
   const displayContent = generatedData?.displayData || challenge.generatedDisplayData;
@@ -176,12 +180,23 @@ const CustomChallengeCard = ({
     }
   };
 
+  // Calculate bits after hint penalty
+  const baseBits = challenge.bits || 0;
+  const hintsUsed = progress.hintsUsed || 0;
+  const hintPenaltyPercent = challenge.hintPenaltyPercent || 0;
+  const totalPenalty = Math.min(80, hintsUsed * hintPenaltyPercent); // Cap at 80%
+  const effectiveBits = hintsUsed > 0 && hintPenaltyPercent > 0
+    ? Math.round(baseBits * (1 - totalPenalty / 100))
+    : baseBits;
+
   const rewards = {
-    bits: challenge.bits || 0,
+    bits: effectiveBits,
+    baseBits: baseBits, // Keep original for display
     multiplier: challenge.multiplier > 1 ? challenge.multiplier - 1 : 0,
     luck: challenge.luck || 1.0,
     discount: challenge.discount || 0,
-    shield: challenge.shield || false
+    shield: challenge.shield || false,
+    hintPenalty: hintsUsed > 0 && hintPenaltyPercent > 0 ? totalPenalty : 0
   };
 
   const getCardColors = () => {
@@ -275,12 +290,17 @@ const CustomChallengeCard = ({
     }
   };
 
-  const handleUnlockHint = async () => {
+  const handleHintClick = () => {
+    setShowHintModal(true);
+  };
+
+  const handleConfirmUnlockHint = async () => {
     setUnlockingHint(true);
     try {
       const result = await unlockCustomChallengeHint(classroomId, challenge._id);
       if (result.success && result.hint) {
         toast.success('Hint unlocked!');
+        setShowHintModal(false);
         if (onUpdate) onUpdate();
       }
     } catch (error) {
@@ -289,6 +309,13 @@ const CustomChallengeCard = ({
       setUnlockingHint(false);
     }
   };
+
+  // Calculate what bits will be after unlocking the next hint
+  const nextHintsUsed = (progress.hintsUsed || 0) + 1;
+  const nextTotalPenalty = Math.min(80, nextHintsUsed * hintPenaltyPercent);
+  const bitsAfterNextHint = hintPenaltyPercent > 0
+    ? Math.round(baseBits * (1 - nextTotalPenalty / 100))
+    : baseBits;
 
   if (!challenge.visible && !isTeacher) {
     return (
@@ -500,23 +527,34 @@ const CustomChallengeCard = ({
               </div>
             )}
 
-            {challenge.hintsEnabled && isStarted && !isCompleted && !isFailed && (
+            {challenge.hintsEnabled && isStarted && !isCompleted && !isFailed && hintsCount > 0 && (
               <div className="space-y-3 pt-2 border-t border-base-content/10">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium">Hints</span>
                     <span className="text-xs text-gray-500">
-                      {progress.hintsUsed || 0}/{challenge.hintsCount || 0} used
+                      {progress.hintsUsed || 0}/{hintsCount} used
                     </span>
+                    {challenge.hintPenaltyPercent > 0 && (
+                      <span className="text-xs text-warning">
+                        (-{challenge.hintPenaltyPercent}% per hint)
+                      </span>
+                    )}
                   </div>
                   <button
-                    onClick={handleUnlockHint}
-                    disabled={unlockingHint || (progress.hintsUsed || 0) >= (challenge.hintsCount || 0)}
+                    onClick={handleHintClick}
+                    disabled={unlockingHint || (progress.hintsUsed || 0) >= hintsCount}
                     className="btn btn-sm btn-primary"
                   >
-                    {unlockingHint ? <span className="loading loading-spinner loading-xs"></span> : 'Unlock Hint'}
+                    Unlock Hint
                   </button>
                 </div>
+
+                {rewards.hintPenalty > 0 && (
+                  <div className="text-xs text-warning">
+                    Hint penalty: {baseBits} → {effectiveBits} bits (-{rewards.hintPenalty}%)
+                  </div>
+                )}
 
                 {(progress.hintsUnlocked?.length || 0) > 0 && (
                   <div className="space-y-2">
@@ -559,6 +597,65 @@ const CustomChallengeCard = ({
                 <button onClick={handleStart} className="btn btn-primary gap-2">
                   <Play className="w-4 h-4" />
                   Start & Continue
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showHintModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className={`card w-full max-w-md shadow-2xl ${isDark ? 'bg-base-200' : 'bg-white'}`}>
+            <div className="card-body text-center space-y-4">
+              <div className="flex justify-center">
+                <div className="w-12 h-12 rounded-full bg-info/20 flex items-center justify-center">
+                  <Eye className="w-6 h-6 text-info" />
+                </div>
+              </div>
+              
+              <h3 className="text-lg font-bold">Unlock Hint?</h3>
+              
+              <div className="space-y-2">
+                <p className="text-sm text-gray-500">
+                  This will be hint <strong>{(progress.hintsUsed || 0) + 1}</strong> of <strong>{hintsCount}</strong>.
+                </p>
+                
+                {hintPenaltyPercent > 0 ? (
+                  <div className={`p-3 rounded-lg ${isDark ? 'bg-warning/10' : 'bg-warning/5'} border border-warning/30`}>
+                    <p className="text-sm text-warning font-medium">
+                      ⚠️ Penalty: -{hintPenaltyPercent}% bits
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Reward will change: {effectiveBits} → {bitsAfterNextHint} bits
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-success">✓ No penalty for using hints</p>
+                )}
+              </div>
+
+              <div className="flex justify-center gap-3">
+                <button 
+                  onClick={() => setShowHintModal(false)} 
+                  className="btn btn-ghost"
+                  disabled={unlockingHint}
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleConfirmUnlockHint} 
+                  className="btn btn-info gap-2"
+                  disabled={unlockingHint}
+                >
+                  {unlockingHint ? (
+                    <span className="loading loading-spinner loading-sm"></span>
+                  ) : (
+                    <>
+                      <Eye className="w-4 h-4" />
+                      Unlock Hint
+                    </>
+                  )}
                 </button>
               </div>
             </div>
