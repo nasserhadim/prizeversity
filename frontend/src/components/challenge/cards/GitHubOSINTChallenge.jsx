@@ -19,7 +19,7 @@ const GitHubOSINTChallenge = ({ userChallenge, isDark, onExternalLinkClick }) =>
             <span className={`text-sm font-medium ${themeClasses.mutedText}`}>LinkedIn Profile:</span>
             <br />
             <a 
-              href="https:
+              href="https://linkedin.com/in/paul-glantz-1b3488378/"
               target="_blank" 
               rel="noopener noreferrer"
               className={`${themeClasses.linkText} hover:underline`}

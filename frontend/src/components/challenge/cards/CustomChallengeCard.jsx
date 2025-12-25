@@ -3,6 +3,7 @@ import { Play, Check, X, ExternalLink, Download, Eye, AlertTriangle, Lock, Hash,
 import { ThemeContext } from '../../../context/ThemeContext';
 import { verifyCustomChallenge, startCustomChallenge, unlockCustomChallengeHint, getCustomChallengeAttachmentUrl, getPersonalizedChallengeFileUrl } from '../../../API/apiChallenge';
 import RewardsDisplay from '../RewardsDisplay';
+import DueDateCountdown from '../DueDateCountdown';
 import toast from 'react-hot-toast';
 
 const TEMPLATE_DISPLAY = {
@@ -35,6 +36,11 @@ const CustomChallengeCard = ({
   const isStarted = !!progress.startedAt;
   const isFailed = challenge.maxAttempts && progress.attempts >= challenge.maxAttempts && !isCompleted;
   const attemptsLeft = challenge.maxAttempts ? challenge.maxAttempts - (progress.attempts || 0) : null;
+  
+  const customChallengeExpired = challenge.dueDateEnabled && challenge.dueDate 
+    ? new Date() > new Date(challenge.dueDate) 
+    : false;
+  const isExpired = challengeExpired || customChallengeExpired;
   
   const templateType = challenge.templateType || 'passcode';
   const isTemplateChallenge = templateType !== 'passcode';
@@ -222,8 +228,8 @@ const CustomChallengeCard = ({
       return;
     }
 
-    if (challengeExpired) {
-      toast.error('Challenge series has expired');
+    if (isExpired) {
+      toast.error('This challenge has expired');
       return;
     }
 
@@ -316,6 +322,10 @@ const CustomChallengeCard = ({
             </span>
 
             <RewardsDisplay rewards={rewards} isDark={isDark} isCompleted={isCompleted} size="sm" />
+            
+            {challenge.dueDateEnabled && challenge.dueDate && (
+              <DueDateCountdown dueDate={challenge.dueDate} />
+            )}
           </div>
 
           {}
@@ -335,6 +345,10 @@ const CustomChallengeCard = ({
             <span className={`text-sm ${isDark ? 'text-base-content/50' : 'text-gray-400'}`}>
               {isCompleted ? 'Completed' : isFailed ? 'Failed' : isStarted ? 'In Progress' : 'Not Started'}
             </span>
+            
+            {challenge.dueDateEnabled && challenge.dueDate && (
+              <DueDateCountdown dueDate={challenge.dueDate} />
+            )}
           </div>
         </div>
 
@@ -423,7 +437,7 @@ const CustomChallengeCard = ({
               </div>
             )}
 
-            {!isCompleted && !isFailed && !challengeExpired && (
+            {!isCompleted && !isFailed && !isExpired && (
               <div className="space-y-3">
                 {!isStarted && (
                   <button onClick={handleStart} className="btn btn-primary btn-sm gap-2">
@@ -470,7 +484,7 @@ const CustomChallengeCard = ({
               </div>
             )}
 
-            {challengeExpired && !isCompleted && (
+            {isExpired && !isCompleted && (
               <div className="flex items-center gap-2 text-warning">
                 <Lock className="w-5 h-5" />
                 <span className="font-medium">Challenge series has expired</span>

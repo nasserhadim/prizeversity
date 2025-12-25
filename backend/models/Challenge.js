@@ -78,6 +78,8 @@ const CustomChallengeSchema = new mongoose.Schema({
   discount: { type: Number, default: 0, min: 0, max: 100 },
   shield: { type: Boolean, default: false },
   visible: { type: Boolean, default: true },
+  dueDateEnabled: { type: Boolean, default: false },
+  dueDate: { type: Date, default: null },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 }, { _id: true });

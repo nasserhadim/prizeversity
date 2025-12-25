@@ -171,7 +171,7 @@ router.post('/:classroomId/custom', ensureAuthenticated, ensureTeacher, async (r
     const { 
       title, description, externalUrl, solution, maxAttempts, 
       hintsEnabled, hints, bits, multiplier, luck, discount, shield, visible,
-      templateType, templateConfig 
+      templateType, templateConfig, dueDateEnabled, dueDate
     } = req.body;
 
     if (!title) {
@@ -236,6 +236,8 @@ router.post('/:classroomId/custom', ensureAuthenticated, ensureTeacher, async (r
       discount: Number(discount) || 0,
       shield: Boolean(shield),
       visible: visible !== false,
+      dueDateEnabled: Boolean(dueDateEnabled),
+      dueDate: dueDateEnabled && dueDate ? new Date(dueDate) : null,
       createdAt: new Date(),
       updatedAt: new Date()
     };
@@ -283,7 +285,7 @@ router.put('/:classroomId/custom/:challengeId', ensureAuthenticated, ensureTeach
     const { 
       title, description, externalUrl, solution, maxAttempts, 
       hintsEnabled, hints, bits, multiplier, luck, discount, shield, visible,
-      templateType, templateConfig 
+      templateType, templateConfig, dueDateEnabled, dueDate
     } = req.body;
 
     const challenge = await Challenge.findOne({ classroomId });
@@ -324,6 +326,10 @@ router.put('/:classroomId/custom/:challengeId', ensureAuthenticated, ensureTeach
     if (discount !== undefined) customChallenge.discount = Math.min(100, Math.max(0, Number(discount) || 0));
     if (shield !== undefined) customChallenge.shield = Boolean(shield);
     if (visible !== undefined) customChallenge.visible = Boolean(visible);
+    if (dueDateEnabled !== undefined) customChallenge.dueDateEnabled = Boolean(dueDateEnabled);
+    if (dueDateEnabled !== undefined && dueDate !== undefined) {
+      customChallenge.dueDate = dueDateEnabled && dueDate ? new Date(dueDate) : null;
+    }
 
     // Handle template type changes
     if (templateType !== undefined) {

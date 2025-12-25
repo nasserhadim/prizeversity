@@ -2,7 +2,7 @@ import { useState, useEffect, useContext, useRef } from 'react';
 import { 
   Plus, Trash2, GripVertical, ExternalLink, Paperclip, X, Eye, EyeOff, 
   ChevronDown, ChevronUp, Shield, AlertTriangle,
-  Target, Lightbulb, Clover, Percent 
+  Target, Lightbulb, Clover, Percent, Clock
 } from 'lucide-react';
 import { ThemeContext } from '../../context/ThemeContext';
 import {
@@ -17,6 +17,26 @@ import {
 import TemplateSelector from './TemplateSelector';
 import toast from 'react-hot-toast';
 import ConfirmModal from '../ConfirmModal';
+
+const utcToLocalDateTime = (utcISOString) => {
+  if (!utcISOString) return '';
+  const date = new Date(utcISOString);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
+const localDateTimeToUTC = (localDateTimeString) => {
+  if (!localDateTimeString) return '';
+  const [datePart, timePart] = localDateTimeString.split('T');
+  const [year, month, day] = datePart.split('-').map(Number);
+  const [hours, minutes] = timePart.split(':').map(Number);
+  const localDate = new Date(year, month - 1, day, hours, minutes);
+  return localDate.toISOString();
+};
 
 const CustomChallengeBuilder = ({
   classroomId,
@@ -91,7 +111,9 @@ const CustomChallengeBuilder = ({
     shield: false,
     visible: true,
     templateType: 'passcode',
-    templateConfig: {}
+    templateConfig: {},
+    dueDateEnabled: false,
+    dueDate: ''
   });
   
   const [pendingAttachments, setPendingAttachments] = useState([]);
@@ -148,7 +170,9 @@ const CustomChallengeBuilder = ({
       shield: false,
       visible: true,
       templateType: 'passcode',
-      templateConfig: {}
+      templateConfig: {},
+      dueDateEnabled: false,
+      dueDate: ''
     });
     setPendingAttachments([]);
     setEditingId(null);
@@ -235,7 +259,9 @@ const CustomChallengeBuilder = ({
       shield: challenge.shield || false,
       visible: challenge.visible !== false,
       templateType: challenge.templateType || 'passcode',
-      templateConfig: challenge.templateConfig || {}
+      templateConfig: challenge.templateConfig || {},
+      dueDateEnabled: challenge.dueDateEnabled || false,
+      dueDate: challenge.dueDate ? utcToLocalDateTime(challenge.dueDate) : ''
     });
     setEditingId(challenge._id || challenge._draftId);
     setShowForm(true);
@@ -272,7 +298,9 @@ const CustomChallengeBuilder = ({
         shield: form.shield,
         visible: form.visible,
         templateType: form.templateType,
-        templateConfig: isTemplateChallenge ? form.templateConfig : {}
+        templateConfig: isTemplateChallenge ? form.templateConfig : {},
+        dueDateEnabled: form.dueDateEnabled,
+        dueDate: form.dueDateEnabled && form.dueDate ? localDateTimeToUTC(form.dueDate) : null
       };
 
       if (!isTemplateChallenge && form.solution.trim()) {
@@ -689,6 +717,34 @@ const CustomChallengeBuilder = ({
                 <span className="label-text">Visible to Students</span>
               </label>
             </div>
+
+            <div className="form-control">
+              <label className="label cursor-pointer justify-start gap-3">
+                <input
+                  type="checkbox"
+                  className="checkbox"
+                  checked={form.dueDateEnabled}
+                  onChange={(e) => setForm(prev => ({ ...prev, dueDateEnabled: e.target.checked }))}
+                />
+                <span className="label-text">Set Due Date</span>
+              </label>
+            </div>
+
+            {form.dueDateEnabled && (
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text">Due Date and Time</span>
+                </label>
+                <input
+                  type="datetime-local"
+                  className="input input-bordered"
+                  value={form.dueDate}
+                  onChange={(e) => setForm(prev => ({ ...prev, dueDate: e.target.value }))}
+                  min={new Date().toISOString().slice(0, 16)}
+                />
+                <div className="text-xs text-gray-500 mt-1">Students must complete this challenge by this date and time</div>
+              </div>
+            )}
           </div>
 
           <div className="form-control">
@@ -910,6 +966,13 @@ const CustomChallengeBuilder = ({
                         {(challenge.hints || []).filter(h => (h || '').trim()).length} hint(s)
                       </span>
                     ) : null}
+
+                    {challenge.dueDateEnabled && challenge.dueDate && (
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        Due: {new Date(challenge.dueDate).toLocaleString()}
+                      </span>
+                    )}
 
                     {challenge.externalUrl && <ExternalLink className="w-3 h-3" />}
 
