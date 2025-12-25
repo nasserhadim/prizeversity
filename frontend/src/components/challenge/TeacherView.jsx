@@ -1022,7 +1022,18 @@ const TeacherView = ({
                   </button>
                 </div>
                 {challengeData.settings?.dueDateEnabled && challengeData.settings?.dueDate ? (
-                  <div className={`p-3 rounded-lg ${new Date() > new Date(challengeData.settings.dueDate) ? 'bg-red-900/18 border-red-800 text-red-200' : 'bg-blue-900/12 border-blue-700 text-blue-200'}`}>
+                  <div
+                    className={[
+                      'p-3 rounded-lg border',
+                      new Date() > new Date(challengeData.settings.dueDate)
+                        ? (isDark
+                            ? 'bg-red-900/18 border-red-800 text-red-200'
+                            : 'bg-red-50 border-red-200 text-red-800')
+                        : (isDark
+                            ? 'bg-blue-900/12 border-blue-700 text-blue-200'
+                            : 'bg-blue-50 border-blue-200 text-blue-800')
+                    ].join(' ')}
+                  >
                     <div className="flex items-center gap-2">
                       <span className="font-semibold">
                         {new Date() > new Date(challengeData.settings.dueDate) ? '⚠️ Expired:' : '⏰ Due:'}
@@ -1033,7 +1044,11 @@ const TeacherView = ({
                       </span>
                     </div>
                     {new Date() > new Date(challengeData.settings.dueDate) && (
-                      <p className="text-sm mt-1">{isDark ? 'This challenge has expired and submissions are disabled.' : 'This challenge has expired and students can no longer submit answers.'}</p>
+                      <p className="text-sm mt-1">
+                        {isDark
+                          ? 'This challenge has expired and submissions are disabled.'
+                          : 'This challenge has expired and students can no longer submit answers.'}
+                      </p>
                     )}
                   </div>
                 ) : (
