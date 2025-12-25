@@ -5,7 +5,6 @@ import { verifyCustomChallenge, startCustomChallenge, unlockCustomChallengeHint,
 import RewardsDisplay from '../RewardsDisplay';
 import toast from 'react-hot-toast';
 
-// Template type display info
 const TEMPLATE_DISPLAY = {
   'passcode': { name: 'Passcode', icon: Key, color: 'warning' },
   'cipher': { name: 'Cipher', icon: Lock, color: 'primary' },
@@ -42,10 +41,10 @@ const CustomChallengeCard = ({
   const templateInfo = TEMPLATE_DISPLAY[templateType] || TEMPLATE_DISPLAY.passcode;
   const TemplateIcon = templateInfo.icon;
 
-  // Get generated content from state or from challenge data
+  
   const displayContent = generatedData?.displayData || challenge.generatedDisplayData;
 
-  // Auto-fetch generated content for template challenges that are started but missing content
+  
   useEffect(() => {
     const fetchMissingContent = async () => {
       if (isTemplateChallenge && isStarted && !isCompleted && !displayContent && !generatedData) {
@@ -58,14 +57,14 @@ const CustomChallengeCard = ({
             });
           }
         } catch {
-          // Silent fail - will show loading state
+          
         }
       }
     };
     fetchMissingContent();
   }, [isTemplateChallenge, isStarted, isCompleted, displayContent, generatedData, classroomId, challenge._id]);
 
-  // Render generated challenge content based on template type
+  
   const renderGeneratedContent = () => {
     if (!displayContent) {
       return (
@@ -75,12 +74,12 @@ const CustomChallengeCard = ({
       );
     }
 
-    // Try to parse JSON content
+    
     let parsedContent = displayContent;
     try {
       parsedContent = JSON.parse(displayContent);
     } catch {
-      // Content is not JSON, display as-is
+      
     }
 
     switch (templateType) {
@@ -187,7 +186,7 @@ const CustomChallengeCard = ({
     try {
       const result = await startCustomChallenge(classroomId, challenge._id);
       
-      // Store generated content for template challenges
+      
       if (result.displayData) {
         setGeneratedData({
           displayData: result.displayData,
@@ -233,9 +232,9 @@ const CustomChallengeCard = ({
       const result = await verifyCustomChallenge(classroomId, challenge._id, passcode.trim());
       
       if (result.success) {
-        // Set localStorage to trigger reward modal (same as legacy challenges)
+        
         localStorage.setItem('challengeCompleted', JSON.stringify({
-          challengeIndex: -1, // -1 indicates custom challenge
+          challengeIndex: -1, 
           challengeName: challenge.title,
           timestamp: Date.now(),
           rewards: result.rewards || {
@@ -311,7 +310,7 @@ const CustomChallengeCard = ({
               </span>
             </div>
 
-            {/* CHANGED: allow long/unbroken titles to wrap without pushing rewards off-screen */}
+            {}
             <span className={`font-medium min-w-0 wrap-any ${isCompleted ? 'text-success' : ''}`}>
               {challenge.title}
             </span>
@@ -319,14 +318,14 @@ const CustomChallengeCard = ({
             <RewardsDisplay rewards={rewards} isDark={isDark} isCompleted={isCompleted} size="sm" />
           </div>
 
-          {/* CHANGED: add min-w-0 + flex-wrap so right-side items don't get pushed out */}
+          {}
           <div className="hidden sm:flex items-center gap-3 flex-wrap min-w-0">
             <span className={`badge gap-1 ${isCompleted ? 'badge-success' : isFailed ? 'badge-error' : `badge-${templateInfo.color}`}`}>
               <TemplateIcon className="w-3 h-3" />
               {templateInfo.name}
             </span>
 
-            {/* CHANGED: wrap-any + min-w-0 to break long runs */}
+            {}
             <span className={`flex-1 min-w-0 font-medium wrap-any ${isCompleted ? 'text-success' : ''}`}>
               {challenge.title}
             </span>
@@ -342,7 +341,7 @@ const CustomChallengeCard = ({
         <div className="collapse-content" onClick={(e) => e.stopPropagation()}>
           <div className="pt-4 space-y-4">
             {!isStarted && !isCompleted && (
-              // CHANGED: allow warning text to wrap instead of stretching container
+              
               <div className="alert alert-warning">
                 <div className="flex items-center gap-2 min-w-0 flex-wrap">
                   <AlertTriangle className="w-4 h-4 shrink-0" />
@@ -360,14 +359,14 @@ const CustomChallengeCard = ({
 
             {challenge.description && (
               <div className="prose prose-sm max-w-none">
-                {/* CHANGED: wrap-any breaks long unbroken strings; keeps your pre-wrap behavior */}
+                {}
                 <p className={`whitespace-pre-wrap wrap-any ${isDark ? 'text-base-content' : 'text-gray-700'}`}>
                   {challenge.description}
                 </p>
               </div>
             )}
 
-            {/* Display generated challenge content for template challenges */}
+            {}
             {isTemplateChallenge && isStarted && !isCompleted && (
               <div className={`rounded-lg border ${isDark ? 'bg-base-100 border-base-content/20' : 'bg-base-200 border-base-300'}`}>
                 <div className={`px-4 py-3 border-b ${isDark ? 'border-base-content/10' : 'border-base-300'}`}>

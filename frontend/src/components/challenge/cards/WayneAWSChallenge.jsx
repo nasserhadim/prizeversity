@@ -18,7 +18,7 @@ const WayneAWSChallenge = ({ userChallenge, isDark, onExternalLinkClick }) => {
           Access the WayneAWS cloud authentication portal, and use your given AWS credentials to locate the secret password to complete this challenge.
         </p>
         <a 
-          href="https://wayneaws.dev"
+          href="https:
           target="_blank"
           rel="noopener noreferrer"
           className={`${themeClasses.linkText} hover:underline text-sm mb-3 block`}

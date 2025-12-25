@@ -21,15 +21,15 @@ const ChallengeCard = ({
   classroomId,
   onHintUnlocked,
   children,
-  isTeacher // NEW prop
+  isTeacher 
 }) => {
-  // initialize colors early (used by the visibility placeholder)
+  
   const colors = getChallengeColors(challengeIndex, isDark);
   
-  // If this particular challenge is hidden and viewer is not teacher, don't render the card
+  
   const perChallengeVisible = challengeData?.settings?.challengeVisibility?.[challengeIndex];
   if (!isTeacher && perChallengeVisible === false) {
-    // Render a visible-but-disabled placeholder so students see ordering but cannot access content
+    
     return (
       <div className={`collapse collapse-arrow ${colors.cardBg} opacity-70`}>
         <input type="checkbox" defaultChecked={false} className="peer" />
@@ -116,19 +116,19 @@ const ChallengeCard = ({
     }
   };
 
-  // Enhanced click handler for challenge content
+  
   const handleChallengeContentClick = async (e, isExternalLink = false) => {
-    // If challenge is already started or completed, allow normal behavior
+    
     if (isChallengeStarted) {
       return;
     }
 
-    // If it's an external link and challenge hasn't started, show confirmation
+    
     if (isExternalLink) {
       e.preventDefault();
       e.stopPropagation();
       
-      // Store the navigation details for later
+      
       setPendingNavigation({
         href: e.target.href,
         target: e.target.target || '_blank'
@@ -144,7 +144,7 @@ const ChallengeCard = ({
         toast.success('Challenge started!');
         await fetchChallengeData();
         
-        // Navigate to the pending URL
+        
         if (pendingNavigation) {
           window.open(pendingNavigation.href, pendingNavigation.target);
         }
@@ -164,7 +164,7 @@ const ChallengeCard = ({
     setPendingNavigation(null);
   };
 
-  // Wrap children with click handler
+  
   const enhancedChildren = children && React.cloneElement(children, {
     onExternalLinkClick: handleChallengeContentClick
   });
@@ -180,9 +180,9 @@ const ChallengeCard = ({
       }`}>
       <input type="checkbox" defaultChecked={false} className="peer" />
       
-      {/* Mobile-first responsive header */}
+      {}
       <div className="collapse-title">
-        {/* Mobile layout - stacked vertically */}
+        {}
         <div className="flex flex-col gap-2 sm:hidden">
           <div className="flex items-center gap-2">
             <div className={`badge badge-sm ${
@@ -226,7 +226,7 @@ const ChallengeCard = ({
           </div>
         </div>
 
-        {/* Desktop layout - horizontal */}
+        {}
         <div className="hidden sm:flex items-center gap-3 text-lg font-medium">
           <div className={`badge badge-lg ${
             isCompleted ? 'badge-success' : isFailed ? 'badge-error' : 'badge-primary' 
@@ -400,7 +400,7 @@ const ChallengeCard = ({
       </div>
     </div>
 
-    {/* Start Challenge Confirmation Modal */}
+    {}
     {showStartModal && (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className={`card w-full max-w-md mx-4 shadow-2xl ${isDark ? 'bg-base-200' : 'bg-white'}`}>

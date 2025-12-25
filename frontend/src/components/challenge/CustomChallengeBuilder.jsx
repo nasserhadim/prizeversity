@@ -2,7 +2,7 @@ import { useState, useEffect, useContext, useRef } from 'react';
 import { 
   Plus, Trash2, GripVertical, ExternalLink, Paperclip, X, Eye, EyeOff, 
   ChevronDown, ChevronUp, Shield, AlertTriangle,
-  Target, Lightbulb, Clover, Percent // <-- add
+  Target, Lightbulb, Clover, Percent 
 } from 'lucide-react';
 import { ThemeContext } from '../../context/ThemeContext';
 import {
@@ -12,7 +12,7 @@ import {
   uploadCustomChallengeAttachment,
   deleteCustomChallengeAttachment,
   getCustomChallengeAttachmentUrl,
-  reorderCustomChallenges // <-- ADD
+  reorderCustomChallenges 
 } from '../../API/apiChallenge';
 import TemplateSelector from './TemplateSelector';
 import toast from 'react-hot-toast';
@@ -24,14 +24,16 @@ const CustomChallengeBuilder = ({
   onUpdate,
   isActive = false,
   allowAddBeforeActive = false,
-  onFileSelectionChange
+  onFileSelectionChange,  
+  draftMode = false,  
+  onDraftUpdate  
 }) => {
   const canAdd = isActive || allowAddBeforeActive;
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
 
   const [challenges, setChallenges] = useState(customChallenges);
-  const [draggingId, setDraggingId] = useState(null); // <-- ADD
+  const [draggingId, setDraggingId] = useState(null); 
 
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -40,7 +42,6 @@ const CustomChallengeBuilder = ({
   const [showSolution, setShowSolution] = useState({});
   const [expandedCards, setExpandedCards] = useState({});
 
-  // NEW: confirmation modal state/handlers (replaces window.confirm)
   const [showConfirm, setShowConfirm] = useState(false);
   const [confirmOptions, setConfirmOptions] = useState({
     title: 'Confirm',
@@ -93,10 +94,8 @@ const CustomChallengeBuilder = ({
     templateConfig: {}
   });
   
-  // Pending attachments for new challenges (not yet created)
   const [pendingAttachments, setPendingAttachments] = useState([]);
   
-  // Track file selection to prevent modal closing
   const fileInputRef = useRef(null);
   const isSelectingFileRef = useRef(false);
 
@@ -104,24 +103,18 @@ const CustomChallengeBuilder = ({
     setChallenges(customChallenges);
   }, [customChallenges]);
   
-  // Track window blur/focus to detect file dialog open/close
   useEffect(() => {
     if (!isSelectingFileRef.current) return;
     
     const handleWindowBlur = () => {
-      // Window lost focus - file dialog likely opened
-      // Keep file selection active
       if (onFileSelectionChange) {
         onFileSelectionChange(true);
       }
     };
     
     const handleWindowFocus = () => {
-      // Window regained focus - file dialog likely closed
-      // Wait longer to see if file was selected
       setTimeout(() => {
         if (fileInputRef.current && !fileInputRef.current.files?.length) {
-          // No file selected, clear flag
           isSelectingFileRef.current = false;
           if (onFileSelectionChange) {
             onFileSelectionChange(false);
@@ -162,28 +155,24 @@ const CustomChallengeBuilder = ({
     setShowForm(false);
   };
   
-  // Handle adding pending attachment during creation
   const handleAddPendingAttachment = (e) => {
     const file = e.target.files?.[0];
-    isSelectingFileRef.current = false; // Clear flag when file selected
+    isSelectingFileRef.current = false;
     
-    // Notify parent that file selection is complete
     if (onFileSelectionChange) {
-      // Delay to ensure file dialog has fully closed and window has regained focus
       setTimeout(() => {
         onFileSelectionChange(false);
       }, 500);
     }
     
     if (!file) {
-      // No file selected - clear immediately
       if (onFileSelectionChange) {
         onFileSelectionChange(false);
       }
       return;
     }
     
-    const maxSize = 10 * 1024 * 1024; // 10MB
+    const maxSize = 10 * 1024 * 1024; 
     if (file.size > maxSize) {
       toast.error('File size must be under 10MB');
       return;
@@ -195,10 +184,10 @@ const CustomChallengeBuilder = ({
     }
     
     setPendingAttachments(prev => [...prev, file]);
-    e.target.value = ''; // Reset input
+    e.target.value = ''; 
   };
   
-  // Handle file input click - prevent modal from closing
+  
   const handleFileInputClick = (e) => {
     e.stopPropagation();
     isSelectingFileRef.current = true;
@@ -207,7 +196,7 @@ const CustomChallengeBuilder = ({
     }
   };
   
-  // Handle file input focus/blur
+  
   const handleFileInputFocus = () => {
     isSelectingFileRef.current = true;
     if (onFileSelectionChange) {
@@ -216,20 +205,16 @@ const CustomChallengeBuilder = ({
   };
   
   const handleFileInputBlur = () => {
-    // Don't clear immediately - file dialog causes blur
-    // Clear after a longer delay to allow file dialog to open and close
     setTimeout(() => {
-      // Only clear if file wasn't selected (input still empty)
       if (!fileInputRef.current?.files?.length) {
         isSelectingFileRef.current = false;
         if (onFileSelectionChange) {
           onFileSelectionChange(false);
         }
       }
-    }, 1000); // Increased delay to account for file dialog
+    }, 1000);
   };
   
-  // Remove pending attachment
   const handleRemovePendingAttachment = (index) => {
     setPendingAttachments(prev => prev.filter((_, i) => i !== index));
   };
@@ -252,7 +237,7 @@ const CustomChallengeBuilder = ({
       templateType: challenge.templateType || 'passcode',
       templateConfig: challenge.templateConfig || {}
     });
-    setEditingId(challenge._id);
+    setEditingId(challenge._id || challenge._draftId);
     setShowForm(true);
   };
 
@@ -266,7 +251,6 @@ const CustomChallengeBuilder = ({
 
     const isTemplateChallenge = form.templateType && form.templateType !== 'passcode';
 
-    // Only require solution for passcode-type challenges (and only on create)
     if (!isTemplateChallenge && !editingId && !form.solution.trim()) {
       toast.error('Solution passcode is required for passcode challenges');
       return;
@@ -291,20 +275,50 @@ const CustomChallengeBuilder = ({
         templateConfig: isTemplateChallenge ? form.templateConfig : {}
       };
 
-      // Only include solution for passcode challenges
       if (!isTemplateChallenge && form.solution.trim()) {
         payload.solution = form.solution.trim();
+      }
+
+      if (draftMode) {
+        const draftChallenge = {
+          ...payload,
+          pendingAttachments: [...pendingAttachments]
+        };
+        
+        if (editingId) {
+          const updated = challenges.map(c => 
+            c._id === editingId || c._draftId === editingId 
+              ? { ...c, ...draftChallenge }
+              : c
+          );
+          setChallenges(updated);
+          if (onDraftUpdate) onDraftUpdate(updated);
+        } else {
+          
+          const newDraft = {
+            ...draftChallenge,
+            _draftId: `draft-${Date.now()}-${Math.random()}`, 
+            order: challenges.length
+          };
+          const updated = [...challenges, newDraft];
+          setChallenges(updated);
+          if (onDraftUpdate) onDraftUpdate(updated);
+        }
+        
+        resetForm();
+        toast.success(editingId ? 'Challenge updated' : 'Challenge added');
+        return;
       }
 
       if (editingId) {
         await updateCustomChallenge(classroomId, editingId, payload);
         toast.success('Challenge updated');
       } else {
-        // Create the challenge first
+        
         const result = await createCustomChallenge(classroomId, payload);
         const newChallengeId = result.challenge?._id;
         
-        // Upload any pending attachments
+        
         if (newChallengeId && pendingAttachments.length > 0) {
           let uploadedCount = 0;
           for (const file of pendingAttachments) {
@@ -312,7 +326,7 @@ const CustomChallengeBuilder = ({
               await uploadCustomChallengeAttachment(classroomId, newChallengeId, file);
               uploadedCount++;
             } catch {
-              // Continue with remaining uploads
+              
             }
           }
           if (uploadedCount > 0) {
@@ -338,22 +352,24 @@ const CustomChallengeBuilder = ({
     const challenge = challenges.find(c => c._id?.toString() === challengeId?.toString());
     const label = challenge?.title ? `"${challenge.title}"` : 'this challenge';
 
-    openConfirm({
-      title: 'Delete Custom Challenge',
-      message: `Are you sure you want to delete ${label}? This action cannot be undone.`,
-      confirmText: 'Delete',
-      cancelText: 'Cancel',
-      confirmButtonClass: 'btn-error',
-      onConfirm: async () => {
-        try {
-          await deleteCustomChallenge(classroomId, challengeId);
-          toast.success('Challenge deleted');
-          if (onUpdate) onUpdate();
-        } catch (error) {
-          toast.error(error.message || 'Failed to delete challenge');
-        }
-      }
-    });
+    if (draftMode) {
+      
+      const updated = challenges.filter(c => 
+        c._id !== challengeId && c._draftId !== challengeId
+      );
+      setChallenges(updated);
+      if (onDraftUpdate) onDraftUpdate(updated);
+      toast.success('Challenge removed');
+      return;
+    }
+
+    try {
+      await deleteCustomChallenge(classroomId, challengeId);
+      toast.success('Challenge deleted');
+      if (onUpdate) onUpdate();
+    } catch (error) {
+      toast.error(error.message || 'Failed to delete challenge');
+    }
   };
 
   const handleFileUpload = async (challengeId, file) => {
@@ -411,9 +427,9 @@ const CustomChallengeBuilder = ({
     setExpandedCards(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // Keep these aligned with backend upload limits/types:
-  // - size: backend/middleware/upload.js => 10MB for challengeAttachment
-  // - types: accept list matches the create flow
+  
+  
+  
   const ATTACHMENT_MAX_SIZE_TEXT = 'Max 10MB per file.';
   const ATTACHMENT_TYPES_TEXT = 'PDFs, images, documents, ZIPs, TXT/CSV/JSON allowed.';
   const ATTACHMENT_ACCEPT =
@@ -438,12 +454,12 @@ const CustomChallengeBuilder = ({
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', String(challengeId));
     } catch {
-      // ignore (some browsers can be finicky)
+      
     }
   };
 
   const handleDragOver = (e) => {
-    // required to allow dropping
+    
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
   };
@@ -467,14 +483,14 @@ const CustomChallengeBuilder = ({
 
     const next = moveItem(prev, fromIndex, toIndex);
 
-    // optimistic UI
+    
     setChallenges(next);
 
     try {
       await persistOrder(next);
       toast.success('Reordered custom challenges');
     } catch (err) {
-      // revert on failure
+      
       setChallenges(prev);
       toast.error(err?.message || 'Failed to reorder challenges');
     } finally {
@@ -514,7 +530,7 @@ const CustomChallengeBuilder = ({
             </button>
           </div>
 
-          {/* Template Selection - First thing in the form */}
+          {}
           <div className="md:col-span-2">
             <TemplateSelector
               selectedType={form.templateType}
@@ -561,11 +577,10 @@ const CustomChallengeBuilder = ({
                 className="input input-bordered"
                 value={form.externalUrl}
                 onChange={(e) => setForm(prev => ({ ...prev, externalUrl: e.target.value }))}
-                placeholder="https://example.com/challenge"
+                placeholder="https://example.com"
               />
             </div>
 
-            {/* Only show solution field for passcode-type challenges */}
             {form.templateType === 'passcode' && (
               <div className="form-control">
                 <label className="label">
@@ -716,7 +731,7 @@ const CustomChallengeBuilder = ({
             </div>
           )}
 
-          {/* Attachments during creation */}
+          {}
           {!editingId && (
             <div className="form-control">
               <label className="label">
@@ -750,7 +765,7 @@ const CustomChallengeBuilder = ({
                   className={`btn btn-ghost btn-sm gap-2 ${isDark ? 'border-base-content/20' : 'border-base-300'} border`}
                   onMouseDown={(e) => {
                     e.stopPropagation();
-                    // Set flag IMMEDIATELY on mousedown (before click, before blur)
+                    
                     isSelectingFileRef.current = true;
                     if (onFileSelectionChange) {
                       onFileSelectionChange(true);
@@ -758,7 +773,7 @@ const CustomChallengeBuilder = ({
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    // Ensure flag is still set
+                    
                     isSelectingFileRef.current = true;
                     if (onFileSelectionChange) {
                       onFileSelectionChange(true);
@@ -809,18 +824,18 @@ const CustomChallengeBuilder = ({
             <div
               key={challenge._id}
               className={`card ${isDark ? 'bg-base-300' : 'bg-base-200'} p-3`}
-              onDragOver={handleDragOver}                 // <-- ADD
-              onDrop={(e) => handleDrop(e, challenge._id)} // <-- ADD
+              onDragOver={handleDragOver}                 
+              onDrop={(e) => handleDrop(e, challenge._id)} 
             >
               <div className="flex items-center gap-3">
-                {/* Drag handle */}
+                {}
                 <div
                   className={`flex items-center gap-2 text-gray-400 select-none ${
                     String(draggingId) === String(challenge._id) ? 'opacity-60' : ''
                   }`}
-                  draggable // <-- ADD
-                  onDragStart={(e) => handleDragStart(e, challenge._id)} // <-- ADD
-                  onDragEnd={() => setDraggingId(null)} // <-- ADD
+                  draggable 
+                  onDragStart={(e) => handleDragStart(e, challenge._id)} 
+                  onDragEnd={() => setDraggingId(null)} 
                   title="Drag to reorder"
                   aria-label="Drag to reorder"
                   style={{ cursor: 'grab' }}
@@ -848,7 +863,6 @@ const CustomChallengeBuilder = ({
                     )}
                   </div>
                   <div className="text-xs text-gray-500 flex items-center gap-2 flex-wrap">
-                    {/* NEW: Hidden indicator */}
                     {!challenge.visible && (
                       <span className="flex items-center gap-1 text-warning">
                         <EyeOff className="w-3 h-3" />
@@ -883,7 +897,6 @@ const CustomChallengeBuilder = ({
                       </span>
                     )}
 
-                    {/* NEW: Attempts indicator */}
                     {challenge.maxAttempts ? (
                       <span className="flex items-center gap-1">
                         <Target className="w-3 h-3" />
@@ -891,7 +904,6 @@ const CustomChallengeBuilder = ({
                       </span>
                     ) : null}
 
-                    {/* NEW: Hints indicator */}
                     {challenge.hintsEnabled ? (
                       <span className="flex items-center gap-1">
                         <Lightbulb className="w-3 h-3" />
@@ -975,8 +987,6 @@ const CustomChallengeBuilder = ({
                         </label>
                       </div>
                     </div>
-
-                    {/* NEW: helper text for update/edit flow */}
                     <div className="text-xs text-gray-500">
                       {ATTACHMENT_MAX_SIZE_TEXT} {ATTACHMENT_TYPES_TEXT}
                     </div>
@@ -1021,7 +1031,6 @@ const CustomChallengeBuilder = ({
         </div>
       )}
 
-      {/* NEW: consistent confirmation modal */}
       <ConfirmModal
         isOpen={showConfirm}
         onClose={() => setShowConfirm(false)}

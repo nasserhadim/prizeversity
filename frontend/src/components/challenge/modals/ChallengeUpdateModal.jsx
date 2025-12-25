@@ -17,24 +17,24 @@ const ChallengeUpdateModal = ({
   setShowHintModal,
   setEditingHints
 }) => {
-  // Series type: legacy (hide custom), mixed (show both), custom (hide legacy)
+  
   const seriesType = challengeData?.seriesType || 'legacy';
   const showLegacy = seriesType === 'legacy' || seriesType === 'mixed';
   const showCustom = seriesType === 'custom' || seriesType === 'mixed';
   const [updating, setUpdating] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   
-  // Track file selection to prevent modal closing
+  
   const [isFileSelectionActive, setIsFileSelectionActive] = useState(false);
   
-  // Safe close function that checks file selection
+  
   const safeCloseModal = useCallback(() => {
     if (!isFileSelectionActive) {
       setShowUpdateModal(false);
     }
   }, [isFileSelectionActive]);
   
-  // Track modal open state globally to prevent unwanted refetches on window focus
+  
   useEffect(() => {
     if (showUpdateModal) {
       window.__modalOpen = true;
@@ -47,7 +47,7 @@ const ChallengeUpdateModal = ({
     };
   }, [showUpdateModal]);
   
-  // Prevent modal from closing during file selection
+  
   useEffect(() => {
     if (!showUpdateModal) return;
     
@@ -166,13 +166,13 @@ const ChallengeUpdateModal = ({
     <div 
       className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 p-2 sm:p-4 overflow-y-auto"
       onClick={(e) => {
-        // Don't close if file selection is active
+        
         if (isFileSelectionActive) {
           e.preventDefault();
           e.stopPropagation();
           return;
         }
-        // Only close if clicking backdrop (not modal content)
+        
         if (e.target === e.currentTarget) {
           safeCloseModal();
         }
@@ -581,7 +581,7 @@ const ChallengeUpdateModal = ({
                   </div>
                 </div>
 
-                {/* NEW: Mobile Visibility card for Update modal */}
+                {}
                 <div className="card bg-base-200 p-3 rounded-lg">
                   <div className="flex items-center justify-between mb-2">
                     <div>

@@ -11,7 +11,7 @@ import toast from 'react-hot-toast';
 import socket from '../../utils/socket';
 import Footer from '../Footer';
 import ExportButtons from '../ExportButtons';
-import ConfirmModal from '../ConfirmModal'; // <-- NEW import
+import ConfirmModal from '../ConfirmModal'; 
 
 const TeacherView = ({ 
   challengeData,
@@ -25,13 +25,13 @@ const TeacherView = ({
   classroomId,
   fetchChallengeData
 }) => {
-  // Search state for deep filtering in the student table
+  
   const [search, setSearch] = useState('');
-  // New filter UI state
-  const [roleFilter, setRoleFilter] = useState('all'); // 'all' | 'student' | 'teacher'
-  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'inprogress' | 'completed' | 'failed'
-  const [challengeFilter, setChallengeFilter] = useState('all'); // 'all' or '0'..'6'
-  // Clear filters helper (reset search + selects)
+  
+  const [roleFilter, setRoleFilter] = useState('all'); 
+  const [statusFilter, setStatusFilter] = useState('all'); 
+  const [challengeFilter, setChallengeFilter] = useState('all'); 
+  
   const clearFilters = () => {
     setSearch('');
     setRoleFilter('all');
@@ -61,20 +61,20 @@ const TeacherView = ({
     onConfirm: null
   });
 
-  // Open a consistent ConfirmModal used across this component
+  
   const openConfirm = ({ title = 'Confirm', message = '', confirmText = 'Confirm', cancelText = 'Cancel', confirmButtonClass = 'btn-primary', onConfirm = null }) => {
     setConfirmOptions({ title, message, confirmText, cancelText, confirmButtonClass, onConfirm });
     setShowConfirm(true);
   };
 
-  // Called when the modal's Confirm button is pressed
+  
   const handleConfirm = async () => {
     setShowConfirm(false);
     if (typeof confirmOptions.onConfirm === 'function') {
       try {
         await confirmOptions.onConfirm();
       } catch (err) {
-        // caller is responsible for showing errors (toast), swallow here to avoid unhandled rejections
+        
         console.error('Confirm callback error', err);
       }
     }
@@ -95,7 +95,7 @@ const TeacherView = ({
     }
   }, [challengeData?.settings?.dueDate]);
 
-  // Use the userChallenge _id (uc._id) as the toggle key so each row is stable
+  
   const togglePasswordVisibility = (ucId) => {
     setShowPasswords(prev => ({
       ...prev,
@@ -103,15 +103,15 @@ const TeacherView = ({
     }));
   };
 
-  // Find students not assigned to the challenge
-  // We've found that in cases where a student joins the class after the challenge is created, they are not automatically assigned to the challenge.
+  
+  
   const assignedStudentIds = challengeData?.userChallenges
-    ?.filter(uc => uc.userId && uc.userId._id) // Filter out entries with undefined userId or _id
+    ?.filter(uc => uc.userId && uc.userId._id) 
     ?.map(uc => uc.userId._id) || [];
   
   const unassignedStudentIds = (classroomStudents || [])
-    .map(student => typeof student === 'string' ? student : student._id) // Extract ID regardless of structure
-    .filter(studentId => studentId && !assignedStudentIds.includes(studentId)); // Filter out assigned students
+    .map(student => typeof student === 'string' ? student : student._id) 
+    .filter(studentId => studentId && !assignedStudentIds.includes(studentId)); 
 
   useEffect(() => {
     const fetchStudentNames = async () => {
@@ -199,7 +199,7 @@ const TeacherView = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showAssignDropdown]);
 
-  // Clear assign search when dropdown closes
+  
   useEffect(() => {
     if (!showAssignDropdown) setAssignSearch('');
   }, [showAssignDropdown]);
@@ -271,7 +271,7 @@ const TeacherView = ({
     fetchChallenge6Data();
   }, [challengeData?.userChallenges]);
 
-  // Socket listener for real-time Challenge 7 updates
+  
   useEffect(() => {
     const handleChallenge7Progress = (progressData) => {
       console.log('🔄 Real-time Challenge 7 update received:', {
@@ -437,23 +437,23 @@ const TeacherView = ({
     }
   };
 
-  // ---------- visibleUserChallenges (memoized, respects filters + deep search) ----------
+  
   const visibleUserChallenges = useMemo(() => {
     const q = (search || '').trim().toLowerCase();
     if (!challengeData?.userChallenges) return [];
 
     return challengeData.userChallenges
-      .filter(uc => uc.userId) // must have a user
+      .filter(uc => uc.userId) 
       .filter(uc => {
-        // ensure user is still part of the classroom
+        
         const studentInClassroom = (classroomStudents || []).some(student =>
           (typeof student === 'string' ? student : student._id) === uc.userId._id
         );
         if (!studentInClassroom) return false;
 
-        // role filter
+        
         if (roleFilter !== 'all') {
-          // Normalize role: prefer populated role, otherwise try to infer from classroom data
+          
           let role = '';
           if (uc.userId && typeof uc.userId === 'object') {
             role = String(uc.userId.role || '').toLowerCase();
@@ -461,16 +461,16 @@ const TeacherView = ({
             role = '';
           }
   
-          // If not populated, attempt to infer by matching ids against classroom.teacher / classroom.students
+          
           if (!role) {
             const uid = typeof uc.userId === 'object' ? (uc.userId._id || '') : uc.userId;
             if (String(classroom?.teacher?._id || classroom?.teacher) === String(uid)) {
               role = 'teacher';
             } else if ((classroom?.students || []).some(s => String(s._id || s) === String(uid))) {
-              // classroom.students usually contains students and may include promoted Admin/TAs; treat as 'student' unless role is known
+              
               role = 'student';
             } else {
-              // fallback: leave unknown empty so it won't incorrectly match 'student' or 'teacher'
+              
               role = '';
             }
           }
@@ -478,11 +478,11 @@ const TeacherView = ({
           if (role !== roleFilter) return false;
         }
 
-        // challenge filter (workingOn = currentChallenge || progress)
+        
         const workingOn = uc.currentChallenge !== undefined ? uc.currentChallenge : uc.progress;
         if (challengeFilter !== 'all' && Number(challengeFilter) !== workingOn) return false;
 
-        // status filter: compute completed / failed / in-progress for the working challenge
+        
         if (statusFilter !== 'all') {
           const isCompleted = Boolean(uc.completedChallenges?.[workingOn]);
           let isFailed = false;
@@ -509,7 +509,7 @@ const TeacherView = ({
           if (statusFilter === 'inprogress' && !inProgress) return false;
         }
 
-        // deep search across user fields + challenge-specific fields
+        
         if (!q) return true;
         const hay = [
           `${uc.userId.firstName || ''} ${uc.userId.lastName || ''}`,
@@ -534,9 +534,9 @@ const TeacherView = ({
     challenge6Data,
     challenge7Data
   ]);
-  // -------------------------------------------------------------------------------
+  
 
-  // ---------------- Export helpers ----------------
+  
   const buildExportRows = () => {
     if (!challengeData || !challengeData.userChallenges) return [];
     const rows = [];
@@ -552,9 +552,9 @@ const TeacherView = ({
         const attempts = Number(uc[`challenge${idx + 1}Attempts`] || 0);
         
         let maxAttemptsValue = uc[`challenge${idx + 1}MaxAttempts`] || '';
-        if (idx === 2 && !maxAttemptsValue) maxAttemptsValue = 5; // C++ Bug Hunt
-        if (idx === 5 && !maxAttemptsValue) maxAttemptsValue = 3; // Needle in a Haystack
-        if (idx === 6 && !maxAttemptsValue) maxAttemptsValue = 3; // Hangman
+        if (idx === 2 && !maxAttemptsValue) maxAttemptsValue = 5; 
+        if (idx === 5 && !maxAttemptsValue) maxAttemptsValue = 3; 
+        if (idx === 6 && !maxAttemptsValue) maxAttemptsValue = 3; 
 
         const startedAt = uc.challengeStartedAt?.[idx] || (idx === 0 ? uc.startedAt : null);
         const completedAt = uc.challengeCompletedAt?.[idx] || null;
@@ -566,40 +566,40 @@ const TeacherView = ({
           status = 'Failed';
         }
 
-        // Get challenge-specific data and solutions
+        
         let challengeData_specific = '';
         let solution = '';
         let rewardsEarned = '';
-        let rewardsAvailable = ''; // NEW: What rewards are available for this challenge
+        let rewardsAvailable = ''; 
         let hintsUsed = '';
-        let hintsAvailable = ''; // NEW: What hints are available for this challenge
+        let hintsAvailable = ''; 
 
         switch (idx) {
-          case 0: // Caesar Cipher
+          case 0: 
             challengeData_specific = uniqueId;
             solution = uc.hashedPassword || '';
             break;
-          case 1: // GitHub OSINT
+          case 1: 
             challengeData_specific = `GitHub Branch: ${uniqueId}`;
             solution = uc.challenge2Password || '';
             break;
-          case 2: // C++ Bug Hunt
+          case 2: 
             challengeData_specific = 'C++ Debugging Challenge';
             solution = challenge3Data[uniqueId]?.expectedOutput || '';
             break;
-          case 3: // Forensics
+          case 3: 
             challengeData_specific = `Forensics Evidence: campus_${uniqueId}.jpg`;
             solution = uc.challenge4Password || '';
             break;
-          case 4: // WayneAWS
+          case 4: 
             challengeData_specific = 'WayneAWS Authentication Portal';
             solution = 'External Verification Required';
             break;
-          case 5: // Needle in Haystack
+          case 5: 
             challengeData_specific = `Search Word: "${challenge6Data[uniqueId]?.word || 'N/A'}"`;
             solution = challenge6Data[uniqueId]?.tokenId || '';
             break;
-          case 6: // Hangman
+          case 6: 
             const challenge7Info = challenge7Data[uniqueId];
             if (challenge7Info && !challenge7Info.error) {
               challengeData_specific = `Quote: "${challenge7Info.quote}" - ${challenge7Info.author}`;
@@ -609,7 +609,7 @@ const TeacherView = ({
                 .join('; ');
               solution = tokenSolutions;
             
-              // Add progress info for Challenge 7
+              
               const revealedCount = uc.challenge7Progress?.revealedWords?.length || 0;
               const totalCount = challenge7Info.uniqueWords?.length || 0;
               if (totalCount > 0) {
@@ -622,7 +622,7 @@ const TeacherView = ({
             break;
         }
 
-        // NEW: Get available rewards for this challenge (what could be earned)
+        
         if (challengeData?.settings) {
           const availableRewards = [];
         
@@ -657,7 +657,7 @@ const TeacherView = ({
           rewardsAvailable = availableRewards.join(', ') || 'No rewards configured';
         }
 
-        // NEW: Get available hints for this challenge
+        
         if (challengeData?.settings?.challengeHintsEnabled?.[idx]) {
           const challengeHints = challengeData.settings.challengeHints?.[idx] || [];
           const nonEmptyHints = challengeHints.filter(hint => hint && hint.trim());
@@ -670,11 +670,11 @@ const TeacherView = ({
           hintsAvailable = 'No hints available';
         }
 
-        // Calculate earned rewards for completed challenges
+        
         if (completed && challengeData?.settings) {
           const earnedRewards = [];
         
-          // Bits calculation with hint penalty
+          
           if (challengeData.settings.rewardMode === 'individual') {
             let baseBits = challengeData.settings.challengeBits?.[idx] || 0;
             const hintsUsedCount = uc.hintsUsed?.[idx] || 0;
@@ -694,7 +694,7 @@ const TeacherView = ({
             if (baseBits > 0) earnedRewards.push(`${baseBits} ₿`);
           }
         
-          // Other earned rewards
+          
           if (challengeData.settings.multiplierMode === 'individual') {
             const multiplier = challengeData.settings.challengeMultipliers?.[idx] || 1.0;
             if (multiplier > 1.0) earnedRewards.push(`${multiplier}x Multiplier`);
@@ -722,7 +722,7 @@ const TeacherView = ({
           rewardsEarned = 'Not completed';
         }
 
-        // Add hints used info if not already set
+        
         if (!hintsUsed && uc.hintsUsed?.[idx]) {
           hintsUsed = `${uc.hintsUsed[idx]} hints used`;
         } else if (!hintsUsed) {
@@ -743,11 +743,11 @@ const TeacherView = ({
           completedAt: completedAt ? new Date(completedAt).toISOString() : '',
           challengeData: challengeData_specific,
           solution: solution,
-          rewardsAvailable: rewardsAvailable, // NEW
+          rewardsAvailable: rewardsAvailable, 
           rewardsEarned: rewardsEarned,
-          hintsAvailable: hintsAvailable, // NEW
+          hintsAvailable: hintsAvailable, 
           hintsUsed: hintsUsed,
-          // Additional useful fields
+          
           timeToComplete: startedAt && completedAt ? 
             Math.round((new Date(completedAt) - new Date(startedAt)) / (1000 * 60)) + ' minutes' : '',
           failureReason: status === 'Failed' ? 
@@ -775,7 +775,7 @@ const TeacherView = ({
 
   const exportAsJSON = () => {
     const rows = buildExportRows();
-    // Updated filename format: classroom + challenge + timestamp
+    
     const classroomPart = classroom?.name || 'classroom';
     const codePart = classroom?.code ? `_${classroom.code}` : '';
     const challengePart = challengeData?.title ? `_${challengeData.title.replace(/[^a-zA-Z0-9_-]/g, '_')}` : '_challenge';
@@ -787,7 +787,7 @@ const TeacherView = ({
 
   const exportAsCSV = () => {
     const rows = buildExportRows();
-    // Updated filename format: classroom + challenge + timestamp
+    
     const classroomPart = classroom?.name || 'classroom';
     const codePart = classroom?.code ? `_${classroom.code}` : '';
     const challengePart = challengeData?.title ? `_${challengeData.title.replace(/[^a-zA-Z0-9_-]/g, '_')}` : '_challenge';
@@ -815,12 +815,12 @@ const TeacherView = ({
     downloadBlob(csv, 'text/csv;charset=utf-8', filename);
     return filename;
   };
-  // --------------------------------------------------
+  
 
-  // ---------------- Custom Progress: search/filters/export (NEW) ----------------
+  
   const [customSearch, setCustomSearch] = useState('');
-  const [customStatusFilter, setCustomStatusFilter] = useState('all'); // all | notstarted | inprogress | completed | failed
-  const [customChallengeFilter, setCustomChallengeFilter] = useState('all'); // all | customChallengeId
+  const [customStatusFilter, setCustomStatusFilter] = useState('all'); 
+  const [customChallengeFilter, setCustomChallengeFilter] = useState('all'); 
   const clearCustomFilters = () => {
     setCustomSearch('');
     setCustomStatusFilter('all');
@@ -871,7 +871,7 @@ const TeacherView = ({
       const email = uc.userId?.email || '';
       const uniqueId = uc.uniqueId || '';
 
-      // lookup progress by cc id
+      
       const progressByChallengeId = new Map(
         (uc.customChallengeProgress || []).map(p => [String(p.challengeId), p])
       );
@@ -893,7 +893,7 @@ const TeacherView = ({
       const allCompleted = totalChallenges > 0 && completedChallenges === totalChallenges;
       const anyFailed = perChallenge.some(x => x.failed);
 
-      // "Working on" should ignore failed challenges
+      
       const currentEntry = perChallenge.find(x => x.started && !x.completed && !x.failed);
       const currentChallenge = currentEntry?.cc || null;
       const currentProgress = currentEntry?.p || null;
@@ -931,7 +931,7 @@ const TeacherView = ({
     const codePart = classroom?.code ? `_${classroom.code}` : '';
     const ts = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `${classroomPart}${codePart}_custom-challenge-progress_${ts}.json`;
-    // uses existing downloadBlob helper already in this file
+    
     downloadBlob(JSON.stringify(rows, null, 2), 'application/json', filename);
   };
 
@@ -951,7 +951,7 @@ const TeacherView = ({
     return (challengeData.userChallenges || [])
       .filter(uc => uc?.userId)
       .filter(uc => {
-        // keep in-sync with classroom membership
+        
         const studentInClassroom = (classroomStudents || []).some(student =>
           (typeof student === 'string' ? student : student._id) === uc.userId._id
         );
@@ -1005,11 +1005,11 @@ const TeacherView = ({
       });
   }, [challengeData?.userChallenges, challengeData?.customChallenges, classroomStudents, customSearch, customStatusFilter, customChallengeFilter]);
 
-  // -------------------------------------------------------------------------------
+  
 
-  // ---------- visibleUserChallenges + visibleCustomUserChallenges combined ----------
+  
   const visibleUserChallengesCombined = useMemo(() => {
-    // Prioritize visibleUserChallenges, then fallback to visibleCustomUserChallenges
+    
     const combined = new Map();
 
     for (const uc of visibleUserChallenges) {
@@ -1024,9 +1024,9 @@ const TeacherView = ({
 
     return Array.from(combined.values());
   }, [visibleUserChallenges, visibleCustomUserChallenges]);
-  // -------------------------------------------------------------------------------
+  
 
-  // ---------------- Export all progress (legacy + custom) ----------------
+  
   const exportAllProgressAsJSON = () => {
     const legacyRows = buildExportRows();
     const customRows = buildCustomExportRows();
@@ -1070,9 +1070,9 @@ const TeacherView = ({
     downloadBlob(csv, 'text/csv;charset=utf-8', filename);
     return filename;
   };
-  // --------------------------------------------------
+  
 
-  // Add this helper function near the top of the component
+  
 
   const getRewardsForChallenge = (challengeIdx) => {
     if (!challengeData?.settings) return 'No rewards configured';
@@ -1114,7 +1114,7 @@ const TeacherView = ({
         <div className="flex items-center gap-3 mb-4">
           <Shield className="w-8 h-8 text-red-500" />
           <h1 className="text-3xl font-bold text-base-content">
-            {/* Prepend classroom name/code when available, then show configured title (or fallback) */}
+            {}
             {classroom?.name ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''} — ` : ''}
             {challengeData?.title || 'Cyber Challenge'}
           </h1>
@@ -1186,7 +1186,7 @@ const TeacherView = ({
             
             {challengeData.isActive && challengeData.userChallenges && unassignedStudentIds.length > 0 && (
               <div className="relative" ref={dropdownRef}>
-                {/* allow overflow so the floating dropdown / styles don't clip the button text on mobile */}
+                {}
                 <div className="relative overflow-visible">
                   <button
                     className="btn btn-sm btn-primary gap-2 inline-flex items-center whitespace-nowrap min-w-max z-50"
@@ -1210,7 +1210,7 @@ const TeacherView = ({
                        autoFocus
                      />
  
-                     {/* filter unassigned by name / id */}
+                     {}
                      {(() => {
                        const q = (assignSearch || '').trim().toLowerCase();
                        return (q === '')
@@ -1313,7 +1313,7 @@ const TeacherView = ({
             </div>
           )}
 
-          {/* Legacy challenge progress - hidden if seriesType is 'custom' */}
+          {}
           {challengeData?.seriesType !== 'custom' && challengeData.isActive && challengeData.userChallenges && challengeData.userChallenges.length > 0 && (
             <div className="mt-6">
               <div className="flex items-center justify-between mb-3">
@@ -1365,7 +1365,7 @@ const TeacherView = ({
                     >
                       Clear
                     </button>
-                    {/* Export buttons moved here */}
+                    {}
                     <ExportButtons
                       onExportCSV={exportAsCSV}
                       onExportJSON={exportAsJSON}
@@ -1383,7 +1383,7 @@ const TeacherView = ({
                       <th className="whitespace-nowrap">Current Challenge</th>
                       <th className="hidden md:table-cell whitespace-nowrap">Challenge Data</th>
                       <th className="whitespace-nowrap">Solution</th>
-                      <th className="hidden xl:table-cell whitespace-nowrap">Available Rewards</th> {/* NEW */}
+                      <th className="hidden xl:table-cell whitespace-nowrap">Available Rewards</th> {}
                       <th className="hidden sm:table-cell whitespace-nowrap">Started At</th>
                       <th className="hidden lg:table-cell whitespace-nowrap">Completed At</th>
                       <th className="whitespace-nowrap">Status</th>
@@ -1410,7 +1410,7 @@ const TeacherView = ({
                               <span className="text-xs md:text-sm text-gray-600">{workingOnTitle}</span>
                               <span className="text-xs text-gray-500 mt-1">{currentChallenge.method}</span>
 
-                              {/* Mobile-only: show Started / Completed info when table columns arehidden */}
+                              {}
                               <div className="sm:hidden mt-2 text-xs text-gray-500">
                                 <div>
                                   <strong>Started:</strong>{' '}
@@ -1766,7 +1766,7 @@ const TeacherView = ({
                               <div className="text-xs font-medium text-blue-600">
                                 {getRewardsForChallenge(workingOnChallenge)}
                               </div>
-                              {/* hint penalty / count */}
+                              {}
                               {challengeData?.settings?.challengeHintsEnabled?.[workingOnChallenge] && (
                                 <>
                                   <div className="text-xs text-orange-600">
@@ -1893,7 +1893,7 @@ const TeacherView = ({
                                         className={`text-xs ${!isStarted ? 'text-gray-400' : isCompleted ? 'text-green-600' : 'text-blue-600'}`}
                                         disabled={!isStarted}
                                         onClick={async () => {
-                                          // replace window.confirm(...) with modal
+                                          
                                           openConfirm({
                                             title: `Reset ${challengeNames[challengeIdx]}`,
                                             message: `Reset ${challengeNames[challengeIdx]} for ${uc.userId.firstName} ${uc.userId.lastName}? This will clear their progress for this specific challenge.`,
@@ -1978,12 +1978,12 @@ const TeacherView = ({
             </div>
           )}
 
-          {/* Custom challenge progress - hidden if seriesType is 'legacy' */}
+          {}
           {challengeData?.seriesType !== 'legacy' && challengeData?.customChallenges?.length > 0 && (
             <div className="mt-6">
               <h3 className="text-xl font-semibold mb-3">Custom Challenge Progress</h3>
 
-              {/* NEW: search + filters + export */}
+              {}
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 items-stretch w-full mb-3">
                 <input
                   type="search"
@@ -2079,7 +2079,7 @@ const TeacherView = ({
                       const allCompleted = totalChallenges > 0 && completedChallenges === totalChallenges;
                       const anyFailed = perChallenge.some(x => x.failed);
 
-                      // "Working on" should ignore failed challenges
+                      
                       const currentEntry = perChallenge.find(x => x.started && !x.completed && !x.failed);
                       const currentChallenge = currentEntry?.cc || null;
                       const currentProgress = currentEntry?.p || null;
@@ -2256,7 +2256,7 @@ const TeacherView = ({
                                   </button>
                                 </li>
 
-                                {/* NEW: Remove from series (same as legacy) */}
+                                {}
                                 <li>
                                   <button
                                     className="text-xs text-red-600 font-semibold"
