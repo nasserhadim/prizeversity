@@ -77,6 +77,7 @@ const ChallengeConfigModal = ({
   const handleConfigureChallenge = async () => {
     try {
       setConfiguring(true);
+
       const settings = {
         rewardMode: challengeConfig.rewardMode,
         multiplierMode: challengeConfig.multiplierMode,
@@ -157,8 +158,18 @@ const ChallengeConfigModal = ({
       }
 
       await configureChallenge(classroomId, challengeConfig.title, settings);
-      
-      setShowPasswordPrompt(true);
+
+      // only prompt for password when legacy/mixed
+      if (seriesType === 'custom') {
+        const response = await initiateChallenge(classroomId); // no password needed for custom-only series
+        toast.success(response?.message || 'Challenge series launched');
+        setShowPasswordPrompt(false);
+        setChallengePassword('');
+        setShowConfigModal(false);
+        await fetchChallengeData();
+      } else {
+        setShowPasswordPrompt(true);
+      }
     } catch (error) {
       console.error('Error configuring challenge:', error);
       toast.error(error.message || 'Failed to configure challenge');

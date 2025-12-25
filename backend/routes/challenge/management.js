@@ -358,22 +358,36 @@ router.post('/:classroomId/initiate', ensureAuthenticated, ensureTeacher, async 
     const { password } = req.body;
     const teacherId = req.user._id;
 
-    // Robust validation of server-side challenge password:
-    // - Must be defined in env (not undefined/null)
-    // - Must be non-empty after trimming
-    const serverChallengePassword = process.env.CHALLENGE_PASSWORD;
-    if (typeof serverChallengePassword === 'undefined' || serverChallengePassword === null) {
-      console.error('CHALLENGE_PASSWORD is not defined in environment');
-      return res.status(500).json({ message: 'Challenge password not configured on server' });
-    }
-    if (String(serverChallengePassword).trim() === '') {
-      console.error('CHALLENGE_PASSWORD is empty in environment');
-      return res.status(500).json({ message: 'Challenge password not configured on server' });
+    // NEW: Load challenge to determine if legacy initiation password applies
+    const Challenge = require('../../models/Challenge');
+    const challenge = await Challenge.findOne({ classroomId });
+
+    if (!challenge) {
+      return res.status(404).json({ message: 'Challenge series not found' });
     }
 
-    const provided = password ? String(password).trim() : '';
-    if (!provided || provided !== String(serverChallengePassword).trim()) {
-      return res.status(403).json({ message: 'Invalid challenge password' });
+    // Only enforce the env password when legacy challenges are involved
+    const seriesType = challenge.seriesType || 'legacy';
+    const requiresSeriesPassword = seriesType === 'legacy' || seriesType === 'mixed';
+
+    if (requiresSeriesPassword) {
+      // Robust validation of server-side challenge password:
+      // - Must be defined in env (not undefined/null)
+      // - Must be non-empty after trimming
+      const serverChallengePassword = process.env.CHALLENGE_PASSWORD;
+      if (typeof serverChallengePassword === 'undefined' || serverChallengePassword === null) {
+        console.error('CHALLENGE_PASSWORD is not defined in environment');
+        return res.status(500).json({ message: 'Challenge password not configured on server' });
+      }
+      if (String(serverChallengePassword).trim() === '') {
+        console.error('CHALLENGE_PASSWORD is empty in environment');
+        return res.status(500).json({ message: 'Challenge password not configured on server' });
+      }
+
+      const provided = password ? String(password).trim() : '';
+      if (!provided || provided !== String(serverChallengePassword).trim()) {
+        return res.status(403).json({ message: 'Invalid challenge password' });
+      }
     }
 
     const classroom = await Classroom.findById(classroomId).populate('students');
@@ -385,19 +399,18 @@ router.post('/:classroomId/initiate', ensureAuthenticated, ensureTeacher, async 
       return res.status(403).json({ message: 'Only the classroom teacher can initiate challenges' });
     }
 
-    let challenge = await Challenge.findOne({ classroomId });
-    
-    if (!challenge || !challenge.isConfigured) {
+    let userChallenges;
+    if (challenge.isConfigured) {
+      userChallenges = classroom.students.map(student => 
+        challenge.generateUserChallenge(student._id)
+      );
+    } else {
       return res.status(400).json({ message: 'Challenge must be configured before activation' });
     }
     
     if (challenge.isActive) {
       return res.status(400).json({ message: 'Challenge is already active for this classroom' });
     }
-
-    const userChallenges = classroom.students.map(student => 
-      challenge.generateUserChallenge(student._id)
-    );
 
     challenge.isActive = true;
     challenge.userChallenges = userChallenges;

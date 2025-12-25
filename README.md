@@ -189,6 +189,8 @@ npm install random-words
 
 npm install bad-words # Used for filtering
 
+npm install bcryptjs
+
 npm install --save-dev jest eslint # if testing/linting are used
 
 # --- NEW: migrations ---

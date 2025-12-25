@@ -817,6 +817,261 @@ const TeacherView = ({
   };
   // --------------------------------------------------
 
+  // ---------------- Custom Progress: search/filters/export (NEW) ----------------
+  const [customSearch, setCustomSearch] = useState('');
+  const [customStatusFilter, setCustomStatusFilter] = useState('all'); // all | notstarted | inprogress | completed | failed
+  const [customChallengeFilter, setCustomChallengeFilter] = useState('all'); // all | customChallengeId
+  const clearCustomFilters = () => {
+    setCustomSearch('');
+    setCustomStatusFilter('all');
+    setCustomChallengeFilter('all');
+  };
+
+  const getCustomRewardsLabel = (cc) => {
+    if (!cc) return '—';
+    const rewards = [];
+    const bits = Number(cc.bits || 0);
+    const multiplier = Number(cc.multiplier || 1.0);
+    const luck = Number(cc.luck || 1.0);
+    const discount = Number(cc.discount || 0);
+    const shield = Boolean(cc.shield);
+
+    if (bits > 0) rewards.push(`${bits} ₿`);
+    if (multiplier > 1.0) rewards.push(`${multiplier}x Multiplier`);
+    if (luck > 1.0) rewards.push(`${luck}x Luck`);
+    if (discount > 0) rewards.push(`${discount}% Discount`);
+    if (shield) rewards.push('Shield');
+
+    return rewards.length ? rewards.join(', ') : 'No rewards';
+  };
+
+  const toCSVCustom = (rows) => {
+    const headers = Object.keys(rows?.[0] || {});
+    const esc = (v) => {
+      const s = v === null || v === undefined ? '' : String(v);
+      return `"${s.replace(/"/g, '""')}"`;
+    };
+    const lines = [
+      headers.map(esc).join(','),
+      ...(rows || []).map(r => headers.map(h => esc(r[h])).join(','))
+    ];
+    return lines.join('\n');
+  };
+
+  const buildCustomExportRows = () => {
+    if (!challengeData?.userChallenges || !Array.isArray(challengeData?.customChallenges)) return [];
+
+    const rows = [];
+
+    for (const uc of (challengeData.userChallenges || []).filter(x => x?.userId)) {
+      const studentName =
+        `${uc.userId?.firstName || ''} ${uc.userId?.lastName || ''}`.trim() ||
+        (uc.userId?.email || '');
+
+      const email = uc.userId?.email || '';
+      const uniqueId = uc.uniqueId || '';
+
+      // lookup progress by cc id
+      const progressByChallengeId = new Map(
+        (uc.customChallengeProgress || []).map(p => [String(p.challengeId), p])
+      );
+
+      const perChallenge = (challengeData.customChallenges || []).map(cc => {
+        const p = progressByChallengeId.get(String(cc._id));
+        const started = !!p?.startedAt;
+        const completed = !!p?.completed;
+        const attempts = Number(p?.attempts || 0);
+        const maxAttempts = cc.maxAttempts;
+        const failed = !!(started && !completed && maxAttempts && attempts >= maxAttempts);
+
+        return { cc, p, started, completed, failed, attempts, maxAttempts };
+      });
+
+      const totalChallenges = perChallenge.length;
+      const completedChallenges = perChallenge.filter(x => x.completed).length;
+      const hasStarted = perChallenge.some(x => x.started);
+      const allCompleted = totalChallenges > 0 && completedChallenges === totalChallenges;
+      const anyFailed = perChallenge.some(x => x.failed);
+
+      // "Working on" should ignore failed challenges
+      const currentEntry = perChallenge.find(x => x.started && !x.completed && !x.failed);
+      const currentChallenge = currentEntry?.cc || null;
+      const currentProgress = currentEntry?.p || null;
+
+      const statusLabel = allCompleted
+        ? 'Completed'
+        : anyFailed
+          ? 'Failed'
+          : hasStarted
+            ? 'In Progress'
+            : 'Not Started';
+
+      rows.push({
+        classroomId: String(challengeData.classroomId || classroomId || ''),
+        studentName,
+        email,
+        uniqueId,
+        totalCustomChallenges: totalChallenges,
+        completedCustomChallenges: completedChallenges,
+        status: statusLabel,
+        currentChallengeTitle: currentChallenge?.title || '',
+        availableRewards: currentChallenge ? getCustomRewardsLabel(currentChallenge) : '',
+        solution: currentProgress?.generatedContent?.expectedAnswer || '',
+        startedAt: currentProgress?.startedAt ? new Date(currentProgress.startedAt).toISOString() : '',
+        completedAt: currentProgress?.completedAt ? new Date(currentProgress.completedAt).toISOString() : ''
+      });
+    }
+
+    return rows;
+  };
+
+  const exportCustomAsJSON = () => {
+    const rows = buildCustomExportRows();
+    const classroomPart = classroom?.name || 'classroom';
+    const codePart = classroom?.code ? `_${classroom.code}` : '';
+    const ts = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `${classroomPart}${codePart}_custom-challenge-progress_${ts}.json`;
+    // uses existing downloadBlob helper already in this file
+    downloadBlob(JSON.stringify(rows, null, 2), 'application/json', filename);
+  };
+
+  const exportCustomAsCSV = () => {
+    const rows = buildCustomExportRows();
+    const classroomPart = classroom?.name || 'classroom';
+    const codePart = classroom?.code ? `_${classroom.code}` : '';
+    const ts = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `${classroomPart}${codePart}_custom-challenge-progress_${ts}.csv`;
+    downloadBlob(toCSVCustom(rows), 'text/csv;charset=utf-8', filename);
+  };
+
+  const visibleCustomUserChallenges = useMemo(() => {
+    const q = (customSearch || '').trim().toLowerCase();
+    if (!challengeData?.userChallenges || !Array.isArray(challengeData?.customChallenges)) return [];
+
+    return (challengeData.userChallenges || [])
+      .filter(uc => uc?.userId)
+      .filter(uc => {
+        // keep in-sync with classroom membership
+        const studentInClassroom = (classroomStudents || []).some(student =>
+          (typeof student === 'string' ? student : student._id) === uc.userId._id
+        );
+        if (!studentInClassroom) return false;
+
+        const progressByChallengeId = new Map(
+          (uc.customChallengeProgress || []).map(p => [String(p.challengeId), p])
+        );
+
+        const perChallenge = (challengeData.customChallenges || []).map(cc => {
+          const p = progressByChallengeId.get(String(cc._id));
+          const started = !!p?.startedAt;
+          const completed = !!p?.completed;
+          const attempts = Number(p?.attempts || 0);
+          const maxAttempts = cc.maxAttempts;
+          const failed = !!(started && !completed && maxAttempts && attempts >= maxAttempts);
+          return { cc, p, started, completed, failed, attempts, maxAttempts };
+        });
+
+        const totalChallenges = perChallenge.length;
+        const completedChallenges = perChallenge.filter(x => x.completed).length;
+        const hasStarted = perChallenge.some(x => x.started);
+        const allCompleted = totalChallenges > 0 && completedChallenges === totalChallenges;
+        const anyFailed = perChallenge.some(x => x.failed);
+
+        const currentEntry = perChallenge.find(x => x.started && !x.completed && !x.failed);
+        const currentChallenge = currentEntry?.cc || null;
+
+        const statusLabel = allCompleted
+          ? 'completed'
+          : anyFailed
+            ? 'failed'
+            : hasStarted
+              ? 'inprogress'
+              : 'notstarted';
+
+        if (customStatusFilter !== 'all' && customStatusFilter !== statusLabel) return false;
+        if (customChallengeFilter !== 'all' && String(customChallengeFilter) !== String(currentChallenge?._id || '')) return false;
+
+        if (!q) return true;
+
+        const hay = [
+          `${uc.userId?.firstName || ''} ${uc.userId?.lastName || ''}`,
+          uc.userId?.email || '',
+          uc.uniqueId || '',
+          currentChallenge?.title || '',
+          currentEntry?.p?.generatedContent?.expectedAnswer || ''
+        ].join(' ').toLowerCase();
+
+        return hay.includes(q);
+      });
+  }, [challengeData?.userChallenges, challengeData?.customChallenges, classroomStudents, customSearch, customStatusFilter, customChallengeFilter]);
+
+  // -------------------------------------------------------------------------------
+
+  // ---------- visibleUserChallenges + visibleCustomUserChallenges combined ----------
+  const visibleUserChallengesCombined = useMemo(() => {
+    // Prioritize visibleUserChallenges, then fallback to visibleCustomUserChallenges
+    const combined = new Map();
+
+    for (const uc of visibleUserChallenges) {
+      combined.set(uc.uniqueId, uc);
+    }
+
+    for (const uc of visibleCustomUserChallenges) {
+      if (!combined.has(uc.uniqueId)) {
+        combined.set(uc.uniqueId, uc);
+      }
+    }
+
+    return Array.from(combined.values());
+  }, [visibleUserChallenges, visibleCustomUserChallenges]);
+  // -------------------------------------------------------------------------------
+
+  // ---------------- Export all progress (legacy + custom) ----------------
+  const exportAllProgressAsJSON = () => {
+    const legacyRows = buildExportRows();
+    const customRows = buildCustomExportRows();
+    const allRows = [...legacyRows, ...customRows];
+
+    const classroomPart = classroom?.name || 'classroom';
+    const codePart = classroom?.code ? `_${classroom.code}` : '';
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const filename = `${classroomPart}${codePart}_all-challenge-progress_${timestamp}.json`;
+    downloadBlob(JSON.stringify(allRows, null, 2), 'application/json;charset=utf-8', filename);
+  };
+
+  const exportAllProgressAsCSV = () => {
+    const legacyRows = buildExportRows();
+    const customRows = buildCustomExportRows();
+    const allRows = [...legacyRows, ...customRows];
+
+    const classroomPart = classroom?.name || 'classroom';
+    const codePart = classroom?.code ? `_${classroom.code}` : '';
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const filename = `${classroomPart}${codePart}_all-challenge-progress_${timestamp}.csv`;
+    
+    if (!allRows.length) {
+      downloadBlob('', 'text/csv;charset=utf-8', filename);
+      return filename;
+    }
+    const headers = Object.keys(allRows[0]);
+    const escapeCell = (v) => {
+      if (v === null || v === undefined) return '';
+      const s = String(v);
+      if (s.includes('"') || s.includes(',') || s.includes('\n')) {
+        return `"${s.replace(/"/g, '""')}"`;
+      }
+      return s;
+    };
+    const csv = [
+      headers.join(','),
+      ...allRows.map(r => headers.map(h => escapeCell(r[h])).join(','))
+    ].join('\n');
+
+    downloadBlob(csv, 'text/csv;charset=utf-8', filename);
+    return filename;
+  };
+  // --------------------------------------------------
+
   // Add this helper function near the top of the component
 
   const getRewardsForChallenge = (challengeIdx) => {
@@ -902,7 +1157,7 @@ const TeacherView = ({
                 className="btn btn-primary btn-lg gap-2 flex-wrap text-sm sm:text-base"
               >
                 <Edit3 className="w-5 h-5" />
-                Update Challenge
+                Update Series
               </button>
               <button
                 onClick={handleShowDeactivateModal}
@@ -1022,7 +1277,18 @@ const TeacherView = ({
                   </button>
                 </div>
                 {challengeData.settings?.dueDateEnabled && challengeData.settings?.dueDate ? (
-                  <div className={`p-3 rounded-lg ${new Date() > new Date(challengeData.settings.dueDate) ? 'bg-red-900/18 border-red-800 text-red-200' : 'bg-blue-900/12 border-blue-700 text-blue-200'}`}>
+                  <div
+                    className={[
+                      'p-3 rounded-lg border',
+                      new Date() > new Date(challengeData.settings.dueDate)
+                        ? (isDark
+                            ? 'bg-red-900/18 border-red-800 text-red-200'
+                            : 'bg-red-50 border-red-200 text-red-800')
+                        : (isDark
+                            ? 'bg-blue-900/12 border-blue-700 text-blue-200'
+                            : 'bg-blue-50 border-blue-200 text-blue-800')
+                    ].join(' ')}
+                  >
                     <div className="flex items-center gap-2">
                       <span className="font-semibold">
                         {new Date() > new Date(challengeData.settings.dueDate) ? '⚠️ Expired:' : '⏰ Due:'}
@@ -1033,7 +1299,11 @@ const TeacherView = ({
                       </span>
                     </div>
                     {new Date() > new Date(challengeData.settings.dueDate) && (
-                      <p className="text-sm mt-1">{isDark ? 'This challenge has expired and submissions are disabled.' : 'This challenge has expired and students can no longer submit answers.'}</p>
+                      <p className="text-sm mt-1">
+                        {isDark
+                          ? 'This challenge has expired and submissions are disabled.'
+                          : 'This challenge has expired and students can no longer submit answers.'}
+                      </p>
                     )}
                   </div>
                 ) : (
@@ -1047,7 +1317,7 @@ const TeacherView = ({
           {challengeData?.seriesType !== 'custom' && challengeData.isActive && challengeData.userChallenges && challengeData.userChallenges.length > 0 && (
             <div className="mt-6">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xl font-semibold">Student Challenge Progress</h3>
+                <h3 className="text-xl font-semibold">Legacy Challenge Progress</h3>
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 items-stretch w-full max-w-4xl">
                   <input
                     type="search"
@@ -1712,6 +1982,63 @@ const TeacherView = ({
           {challengeData?.seriesType !== 'legacy' && challengeData?.customChallenges?.length > 0 && (
             <div className="mt-6">
               <h3 className="text-xl font-semibold mb-3">Custom Challenge Progress</h3>
+
+              {/* NEW: search + filters + export */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 items-stretch w-full mb-3">
+                <input
+                  type="search"
+                  placeholder="Search students, email, unique id, custom title, solution..."
+                  className="input input-sm input-bordered w-full sm:flex-auto"
+                  value={customSearch}
+                  onChange={(e) => setCustomSearch(e.target.value)}
+                />
+
+                <div className="flex gap-2 flex-wrap items-center justify-start">
+                  <select
+                    className="select select-sm w-full sm:w-auto flex-shrink-0"
+                    value={customStatusFilter}
+                    onChange={(e) => setCustomStatusFilter(e.target.value)}
+                    title="Filter by status"
+                  >
+                    <option value="all">All status</option>
+                    <option value="notstarted">Not started</option>
+                    <option value="inprogress">In progress</option>
+                    <option value="completed">Completed</option>
+                    <option value="failed">Failed</option>
+                  </select>
+
+                  <select
+                    className="select select-sm w-full sm:w-auto flex-shrink-0"
+                    value={customChallengeFilter}
+                    onChange={(e) => setCustomChallengeFilter(e.target.value)}
+                    title="Filter by current challenge"
+                  >
+                    <option value="all">All challenges</option>
+                    {(challengeData.customChallenges || [])
+                      .slice()
+                      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+                      .map(cc => (
+                        <option key={cc._id} value={String(cc._id)}>{cc.title}</option>
+                      ))}
+                  </select>
+
+                  <button
+                    className="btn btn-sm btn-ghost ml-0 sm:ml-2"
+                    onClick={clearCustomFilters}
+                    title="Clear search and filters"
+                  >
+                    Clear
+                  </button>
+
+                  <ExportButtons
+                    onExportCSV={exportCustomAsCSV}
+                    onExportJSON={exportCustomAsJSON}
+                    userName={classroom?.name || challengeData?.title || 'challenge'}
+                    exportLabel="custom-challenge-progress"
+                  />
+                </div>
+              </div>
+
               <div className="overflow-x-auto">
                 <table className="table table-zebra w-full table-auto text-sm">
                   <thead>
@@ -1719,67 +2046,117 @@ const TeacherView = ({
                       <th>Student</th>
                       <th>Progress</th>
                       <th>Status</th>
+                      <th className="hidden md:table-cell">Current Challenge</th>
+                      <th className="hidden xl:table-cell">Available Rewards</th>
                       <th className="hidden lg:table-cell">Solution</th>
                       <th className="hidden sm:table-cell">Started</th>
                       <th className="hidden sm:table-cell">Completed</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
+
                   <tbody>
-                    {challengeData.userChallenges?.filter(uc => uc.userId).map(uc => {
+                    {visibleCustomUserChallenges.map(uc => {
                       const totalChallenges = challengeData.customChallenges.length;
-                      const completedChallenges = challengeData.customChallenges.filter(cc => {
-                        const progress = uc.customChallengeProgress?.find(p => p.challengeId.toString() === cc._id.toString());
-                        return progress?.completed || false;
-                      }).length;
-                      
-                      const startedChallenges = challengeData.customChallenges.filter(cc => {
-                        const progress = uc.customChallengeProgress?.find(p => p.challengeId.toString() === cc._id.toString());
-                        return progress?.startedAt;
-                      }).length;
-                      
-                      const hasStarted = startedChallenges > 0;
-                      const allCompleted = completedChallenges === totalChallenges && totalChallenges > 0;
-                      const currentChallenge = challengeData.customChallenges.find(cc => {
-                        const progress = uc.customChallengeProgress?.find(p => p.challengeId.toString() === cc._id.toString());
-                        return progress?.startedAt && !progress?.completed;
+
+                      const progressByChallengeId = new Map(
+                        (uc.customChallengeProgress || []).map(p => [String(p.challengeId), p])
+                      );
+
+                      const perChallenge = (challengeData.customChallenges || []).map(cc => {
+                        const p = progressByChallengeId.get(String(cc._id));
+                        const started = !!p?.startedAt;
+                        const completed = !!p?.completed;
+                        const attempts = Number(p?.attempts || 0);
+                        const maxAttempts = cc.maxAttempts;
+                        const failed = !!(started && !completed && maxAttempts && attempts >= maxAttempts);
+
+                        return { cc, p, started, completed, failed, attempts, maxAttempts };
                       });
-                      
-                      const currentProgress = currentChallenge ? uc.customChallengeProgress?.find(p => p.challengeId.toString() === currentChallenge._id.toString()) : null;
-                      const currentSolution = currentProgress?.generatedContent?.expectedAnswer || null;
-                      
-                      const firstStartedAt = uc.customChallengeProgress
-                        ?.filter(p => p.startedAt)
+
+                      const completedChallenges = perChallenge.filter(x => x.completed).length;
+                      const hasStarted = perChallenge.some(x => x.started);
+                      const allCompleted = totalChallenges > 0 && completedChallenges === totalChallenges;
+                      const anyFailed = perChallenge.some(x => x.failed);
+
+                      // "Working on" should ignore failed challenges
+                      const currentEntry = perChallenge.find(x => x.started && !x.completed && !x.failed);
+                      const currentChallenge = currentEntry?.cc || null;
+                      const currentProgress = currentEntry?.p || null;
+
+                      const statusLabel = allCompleted
+                        ? 'Completed'
+                        : anyFailed
+                          ? 'Failed'
+                          : hasStarted
+                            ? 'In Progress'
+                            : 'Not Started';
+
+                      const firstStartedAt = (uc.customChallengeProgress || [])
+                        .filter(p => p.startedAt)
                         .map(p => new Date(p.startedAt))
                         .sort((a, b) => a - b)[0];
-                      
-                      const lastCompletedAt = uc.customChallengeProgress
-                        ?.filter(p => p.completedAt)
+
+                      const lastCompletedAt = (uc.customChallengeProgress || [])
+                        .filter(p => p.completedAt)
                         .map(p => new Date(p.completedAt))
                         .sort((a, b) => b - a)[0];
-                      
+
+                      const currentSolution = currentProgress?.generatedContent?.expectedAnswer || null;
+
                       return (
                         <tr key={uc._id} className="align-top">
                           <td className="font-medium">
                             {uc.userId.firstName} {uc.userId.lastName}
+                            <div className="text-xs text-gray-500">{uc.userId.email}</div>
                           </td>
+
                           <td>
                             <div className="flex flex-col">
-                              <span className="font-medium">
-                                {completedChallenges}/{totalChallenges} completed
-                              </span>
-                              {currentChallenge && (
-                                <span className="text-xs text-gray-500">
-                                  Working on: {currentChallenge.title}
-                                </span>
-                              )}
+                              <span className="font-medium">{completedChallenges}/{totalChallenges} completed</span>
+                              {currentChallenge ? (
+                                <span className="text-xs text-gray-500">Working on: {currentChallenge.title}</span>
+                              ) : anyFailed && !allCompleted ? (
+                                <span className="text-xs text-gray-500">No active challenge (failed / max attempts reached)</span>
+                              ) : null}
                             </div>
                           </td>
+
                           <td>
-                            <span className={`badge ${allCompleted ? 'badge-success' : hasStarted ? 'badge-warning' : 'badge-ghost'}`}>
-                              {allCompleted ? 'Completed' : hasStarted ? 'In Progress' : 'Not Started'}
+                            <span
+                              className={[
+                                'badge',
+                                statusLabel === 'Completed'
+                                  ? 'badge-success'
+                                  : statusLabel === 'Failed'
+                                    ? 'badge-error'
+                                    : statusLabel === 'In Progress'
+                                      ? 'badge-warning'
+                                      : 'badge-ghost'
+                              ].join(' ')}
+                            >
+                              {statusLabel}
                             </span>
                           </td>
+
+                          <td className="hidden md:table-cell">
+                            {currentChallenge ? (
+                              <div className="text-sm font-medium">{currentChallenge.title}</div>
+                            ) : (
+                              <span className="text-sm text-gray-400">—</span>
+                            )}
+                          </td>
+
+                          <td className="hidden xl:table-cell">
+                            {currentChallenge ? (
+                              <div className="text-xs font-medium text-blue-600">
+                                {getCustomRewardsLabel(currentChallenge)}
+                              </div>
+                            ) : (
+                              <span className="text-sm text-gray-400">—</span>
+                            )}
+                          </td>
+
                           <td className="hidden lg:table-cell">
                             {currentSolution ? (
                               <div className="flex items-center gap-2">
@@ -1800,26 +2177,31 @@ const TeacherView = ({
                               <span className="text-sm text-gray-400">-</span>
                             )}
                           </td>
-                          <td className="hidden sm:table-cell text-xs">
+
+                          <td className="hidden sm:table-cell">
                             {firstStartedAt ? firstStartedAt.toLocaleString() : '-'}
                           </td>
-                          <td className="hidden sm:table-cell text-xs">
+
+                          <td className="hidden sm:table-cell">
                             {lastCompletedAt ? lastCompletedAt.toLocaleString() : '-'}
                           </td>
+
                           <td>
                             <div className="dropdown dropdown-end">
                               <div tabIndex={0} role="button" className="btn btn-xs btn-outline btn-warning gap-1 hover:btn-warning">
-                                🔄 Reset ▼
+                                🔄 Reset/Remove ▼
                               </div>
-                              <ul tabIndex={0} className="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow border border-base-300">
+
+                              <ul tabIndex={0} className="dropdown-content menu bg-base-100 rounded-box z-[1] w-60 p-2 shadow border border-base-300">
                                 <li className="menu-title">
                                   <span className="text-xs text-gray-500">Reset Options</span>
                                 </li>
-                                {challengeData.customChallenges.map((cc) => {
+
+                                {(challengeData.customChallenges || []).map((cc) => {
                                   const progress = uc.customChallengeProgress?.find(p => p.challengeId.toString() === cc._id.toString());
                                   const isCompleted = progress?.completed || false;
                                   const isStarted = progress?.startedAt;
-                                  
+
                                   return (
                                     <li key={cc._id}>
                                       <button
@@ -1847,7 +2229,9 @@ const TeacherView = ({
                                     </li>
                                   );
                                 })}
+
                                 <div className="divider my-1"></div>
+
                                 <li>
                                   <button
                                     className="text-xs text-red-600 font-semibold"
@@ -1871,9 +2255,38 @@ const TeacherView = ({
                                     🗑️ Reset ALL Custom Challenges
                                   </button>
                                 </li>
-                              </ul>
-                            </div>
-                          </td>
+
+                                {/* NEW: Remove from series (same as legacy) */}
+                                <li>
+                                  <button
+                                    className="text-xs text-red-600 font-semibold"
+                                    onClick={() => {
+                                      openConfirm({
+                                        title: 'Remove from Challenge Series',
+                                        message: `Remove ${uc.userId.firstName} ${uc.userId.lastName} from this challenge series? They can be re-added later via "Assign Students".`,
+                                        confirmText: 'Remove',
+                                        confirmButtonClass: 'btn-warning',
+                                        onConfirm: async () => {
+                                          try {
+                                            const challengeId = challengeData?.challenge?._id || challengeData?._id;
+                                            if (!challengeId) throw new Error('Challenge ID not found');
+                                            await removeStudentFromChallenge(challengeId, uc.userId._id);
+                                            toast.success('Student removed from challenge series');
+                                            await fetchChallengeData();
+                                          } catch (err) {
+                                            console.error('Failed to remove student from challenge:', err);
+                                            toast.error(err.message || 'Failed to remove student');
+                                          }
+                                        }
+                                      });
+                                    }}
+                                  >
+                                    🚫 Remove from Series
+                                  </button>
+                                </li>
+                               </ul>
+                             </div>
+                           </td>
                         </tr>
                       );
                     })}

@@ -20,29 +20,99 @@ async function awardCustomChallengeXP({ userId, classroomId, rewards, challengeN
     const cls = await Classroom.findById(classroomId).select('xpSettings');
     if (!cls?.xpSettings?.enabled) return;
 
+    const io = getIO();
+
+    // Helper: log XP delta (A -> B) to student's stats_adjusted feed + emit realtime
+    const logXPDelta = async ({ xpRes, context, effectsText }) => {
+      if (!xpRes || typeof xpRes.oldXP === 'undefined' || typeof xpRes.newXP === 'undefined') return;
+      if (xpRes.newXP === xpRes.oldXP) return;
+
+      try {
+        const targetUser = await User.findById(userId).select('firstName lastName');
+        if (!targetUser) return;
+
+        await logStatChanges({
+          io,
+          classroomId,
+          user: targetUser,
+          actionBy: null, // system
+          prevStats: { xp: xpRes.oldXP },
+          currStats: { xp: xpRes.newXP },
+          context,
+          details: { effectsText, challengeName },
+          forceLog: true
+        });
+      } catch (e) {
+        console.warn('[custom] failed to log XP stat change:', e);
+      }
+    };
+
+    // 1) Bits-earned XP (custom challenge rewards already "final")
     const bits = Number(rewards?.bits || 0);
-    if (bits > 0 && (cls.xpSettings.bitsEarned || 0) > 0) {
-      const xp = bits * (cls.xpSettings.bitsEarned || 0);
-      await awardXP(userId, classroomId, xp, 'earning bits (custom challenge)', cls.xpSettings);
+    const rateBits = Number(cls.xpSettings.bitsEarned || 0);
+    if (bits > 0 && rateBits > 0) {
+      const xp = bits * rateBits;
+      if (xp > 0) {
+        try {
+          const xpRes = await awardXP(userId, classroomId, xp, 'earning bits (custom challenge)', cls.xpSettings);
+          await logXPDelta({
+            xpRes,
+            context: `earning bits (custom challenge${challengeName ? `: ${challengeName}` : ''})`,
+            effectsText: `Bits: +${bits}`
+          });
+        } catch (e) {
+          console.warn('[custom] awardXP (bits) failed:', e);
+        }
+      }
     }
 
+    // 2) Stat-increase XP
     const statCount =
-      (rewards?.multiplier > 0 ? 1 : 0) +
-      ((rewards?.luck || 1) > 1.0 ? 1 : 0) +
-      ((rewards?.discount || 0) > 0 ? 1 : 0) +
+      (Number(rewards?.multiplier || 0) > 0 ? 1 : 0) +
+      (Number(rewards?.luck || 1) > 1.0 ? 1 : 0) +
+      (Number(rewards?.discount || 0) > 0 ? 1 : 0) +
       (rewards?.shield ? 1 : 0);
 
-    if (statCount > 0 && (cls.xpSettings.statIncrease || 0) > 0) {
-      const xp = statCount * cls.xpSettings.statIncrease;
-      await awardXP(userId, classroomId, xp, 'stat increase (custom challenge)', cls.xpSettings);
+    const rateStat = Number(cls.xpSettings.statIncrease || 0);
+    if (statCount > 0 && rateStat > 0) {
+      const xp = statCount * rateStat;
+      if (xp > 0) {
+        try {
+          const xpRes = await awardXP(userId, classroomId, xp, 'stat increase (custom challenge)', cls.xpSettings);
+
+          const parts = [];
+          if (Number(rewards?.multiplier || 0) > 0) parts.push(`+${Number(rewards.multiplier).toFixed(1)} Multiplier`);
+          if (Number(rewards?.luck || 1) > 1.0) parts.push(`+${Number(rewards.luck - 1).toFixed(1)} Luck`);
+          if (Number(rewards?.discount || 0) > 0) parts.push(`+${Number(rewards.discount)}% Discount`);
+          if (rewards?.shield) parts.push('Shield +1');
+
+          await logXPDelta({
+            xpRes,
+            context: `stat increase (custom challenge${challengeName ? `: ${challengeName}` : ''})`,
+            effectsText: parts.join(', ') || undefined
+          });
+        } catch (e) {
+          console.warn('[custom] awardXP (stat increase) failed:', e);
+        }
+      }
     }
 
-    if ((cls.xpSettings.challengeCompletion || 0) > 0) {
-      const xp = cls.xpSettings.challengeCompletion || 0;
-      await awardXP(userId, classroomId, xp, 'custom challenge completion', cls.xpSettings);
+    // 3) Completion XP
+    const rateCompletion = Number(cls.xpSettings.challengeCompletion || 0);
+    if (rateCompletion > 0) {
+      try {
+        const xpRes = await awardXP(userId, classroomId, rateCompletion, 'custom challenge completion', cls.xpSettings);
+        await logXPDelta({
+          xpRes,
+          context: `custom challenge completion${challengeName ? `: ${challengeName}` : ''}`,
+          effectsText: `Completion bonus: +${rateCompletion}`
+        });
+      } catch (e) {
+        console.warn('[custom] awardXP (completion) failed:', e);
+      }
     }
   } catch (err) {
-    // Silently handle XP errors - non-critical
+    console.warn('[custom] awardCustomChallengeXP failed:', err);
   }
 }
 
@@ -53,6 +123,44 @@ router.get('/templates/metadata', ensureAuthenticated, ensureTeacher, async (req
     res.json({ success: true, templates: metadata });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to fetch template metadata' });
+  }
+});
+
+// Reorder custom challenges (MUST be before '/:classroomId/custom/:challengeId' routes)
+router.put('/:classroomId/custom/reorder', ensureAuthenticated, ensureTeacher, async (req, res) => {
+  try {
+    const { classroomId } = req.params;
+    const { order } = req.body;
+
+    if (!Array.isArray(order)) {
+      return res.status(400).json({ success: false, message: 'Order must be an array of challenge IDs' });
+    }
+
+    const challenge = await Challenge.findOne({ classroomId });
+    if (!challenge) {
+      return res.status(404).json({ success: false, message: 'Challenge series not found' });
+    }
+
+    if (challenge.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Only the challenge creator can reorder challenges' });
+    }
+
+    const challengeMap = new Map();
+    challenge.customChallenges.forEach(cc => {
+      challengeMap.set(cc._id.toString(), cc);
+    });
+
+    order.forEach((id, index) => {
+      const cc = challengeMap.get(id);
+      if (cc) cc.order = index;
+    });
+
+    challenge.customChallenges.sort((a, b) => a.order - b.order);
+    await challenge.save();
+
+    res.json({ success: true, message: 'Challenges reordered' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to reorder challenges' });
   }
 });
 
@@ -316,46 +424,6 @@ router.delete('/:classroomId/custom/:challengeId', ensureAuthenticated, ensureTe
     res.json({ success: true, message: 'Custom challenge deleted' });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to delete custom challenge' });
-  }
-});
-
-// Reorder custom challenges
-router.put('/:classroomId/custom/reorder', ensureAuthenticated, ensureTeacher, async (req, res) => {
-  try {
-    const { classroomId } = req.params;
-    const { order } = req.body;
-
-    if (!Array.isArray(order)) {
-      return res.status(400).json({ success: false, message: 'Order must be an array of challenge IDs' });
-    }
-
-    const challenge = await Challenge.findOne({ classroomId });
-    if (!challenge) {
-      return res.status(404).json({ success: false, message: 'Challenge series not found' });
-    }
-
-    if (challenge.createdBy.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ success: false, message: 'Only the challenge creator can reorder challenges' });
-    }
-
-    const challengeMap = new Map();
-    challenge.customChallenges.forEach(cc => {
-      challengeMap.set(cc._id.toString(), cc);
-    });
-
-    order.forEach((id, index) => {
-      const cc = challengeMap.get(id);
-      if (cc) {
-        cc.order = index;
-      }
-    });
-
-    challenge.customChallenges.sort((a, b) => a.order - b.order);
-    await challenge.save();
-
-    res.json({ success: true, message: 'Challenges reordered' });
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to reorder challenges' });
   }
 });
 
@@ -1088,7 +1156,7 @@ router.post('/:classroomId/custom/reset-custom-challenge', ensureAuthenticated, 
     }
 
     const userChallenge = challenge.userChallenges[userChallengeIndex];
-    
+
     // Remove progress for this specific custom challenge
     if (userChallenge.customChallengeProgress) {
       userChallenge.customChallengeProgress = userChallenge.customChallengeProgress.filter(
@@ -1098,9 +1166,52 @@ router.post('/:classroomId/custom/reset-custom-challenge', ensureAuthenticated, 
 
     await challenge.save();
 
-    res.json({ success: true, message: 'Custom challenge reset successfully' });
+    // NEW: notifications (student + teacher) + realtime emit
+    try {
+      const Notification = require('../../models/Notification');
+      const { populateNotification } = require('../../utils/notifications');
+
+      const studentDoc = await User.findById(studentId).select('firstName lastName shortId email').lean();
+      const studentLabel = studentDoc
+        ? `${(studentDoc.firstName || '').trim()} ${(studentDoc.lastName || '').trim()}`.trim() || studentDoc.shortId || studentDoc.email || String(studentId)
+        : String(studentId);
+
+      const cc = (challenge.customChallenges || []).find(c => String(c._id) === String(challengeId));
+      const ccTitle = cc?.title || 'Custom Challenge';
+
+      const now = new Date();
+
+      const studentNotify = await Notification.create({
+        user: studentId,
+        actionBy: userId,
+        type: 'challenge_reset',
+        message: `Your progress for challenge "${ccTitle}" in "${challenge.title}" was reset.`,
+        classroom: challenge.classroomId,
+        read: false,
+        createdAt: now
+      });
+      const popStud = await populateNotification(studentNotify._id);
+      try { req.app.get('io').to(`user-${studentId}`).emit('notification', popStud); } catch (e) {}
+
+      const teacherRecipientId = classroom.teacher;
+      const teacherNotify = await Notification.create({
+        user: teacherRecipientId,
+        actionBy: userId,
+        type: 'challenge_reset',
+        message: `Challenge "${ccTitle}" was reset for ${studentLabel} in "${challenge.title}".`,
+        classroom: challenge.classroomId,
+        read: false,
+        createdAt: now
+      });
+      const popTeach = await populateNotification(teacherNotify._id);
+      try { req.app.get('io').to(`user-${teacherRecipientId}`).emit('notification', popTeach); } catch (e) {}
+    } catch (e) {
+      console.error('[custom reset] failed to create/emit notifications:', e);
+    }
+
+    return res.json({ success: true, message: 'Custom challenge reset successfully' });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to reset custom challenge' });
+    return res.status(500).json({ success: false, message: 'Failed to reset custom challenge' });
   }
 });
 
@@ -1138,15 +1249,55 @@ router.post('/:classroomId/custom/reset-all-custom-challenges', ensureAuthentica
     }
 
     const userChallenge = challenge.userChallenges[userChallengeIndex];
-    
+
     // Clear all custom challenge progress
     userChallenge.customChallengeProgress = [];
 
     await challenge.save();
 
-    res.json({ success: true, message: 'All custom challenges reset successfully' });
+    // NEW: notifications (student + teacher) + realtime emit
+    try {
+      const Notification = require('../../models/Notification');
+      const { populateNotification } = require('../../utils/notifications');
+
+      const studentDoc = await User.findById(studentId).select('firstName lastName shortId email').lean();
+      const studentLabel = studentDoc
+        ? `${(studentDoc.firstName || '').trim()} ${(studentDoc.lastName || '').trim()}`.trim() || studentDoc.shortId || studentDoc.email || String(studentId)
+        : String(studentId);
+
+      const now = new Date();
+
+      const studentNotify = await Notification.create({
+        user: studentId,
+        actionBy: userId,
+        type: 'challenge_reset',
+        message: `Your custom challenge progress in "${challenge.title}" was reset.`,
+        classroom: challenge.classroomId,
+        read: false,
+        createdAt: now
+      });
+      const popStud = await populateNotification(studentNotify._id);
+      try { req.app.get('io').to(`user-${studentId}`).emit('notification', popStud); } catch (e) {}
+
+      const teacherRecipientId = classroom.teacher;
+      const teacherNotify = await Notification.create({
+        user: teacherRecipientId,
+        actionBy: userId,
+        type: 'challenge_reset',
+        message: `Reset ALL custom challenges for ${studentLabel} in "${challenge.title}".`,
+        classroom: challenge.classroomId,
+        read: false,
+        createdAt: now
+      });
+      const popTeach = await populateNotification(teacherNotify._id);
+      try { req.app.get('io').to(`user-${teacherRecipientId}`).emit('notification', popTeach); } catch (e) {}
+    } catch (e) {
+      console.error('[custom reset all] failed to create/emit notifications:', e);
+    }
+
+    return res.json({ success: true, message: 'All custom challenges reset successfully' });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to reset custom challenges' });
+    return res.status(500).json({ success: false, message: 'Failed to reset custom challenges' });
   }
 });
 
