@@ -98,7 +98,18 @@ export const useChallengeData = (classroomId) => {
 
     const handleFocus = () => {
       checkForCompletedChallenge();
-      fetchChallengeData();
+      
+      // Delay refetch to allow modals to handle focus events first
+      // This prevents modals from closing when window regains focus
+      setTimeout(() => {
+        // Check if any modal is open (file selection or other modals)
+        const hasActiveFileSelection = window.fileSelectionTimestamp && (Date.now() - window.fileSelectionTimestamp < 5000);
+        const hasOpenModal = window.__modalOpen || document.querySelector('[class*="fixed"][class*="inset-0"][class*="z-50"]:not([hidden])');
+        
+        if (!hasActiveFileSelection && !hasOpenModal) {
+          fetchChallengeData();
+        }
+      }, 500); // Increased delay to give modals more time
     };
 
     window.addEventListener('focus', handleFocus);
