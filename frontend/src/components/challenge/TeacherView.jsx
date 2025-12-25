@@ -1043,7 +1043,8 @@ const TeacherView = ({
             </div>
           )}
 
-          {challengeData.isActive && challengeData.userChallenges && challengeData.userChallenges.length > 0 && (
+          {/* Legacy challenge progress - hidden if seriesType is 'custom' */}
+          {challengeData?.seriesType !== 'custom' && challengeData.isActive && challengeData.userChallenges && challengeData.userChallenges.length > 0 && (
             <div className="mt-6">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-xl font-semibold">Student Challenge Progress</h3>
@@ -1701,6 +1702,66 @@ const TeacherView = ({
                         </tr>
                       );
                     })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Custom challenge progress - hidden if seriesType is 'legacy' */}
+          {challengeData?.seriesType !== 'legacy' && challengeData?.customChallenges?.length > 0 && (
+            <div className="mt-6">
+              <h3 className="text-xl font-semibold mb-3">Custom Challenge Progress</h3>
+              <div className="overflow-x-auto">
+                <table className="table table-zebra w-full table-auto text-sm">
+                  <thead>
+                    <tr>
+                      <th>Student</th>
+                      <th>Challenge</th>
+                      <th>Status</th>
+                      <th>Attempts</th>
+                      <th className="hidden sm:table-cell">Started</th>
+                      <th className="hidden sm:table-cell">Completed</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {challengeData.userChallenges?.filter(uc => uc.userId).map(uc => (
+                      challengeData.customChallenges.map(cc => {
+                        const progress = uc.customChallengeProgress?.find(p => p.challengeId === cc._id);
+                        const isCompleted = progress?.completed || false;
+                        const isFailed = cc.maxAttempts && (progress?.attempts || 0) >= cc.maxAttempts && !isCompleted;
+                        
+                        return (
+                          <tr key={`${uc._id}-${cc._id}`} className="align-top">
+                            <td className="font-medium">
+                              {uc.userId.firstName} {uc.userId.lastName}
+                            </td>
+                            <td>
+                              <div className="flex flex-col">
+                                <span className="font-medium">{cc.title}</span>
+                                <span className="text-xs text-gray-500">{cc.bits} bits</span>
+                              </div>
+                            </td>
+                            <td>
+                              <span className={`badge ${isCompleted ? 'badge-success' : isFailed ? 'badge-error' : progress?.startedAt ? 'badge-warning' : 'badge-ghost'}`}>
+                                {isCompleted ? 'Completed' : isFailed ? 'Failed' : progress?.startedAt ? 'In Progress' : 'Not Started'}
+                              </span>
+                            </td>
+                            <td>
+                              <span className={cc.maxAttempts && (progress?.attempts || 0) >= cc.maxAttempts ? 'text-error' : ''}>
+                                {progress?.attempts || 0}{cc.maxAttempts ? `/${cc.maxAttempts}` : ''}
+                              </span>
+                            </td>
+                            <td className="hidden sm:table-cell text-xs">
+                              {progress?.startedAt ? new Date(progress.startedAt).toLocaleString() : '-'}
+                            </td>
+                            <td className="hidden sm:table-cell text-xs">
+                              {progress?.completedAt ? new Date(progress.completedAt).toLocaleString() : '-'}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ))}
                   </tbody>
                 </table>
               </div>

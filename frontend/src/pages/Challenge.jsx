@@ -20,6 +20,7 @@ import WayneAWSChallenge from '../components/challenge/cards/WayneAWSChallenge';
 import ChallengeConfigModal from '../components/challenge/modals/ChallengeConfigModal';
 import NeedleInAHaystackChallenge from '../components/challenge/cards/NeedleInAHaystack';
 import QuoteHangmanChallenge from '../components/challenge/cards/QuoteHangmanChallenge';
+import CustomChallengeCard from '../components/challenge/cards/CustomChallengeCard';
 import Footer from '../components/Footer';
 
 // Hooks
@@ -503,7 +504,9 @@ const Challenge = () => {
           <div className="card bg-base-100 border border-base-200 shadow-md rounded-2xl p-6">
             <h2 className="text-2xl font-bold mb-6">{challengeData?.title || 'Cyber Challenge Series'}</h2>
 
-            
+            {/* Legacy challenges - hidden if seriesType is 'custom' */}
+            {challengeData?.seriesType !== 'custom' && (
+            <>
             <ChallengeCard
               challengeIndex={0}
               challengeName="Little Caesar's Secret"
@@ -620,7 +623,7 @@ const Challenge = () => {
               userChallenge={userChallenge}
               challengeData={challengeData}
               isDark={isDark}
-              isTeacher={isTeacher} // NEW
+              isTeacher={isTeacher}
               unlockingHint={unlockingHint}
               setUnlockingHint={setUnlockingHint}
               fetchChallengeData={fetchChallengeData}
@@ -629,6 +632,39 @@ const Challenge = () => {
             >
               <QuoteHangmanChallenge userChallenge={userChallenge} isDark={isDark} />
             </ChallengeCard>
+            </>
+            )}
+
+            {/* Custom challenges - hidden if seriesType is 'legacy' */}
+            {challengeData?.seriesType !== 'legacy' && challengeData?.customChallenges?.length > 0 && (
+              <div className="mt-6 space-y-4">
+                <h3 className={`text-xl font-semibold ${isDark ? 'text-base-content' : 'text-gray-700'}`}>
+                  Custom Challenges
+                </h3>
+                {challengeData.customChallenges
+                  .filter(cc => cc.visible || isTeacher)
+                  .sort((a, b) => a.order - b.order)
+                  .map(customChallenge => {
+                    const progress = userChallenge?.customChallengeProgress?.find(
+                      p => p.challengeId === customChallenge._id
+                    );
+                    return (
+                      <CustomChallengeCard
+                        key={customChallenge._id}
+                        challenge={{ ...customChallenge, progress }}
+                        classroomId={classroomId}
+                        onUpdate={fetchChallengeData}
+                        isTeacher={isTeacher}
+                        challengeExpired={
+                          challengeData?.settings?.dueDateEnabled && 
+                          challengeData?.settings?.dueDate && 
+                          new Date() > new Date(challengeData.settings.dueDate)
+                        }
+                      />
+                    );
+                  })}
+              </div>
+            )}
           </div>
         </div>
         )

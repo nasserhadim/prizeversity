@@ -52,11 +52,6 @@ const CaesarCipherChallenge = ({ userChallenge, isDark, onExternalLinkClick }) =
         )}
       </div>
       
-      <div className={themeClasses.warningAlert}>
-        <span className="text-sm">
-          <strong>Remember:</strong> Each student has a unique encrypted ID, so you can't share answers with classmates!
-        </span>
-      </div>
     </>
   );
 };
