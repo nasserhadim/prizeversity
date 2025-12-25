@@ -1086,7 +1086,7 @@ router.post('/:classroomId/custom/reset-custom-challenge', ensureAuthenticated, 
     }
 
     const userChallenge = challenge.userChallenges[userChallengeIndex];
-    
+
     // Remove progress for this specific custom challenge
     if (userChallenge.customChallengeProgress) {
       userChallenge.customChallengeProgress = userChallenge.customChallengeProgress.filter(
@@ -1096,9 +1096,52 @@ router.post('/:classroomId/custom/reset-custom-challenge', ensureAuthenticated, 
 
     await challenge.save();
 
-    res.json({ success: true, message: 'Custom challenge reset successfully' });
+    // NEW: notifications (student + teacher) + realtime emit
+    try {
+      const Notification = require('../../models/Notification');
+      const { populateNotification } = require('../../utils/notifications');
+
+      const studentDoc = await User.findById(studentId).select('firstName lastName shortId email').lean();
+      const studentLabel = studentDoc
+        ? `${(studentDoc.firstName || '').trim()} ${(studentDoc.lastName || '').trim()}`.trim() || studentDoc.shortId || studentDoc.email || String(studentId)
+        : String(studentId);
+
+      const cc = (challenge.customChallenges || []).find(c => String(c._id) === String(challengeId));
+      const ccTitle = cc?.title || 'Custom Challenge';
+
+      const now = new Date();
+
+      const studentNotify = await Notification.create({
+        user: studentId,
+        actionBy: userId,
+        type: 'challenge_reset',
+        message: `Your progress for challenge "${ccTitle}" in "${challenge.title}" was reset.`,
+        classroom: challenge.classroomId,
+        read: false,
+        createdAt: now
+      });
+      const popStud = await populateNotification(studentNotify._id);
+      try { req.app.get('io').to(`user-${studentId}`).emit('notification', popStud); } catch (e) {}
+
+      const teacherRecipientId = classroom.teacher;
+      const teacherNotify = await Notification.create({
+        user: teacherRecipientId,
+        actionBy: userId,
+        type: 'challenge_reset',
+        message: `Challenge "${ccTitle}" was reset for ${studentLabel} in "${challenge.title}".`,
+        classroom: challenge.classroomId,
+        read: false,
+        createdAt: now
+      });
+      const popTeach = await populateNotification(teacherNotify._id);
+      try { req.app.get('io').to(`user-${teacherRecipientId}`).emit('notification', popTeach); } catch (e) {}
+    } catch (e) {
+      console.error('[custom reset] failed to create/emit notifications:', e);
+    }
+
+    return res.json({ success: true, message: 'Custom challenge reset successfully' });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to reset custom challenge' });
+    return res.status(500).json({ success: false, message: 'Failed to reset custom challenge' });
   }
 });
 
@@ -1136,15 +1179,55 @@ router.post('/:classroomId/custom/reset-all-custom-challenges', ensureAuthentica
     }
 
     const userChallenge = challenge.userChallenges[userChallengeIndex];
-    
+
     // Clear all custom challenge progress
     userChallenge.customChallengeProgress = [];
 
     await challenge.save();
 
-    res.json({ success: true, message: 'All custom challenges reset successfully' });
+    // NEW: notifications (student + teacher) + realtime emit
+    try {
+      const Notification = require('../../models/Notification');
+      const { populateNotification } = require('../../utils/notifications');
+
+      const studentDoc = await User.findById(studentId).select('firstName lastName shortId email').lean();
+      const studentLabel = studentDoc
+        ? `${(studentDoc.firstName || '').trim()} ${(studentDoc.lastName || '').trim()}`.trim() || studentDoc.shortId || studentDoc.email || String(studentId)
+        : String(studentId);
+
+      const now = new Date();
+
+      const studentNotify = await Notification.create({
+        user: studentId,
+        actionBy: userId,
+        type: 'challenge_reset',
+        message: `Your custom challenge progress in "${challenge.title}" was reset.`,
+        classroom: challenge.classroomId,
+        read: false,
+        createdAt: now
+      });
+      const popStud = await populateNotification(studentNotify._id);
+      try { req.app.get('io').to(`user-${studentId}`).emit('notification', popStud); } catch (e) {}
+
+      const teacherRecipientId = classroom.teacher;
+      const teacherNotify = await Notification.create({
+        user: teacherRecipientId,
+        actionBy: userId,
+        type: 'challenge_reset',
+        message: `Reset ALL custom challenges for ${studentLabel} in "${challenge.title}".`,
+        classroom: challenge.classroomId,
+        read: false,
+        createdAt: now
+      });
+      const popTeach = await populateNotification(teacherNotify._id);
+      try { req.app.get('io').to(`user-${teacherRecipientId}`).emit('notification', popTeach); } catch (e) {}
+    } catch (e) {
+      console.error('[custom reset all] failed to create/emit notifications:', e);
+    }
+
+    return res.json({ success: true, message: 'All custom challenges reset successfully' });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to reset custom challenges' });
+    return res.status(500).json({ success: false, message: 'Failed to reset custom challenges' });
   }
 });
 
