@@ -25,7 +25,6 @@ const CppBugHuntChallenge = ({ userChallenge, isDark, onExternalLinkClick }) => 
           <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>⏱️ <strong>Time Limit:</strong> 2 hours to solve</p>
           <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>🎯 <strong>Objective:</strong> Calculate the final output step-by-step</p>
           <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>🔄 <strong>Attempts:</strong> Maximum 5 tries</p>
-          <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>🔒 <strong>Anti-Cheat:</strong> Uses YOUR name and ID - AI can't solve it!</p>
         </div>
       </div>
       

@@ -393,7 +393,206 @@ export const removeStudentFromChallenge = async (challengeId, studentId) => {
     }
     return await response.json();
   } catch (error) {
-    console.error('Error removing student from challenge:', error);
     throw error;
   }
+};
+
+export const getCustomChallenges = async (classroomId) => {
+  const response = await fetch(`${API_BASE}/api/challenges/${classroomId}/custom`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' }
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Failed to fetch custom challenges');
+  }
+  return await response.json();
+};
+
+export const createCustomChallenge = async (classroomId, challengeData) => {
+  const response = await fetch(`${API_BASE}/api/challenges/${classroomId}/custom`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(challengeData)
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Failed to create custom challenge');
+  }
+  return await response.json();
+};
+
+export const updateCustomChallenge = async (classroomId, challengeId, challengeData) => {
+  const response = await fetch(`${API_BASE}/api/challenges/${classroomId}/custom/${challengeId}`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(challengeData)
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Failed to update custom challenge');
+  }
+  return await response.json();
+};
+
+export const deleteCustomChallenge = async (classroomId, challengeId) => {
+  const response = await fetch(`${API_BASE}/api/challenges/${classroomId}/custom/${challengeId}`, {
+    method: 'DELETE',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' }
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Failed to delete custom challenge');
+  }
+  return await response.json();
+};
+
+export const reorderCustomChallenges = async (classroomId, order) => {
+  const response = await fetch(`${API_BASE}/api/challenges/${classroomId}/custom/reorder`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ order })
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Failed to reorder challenges');
+  }
+  return await response.json();
+};
+
+export const verifyCustomChallenge = async (classroomId, challengeId, passcode) => {
+  const response = await fetch(`${API_BASE}/api/challenges/${classroomId}/custom/${challengeId}/verify`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ passcode })
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Incorrect passcode');
+  }
+  return await response.json();
+};
+
+export const startCustomChallenge = async (classroomId, challengeId) => {
+  const response = await fetch(`${API_BASE}/api/challenges/${classroomId}/custom/${challengeId}/start`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' }
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Failed to start challenge');
+  }
+  return await response.json();
+};
+
+export const unlockCustomChallengeHint = async (classroomId, challengeId) => {
+  const response = await fetch(`${API_BASE}/api/challenges/${classroomId}/custom/${challengeId}/hint`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' }
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Failed to unlock hint');
+  }
+  return await response.json();
+};
+
+export const uploadCustomChallengeAttachment = async (classroomId, challengeId, file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  const response = await fetch(`${API_BASE}/api/challenges/${classroomId}/custom/${challengeId}/attachment`, {
+    method: 'POST',
+    credentials: 'include',
+    body: formData
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Failed to upload attachment');
+  }
+  return await response.json();
+};
+
+export const deleteCustomChallengeAttachment = async (classroomId, challengeId, attachmentId) => {
+  const response = await fetch(`${API_BASE}/api/challenges/${classroomId}/custom/${challengeId}/attachment/${attachmentId}`, {
+    method: 'DELETE',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' }
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Failed to delete attachment');
+  }
+  return await response.json();
+};
+
+export const getCustomChallengeAttachmentUrl = (classroomId, challengeId, attachmentId) => {
+  return `${API_BASE}/api/challenges/${classroomId}/custom/${challengeId}/attachment/${attachmentId}`;
+};
+
+export const updateLegacyChallenges = async (classroomId, includedLegacyChallenges) => {
+  const response = await fetch(`${API_BASE}/api/challenges/${classroomId}/legacy-challenges`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ includedLegacyChallenges })
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Failed to update legacy challenges');
+  }
+  return await response.json();
+};
+
+export const getTemplateMetadata = async () => {
+  const response = await fetch(`${API_BASE}/api/challenges/templates/metadata`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' }
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Failed to fetch template metadata');
+  }
+  return await response.json();
+};
+
+export const getPersonalizedChallengeFileUrl = (classroomId, challengeId) => {
+  return `${API_BASE}/api/challenges/${classroomId}/custom/${challengeId}/download-personalized`;
+};
+
+export const resetCustomChallenge = async (classroomId, studentId, challengeId) => {
+  const response = await fetch(`${API_BASE}/api/challenges/${classroomId}/custom/reset-custom-challenge`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ studentId, challengeId })
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Failed to reset custom challenge');
+  }
+  return await response.json();
+};
+
+export const resetAllCustomChallenges = async (classroomId, studentId) => {
+  const response = await fetch(`${API_BASE}/api/challenges/${classroomId}/custom/reset-all-custom-challenges`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ studentId })
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Failed to reset all custom challenges');
+  }
+  return await response.json();
 };

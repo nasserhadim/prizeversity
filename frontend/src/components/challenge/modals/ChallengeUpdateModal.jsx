@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Edit3, Save } from 'lucide-react';
 import { CHALLENGE_NAMES } from '../../../constants/challengeConstants';
 import { DEFAULT_CHALLENGE_CONFIG } from '../../../constants/challengeConstants';
 import { updateChallenge } from '../../../API/apiChallenge';
 import IndivTotalToggle from '../IndivTotalToggle';
+import CustomChallengeBuilder from '../CustomChallengeBuilder';
 import toast from 'react-hot-toast';
 import ConfirmModal from '../../ConfirmModal';
 
@@ -16,8 +17,53 @@ const ChallengeUpdateModal = ({
   setShowHintModal,
   setEditingHints
 }) => {
+  // Series type: legacy (hide custom), mixed (show both), custom (hide legacy)
+  const seriesType = challengeData?.seriesType || 'legacy';
+  const showLegacy = seriesType === 'legacy' || seriesType === 'mixed';
+  const showCustom = seriesType === 'custom' || seriesType === 'mixed';
   const [updating, setUpdating] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  
+  // Track file selection to prevent modal closing
+  const [isFileSelectionActive, setIsFileSelectionActive] = useState(false);
+  
+  // Safe close function that checks file selection
+  const safeCloseModal = useCallback(() => {
+    if (!isFileSelectionActive) {
+      setShowUpdateModal(false);
+    }
+  }, [isFileSelectionActive]);
+  
+  // Track modal open state globally to prevent unwanted refetches on window focus
+  useEffect(() => {
+    if (showUpdateModal) {
+      window.__modalOpen = true;
+    } else {
+      window.__modalOpen = false;
+    }
+    
+    return () => {
+      window.__modalOpen = false;
+    };
+  }, [showUpdateModal]);
+  
+  // Prevent modal from closing during file selection
+  useEffect(() => {
+    if (!showUpdateModal) return;
+    
+    const handleEscape = (e) => {
+      if (e.key === 'Escape' && isFileSelectionActive) {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+    };
+    
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [showUpdateModal, isFileSelectionActive]);
   const [activeChallengeIndex, setActiveChallengeIndex] = useState(0);
   const [updateData, setUpdateData] = useState({
     title: '',
@@ -117,8 +163,22 @@ const ChallengeUpdateModal = ({
   if (!showUpdateModal) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 p-2 sm:p-4 overflow-y-auto">
-      <div className="card bg-base-100 w-full max-w-6xl my-4 sm:my-8 shadow-xl">
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 p-2 sm:p-4 overflow-y-auto"
+      onClick={(e) => {
+        // Don't close if file selection is active
+        if (isFileSelectionActive) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        // Only close if clicking backdrop (not modal content)
+        if (e.target === e.currentTarget) {
+          safeCloseModal();
+        }
+      }}
+    >
+      <div className="card bg-base-100 w-full max-w-6xl my-4 sm:my-8 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="card-body p-3 sm:p-5 lg:p-6">
           <div className="flex items-center gap-3 mb-4">
             <Edit3 className="w-6 h-6 text-blue-500" />
@@ -156,9 +216,11 @@ const ChallengeUpdateModal = ({
               />
             </div>
 
-            <div className="divider">Configuration Map</div>
+            {showLegacy && (
+              <>
+                <div className="divider">Legacy Challenge Configuration</div>
 
-            {isMobile ? (
+                {isMobile ? (
               <div className="space-y-4">
                 <div className="overflow-x-auto mb-3">
                   <div className="flex gap-1.5 justify-start w-max min-w-full px-1">
@@ -888,7 +950,8 @@ const ChallengeUpdateModal = ({
                 </table>
               </div>
             )}
-          </div>
+              </>
+            )}
 
           <div className="bg-base-200 p-4 rounded-lg mt-6">
             <h3 className="font-bold text-lg mb-4">📅 Due Dates & Retries</h3>
@@ -921,13 +984,28 @@ const ChallengeUpdateModal = ({
                 <div className="text-sm text-gray-500 mt-1">Students must complete all challenges by this date and time</div>
               </div>
             )}
+
+            {showCustom && (
+              <>
+                <div className="divider">Custom Challenges</div>
+                
+                <CustomChallengeBuilder
+                  classroomId={classroomId}
+                  customChallenges={challengeData?.customChallenges || []}
+                  onUpdate={fetchChallengeData}
+                  isActive={challengeData?.isActive || false}
+                  onFileSelectionChange={setIsFileSelectionActive}
+                />
+              </>
+            )}
           </div>
 
           <div className="card-actions flex-col sm:flex-row justify-end mt-6 gap-3">
             <button
               className="btn btn-ghost w-full sm:w-auto"
-              onClick={() => setShowUpdateModal(false)}
+              onClick={safeCloseModal}
               disabled={updating}
+              title={isFileSelectionActive ? 'Please finish selecting your file first' : ''}
             >
               Cancel
             </button>
@@ -951,6 +1029,7 @@ const ChallengeUpdateModal = ({
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 };

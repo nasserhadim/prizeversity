@@ -65,15 +65,18 @@ export const useChallengeData = (classroomId) => {
             // Use the rewards directly from the API response if available, otherwise compute them
             let rewardInfo;
             if (rewards) {
+              // Custom challenges or challenges with rewards already computed
               rewardInfo = {
                 rewards,
                 challengeName,
                 allCompleted: allCompleted || false,
                 nextChallenge
               };
-            } else if (needsRewards && challengeData?.settings) {
+            } else if (needsRewards && challengeData?.settings && challengeIndex >= 0) {
+              // Legacy challenges that need reward computation (challengeIndex >= 0)
               rewardInfo = getRewardDataForChallenge(challengeIndex, challengeData, userChallenge, CHALLENGE_NAMES);
-            } else if (challengeData?.settings) {
+            } else if (challengeData?.settings && challengeIndex >= 0) {
+              // Legacy challenges fallback
               rewardInfo = getRewardDataForChallenge(challengeIndex, challengeData, userChallenge, CHALLENGE_NAMES);
             }
             
@@ -98,7 +101,18 @@ export const useChallengeData = (classroomId) => {
 
     const handleFocus = () => {
       checkForCompletedChallenge();
-      fetchChallengeData();
+      
+      // Delay refetch to allow modals to handle focus events first
+      // This prevents modals from closing when window regains focus
+      setTimeout(() => {
+        // Check if any modal is open (file selection or other modals)
+        const hasActiveFileSelection = window.fileSelectionTimestamp && (Date.now() - window.fileSelectionTimestamp < 5000);
+        const hasOpenModal = window.__modalOpen || document.querySelector('[class*="fixed"][class*="inset-0"][class*="z-50"]:not([hidden])');
+        
+        if (!hasActiveFileSelection && !hasOpenModal) {
+          fetchChallengeData();
+        }
+      }, 500); // Increased delay to give modals more time
     };
 
     window.addEventListener('focus', handleFocus);

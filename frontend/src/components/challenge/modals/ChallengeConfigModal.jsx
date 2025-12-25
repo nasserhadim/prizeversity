@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'; // NEW: useMemo
-import { Settings, Zap } from 'lucide-react';
+import { Settings, Zap, Shield, AlertTriangle } from 'lucide-react';
 import { CHALLENGE_NAMES } from '../../../constants/challengeConstants';
 import { DEFAULT_CHALLENGE_CONFIG } from '../../../constants/challengeConstants';
 import { configureChallenge, initiateChallenge } from '../../../API/apiChallenge';
@@ -35,6 +35,9 @@ const ChallengeConfigModal = ({
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   
+  // Series type: 'legacy' (only hardcoded), 'custom' (only custom), 'mixed' (both)
+  const [seriesType, setSeriesType] = useState('legacy');
+  
   // NEW: template search/sort state (like Bazaar/Badges)
   const [templateSearch, setTemplateSearch] = useState('');
   const [templateSort, setTemplateSort] = useState('createdDesc'); // createdDesc|createdAsc|nameAsc|nameDesc
@@ -57,6 +60,19 @@ const ChallengeConfigModal = ({
       window.removeEventListener('resize', checkMobile);
     };
   }, []);
+  
+  // Track modal open state globally to prevent unwanted refetches on window focus
+  useEffect(() => {
+    if (showConfigModal) {
+      window.__modalOpen = true;
+    } else {
+      window.__modalOpen = false;
+    }
+    
+    return () => {
+      window.__modalOpen = false;
+    };
+  }, [showConfigModal]);
   
   const handleConfigureChallenge = async () => {
     try {
@@ -131,6 +147,14 @@ const ChallengeConfigModal = ({
       settings.challengeVisibility = Array.isArray(challengeConfig.challengeVisibility)
         ? challengeConfig.challengeVisibility.map(v => !!v)
         : [true, true, true, true, true, true, true];
+
+      // Series type for custom challenges support
+      settings.seriesType = seriesType;
+      
+      // If custom-only, clear legacy challenge visibility
+      if (seriesType === 'custom') {
+        settings.challengeVisibility = [false, false, false, false, false, false, false];
+      }
 
       await configureChallenge(classroomId, challengeConfig.title, settings);
       
@@ -425,7 +449,64 @@ const ChallengeConfigModal = ({
               />
             </div>
 
-            <div className="divider">Configuration Map</div>
+            {/* Series Type Selection */}
+            <div className="bg-base-200 p-4 rounded-lg">
+              <h3 className="font-bold text-lg mb-3">Challenge Type</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setSeriesType('legacy'); }}
+                  className={`p-4 rounded-lg border-2 text-left transition-all ${
+                    seriesType === 'legacy' 
+                      ? 'border-primary bg-primary/10' 
+                      : 'border-base-300 hover:border-primary/50'
+                  }`}
+                >
+                  <div className="font-semibold">Legacy Only</div>
+                  <div className="text-sm text-gray-500 mt-1">
+                    Use the 7 pre-built cybersecurity challenges
+                  </div>
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setSeriesType('custom'); }}
+                  className={`p-4 rounded-lg border-2 text-left transition-all ${
+                    seriesType === 'custom' 
+                      ? 'border-success bg-success/10' 
+                      : 'border-base-300 hover:border-success/50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">Custom Only</span>
+                  </div>
+                  <div className="text-sm text-gray-500 mt-1">
+                    Create your own template challenges
+                  </div>
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setSeriesType('mixed'); }}
+                  className={`p-4 rounded-lg border-2 text-left transition-all ${
+                    seriesType === 'mixed' 
+                      ? 'border-warning bg-warning/10' 
+                      : 'border-base-300 hover:border-warning/50'
+                  }`}
+                >
+                  <div className="font-semibold">Mixed</div>
+                  <div className="text-sm text-gray-500 mt-1">
+                    Combine legacy and custom challenges
+                  </div>
+                </button>
+              </div>
+              
+            </div>
+
+            {/* Legacy Challenge Configuration */}
+            {(seriesType === 'legacy' || seriesType === 'mixed') && (
+              <>
+                <div className="divider">Legacy Challenge Configuration</div>
 
             {isMobile ? (
               <div className="space-y-4">
@@ -1181,7 +1262,6 @@ const ChallengeConfigModal = ({
                 </table>
               </div>
             )}
-          </div>
 
           <div className="bg-base-200 p-4 rounded-lg">
             <h3 className="font-bold text-lg mb-4">📅 Due Dates & Retries</h3>
@@ -1212,6 +1292,24 @@ const ChallengeConfigModal = ({
                   min={new Date().toISOString().slice(0, 16)}
                 />
                 <div className="text-sm text-gray-500 mt-1">Students must complete all challenges by this date and time</div>
+              </div>
+            )}
+          </div>
+          </>
+            )}
+
+            {/* Custom Challenges Section */}
+            {(seriesType === 'custom' || seriesType === 'mixed') && (
+              <div className="bg-base-200 p-4 rounded-lg">
+                <div className="flex items-center gap-2 mb-4">
+                  <h3 className="font-bold text-lg">Custom Challenges</h3>
+                </div>
+                <div className="alert alert-info mb-4">
+                  <AlertTriangle className="w-4 h-4" />
+                  <span className="text-sm">
+                    Custom challenges can be added after launching the series. Configure your legacy challenges first, then add custom ones from the Update modal.
+                  </span>
+                </div>
               </div>
             )}
           </div>
