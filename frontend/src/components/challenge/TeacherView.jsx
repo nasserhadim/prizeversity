@@ -1047,7 +1047,7 @@ const TeacherView = ({
           {challengeData?.seriesType !== 'custom' && challengeData.isActive && challengeData.userChallenges && challengeData.userChallenges.length > 0 && (
             <div className="mt-6">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xl font-semibold">Student Challenge Progress</h3>
+                <h3 className="text-xl font-semibold">Legacy Challenge Progress</h3>
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 items-stretch w-full max-w-4xl">
                   <input
                     type="search"
