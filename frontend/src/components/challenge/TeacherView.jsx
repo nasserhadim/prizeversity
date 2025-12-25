@@ -902,7 +902,7 @@ const TeacherView = ({
                 className="btn btn-primary btn-lg gap-2 flex-wrap text-sm sm:text-base"
               >
                 <Edit3 className="w-5 h-5" />
-                Update Challenge
+                Update Series
               </button>
               <button
                 onClick={handleShowDeactivateModal}

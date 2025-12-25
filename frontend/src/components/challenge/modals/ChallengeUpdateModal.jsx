@@ -216,6 +216,12 @@ const ChallengeUpdateModal = ({
               />
             </div>
 
+            {showCustom && (
+              <div className="text-xs text-gray-500">
+                Custom challenges save immediately when you create/update/reorder them. The button below saves series settings (legacy challenges, rewards, hints, due date, visibility).
+              </div>
+            )}
+
             {showLegacy && (
               <>
                 <div className="divider">Legacy Challenge Configuration</div>
@@ -1017,12 +1023,12 @@ const ChallengeUpdateModal = ({
               {updating ? (
                 <>
                   <span className="loading loading-spinner loading-sm"></span>
-                  Updating...
+                  Saving...
                 </>
               ) : (
                 <>
                   <Save className="w-4 h-4" />
-                  Update Challenge
+                  Save Series Settings
                 </>
               )}
             </button>

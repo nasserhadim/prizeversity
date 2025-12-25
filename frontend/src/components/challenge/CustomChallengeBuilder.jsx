@@ -788,8 +788,16 @@ const CustomChallengeBuilder = ({
 
           <div className="flex justify-end gap-2">
             <button type="button" onClick={resetForm} className="btn btn-ghost">Cancel</button>
-            <button type="submit" className="btn btn-primary" disabled={saving}>
-              {saving ? <span className="loading loading-spinner loading-sm"></span> : (editingId ? 'Update' : 'Create')}
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={saving}
+            >
+              {saving ? (
+                <span className="loading loading-spinner loading-sm"></span>
+              ) : (
+                editingId ? 'Update Custom Challenge' : 'Create Custom Challenge'
+              )}
             </button>
           </div>
         </form>
