@@ -474,7 +474,9 @@ export const verifyCustomChallenge = async (classroomId, challengeId, passcode) 
   });
   if (!response.ok) {
     const errorData = await response.json();
-    throw new Error(errorData.message || 'Incorrect passcode');
+    const error = new Error(errorData.message || 'Incorrect passcode');
+    error.attemptsLeft = errorData.attemptsLeft;
+    throw error;
   }
   return await response.json();
 };

@@ -30,12 +30,18 @@ const CustomChallengeCard = ({
   const [showStartModal, setShowStartModal] = useState(false);
   const [pendingExternalUrl, setPendingExternalUrl] = useState(null);
   const [generatedData, setGeneratedData] = useState(null);
+  const [localAttemptsLeft, setLocalAttemptsLeft] = useState(null);
 
   const progress = challenge.progress || {};
   const isCompleted = progress.completed || false;
   const isStarted = !!progress.startedAt;
-  const isFailed = challenge.maxAttempts && progress.attempts >= challenge.maxAttempts && !isCompleted;
-  const attemptsLeft = challenge.maxAttempts ? challenge.maxAttempts - (progress.attempts || 0) : null;
+  const serverAttemptsLeft = challenge.maxAttempts ? challenge.maxAttempts - (progress.attempts || 0) : null;
+  const attemptsLeft = localAttemptsLeft !== null ? localAttemptsLeft : serverAttemptsLeft;
+  const isFailed = challenge.maxAttempts && attemptsLeft !== null && attemptsLeft <= 0 && !isCompleted;
+  
+  useEffect(() => {
+    setLocalAttemptsLeft(null);
+  }, [challenge.progress?.attempts]);
   
   const customChallengeExpired = challenge.dueDateEnabled && challenge.dueDate 
     ? new Date() > new Date(challenge.dueDate) 
@@ -261,6 +267,9 @@ const CustomChallengeCard = ({
     } catch (error) {
       toast.error(error.message || 'Incorrect passcode');
       setPasscode('');
+      if (error.attemptsLeft !== undefined) {
+        setLocalAttemptsLeft(error.attemptsLeft);
+      }
     } finally {
       setSubmitting(false);
     }
