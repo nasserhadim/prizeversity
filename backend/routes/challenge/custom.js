@@ -20,29 +20,99 @@ async function awardCustomChallengeXP({ userId, classroomId, rewards, challengeN
     const cls = await Classroom.findById(classroomId).select('xpSettings');
     if (!cls?.xpSettings?.enabled) return;
 
+    const io = getIO();
+
+    // Helper: log XP delta (A -> B) to student's stats_adjusted feed + emit realtime
+    const logXPDelta = async ({ xpRes, context, effectsText }) => {
+      if (!xpRes || typeof xpRes.oldXP === 'undefined' || typeof xpRes.newXP === 'undefined') return;
+      if (xpRes.newXP === xpRes.oldXP) return;
+
+      try {
+        const targetUser = await User.findById(userId).select('firstName lastName');
+        if (!targetUser) return;
+
+        await logStatChanges({
+          io,
+          classroomId,
+          user: targetUser,
+          actionBy: null, // system
+          prevStats: { xp: xpRes.oldXP },
+          currStats: { xp: xpRes.newXP },
+          context,
+          details: { effectsText, challengeName },
+          forceLog: true
+        });
+      } catch (e) {
+        console.warn('[custom] failed to log XP stat change:', e);
+      }
+    };
+
+    // 1) Bits-earned XP (custom challenge rewards already "final")
     const bits = Number(rewards?.bits || 0);
-    if (bits > 0 && (cls.xpSettings.bitsEarned || 0) > 0) {
-      const xp = bits * (cls.xpSettings.bitsEarned || 0);
-      await awardXP(userId, classroomId, xp, 'earning bits (custom challenge)', cls.xpSettings);
+    const rateBits = Number(cls.xpSettings.bitsEarned || 0);
+    if (bits > 0 && rateBits > 0) {
+      const xp = bits * rateBits;
+      if (xp > 0) {
+        try {
+          const xpRes = await awardXP(userId, classroomId, xp, 'earning bits (custom challenge)', cls.xpSettings);
+          await logXPDelta({
+            xpRes,
+            context: `earning bits (custom challenge${challengeName ? `: ${challengeName}` : ''})`,
+            effectsText: `Bits: +${bits}`
+          });
+        } catch (e) {
+          console.warn('[custom] awardXP (bits) failed:', e);
+        }
+      }
     }
 
+    // 2) Stat-increase XP
     const statCount =
-      (rewards?.multiplier > 0 ? 1 : 0) +
-      ((rewards?.luck || 1) > 1.0 ? 1 : 0) +
-      ((rewards?.discount || 0) > 0 ? 1 : 0) +
+      (Number(rewards?.multiplier || 0) > 0 ? 1 : 0) +
+      (Number(rewards?.luck || 1) > 1.0 ? 1 : 0) +
+      (Number(rewards?.discount || 0) > 0 ? 1 : 0) +
       (rewards?.shield ? 1 : 0);
 
-    if (statCount > 0 && (cls.xpSettings.statIncrease || 0) > 0) {
-      const xp = statCount * cls.xpSettings.statIncrease;
-      await awardXP(userId, classroomId, xp, 'stat increase (custom challenge)', cls.xpSettings);
+    const rateStat = Number(cls.xpSettings.statIncrease || 0);
+    if (statCount > 0 && rateStat > 0) {
+      const xp = statCount * rateStat;
+      if (xp > 0) {
+        try {
+          const xpRes = await awardXP(userId, classroomId, xp, 'stat increase (custom challenge)', cls.xpSettings);
+
+          const parts = [];
+          if (Number(rewards?.multiplier || 0) > 0) parts.push(`+${Number(rewards.multiplier).toFixed(1)} Multiplier`);
+          if (Number(rewards?.luck || 1) > 1.0) parts.push(`+${Number(rewards.luck - 1).toFixed(1)} Luck`);
+          if (Number(rewards?.discount || 0) > 0) parts.push(`+${Number(rewards.discount)}% Discount`);
+          if (rewards?.shield) parts.push('Shield +1');
+
+          await logXPDelta({
+            xpRes,
+            context: `stat increase (custom challenge${challengeName ? `: ${challengeName}` : ''})`,
+            effectsText: parts.join(', ') || undefined
+          });
+        } catch (e) {
+          console.warn('[custom] awardXP (stat increase) failed:', e);
+        }
+      }
     }
 
-    if ((cls.xpSettings.challengeCompletion || 0) > 0) {
-      const xp = cls.xpSettings.challengeCompletion || 0;
-      await awardXP(userId, classroomId, xp, 'custom challenge completion', cls.xpSettings);
+    // 3) Completion XP
+    const rateCompletion = Number(cls.xpSettings.challengeCompletion || 0);
+    if (rateCompletion > 0) {
+      try {
+        const xpRes = await awardXP(userId, classroomId, rateCompletion, 'custom challenge completion', cls.xpSettings);
+        await logXPDelta({
+          xpRes,
+          context: `custom challenge completion${challengeName ? `: ${challengeName}` : ''}`,
+          effectsText: `Completion bonus: +${rateCompletion}`
+        });
+      } catch (e) {
+        console.warn('[custom] awardXP (completion) failed:', e);
+      }
     }
   } catch (err) {
-    // Silently handle XP errors - non-critical
+    console.warn('[custom] awardCustomChallengeXP failed:', err);
   }
 }
 
