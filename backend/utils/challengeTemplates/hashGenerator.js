@@ -32,7 +32,6 @@ async function generate(config, seed) {
   
   const displayData = JSON.stringify({
     hash: hashedAnswer,
-    algorithm: algorithm.toUpperCase(),
     format: 'XXXX-XXXX-XXXX'
   }, null, 2);
   

@@ -103,10 +103,11 @@ const CustomChallengeCard = ({
                 <div className={`font-mono text-sm p-3 rounded ${isDark ? 'bg-base-300' : 'bg-white'} break-all`}>
                   {parsedContent.hash}
                 </div>
-                <div className="text-xs text-gray-500">
-                  <p><strong>Algorithm:</strong> {parsedContent.algorithm}</p>
-                  {parsedContent.format && <p><strong>Format:</strong> {parsedContent.format}</p>}
-                </div>
+                {parsedContent.format && (
+                  <div className="text-xs text-gray-500">
+                    <p><strong>Format:</strong> {parsedContent.format}</p>
+                  </div>
+                )}
               </>
             ) : (
               <div className={`font-mono text-sm p-3 rounded ${isDark ? 'bg-base-300' : 'bg-white'}`}>
