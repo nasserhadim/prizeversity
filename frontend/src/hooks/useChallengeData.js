@@ -65,15 +65,18 @@ export const useChallengeData = (classroomId) => {
             // Use the rewards directly from the API response if available, otherwise compute them
             let rewardInfo;
             if (rewards) {
+              // Custom challenges or challenges with rewards already computed
               rewardInfo = {
                 rewards,
                 challengeName,
                 allCompleted: allCompleted || false,
                 nextChallenge
               };
-            } else if (needsRewards && challengeData?.settings) {
+            } else if (needsRewards && challengeData?.settings && challengeIndex >= 0) {
+              // Legacy challenges that need reward computation (challengeIndex >= 0)
               rewardInfo = getRewardDataForChallenge(challengeIndex, challengeData, userChallenge, CHALLENGE_NAMES);
-            } else if (challengeData?.settings) {
+            } else if (challengeData?.settings && challengeIndex >= 0) {
+              // Legacy challenges fallback
               rewardInfo = getRewardDataForChallenge(challengeIndex, challengeData, userChallenge, CHALLENGE_NAMES);
             }
             

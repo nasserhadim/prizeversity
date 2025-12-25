@@ -568,3 +568,31 @@ export const getTemplateMetadata = async () => {
 export const getPersonalizedChallengeFileUrl = (classroomId, challengeId) => {
   return `${API_BASE}/api/challenges/${classroomId}/custom/${challengeId}/download-personalized`;
 };
+
+export const resetCustomChallenge = async (classroomId, studentId, challengeId) => {
+  const response = await fetch(`${API_BASE}/api/challenges/${classroomId}/custom/reset-custom-challenge`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ studentId, challengeId })
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Failed to reset custom challenge');
+  }
+  return await response.json();
+};
+
+export const resetAllCustomChallenges = async (classroomId, studentId) => {
+  const response = await fetch(`${API_BASE}/api/challenges/${classroomId}/custom/reset-all-custom-challenges`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ studentId })
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Failed to reset all custom challenges');
+  }
+  return await response.json();
+};

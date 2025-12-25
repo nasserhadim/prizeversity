@@ -1054,6 +1054,102 @@ router.get('/:classroomId/custom/:challengeId/download-personalized', ensureAuth
   }
 });
 
+// Reset a specific custom challenge for a student
+router.post('/:classroomId/custom/reset-custom-challenge', ensureAuthenticated, ensureTeacher, async (req, res) => {
+  try {
+    const { classroomId } = req.params;
+    const { studentId, challengeId } = req.body;
+    const userId = req.user._id;
+
+    if (!studentId || !challengeId) {
+      return res.status(400).json({ success: false, message: 'Student ID and Challenge ID are required' });
+    }
+
+    const classroom = await Classroom.findById(classroomId);
+    if (!classroom) {
+      return res.status(404).json({ success: false, message: 'Classroom not found' });
+    }
+
+    if (classroom.teacher.toString() !== userId.toString()) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
+    const challenge = await Challenge.findOne({ classroomId });
+    if (!challenge) {
+      return res.status(404).json({ success: false, message: 'Challenge series not found' });
+    }
+
+    const userChallengeIndex = challenge.userChallenges.findIndex(
+      uc => uc.userId.toString() === studentId.toString()
+    );
+
+    if (userChallengeIndex === -1) {
+      return res.status(404).json({ success: false, message: 'Student not found in challenge' });
+    }
+
+    const userChallenge = challenge.userChallenges[userChallengeIndex];
+    
+    // Remove progress for this specific custom challenge
+    if (userChallenge.customChallengeProgress) {
+      userChallenge.customChallengeProgress = userChallenge.customChallengeProgress.filter(
+        p => p.challengeId.toString() !== challengeId.toString()
+      );
+    }
+
+    await challenge.save();
+
+    res.json({ success: true, message: 'Custom challenge reset successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to reset custom challenge' });
+  }
+});
+
+// Reset all custom challenges for a student
+router.post('/:classroomId/custom/reset-all-custom-challenges', ensureAuthenticated, ensureTeacher, async (req, res) => {
+  try {
+    const { classroomId } = req.params;
+    const { studentId } = req.body;
+    const userId = req.user._id;
+
+    if (!studentId) {
+      return res.status(400).json({ success: false, message: 'Student ID is required' });
+    }
+
+    const classroom = await Classroom.findById(classroomId);
+    if (!classroom) {
+      return res.status(404).json({ success: false, message: 'Classroom not found' });
+    }
+
+    if (classroom.teacher.toString() !== userId.toString()) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
+    const challenge = await Challenge.findOne({ classroomId });
+    if (!challenge) {
+      return res.status(404).json({ success: false, message: 'Challenge series not found' });
+    }
+
+    const userChallengeIndex = challenge.userChallenges.findIndex(
+      uc => uc.userId.toString() === studentId.toString()
+    );
+
+    if (userChallengeIndex === -1) {
+      return res.status(404).json({ success: false, message: 'Student not found in challenge' });
+    }
+
+    const userChallenge = challenge.userChallenges[userChallengeIndex];
+    
+    // Clear all custom challenge progress
+    userChallenge.customChallengeProgress = [];
+
+    await challenge.save();
+
+    res.json({ success: true, message: 'All custom challenges reset successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to reset custom challenges' });
+  }
+});
+
 // Toggle legacy challenge inclusion
 router.put('/:classroomId/legacy-challenges', ensureAuthenticated, ensureTeacher, async (req, res) => {
   try {

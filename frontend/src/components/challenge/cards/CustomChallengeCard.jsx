@@ -1,5 +1,5 @@
 import { useState, useContext, useEffect } from 'react';
-import { Play, Check, X, ExternalLink, Download, Eye, AlertTriangle, Lock, Shield, Hash, Search, EyeOff, Key } from 'lucide-react';
+import { Play, Check, X, ExternalLink, Download, Eye, AlertTriangle, Lock, Hash, Search, EyeOff, Key } from 'lucide-react';
 import { ThemeContext } from '../../../context/ThemeContext';
 import { verifyCustomChallenge, startCustomChallenge, unlockCustomChallengeHint, getCustomChallengeAttachmentUrl, getPersonalizedChallengeFileUrl } from '../../../API/apiChallenge';
 import RewardsDisplay from '../RewardsDisplay';
@@ -232,7 +232,23 @@ const CustomChallengeCard = ({
       const result = await verifyCustomChallenge(classroomId, challenge._id, passcode.trim());
       
       if (result.success) {
-        toast.success('Challenge completed!');
+        // Set localStorage to trigger reward modal (same as legacy challenges)
+        localStorage.setItem('challengeCompleted', JSON.stringify({
+          challengeIndex: -1, // -1 indicates custom challenge
+          challengeName: challenge.title,
+          timestamp: Date.now(),
+          rewards: result.rewards || {
+            bits: challenge.bits || 0,
+            multiplier: challenge.multiplier > 1 ? challenge.multiplier - 1 : 0,
+            luck: challenge.luck || 1.0,
+            discount: challenge.discount || 0,
+            shield: challenge.shield || false
+          },
+          allCompleted: result.allCompleted || false,
+          nextChallenge: null,
+          needsRewards: false
+        }));
+        
         setPasscode('');
         if (onUpdate) onUpdate();
       }
@@ -289,17 +305,11 @@ const CustomChallengeCard = ({
                 <TemplateIcon className="w-3 h-3" />
                 {templateInfo.name}
               </span>
-              {isTemplateChallenge && !isCompleted && (
-                <span className="badge badge-sm badge-outline badge-success gap-1">
-                  <Shield className="w-2.5 h-2.5" />
-                  Unique
-                </span>
-              )}
               <span className={`text-xs ${isDark ? 'text-base-content/50' : 'text-gray-400'}`}>
                 {isCompleted ? 'Completed' : isFailed ? 'Failed' : isStarted ? 'In Progress' : 'Not Started'}
               </span>
             </div>
-            <span className={`font-medium ${isCompleted ? 'text-green-600' : ''}`}>
+            <span className={`font-medium ${isCompleted ? 'text-success' : ''}`}>
               {challenge.title}
             </span>
             <RewardsDisplay rewards={rewards} isDark={isDark} isCompleted={isCompleted} size="sm" />
@@ -310,13 +320,7 @@ const CustomChallengeCard = ({
               <TemplateIcon className="w-3 h-3" />
               {templateInfo.name}
             </span>
-            {isTemplateChallenge && !isCompleted && (
-              <span className="badge badge-sm badge-outline badge-success gap-1">
-                <Shield className="w-2.5 h-2.5" />
-                Unique
-              </span>
-            )}
-            <span className={`flex-1 font-medium ${isCompleted ? 'text-green-600' : ''}`}>
+            <span className={`flex-1 font-medium ${isCompleted ? 'text-success' : ''}`}>
               {challenge.title}
             </span>
             <RewardsDisplay rewards={rewards} isDark={isDark} isCompleted={isCompleted} size="sm" />
@@ -335,30 +339,31 @@ const CustomChallengeCard = ({
               </div>
             )}
 
-            <div className={`rounded-lg p-3 ${isDark ? 'bg-base-100' : 'bg-white'}`}>
-              <div className="flex items-center gap-2 mb-2">
+            <div className={`rounded-lg p-4 ${isDark ? 'bg-base-100' : 'bg-base-200'}`}>
+              <div className="flex items-center gap-2 mb-3">
                 <span className="text-sm font-medium">Challenge Rewards</span>
               </div>
               <RewardsDisplay rewards={rewards} isDark={isDark} isCompleted={isCompleted} size="lg" />
             </div>
 
             {challenge.description && (
-              <div className={`prose prose-sm max-w-none ${isDark ? 'prose-invert' : ''}`}>
-                <p className="whitespace-pre-wrap">{challenge.description}</p>
+              <div className="prose prose-sm max-w-none">
+                <p className={`whitespace-pre-wrap ${isDark ? 'text-base-content' : 'text-gray-700'}`}>
+                  {challenge.description}
+                </p>
               </div>
             )}
 
             {/* Display generated challenge content for template challenges */}
             {isTemplateChallenge && isStarted && !isCompleted && (
-              <div className={`rounded-lg border-2 ${isDark ? 'bg-base-100 border-primary/30' : 'bg-gray-50 border-primary/20'}`}>
-                <div className={`px-3 py-2 border-b ${isDark ? 'border-primary/30 bg-primary/10' : 'border-primary/20 bg-primary/5'}`}>
+              <div className={`rounded-lg border ${isDark ? 'bg-base-100 border-base-content/20' : 'bg-base-200 border-base-300'}`}>
+                <div className={`px-4 py-3 border-b ${isDark ? 'border-base-content/10' : 'border-base-300'}`}>
                   <div className="flex items-center gap-2">
-                    <TemplateIcon className="w-4 h-4 text-primary" />
-                    <span className="text-sm font-medium">Your Challenge Content</span>
-                    <span className="badge badge-xs badge-success">Unique to you</span>
+                    <TemplateIcon className="w-4 h-4" />
+                    <span className="text-sm font-medium">Challenge Content</span>
                   </div>
                 </div>
-                <div className="p-3">
+                <div className="p-4">
                   {renderGeneratedContent()}
                 </div>
               </div>
@@ -377,11 +382,11 @@ const CustomChallengeCard = ({
               </a>
             )}
 
-            {(challenge.attachments?.length || 0) > 0 && (
+            {((challenge.attachments?.length || 0) > 0 || (templateType === 'hidden-message' && isStarted && !isCompleted && !isFailed)) && (
               <div className="space-y-2">
                 <span className="text-sm font-medium">Resources</span>
                 <div className="flex flex-wrap gap-2">
-                  {challenge.attachments.map(att => (
+                  {challenge.attachments?.map(att => (
                     <a
                       key={att._id}
                       href={getCustomChallengeAttachmentUrl(classroomId, challenge._id, att._id)}
@@ -393,20 +398,16 @@ const CustomChallengeCard = ({
                       {att.originalName}
                     </a>
                   ))}
+                  {templateType === 'hidden-message' && isStarted && !isCompleted && !isFailed && (
+                    <a
+                      href={getPersonalizedChallengeFileUrl(classroomId, challenge._id)}
+                      className="btn btn-info btn-sm gap-2"
+                    >
+                      <Download className="w-4 h-4" />
+                      Challenge File
+                    </a>
+                  )}
                 </div>
-              </div>
-            )}
-
-            {templateType === 'hidden-message' && isStarted && !isCompleted && !isFailed && (
-              <div className="space-y-2">
-                <span className="text-sm font-medium">Challenge File</span>
-                <a
-                  href={getPersonalizedChallengeFileUrl(classroomId, challenge._id)}
-                  className="btn btn-info btn-sm gap-2"
-                >
-                  <Download className="w-4 h-4" />
-                  Download Challenge File
-                </a>
               </div>
             )}
 
@@ -436,7 +437,7 @@ const CustomChallengeCard = ({
                 )}
 
                 {attemptsLeft !== null && (
-                  <p className={`text-sm ${attemptsLeft <= 1 ? 'text-error' : 'text-gray-500'}`}>
+                  <p className={`text-sm ${attemptsLeft <= 1 ? 'text-error' : isDark ? 'text-base-content/60' : 'text-gray-500'}`}>
                     {attemptsLeft} attempt{attemptsLeft !== 1 ? 's' : ''} remaining
                   </p>
                 )}
@@ -485,12 +486,12 @@ const CustomChallengeCard = ({
                 {(progress.hintsUnlocked?.length || 0) > 0 && (
                   <div className="space-y-2">
                     {progress.hintsUnlocked.map((hint, i) => (
-                      <div key={i} className={`p-3 rounded-lg ${isDark ? 'bg-blue-900/20 border border-blue-700/50' : 'bg-blue-50 border border-blue-200'}`}>
+                      <div key={i} className={`p-3 rounded-lg border ${isDark ? 'bg-info/10 border-info/30' : 'bg-info/5 border-info/20'}`}>
                         <div className="flex items-center gap-2 mb-1">
-                          <Eye className="w-4 h-4 text-blue-500" />
-                          <span className="text-sm font-medium text-blue-600">Hint {i + 1}</span>
+                          <Eye className="w-4 h-4 text-info" />
+                          <span className="text-sm font-medium text-info">Hint {i + 1}</span>
                         </div>
-                        <p className="text-sm">{hint}</p>
+                        <p className={`text-sm ${isDark ? 'text-base-content' : 'text-gray-700'}`}>{hint}</p>
                       </div>
                     ))}
                   </div>

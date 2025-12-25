@@ -4,7 +4,7 @@ import { Shield, Settings, Users, Eye, EyeOff, UserPlus, Edit3, Trophy, Coins, T
 import { CHALLENGE_NAMES } from '../../constants/challengeConstants';
 import { getCurrentChallenge } from '../../utils/challengeUtils';
 import { getThemeClasses } from '../../utils/themeUtils';
-import { updateDueDate, toggleChallengeVisibility, resetStudentChallenge, resetSpecificChallenge, removeStudentFromChallenge } from '../../API/apiChallenge';
+import { updateDueDate, toggleChallengeVisibility, resetStudentChallenge, resetSpecificChallenge, removeStudentFromChallenge, resetCustomChallenge, resetAllCustomChallenges } from '../../API/apiChallenge';
 import { API_BASE } from '../../config/api';
 import ChallengeUpdateModal from './modals/ChallengeUpdateModal';
 import toast from 'react-hot-toast';
@@ -1717,51 +1717,166 @@ const TeacherView = ({
                   <thead>
                     <tr>
                       <th>Student</th>
-                      <th>Challenge</th>
+                      <th>Progress</th>
                       <th>Status</th>
-                      <th>Attempts</th>
+                      <th className="hidden lg:table-cell">Solution</th>
                       <th className="hidden sm:table-cell">Started</th>
                       <th className="hidden sm:table-cell">Completed</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {challengeData.userChallenges?.filter(uc => uc.userId).map(uc => (
-                      challengeData.customChallenges.map(cc => {
-                        const progress = uc.customChallengeProgress?.find(p => p.challengeId === cc._id);
-                        const isCompleted = progress?.completed || false;
-                        const isFailed = cc.maxAttempts && (progress?.attempts || 0) >= cc.maxAttempts && !isCompleted;
-                        
-                        return (
-                          <tr key={`${uc._id}-${cc._id}`} className="align-top">
-                            <td className="font-medium">
-                              {uc.userId.firstName} {uc.userId.lastName}
-                            </td>
-                            <td>
-                              <div className="flex flex-col">
-                                <span className="font-medium">{cc.title}</span>
-                                <span className="text-xs text-gray-500">{cc.bits} bits</span>
+                    {challengeData.userChallenges?.filter(uc => uc.userId).map(uc => {
+                      const totalChallenges = challengeData.customChallenges.length;
+                      const completedChallenges = challengeData.customChallenges.filter(cc => {
+                        const progress = uc.customChallengeProgress?.find(p => p.challengeId.toString() === cc._id.toString());
+                        return progress?.completed || false;
+                      }).length;
+                      
+                      const startedChallenges = challengeData.customChallenges.filter(cc => {
+                        const progress = uc.customChallengeProgress?.find(p => p.challengeId.toString() === cc._id.toString());
+                        return progress?.startedAt;
+                      }).length;
+                      
+                      const hasStarted = startedChallenges > 0;
+                      const allCompleted = completedChallenges === totalChallenges && totalChallenges > 0;
+                      const currentChallenge = challengeData.customChallenges.find(cc => {
+                        const progress = uc.customChallengeProgress?.find(p => p.challengeId.toString() === cc._id.toString());
+                        return progress?.startedAt && !progress?.completed;
+                      });
+                      
+                      const currentProgress = currentChallenge ? uc.customChallengeProgress?.find(p => p.challengeId.toString() === currentChallenge._id.toString()) : null;
+                      const currentSolution = currentProgress?.generatedContent?.expectedAnswer || null;
+                      
+                      const firstStartedAt = uc.customChallengeProgress
+                        ?.filter(p => p.startedAt)
+                        .map(p => new Date(p.startedAt))
+                        .sort((a, b) => a - b)[0];
+                      
+                      const lastCompletedAt = uc.customChallengeProgress
+                        ?.filter(p => p.completedAt)
+                        .map(p => new Date(p.completedAt))
+                        .sort((a, b) => b - a)[0];
+                      
+                      return (
+                        <tr key={uc._id} className="align-top">
+                          <td className="font-medium">
+                            {uc.userId.firstName} {uc.userId.lastName}
+                          </td>
+                          <td>
+                            <div className="flex flex-col">
+                              <span className="font-medium">
+                                {completedChallenges}/{totalChallenges} completed
+                              </span>
+                              {currentChallenge && (
+                                <span className="text-xs text-gray-500">
+                                  Working on: {currentChallenge.title}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td>
+                            <span className={`badge ${allCompleted ? 'badge-success' : hasStarted ? 'badge-warning' : 'badge-ghost'}`}>
+                              {allCompleted ? 'Completed' : hasStarted ? 'In Progress' : 'Not Started'}
+                            </span>
+                          </td>
+                          <td className="hidden lg:table-cell">
+                            {currentSolution ? (
+                              <div className="flex items-center gap-2">
+                                <code className="bg-green-100 px-2 py-1 rounded text-sm font-mono text-green-700">
+                                  {showPasswords[`custom-${uc._id}`] 
+                                    ? currentSolution
+                                    : '••••••••'}
+                                </code>
+                                <button
+                                  onClick={() => togglePasswordVisibility(`custom-${uc._id}`)}
+                                  className="btn btn-ghost btn-xs"
+                                  aria-label="Toggle solution visibility"
+                                >
+                                  {showPasswords[`custom-${uc._id}`] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
                               </div>
-                            </td>
-                            <td>
-                              <span className={`badge ${isCompleted ? 'badge-success' : isFailed ? 'badge-error' : progress?.startedAt ? 'badge-warning' : 'badge-ghost'}`}>
-                                {isCompleted ? 'Completed' : isFailed ? 'Failed' : progress?.startedAt ? 'In Progress' : 'Not Started'}
-                              </span>
-                            </td>
-                            <td>
-                              <span className={cc.maxAttempts && (progress?.attempts || 0) >= cc.maxAttempts ? 'text-error' : ''}>
-                                {progress?.attempts || 0}{cc.maxAttempts ? `/${cc.maxAttempts}` : ''}
-                              </span>
-                            </td>
-                            <td className="hidden sm:table-cell text-xs">
-                              {progress?.startedAt ? new Date(progress.startedAt).toLocaleString() : '-'}
-                            </td>
-                            <td className="hidden sm:table-cell text-xs">
-                              {progress?.completedAt ? new Date(progress.completedAt).toLocaleString() : '-'}
-                            </td>
-                          </tr>
-                        );
-                      })
-                    ))}
+                            ) : (
+                              <span className="text-sm text-gray-400">-</span>
+                            )}
+                          </td>
+                          <td className="hidden sm:table-cell text-xs">
+                            {firstStartedAt ? firstStartedAt.toLocaleString() : '-'}
+                          </td>
+                          <td className="hidden sm:table-cell text-xs">
+                            {lastCompletedAt ? lastCompletedAt.toLocaleString() : '-'}
+                          </td>
+                          <td>
+                            <div className="dropdown dropdown-end">
+                              <div tabIndex={0} role="button" className="btn btn-xs btn-outline btn-warning gap-1 hover:btn-warning">
+                                🔄 Reset ▼
+                              </div>
+                              <ul tabIndex={0} className="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow border border-base-300">
+                                <li className="menu-title">
+                                  <span className="text-xs text-gray-500">Reset Options</span>
+                                </li>
+                                {challengeData.customChallenges.map((cc) => {
+                                  const progress = uc.customChallengeProgress?.find(p => p.challengeId.toString() === cc._id.toString());
+                                  const isCompleted = progress?.completed || false;
+                                  const isStarted = progress?.startedAt;
+                                  
+                                  return (
+                                    <li key={cc._id}>
+                                      <button
+                                        className={`text-xs ${!isStarted ? 'text-gray-400' : isCompleted ? 'text-green-600' : 'text-blue-600'}`}
+                                        disabled={!isStarted}
+                                        onClick={async () => {
+                                          openConfirm({
+                                            title: `Reset ${cc.title}`,
+                                            message: `Reset "${cc.title}" for ${uc.userId.firstName} ${uc.userId.lastName}? This will clear their progress for this challenge.`,
+                                            confirmText: 'Reset',
+                                            onConfirm: async () => {
+                                              try {
+                                                await resetCustomChallenge(classroomId, uc.userId._id, cc._id);
+                                                toast.success(`Reset "${cc.title}" for ${uc.userId.firstName} ${uc.userId.lastName}`);
+                                                await fetchChallengeData();
+                                              } catch (error) {
+                                                toast.error(`Failed to reset challenge: ${error.message}`);
+                                              }
+                                            }
+                                          });
+                                        }}
+                                      >
+                                        {isCompleted ? '✅' : isStarted ? '🔄' : '⏹️'} {cc.title}
+                                      </button>
+                                    </li>
+                                  );
+                                })}
+                                <div className="divider my-1"></div>
+                                <li>
+                                  <button
+                                    className="text-xs text-red-600 font-semibold"
+                                    onClick={async () => {
+                                      openConfirm({
+                                        title: 'Reset ALL Custom Challenges',
+                                        message: `Are you sure you want to reset ALL custom challenges for ${uc.userId.firstName} ${uc.userId.lastName}? This will clear all their custom challenge progress.`,
+                                        confirmText: 'Reset ALL',
+                                        onConfirm: async () => {
+                                          try {
+                                            await resetAllCustomChallenges(classroomId, uc.userId._id);
+                                            toast.success(`Reset all custom challenges for ${uc.userId.firstName} ${uc.userId.lastName}`);
+                                            await fetchChallengeData();
+                                          } catch (error) {
+                                            toast.error(`Failed to reset all challenges: ${error.message}`);
+                                          }
+                                        }
+                                      });
+                                    }}
+                                  >
+                                    🗑️ Reset ALL Custom Challenges
+                                  </button>
+                                </li>
+                              </ul>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
