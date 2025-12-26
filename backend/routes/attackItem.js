@@ -47,20 +47,33 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
       return res.status(404).json({ error: 'Target user not found' });
     }
 
+    // Snapshot bits BEFORE any changes (so we can compute net positives for BOTH sides)
+    const attackerBitsBefore = classroomId
+      ? getClassroomBalance(req.user, classroomId)
+      : (req.user.balance || 0);
+
+    const targetBitsBefore = classroomId
+      ? getClassroomBalance(targetUser, classroomId)
+      : (targetUser.balance || 0);
+
     // Snapshot stats BEFORE any changes (for attacker and target)
+    // helper (optional, but keeps things consistent)
+    const stat = (v, d) => (v ?? d);
+
+    // --- snapshots: replace || with ?? so 0 is preserved ---
     const attackerPrev = {
-      multiplier: req.user.passiveAttributes?.multiplier || 1,
-      luck: req.user.passiveAttributes?.luck || 1,
-      discount: req.user.passiveAttributes?.discount || 0,
-      shield: req.user.shieldCount || 0,
-      groupMultiplier: req.user.passiveAttributes?.groupMultiplier || 1
+      multiplier: stat(req.user.passiveAttributes?.multiplier, 1),
+      luck: stat(req.user.passiveAttributes?.luck, 1),
+      discount: stat(req.user.passiveAttributes?.discount, 0),
+      shield: stat(req.user.shieldCount, 0),
+      groupMultiplier: stat(req.user.passiveAttributes?.groupMultiplier, 1)
     };
     const targetPrev = {
-      multiplier: targetUser.passiveAttributes?.multiplier || 1,
-      luck: targetUser.passiveAttributes?.luck || 1,
-      discount: targetUser.passiveAttributes?.discount || 0,
-      shield: targetUser.shieldCount || 0,
-      groupMultiplier: targetUser.passiveAttributes?.groupMultiplier || 1
+      multiplier: stat(targetUser.passiveAttributes?.multiplier, 1),
+      luck: stat(targetUser.passiveAttributes?.luck, 1),
+      discount: stat(targetUser.passiveAttributes?.discount, 0),
+      shield: stat(targetUser.shieldCount, 0),
+      groupMultiplier: stat(targetUser.passiveAttributes?.groupMultiplier, 1)
     };
 
     // Helpful display names
@@ -121,11 +134,11 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
 
       // Target log (already present)
       const targetAfterBlocked = {
-        multiplier: targetUser.passiveAttributes?.multiplier || 1,
-        luck: targetUser.passiveAttributes?.luck || 1,
-        discount: targetUser.passiveAttributes?.discount || 0,
-        shield: targetUser.shieldCount || 0,
-        groupMultiplier: targetUser.passiveAttributes?.groupMultiplier || 1
+        multiplier: stat(targetUser.passiveAttributes?.multiplier, 1),
+        luck: stat(targetUser.passiveAttributes?.luck, 1),
+        discount: stat(targetUser.passiveAttributes?.discount, 0),
+        shield: stat(targetUser.shieldCount, 0),
+        groupMultiplier: stat(targetUser.passiveAttributes?.groupMultiplier, 1)
       };
 
       // Target gets the shield decrement entry
@@ -417,19 +430,30 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
     // Apply secondary effects
     item.secondaryEffects.forEach(effect => {
       switch(effect.effectType) {
-        case 'attackLuck':
-          targetUser.passiveAttributes.luck = Math.max(0, 
-            (targetUser.passiveAttributes.luck || 1) - effect.value);
+        case 'attackLuck': {
+          // Choose a floor. If you want “base is 1” as the minimum, set MIN_LUCK = 1.
+          // If you want debuffs to go below 1 but never hit 0, use 0.1.
+          const MIN_LUCK = 0.1;
+
+          const cur = Number(stat(targetUser.passiveAttributes?.luck, 1));
+          const dec = Number(effect.value) || 0;
+          const next = Math.max(MIN_LUCK, cur - dec);
+          targetUser.passiveAttributes.luck = Math.round(next * 10) / 10; // keep 1 decimal like challenges
           effectNotes.push(`-${effect.value} Luck`);
           break;
+        }
+
         case 'attackMultiplier':
-          targetUser.passiveAttributes.multiplier = Math.max(1, 
-            (targetUser.passiveAttributes.multiplier || 1) - effect.value);
+          targetUser.passiveAttributes.multiplier = Math.max(1,
+            Number(stat(targetUser.passiveAttributes?.multiplier, 1)) - (Number(effect.value) || 0)
+          );
           effectNotes.push(`-${effect.value}x Multiplier`);
           break;
+
         case 'attackGroupMultiplier':
-          targetUser.passiveAttributes.groupMultiplier = Math.max(1, 
-            (targetUser.passiveAttributes.groupMultiplier || 1) - effect.value);
+          targetUser.passiveAttributes.groupMultiplier = Math.max(1,
+            Number(stat(targetUser.passiveAttributes?.groupMultiplier, 1)) - (Number(effect.value) || 0)
+          );
           effectNotes.push(`-${effect.value}x Group Multiplier`);
           break;
       }
@@ -521,7 +545,139 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
     item.consumed = item.usesRemaining === 0;
     await item.save();
 
-    // Award XP for using an attack item
+    // NEW: XP for positive attack outcomes (applies to attacker AND target)
+    // - Bits Earned XP: any net-positive bit delta (>= 1)
+    // - Stat Increase XP: any net-positive stat increase (e.g. gained multiplier/luck via swap)
+    try {
+      if (classroomId) {
+        const cls = await Classroom.findById(classroomId).select('xpSettings');
+        if (cls?.xpSettings?.enabled) {
+          const io = req.app && req.app.get ? req.app.get('io') : null;
+
+          const bitsEarnedRate = Number(cls.xpSettings.bitsEarned || 0);
+          const statRate = Number(cls.xpSettings.statIncrease || 0);
+
+          const safeNum = (v, d = 0) => {
+            const n = Number(v);
+            return Number.isFinite(n) ? n : d;
+          };
+
+          const attackerBitsAfter = getClassroomBalance(req.user, classroomId);
+          const targetBitsAfter = getClassroomBalance(targetUser, classroomId);
+
+          const attackerBitsDelta = attackerBitsAfter - attackerBitsBefore;
+          const targetBitsDelta = targetBitsAfter - targetBitsBefore;
+
+          // FIX: use ??-based defaults so 0 does NOT turn into 1
+          const attackerAfter = {
+            multiplier: stat(req.user.passiveAttributes?.multiplier, 1),
+            luck: stat(req.user.passiveAttributes?.luck, 1),
+            discount: stat(req.user.passiveAttributes?.discount, 0),
+            shield: stat(req.user.shieldCount, 0),
+            groupMultiplier: stat(req.user.passiveAttributes?.groupMultiplier, 1)
+          };
+          const targetAfter = {
+            multiplier: stat(targetUser.passiveAttributes?.multiplier, 1),
+            luck: stat(targetUser.passiveAttributes?.luck, 1),
+            discount: stat(targetUser.passiveAttributes?.discount, 0),
+            shield: stat(targetUser.shieldCount, 0),
+            groupMultiplier: stat(targetUser.passiveAttributes?.groupMultiplier, 1)
+          };
+
+          const collectPositiveStatIncreases = (before, after) => {
+            const parts = [];
+            let count = 0;
+
+            // treat any positive direction as a "stat increase" (counted once per stat)
+            if (safeNum(after.multiplier, 1) > safeNum(before.multiplier, 1)) {
+              count += 1;
+              parts.push(`Multiplier: ${safeNum(before.multiplier, 1)} → ${safeNum(after.multiplier, 1)}`);
+            }
+            if (safeNum(after.luck, 1) > safeNum(before.luck, 1)) {
+              count += 1;
+              parts.push(`Luck: ${safeNum(before.luck, 1)} → ${safeNum(after.luck, 1)}`);
+            }
+            if (safeNum(after.discount, 0) > safeNum(before.discount, 0)) {
+              count += 1;
+              parts.push(`Discount: ${safeNum(before.discount, 0)} → ${safeNum(after.discount, 0)}`);
+            }
+            if (safeNum(after.shield, 0) > safeNum(before.shield, 0)) {
+              count += 1;
+              parts.push(`Shield: ${safeNum(before.shield, 0)} → ${safeNum(after.shield, 0)}`);
+            }
+            if (safeNum(after.groupMultiplier, 1) > safeNum(before.groupMultiplier, 1)) {
+              count += 1;
+              parts.push(`Group Multiplier: ${safeNum(before.groupMultiplier, 1)} → ${safeNum(after.groupMultiplier, 1)}`);
+            }
+
+            return { count, parts };
+          };
+
+          const awardBitsEarnedXP = async ({ userDoc, bitsDelta, whoLabel }) => {
+            if (!userDoc?._id) return;
+            if (bitsEarnedRate <= 0) return;
+            if (bitsDelta <= 0) return;
+
+            const xpBits = Math.abs(bitsDelta); // attacks do not apply multipliers => base == final
+            const xpToAward = xpBits * bitsEarnedRate;
+            if (xpToAward <= 0) return;
+
+            const xpRes = await awardXP(userDoc._id, classroomId, xpToAward, 'earning bits (attack outcome)', cls.xpSettings);
+            if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+              await logStatChanges({
+                io,
+                classroomId,
+                user: userDoc,
+                actionBy: req.user ? req.user._id : undefined,
+                prevStats: { xp: xpRes.oldXP },
+                currStats: { xp: xpRes.newXP },
+                context: 'earning bits (attack outcome)',
+                details: { effectsText: `${whoLabel} gained ${bitsDelta} ₿ (via ${item.name})` },
+                forceLog: true
+              });
+            }
+          };
+
+          const awardStatIncreaseXP = async ({ userDoc, beforeStats, afterStats, whoLabel }) => {
+            if (!userDoc?._id) return;
+            if (statRate <= 0) return;
+
+            const { count, parts } = collectPositiveStatIncreases(beforeStats, afterStats);
+            if (count <= 0) return;
+
+            const xpToAward = count * statRate;
+            if (xpToAward <= 0) return;
+
+            const xpRes = await awardXP(userDoc._id, classroomId, xpToAward, 'stat increase (attack outcome)', cls.xpSettings);
+            if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+              await logStatChanges({
+                io,
+                classroomId,
+                user: userDoc,
+                actionBy: req.user ? req.user._id : undefined,
+                prevStats: { xp: xpRes.oldXP },
+                currStats: { xp: xpRes.newXP },
+                context: 'stat increase (attack outcome)',
+                details: { effectsText: `${whoLabel} benefited: ${parts.join('; ')} (via ${item.name})` },
+                forceLog: true
+              });
+            }
+          };
+
+          // Attacker: positive outcomes
+          await awardBitsEarnedXP({ userDoc: req.user, bitsDelta: attackerBitsDelta, whoLabel: 'Attacker' });
+          await awardStatIncreaseXP({ userDoc: req.user, beforeStats: attackerPrev, afterStats: attackerAfter, whoLabel: 'Attacker' });
+
+          // Target: positive outcomes (e.g. swap benefits them)
+          await awardBitsEarnedXP({ userDoc: targetUser, bitsDelta: targetBitsDelta, whoLabel: 'Target' });
+          await awardStatIncreaseXP({ userDoc: targetUser, beforeStats: targetPrev, afterStats: targetAfter, whoLabel: 'Target' });
+        }
+      }
+    } catch (e) {
+      console.warn('[attackItem] positive-outcome XP award/log failed:', e);
+    }
+
+    // Award XP for using an attack item (existing behavior)
     try {
       if (classroomId) {
         const cls = await Classroom.findById(classroomId).select('xpSettings');
@@ -564,18 +720,18 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
 
     // NEW: log stat changes for attacker and target (only if any tracked fields changed)
     const attackerAfter = {
-      multiplier: req.user.passiveAttributes?.multiplier || 1,
-      luck: req.user.passiveAttributes?.luck || 1,
-      discount: req.user.passiveAttributes?.discount || 0,
-      shield: req.user.shieldCount || 0,
-      groupMultiplier: req.user.passiveAttributes?.groupMultiplier || 1
+      multiplier: stat(req.user.passiveAttributes?.multiplier, 1),
+      luck: stat(req.user.passiveAttributes?.luck, 1),
+      discount: stat(req.user.passiveAttributes?.discount, 0),
+      shield: stat(req.user.shieldCount, 0),
+      groupMultiplier: stat(req.user.passiveAttributes?.groupMultiplier, 1)
     };
     const targetAfter = {
-      multiplier: targetUser.passiveAttributes?.multiplier || 1,
-      luck: targetUser.passiveAttributes?.luck || 1,
-      discount: targetUser.passiveAttributes?.discount || 0,
-      shield: targetUser.shieldCount || 0,
-      groupMultiplier: targetUser.passiveAttributes?.groupMultiplier || 1
+      multiplier: stat(targetUser.passiveAttributes?.multiplier, 1),
+      luck: stat(targetUser.passiveAttributes?.luck, 1),
+      discount: stat(targetUser.passiveAttributes?.discount, 0),
+      shield: stat(targetUser.shieldCount, 0),
+      groupMultiplier: stat(targetUser.passiveAttributes?.groupMultiplier, 1)
     };
 
     // NEW: build effects text already collected; include item name in human text
