@@ -863,6 +863,10 @@ const TeacherView = ({
 
     const rows = [];
 
+    const customChallengesSorted = (challengeData.customChallenges || [])
+      .slice()
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
     for (const uc of (challengeData.userChallenges || []).filter(x => x?.userId)) {
       const studentName =
         `${uc.userId?.firstName || ''} ${uc.userId?.lastName || ''}`.trim() ||
@@ -871,55 +875,81 @@ const TeacherView = ({
       const email = uc.userId?.email || '';
       const uniqueId = uc.uniqueId || '';
 
-      
       const progressByChallengeId = new Map(
         (uc.customChallengeProgress || []).map(p => [String(p.challengeId), p])
       );
 
-      const perChallenge = (challengeData.customChallenges || []).map(cc => {
-        const p = progressByChallengeId.get(String(cc._id));
+      for (const cc of customChallengesSorted) {
+        const p = progressByChallengeId.get(String(cc._id)) || null;
+
         const started = !!p?.startedAt;
         const completed = !!p?.completed;
         const attempts = Number(p?.attempts || 0);
         const maxAttempts = cc.maxAttempts;
         const failed = !!(started && !completed && maxAttempts && attempts >= maxAttempts);
 
-        return { cc, p, started, completed, failed, attempts, maxAttempts };
-      });
+        const statusLabel = completed ? 'Completed' : failed ? 'Failed' : started ? 'In Progress' : 'Not Started';
 
-      const totalChallenges = perChallenge.length;
-      const completedChallenges = perChallenge.filter(x => x.completed).length;
-      const hasStarted = perChallenge.some(x => x.started);
-      const allCompleted = totalChallenges > 0 && completedChallenges === totalChallenges;
-      const anyFailed = perChallenge.some(x => x.failed);
+        const hintsEnabled = !!cc.hintsEnabled;
+        const hintsArr = Array.isArray(cc.hints) ? cc.hints : [];
+        const nonEmptyHints = hintsArr.filter(h => h && String(h).trim());
+        const hintsAvailableCount = Number(cc.hintsCount ?? nonEmptyHints.length ?? 0);
+        const hintsUsedCount = Number(p?.hintsUsed || 0);
+        const hintPenaltyPercent = Number(cc.hintPenaltyPercent ?? 0);
 
-      
-      const currentEntry = perChallenge.find(x => x.started && !x.completed && !x.failed);
-      const currentChallenge = currentEntry?.cc || null;
-      const currentProgress = currentEntry?.p || null;
+        const startedAtISO = p?.startedAt ? new Date(p.startedAt).toISOString() : '';
+        const completedAtISO = p?.completedAt ? new Date(p.completedAt).toISOString() : '';
+        const timeToCompleteMinutes =
+          p?.startedAt && p?.completedAt
+            ? Math.round((new Date(p.completedAt) - new Date(p.startedAt)) / (1000 * 60))
+            : '';
 
-      const statusLabel = allCompleted
-        ? 'Completed'
-        : anyFailed
-          ? 'Failed'
-          : hasStarted
-            ? 'In Progress'
-            : 'Not Started';
+        const failureReason = failed ? 'Max attempts exceeded' : '';
 
-      rows.push({
-        classroomId: String(challengeData.classroomId || classroomId || ''),
-        studentName,
-        email,
-        uniqueId,
-        totalCustomChallenges: totalChallenges,
-        completedCustomChallenges: completedChallenges,
-        status: statusLabel,
-        currentChallengeTitle: currentChallenge?.title || '',
-        availableRewards: currentChallenge ? getCustomRewardsLabel(currentChallenge) : '',
-        solution: currentProgress?.generatedContent?.expectedAnswer || '',
-        startedAt: currentProgress?.startedAt ? new Date(currentProgress.startedAt).toISOString() : '',
-        completedAt: currentProgress?.completedAt ? new Date(currentProgress.completedAt).toISOString() : ''
-      });
+        const rewardsAvailableLabel = getCustomRewardsLabel(cc);
+        const rewardsEarnedBits = Number(p?.bitsAwarded || 0);
+        const rewardsEarnedLabel = completed
+          ? (rewardsEarnedBits > 0 ? `${rewardsEarnedBits} ₿` : 'Completed (0 ₿)')
+          : 'Not completed';
+
+        // NOTE: this is already present in UI (teacher can view), but keep it in export only if you want it.
+        const solution = p?.generatedContent?.expectedAnswer || '';
+
+        rows.push({
+          classroomId: String(challengeData.classroomId || classroomId || ''),
+          studentName,
+          email,
+          uniqueId,
+
+          customChallengeId: String(cc._id),
+          customChallengeOrder: cc.order ?? '',
+          customChallengeTitle: cc.title || '',
+          templateType: cc.templateType || '',
+
+          status: statusLabel,
+          attempts,
+          maxAttempts: maxAttempts ?? '',
+
+          startedAt: startedAtISO,
+          completedAt: completedAtISO,
+          timeToCompleteMinutes,
+          failureReason,
+
+          hintPenaltyPercent,
+          hintsEnabled,
+          hintsAvailableCount,
+          hintsAvailable: nonEmptyHints.length
+            ? nonEmptyHints.map((h, i) => `Hint ${i + 1}: ${h}`).join(' | ')
+            : (hintsEnabled ? 'Hints enabled (not configured)' : 'No hints'),
+          hintsUsed: hintsUsedCount,
+
+          rewardsAvailable: rewardsAvailableLabel,
+          rewardsEarned: rewardsEarnedLabel,
+          bitsAwarded: rewardsEarnedBits,
+
+          solution
+        });
+      }
     }
 
     return rows;
@@ -2149,8 +2179,26 @@ const TeacherView = ({
 
                           <td className="hidden xl:table-cell">
                             {currentChallenge ? (
-                              <div className="text-xs font-medium text-blue-600">
-                                {getCustomRewardsLabel(currentChallenge)}
+                              <div className="space-y-1">
+                                <div className="text-xs font-medium text-blue-600">
+                                  {getCustomRewardsLabel(currentChallenge)}
+                                </div>
+
+                                {currentChallenge?.hintsEnabled && (Number(currentChallenge?.hintsCount) || (currentChallenge?.hints || []).length || 0) > 0 && (
+                                  <>
+                                    <div className="text-xs text-orange-600">
+                                      -{Number(currentChallenge?.hintPenaltyPercent ?? 0)}% per hint
+                                    </div>
+                                    <div className="text-xs text-gray-500">
+                                      {(Number(currentChallenge?.hintsCount) || (currentChallenge?.hints || []).length || 0)} hint(s) available
+                                    </div>
+                                    {Number(currentProgress?.hintsUsed || 0) > 0 && (
+                                      <div className="text-xs text-red-600 font-medium">
+                                        Used: {Number(currentProgress?.hintsUsed || 0)} hint(s)
+                                      </div>
+                                    )}
+                                  </>
+                                )}
                               </div>
                             ) : (
                               <span className="text-sm text-gray-400">—</span>
