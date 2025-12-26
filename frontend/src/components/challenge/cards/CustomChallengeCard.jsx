@@ -3,9 +3,9 @@ import { Play, Check, X, ExternalLink, Download, Eye, AlertTriangle, Lock, Hash,
 import { ThemeContext } from '../../../context/ThemeContext';
 import { verifyCustomChallenge, startCustomChallenge, unlockCustomChallengeHint, getCustomChallengeAttachmentUrl, getPersonalizedChallengeFileUrl } from '../../../API/apiChallenge';
 import RewardsDisplay from '../RewardsDisplay';
+import DueDateCountdown from '../DueDateCountdown';
 import toast from 'react-hot-toast';
 
-// Template type display info
 const TEMPLATE_DISPLAY = {
   'passcode': { name: 'Passcode', icon: Key, color: 'warning' },
   'cipher': { name: 'Cipher', icon: Lock, color: 'primary' },
@@ -28,24 +28,39 @@ const CustomChallengeCard = ({
   const [submitting, setSubmitting] = useState(false);
   const [unlockingHint, setUnlockingHint] = useState(false);
   const [showStartModal, setShowStartModal] = useState(false);
+  const [showHintModal, setShowHintModal] = useState(false);
   const [pendingExternalUrl, setPendingExternalUrl] = useState(null);
   const [generatedData, setGeneratedData] = useState(null);
+  const [localAttemptsLeft, setLocalAttemptsLeft] = useState(null);
 
   const progress = challenge.progress || {};
   const isCompleted = progress.completed || false;
   const isStarted = !!progress.startedAt;
-  const isFailed = challenge.maxAttempts && progress.attempts >= challenge.maxAttempts && !isCompleted;
-  const attemptsLeft = challenge.maxAttempts ? challenge.maxAttempts - (progress.attempts || 0) : null;
+  const serverAttemptsLeft = challenge.maxAttempts ? challenge.maxAttempts - (progress.attempts || 0) : null;
+  const attemptsLeft = localAttemptsLeft !== null ? localAttemptsLeft : serverAttemptsLeft;
+  const isFailed = challenge.maxAttempts && attemptsLeft !== null && attemptsLeft <= 0 && !isCompleted;
+  
+  useEffect(() => {
+    setLocalAttemptsLeft(null);
+  }, [challenge.progress?.attempts]);
+  
+  const customChallengeExpired = challenge.dueDateEnabled && challenge.dueDate 
+    ? new Date() > new Date(challenge.dueDate) 
+    : false;
+  const isExpired = challengeExpired || customChallengeExpired;
   
   const templateType = challenge.templateType || 'passcode';
   const isTemplateChallenge = templateType !== 'passcode';
   const templateInfo = TEMPLATE_DISPLAY[templateType] || TEMPLATE_DISPLAY.passcode;
   const TemplateIcon = templateInfo.icon;
+  
+  // Compute hintsCount from hints array if not provided
+  const hintsCount = challenge.hintsCount ?? (challenge.hints?.length || 0);
 
-  // Get generated content from state or from challenge data
+  
   const displayContent = generatedData?.displayData || challenge.generatedDisplayData;
 
-  // Auto-fetch generated content for template challenges that are started but missing content
+  
   useEffect(() => {
     const fetchMissingContent = async () => {
       if (isTemplateChallenge && isStarted && !isCompleted && !displayContent && !generatedData) {
@@ -58,14 +73,14 @@ const CustomChallengeCard = ({
             });
           }
         } catch {
-          // Silent fail - will show loading state
+          
         }
       }
     };
     fetchMissingContent();
   }, [isTemplateChallenge, isStarted, isCompleted, displayContent, generatedData, classroomId, challenge._id]);
 
-  // Render generated challenge content based on template type
+  
   const renderGeneratedContent = () => {
     if (!displayContent) {
       return (
@@ -75,12 +90,12 @@ const CustomChallengeCard = ({
       );
     }
 
-    // Try to parse JSON content
+    
     let parsedContent = displayContent;
     try {
       parsedContent = JSON.parse(displayContent);
     } catch {
-      // Content is not JSON, display as-is
+      
     }
 
     switch (templateType) {
@@ -165,12 +180,23 @@ const CustomChallengeCard = ({
     }
   };
 
+  // Calculate bits after hint penalty
+  const baseBits = challenge.bits || 0;
+  const hintsUsed = progress.hintsUsed || 0;
+  const hintPenaltyPercent = challenge.hintPenaltyPercent || 0;
+  const totalPenalty = Math.min(80, hintsUsed * hintPenaltyPercent); // Cap at 80%
+  const effectiveBits = hintsUsed > 0 && hintPenaltyPercent > 0
+    ? Math.round(baseBits * (1 - totalPenalty / 100))
+    : baseBits;
+
   const rewards = {
-    bits: challenge.bits || 0,
+    bits: effectiveBits,
+    baseBits: baseBits, // Keep original for display
     multiplier: challenge.multiplier > 1 ? challenge.multiplier - 1 : 0,
     luck: challenge.luck || 1.0,
     discount: challenge.discount || 0,
-    shield: challenge.shield || false
+    shield: challenge.shield || false,
+    hintPenalty: hintsUsed > 0 && hintPenaltyPercent > 0 ? totalPenalty : 0
   };
 
   const getCardColors = () => {
@@ -187,7 +213,7 @@ const CustomChallengeCard = ({
     try {
       const result = await startCustomChallenge(classroomId, challenge._id);
       
-      // Store generated content for template challenges
+      
       if (result.displayData) {
         setGeneratedData({
           displayData: result.displayData,
@@ -223,8 +249,8 @@ const CustomChallengeCard = ({
       return;
     }
 
-    if (challengeExpired) {
-      toast.error('Challenge series has expired');
+    if (isExpired) {
+      toast.error('This challenge has expired');
       return;
     }
 
@@ -233,9 +259,9 @@ const CustomChallengeCard = ({
       const result = await verifyCustomChallenge(classroomId, challenge._id, passcode.trim());
       
       if (result.success) {
-        // Set localStorage to trigger reward modal (same as legacy challenges)
+        
         localStorage.setItem('challengeCompleted', JSON.stringify({
-          challengeIndex: -1, // -1 indicates custom challenge
+          challengeIndex: -1, 
           challengeName: challenge.title,
           timestamp: Date.now(),
           rewards: result.rewards || {
@@ -256,17 +282,25 @@ const CustomChallengeCard = ({
     } catch (error) {
       toast.error(error.message || 'Incorrect passcode');
       setPasscode('');
+      if (error.attemptsLeft !== undefined) {
+        setLocalAttemptsLeft(error.attemptsLeft);
+      }
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleUnlockHint = async () => {
+  const handleHintClick = () => {
+    setShowHintModal(true);
+  };
+
+  const handleConfirmUnlockHint = async () => {
     setUnlockingHint(true);
     try {
       const result = await unlockCustomChallengeHint(classroomId, challenge._id);
       if (result.success && result.hint) {
         toast.success('Hint unlocked!');
+        setShowHintModal(false);
         if (onUpdate) onUpdate();
       }
     } catch (error) {
@@ -275,6 +309,13 @@ const CustomChallengeCard = ({
       setUnlockingHint(false);
     }
   };
+
+  // Calculate what bits will be after unlocking the next hint
+  const nextHintsUsed = (progress.hintsUsed || 0) + 1;
+  const nextTotalPenalty = Math.min(80, nextHintsUsed * hintPenaltyPercent);
+  const bitsAfterNextHint = hintPenaltyPercent > 0
+    ? Math.round(baseBits * (1 - nextTotalPenalty / 100))
+    : baseBits;
 
   if (!challenge.visible && !isTeacher) {
     return (
@@ -311,22 +352,26 @@ const CustomChallengeCard = ({
               </span>
             </div>
 
-            {/* CHANGED: allow long/unbroken titles to wrap without pushing rewards off-screen */}
+            {}
             <span className={`font-medium min-w-0 wrap-any ${isCompleted ? 'text-success' : ''}`}>
               {challenge.title}
             </span>
 
             <RewardsDisplay rewards={rewards} isDark={isDark} isCompleted={isCompleted} size="sm" />
+            
+            {challenge.dueDateEnabled && challenge.dueDate && (
+              <DueDateCountdown dueDate={challenge.dueDate} />
+            )}
           </div>
 
-          {/* CHANGED: add min-w-0 + flex-wrap so right-side items don't get pushed out */}
+          {}
           <div className="hidden sm:flex items-center gap-3 flex-wrap min-w-0">
             <span className={`badge gap-1 ${isCompleted ? 'badge-success' : isFailed ? 'badge-error' : `badge-${templateInfo.color}`}`}>
               <TemplateIcon className="w-3 h-3" />
               {templateInfo.name}
             </span>
 
-            {/* CHANGED: wrap-any + min-w-0 to break long runs */}
+            {}
             <span className={`flex-1 min-w-0 font-medium wrap-any ${isCompleted ? 'text-success' : ''}`}>
               {challenge.title}
             </span>
@@ -336,13 +381,17 @@ const CustomChallengeCard = ({
             <span className={`text-sm ${isDark ? 'text-base-content/50' : 'text-gray-400'}`}>
               {isCompleted ? 'Completed' : isFailed ? 'Failed' : isStarted ? 'In Progress' : 'Not Started'}
             </span>
+            
+            {challenge.dueDateEnabled && challenge.dueDate && (
+              <DueDateCountdown dueDate={challenge.dueDate} />
+            )}
           </div>
         </div>
 
         <div className="collapse-content" onClick={(e) => e.stopPropagation()}>
           <div className="pt-4 space-y-4">
             {!isStarted && !isCompleted && (
-              // CHANGED: allow warning text to wrap instead of stretching container
+              
               <div className="alert alert-warning">
                 <div className="flex items-center gap-2 min-w-0 flex-wrap">
                   <AlertTriangle className="w-4 h-4 shrink-0" />
@@ -360,14 +409,14 @@ const CustomChallengeCard = ({
 
             {challenge.description && (
               <div className="prose prose-sm max-w-none">
-                {/* CHANGED: wrap-any breaks long unbroken strings; keeps your pre-wrap behavior */}
+                {}
                 <p className={`whitespace-pre-wrap wrap-any ${isDark ? 'text-base-content' : 'text-gray-700'}`}>
                   {challenge.description}
                 </p>
               </div>
             )}
 
-            {/* Display generated challenge content for template challenges */}
+            {}
             {isTemplateChallenge && isStarted && !isCompleted && (
               <div className={`rounded-lg border ${isDark ? 'bg-base-100 border-base-content/20' : 'bg-base-200 border-base-300'}`}>
                 <div className={`px-4 py-3 border-b ${isDark ? 'border-base-content/10' : 'border-base-300'}`}>
@@ -424,7 +473,7 @@ const CustomChallengeCard = ({
               </div>
             )}
 
-            {!isCompleted && !isFailed && !challengeExpired && (
+            {!isCompleted && !isFailed && !isExpired && (
               <div className="space-y-3">
                 {!isStarted && (
                   <button onClick={handleStart} className="btn btn-primary btn-sm gap-2">
@@ -471,30 +520,41 @@ const CustomChallengeCard = ({
               </div>
             )}
 
-            {challengeExpired && !isCompleted && (
+            {isExpired && !isCompleted && (
               <div className="flex items-center gap-2 text-warning">
                 <Lock className="w-5 h-5" />
                 <span className="font-medium">Challenge series has expired</span>
               </div>
             )}
 
-            {challenge.hintsEnabled && isStarted && !isCompleted && !isFailed && (
+            {challenge.hintsEnabled && isStarted && !isCompleted && !isFailed && hintsCount > 0 && (
               <div className="space-y-3 pt-2 border-t border-base-content/10">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium">Hints</span>
                     <span className="text-xs text-gray-500">
-                      {progress.hintsUsed || 0}/{challenge.hintsCount || 0} used
+                      {progress.hintsUsed || 0}/{hintsCount} used
                     </span>
+                    {challenge.hintPenaltyPercent > 0 && (
+                      <span className="text-xs text-warning">
+                        (-{challenge.hintPenaltyPercent}% per hint)
+                      </span>
+                    )}
                   </div>
                   <button
-                    onClick={handleUnlockHint}
-                    disabled={unlockingHint || (progress.hintsUsed || 0) >= (challenge.hintsCount || 0)}
+                    onClick={handleHintClick}
+                    disabled={unlockingHint || (progress.hintsUsed || 0) >= hintsCount}
                     className="btn btn-sm btn-primary"
                   >
-                    {unlockingHint ? <span className="loading loading-spinner loading-xs"></span> : 'Unlock Hint'}
+                    Unlock Hint
                   </button>
                 </div>
+
+                {rewards.hintPenalty > 0 && (
+                  <div className="text-xs text-warning">
+                    Hint penalty: {baseBits} → {effectiveBits} bits (-{rewards.hintPenalty}%)
+                  </div>
+                )}
 
                 {(progress.hintsUnlocked?.length || 0) > 0 && (
                   <div className="space-y-2">
@@ -537,6 +597,65 @@ const CustomChallengeCard = ({
                 <button onClick={handleStart} className="btn btn-primary gap-2">
                   <Play className="w-4 h-4" />
                   Start & Continue
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showHintModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className={`card w-full max-w-md shadow-2xl ${isDark ? 'bg-base-200' : 'bg-white'}`}>
+            <div className="card-body text-center space-y-4">
+              <div className="flex justify-center">
+                <div className="w-12 h-12 rounded-full bg-info/20 flex items-center justify-center">
+                  <Eye className="w-6 h-6 text-info" />
+                </div>
+              </div>
+              
+              <h3 className="text-lg font-bold">Unlock Hint?</h3>
+              
+              <div className="space-y-2">
+                <p className="text-sm text-gray-500">
+                  This will be hint <strong>{(progress.hintsUsed || 0) + 1}</strong> of <strong>{hintsCount}</strong>.
+                </p>
+                
+                {hintPenaltyPercent > 0 ? (
+                  <div className={`p-3 rounded-lg ${isDark ? 'bg-warning/10' : 'bg-warning/5'} border border-warning/30`}>
+                    <p className="text-sm text-warning font-medium">
+                      ⚠️ Penalty: -{hintPenaltyPercent}% bits
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Reward will change: {effectiveBits} → {bitsAfterNextHint} bits
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-success">✓ No penalty for using hints</p>
+                )}
+              </div>
+
+              <div className="flex justify-center gap-3">
+                <button 
+                  onClick={() => setShowHintModal(false)} 
+                  className="btn btn-ghost"
+                  disabled={unlockingHint}
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleConfirmUnlockHint} 
+                  className="btn btn-info gap-2"
+                  disabled={unlockingHint}
+                >
+                  {unlockingHint ? (
+                    <span className="loading loading-spinner loading-sm"></span>
+                  ) : (
+                    <>
+                      <Eye className="w-4 h-4" />
+                      Unlock Hint
+                    </>
+                  )}
                 </button>
               </div>
             </div>

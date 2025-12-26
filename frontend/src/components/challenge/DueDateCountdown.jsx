@@ -28,7 +28,7 @@ const DueDateCountdown = ({ dueDate }) => {
     };
     
     updateCountdown();
-    const interval = setInterval(updateCountdown, 60000); // Update every minute
+    const interval = setInterval(updateCountdown, 60000); 
     
     return () => clearInterval(interval);
   }, [dueDate]);

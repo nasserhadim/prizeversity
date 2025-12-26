@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo } from 'react'; // NEW: useMemo
+import { useState, useEffect, useMemo } from 'react'; 
 import { Settings, Zap, Shield, AlertTriangle } from 'lucide-react';
 import { CHALLENGE_NAMES } from '../../../constants/challengeConstants';
 import { DEFAULT_CHALLENGE_CONFIG } from '../../../constants/challengeConstants';
-import { configureChallenge, initiateChallenge } from '../../../API/apiChallenge';
+import { configureChallenge, initiateChallenge, createCustomChallenge, uploadCustomChallengeAttachment } from '../../../API/apiChallenge';
 import IndivTotalToggle from '../IndivTotalToggle';
+import CustomChallengeBuilder from '../CustomChallengeBuilder';
 import toast from 'react-hot-toast';
 import ConfirmModal from '../../ConfirmModal';
 
@@ -35,17 +36,21 @@ const ChallengeConfigModal = ({
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   
-  // Series type: 'legacy' (only hardcoded), 'custom' (only custom), 'mixed' (both)
+  
   const [seriesType, setSeriesType] = useState('legacy');
   
-  // NEW: template search/sort state (like Bazaar/Badges)
+  
+  const [pendingCustomChallenges, setPendingCustomChallenges] = useState([]);
+  const [isFileSelectionActive, setIsFileSelectionActive] = useState(false);
+  
+  
   const [templateSearch, setTemplateSearch] = useState('');
-  const [templateSort, setTemplateSort] = useState('createdDesc'); // createdDesc|createdAsc|nameAsc|nameDesc
+  const [templateSort, setTemplateSort] = useState('createdDesc'); 
 
-  // NEW: bulk delete confirm modal state
+  
   const [confirmDeleteAllTemplates, setConfirmDeleteAllTemplates] = useState(false);
 
-  // NEW: collapsible Templates panel
+  
   const [templatesOpen, setTemplatesOpen] = useState(true);
 
   useEffect(() => {
@@ -61,7 +66,7 @@ const ChallengeConfigModal = ({
     };
   }, []);
   
-  // Track modal open state globally to prevent unwanted refetches on window focus
+  
   useEffect(() => {
     if (showConfigModal) {
       window.__modalOpen = true;
@@ -144,32 +149,51 @@ const ChallengeConfigModal = ({
         settings.dueDate = '';
       }
 
-      // NEW: persist per-challenge visibility into settings so backend saves it
+      
       settings.challengeVisibility = Array.isArray(challengeConfig.challengeVisibility)
         ? challengeConfig.challengeVisibility.map(v => !!v)
         : [true, true, true, true, true, true, true];
 
-      // Series type for custom challenges support
+      
       settings.seriesType = seriesType;
       
-      // If custom-only, clear legacy challenge visibility
+      
       if (seriesType === 'custom') {
         settings.challengeVisibility = [false, false, false, false, false, false, false];
       }
 
       await configureChallenge(classroomId, challengeConfig.title, settings);
-
-      // only prompt for password when legacy/mixed
-      if (seriesType === 'custom') {
-        const response = await initiateChallenge(classroomId); // no password needed for custom-only series
-        toast.success(response?.message || 'Challenge series launched');
-        setShowPasswordPrompt(false);
-        setChallengePassword('');
-        setShowConfigModal(false);
-        await fetchChallengeData();
-      } else {
-        setShowPasswordPrompt(true);
+      
+      if (pendingCustomChallenges.length > 0 && (seriesType === 'custom' || seriesType === 'mixed')) {
+        try {
+          let createdCount = 0;
+          for (const challengeData of pendingCustomChallenges) {
+            const { pendingAttachments, ...challengePayload } = challengeData;
+            
+            const result = await createCustomChallenge(classroomId, challengePayload);
+            const newChallengeId = result.challenge?._id;
+            
+            if (newChallengeId && pendingAttachments && pendingAttachments.length > 0) {
+              for (const file of pendingAttachments) {
+                try {
+                  await uploadCustomChallengeAttachment(classroomId, newChallengeId, file);
+                } catch {
+                }
+              }
+            }
+            
+            createdCount++;
+          }
+          if (createdCount > 0) {
+            toast.success(`Created ${createdCount} custom challenge(s)`);
+          }
+        } catch (error) {
+          console.error('Error creating custom challenges:', error);
+          toast.error('Some custom challenges failed to create. You can add them later from the Update modal.');
+        }
       }
+      
+      setShowPasswordPrompt(true);
     } catch (error) {
       console.error('Error configuring challenge:', error);
       toast.error(error.message || 'Failed to configure challenge');
@@ -316,13 +340,12 @@ const ChallengeConfigModal = ({
             </div>
           </div>
  
-          {/* REPLACE the existing Templates container with this collapsible */}
           <div className="collapse collapse-arrow bg-base-200 rounded-lg p-0 mb-4">
             <input
               type="checkbox"
               checked={templatesOpen}
               onChange={(e) => setTemplatesOpen(e.target.checked)}
-              className="pointer-events-none" // IMPORTANT: don't let the checkbox steal clicks
+              className="pointer-events-none"
             />
 
             <div
@@ -337,13 +360,11 @@ const ChallengeConfigModal = ({
                 }
               }}
             >
-              {/* add right padding so the arrow area stays clear */}
               <div className="flex items-center justify-between pr-12">
                 <h3 className="text-lg font-semibold">
                   Templates {templates?.length ? `(${templates.length})` : ''}
                 </h3>
 
-                {/* Keep actions clickable and don't toggle collapse */}
                 <div
                   className="flex gap-2 relative z-10"
                   onClick={(e) => {
@@ -363,7 +384,6 @@ const ChallengeConfigModal = ({
             </div>
 
             <div className="collapse-content px-4 pb-4 pt-0">
-              {/* NEW: search + sort controls */}
               <div className="flex flex-wrap gap-2 mb-3">
                 <input
                   type="search"
@@ -404,13 +424,11 @@ const ChallengeConfigModal = ({
                       <div className="min-w-0">
                         <div className="font-medium break-words">{template.name}</div>
 
-                        {/* NEW: source classroom */}
                         <div className="text-xs text-base-content/60 break-words">
                           From: {(template.sourceClassroom?.name || 'Unknown classroom')}
                           {template.sourceClassroom?.code ? ` (${template.sourceClassroom.code})` : ''}
                         </div>
 
-                        {/* created date */}
                         <div className="text-xs text-base-content/60">
                           {template.createdAt ? new Date(template.createdAt).toLocaleString() : '—'}
                         </div>
@@ -460,7 +478,6 @@ const ChallengeConfigModal = ({
               />
             </div>
 
-            {/* Series Type Selection */}
             <div className="bg-base-200 p-4 rounded-lg">
               <h3 className="font-bold text-lg mb-3">Challenge Type</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -513,8 +530,7 @@ const ChallengeConfigModal = ({
               </div>
               
             </div>
-
-            {/* Legacy Challenge Configuration */}
+                  
             {(seriesType === 'legacy' || seriesType === 'mixed') && (
               <>
                 <div className="divider">Legacy Challenge Configuration</div>
@@ -895,7 +911,7 @@ const ChallengeConfigModal = ({
                   </div>
                 </div>
 
-                {/* NEW: Mobile Visibility card (shows per-challenge toggles stacked) */}
+                {}
                 <div className="card bg-base-200 p-3 rounded-lg">
                   <div className="flex items-center justify-between mb-2">
                     <div>
@@ -1241,7 +1257,7 @@ const ChallengeConfigModal = ({
                       ))}
                     </tr>
 
-                    {/* NEW: Visibility row moved here for consistency with Update modal */}
+                    {}
                     <tr>
                       <td className="sticky left-0 bg-base-100 z-10">
                         <div className="flex items-center gap-3 flex-nowrap text-sm">
@@ -1309,18 +1325,20 @@ const ChallengeConfigModal = ({
           </>
             )}
 
-            {/* Custom Challenges Section */}
+            {}
             {(seriesType === 'custom' || seriesType === 'mixed') && (
               <div className="bg-base-200 p-4 rounded-lg">
-                <div className="flex items-center gap-2 mb-4">
-                  <h3 className="font-bold text-lg">Custom Challenges</h3>
-                </div>
-                <div className="alert alert-info mb-4">
-                  <AlertTriangle className="w-4 h-4" />
-                  <span className="text-sm">
-                    Custom challenges can be added after launching the series. Configure your legacy challenges first, then add custom ones from the Update modal.
-                  </span>
-                </div>
+                <div className="divider">Custom Challenges</div>
+                <CustomChallengeBuilder
+                  classroomId={classroomId}
+                  customChallenges={pendingCustomChallenges}
+                  onUpdate={() => {}}
+                  isActive={false}
+                  allowAddBeforeActive={true}
+                  draftMode={true}
+                  onDraftUpdate={setPendingCustomChallenges}
+                  onFileSelectionChange={setIsFileSelectionActive}
+                />
               </div>
             )}
           </div>
@@ -1352,7 +1370,7 @@ const ChallengeConfigModal = ({
             </button>
           </div>
 
-          {/* Delete Template Confirmation Modal (consistent style) */}
+          {}
           {deleteTemplateModal && (
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
               <div className="card bg-base-100 w-full max-w-md shadow-xl border border-base-300">

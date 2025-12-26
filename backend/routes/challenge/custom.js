@@ -170,8 +170,8 @@ router.post('/:classroomId/custom', ensureAuthenticated, ensureTeacher, async (r
     const { classroomId } = req.params;
     const { 
       title, description, externalUrl, solution, maxAttempts, 
-      hintsEnabled, hints, bits, multiplier, luck, discount, shield, visible,
-      templateType, templateConfig 
+      hintsEnabled, hints, hintPenaltyPercent, bits, multiplier, luck, discount, shield, visible,
+      templateType, templateConfig, dueDateEnabled, dueDate
     } = req.body;
 
     if (!title) {
@@ -230,12 +230,15 @@ router.post('/:classroomId/custom', ensureAuthenticated, ensureTeacher, async (r
       maxAttempts: maxAttempts || null,
       hintsEnabled: hintsEnabled || false,
       hints: Array.isArray(hints) ? hints.filter(h => h && h.trim()).map(h => h.trim()) : [],
+      hintPenaltyPercent: hintPenaltyPercent !== undefined && hintPenaltyPercent !== null ? Number(hintPenaltyPercent) : null,
       bits: Number(bits) || 50,
       multiplier: Number(multiplier) || 1.0,
       luck: Number(luck) || 1.0,
       discount: Number(discount) || 0,
       shield: Boolean(shield),
       visible: visible !== false,
+      dueDateEnabled: Boolean(dueDateEnabled),
+      dueDate: dueDateEnabled && dueDate ? new Date(dueDate) : null,
       createdAt: new Date(),
       updatedAt: new Date()
     };
@@ -282,8 +285,8 @@ router.put('/:classroomId/custom/:challengeId', ensureAuthenticated, ensureTeach
     const { classroomId, challengeId } = req.params;
     const { 
       title, description, externalUrl, solution, maxAttempts, 
-      hintsEnabled, hints, bits, multiplier, luck, discount, shield, visible,
-      templateType, templateConfig 
+      hintsEnabled, hints, hintPenaltyPercent, bits, multiplier, luck, discount, shield, visible,
+      templateType, templateConfig, dueDateEnabled, dueDate
     } = req.body;
 
     const challenge = await Challenge.findOne({ classroomId });
@@ -318,12 +321,17 @@ router.put('/:classroomId/custom/:challengeId', ensureAuthenticated, ensureTeach
     if (maxAttempts !== undefined) customChallenge.maxAttempts = maxAttempts;
     if (hintsEnabled !== undefined) customChallenge.hintsEnabled = hintsEnabled;
     if (hints !== undefined) customChallenge.hints = Array.isArray(hints) ? hints.filter(h => h && h.trim()).map(h => h.trim()) : [];
+    if (hintPenaltyPercent !== undefined) customChallenge.hintPenaltyPercent = hintPenaltyPercent !== null ? Number(hintPenaltyPercent) : null;
     if (bits !== undefined) customChallenge.bits = Number(bits) || 0;
     if (multiplier !== undefined) customChallenge.multiplier = Number(multiplier) || 1.0;
     if (luck !== undefined) customChallenge.luck = Number(luck) || 1.0;
     if (discount !== undefined) customChallenge.discount = Math.min(100, Math.max(0, Number(discount) || 0));
     if (shield !== undefined) customChallenge.shield = Boolean(shield);
     if (visible !== undefined) customChallenge.visible = Boolean(visible);
+    if (dueDateEnabled !== undefined) customChallenge.dueDateEnabled = Boolean(dueDateEnabled);
+    if (dueDateEnabled !== undefined && dueDate !== undefined) {
+      customChallenge.dueDate = dueDateEnabled && dueDate ? new Date(dueDate) : null;
+    }
 
     // Handle template type changes
     if (templateType !== undefined) {
@@ -855,7 +863,11 @@ router.get('/:classroomId/custom', ensureAuthenticated, async (req, res) => {
           visible: cc.visible,
           hintsEnabled: cc.hintsEnabled,
           hintsCount: (cc.hints || []).length,
+          hints: isTeacher ? (cc.hints || []) : undefined,
+          hintPenaltyPercent: cc.hintPenaltyPercent ?? challenge.settings?.hintPenaltyPercent ?? 25,
           maxAttempts: cc.maxAttempts,
+          dueDateEnabled: cc.dueDateEnabled,
+          dueDate: cc.dueDate,
           attachments: (cc.attachments || []).map(a => ({
             _id: a._id,
             originalName: a.originalName,

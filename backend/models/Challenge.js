@@ -71,6 +71,7 @@ const CustomChallengeSchema = new mongoose.Schema({
   maxAttempts: { type: Number, default: null },
   hintsEnabled: { type: Boolean, default: false },
   hints: [{ type: String, maxlength: 500 }],
+  hintPenaltyPercent: { type: Number, default: null, min: 0, max: 100 },
   // Per-challenge rewards
   bits: { type: Number, default: 50, min: 0 },
   multiplier: { type: Number, default: 1.0, min: 0 },
@@ -78,6 +79,8 @@ const CustomChallengeSchema = new mongoose.Schema({
   discount: { type: Number, default: 0, min: 0, max: 100 },
   shield: { type: Boolean, default: false },
   visible: { type: Boolean, default: true },
+  dueDateEnabled: { type: Boolean, default: false },
+  dueDate: { type: Date, default: null },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 }, { _id: true });

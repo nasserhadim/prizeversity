@@ -12,7 +12,7 @@ const CppBugHuntChallenge = ({ userChallenge, isDark, onExternalLinkClick }) => 
     }
   };
 
-  // No modal; direct navigation handled via link and external click handler
+  
 
   return (
     <>
@@ -68,7 +68,7 @@ const CppBugHuntChallenge = ({ userChallenge, isDark, onExternalLinkClick }) => 
         )}
       </div>
 
-      {/* Mission modal removed to allow direct access */}
+      {}
     </>
   );
 };

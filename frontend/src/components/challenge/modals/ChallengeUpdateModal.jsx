@@ -8,6 +8,26 @@ import CustomChallengeBuilder from '../CustomChallengeBuilder';
 import toast from 'react-hot-toast';
 import ConfirmModal from '../../ConfirmModal';
 
+const utcToLocalDateTime = (utcISOString) => {
+  if (!utcISOString) return '';
+  const date = new Date(utcISOString);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
+const localDateTimeToUTC = (localDateTimeString) => {
+  if (!localDateTimeString) return '';
+  const [datePart, timePart] = localDateTimeString.split('T');
+  const [year, month, day] = datePart.split('-').map(Number);
+  const [hours, minutes] = timePart.split(':').map(Number);
+  const localDate = new Date(year, month - 1, day, hours, minutes);
+  return localDate.toISOString();
+};
+
 const ChallengeUpdateModal = ({ 
   showUpdateModal, 
   setShowUpdateModal, 
@@ -17,24 +37,24 @@ const ChallengeUpdateModal = ({
   setShowHintModal,
   setEditingHints
 }) => {
-  // Series type: legacy (hide custom), mixed (show both), custom (hide legacy)
+  
   const seriesType = challengeData?.seriesType || 'legacy';
   const showLegacy = seriesType === 'legacy' || seriesType === 'mixed';
   const showCustom = seriesType === 'custom' || seriesType === 'mixed';
   const [updating, setUpdating] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   
-  // Track file selection to prevent modal closing
+  
   const [isFileSelectionActive, setIsFileSelectionActive] = useState(false);
   
-  // Safe close function that checks file selection
+  
   const safeCloseModal = useCallback(() => {
     if (!isFileSelectionActive) {
       setShowUpdateModal(false);
     }
   }, [isFileSelectionActive]);
   
-  // Track modal open state globally to prevent unwanted refetches on window focus
+  
   useEffect(() => {
     if (showUpdateModal) {
       window.__modalOpen = true;
@@ -47,7 +67,7 @@ const ChallengeUpdateModal = ({
     };
   }, [showUpdateModal]);
   
-  // Prevent modal from closing during file selection
+  
   useEffect(() => {
     if (!showUpdateModal) return;
     
@@ -129,7 +149,7 @@ const ChallengeUpdateModal = ({
         hintPenaltyPercent: challengeData.settings?.hintPenaltyPercent || 25,
         maxHintsPerChallenge: challengeData.settings?.maxHintsPerChallenge || 2,
         dueDateEnabled: challengeData.settings?.dueDateEnabled || false,
-        dueDate: challengeData.settings?.dueDate ? new Date(challengeData.settings.dueDate).toISOString().slice(0,16) : ''
+        dueDate: challengeData.settings?.dueDate ? utcToLocalDateTime(challengeData.settings.dueDate) : ''
       });
     }
   }, [challengeData, showUpdateModal]);
@@ -137,7 +157,13 @@ const ChallengeUpdateModal = ({
   const handleUpdateChallenge = async () => {
     try {
       setUpdating(true);
-      await updateChallenge(classroomId, updateData);
+      const updatePayload = {
+        ...updateData,
+        dueDate: updateData.dueDateEnabled && updateData.dueDate 
+          ? localDateTimeToUTC(updateData.dueDate) 
+          : (updateData.dueDateEnabled ? null : undefined)
+      };
+      await updateChallenge(classroomId, updatePayload);
       toast.success('Challenge updated successfully');
       setShowUpdateModal(false);
       await fetchChallengeData();
@@ -166,13 +192,13 @@ const ChallengeUpdateModal = ({
     <div 
       className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 p-2 sm:p-4 overflow-y-auto"
       onClick={(e) => {
-        // Don't close if file selection is active
+        
         if (isFileSelectionActive) {
           e.preventDefault();
           e.stopPropagation();
           return;
         }
-        // Only close if clicking backdrop (not modal content)
+        
         if (e.target === e.currentTarget) {
           safeCloseModal();
         }
@@ -581,7 +607,7 @@ const ChallengeUpdateModal = ({
                   </div>
                 </div>
 
-                {/* NEW: Mobile Visibility card for Update modal */}
+                {}
                 <div className="card bg-base-200 p-3 rounded-lg">
                   <div className="flex items-center justify-between mb-2">
                     <div>
