@@ -56,36 +56,13 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
       ? getClassroomBalance(targetUser, classroomId)
       : (targetUser.balance || 0);
 
-    // Snapshot stats BEFORE any changes (for attacker and target)
-    // helper (optional, but keeps things consistent)
-    const stat = (v, d) => (v ?? d);
-
-    // --- snapshots: replace || with ?? so 0 is preserved ---
-    const attackerPrev = {
-      multiplier: stat(req.user.passiveAttributes?.multiplier, 1),
-      luck: stat(req.user.passiveAttributes?.luck, 1),
-      discount: stat(req.user.passiveAttributes?.discount, 0),
-      shield: stat(req.user.shieldCount, 0),
-      groupMultiplier: stat(req.user.passiveAttributes?.groupMultiplier, 1)
-    };
-    const targetPrev = {
-      multiplier: stat(targetUser.passiveAttributes?.multiplier, 1),
-      luck: stat(targetUser.passiveAttributes?.luck, 1),
-      discount: stat(targetUser.passiveAttributes?.discount, 0),
-      shield: stat(targetUser.shieldCount, 0),
-      groupMultiplier: stat(targetUser.passiveAttributes?.groupMultiplier, 1)
-    };
-
-    // Helpful display names
-    const attackerName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email;
-    const targetName = `${targetUser.firstName || ''} ${targetUser.lastName || ''}`.trim() || targetUser.email;
-
     // Small helper to compute normalized diffs like statChangeLog
     const diffChanges = (prev, curr, prefix = '') => {
-      const fields = ['multiplier', 'luck', 'discount', 'shield', 'groupMultiplier'];
+      // CHANGED: groupMultiplier is derived from Groups; don't diff it here
+      const fields = ['multiplier', 'luck', 'discount', 'shield'];
       const norm = (f, v) => {
         if (v == null) return v;
-        if (['multiplier','luck','groupMultiplier'].includes(f)) return Number(Number(v).toFixed(1));
+        if (['multiplier','luck'].includes(f)) return Number(Number(v).toFixed(1));
         if (f === 'discount') return Math.round(Number(v));
         if (f === 'shield') return Math.max(0, parseInt(v, 10));
         return v;
@@ -98,6 +75,35 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
         if (String(b) !== String(a)) out.push({ field: `${prefix}${f}`, from: b, to: a });
       }
       return out;
+    };
+
+    // Snapshot stats BEFORE any changes (for attacker and target)
+    const stat = (v, d) => (v ?? d);
+
+    // CHANGED: remove groupMultiplier from the generic stat snapshots
+    const attackerPrev = {
+      multiplier: stat(req.user.passiveAttributes?.multiplier, 1),
+      luck: stat(req.user.passiveAttributes?.luck, 1),
+      discount: stat(req.user.passiveAttributes?.discount, 0),
+      shield: stat(req.user.shieldCount, 0)
+    };
+    const targetPrev = {
+      multiplier: stat(targetUser.passiveAttributes?.multiplier, 1),
+      luck: stat(targetUser.passiveAttributes?.luck, 1),
+      discount: stat(targetUser.passiveAttributes?.discount, 0),
+      shield: stat(targetUser.shieldCount, 0)
+    };
+
+    // Helpful display names
+    const attackerName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email;
+    const targetName = `${targetUser.firstName || ''} ${targetUser.lastName || ''}`.trim() || targetUser.email;
+
+    // Target log (blocked)
+    const targetAfterBlocked = {
+      multiplier: stat(targetUser.passiveAttributes?.multiplier, 1),
+      luck: stat(targetUser.passiveAttributes?.luck, 1),
+      discount: stat(targetUser.passiveAttributes?.discount, 0),
+      shield: stat(targetUser.shieldCount, 0)
     };
 
     // Check if target has active shield
@@ -137,8 +143,9 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
         multiplier: stat(targetUser.passiveAttributes?.multiplier, 1),
         luck: stat(targetUser.passiveAttributes?.luck, 1),
         discount: stat(targetUser.passiveAttributes?.discount, 0),
-        shield: stat(targetUser.shieldCount, 0),
-        groupMultiplier: stat(targetUser.passiveAttributes?.groupMultiplier, 1)
+        shield: stat(targetUser.shieldCount, 0)
+        // FIX: do not include groupMultiplier here (it's derived from Groups, not passiveAttributes)
+        // groupMultiplier: stat(targetUser.passiveAttributes?.groupMultiplier, 1)
       };
 
       // Target gets the shield decrement entry
@@ -213,7 +220,7 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
           walletLogs.push({
             user: targetUser,
             amount: -lost,
-            message: `You lost ${lost} ₿ due to attack by ${attackerName} (${item.name}). Balance: ${formatArrow(tBefore, tAfter)}`,
+            message: `Lost ${lost} ₿ due to attack by ${attackerName} (${item.name}). Balance: ${formatArrow(tBefore, tAfter)}`,
             prevBalance: tBefore,
             newBalance: tAfter
           });
@@ -249,7 +256,7 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
           attackNoopExtraForTarget.push({
             field: 'attackResult',
             from: 'drainBits',
-            to: `no-op (you had ${tBefore} ₿)`
+            to: `no-op (had ${tBefore} ₿)`
           });
 
           // info-only wallet notifications for both sides
@@ -632,6 +639,10 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
       }
     }
 
+    // Track target's real aggregate group multiplier delta so attacker can see it
+    let targetGroupAggPrev = null;
+    let targetGroupAggAfter = null;
+
     // Apply secondary effects
     item.secondaryEffects.forEach(effect => {
       switch (effect.effectType) {
@@ -695,63 +706,75 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
         }
 
         case 'attackGroupMultiplier': {
-          const before = Number(stat(targetUser.passiveAttributes?.groupMultiplier, 1));
-          const dec = Number(effect.value) || 0;
-          const after = Math.max(1, before - dec);
-
-          targetUser.passiveAttributes.groupMultiplier = after;
-
-          if (Number(after) === Number(before)) {
-            attackNoop = true;
-            attackNoopExtraForAttacker.push({ field: 'target.groupMultiplier', from: before, to: after });
-            attackNoopExtraForAttacker.push({
-              field: 'attackResult',
-              from: 'attackGroupMultiplier',
-              to: `no-op (target groupMultiplier already at minimum ${after})`
-            });
-            attackNoopExtraForTarget.push({ field: 'groupMultiplier', from: before, to: after });
-            attackNoopExtraForTarget.push({
-              field: 'attackResult',
-              from: 'attackGroupMultiplier',
-              to: `no-op (groupMultiplier already at minimum ${after})`
-            });
-            effectNotes.push(`-${effect.value}x Group Multiplier (no effect)`);
-          } else {
-            effectNotes.push(`-${effect.value}x Group Multiplier`);
-          }
+          // CHANGED: handled only in group propagation block (Groups are source of truth)
           break;
         }
       }
     });
 
-    // --- NEW: If attack reduced group multipliers, apply change to classroom-scoped Groups and log for affected members ---
+    // --- If attack reduced group multipliers, apply change to classroom-scoped Groups and log for affected members ---
     try {
-      const groupDecreaseEffects = (item.secondaryEffects || []).filter(se => se.effectType === 'attackGroupMultiplier' && Number(se.value));
+      const groupDecreaseEffects = (item.secondaryEffects || []).filter(
+        se => se.effectType === 'attackGroupMultiplier' && Number(se.value)
+      );
       if (groupDecreaseEffects.length && classroomId) {
-        // load group IDs for this classroom
         const gs = await GroupSet.find({ classroom: classroomId }).select('groups');
         const groupIds = gs.flatMap(g => (g.groups || []).map(String));
 
-        // find groups in this classroom where the target is an approved member
         const groupsToUpdate = await Group.find({
           _id: { $in: groupIds },
           'members._id': targetUserId,
           'members.status': 'approved'
         });
 
-        if (groupsToUpdate && groupsToUpdate.length) {
+        const totalDecreasePerGroup = groupDecreaseEffects.reduce((s, se) => s + (Number(se.value) || 0), 0);
+
+        if (!groupsToUpdate || !groupsToUpdate.length) {
+          // No groups => no effect
+          attackNoop = true;
+          attackNoopExtraForAttacker.push({
+            field: 'attackResult',
+            from: 'attackGroupMultiplier',
+            to: `no-op (target is not in any approved groups)`
+          });
+          attackNoopExtraForTarget.push({
+            field: 'attackResult',
+            from: 'attackGroupMultiplier',
+            to: `no-op (not in any approved groups)`
+          });
+          effectNotes.push(`-${totalDecreasePerGroup}x Group Multiplier (no effect)`);
+        } else {
           // capture previous multipliers per group
           const prevByGroup = new Map();
           groupsToUpdate.forEach(g => prevByGroup.set(String(g._id), Number(g.groupMultiplier || 1)));
 
           // apply all decreases (sum multiple attackGroupMultiplier effects)
-          const totalDecreasePerGroup = groupDecreaseEffects.reduce((s, se) => s + (Number(se.value) || 0), 0);
+          let anyGroupChanged = false;
           groupsToUpdate.forEach(g => {
-            g.groupMultiplier = Math.max(1, (Number(g.groupMultiplier || 1) - totalDecreasePerGroup));
+            const before = Number(g.groupMultiplier || 1);
+            const after = Math.max(1, before - totalDecreasePerGroup);
+            if (after !== before) anyGroupChanged = true;
+            g.groupMultiplier = after;
           });
 
-          // save updated groups
           await Promise.all(groupsToUpdate.map(g => g.save()));
+
+          if (!anyGroupChanged) {
+            attackNoop = true;
+            attackNoopExtraForAttacker.push({
+              field: 'attackResult',
+              from: 'attackGroupMultiplier',
+              to: `no-op (target group multiplier already at minimum)`
+            });
+            attackNoopExtraForTarget.push({
+              field: 'attackResult',
+              from: 'attackGroupMultiplier',
+              to: `no-op (group multiplier already at minimum)`
+            });
+            effectNotes.push(`-${totalDecreasePerGroup}x Group Multiplier (no effect)`);
+          } else {
+            effectNotes.push(`-${totalDecreasePerGroup}x Group Multiplier`);
+          }
 
           // build affected member map (memberId -> { prevAggregate, afterAggregate, groupNames })
           const memberMap = new Map();
@@ -771,16 +794,28 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
             }
           }
 
-          // Log stat change for each affected member (exclude attacker/actor)
+          // capture target aggregate so the attacker can see it in their normal attack log
+          const tgtInfo = memberMap.get(String(targetUserId));
+          if (tgtInfo) {
+            targetGroupAggPrev = Number(tgtInfo.prevAggregate.toFixed(3));
+            targetGroupAggAfter = Number(tgtInfo.afterAggregate.toFixed(3));
+          }
+
+          // Log stat change for each affected member (exclude actor), but ONLY when delta != 0
           for (const [memberId, info] of memberMap.entries()) {
-            if (memberId === String(req.user._id)) continue; // actor already sees attack logs
+            if (memberId === String(req.user._id)) continue;
+
+            const prevAggregate = Number(info.prevAggregate.toFixed(3));
+            const afterAggregate = Number(info.afterAggregate.toFixed(3));
+            if (String(prevAggregate) === String(afterAggregate)) continue; // CHANGED: avoid duplicate "no change" logs
+
             try {
               const targetUserDoc = await User.findById(memberId).select('firstName lastName email');
-              const prevAggregate = Number(info.prevAggregate.toFixed(3));
-              const afterAggregate = Number(info.afterAggregate.toFixed(3));
               const delta = Number((afterAggregate - prevAggregate).toFixed(3));
               const groupNamesArr = Array.from(info.groupNames || []);
-              const groupContext = groupNamesArr.length ? `applied to ${groupNamesArr.length} group${groupNamesArr.length>1?'s':''}: ${groupNamesArr.slice(0,5).join(', ')}` : '';
+              const groupContext = groupNamesArr.length
+                ? `applied to ${groupNamesArr.length} group${groupNamesArr.length > 1 ? 's' : ''}: ${groupNamesArr.slice(0,5).join(', ')}`
+                : '';
               const effectsText = `Group multiplier ${delta < 0 ? '' : '+'}${delta} (${groupContext}) — Applied by ${attackerName} (via ${item.name})`;
 
               await logStatChanges({
@@ -990,36 +1025,27 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
       multiplier: stat(req.user.passiveAttributes?.multiplier, 1),
       luck: stat(req.user.passiveAttributes?.luck, 1),
       discount: stat(req.user.passiveAttributes?.discount, 0),
-      shield: stat(req.user.shieldCount, 0),
-      groupMultiplier: stat(req.user.passiveAttributes?.groupMultiplier, 1)
+      shield: stat(req.user.shieldCount, 0)
     };
     const targetAfter = {
       multiplier: stat(targetUser.passiveAttributes?.multiplier, 1),
       luck: stat(targetUser.passiveAttributes?.luck, 1),
       discount: stat(targetUser.passiveAttributes?.discount, 0),
-      shield: stat(targetUser.shieldCount, 0),
-      groupMultiplier: stat(targetUser.passiveAttributes?.groupMultiplier, 1)
+      shield: stat(targetUser.shieldCount, 0)
     };
-
-    // NEW: build effects text already collected; include item name in human text
-    const effectsText = effectNotes.length ? `${effectNotes.join(', ')} (via ${item.name})` : undefined;
 
     // Include target-side diffs in attacker’s log (prefixed as target.*)
     const targetDiffForAttacker = diffChanges(targetPrev, targetAfter, 'target.');
 
-    // NEW: if nullify was a no-op, still force a log and include +0.0 lines
-    const attackerExtra = [
-      ...targetDiffForAttacker,
-      ...(nullifyNoop ? nullifyNoopExtraForAttacker : []),
-      ...(attackNoop ? attackNoopExtraForAttacker : [])
-    ];
-    const targetExtra = [
-      ...(nullifyNoop ? nullifyNoopExtraForTarget : []),
-      ...(attackNoop ? attackNoopExtraForTarget : [])
-    ];
+    // CHANGED: if group aggregate changed, include it in attacker's log as an extra change (no contradiction now)
+    if (targetGroupAggPrev != null && targetGroupAggAfter != null && String(targetGroupAggPrev) !== String(targetGroupAggAfter)) {
+      targetDiffForAttacker.push({ field: 'target.groupMultiplier', from: targetGroupAggPrev, to: targetGroupAggAfter });
+    }
 
-    const forceAttackLog = Boolean(nullifyNoop || attackNoop);
+    // NEW: build effects text already collected; include item name in human text
+    const effectsText = effectNotes.length ? `${effectNotes.join(', ')} (via ${item.name})` : undefined;
 
+    // Attacker log
     await logStatChanges({
       io: req.app.get('io'),
       classroomId,
@@ -1029,10 +1055,15 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
       currStats: attackerAfter,
       context: `Bazaar - Attack on ${targetName} (${item.name})`,
       details: { effectsText },
-      extraChanges: attackerExtra,
-      forceLog: forceAttackLog
+      extraChanges: [
+        ...targetDiffForAttacker,
+        ...(nullifyNoop ? nullifyNoopExtraForAttacker : []),
+        ...(attackNoop ? attackNoopExtraForAttacker : [])
+      ],
+      forceLog: Boolean(nullifyNoop || attackNoop)
     });
 
+    // Target log
     await logStatChanges({
       io: req.app.get('io'),
       classroomId,
@@ -1042,8 +1073,11 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
       currStats: targetAfter,
       context: `Bazaar - Attacked by ${attackerName} (${item.name})`,
       details: { effectsText },
-      extraChanges: targetExtra,
-      forceLog: forceAttackLog
+      extraChanges: [
+        ...(nullifyNoop ? nullifyNoopExtraForTarget : []),
+        ...(attackNoop ? attackNoopExtraForTarget : [])
+      ],
+      forceLog: Boolean(nullifyNoop || attackNoop)
     });
 
     res.json({ 

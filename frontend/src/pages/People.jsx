@@ -88,10 +88,13 @@ function formatStatChange(c) {
   );
 
   const renderDelta = (from, to, decimals = null, isXP = false) => {
-    const fromN = safeNum(from, 0);
-    const toN = safeNum(to, 0);
+    // FIX: use the requested decimals when computing delta (not always 0)
+    const dec = (decimals == null) ? 1 : decimals;
+    const fromN = safeNum(from, dec);
+    const toN = safeNum(to, dec);
     const deltaN = toN - fromN;
-    const deltaText = (decimals === 0) ? `${deltaN}` : `${Number(deltaN).toFixed(decimals ?? 1)}`;
+
+    const deltaText = (dec === 0) ? `${deltaN}` : `${Number(deltaN).toFixed(dec)}`;
     const cls = deltaN >= 0 ? 'text-success' : 'text-error';
     return <span className={cls}>{` (${deltaN >= 0 ? '+' : ''}${deltaText}${isXP ? ' XP' : ''})`}</span>;
   };
