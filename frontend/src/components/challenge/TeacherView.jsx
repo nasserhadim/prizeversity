@@ -773,27 +773,46 @@ const TeacherView = ({
     URL.revokeObjectURL(url);
   };
 
+  // Keep filename parts safe/consistent
+  const sanitizeFilenamePart = (s) =>
+    String(s || '')
+      .trim()
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '');
+
+  const getChallengeTitlePart = () => {
+    const raw = challengeData?.title || 'challenge';
+    const safe = sanitizeFilenamePart(raw);
+    return safe ? `_${safe}` : '';
+  };
+
   const exportAsJSON = () => {
     const rows = buildExportRows();
-    
-    const classroomPart = classroom?.name || 'classroom';
-    const codePart = classroom?.code ? `_${classroom.code}` : '';
-    const challengePart = challengeData?.title ? `_${challengeData.title.replace(/[^a-zA-Z0-9_-]/g, '_')}` : '_challenge';
+
+    const classroomPart = sanitizeFilenamePart(classroom?.name || 'classroom');
+    const codePart = classroom?.code ? `_${sanitizeFilenamePart(classroom.code)}` : '';
+    const challengePart = getChallengeTitlePart();
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    const filename = `${classroomPart}${codePart}${challengePart}_${timestamp}.json`;
+
+    // CHANGED: include legacy label
+    const filename = `${classroomPart}${codePart}${challengePart}_legacy-challenge-progress_${timestamp}.json`;
+
     downloadBlob(JSON.stringify(rows, null, 2), 'application/json;charset=utf-8', filename);
     return filename;
   };
 
   const exportAsCSV = () => {
     const rows = buildExportRows();
-    
-    const classroomPart = classroom?.name || 'classroom';
-    const codePart = classroom?.code ? `_${classroom.code}` : '';
-    const challengePart = challengeData?.title ? `_${challengeData.title.replace(/[^a-zA-Z0-9_-]/g, '_')}` : '_challenge';
+
+    const classroomPart = sanitizeFilenamePart(classroom?.name || 'classroom');
+    const codePart = classroom?.code ? `_${sanitizeFilenamePart(classroom.code)}` : '';
+    const challengePart = getChallengeTitlePart();
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    const filename = `${classroomPart}${codePart}${challengePart}_${timestamp}.csv`;
-    
+
+    // CHANGED: include legacy label
+    const filename = `${classroomPart}${codePart}${challengePart}_legacy-challenge-progress_${timestamp}.csv`;
+
     if (!rows.length) {
       downloadBlob('', 'text/csv;charset=utf-8', filename);
       return filename;
@@ -957,20 +976,29 @@ const TeacherView = ({
 
   const exportCustomAsJSON = () => {
     const rows = buildCustomExportRows();
-    const classroomPart = classroom?.name || 'classroom';
-    const codePart = classroom?.code ? `_${classroom.code}` : '';
-    const ts = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `${classroomPart}${codePart}_custom-challenge-progress_${ts}.json`;
-    
+
+    const classroomPart = sanitizeFilenamePart(classroom?.name || 'classroom');
+    const codePart = classroom?.code ? `_${sanitizeFilenamePart(classroom.code)}` : '';
+    const challengePart = getChallengeTitlePart();
+    const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+
+    // CHANGED: include series title part too
+    const filename = `${classroomPart}${codePart}${challengePart}_custom-challenge-progress_${ts}.json`;
+
     downloadBlob(JSON.stringify(rows, null, 2), 'application/json', filename);
   };
 
   const exportCustomAsCSV = () => {
     const rows = buildCustomExportRows();
-    const classroomPart = classroom?.name || 'classroom';
-    const codePart = classroom?.code ? `_${classroom.code}` : '';
-    const ts = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `${classroomPart}${codePart}_custom-challenge-progress_${ts}.csv`;
+
+    const classroomPart = sanitizeFilenamePart(classroom?.name || 'classroom');
+    const codePart = classroom?.code ? `_${sanitizeFilenamePart(classroom.code)}` : '';
+    const challengePart = getChallengeTitlePart();
+    const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+
+    // CHANGED: include series title part too
+    const filename = `${classroomPart}${codePart}${challengePart}_custom-challenge-progress_${ts}.csv`;
+
     downloadBlob(toCSVCustom(rows), 'text/csv;charset=utf-8', filename);
   };
 
