@@ -163,25 +163,26 @@ const ChallengeConfigModal = ({
       }
 
       await configureChallenge(classroomId, challengeConfig.title, settings);
-      
+
       if (pendingCustomChallenges.length > 0 && (seriesType === 'custom' || seriesType === 'mixed')) {
         try {
           let createdCount = 0;
           for (const challengeData of pendingCustomChallenges) {
             const { pendingAttachments, ...challengePayload } = challengeData;
-            
+
             const result = await createCustomChallenge(classroomId, challengePayload);
             const newChallengeId = result.challenge?._id;
-            
+
             if (newChallengeId && pendingAttachments && pendingAttachments.length > 0) {
               for (const file of pendingAttachments) {
                 try {
                   await uploadCustomChallengeAttachment(classroomId, newChallengeId, file);
                 } catch {
+                  // ignore upload errors per existing behavior
                 }
               }
             }
-            
+
             createdCount++;
           }
           if (createdCount > 0) {
@@ -192,8 +193,22 @@ const ChallengeConfigModal = ({
           toast.error('Some custom challenges failed to create. You can add them later from the Update modal.');
         }
       }
-      
-      setShowPasswordPrompt(true);
+
+      // FIX: only prompt for password when legacy challenges are involved
+      const requiresSeriesPassword = seriesType === 'legacy' || seriesType === 'mixed';
+
+      if (requiresSeriesPassword) {
+        setShowPasswordPrompt(true);
+      } else {
+        // custom-only: auto-initiate (no password)
+        const response = await initiateChallenge(classroomId);
+        toast.success(response?.message || 'Challenge series launched');
+
+        setShowPasswordPrompt(false);
+        setChallengePassword('');
+        setShowConfigModal(false);
+        await fetchChallengeData();
+      }
     } catch (error) {
       console.error('Error configuring challenge:', error);
       toast.error(error.message || 'Failed to configure challenge');

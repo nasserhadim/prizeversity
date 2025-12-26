@@ -586,8 +586,8 @@ const Bazaar = () => {
             {bazaar.name}
           </h2>
 
-          {/* CHANGED: add wrap-any for long/unbroken description text */}
-          <p className="text-base-content opacity-70 text-base sm:text-lg whitespace-pre-wrap wrap-any">
+          {/* CHANGED: preserve newlines from textarea input */}
+          <p className="text-base-content opacity-70 text-base sm:text-lg whitespace-pre-line break-words [overflow-wrap:anywhere]">
             {bazaar.description}
           </p>
         </div>

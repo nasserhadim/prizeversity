@@ -17,23 +17,24 @@ const HintModal = ({ isOpen, onClose, hint, challengeName, hintNumber }) => {
             <X className="w-5 h-5" />
           </button>
         </div>
-        
+
         <div className="p-4">
           <div className="text-sm text-gray-600 dark:text-gray-400 mb-3">
             {challengeName}
           </div>
-          
+
           <div className="bg-white dark:bg-gray-800 border-2 border-blue-500 dark:border-blue-400 rounded-lg p-6 shadow-lg">
-            <div className="text-black dark:text-white whitespace-pre-wrap text-lg leading-relaxed font-bold">
+            {/* CHANGED: add wrap-any so long/unbroken strings wrap instead of overflowing */}
+            <div className="text-black dark:text-white whitespace-pre-wrap wrap-any text-lg leading-relaxed font-bold">
               {hint}
             </div>
           </div>
-          
+
           <div className="mt-4 text-xs text-gray-500 dark:text-gray-400">
             This hint will remain available in your challenge card for future reference.
           </div>
         </div>
-        
+
         <div className="p-4 border-t border-gray-200 dark:border-gray-700">
           <button
             onClick={onClose}

@@ -398,9 +398,19 @@ const ChallengeCard = ({
                   </div>
                   <div className="space-y-3">
                     {userChallenge.hintsUnlocked[challengeIndex].map((hint, i) => (
-                      <div key={i} className={`${isDark ? 'bg-gray-800 border-blue-400' : 'bg-white border-blue-500'} border-2 rounded-lg p-3 sm:p-4 shadow-md`} onClick={(e) => e.stopPropagation()}>
-                        <div className={`text-sm font-bold ${isDark ? 'text-blue-300' : 'text-blue-600'} mb-2 sm:mb-3`}>💡 Hint #{i + 1}</div>
-                        <div className={`text-base sm:text-lg ${isDark ? 'text-gray-100' : 'text-black'} leading-relaxed whitespace-pre-wrap font-medium sm:font-semibold`}>{hint}</div>
+                      <div
+                        key={i}
+                        className={`${isDark ? 'bg-gray-800 border-blue-400' : 'bg-white border-blue-500'} border-2 rounded-lg p-3 sm:p-4 shadow-md`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className={`text-sm font-bold ${isDark ? 'text-blue-300' : 'text-blue-600'} mb-2 sm:mb-3`}>
+                          💡 Hint #{i + 1}
+                        </div>
+
+                        {/* CHANGED: add wrap-any so long/unbroken strings wrap */}
+                        <div className={`text-base sm:text-lg ${isDark ? 'text-gray-100' : 'text-black'} leading-relaxed whitespace-pre-wrap wrap-any font-medium sm:font-semibold`}>
+                          {hint}
+                        </div>
                       </div>
                     ))}
                   </div>

@@ -559,12 +559,19 @@ const CustomChallengeCard = ({
                 {(progress.hintsUnlocked?.length || 0) > 0 && (
                   <div className="space-y-2">
                     {progress.hintsUnlocked.map((hint, i) => (
-                      <div key={i} className={`p-3 rounded-lg border ${isDark ? 'bg-info/10 border-info/30' : 'bg-info/5 border-info/20'}`}>
-                        <div className="flex items-center gap-2 mb-1">
-                          <Eye className="w-4 h-4 text-info" />
-                          <span className="text-sm font-medium text-info">Hint {i + 1}</span>
+                      <div
+                        key={i}
+                        className={`p-3 rounded-lg border ${isDark ? 'bg-info/10 border-info/30' : 'bg-info/5 border-info/20'}`}
+                      >
+                        <div className="flex items-center gap-2 mb-1 min-w-0">
+                          <Eye className="w-4 h-4 shrink-0" />
+                          <div className="text-sm font-semibold">Hint {i + 1}</div>
                         </div>
-                        <p className={`text-sm ${isDark ? 'text-base-content' : 'text-gray-700'}`}>{hint}</p>
+
+                        {/* FIX: allow long/unbroken strings to wrap instead of overflowing */}
+                        <div className={`text-sm ${isDark ? 'text-base-content' : 'text-gray-700'} whitespace-pre-wrap wrap-any min-w-0`}>
+                          {hint}
+                        </div>
                       </div>
                     ))}
                   </div>
