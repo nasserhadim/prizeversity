@@ -32,7 +32,7 @@ const SwapModal = ({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-base-100 text-base-content p-6 rounded-lg shadow-xl max-w-md w-full border border-base-300">
         <h3 className="text-xl font-bold mb-4">Swap Attributes with {targetName}</h3>
-        <p className="mb-4 text-base-content/70">Select which attribute you want to swap with this student:</p>
+        <p className="mb-4 text-base-content/70">Select which attribute you want to swap with the target:</p>
         <div className="space-y-3">
           {showDefaultMessage ? (
             <div className="text-sm text-center text-gray-500">This item has no attributes configured for swapping.</div>

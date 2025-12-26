@@ -180,6 +180,16 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
     const effectNotes = [];
     const walletLogs = [];
 
+    // NEW: track no-op nullify so we can still log/notify with +0.0 deltas
+    let nullifyNoop = false;
+    const nullifyNoopExtraForAttacker = [];
+    const nullifyNoopExtraForTarget = [];
+
+    // NEW: track other no-op attacks (e.g., drain when target has 0)
+    let attackNoop = false;
+    const attackNoopExtraForAttacker = [];
+    const attackNoopExtraForTarget = [];
+
     const formatArrow = (from, to) => `${from} → ${to}`;
 
     switch(item.primaryEffect) {
@@ -223,6 +233,46 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
 
         effectNotes.push(`Drained ${item.primaryEffectValue || 0}% bits`);
 
+        // NEW: if nothing can be drained (target has 0), still notify/log clearly
+        if (drainAmount <= 0) {
+          attackNoop = true;
+
+          // extra changes for stat-change feed (forced log)
+          attackNoopExtraForAttacker.push({ field: 'target.bits', from: tBefore, to: tAfter });
+          attackNoopExtraForAttacker.push({
+            field: 'attackResult',
+            from: 'drainBits',
+            to: `no-op (target had ${tBefore} ₿)`
+          });
+
+          attackNoopExtraForTarget.push({ field: 'bits', from: tBefore, to: tAfter });
+          attackNoopExtraForTarget.push({
+            field: 'attackResult',
+            from: 'drainBits',
+            to: `no-op (you had ${tBefore} ₿)`
+          });
+
+          // info-only wallet notifications for both sides
+          walletLogs.push({
+            user: targetUser,
+            amount: 0,
+            message: `Attack by ${attackerName} (${item.name}) had no effect because your balance was already ${tBefore} ₿.`,
+            prevBalance: tBefore,
+            newBalance: tAfter,
+            emitBalance: false
+          });
+          walletLogs.push({
+            user: req.user,
+            amount: 0,
+            message: `Your attack on ${targetName} (${item.name}) drained 0 ₿ because their balance was already ${tBefore} ₿.`,
+            prevBalance: tBefore,
+            newBalance: tAfter,
+            emitBalance: false
+          });
+
+          break;
+        }
+
         if (drainAmount > 0) {
           // target (debit)
           targetUser.transactions.push({
@@ -232,7 +282,7 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
             classroom: classroomId || null,
             createdAt: new Date(),
             calculation: { prevBalance: tBefore, newBalance: tAfter },
-            type: 'attack' // NEW
+            type: 'attack'
           });
           walletLogs.push({
             user: targetUser,
@@ -250,7 +300,7 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
             classroom: classroomId || null,
             createdAt: new Date(),
             calculation: { prevBalance: aBefore, newBalance: aAfter },
-            type: 'attack' // NEW
+            type: 'attack'
           });
           walletLogs.push({
             user: req.user,
@@ -289,6 +339,48 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
           case 'bits': {
             const aBefore = getClassroomBalance(req.user, classroomId);
             const tBefore = getClassroomBalance(targetUser, classroomId);
+
+            // NEW: no-op swap bits (e.g., both 0)
+            if (aBefore === tBefore) {
+              attackNoop = true;
+
+              // force attacker/target logs to show "no effect"
+              attackNoopExtraForAttacker.push({ field: 'target.bits', from: tBefore, to: tBefore });
+              attackNoopExtraForAttacker.push({
+                field: 'attackResult',
+                from: 'swapper',
+                to: `no-op (bits already equal at ${tBefore} ₿)`
+              });
+
+              attackNoopExtraForTarget.push({ field: 'bits', from: tBefore, to: tBefore });
+              attackNoopExtraForTarget.push({
+                field: 'attackResult',
+                from: 'swapper',
+                to: `no-op (bits already equal at ${tBefore} ₿)`
+              });
+
+              effectNotes.push('Swapped bits (no effect)');
+
+              // optional: info-only wallet notifications for clarity
+              walletLogs.push({
+                user: req.user,
+                amount: 0,
+                message: `Your swap with ${targetName} (${item.name}) had no effect because both balances were ${tBefore} ₿.`,
+                prevBalance: aBefore,
+                newBalance: aBefore,
+                emitBalance: false
+              });
+              walletLogs.push({
+                user: targetUser,
+                amount: 0,
+                message: `Swap by ${attackerName} (${item.name}) had no effect because both balances were ${tBefore} ₿.`,
+                prevBalance: tBefore,
+                newBalance: tBefore,
+                emitBalance: false
+              });
+
+              break;
+            }
 
             setClassroomBalance(req.user, classroomId, tBefore);
             setClassroomBalance(targetUser, classroomId, aBefore);
@@ -340,28 +432,81 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
             }
             break;
           }
-          case 'multiplier':
-            [req.user.passiveAttributes.multiplier, targetUser.passiveAttributes.multiplier] = 
+          case 'multiplier': {
+            const aBefore = Number(stat(req.user.passiveAttributes?.multiplier, 1));
+            const tBefore = Number(stat(targetUser.passiveAttributes?.multiplier, 1));
+
+            if (Number(aBefore) === Number(tBefore)) {
+              attackNoop = true;
+
+              // attacker sees target.* line + a clear no-op marker
+              attackNoopExtraForAttacker.push({ field: 'target.multiplier', from: tBefore, to: tBefore });
+              attackNoopExtraForAttacker.push({
+                field: 'attackResult',
+                from: 'swapper',
+                to: `no-op (multiplier already equal at ${tBefore})`
+              });
+
+              // target sees their own line + no-op marker
+              attackNoopExtraForTarget.push({ field: 'multiplier', from: tBefore, to: tBefore });
+              attackNoopExtraForTarget.push({
+                field: 'attackResult',
+                from: 'swapper',
+                to: `no-op (multiplier already equal at ${tBefore})`
+              });
+
+              effectNotes.push('Swapped multiplier (no effect)');
+              break;
+            }
+
+            [req.user.passiveAttributes.multiplier, targetUser.passiveAttributes.multiplier] =
               [targetUser.passiveAttributes.multiplier, req.user.passiveAttributes.multiplier];
             effectNotes.push('Swapped multiplier');
             break;
-          case 'luck':
-            [req.user.passiveAttributes.luck, targetUser.passiveAttributes.luck] = 
+          }
+
+          case 'luck': {
+            const aBefore = Number(stat(req.user.passiveAttributes?.luck, 1));
+            const tBefore = Number(stat(targetUser.passiveAttributes?.luck, 1));
+
+            if (Number(aBefore) === Number(tBefore)) {
+              attackNoop = true;
+
+              attackNoopExtraForAttacker.push({ field: 'target.luck', from: tBefore, to: tBefore });
+              attackNoopExtraForAttacker.push({
+                field: 'attackResult',
+                from: 'swapper',
+                to: `no-op (luck already equal at ${tBefore})`
+              });
+
+              attackNoopExtraForTarget.push({ field: 'luck', from: tBefore, to: tBefore });
+              attackNoopExtraForTarget.push({
+                field: 'attackResult',
+                from: 'swapper',
+                to: `no-op (luck already equal at ${tBefore})`
+              });
+
+              effectNotes.push('Swapped luck (no effect)');
+              break;
+            }
+
+            [req.user.passiveAttributes.luck, targetUser.passiveAttributes.luck] =
               [targetUser.passiveAttributes.luck, req.user.passiveAttributes.luck];
             effectNotes.push('Swapped luck');
             break;
+          }
         }
         break;
       }
 
       case 'nullify': {
         if (!nullifyAttribute) {
-          return res.status(400).json({ 
+          return res.status(400).json({
             error: 'Nullify attribute is required',
             validAttributes: item.swapOptions || ['bits', 'multiplier', 'luck']
           });
         }
-        
+
         // Check if the selected attribute is in the allowed list
         const allowedNullifyOptions = item.swapOptions && item.swapOptions.length > 0 
           ? item.swapOptions 
@@ -375,53 +520,113 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
           });
         }
         
-        // Initialize passiveAttributes if they don't exist
         if (!targetUser.passiveAttributes) {
-          targetUser.passiveAttributes = {
-            luck: 1,
-            multiplier: 1,
-            groupMultiplier: 1
-          };
+          targetUser.passiveAttributes = { luck: 1, multiplier: 1, groupMultiplier: 1 };
         }
 
-        // Perform the nullify
         switch(nullifyAttribute) {
           case 'bits': {
             const tBefore = getClassroomBalance(targetUser, classroomId);
             const tAfter = 0;
-            if (tBefore > 0) {
-              setClassroomBalance(targetUser, classroomId, 0);
-              effectNotes.push('Nullified bits');
-              targetUser.transactions.push({
-                amount: -tBefore,
-                description: `Attack: ${item.name} by ${attackerName} (reset to 0)`,
-                assignedBy: req.user._id,
-                classroom: classroomId || null,
-                createdAt: new Date(),
-                calculation: { prevBalance: tBefore, newBalance: tAfter },
-                type: 'attack' // NEW
+
+            if (tBefore === tAfter) {
+              nullifyNoop = true;
+              nullifyNoopExtraForAttacker.push({
+                field: 'attackResult',
+                from: 'nullify',
+                to: `no-op (target bits already ${tAfter})`
               });
-              walletLogs.push({
-                user: targetUser,
-                amount: -tBefore,
-                message: `Your bits were reset to 0 by ${attackerName} (${item.name}). Balance: ${formatArrow(tBefore, tAfter)}`,
-                prevBalance: tBefore,
-                newBalance: tAfter
+              nullifyNoopExtraForTarget.push({
+                field: 'attackResult',
+                from: 'nullify',
+                to: `no-op (bits already ${tAfter})`
               });
+              effectNotes.push('Nullified bits (no effect)');
+              break;
+            }
+
+            setClassroomBalance(targetUser, classroomId, 0);
+            effectNotes.push('Nullified bits');
+
+            targetUser.transactions.push({
+              amount: -tBefore,
+              description: `Attack: ${item.name} by ${attackerName} (reset to 0)`,
+              assignedBy: req.user._id,
+              classroom: classroomId || null,
+              createdAt: new Date(),
+              calculation: { prevBalance: tBefore, newBalance: tAfter },
+              type: 'attack' // NEW
+            });
+            walletLogs.push({
+              user: targetUser,
+              amount: -tBefore,
+              message: `Your bits were reset to 0 by ${attackerName} (${item.name}). Balance: ${formatArrow(tBefore, tAfter)}`,
+              prevBalance: tBefore,
+              newBalance: tAfter
+            });
+
+            // NEW: info-only notif; don't emit balance_update for attacker
+            walletLogs.push({
+              user: req.user,
+              amount: 0,
+              message: `You reset ${targetName}'s bits to 0 (${item.name}). Target balance: ${formatArrow(tBefore, tAfter)}`,
+              prevBalance: tBefore,
+              newBalance: tAfter,
+              emitBalance: false
+            });
+            break;
+          }
+          case 'multiplier': {
+            const before = Number(stat(targetUser.passiveAttributes?.multiplier, 1));
+            const after = Math.min(before, 1); // CHANGED: never increase someone above their current value
+
+            if (Number(before) === Number(after)) {
+              nullifyNoop = true;
+              nullifyNoopExtraForAttacker.push({ field: 'target.multiplier', from: before, to: after });
+              nullifyNoopExtraForAttacker.push({
+                field: 'attackResult',
+                from: 'nullify',
+                to: `no-op (target multiplier already <= ${after})`
+              });
+              nullifyNoopExtraForTarget.push({ field: 'multiplier', from: before, to: after });
+              nullifyNoopExtraForTarget.push({
+                field: 'attackResult',
+                from: 'nullify',
+                to: `no-op (multiplier already <= ${after})`
+              });
+              effectNotes.push('Nullified multiplier (no effect)');
             } else {
-              setClassroomBalance(targetUser, classroomId, 0);
-              effectNotes.push('Nullified bits');
+              targetUser.passiveAttributes.multiplier = after;
+              effectNotes.push('Nullified multiplier');
             }
             break;
           }
-          case 'multiplier':
-            targetUser.passiveAttributes.multiplier = 1;
-            effectNotes.push('Nullified multiplier');
+
+          case 'luck': {
+            const before = Number(stat(targetUser.passiveAttributes?.luck, 1));
+            const after = Math.min(before, 1); // CHANGED: never “heal” debuffed luck
+
+            if (Number(before) === Number(after)) {
+              nullifyNoop = true;
+              nullifyNoopExtraForAttacker.push({ field: 'target.luck', from: before, to: after });
+              nullifyNoopExtraForAttacker.push({
+                field: 'attackResult',
+                from: 'nullify',
+                to: `no-op (target luck already <= ${after})`
+              });
+              nullifyNoopExtraForTarget.push({ field: 'luck', from: before, to: after });
+              nullifyNoopExtraForTarget.push({
+                field: 'attackResult',
+                from: 'nullify',
+                to: `no-op (luck already <= ${after})`
+              });
+              effectNotes.push('Nullified luck (no effect)');
+            } else {
+              targetUser.passiveAttributes.luck = after;
+              effectNotes.push('Nullified luck');
+            }
             break;
-          case 'luck':
-            targetUser.passiveAttributes.luck = 1;
-            effectNotes.push('Nullified luck');
-            break;
+          }
         }
         break;
       }
@@ -429,33 +634,93 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
 
     // Apply secondary effects
     item.secondaryEffects.forEach(effect => {
-      switch(effect.effectType) {
+      switch (effect.effectType) {
         case 'attackLuck': {
-          // Choose a floor. If you want “base is 1” as the minimum, set MIN_LUCK = 1.
-          // If you want debuffs to go below 1 but never hit 0, use 0.1.
           const MIN_LUCK = 0.1;
 
-          const cur = Number(stat(targetUser.passiveAttributes?.luck, 1));
+          const before = Number(stat(targetUser.passiveAttributes?.luck, 1));
           const dec = Number(effect.value) || 0;
-          const next = Math.max(MIN_LUCK, cur - dec);
-          targetUser.passiveAttributes.luck = Math.round(next * 10) / 10; // keep 1 decimal like challenges
-          effectNotes.push(`-${effect.value} Luck`);
+          const next = Math.max(MIN_LUCK, before - dec);
+          const after = Math.round(next * 10) / 10;
+
+          targetUser.passiveAttributes.luck = after;
+
+          if (Number(after) === Number(before)) {
+            attackNoop = true;
+            attackNoopExtraForAttacker.push({ field: 'target.luck', from: before, to: after });
+            attackNoopExtraForAttacker.push({
+              field: 'attackResult',
+              from: 'attackLuck',
+              to: `no-op (target luck already at minimum ${after})`
+            });
+            attackNoopExtraForTarget.push({ field: 'luck', from: before, to: after });
+            attackNoopExtraForTarget.push({
+              field: 'attackResult',
+              from: 'attackLuck',
+              to: `no-op (luck already at minimum ${after})`
+            });
+            effectNotes.push(`-${effect.value} Luck (no effect)`);
+          } else {
+            effectNotes.push(`-${effect.value} Luck`);
+          }
           break;
         }
 
-        case 'attackMultiplier':
-          targetUser.passiveAttributes.multiplier = Math.max(1,
-            Number(stat(targetUser.passiveAttributes?.multiplier, 1)) - (Number(effect.value) || 0)
-          );
-          effectNotes.push(`-${effect.value}x Multiplier`);
-          break;
+        case 'attackMultiplier': {
+          const before = Number(stat(targetUser.passiveAttributes?.multiplier, 1));
+          const dec = Number(effect.value) || 0;
+          const after = Math.max(1, before - dec);
 
-        case 'attackGroupMultiplier':
-          targetUser.passiveAttributes.groupMultiplier = Math.max(1,
-            Number(stat(targetUser.passiveAttributes?.groupMultiplier, 1)) - (Number(effect.value) || 0)
-          );
-          effectNotes.push(`-${effect.value}x Group Multiplier`);
+          targetUser.passiveAttributes.multiplier = after;
+
+          if (Number(after) === Number(before)) {
+            attackNoop = true;
+            attackNoopExtraForAttacker.push({ field: 'target.multiplier', from: before, to: after });
+            attackNoopExtraForAttacker.push({
+              field: 'attackResult',
+              from: 'attackMultiplier',
+              to: `no-op (target multiplier already at minimum ${after})`
+            });
+            attackNoopExtraForTarget.push({ field: 'multiplier', from: before, to: after });
+            attackNoopExtraForTarget.push({
+              field: 'attackResult',
+              from: 'attackMultiplier',
+              to: `no-op (multiplier already at minimum ${after})`
+            });
+            effectNotes.push(`-${effect.value}x Multiplier (no effect)`);
+          } else {
+            effectNotes.push(`-${effect.value}x Multiplier`);
+          }
           break;
+        }
+
+        case 'attackGroupMultiplier': {
+          const before = Number(stat(targetUser.passiveAttributes?.groupMultiplier, 1));
+          const dec = Number(effect.value) || 0;
+          const after = Math.max(1, before - dec);
+
+          targetUser.passiveAttributes.groupMultiplier = after;
+
+          if (Number(after) === Number(before)) {
+            attackNoop = true;
+            attackNoopExtraForAttacker.push({ field: 'target.groupMultiplier', from: before, to: after });
+            attackNoopExtraForAttacker.push({
+              field: 'attackResult',
+              from: 'attackGroupMultiplier',
+              to: `no-op (target groupMultiplier already at minimum ${after})`
+            });
+            attackNoopExtraForTarget.push({ field: 'groupMultiplier', from: before, to: after });
+            attackNoopExtraForTarget.push({
+              field: 'attackResult',
+              from: 'attackGroupMultiplier',
+              to: `no-op (groupMultiplier already at minimum ${after})`
+            });
+            effectNotes.push(`-${effect.value}x Group Multiplier (no effect)`);
+          } else {
+            effectNotes.push(`-${effect.value}x Group Multiplier`);
+          }
+          break;
+        }
       }
     });
 
@@ -698,18 +963,20 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
           user: ev.user._id,
           actionBy: req.user._id,
           type: 'wallet_transaction',
-          message: ev.message,               // includes "Balance: X → Y"
+          message: ev.message,
           classroom: classroomId || null,
           amount: ev.amount,
-          prevBalance: ev.prevBalance,       // optional metadata
-          newBalance: ev.newBalance,         // optional metadata
+          prevBalance: ev.prevBalance,
+          newBalance: ev.newBalance,
           createdAt: new Date()
         });
         const pop = await populateNotification(n._id);
         if (io && pop) io.to(`user-${ev.user._id}`).emit('notification', pop);
 
-        const newBal = classroomId ? getClassroomBalance(ev.user, classroomId) : (ev.user.balance || 0);
-        if (io) {
+        // NEW: allow info-only notifications without emitting balance updates
+        const shouldEmitBalance = ev.emitBalance !== false;
+        if (shouldEmitBalance && io) {
+          const newBal = classroomId ? getClassroomBalance(ev.user, classroomId) : (ev.user.balance || 0);
           io.to(`user-${ev.user._id}`).emit('balance_update', { userId: ev.user._id, classroomId, newBalance: newBal });
           if (classroomId) io.to(`classroom-${classroomId}`).emit('balance_update', { studentId: ev.user._id, classroomId, newBalance: newBal });
         }
@@ -740,7 +1007,19 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
     // Include target-side diffs in attacker’s log (prefixed as target.*)
     const targetDiffForAttacker = diffChanges(targetPrev, targetAfter, 'target.');
 
-    // Attacker notification with own changes + target-side changes
+    // NEW: if nullify was a no-op, still force a log and include +0.0 lines
+    const attackerExtra = [
+      ...targetDiffForAttacker,
+      ...(nullifyNoop ? nullifyNoopExtraForAttacker : []),
+      ...(attackNoop ? attackNoopExtraForAttacker : [])
+    ];
+    const targetExtra = [
+      ...(nullifyNoop ? nullifyNoopExtraForTarget : []),
+      ...(attackNoop ? attackNoopExtraForTarget : [])
+    ];
+
+    const forceAttackLog = Boolean(nullifyNoop || attackNoop);
+
     await logStatChanges({
       io: req.app.get('io'),
       classroomId,
@@ -750,10 +1029,10 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
       currStats: attackerAfter,
       context: `Bazaar - Attack on ${targetName} (${item.name})`,
       details: { effectsText },
-      extraChanges: targetDiffForAttacker
+      extraChanges: attackerExtra,
+      forceLog: forceAttackLog
     });
 
-    // Target notification (their own before/after already captured)
     await logStatChanges({
       io: req.app.get('io'),
       classroomId,
@@ -762,7 +1041,9 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
       prevStats: targetPrev,
       currStats: targetAfter,
       context: `Bazaar - Attacked by ${attackerName} (${item.name})`,
-      details: { effectsText }
+      details: { effectsText },
+      extraChanges: targetExtra,
+      forceLog: forceAttackLog
     });
 
     res.json({ 
@@ -781,7 +1062,13 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
       }),
       ...(item.primaryEffect === 'nullify' && {
         nullifiedAttribute: req.body.nullifyAttribute,
-        targetNewValue: req.body.nullifyAttribute === 'bits' ? 0 : 1
+        // CHANGED: report actual post-value (not always 1)
+        targetNewValue:
+          req.body.nullifyAttribute === 'bits'
+            ? 0
+            : (req.body.nullifyAttribute === 'luck'
+                ? Number(stat(targetUser.passiveAttributes?.luck, 1))
+                : Number(stat(targetUser.passiveAttributes?.multiplier, 1)))
       }),
       shieldDestroyed: false
     });
