@@ -425,9 +425,9 @@ const Challenge = () => {
       )}
 
       <div className="card bg-base-100 border border-base-200 shadow-md rounded-2xl p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <Shield className="w-8 h-8 text-red-500" />
-          <h1 className="text-3xl font-bold text-base-content">
+        <div className="flex items-start gap-3 mb-4 flex-wrap min-w-0">
+          <Shield className="w-8 h-8 text-red-500 shrink-0" />
+          <h1 className="text-3xl font-bold text-base-content min-w-0 wrap-any leading-tight">
             {/* Prepend classroom name/code when available, then show configured title (or fallback) */}
             {classroom?.name ? `${classroom.name}${classroom.code ? ` (${classroom.code})` : ''} — ` : ''}
             {challengeData?.title || 'Cyber Challenge'}
@@ -502,7 +502,9 @@ const Challenge = () => {
         ) : (
         <div className="space-y-6">
           <div className="card bg-base-100 border border-base-200 shadow-md rounded-2xl p-6">
-            <h2 className="text-2xl font-bold mb-6">{challengeData?.title || 'Cyber Challenge Series'}</h2>
+            <h2 className="text-2xl font-bold mb-6 min-w-0 wrap-any leading-tight">
+              {challengeData?.title || 'Cyber Challenge Series'}
+            </h2>
 
             {/* Legacy challenges - hidden if seriesType is 'custom' */}
             {challengeData?.seriesType !== 'custom' && (
