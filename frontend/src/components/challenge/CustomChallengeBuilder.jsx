@@ -799,7 +799,7 @@ const CustomChallengeBuilder = ({
               <div className="form-control">
                 <label className="label">
                   <span className="label-text">Hint Penalty % (optional)</span>
-                  <span className="label-text-alt">Leave blank to use series default</span>
+                  <span className="label-text-alt">Leave blank to not apply a penalty</span>
                 </label>
                 <input
                   type="number"
