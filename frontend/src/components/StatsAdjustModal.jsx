@@ -16,11 +16,55 @@ const StatsAdjustModal = ({ isOpen, onClose, student, classroomId, onUpdated }) 
   const [xpEnabled, setXPEnabled] = useState(true);
   const [xpLoading, setXPLoading] = useState(false);
 
+  // NEW: only send xp if teacher actually modified it
+  const [xpInitial, setXPInitial] = useState(null);
+  const [xpDirty, setXPDirty] = useState(false);
+
   // NEW: Shield state (numeric count)
   const [shield, setShield] = useState('0');
 
   // NEW: optional note/reason for audit trail
   const [note, setNote] = useState('');
+
+  // NEW: whether this adjustment should also award "statIncrease" XP
+  const [awardStatBoostXP, setAwardStatBoostXP] = useState(true);
+
+  // NEW: baseline values for delta display
+  const [baseline, setBaseline] = useState({
+    multiplier: 1.0,
+    luck: 1.0,
+    discount: 0,
+    shield: 0
+  });
+
+  const safeNum = (v, fallback = 0) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : fallback;
+  };
+
+  const safeInt = (v, fallback = 0) => {
+    const n = parseInt(String(v), 10);
+    return Number.isFinite(n) ? n : fallback;
+  };
+
+  const renderDelta = (delta, { decimals = 0, suffix = '' } = {}) => {
+    const d = Number(delta);
+    if (!Number.isFinite(d) || d === 0) {
+      return <div className="text-xs text-base-content/50 mt-1">Change: —</div>;
+    }
+    const formatted =
+      decimals > 0
+        ? d.toFixed(decimals)
+        : String(Math.trunc(d));
+
+    const sign = d > 0 ? '+' : '';
+    const cls = d > 0 ? 'text-success' : 'text-error';
+    return (
+      <div className={`text-xs mt-1 ${cls}`}>
+        Change: {sign}{formatted}{suffix}
+      </div>
+    );
+  };
 
   // load current stats when modal opens / student changes
   useEffect(() => {
@@ -31,12 +75,20 @@ const StatsAdjustModal = ({ isOpen, onClose, student, classroomId, onUpdated }) 
         const res = await axios.get(`/api/stats/student/${student._id}?classroomId=${classroomId}`, { withCredentials: true });
         if (!mounted) return;
         const s = res.data || {};
-        // Format multiplier and luck to 1 decimal place for display
-        setMultiplier(((Number(s.multiplier ?? 1)).toFixed(1)).toString());
-        setLuck(((Number(s.luck ?? 1)).toFixed(1)).toString());
-        setDiscount(String(Number(s.discount ?? s.discountShop ?? 0)));
-        // Set shield count
-        setShield(String(Number(s.shieldCount ?? 0)));
+
+        const m0 = safeNum(s.multiplier ?? 1, 1);
+        const l0 = safeNum(s.luck ?? 1, 1);
+        const d0 = safeInt(s.discount ?? s.discountShop ?? 0, 0);
+        const sh0 = safeInt(s.shieldCount ?? 0, 0);
+
+        // baseline snapshot for delta indicators
+        setBaseline({ multiplier: m0, luck: l0, discount: d0, shield: sh0 });
+
+        // current inputs
+        setMultiplier(m0.toFixed(1));
+        setLuck(l0.toFixed(1));
+        setDiscount(String(d0));
+        setShield(String(sh0));
       } catch (err) {
         console.debug('[StatsAdjustModal] failed to load stats', err?.message || err);
       }
@@ -48,17 +100,18 @@ const StatsAdjustModal = ({ isOpen, onClose, student, classroomId, onUpdated }) 
           const xpRes = await axios.get(`/api/xp/classroom/${classroomId}/user/${student._id}`, { withCredentials: true });
           if (!mounted) return;
           setXP(String(xpRes.data.xp ?? 0));
+          setXPInitial(Number(xpRes.data.xp ?? 0));
         } catch (e) {
           console.debug('[StatsAdjustModal] failed to fetch xp', e?.message || e);
           setXP('0');
+          setXPInitial(0);
         } finally {
-          // fetch xp settings to know whether field should be enabled
           try {
             const sres = await axios.get(`/api/xp/classroom/${classroomId}/settings`, { withCredentials: true });
             if (!mounted) return;
             setXPEnabled(Boolean(sres.data?.enabled ?? true));
           } catch (_e) {
-            setXPEnabled(true); // default allow if settings fetch fails
+            setXPEnabled(true);
           }
           setXPLoading(false);
         }
@@ -68,9 +121,14 @@ const StatsAdjustModal = ({ isOpen, onClose, student, classroomId, onUpdated }) 
   }, [isOpen, student, classroomId]);
 
   useEffect(() => {
-    // reset note when opening for a new student/session
     setNote('');
-  }, [isOpen, student, classroomId]);
+    setAwardStatBoostXP(true);
+  }, [isOpen, student?._id]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setXPDirty(false);
+  }, [isOpen, student?._id]);
 
   if (!isOpen || !student) return null;
 
@@ -79,15 +137,19 @@ const StatsAdjustModal = ({ isOpen, onClose, student, classroomId, onUpdated }) 
   const handleSave = async () => {
     setLoading(true);
     try {
+      const xpNum = Number(xp || 0);
+      const includeXP = xpEnabled && !xpLoading && xpDirty && Number.isFinite(xpNum);
+
       const res = await axios.patch(
         `/api/classroom/${classroomId}/users/${student._id}/stats`,
         {
           multiplier: Number(multiplier) || 1,
           luck: Number(luck) || 1,
           discount: Number(discount) || 0,
-          ...(xpEnabled ? { xp: Number(xp || 0) } : {}),
           shield: Number(shield || 0),
-          note: (note || '').trim() || undefined
+          note: (note || '').trim() || undefined,
+          awardStatBoostXP: Boolean(awardStatBoostXP),
+          ...(includeXP ? { xp: xpNum } : {})
         },
         { withCredentials: true }
       );
@@ -98,7 +160,7 @@ const StatsAdjustModal = ({ isOpen, onClose, student, classroomId, onUpdated }) 
 
       if (noChange) {
         toast('No stats were adjusted');
-        return; // keep modal open so they can edit
+        return;
       }
 
       toast.success('Stats updated');
@@ -111,6 +173,13 @@ const StatsAdjustModal = ({ isOpen, onClose, student, classroomId, onUpdated }) 
       setLoading(false);
     }
   };
+
+  // computed deltas for display
+  const deltaMultiplier = safeNum(multiplier, baseline.multiplier) - baseline.multiplier;
+  const deltaLuck = safeNum(luck, baseline.luck) - baseline.luck;
+  const deltaDiscount = safeInt(discount, baseline.discount) - baseline.discount;
+  const deltaShield = safeInt(shield, baseline.shield) - baseline.shield;
+  const deltaXP = (xpInitial == null) ? 0 : (safeInt(xp, safeInt(xpInitial, 0)) - safeInt(xpInitial, 0));
 
   return (
     <div className="modal modal-open">
@@ -128,6 +197,7 @@ const StatsAdjustModal = ({ isOpen, onClose, student, classroomId, onUpdated }) 
               value={multiplier}
               onChange={(e) => setMultiplier(e.target.value)}
             />
+            {renderDelta(deltaMultiplier, { decimals: 1 })}
           </label>
 
           <label className="flex flex-col">
@@ -140,6 +210,7 @@ const StatsAdjustModal = ({ isOpen, onClose, student, classroomId, onUpdated }) 
               value={luck}
               onChange={(e) => setLuck(e.target.value)}
             />
+            {renderDelta(deltaLuck, { decimals: 1 })}
           </label>
 
           <label className="flex flex-col">
@@ -153,9 +224,9 @@ const StatsAdjustModal = ({ isOpen, onClose, student, classroomId, onUpdated }) 
               value={discount}
               onChange={(e) => setDiscount(e.target.value)}
             />
+            {renderDelta(deltaDiscount, { decimals: 0, suffix: '%' })}
           </label>
 
-          {/* NEW: Shield Count */}
           <label className="flex flex-col">
             <span className="text-sm">Shield Count (0 to clear)</span>
             <input
@@ -166,9 +237,9 @@ const StatsAdjustModal = ({ isOpen, onClose, student, classroomId, onUpdated }) 
               value={shield}
               onChange={(e) => setShield(e.target.value)}
             />
+            {renderDelta(deltaShield, { decimals: 0 })}
           </label>
 
-          {/* NEW: Manual XP */}
           <label className="flex flex-col">
             <span className="text-sm">Manual XP (absolute total)</span>
             <input
@@ -177,9 +248,13 @@ const StatsAdjustModal = ({ isOpen, onClose, student, classroomId, onUpdated }) 
               min="0"
               className="input input-bordered mt-2"
               value={xp}
-              onChange={(e) => setXP(e.target.value)}
+              onChange={(e) => {
+                setXP(e.target.value);
+                setXPDirty(true);
+              }}
               disabled={!xpEnabled || xpLoading}
             />
+            {xpEnabled ? renderDelta(deltaXP, { decimals: 0, suffix: ' XP' }) : null}
             {!xpEnabled && (
               <span className="text-xs text-gray-500 mt-1">
                 XP is disabled for this classroom. Enable XP in People → XP & Leveling Settings to adjust.
@@ -187,7 +262,20 @@ const StatsAdjustModal = ({ isOpen, onClose, student, classroomId, onUpdated }) 
             )}
           </label>
 
-          {/* NEW: Optional note */}
+          <label className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              className="checkbox checkbox-primary"
+              checked={awardStatBoostXP}
+              onChange={(e) => setAwardStatBoostXP(e.target.checked)}
+              disabled={!xpEnabled || xpLoading}
+            />
+            <span className="text-sm">Count stat increases toward “Stat Increase” XP</span>
+          </label>
+          <div className="text-xs text-base-content/60 -mt-2">
+            Uses the classroom’s <strong>Stat Increase</strong> rate from XP settings.
+          </div>
+
           <label className="flex flex-col">
             <span className="text-sm">Reason / note (optional)</span>
             <textarea
