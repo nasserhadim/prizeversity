@@ -226,7 +226,7 @@ const Support = () => {
           question: "What are the different types of Bazaar items?",
           answer: [
             "• **Passive items**: Rewards (extra credit, passes, etc.) that can be redeemed using Bits. Passive items can also be configured by the teacher to include secondary effects.",
-            "• **Effect items**: Power‑ups (attacks, swappers, nullifiers, shields, stat boosts) that change outcomes and are typically consumed when used."
+            "• **Effect items**: Power‑ups (attacks (e.g. drains, swappers, nullifiers), shields, stat boosts) that change outcomes and are typically consumed when used."
           ],
           role: ["all"]
         },

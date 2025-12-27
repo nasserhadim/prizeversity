@@ -53,17 +53,17 @@ const Home = () => {
       {
         image: interactiveLearning,
         title: "Interactive Learning",
-        description: "Engage with course material like never before"
+        description: "Turn participation into progression—earn ₿its, level up, and invest in Skill Tree stats."
       },
       {
         image: academicExcellence,
         title: "Academic Excellence",
-        description: "Tools designed to help you succeed"
+        description: "A classroom economy built for motivation: teachers award ₿its/stat boosts; students unlock Bazaar perks."
       },
       {
         image: stayInformed,
         title: "Stay Informed",
-        description: "Real-time notifications keep you updated"
+        description: "Real-time updates for rewards and classroom events—so progression never feels delayed."
       }
     ],
     // workflow: [
@@ -262,17 +262,17 @@ const Home = () => {
   const howSteps = [
     {
       title: 'Sign up',
-      desc: 'Choose Student or Teacher role at signup.',
+      desc: 'Choose Student or Teacher role and set up your profile in seconds.',
       icon: <UserPlus size={28} className="text-green-500" />
     },
     {
       title: 'Join a Classroom',
-      desc: "Teachers create classrooms and share a join code; students enter the code to join.",
+      desc: 'Teachers create classrooms and share a join code; students enter the code to join.',
       icon: <School size={28} className="text-indigo-500" />
     },
     {
-      title: 'Set up Bazaar & Groups',
-      desc: "Teachers configure group sets and stock the classroom Bazaar with items.",
+      title: 'Configure the Economy',
+      desc: 'Teachers set up Groups and stock the Bazaar with rewards, power-ups, and stat boosts.',
       icon: <Store size={28} className="text-purple-500" />
     },
     {
@@ -281,9 +281,9 @@ const Home = () => {
       icon: <Coins size={28} className="text-yellow-500" />
     },
     {
-      title: 'Spend & Redeem',
-      desc: "Students can spend their earned Bits in the classroom Bazaar; transactions are logged and teachers can manage redemptions.",
-      icon: <Zap size={28} className="text-green-600" />
+      title: 'Unlock Badges & Redeem',
+      desc: 'Level milestones unlock badges; students spend Bits in the Bazaar and teachers manage redemptions.',
+      icon: <Award size={28} className="text-green-600" />
     }
   ];
 
@@ -409,8 +409,11 @@ const Home = () => {
           <div className="max-w-6xl mx-auto px-6">
             <div className="text-center mb-12">
               <h2 className="text-4xl font-bold text-gray-900 mb-4">Gamification Reimagined</h2>
+
+              {/* ADD: “Skill Tree” framing for instructors */}
               <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-                PrizeVersity transforms learning into an MMORPG-like experience where students develop their academic character with real stats that impact their classroom journey. It’s a cyclical economy — students boost stats or buy power‑ups to earn bits faster, spend bits to buy advantages or protection, and use shields/attacks strategically to manage risk and reward.
+                Prizeversity turns classroom progression into a <strong>Skill Tree</strong>—students level up and invest in stats that change gameplay:
+                Multiplier, Luck, Shield, Discount, Attack Bonus, and Group Multiplier. It's a cyclical economy where engagement fuels growth, and growth fuels rewards.
               </p>
             </div>
 
@@ -482,7 +485,7 @@ const Home = () => {
                       </p>
                       <ul className="list-disc list-inside text-gray-600 text-sm mt-2">
                         <li><strong>Passive</strong>: Redeemable rewards (extra credit, passes, etc.)</li>
-                        <li><strong>Effect</strong>: Power‑ups (attacks, swappers, nullifiers, shields, stat boosts)</li>
+                        <li><strong>Effect</strong>: Power‑ups (attacks, shields, stat boosts)</li>
                       </ul>
                     </div>
                   </div>
@@ -533,7 +536,7 @@ const Home = () => {
                     </div>
                     <div>
                       <h4 className="font-semibold">Attack Bonus</h4>
-                      <p className="text-gray-600 text-sm">Bazaar items that let students target others' stats (e.g. swap, nullify) to gain advantage.</p>
+                      <p className="text-gray-600 text-sm">Bazaar items that let students target others' stats (e.g. drain, swap, nullify) to gain advantage.</p>
                     </div>
                   </div>
                   
@@ -559,7 +562,7 @@ const Home = () => {
             <div className="text-center mb-8">
               <h2 className="text-3xl font-bold text-gray-900 mb-2">How it works</h2>
               <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-                A simple loop for teachers and students — create, join, participate, and redeem.
+                A simple gameplay loop — create, join, participate, and redeem.
               </p>
             </div>
 
@@ -750,7 +753,7 @@ const Home = () => {
               <p className="text-lg text-gray-600 max-w-3xl mx-auto">
                 Puzzle-style activities inspired by OSINT that teachers can configure as additional exercises.
                 <br />
-                Challenges award Bits and/or stat boosts—Multiplier, Luck, Discount—so students level up, earn more, and sharpen critical thinking.
+                Challenges award Bits and/or stat boosts—Multiplier, Luck, Shield, Discount—so students level up, earn more, and sharpen critical thinking.
               </p>
             </div>
 
@@ -775,7 +778,7 @@ const Home = () => {
                  <div>
                    <h3 className="font-semibold mb-1 text-gray-900">Flexible Rewards</h3>
                    <p className="text-sm text-gray-600">
-                     Teachers assign Bits and/or stat boosts (Multiplier, Luck, Discount) per challenge — fully composable rewards to shape classroom behavior.
+                     Teachers assign Bits and/or stat boosts (Multiplier, Luck, Shield, Discount) per challenge — fully composable rewards to shape classroom behavior.
                    </p>
                  </div>
                </div>
