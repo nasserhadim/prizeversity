@@ -1067,7 +1067,16 @@ router.patch('/:id/feedback-reward', ensureAuthenticated, async (req, res) => {
 router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, res) => {
   try {
     const { classId, userId } = req.params;
-    const { multiplier, luck, discount, xp, shield, note } = req.body; // NEW: note
+
+    const {
+      multiplier,
+      luck,
+      discount,
+      xp,
+      shield,
+      note,
+      awardStatBoostXP = true
+    } = req.body;
 
     const classroom = await Classroom.findById(classId);
     if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
@@ -1076,6 +1085,15 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
     }
 
     const student = await User.findById(userId);
+
+    // NEW: snapshot BEFORE any mutations (used by optional stat-increase XP award)
+    const beforeForXP = {
+      multiplier: Number(student?.passiveAttributes?.multiplier ?? 1),
+      luck: Number(student?.passiveAttributes?.luck ?? 1),
+      discount: Number(student?.passiveAttributes?.discount ?? 0),
+      shield: Number(student?.shieldCount ?? 0)
+    };
+
     if (!student) return res.status(404).json({ error: 'Student not found' });
     if (student.role === 'teacher') return res.status(400).json({ error: 'Cannot adjust teacher stats' });
 
@@ -1116,6 +1134,7 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
     let xpChangeRecorded = false;
     let xpFrom = null;
     let xpTo = null;
+
     if (typeof xp !== 'undefined' && xp !== null && xp !== '') {
       // enforce XP system enabled
       if (!classroom.xpSettings?.enabled) {
@@ -1145,7 +1164,7 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
         const newLevel = calculateLevelFromXP(xpTo, classroom.xpSettings?.levelingFormula || 'exponential', classroom.xpSettings?.baseXPForLevel2 || 100);
         classroomXPEntry.level = newLevel;
 
-        xpChangeRecorded = true;
+        xpChangeRecorded = (Number(xpFrom) !== Number(xpTo));
       }
     }
     // --- END: xp adjustment ---
@@ -1194,6 +1213,56 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
     }
 
     await student.save();
+
+    // OPTIONAL: award XP for *increases* caused by this manual adjustment
+    try {
+      // If teacher explicitly set absolute XP (xpChangeRecorded), don't also auto-award here.
+      if (!xpChangeRecorded && awardStatBoostXP && classroom?.xpSettings?.enabled) {
+        const rate = Number(classroom.xpSettings.statIncrease || 0);
+        if (rate > 0) {
+          const afterForXP = {
+            multiplier: student.passiveAttributes?.multiplier ?? 1,
+            luck: student.passiveAttributes?.luck ?? 1,
+            discount: student.passiveAttributes?.discount ?? student.passiveAttributes?.discountShop ?? 0,
+            shield: student.shieldCount ?? 0
+          };
+
+          let statIncreaseCount = 0;
+          if (Number(afterForXP.multiplier) > Number(beforeForXP.multiplier)) statIncreaseCount += 1;
+          if (Number(afterForXP.luck) > Number(beforeForXP.luck)) statIncreaseCount += 1;
+          if (Number(afterForXP.discount) > Number(beforeForXP.discount)) statIncreaseCount += 1;
+          if (Number(afterForXP.shield) > Number(beforeForXP.shield)) statIncreaseCount += 1;
+
+          const xpToAward = statIncreaseCount * rate;
+          if (xpToAward > 0) {
+            const xpRes = await awardXP(
+              student._id,
+              classId,
+              xpToAward,
+              'stat increase (manual adjustment)',
+              classroom.xpSettings,
+              { user: student } // reuse loaded doc per [`awardXP`](backend/utils/awardXP.js)
+            );
+
+            if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+              await logStatChanges({
+                io: req.app && req.app.get ? req.app.get('io') : null,
+                classroomId: classId,
+                user: student,
+                actionBy: req.user ? req.user._id : undefined,
+                prevStats: { xp: xpRes.oldXP },
+                currStats: { xp: xpRes.newXP },
+                context: 'stat increase (manual adjustment)',
+                details: { effectsText: `Manual stat adjustment: +${xpToAward} XP` },
+                forceLog: true
+              });
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[classroom] optional stat-increase XP award failed:', e);
+    }
 
     // Helper to render a readable value for summary (special-case xp to include delta)
     const renderValue = (field, v) => {
