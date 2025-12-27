@@ -19,7 +19,10 @@ import {
   GraduationCap,
   UserCheck,
   Lock,
-  TrendingUp
+  TrendingUp,
+  Archive,
+  Target,
+  Shield
 } from 'lucide-react';
 import Footer from '../components/Footer';
 
@@ -423,6 +426,89 @@ const Support = () => {
       ]
     },
     {
+      category: "Challenges (Legacy & Custom)",
+      icon: <Target size={20} />,
+      questions: [
+        {
+          question: "What’s the difference between Legacy, Custom Only, and Mixed challenge series?",
+          answer: [
+            "**Legacy Only:** uses the built-in challenges.",
+            "**Custom Only:** uses teacher-created custom challenges.",
+            "**Mixed:** combines legacy + custom challenges in one series.",
+            "",
+            "Teachers choose the series type during Challenge configuration."
+          ],
+          role: ["teacher"]
+        },
+        // NEW: explicit rewards FAQ
+        {
+          question: "What rewards can be earned from challenges?",
+          answer: [
+            "Challenges can award **Bits** and/or **stat boosts** depending on teacher configuration.",
+            "Rewards may include:",
+            "• Bits (₿)",
+            "• Multiplier increase",
+            "• Luck boost",
+            "• Discount %",
+            "• Shield activation",
+            "",
+            "**XP** may also be earned from challenge outcomes (based on classroom XP settings)."
+          ],
+          role: ["all"]
+        },
+        {
+          question: "Where do I find Challenges as a student?",
+          answer: [
+            "Go to your classroom → Challenges page.",
+            "If the classroom includes challenges, you’ll see a **Challenges** section.",
+            "Some challenges may be hidden until your teacher makes them visible."
+          ],
+          role: ["student"]
+        },
+        {
+          question: "Why does it say I must start the challenge before submitting an answer?",
+          answer: [
+            "Some challenges generate **personalized content** when you click **Start**.",
+            "Starting the challenge creates your unique prompt/resources, so submissions can be verified correctly."
+          ],
+          role: ["student"]
+        },
+        {
+          question: "How do challenges work (e.g. Passcode, Cipher Decoder, Hash Cracker, Hidden Message, Pattern Finder)?",
+          answer: [
+            "Challenges can generate unique instructions/resources for each student. For instance, a file may need to be downloaded and examined to find the solution.",
+            "If the challenge provides an **answer format**, follow it exactly.",
+            "",
+            "If rewards are configured, you’ll see them in the challenge card and on completion (e.g., Bits + stat boosts)."
+          ],
+          role: ["all"]
+        },
+        {
+          question: "Can teachers reset a student's challenge progress?",
+          answer: [
+            "Yes. Teachers can reset progress for:",
+            "• A specific challenge, or",
+            "• All challenges in the series for a student.",
+            "",
+            "This is useful if a student is stuck, used too many attempts, or needs a fresh start."
+          ],
+          role: ["all"]
+        },
+        {
+          question: "Do challenges have due dates and attempt limits?",
+          answer: [
+            "Legacy challenges may have pre-configured attempt limits, while custom challenges are more flexible and can include:",
+            "• A due date (if enabled by the teacher)",
+            "• A maximum number of attempts",
+            "• Hints (optionally enabled) with a per-hint penalty (if configured)",
+            "",
+            "**Note:** Hint usage can reduce Bits rewards if the teacher enabled hint penalties."
+          ],
+          role: ["all"]
+        }
+      ]
+    },
+    {
       category: "XP & Leveling",
       icon: <TrendingUp size={20} />,
       questions: [
@@ -658,7 +744,6 @@ const Support = () => {
         }
       ]
     },
-
     {
       category: "Bans & Classroom Access",
       icon: <Lock size={20} />,
@@ -687,6 +772,29 @@ const Support = () => {
           answer: [
             "• Yes — teachers can unban students and restore their ability to access the classroom and receive balance adjustments, provided the student record still exists in the classroom data (i.e. student was NOT removed).",
             "• If the student was removed and the teacher expects to unban later, then unfortunately it wont be possible to unban the student as their record was permanently deleted from the classroom roster upon removal.",
+          ],
+          role: ["teacher"]
+        }
+      ]
+    },
+    {
+      category: "Classrooms: Archiving & Visibility",
+      icon: <Archive size={20} />, // ensure Archive is imported from lucide-react if not already
+      questions: [
+        {
+          question: "What happens when a teacher archives a classroom?",
+          answer: [
+            "• Archiving is a way to mark a classroom as inactive.",
+            "• Students may still see the classroom in 'My Classrooms' but it will be labeled as Archived.",
+            "• If you think a class disappeared, it may have been archived by the teacher or deleted."
+          ],
+          role: ["all"]
+        },
+        {
+          question: "How do I restore an archived classroom?",
+          answer: [
+            "• Teachers: go to Classroom Dashboard → Archived → Restore (or Classroom Settings → Unarchive).",
+            "• Restoring makes it active again."
           ],
           role: ["teacher"]
         }

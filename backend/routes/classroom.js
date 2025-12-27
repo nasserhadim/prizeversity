@@ -373,10 +373,11 @@ router.put('/:id/unarchive', ensureAuthenticated, async (req, res) => {
 // Fetch Classrooms for Student/Admin
 router.get('/student', ensureAuthenticated, async (req, res) => {
   try {
+    // Include archived classrooms so students can still see them in "My Classrooms"
     const classrooms = await Classroom.find({
-      students: req.user._id,
-      archived: false
-    });
+      students: req.user._id
+    }).sort({ archived: 1, createdAt: -1 }); // optional: active first
+
     res.status(200).json(classrooms);
   } catch (err) {
     console.error('[Fetch Student Classrooms] error:', err);
