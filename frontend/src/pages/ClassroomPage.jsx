@@ -408,7 +408,14 @@ export default function ClassroomPage() {
                         onClick={() => handleCardClick(c._id)}
                       >
                         <div className="card-body">
-                          <h2 className="card-title">{c.name}</h2>
+                          <div className="flex items-start justify-between gap-2">
+                            <h2 className="card-title">{c.name}</h2>
+
+                            {c.archived ? (
+                              <span className="badge badge-warning badge-sm">Archived</span>
+                            ) : null}
+                          </div>
+
                           <p className="text-sm opacity-75">Code: {c.code}</p>
                           <p className="text-xs opacity-60">
                             Created: {c.createdAt ? new Date(c.createdAt).toLocaleString() : '—'}
@@ -630,7 +637,14 @@ export default function ClassroomPage() {
                         onClick={() => handleCardClick(c._id)}
                       >
                         <div className="card-body">
-                          <h2 className="card-title">{c.name}</h2>
+                          <div className="flex items-start justify-between gap-2">
+                            <h2 className="card-title">{c.name}</h2>
+
+                            {c.archived ? (
+                              <span className="badge badge-warning badge-sm">Archived</span>
+                            ) : null}
+                          </div>
+
                           <p className="text-sm opacity-75">Code: {c.code}</p>
                           <p className="text-xs opacity-60">
                             Created: {c.createdAt ? new Date(c.createdAt).toLocaleString() : '—'}

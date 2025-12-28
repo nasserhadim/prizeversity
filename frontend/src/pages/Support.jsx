@@ -19,7 +19,10 @@ import {
   GraduationCap,
   UserCheck,
   Lock,
-  TrendingUp
+  TrendingUp,
+  Archive,
+  Target,
+  Shield
 } from 'lucide-react';
 import Footer from '../components/Footer';
 
@@ -109,11 +112,33 @@ const Support = () => {
             "• Luck increases chances for better outcome tiers (e.g. Mystery Box higher rarity).",
             "• Discount reduces Bazaar purchase cost (percentage).",
             "• Shield protects from certain attack / negative item effects (consumed when triggered).",
-            "• Attack Bonus represents offensive item count/effects (e.g. stat swaps, debuffs).",
+            "• Attack Bonus represents offensive item count/effects (e.g. stat swaps, drains, debuffs).",
             "• Group Multiplier adds additional earning scaling based on group size (applied only if teacher keeps group multiplier enabled)."
           ],
           role: ["all"]
         },
+
+        // ADD: rationale for attack items in the economy
+        {
+          question: "Why would a student benefit from using Attack items (debuffs) on other students?",
+          answer: [
+            "Attack items add **strategy and counter-play** to the classroom economy — they’re not just “mean,” they’re a way to compete in a progression loop.",
+            "",
+            "**In a cyclical economy, power compounds:**",
+            "• Earning Bits lets you buy more items.",
+            "• Items can increase stats like Multiplier/Luck/Shield/Discount.",
+            "• Higher stats can help you earn Bits faster (when enabled), which helps you stay ahead.",
+            "",
+            "**So attacks can be useful because they can:**",
+            "• Slow down a top earner (reduce their ability to snowball).",
+            "• Create an opening to catch up before the next rewards cycle.",
+            "• Force defensive choices (e.g., investing in Shields) instead of only pure growth.",
+            "",
+            "**Important:** Teachers control whether these items exist, and shields/limits are designed to keep it fair."
+          ],
+          role: ["all"]
+        },
+
         {
           question: "How can stats be amplified?",
           answer: [
@@ -121,7 +146,8 @@ const Support = () => {
             "• Purchasing Bazaar items that grant boosts (Multiplier, Luck, Shields, Discounts).",
             "• Teacher manual adjustments (People page).",
             "• Joining groups that have member size-based group multipliers (if configured).",
-            "• Using utility/passive items with embedded stat effects."
+            "• Using utility/passive items with embedded stat effects.",
+            "• Gaining positive outcomes from attacks (e.g. swaps)."
           ],
           role: ["all"]
         },
@@ -136,7 +162,7 @@ const Support = () => {
         {
           question: "Are negative effects permanent?",
           answer: [
-            "• Most attack effects are one-time (e.g. swap, stat debuffs).",
+            "• Most attack effects are one-time (e.g. drains, swaps, nullifiers, stat debuffs).",
             "• Shields mitigate or absorb a single incoming attack then decrement/de-activate.",
             "• Teachers can rebalance by adjusting stats manually (through People page if needed)."
           ],
@@ -149,7 +175,7 @@ const Support = () => {
             "• Deductions never apply multipliers to avoid excessive penalties.",
             "• Check the transaction detail line to see which multipliers were applied."
           ],
-          role: ["all"]
+          role: ["student"]
         }
       ]
     },
@@ -226,7 +252,7 @@ const Support = () => {
           question: "What are the different types of Bazaar items?",
           answer: [
             "• **Passive items**: Rewards (extra credit, passes, etc.) that can be redeemed using Bits. Passive items can also be configured by the teacher to include secondary effects.",
-            "• **Effect items**: Power‑ups (attacks, swappers, nullifiers, shields, stat boosts) that change outcomes and are typically consumed when used."
+            "• **Effect items**: Power‑ups (attacks (e.g. drains, swappers, nullifiers, stat debuffs), shields, stat boosts) that change outcomes and are typically consumed when used."
           ],
           role: ["all"]
         },
@@ -272,6 +298,18 @@ const Support = () => {
             "These gamification elements make learning more engaging!"
           ],
           role: ["all"]
+        },
+        {
+          question: "When does it make sense to buy/use an Attack item?",
+          answer: [
+            "Attack items are usually a **timing + strategy** purchase (not a default choice). They can make sense when:",
+            "• You’re trying to prevent a competitor from building an unstoppable lead.",
+            "• You expect a high-value reward window soon and want to reduce someone’s advantage before it hits.",
+            "• You’re playing risk/reward: spending Bits now to potentially gain more earning power later.",
+            "",
+            "If your classroom has Shields or defensive options, consider those too — the Bazaar is designed to support both offense and defense."
+          ],
+          role: ["student"]
         },
         {
           question: "Can I return items I've purchased?",
@@ -417,6 +455,89 @@ const Support = () => {
           answer: [
             "This may happen due to the TTL index removing expired siphon data before the janitor can run, so the record is gone and thus the system cannot unfreeze the member automatically in such a scenario.",
             "**Workaround:** A group member can submit another siphon against the frozen user and then vote NO (majority). This forces the system to unfreeze the account."
+          ],
+          role: ["all"]
+        }
+      ]
+    },
+    {
+      category: "Challenges (Legacy & Custom)",
+      icon: <Target size={20} />,
+      questions: [
+        {
+          question: "What’s the difference between Legacy, Custom Only, and Mixed challenge series?",
+          answer: [
+            "**Legacy Only:** uses the built-in challenges.",
+            "**Custom Only:** uses teacher-created custom challenges.",
+            "**Mixed:** combines legacy + custom challenges in one series.",
+            "",
+            "Teachers choose the series type during Challenge configuration."
+          ],
+          role: ["teacher"]
+        },
+        // NEW: explicit rewards FAQ
+        {
+          question: "What rewards can be earned from challenges?",
+          answer: [
+            "Challenges can award **Bits** and/or **stat boosts** depending on teacher configuration.",
+            "Rewards may include:",
+            "• Bits (₿)",
+            "• Multiplier increase",
+            "• Luck boost",
+            "• Discount %",
+            "• Shield activation",
+            "",
+            "**XP** may also be earned from challenge outcomes (based on classroom XP settings)."
+          ],
+          role: ["all"]
+        },
+        {
+          question: "Where do I find Challenges as a student?",
+          answer: [
+            "Go to your classroom → Challenges page.",
+            "If the classroom includes challenges, you’ll see a **Challenges** section.",
+            "Some challenges may be hidden until your teacher makes them visible."
+          ],
+          role: ["student"]
+        },
+        {
+          question: "Why does it say I must start the challenge before submitting an answer?",
+          answer: [
+            "Some challenges generate **personalized content** when you click **Start**.",
+            "Starting the challenge creates your unique prompt/resources, so submissions can be verified correctly."
+          ],
+          role: ["student"]
+        },
+        {
+          question: "How do challenges work (e.g. Passcode, Cipher Decoder, Hash Cracker, Hidden Message, Pattern Finder)?",
+          answer: [
+            "Challenges can generate unique instructions/resources for each student. For instance, a file may need to be downloaded and examined to find the solution.",
+            "If the challenge provides an **answer format**, follow it exactly.",
+            "",
+            "If rewards are configured, you’ll see them in the challenge card and on completion (e.g., Bits + stat boosts)."
+          ],
+          role: ["all"]
+        },
+        {
+          question: "Can teachers reset a student's challenge progress?",
+          answer: [
+            "Yes. Teachers can reset progress for:",
+            "• A specific challenge, or",
+            "• All challenges in the series for a student.",
+            "",
+            "This is useful if a student is stuck, used too many attempts, or needs a fresh start."
+          ],
+          role: ["all"]
+        },
+        {
+          question: "Do challenges have due dates and attempt limits?",
+          answer: [
+            "Legacy challenges may have pre-configured attempt limits, while custom challenges are more flexible and can include:",
+            "• A due date (if enabled by the teacher)",
+            "• A maximum number of attempts",
+            "• Hints (optionally enabled) with a per-hint penalty (if configured)",
+            "",
+            "**Note:** Hint usage can reduce Bits rewards if the teacher enabled hint penalties."
           ],
           role: ["all"]
         }
@@ -634,7 +755,7 @@ const Support = () => {
         {
           question: "What is the submission cooldown?",
           answer: [
-            "A per‑user (or anonymous IP) cooldown defined by FEEDBACK_COOLDOWN_DAYS (default 30; fallback 7).",
+            "A per‑user (or anonymous IP) cooldown defined by FEEDBACK_COOLDOWN_DAYS (default 90; fallback 7).",
             "Cooldown is scoped: site feedback separate from each classroom."
           ],
           role: ["all"]
@@ -658,7 +779,6 @@ const Support = () => {
         }
       ]
     },
-
     {
       category: "Bans & Classroom Access",
       icon: <Lock size={20} />,
@@ -687,6 +807,29 @@ const Support = () => {
           answer: [
             "• Yes — teachers can unban students and restore their ability to access the classroom and receive balance adjustments, provided the student record still exists in the classroom data (i.e. student was NOT removed).",
             "• If the student was removed and the teacher expects to unban later, then unfortunately it wont be possible to unban the student as their record was permanently deleted from the classroom roster upon removal.",
+          ],
+          role: ["teacher"]
+        }
+      ]
+    },
+    {
+      category: "Classrooms: Archiving & Visibility",
+      icon: <Archive size={20} />, // ensure Archive is imported from lucide-react if not already
+      questions: [
+        {
+          question: "What happens when a teacher archives a classroom?",
+          answer: [
+            "• Archiving is a way to mark a classroom as inactive.",
+            "• Students may still see the classroom in 'My Classrooms' but it will be labeled as Archived.",
+            "• If you think a class disappeared, it may have been archived by the teacher or deleted."
+          ],
+          role: ["all"]
+        },
+        {
+          question: "How do I restore an archived classroom?",
+          answer: [
+            "• Teachers: go to Classroom Dashboard → Archived → Restore (or Classroom Settings → Unarchive).",
+            "• Restoring makes it active again."
           ],
           role: ["teacher"]
         }

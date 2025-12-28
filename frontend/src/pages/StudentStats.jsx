@@ -214,7 +214,7 @@ const StudentStats = () => {
 
   // Add a stat help text map near the top of the file
   const STAT_HELP = {
-    attackPower: 'Bazaar items that let students target others’ stats (e.g., swap, nullify) to gain advantage.',
+    attackPower: 'Bazaar items that let students target others’ stats (e.g., drain, swap, nullify) to gain advantage.',
     shield: 'Protects against attack effects; shields are stackable and consumed when triggered.',
     multiplier: 'Boosts earnings from classroom rewards; higher multiplier means faster bit/XP growth.',
     groupMultiplier: 'Adds additional earning scaling based on group size; applies when enabled by the teacher.',
