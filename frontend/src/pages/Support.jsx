@@ -112,11 +112,33 @@ const Support = () => {
             "• Luck increases chances for better outcome tiers (e.g. Mystery Box higher rarity).",
             "• Discount reduces Bazaar purchase cost (percentage).",
             "• Shield protects from certain attack / negative item effects (consumed when triggered).",
-            "• Attack Bonus represents offensive item count/effects (e.g. stat swaps, debuffs).",
+            "• Attack Bonus represents offensive item count/effects (e.g. stat swaps, drains, debuffs).",
             "• Group Multiplier adds additional earning scaling based on group size (applied only if teacher keeps group multiplier enabled)."
           ],
           role: ["all"]
         },
+
+        // ADD: rationale for attack items in the economy
+        {
+          question: "Why would a student benefit from using Attack items (debuffs) on other students?",
+          answer: [
+            "Attack items add **strategy and counter-play** to the classroom economy — they’re not just “mean,” they’re a way to compete in a progression loop.",
+            "",
+            "**In a cyclical economy, power compounds:**",
+            "• Earning Bits lets you buy more items.",
+            "• Items can increase stats like Multiplier/Luck/Shield/Discount.",
+            "• Higher stats can help you earn Bits faster (when enabled), which helps you stay ahead.",
+            "",
+            "**So attacks can be useful because they can:**",
+            "• Slow down a top earner (reduce their ability to snowball).",
+            "• Create an opening to catch up before the next rewards cycle.",
+            "• Force defensive choices (e.g., investing in Shields) instead of only pure growth.",
+            "",
+            "**Important:** Teachers control whether these items exist, and shields/limits are designed to keep it fair."
+          ],
+          role: ["all"]
+        },
+
         {
           question: "How can stats be amplified?",
           answer: [
@@ -124,7 +146,8 @@ const Support = () => {
             "• Purchasing Bazaar items that grant boosts (Multiplier, Luck, Shields, Discounts).",
             "• Teacher manual adjustments (People page).",
             "• Joining groups that have member size-based group multipliers (if configured).",
-            "• Using utility/passive items with embedded stat effects."
+            "• Using utility/passive items with embedded stat effects.",
+            "• Gaining positive outcomes from attacks (e.g. swaps)."
           ],
           role: ["all"]
         },
@@ -139,7 +162,7 @@ const Support = () => {
         {
           question: "Are negative effects permanent?",
           answer: [
-            "• Most attack effects are one-time (e.g. swap, stat debuffs).",
+            "• Most attack effects are one-time (e.g. drains, swaps, nullifiers, stat debuffs).",
             "• Shields mitigate or absorb a single incoming attack then decrement/de-activate.",
             "• Teachers can rebalance by adjusting stats manually (through People page if needed)."
           ],
@@ -152,7 +175,7 @@ const Support = () => {
             "• Deductions never apply multipliers to avoid excessive penalties.",
             "• Check the transaction detail line to see which multipliers were applied."
           ],
-          role: ["all"]
+          role: ["student"]
         }
       ]
     },
@@ -229,7 +252,7 @@ const Support = () => {
           question: "What are the different types of Bazaar items?",
           answer: [
             "• **Passive items**: Rewards (extra credit, passes, etc.) that can be redeemed using Bits. Passive items can also be configured by the teacher to include secondary effects.",
-            "• **Effect items**: Power‑ups (attacks (e.g. drains, swappers, nullifiers), shields, stat boosts) that change outcomes and are typically consumed when used."
+            "• **Effect items**: Power‑ups (attacks (e.g. drains, swappers, nullifiers, stat debuffs), shields, stat boosts) that change outcomes and are typically consumed when used."
           ],
           role: ["all"]
         },
@@ -275,6 +298,18 @@ const Support = () => {
             "These gamification elements make learning more engaging!"
           ],
           role: ["all"]
+        },
+        {
+          question: "When does it make sense to buy/use an Attack item?",
+          answer: [
+            "Attack items are usually a **timing + strategy** purchase (not a default choice). They can make sense when:",
+            "• You’re trying to prevent a competitor from building an unstoppable lead.",
+            "• You expect a high-value reward window soon and want to reduce someone’s advantage before it hits.",
+            "• You’re playing risk/reward: spending Bits now to potentially gain more earning power later.",
+            "",
+            "If your classroom has Shields or defensive options, consider those too — the Bazaar is designed to support both offense and defense."
+          ],
+          role: ["student"]
         },
         {
           question: "Can I return items I've purchased?",
@@ -720,7 +755,7 @@ const Support = () => {
         {
           question: "What is the submission cooldown?",
           answer: [
-            "A per‑user (or anonymous IP) cooldown defined by FEEDBACK_COOLDOWN_DAYS (default 30; fallback 7).",
+            "A per‑user (or anonymous IP) cooldown defined by FEEDBACK_COOLDOWN_DAYS (default 90; fallback 7).",
             "Cooldown is scoped: site feedback separate from each classroom."
           ],
           role: ["all"]
