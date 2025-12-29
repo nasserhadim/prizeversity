@@ -8,6 +8,16 @@ import CustomChallengeBuilder from '../CustomChallengeBuilder';
 import toast from 'react-hot-toast';
 import ConfirmModal from '../../ConfirmModal';
 
+const getCurrentLocalDateTime = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
 const ChallengeConfigModal = ({ 
   showConfigModal, 
   setShowConfigModal, 
@@ -1331,7 +1341,7 @@ const ChallengeConfigModal = ({
                   className="input input-bordered w-full max-w-64"
                   value={challengeConfig.dueDate}
                   onChange={(e) => setChallengeConfig(prev => ({ ...prev, dueDate: e.target.value }))}
-                  min={new Date().toISOString().slice(0, 16)}
+                  min={getCurrentLocalDateTime()}
                 />
                 <div className="text-sm text-gray-500 mt-1">Students must complete all challenges by this date and time</div>
               </div>

@@ -38,6 +38,16 @@ const localDateTimeToUTC = (localDateTimeString) => {
   return localDate.toISOString();
 };
 
+const getCurrentLocalDateTime = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
 const CustomChallengeBuilder = ({
   classroomId,
   customChallenges = [],
@@ -749,7 +759,7 @@ const CustomChallengeBuilder = ({
                   className="input input-bordered"
                   value={form.dueDate}
                   onChange={(e) => setForm(prev => ({ ...prev, dueDate: e.target.value }))}
-                  min={new Date().toISOString().slice(0, 16)}
+                  min={getCurrentLocalDateTime()}
                 />
                 <div className="text-xs text-gray-500 mt-1">Students must complete this challenge by this date and time</div>
               </div>
