@@ -7,6 +7,7 @@ const Classroom = require('../models/Classroom');
 const mongoose = require('mongoose');
 const Notification = require('../models/Notification');
 const { populateNotification } = require('../utils/notifications');
+const { getScopedUserStats } = require('../utils/classroomStats'); // ADD
 
 // Add this helper function after the imports
 const cleanupUserFromGroups = async (userId) => {
@@ -46,6 +47,18 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// ADD: classroom-scoped personal multiplier helper (no global fallback when classroomId exists)
+function getPersonalMultiplierForClassroom(userDoc, classroomId) {
+  if (classroomId) {
+    const scoped = getScopedUserStats(userDoc, classroomId, { create: false });
+    if (!scoped || !scoped.cs) return 1;
+    const m = Number(scoped.passive?.multiplier ?? 1);
+    return Number.isFinite(m) && m > 0 ? m : 1;
+  }
+  const m = Number(userDoc?.passiveAttributes?.multiplier ?? 1);
+  return Number.isFinite(m) && m > 0 ? m : 1;
+}
+
 // Bulk assign balances to mulitpler students
 router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
   if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
@@ -80,7 +93,6 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
       }
 
       const student = await User.findById(studentId).populate({
-        // Find student and populate approved groups
         path: 'groups',
         match: { 'members._id': studentId, 'members.status': 'approved' },
         select: 'groupMultiplier'
@@ -93,19 +105,9 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
 
       // Get all multipliers
       const groupMultiplier = await getGroupMultiplierForStudentInClassroom(studentId, classroomId);
-      const passiveMultiplier = student.passiveAttributes?.multiplier || 1;
-      
-      // Apply multipliers separately based on flags
-      // OLD multiplicative logic (replace)
-      // let finalMultiplier = 1;
-      // if (numericAmount >= 0) {
-      //   if (applyGroupMultipliers) {
-      //     finalMultiplier *= groupMultiplier;
-      //   }
-      //   if (applyPersonalMultipliers) {
-      //     finalMultiplier *= passiveMultiplier;
-      //   }
-      // }
+
+      // CHANGED: classroom-scoped personal multiplier (do NOT read global passiveAttributes when classroomId exists)
+      const passiveMultiplier = getPersonalMultiplierForClassroom(student, classroomId);
 
       // NEW additive logic (only add excess over 1.0)
       let finalMultiplier;
@@ -121,19 +123,36 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
         ? Math.round(numericAmount * finalMultiplier)
         : numericAmount;
 
-    // Prevent balance from going below 0
-    const newBalance = student.balance + adjustedAmount;
-    student.balance = Math.max(0, newBalance);
+      // CHANGED: apply balance to the correct scope
+      if (classroomId) {
+        const current = getClassroomBalance(student, classroomId);
+        const next = Math.max(0, current + adjustedAmount);
+        updateClassroomBalance(student, classroomId, next);
+      } else {
+        const newBalance = (student.balance || 0) + adjustedAmount;
+        student.balance = Math.max(0, newBalance);
+      }
 
-    // Record the transaction
-    student.transactions.push({
-      amount: adjustedAmount,
-      description: customDescription || 'Bulk adjustment by teacher',
-      assignedBy: req.user._id,
-      createdAt: new Date()
-    });
-
-console.log(`Student ${student._id}: oldBalance=${student.balance - adjustedAmount}, adjusted=${adjustedAmount}, newBalance=${student.balance}`);
+      // Record the transaction (include classroom + calculation for auditability)
+      student.transactions.push({
+        amount: adjustedAmount,
+        description: customDescription || 'Bulk adjustment by teacher',
+        assignedBy: req.user._id,
+        createdAt: new Date(),
+        classroom: classroomId || null,
+        calculation: (numericAmount >= 0 && (applyGroupMultipliers || applyPersonalMultipliers)) ? {
+          baseAmount: numericAmount,
+          personalMultiplier: applyPersonalMultipliers ? passiveMultiplier : 1,
+          groupMultiplier: applyGroupMultipliers ? (groupMultiplier || 1) : 1,
+          totalMultiplier: finalMultiplier,
+        } : {
+          baseAmount: numericAmount,
+          personalMultiplier: 1,
+          groupMultiplier: 1,
+          totalMultiplier: 1,
+          note: getMultiplierNote(applyGroupMultipliers, applyPersonalMultipliers)
+        },
+      });
 
       await student.save();
       results.updated += 1;

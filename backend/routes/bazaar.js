@@ -9,6 +9,7 @@ const { ensureAuthenticated } = require('../config/auth');
 const router = express.Router();
 const Order = require('../models/Order');
 const blockIfFrozen = require('../middleware/blockIfFrozen');
+const { getScopedUserStats } = require('../utils/classroomStats'); // ADD
 const upload = require('../middleware/upload'); // reuse existing upload middleware
 
 // Middleware: Only teachers allowed for certain actions
@@ -453,19 +454,18 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
   const { quantity } = req.body;
 
   try {
-    // POPULATE itemPool.item for mystery boxes
     const item = await Item.findById(itemId).populate('mysteryBoxConfig.itemPool.item');
     if (!item) return res.status(404).json({ error: 'Item not found' });
 
-    console.log('[Buy Item] Item after populate:', JSON.stringify({
-      category: item.category,
-      hasMysteryBoxConfig: !!item.mysteryBoxConfig,
-      itemPoolLength: item.mysteryBoxConfig?.itemPool?.length,
-      firstPoolItem: item.mysteryBoxConfig?.itemPool?.[0]
-    }, null, 2));
-
     const user = await User.findById(req.user._id);
-    const totalCost = item.price * quantity;
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    // ADD: classroom-scoped discount
+    const scoped = getScopedUserStats(user, classroomId, { create: true });
+    const discountPct = Math.max(0, Math.min(100, Number(scoped.passive?.discount ?? 0)));
+
+    const baseTotalCost = (Number(item.price) || 0) * (Number(quantity) || 0);
+    const totalCost = Math.max(0, Math.round(baseTotalCost * (1 - discountPct / 100)));
 
     // Use per-classroom balance for check and deduction
     const userBalance = getClassroomBalance(user, classroomId);
@@ -728,7 +728,7 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
       });
     }
 
-    const total = items.reduce((sum, item) => sum + item.price, 0);
+    let total = items.reduce((sum, item) => sum + item.price, 0);
     console.log(`Calculated total: ${total}, User per-classroom balance: ${getClassroomBalance(user, classroomId)}`);
 
     // Use per-classroom balance for check

@@ -13,7 +13,17 @@ import MysteryBoxDetailsModal from './MysteryBoxDetailsModal';
 
 const ITEM_PLACEHOLDER = '/images/item-placeholder.svg';
 
-const ItemCard = ({ item, onUse, showUseButton = true, classroomId, role, onEdit, onDelete }) => { // ADD role prop
+// CHANGED: accept classroom-scoped userLuck as a prop (do not read global passiveAttributes)
+const ItemCard = ({
+  item,
+  onUse,
+  showUseButton = true,
+  classroomId,
+  role,
+  onEdit,
+  onDelete,
+  userLuck: userLuckProp = 1.0, // ADD
+}) => {
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(false);
   const [using, setUsing] = useState(false);
@@ -22,7 +32,9 @@ const ItemCard = ({ item, onUse, showUseButton = true, classroomId, role, onEdit
   const [showDetails, setShowDetails] = useState(false);
   const { addToCart } = useCart();
   const { user } = useAuth();
-  const userLuck = user?.passiveAttributes?.luck || 1.0;
+
+  // CHANGED: classroom-scoped luck comes from prop
+  const userLuck = Number.isFinite(Number(userLuckProp)) ? Number(userLuckProp) : 1.0;
 
   const imgSrc = resolveImageSrc(item?.image);
   const { main, effect } = splitDescriptionEffect(item?.description || '');
@@ -240,7 +252,7 @@ const ItemCard = ({ item, onUse, showUseButton = true, classroomId, role, onEdit
          open={showDetails}
          onClose={() => setShowDetails(false)}
          box={item}
-         userLuck={userLuck}
+         userLuck={userLuck} // CHANGED
        />
      )}
     </div>

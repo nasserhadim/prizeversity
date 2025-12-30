@@ -12,10 +12,13 @@ import { Info } from 'lucide-react';
 
 const Wallet = () => {
   const { user } = useAuth();
+  const { id: classroomId } = useParams();
+
+  // ADD: classroom-scoped stats used in this page
+  const [classroomStats, setClassroomStats] = useState({ multiplier: 1 });
+
   // Only show the "All users" / assigner filter to teachers/admins
   const canSeeUserFilter = Boolean(user && ['teacher', 'admin'].includes((user.role || '').toString().toLowerCase()));
-
-  const { id: classroomId } = useParams();
 
   // Default tab logic for students
   const isStudent = user && user.role === 'student';
@@ -440,14 +443,40 @@ const fetchWallet = async () => {
   console.error('Failed to fetch wallet', err);
 }
 };
-    // Calculate effective balance considering multiplier passive attribute
-    const getEffectiveBalance = (user) => {
-      const baseBalance = user.balance || 0;
-      const multiplier = user.passiveAttributes?.multiplier || 1;
-      return Math.floor(baseBalance * multiplier);
-    };
+    // ADD: fetch classroom-scoped multiplier (do NOT use user.passiveAttributes)
+    useEffect(() => {
+      if (!user?._id || !classroomId) {
+        setClassroomStats({ multiplier: 1 });
+        return;
+      }
+  
+      (async () => {
+        try {
+          const { data } = await axios.get(
+            `/api/stats/student/${user._id}?classroomId=${classroomId}`,
+            { withCredentials: true }
+          );
+          setClassroomStats({
+            multiplier: Number(data?.multiplier) || 1
+          });
+        } catch (e) {
+          console.warn('[Wallet] failed to fetch classroom stats:', e?.message || e);
+          setClassroomStats({ multiplier: 1 });
+        }
+      })();
+    }, [user?._id, classroomId]);
 
-    // Refresh wallet transactions and all transactions (for teachers/admins)
+  // Calculate effective balance considering multiplier passive attribute
+  const getEffectiveBalance = (u) => {
+    const baseBalance = u?.balance || 0;
+
+    // CHANGED: classroom-scoped multiplier (from /api/stats), not auth user global passiveAttributes
+    const multiplier = Number(classroomStats?.multiplier) || 1;
+
+    return Math.floor(baseBalance * multiplier);
+  };
+
+  // Refresh wallet transactions and all transactions (for teachers/admins)
     const refreshTransactions = async () => {
       await fetchWallet();
       if (['teacher', 'admin'].includes(user.role)) {

@@ -10,6 +10,19 @@ const { ensureAuthenticated } = require('../config/auth');
 const sendEmail = require('../../send-email'); // root-level send-email.js
 const { awardXP } = require('../utils/awardXP');
 const { logStatChanges } = require('../utils/statChangeLog');
+const { getScopedUserStats } = require('../utils/classroomStats'); // ADD
+
+// ADD: classroom-scoped personal multiplier helper (no global fallback when classroomId exists)
+function getPersonalMultiplierForClassroom(userDoc, classroomId) {
+  if (classroomId) {
+    const scoped = getScopedUserStats(userDoc, classroomId, { create: false });
+    if (!scoped || !scoped.cs) return 1;
+    const m = Number(scoped.passive?.multiplier ?? 1);
+    return Number.isFinite(m) && m > 0 ? m : 1;
+  }
+  const m = Number(userDoc?.personalMultiplier ?? userDoc?.passiveAttributes?.multiplier ?? 1);
+  return Number.isFinite(m) && m > 0 ? m : 1;
+}
 
 // helper to format remaining milliseconds into "Xd Yh Zm"
 function formatRemainingMs(ms) {
@@ -249,8 +262,8 @@ router.post('/classroom', ensureAuthenticated, async (req, res) => {
 
             let personalMultiplier = 1;
             if (cls.feedbackRewardApplyPersonalMultipliers && req.user) {
-              const uTemp = await User.findById(req.user._id).select('personalMultiplier passiveAttributes');
-              personalMultiplier = (uTemp && (uTemp.personalMultiplier || uTemp.passiveAttributes?.multiplier)) ? Number(uTemp.personalMultiplier || uTemp.passiveAttributes?.multiplier) : 1;
+              const uTemp = await User.findById(req.user._id).select('personalMultiplier passiveAttributes classroomStats'); // ADD classroomStats
+              personalMultiplier = getPersonalMultiplierForClassroom(uTemp, classroomId); // CHANGED
             }
 
             const base = Number(cls.feedbackRewardBits) || 0;

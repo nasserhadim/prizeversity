@@ -12,6 +12,7 @@ const Notification = require('../models/Notification');
 const { populateNotification } = require('../utils/notifications');
 const { awardXP } = require('../utils/awardXP');
 const { logStatChanges } = require('../utils/statChangeLog');
+const { getScopedUserStats } = require('../utils/classroomStats'); // ADD
 
 // helper to select basis for XP from bits
 function computeXPBits({ numericAmount, adjustedAmount, xpSettings }) {
@@ -215,29 +216,33 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
       return res.status(400).json({ error: 'Amount must be a number' });
     }
 
-    // Manually look up groups this student is in
     const groups = await Group.find({
       'members._id': studentId,
       'members.status': 'approved'
     }).select('groupMultiplier');
 
-    // Apply multipliers separately
+    // CHANGED: classroom-scoped passive multiplier
+    const passiveMultiplier = applyPersonalMultipliers
+      ? getPersonalMultiplierForClassroom(student, classroomId)
+      : 1;
+
     let finalMultiplier = 1;
     if (groups.length > 0 && numericAmount >= 0) {
       if (applyGroupMultipliers) {
         finalMultiplier *= Math.max(...groups.map(g => g.groupMultiplier || 1));
       }
       if (applyPersonalMultipliers) {
-        finalMultiplier *= (student.passiveAttributes?.multiplier || 1);
+        finalMultiplier *= passiveMultiplier; // CHANGED
       }
     }
 
     // Use per-classroom balance if classroomId is provided
     if (classroomId) {
       const currentBalance = getClassroomBalance(student, classroomId);
-      const adjustedAmount = (numericAmount >= 0 && (applyGroupMultipliers || applyPersonalMultipliers)) 
-        ? Math.round(numericAmount * finalMultiplier) 
+      const adjustedAmount = (numericAmount >= 0 && (applyGroupMultipliers || applyPersonalMultipliers))
+        ? Math.round(numericAmount * finalMultiplier)
         : numericAmount;
+
       const newBalance = Math.max(0, currentBalance + adjustedAmount);
       updateClassroomBalance(student, classroomId, newBalance);
 
@@ -248,7 +253,7 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
         classroom: classroomId,
         calculation: (numericAmount >= 0 && (applyGroupMultipliers || applyPersonalMultipliers)) ? {
           baseAmount: numericAmount,
-          personalMultiplier: applyPersonalMultipliers ? (student.passiveAttributes?.multiplier || 1) : 1,
+          personalMultiplier: applyPersonalMultipliers ? passiveMultiplier : 1, // CHANGED
           groupMultiplier: applyGroupMultipliers ? Math.max(...groups.map(g => g.groupMultiplier || 1)) : 1,
           totalMultiplier: finalMultiplier,
         } : {
@@ -456,7 +461,7 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
 
       // Get all multipliers
       const groupMultiplier = await getGroupMultiplierForStudentInClassroom(studentId, classroomId);
-      const passiveMultiplier = student.passiveAttributes?.multiplier || 1;
+      const passiveMultiplier = getPersonalMultiplierForClassroom(student, classroomId);
       
       // Apply multipliers separately based on flags
       // OLD multiplicative logic (replace)
@@ -501,7 +506,7 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
         classroom: classroomId || null,
         calculation: (numericAmount >= 0 && (applyGroupMultipliers || applyPersonalMultipliers)) ? {
           baseAmount: numericAmount,
-          personalMultiplier: applyPersonalMultipliers ? passiveMultiplier : 1,
+          personalMultiplier: applyPersonalMultipliers ? passiveMultiplier : 1, // CHANGED
           groupMultiplier: applyGroupMultipliers ? groupMultiplier : 1,
           totalMultiplier: finalMultiplier,
         } : {
@@ -539,11 +544,11 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
           if (isNaN(numericAmount)) continue;
 
           // Recompute adjustedAmount exactly like the bulk update used above (additive logic)
-          const studentDoc = await User.findById(studentId).select('passiveAttributes');
+          const studentDoc = await User.findById(studentId).select('passiveAttributes classroomStats');
           if (!studentDoc) continue;
 
           const groupMultiplier = await getGroupMultiplierForStudentInClassroom(studentId, classroomId);
-          const passiveMultiplier = studentDoc.passiveAttributes?.multiplier || 1;
+          const passiveMultiplier = getPersonalMultiplierForClassroom(studentDoc, classroomId);
 
           let finalMultiplier = 1;
           if (numericAmount > 0) {
@@ -808,6 +813,18 @@ router.get('/:userId/balance', ensureAuthenticated, async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch balance' });
   }
 });
+
+// ADD: classroom-scoped personal multiplier helper (no global fallback when classroomId exists)
+function getPersonalMultiplierForClassroom(userDoc, classroomId) {
+  if (classroomId) {
+    const scoped = getScopedUserStats(userDoc, classroomId, { create: false });
+    if (!scoped || !scoped.cs) return 1;
+    const m = Number(scoped.passive?.multiplier ?? 1);
+    return Number.isFinite(m) && m > 0 ? m : 1;
+  }
+  const m = Number(userDoc?.passiveAttributes?.multiplier ?? 1);
+  return Number.isFinite(m) && m > 0 ? m : 1;
+}
 
 // Helper function to generate appropriate note
 function getMultiplierNote(applyGroup, applyPersonal) {

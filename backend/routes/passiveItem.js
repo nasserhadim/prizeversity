@@ -8,25 +8,32 @@ const { ensureAuthenticated } = require('../config/auth');
 const Classroom = require('../models/Classroom');
 const { awardXP } = require('../utils/awardXP');
 const { logStatChanges } = require('../utils/statChangeLog');
+const { getClassroomIdFromReq, getScopedUserStats } = require('../utils/classroomStats'); // ADD
 
 // Passive items are another category of the item bazaar which will grant users multipliers, group multipliers, and luck
 
 router.post('/equip/:itemId', ensureAuthenticated, async (req, res) => {
   try {
-    const classroomId = req.body.classroomId || req.query.classroomId;
+    const classroomId = getClassroomIdFromReq(req); // CHANGED (was req.body/req.query)
     const item = await Item.findById(req.params.itemId);
     if (!item || item.owner.toString() !== req.user._id.toString()) {
       return res.status(404).json({ error: 'Item not found' });
     }
 
-    // snapshot before changes
+    // snapshot BEFORE (classroom-scoped)
+    const scopedBefore = getScopedUserStats(req.user, classroomId, { create: true });
     const before = {
-      luck: req.user.passiveAttributes?.luck || 1,
-      multiplier: req.user.passiveAttributes?.multiplier || 1,
-      discount: req.user.passiveAttributes?.discount || 0,
-      shield: req.user.shieldCount || 0,
-      // groupMultiplier: unknown baseline; we'll log a +1 when applied
+      luck: scopedBefore.passive?.luck ?? 1,
+      multiplier: scopedBefore.passive?.multiplier ?? 1,
+      discount: scopedBefore.passive?.discount ?? 0,
+      shield: scopedBefore.shieldCount ?? 0,
+      // groupMultiplier handled separately (derived from Groups)
     };
+
+    // Write target: classroom-scoped entry if available, else legacy global
+    const passiveTarget = scopedBefore.cs
+      ? scopedBefore.cs.passiveAttributes
+      : (req.user.passiveAttributes ||= {});
 
     // Determine classroom-scoped groups (fallback to global if no classroomId provided)
     let groupIds = null;
@@ -50,15 +57,15 @@ router.post('/equip/:itemId', ensureAuthenticated, async (req, res) => {
     const groupApplyCount = groupNames.length;
     const groupNamesPreview = groupNames.slice(0, 5).join(', '); // cap list displayed
 
-    // Apply passive effects
+    // Apply passive effects (CHANGED: write into passiveTarget, not req.user.passiveAttributes)
     let groupEffectApplied = false;
     item.secondaryEffects.forEach(effect => {
-      switch(effect.effectType) {
+      switch (effect.effectType) {
         case 'grantsLuck':
-          req.user.passiveAttributes.luck = (req.user.passiveAttributes.luck || 1) + effect.value;
+          passiveTarget.luck = (Number(passiveTarget.luck ?? 1) || 1) + effect.value;
           break;
         case 'grantsMultiplier':
-          req.user.passiveAttributes.multiplier = (req.user.passiveAttributes.multiplier || 1) + effect.value;
+          passiveTarget.multiplier = (Number(passiveTarget.multiplier ?? 1) || 1) + effect.value;
           break;
         case 'grantsGroupMultiplier':
           // Update each group's multiplier
@@ -67,6 +74,8 @@ router.post('/equip/:itemId', ensureAuthenticated, async (req, res) => {
           });
           groupEffectApplied = true;
           break;
+        default:
+          /* noop */
       }
     });
 
@@ -178,10 +187,13 @@ router.post('/equip/:itemId', ensureAuthenticated, async (req, res) => {
     // award XP (existing)
     try {
       if (classroomId) {
+        // CHANGED: compute "after" from classroom-scoped stats, not global req.user.passiveAttributes
+        const scopedForXP = getScopedUserStats(req.user, classroomId, { create: true });
         const after = {
-          luck: req.user.passiveAttributes?.luck || 1,
-          multiplier: req.user.passiveAttributes?.multiplier || 1,
+          luck: scopedForXP.passive?.luck ?? 1,
+          multiplier: scopedForXP.passive?.multiplier ?? 1,
         };
+
         let statCount = 0;
         if (after.multiplier !== before.multiplier) statCount += 1;
         if (after.luck !== before.luck) statCount += 1;
@@ -236,15 +248,18 @@ router.post('/equip/:itemId', ensureAuthenticated, async (req, res) => {
       console.warn('[passiveItem] awardXP failed:', e);
     }
 
-    // NEW: stat-change notifications
+    // AFTER snapshot (classroom-scoped)
+    const scopedAfter = getScopedUserStats(req.user, classroomId, { create: true });
     const after = {
-      luck: req.user.passiveAttributes?.luck || 1,
-      multiplier: req.user.passiveAttributes?.multiplier || 1,
-      discount: req.user.passiveAttributes?.discount || 0,
-      shield: req.user.shieldCount || 0,
-      // If group effect applied, reflect the real aggregate change so log shows correct delta
+      luck: scopedAfter.passive?.luck ?? 1,
+      multiplier: scopedAfter.passive?.multiplier ?? 1,
+      discount: scopedAfter.passive?.discount ?? 0,
+      shield: scopedAfter.shieldCount ?? 0,
+      // If group effect applied, keep your existing groupMultiplier logging logic
       groupMultiplier: groupEffectApplied ? afterGroupAggregate : undefined
     };
+
+    // NEW: stat-change notifications
     const prevWithGroup = { ...before, ...(groupEffectApplied ? { groupMultiplier: prevGroupAggregate } : {}) };
 
     // Build effects text for passive item
@@ -279,9 +294,9 @@ router.post('/equip/:itemId', ensureAuthenticated, async (req, res) => {
       details: { effectsText: effects.join(', ') || undefined } // remove image
     });
 
-    res.json({
+    return res.json({
       message: 'Passive item equipped',
-      stats: req.user.passiveAttributes,
+      stats: scopedAfter.passive, // CHANGED: return classroom-scoped passive stats
       updatedGroups: userGroups.map(g => ({
         groupId: g._id,
         newMultiplier: g.groupMultiplier

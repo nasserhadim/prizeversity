@@ -7,6 +7,7 @@ const blockIfFrozen = require('../middleware/blockIfFrozen');
 const Classroom = require('../models/Classroom');
 const { awardXP } = require('../utils/awardXP');
 const { logStatChanges } = require('../utils/statChangeLog');
+const { getClassroomIdFromReq, getScopedUserStats } = require('../utils/classroomStats'); // ADD
 
 // Helper: Get classroom balance
 const getClassroomBalance = (user, classroomId) => {
@@ -26,54 +27,42 @@ const updateClassroomBalance = (user, classroomId, newBalance) => {
 // Helper: Weighted random selection with luck
 function selectItemWithLuck(itemPool, luckBonus) {
   const rarityOrder = { legendary: 5, epic: 4, rare: 3, uncommon: 2, common: 1 };
-  
-  // Apply luck bonus to rare items
   const adjustedPool = itemPool.map(poolItem => {
     const rarityMultiplier = rarityOrder[poolItem.rarity] / 5;
     const luckAdjustment = luckBonus * rarityMultiplier * 10;
-    
     return {
-      originalPoolItem: poolItem, // KEEP REFERENCE to original
+      originalPoolItem: poolItem,
       rarity: poolItem.rarity,
       baseDropChance: poolItem.baseDropChance,
-      item: poolItem.item, // PRESERVE item reference
+      item: poolItem.item,
       adjustedChance: Math.min(poolItem.baseDropChance + luckAdjustment, 100)
     };
   });
 
-  // Normalize chances to sum to 100
   const totalChance = adjustedPool.reduce((sum, item) => sum + item.adjustedChance, 0);
   const normalizedPool = adjustedPool.map(item => ({
     ...item,
     normalizedChance: (item.adjustedChance / totalChance) * 100
   }));
 
-  // Random selection
   const roll = Math.random() * 100;
   let cumulative = 0;
-
   for (const poolItem of normalizedPool) {
     cumulative += poolItem.normalizedChance;
-    if (roll <= cumulative) {
-      return poolItem;
-    }
+    if (roll <= cumulative) return poolItem;
   }
-
   return normalizedPool[normalizedPool.length - 1];
 }
 
 // POST: Student opens mystery box item
 router.post('/open/:itemId', ensureAuthenticated, blockIfFrozen, async (req, res) => {
   try {
-    const classroomId = req.body.classroomId || req.query.classroomId;
+    const classroomId = getClassroomIdFromReq(req); // CHANGED
     const userId = req.user._id;
 
-    // Fetch mystery box item WITHOUT populate first to see raw data
     const mysteryBoxItemRaw = await Item.findById(req.params.itemId);
-    
     console.log('[Mystery Box Item] RAW mysteryBoxConfig:', JSON.stringify(mysteryBoxItemRaw.mysteryBoxConfig, null, 2));
 
-    // Then fetch with populate
     const mysteryBoxItem = await Item.findById(req.params.itemId)
       .populate('mysteryBoxConfig.itemPool.item');
 
@@ -88,79 +77,63 @@ router.post('/open/:itemId', ensureAuthenticated, blockIfFrozen, async (req, res
     const user = await User.findById(userId);
     const config = mysteryBoxItem.mysteryBoxConfig;
 
-    console.log('[Mystery Box Item] Config after populate:', JSON.stringify({
-      hasItemPool: !!config.itemPool,
-      itemPoolLength: config.itemPool?.length,
-      firstItem: config.itemPool?.[0]
-    }, null, 2));
-
-    // Check if itemPool exists
     if (!config.itemPool || config.itemPool.length === 0) {
-      return res.status(500).json({ 
+      return res.status(500).json({
         error: 'Mystery box has no items configured',
-        debug: {
-          rawConfig: mysteryBoxItemRaw.mysteryBoxConfig,
-          populatedConfig: config
-        }
+        debug: { rawConfig: mysteryBoxItemRaw.mysteryBoxConfig, populatedConfig: config }
       });
     }
 
-    // Check max opens limit (if this is a template mystery box, not owned)
+    // Check max opens limit (scope to classroom)
     if (!mysteryBoxItem.owner && config.maxOpensPerStudent) {
       const openCount = user.transactions.filter(
-        t => t.description && t.description.includes(`Opened ${mysteryBoxItem.name}`)
+        t =>
+          String(t.classroom || '') === String(classroomId || '') &&
+          t.description &&
+          t.description.includes(`Opened ${mysteryBoxItem.name}`)
       ).length;
-      
+
       if (openCount >= config.maxOpensPerStudent) {
         return res.status(400).json({ error: 'Maximum opens reached for this mystery box' });
       }
     }
 
-    // PITY SYSTEM: Check consecutive bad luck
+    // PITY SYSTEM: Check consecutive bad luck (scope to classroom)
     let isPityTriggered = false;
-
     if (config.pityEnabled) {
       const pityMinRarityOrder = { uncommon: 2, rare: 3, epic: 4, legendary: 5 };
       const minRarityValue = pityMinRarityOrder[config.pityMinimumRarity] || 3;
 
       const allOpens = user.transactions
-        .filter(t => t.description && t.description.includes(`Opened ${mysteryBoxItem.name}`))
+        .filter(
+          t =>
+            String(t.classroom || '') === String(classroomId || '') &&
+            t.description &&
+            t.description.includes(`Opened ${mysteryBoxItem.name}`)
+        )
         .sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt));
 
       let consecutiveBadLuck = 0;
       for (const openTx of allOpens) {
         const match = openTx.description.match(/\((\w+)\)(?:\s*\[PITY\])?$/);
-        
-        if (!match) {
-          consecutiveBadLuck++;
-          continue;
-        }
+        if (!match) { consecutiveBadLuck++; continue; }
 
         const wonRarity = match[1].toLowerCase();
         const wonRarityValue = pityMinRarityOrder[wonRarity] || 0;
 
-        if (wonRarityValue >= minRarityValue) {
-          break;
-        } else {
-          consecutiveBadLuck++;
-        }
+        if (wonRarityValue >= minRarityValue) break;
+        consecutiveBadLuck++;
       }
 
       isPityTriggered = consecutiveBadLuck >= config.guaranteedItemAfter;
     }
 
-    // Calculate luck bonus
-    const userLuck = user.passiveAttributes?.luck || 1;
-    const luckBonus = (userLuck - 1) * config.luckMultiplier;
+    // CHANGED: classroom-scoped luck
+    const scoped = getScopedUserStats(user, classroomId, { create: false });
+    const userLuck = scoped.passive?.luck ?? 1;
+    const luckBonus = (Number(userLuck) - 1) * config.luckMultiplier;
 
-    console.log('[Mystery Box Item] Item pool structure:', JSON.stringify(config.itemPool.map(p => ({
-      hasItem: !!p.item,
-      itemType: typeof p.item,
-      itemId: p.item?._id || p.item,
-      rarity: p.rarity
-    })), null, 2));
-
-    // Determine won item
+    // Determine won item (existing logic unchanged)
     let wonPoolItem;
     let wonItemDoc;
     let wonRarity;
@@ -168,60 +141,28 @@ router.post('/open/:itemId', ensureAuthenticated, blockIfFrozen, async (req, res
     if (isPityTriggered) {
       const pityMinRarityOrder = { uncommon: 2, rare: 3, epic: 4, legendary: 5 };
       const minRarityValue = pityMinRarityOrder[config.pityMinimumRarity] || 3;
-      
-      const eligibleItems = config.itemPool.filter(
-        p => pityMinRarityOrder[p.rarity] >= minRarityValue
-      );
 
+      const eligibleItems = config.itemPool.filter(p => pityMinRarityOrder[p.rarity] >= minRarityValue);
       if (eligibleItems.length === 0) {
         return res.status(500).json({ error: 'Pity system misconfigured - no eligible items' });
       }
 
-      // Randomly select from eligible items
       const selected = eligibleItems[Math.floor(Math.random() * eligibleItems.length)];
       wonRarity = selected.rarity;
-      
-      // Extract the item document
-      if (selected.item && selected.item._id) {
-        wonItemDoc = selected.item; // Already populated
-      } else {
-        wonItemDoc = await Item.findById(selected.item);
-      }
+      wonItemDoc = (selected.item && selected.item._id) ? selected.item : await Item.findById(selected.item);
     } else {
-      // Normal luck-based selection
       wonPoolItem = selectItemWithLuck(config.itemPool, luckBonus);
       wonRarity = wonPoolItem.rarity;
-
-      console.log('[Mystery Box Item] Won pool item:', {
-        hasItem: !!wonPoolItem.item,
-        itemType: typeof wonPoolItem.item,
-        rarity: wonPoolItem.rarity
-      });
-
-      // Extract item from the result
-      if (wonPoolItem.item && wonPoolItem.item._id) {
-        // Already populated
-        wonItemDoc = wonPoolItem.item;
-      } else if (wonPoolItem.item) {
-        // Need to fetch manually (item is just an ID)
-        wonItemDoc = await Item.findById(wonPoolItem.item);
-      } else {
-        console.error('[Mystery Box Item] wonPoolItem has no item field:', wonPoolItem);
-        return res.status(500).json({ error: 'Failed to determine won item' });
-      }
+      if (wonPoolItem.item && wonPoolItem.item._id) wonItemDoc = wonPoolItem.item;
+      else if (wonPoolItem.item) wonItemDoc = await Item.findById(wonPoolItem.item);
+      else return res.status(500).json({ error: 'Failed to determine won item' });
     }
 
     if (!wonItemDoc || !wonItemDoc._id) {
-      console.error('[Mystery Box Item] Failed to resolve won item document');
       return res.status(500).json({ error: 'Failed to resolve won item' });
     }
 
-    console.log('[Mystery Box Item] Successfully resolved:', {
-      itemName: wonItemDoc.name,
-      rarity: wonRarity
-    });
-
-    // Create owned item (clone from template)
+    // Create owned item (clone)
     const ownedItem = await Item.create({
       name: wonItemDoc.name,
       description: wonItemDoc.description,
@@ -236,9 +177,9 @@ router.post('/open/:itemId', ensureAuthenticated, blockIfFrozen, async (req, res
       owner: userId
     });
 
-    // Record transaction
+    // Record transaction (already classroom-scoped on the tx itself)
     user.transactions.push({
-      amount: 0, // No cost for owned mystery box
+      amount: 0,
       description: `Opened ${mysteryBoxItem.name} - Won ${wonItemDoc.name} (${wonRarity})${isPityTriggered ? ' [PITY]' : ''}`,
       assignedBy: userId,
       classroom: classroomId,
@@ -342,7 +283,7 @@ router.post('/open/:itemId', ensureAuthenticated, blockIfFrozen, async (req, res
       isPity: isPityTriggered
     });
 
-    res.json({
+    return res.json({
       message: 'Mystery box opened!',
       wonItem: {
         ...ownedItem.toObject(),

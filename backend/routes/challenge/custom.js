@@ -14,6 +14,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const upload = require('../../middleware/upload');
 const templateEngine = require('../../utils/challengeTemplates');
+const { getScopedUserStats } = require('../../utils/classroomStats'); // ADD
 
 async function awardCustomChallengeXP({ userId, classroomId, rewards, challengeName }) {
   try {
@@ -546,6 +547,10 @@ router.post('/:classroomId/custom/:challengeId/verify', ensureAuthenticated, asy
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
+    // ADD: classroom-scoped stats target (no cross-classroom leakage)
+    const scoped = getScopedUserStats(user, classroomId, { create: true });
+    const passiveTarget = scoped.cs ? scoped.cs.passiveAttributes : (user.passiveAttributes ||= {});
+
     const customRewards = {
       bits: customChallenge.bits || 0,
       multiplier: customChallenge.multiplier || 1.0,
@@ -589,31 +594,36 @@ router.post('/:classroomId/custom/:challengeId/verify', ensureAuthenticated, asy
       userChallenge.bitsAwarded = (userChallenge.bitsAwarded || 0) + bitsAwarded;
     }
 
-    // Apply stat rewards
+    // Apply stat rewards (CHANGED: write to classroom-scoped entry)
     const rewardsEarned = { bits: bitsAwarded, multiplier: 0, luck: 1.0, discount: 0, shield: false };
 
     if (customRewards.multiplier > 1.0) {
-      if (!user.passiveAttributes) user.passiveAttributes = {};
       const multiplierIncrease = customRewards.multiplier - 1.0;
-      user.passiveAttributes.multiplier = Math.round(((user.passiveAttributes.multiplier || 1.0) + multiplierIncrease) * 100) / 100;
+      passiveTarget.multiplier =
+        Math.round(((passiveTarget.multiplier || 1.0) + multiplierIncrease) * 100) / 100;
       rewardsEarned.multiplier = multiplierIncrease;
     }
 
     if (customRewards.luck > 1.0) {
-      if (!user.passiveAttributes) user.passiveAttributes = {};
-      user.passiveAttributes.luck = Math.round((user.passiveAttributes.luck || 1.0) * customRewards.luck * 10) / 10;
+      passiveTarget.luck =
+        Math.round((passiveTarget.luck || 1.0) * customRewards.luck * 10) / 10;
       rewardsEarned.luck = customRewards.luck;
     }
 
     if (customRewards.discount > 0) {
-      if (!user.passiveAttributes) user.passiveAttributes = {};
-      user.passiveAttributes.discount = Math.min(100, (user.passiveAttributes.discount || 0) + customRewards.discount);
+      passiveTarget.discount =
+        Math.min(100, (passiveTarget.discount || 0) + customRewards.discount);
       rewardsEarned.discount = customRewards.discount;
     }
 
     if (customRewards.shield) {
-      user.shieldActive = true;
-      user.shieldCount = (user.shieldCount || 0) + 1;
+      if (scoped.cs) {
+        scoped.cs.shieldCount = (scoped.cs.shieldCount || 0) + 1;
+        scoped.cs.shieldActive = true;
+      } else {
+        user.shieldActive = true;
+        user.shieldCount = (user.shieldCount || 0) + 1;
+      }
       rewardsEarned.shield = true;
     }
 

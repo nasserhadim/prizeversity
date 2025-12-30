@@ -72,20 +72,9 @@ GroupSchema.methods.applyMultiplier = function(amount) {
 
 // When a user joins a group:
 GroupSchema.methods.addMember = async function(userId) {
-  const User = require('./User');
-  const user = await User.findById(userId);
+  // CHANGED: do not mutate user.passiveAttributes.groupMultiplier (global / cross-classroom)
   this.members.push({ _id: userId });
   await this.save();
-  
-  // Update user's group multipliers
-  if (!user.passiveAttributes) {
-    user.passiveAttributes = { luck: 1, multiplier: 1, groupMultiplier: 1 };
-  }
-  user.passiveAttributes.groupMultiplier = Math.max(
-    user.passiveAttributes.groupMultiplier || 1,
-    this.groupMultiplier || 1
-  );
-  await user.save();
 };
 
 module.exports = mongoose.models.Group || mongoose.model('Group', GroupSchema);
