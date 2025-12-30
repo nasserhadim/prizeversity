@@ -71,7 +71,27 @@ export const useCustomChallengeTemplates = () => {
         discount: c.discount || 0,
         shield: Boolean(c.shield),
         visible: c.visible !== false,
-        dueDateEnabled: Boolean(c.dueDateEnabled)
+        dueDateEnabled: Boolean(c.dueDateEnabled),
+        isMultiStep: Boolean(c.isMultiStep),
+        steps: (c.steps || []).map(step => ({
+          title: step.title || '',
+          description: step.description || '',
+          templateType: step.templateType || 'passcode',
+          templateConfig: step.templateConfig || {},
+          solution: step.solution || '',
+          bits: step.bits || 0,
+          multiplier: step.multiplier || 1.0,
+          luck: step.luck || 1.0,
+          discount: step.discount || 0,
+          shield: Boolean(step.shield),
+          maxAttempts: step.maxAttempts || null,
+          hintsEnabled: Boolean(step.hintsEnabled),
+          hints: step.hints || [],
+          hintPenaltyPercent: step.hintPenaltyPercent ?? null,
+          prerequisites: [],
+          isRequired: step.isRequired !== false
+        })),
+        completionBonus: c.completionBonus || 0
       }));
 
       await saveCustomChallengeTemplate(templateName.trim(), sanitized, isSingleChallenge, classroomId);
@@ -132,7 +152,28 @@ export const useCustomChallengeTemplates = () => {
       shield: Boolean(c.shield),
       visible: c.visible !== false,
       dueDateEnabled: Boolean(c.dueDateEnabled),
-      dueDate: ''
+      dueDate: '',
+      isMultiStep: Boolean(c.isMultiStep),
+      steps: (c.steps || []).map((step, idx) => ({
+        _id: `step-loaded-${Date.now()}-${idx}`,
+        title: step.title || '',
+        description: step.description || '',
+        templateType: step.templateType || 'passcode',
+        templateConfig: step.templateConfig || {},
+        solution: step.solution || '',
+        bits: step.bits || 0,
+        multiplier: step.multiplier || 1.0,
+        luck: step.luck || 1.0,
+        discount: step.discount || 0,
+        shield: Boolean(step.shield),
+        maxAttempts: step.maxAttempts || null,
+        hintsEnabled: Boolean(step.hintsEnabled),
+        hints: step.hints || [],
+        hintPenaltyPercent: step.hintPenaltyPercent ?? null,
+        prerequisites: [],
+        isRequired: step.isRequired !== false
+      })),
+      completionBonus: c.completionBonus || 0
     }));
 
     if (onLoad) {

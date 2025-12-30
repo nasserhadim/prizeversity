@@ -187,7 +187,8 @@ const ChallengeConfigModal = ({
             const { pendingAttachments, ...challengePayload } = challengeData;
             
             const isPasscode = !challengePayload.templateType || challengePayload.templateType === 'passcode';
-            if (isPasscode && !challengePayload.solution?.trim()) {
+            const isMultiStep = challengePayload.isMultiStep;
+            if (!isMultiStep && isPasscode && !challengePayload.solution?.trim()) {
               skippedCount++;
               skippedTitles.push(challengePayload.title || 'Untitled');
               continue;
