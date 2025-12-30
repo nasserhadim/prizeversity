@@ -212,10 +212,11 @@ router.post('/:classroomId/custom', ensureAuthenticated, ensureTeacher, async (r
       return res.status(403).json({ success: false, message: 'Only the challenge creator can add custom challenges' });
     }
 
-    // Only hash solution for passcode-type challenges
     let solutionHash = null;
+    let solutionPlaintext = null;
     if (!isTemplateType && solution) {
       solutionHash = await bcrypt.hash(solution.trim(), 10);
+      solutionPlaintext = solution.trim();
     }
 
     if (!challenge.customChallenges) challenge.customChallenges = [];
@@ -227,6 +228,7 @@ router.post('/:classroomId/custom', ensureAuthenticated, ensureTeacher, async (r
       description: description?.trim() || '',
       externalUrl: externalUrl?.trim() || '',
       solutionHash,
+      solutionPlaintext,
       templateType: templateType || 'passcode',
       templateConfig: isTemplateType ? (templateConfig || {}) : {},
       attachments: [],
@@ -360,9 +362,9 @@ router.put('/:classroomId/custom/:challengeId', ensureAuthenticated, ensureTeach
       }
     }
 
-    // Only update solution for passcode-type challenges
     if (solution !== undefined && solution.trim() && customChallenge.templateType === 'passcode') {
       customChallenge.solutionHash = await bcrypt.hash(solution.trim(), 10);
+      customChallenge.solutionPlaintext = solution.trim();
     }
 
     customChallenge.updatedAt = new Date();
@@ -1007,6 +1009,7 @@ router.get('/:classroomId/custom', ensureAuthenticated, async (req, res) => {
           hintsEnabled: cc.hintsEnabled,
           hintsCount: (cc.hints || []).length,
           hints: isTeacher ? (cc.hints || []) : undefined,
+          solution: isTeacher ? (cc.solutionPlaintext || '') : undefined,
           hintPenaltyPercent: cc.hintPenaltyPercent ?? challenge.settings?.hintPenaltyPercent ?? 25,
           maxAttempts: cc.maxAttempts,
           dueDateEnabled: cc.dueDateEnabled,

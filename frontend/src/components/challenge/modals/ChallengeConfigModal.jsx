@@ -180,8 +180,18 @@ const ChallengeConfigModal = ({
       if (pendingCustomChallenges.length > 0 && (seriesType === 'custom' || seriesType === 'mixed')) {
         try {
           let createdCount = 0;
+          let skippedCount = 0;
+          const skippedTitles = [];
+          
           for (const challengeData of pendingCustomChallenges) {
             const { pendingAttachments, ...challengePayload } = challengeData;
+            
+            const isPasscode = !challengePayload.templateType || challengePayload.templateType === 'passcode';
+            if (isPasscode && !challengePayload.solution?.trim()) {
+              skippedCount++;
+              skippedTitles.push(challengePayload.title || 'Untitled');
+              continue;
+            }
 
             const result = await createCustomChallenge(classroomId, challengePayload);
             const newChallengeId = result.challenge?._id;
@@ -191,15 +201,19 @@ const ChallengeConfigModal = ({
                 try {
                   await uploadCustomChallengeAttachment(classroomId, newChallengeId, file);
                 } catch {
-                  // ignore upload errors per existing behavior
                 }
               }
             }
 
             createdCount++;
           }
+          
           if (createdCount > 0) {
             toast.success(`Created ${createdCount} custom challenge(s)`);
+          }
+          
+          if (skippedCount > 0) {
+            toast.error(`Skipped ${skippedCount} passcode challenge(s) missing solutions: ${skippedTitles.join(', ')}. Add solutions before saving.`, { duration: 6000 });
           }
         } catch (error) {
           console.error('Error creating custom challenges:', error);
