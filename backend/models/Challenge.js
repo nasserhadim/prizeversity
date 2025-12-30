@@ -36,6 +36,7 @@ const CustomChallengeSchema = new mongoose.Schema({
   
   // For 'passcode' mode: teacher sets a static solution
   solutionHash: { type: String },
+  solutionPlaintext: { type: String, maxlength: 500 },
   
   // Template configuration
   templateType: { 
