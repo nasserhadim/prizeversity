@@ -2,7 +2,8 @@ import { useState, useEffect, useContext, useRef } from 'react';
 import { 
   Plus, Trash2, GripVertical, ExternalLink, Paperclip, X, Eye, EyeOff, 
   ChevronDown, ChevronUp, Shield, AlertTriangle,
-  Target, Lightbulb, Clover, Percent, Clock, FolderOpen, Save, FileDown
+  Target, Lightbulb, Clover, Percent, Clock, FolderOpen, Save, FileDown,
+  Lock, Unlock, Layers, Gift
 } from 'lucide-react';
 import { ThemeContext } from '../../context/ThemeContext';
 import {
@@ -151,7 +152,10 @@ const CustomChallengeBuilder = ({
     templateType: 'passcode',
     templateConfig: {},
     dueDateEnabled: false,
-    dueDate: ''
+    dueDate: '',
+    isMultiStep: false,
+    steps: [],
+    completionBonus: 0
   });
   
   const [pendingAttachments, setPendingAttachments] = useState([]);
@@ -218,7 +222,10 @@ const CustomChallengeBuilder = ({
       templateType: 'passcode',
       templateConfig: {},
       dueDateEnabled: false,
-      dueDate: ''
+      dueDate: '',
+      isMultiStep: false,
+      steps: [],
+      completionBonus: 0
     });
     setPendingAttachments([]);
     setEditingId(null);
@@ -330,7 +337,14 @@ const CustomChallengeBuilder = ({
       templateType: challenge.templateType || 'passcode',
       templateConfig: challenge.templateConfig || {},
       dueDateEnabled: challenge.dueDateEnabled || false,
-      dueDate: challenge.dueDate ? utcToLocalDateTime(challenge.dueDate) : ''
+      dueDate: challenge.dueDate ? utcToLocalDateTime(challenge.dueDate) : '',
+      isMultiStep: challenge.isMultiStep || false,
+      steps: challenge.steps?.length ? challenge.steps.map(s => ({
+        ...s,
+        solution: s.solutionPlaintext || s.solution || '',
+        prerequisites: s.prerequisites?.map(p => p.toString()) || []
+      })) : [],
+      completionBonus: challenge.completionBonus || 0
     });
     setEditingId(challenge._id || challenge._draftId);
     setShowForm(true);
@@ -344,16 +358,31 @@ const CustomChallengeBuilder = ({
       return;
     }
 
+    const isMultiStepChallenge = form.isMultiStep && form.steps.length > 0;
     const isTemplateChallenge = form.templateType && form.templateType !== 'passcode';
 
-    if (!isTemplateChallenge && !editingId && !form.solution.trim()) {
+    if (!isMultiStepChallenge && !isTemplateChallenge && !editingId && !form.solution.trim()) {
       toast.error('Solution passcode is required for passcode challenges');
       return;
     }
 
-    if (form.hintsEnabled && form.hints.filter(h => h.trim()).length === 0) {
+    if (!isMultiStepChallenge && form.hintsEnabled && form.hints.filter(h => h.trim()).length === 0) {
       toast.error('Please add at least one hint or disable hints');
       return;
+    }
+
+    if (isMultiStepChallenge) {
+      for (const step of form.steps) {
+        if (!step.title?.trim()) {
+          toast.error('All steps must have a title');
+          return;
+        }
+        const stepIsTemplate = step.templateType && step.templateType !== 'passcode';
+        if (!stepIsTemplate && !step.solution?.trim()) {
+          toast.error(`Step "${step.title}" requires a solution passcode`);
+          return;
+        }
+      }
     }
 
     setSaving(true);
@@ -362,11 +391,11 @@ const CustomChallengeBuilder = ({
         title: form.title.trim(),
         description: form.description.trim(),
         externalUrl: form.externalUrl.trim(),
-        maxAttempts: form.maxAttempts ? parseInt(form.maxAttempts) : null,
-        hintsEnabled: form.hintsEnabled,
-        hints: form.hints.filter(h => h.trim()),
-        hintPenaltyPercent: form.hintPenaltyPercent !== '' ? parseInt(form.hintPenaltyPercent) : null,
-        bits: parseInt(form.bits) || 0,
+        maxAttempts: isMultiStepChallenge ? null : (form.maxAttempts ? parseInt(form.maxAttempts) : null),
+        hintsEnabled: isMultiStepChallenge ? false : form.hintsEnabled,
+        hints: isMultiStepChallenge ? [] : form.hints.filter(h => h.trim()),
+        hintPenaltyPercent: isMultiStepChallenge ? null : (form.hintPenaltyPercent !== '' ? parseInt(form.hintPenaltyPercent) : null),
+        bits: isMultiStepChallenge ? 0 : (parseInt(form.bits) || 0),
         multiplier: parseFloat(form.multiplier) || 1.0,
         luck: parseFloat(form.luck) || 1.0,
         discount: parseInt(form.discount) || 0,
@@ -375,13 +404,29 @@ const CustomChallengeBuilder = ({
         applyPersonalMultiplier: form.applyPersonalMultiplier || false,
         applyGroupMultiplier: form.applyGroupMultiplier || false,
         visible: form.visible,
-        templateType: form.templateType,
-        templateConfig: isTemplateChallenge ? form.templateConfig : {},
+        templateType: isMultiStepChallenge ? 'passcode' : form.templateType,
+        templateConfig: (!isMultiStepChallenge && isTemplateChallenge) ? form.templateConfig : {},
         dueDateEnabled: form.dueDateEnabled,
-        dueDate: form.dueDateEnabled && form.dueDate ? localDateTimeToUTC(form.dueDate) : null
+        dueDate: form.dueDateEnabled && form.dueDate ? localDateTimeToUTC(form.dueDate) : null,
+        isMultiStep: isMultiStepChallenge,
+        steps: isMultiStepChallenge ? form.steps.map(step => ({
+          ...step,
+          title: step.title?.trim() || 'Step',
+          description: step.description?.trim() || '',
+          bits: parseInt(step.bits) || 0,
+          multiplier: parseFloat(step.multiplier) || 1.0,
+          luck: parseFloat(step.luck) || 1.0,
+          discount: parseInt(step.discount) || 0,
+          shield: Boolean(step.shield),
+          maxAttempts: step.maxAttempts ? parseInt(step.maxAttempts) : null,
+          hintPenaltyPercent: step.hintPenaltyPercent !== '' && step.hintPenaltyPercent !== undefined ? parseInt(step.hintPenaltyPercent) : null,
+          prerequisites: step.prerequisites || [],
+          isRequired: step.isRequired !== false
+        })) : [],
+        completionBonus: isMultiStepChallenge ? (parseInt(form.completionBonus) || 0) : 0
       };
 
-      if (!isTemplateChallenge && form.solution.trim()) {
+      if (!isMultiStepChallenge && !isTemplateChallenge && form.solution.trim()) {
         payload.solution = form.solution.trim();
       }
 
@@ -529,6 +574,102 @@ const CustomChallengeBuilder = ({
     }));
   };
 
+  const addStep = () => {
+    const newStep = {
+      _id: `step-${Date.now()}-${Math.random()}`,
+      title: '',
+      description: '',
+      templateType: 'passcode',
+      templateConfig: {},
+      solution: '',
+      bits: 0,
+      multiplier: 1.0,
+      luck: 1.0,
+      discount: 0,
+      shield: false,
+      maxAttempts: '',
+      hintsEnabled: false,
+      hints: [''],
+      hintPenaltyPercent: '',
+      prerequisites: [],
+      isRequired: true
+    };
+    setForm(prev => ({ ...prev, steps: [...prev.steps, newStep] }));
+  };
+
+  const removeStep = (stepIndex) => {
+    setForm(prev => {
+      const removedStepId = prev.steps[stepIndex]?._id;
+      const newSteps = prev.steps.filter((_, i) => i !== stepIndex);
+      return {
+        ...prev,
+        steps: newSteps.map(step => ({
+          ...step,
+          prerequisites: step.prerequisites.filter(p => p !== removedStepId)
+        }))
+      };
+    });
+  };
+
+  const updateStep = (stepIndex, field, value) => {
+    setForm(prev => ({
+      ...prev,
+      steps: prev.steps.map((step, i) => 
+        i === stepIndex ? { ...step, [field]: value } : step
+      )
+    }));
+  };
+
+  const updateStepHint = (stepIndex, hintIndex, value) => {
+    setForm(prev => ({
+      ...prev,
+      steps: prev.steps.map((step, i) => {
+        if (i !== stepIndex) return step;
+        const newHints = [...(step.hints || [])];
+        newHints[hintIndex] = value;
+        return { ...step, hints: newHints };
+      })
+    }));
+  };
+
+  const addStepHint = (stepIndex) => {
+    setForm(prev => ({
+      ...prev,
+      steps: prev.steps.map((step, i) => {
+        if (i !== stepIndex) return step;
+        if ((step.hints || []).length >= 5) return step;
+        return { ...step, hints: [...(step.hints || []), ''] };
+      })
+    }));
+  };
+
+  const removeStepHint = (stepIndex, hintIndex) => {
+    setForm(prev => ({
+      ...prev,
+      steps: prev.steps.map((step, i) => {
+        if (i !== stepIndex) return step;
+        return { ...step, hints: step.hints.filter((_, hi) => hi !== hintIndex) };
+      })
+    }));
+  };
+
+  const toggleStepPrerequisite = (stepIndex, prereqStepId) => {
+    setForm(prev => ({
+      ...prev,
+      steps: prev.steps.map((step, i) => {
+        if (i !== stepIndex) return step;
+        const prereqs = step.prerequisites || [];
+        const hasPrereq = prereqs.includes(prereqStepId);
+        return {
+          ...step,
+          prerequisites: hasPrereq 
+            ? prereqs.filter(p => p !== prereqStepId)
+            : [...prereqs, prereqStepId]
+        };
+      })
+    }));
+  };
+
   const toggleCardExpanded = (id) => {
     setExpandedCards(prev => ({ ...prev, [id]: !prev[id] }));
   };
@@ -669,18 +810,59 @@ const CustomChallengeBuilder = ({
             </button>
           </div>
 
-          {}
-          <div className="md:col-span-2">
-            <TemplateSelector
-              selectedType={form.templateType}
-              templateConfig={form.templateConfig}
-              onChange={(type, config) => setForm(prev => ({ 
-                ...prev, 
-                templateType: type, 
-                templateConfig: config 
-              }))}
-            />
+          <div className="form-control">
+            <label className="label cursor-pointer justify-start gap-3">
+              <input
+                type="checkbox"
+                className="checkbox checkbox-primary"
+                checked={form.isMultiStep}
+                onChange={(e) => setForm(prev => ({ 
+                  ...prev, 
+                  isMultiStep: e.target.checked,
+                  steps: e.target.checked && prev.steps.length === 0 ? [{
+                    _id: `step-${Date.now()}`,
+                    title: '',
+                    description: '',
+                    templateType: 'passcode',
+                    templateConfig: {},
+                    solution: '',
+                    bits: 0,
+                    multiplier: 1.0,
+                    luck: 1.0,
+                    discount: 0,
+                    shield: false,
+                    maxAttempts: '',
+                    hintsEnabled: false,
+                    hints: [''],
+                    hintPenaltyPercent: '',
+                    prerequisites: [],
+                    isRequired: true
+                  }] : prev.steps
+                }))}
+              />
+              <div>
+                <span className="label-text font-medium flex items-center gap-2">
+                  <Layers className="w-4 h-4" />
+                  Multi-Step Challenge
+                </span>
+                <span className="text-xs text-gray-500 block">Create a challenge with multiple steps that can have prerequisites</span>
+              </div>
+            </label>
           </div>
+
+          {!form.isMultiStep && (
+            <div className="md:col-span-2">
+              <TemplateSelector
+                selectedType={form.templateType}
+                templateConfig={form.templateConfig}
+                onChange={(type, config) => setForm(prev => ({ 
+                  ...prev, 
+                  templateType: type, 
+                  templateConfig: config 
+                }))}
+              />
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="form-control md:col-span-2">
@@ -720,7 +902,7 @@ const CustomChallengeBuilder = ({
               />
             </div>
 
-            {form.templateType === 'passcode' && (
+            {!form.isMultiStep && form.templateType === 'passcode' && (
               <div className="form-control">
                 <label className="label">
                   <span className="label-text">Solution Passcode *</span>
@@ -745,77 +927,122 @@ const CustomChallengeBuilder = ({
               </div>
             )}
             
-
-            <div className="form-control">
-              <label className="label"><span className="label-text">Max Attempts (blank = unlimited)</span></label>
-              <input
-                type="number"
-                className="input input-bordered"
-                value={form.maxAttempts}
-                onChange={(e) => setForm(prev => ({ ...prev, maxAttempts: e.target.value }))}
-                placeholder="Unlimited"
-                min={1}
-              />
-            </div>
-
-            <div className="form-control">
-              <label className="label"><span className="label-text">Bits Reward</span></label>
-              <input
-                type="number"
-                className="input input-bordered"
-                value={form.bits}
-                onChange={(e) => setForm(prev => ({ ...prev, bits: e.target.value }))}
-                min={0}
-              />
-            </div>
-
-            <div className="form-control">
-              <label className="label"><span className="label-text">Multiplier Bonus</span></label>
-              <input
-                type="number"
-                className="input input-bordered"
-                value={form.multiplier}
-                onChange={(e) => setForm(prev => ({ ...prev, multiplier: e.target.value }))}
-                min={1}
-                step={0.1}
-              />
-            </div>
-
-            <div className="form-control">
-              <label className="label"><span className="label-text">Luck Multiplier</span></label>
-              <input
-                type="number"
-                className="input input-bordered"
-                value={form.luck}
-                onChange={(e) => setForm(prev => ({ ...prev, luck: e.target.value }))}
-                min={1}
-                step={0.1}
-              />
-            </div>
-
-            <div className="form-control">
-              <label className="label"><span className="label-text">Discount %</span></label>
-              <input
-                type="number"
-                className="input input-bordered"
-                value={form.discount}
-                onChange={(e) => setForm(prev => ({ ...prev, discount: e.target.value }))}
-                min={0}
-                max={100}
-              />
-            </div>
-
-            <div className="form-control">
-              <label className="label cursor-pointer justify-start gap-3">
+            {!form.isMultiStep && (
+              <div className="form-control">
+                <label className="label"><span className="label-text">Max Attempts (blank = unlimited)</span></label>
                 <input
-                  type="checkbox"
-                  className="checkbox"
-                  checked={form.shield}
-                  onChange={(e) => setForm(prev => ({ ...prev, shield: e.target.checked }))}
+                  type="number"
+                  className="input input-bordered"
+                  value={form.maxAttempts}
+                  onChange={(e) => setForm(prev => ({ ...prev, maxAttempts: e.target.value }))}
+                  placeholder="Unlimited"
+                  min={1}
                 />
-                <span className="label-text">Award Shield</span>
-              </label>
-            </div>
+              </div>
+            )}
+
+            {!form.isMultiStep && (
+              <div className="form-control">
+                <label className="label"><span className="label-text">Bits Reward</span></label>
+                <input
+                  type="number"
+                  className="input input-bordered"
+                  value={form.bits}
+                  onChange={(e) => setForm(prev => ({ ...prev, bits: e.target.value }))}
+                  min={0}
+                />
+              </div>
+            )}
+
+            {form.isMultiStep && (
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text flex items-center gap-2">
+                    <Gift className="w-4 h-4" />
+                    Completion Bonus Bits
+                  </span>
+                </label>
+                <input
+                  type="number"
+                  className="input input-bordered"
+                  value={form.completionBonus}
+                  onChange={(e) => setForm(prev => ({ ...prev, completionBonus: e.target.value }))}
+                  min={0}
+                  placeholder="0"
+                />
+                <span className="text-xs text-gray-500 mt-1">Bonus bits awarded when all required steps are completed</span>
+              </div>
+            )}
+
+            {!form.isMultiStep && (
+              <>
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text flex items-center gap-1">
+                      <Target className="w-4 h-4" /> Multiplier Bonus
+                    </span>
+                  </label>
+                  <input
+                    type="number"
+                    className="input input-bordered"
+                    value={form.multiplier}
+                    onChange={(e) => setForm(prev => ({ ...prev, multiplier: e.target.value }))}
+                    min={1}
+                    step={0.1}
+                  />
+                  <span className="text-xs text-gray-500 mt-1">Awarded on challenge completion</span>
+                </div>
+
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text flex items-center gap-1">
+                      <Clover className="w-4 h-4" /> Luck Multiplier
+                    </span>
+                  </label>
+                  <input
+                    type="number"
+                    className="input input-bordered"
+                    value={form.luck}
+                    onChange={(e) => setForm(prev => ({ ...prev, luck: e.target.value }))}
+                    min={1}
+                    step={0.1}
+                  />
+                  <span className="text-xs text-gray-500 mt-1">Awarded on challenge completion</span>
+                </div>
+
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text flex items-center gap-1">
+                      <Percent className="w-4 h-4" /> Discount %
+                    </span>
+                  </label>
+                  <input
+                    type="number"
+                    className="input input-bordered"
+                    value={form.discount}
+                    onChange={(e) => setForm(prev => ({ ...prev, discount: e.target.value }))}
+                    min={0}
+                    max={100}
+                  />
+                  <span className="text-xs text-gray-500 mt-1">Awarded on challenge completion</span>
+                </div>
+
+                <div className="form-control">
+                  <label className="label cursor-pointer justify-start gap-3">
+                    <input
+                      type="checkbox"
+                      className="checkbox"
+                      checked={form.shield}
+                      onChange={(e) => setForm(prev => ({ ...prev, shield: e.target.checked }))}
+                    />
+                    <span className="label-text flex items-center gap-1">
+                      <Shield className="w-4 h-4" /> Award Shield
+                    </span>
+                  </label>
+                  <span className="text-xs text-gray-500">Awarded on challenge completion</span>
+                </div>
+              </>
+            )}
 
             {/* NEW: Multiplier Application Options */}
             {parseInt(form.bits) > 0 && (
@@ -889,64 +1116,399 @@ const CustomChallengeBuilder = ({
             )}
           </div>
 
-          <div className="form-control">
-            <label className="label cursor-pointer justify-start gap-3">
-              <input
-                type="checkbox"
-                className="checkbox"
-                checked={form.hintsEnabled}
-                onChange={(e) => setForm(prev => ({ ...prev, hintsEnabled: e.target.checked }))}
-              />
-              <span className="label-text">Enable Hints</span>
-            </label>
-          </div>
+          {!form.isMultiStep && (
+            <>
+              <div className="form-control">
+                <label className="label cursor-pointer justify-start gap-3">
+                  <input
+                    type="checkbox"
+                    className="checkbox"
+                    checked={form.hintsEnabled}
+                    onChange={(e) => setForm(prev => ({ ...prev, hintsEnabled: e.target.checked }))}
+                  />
+                  <span className="label-text">Enable Hints</span>
+                </label>
+              </div>
 
-          {form.hintsEnabled && (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="label"><span className="label-text">Hints</span></label>
-                {form.hints.map((hint, index) => (
-                  <div key={index} className="flex gap-2">
-                    <input
-                      type="text"
-                      className="input input-bordered flex-1"
-                      value={hint}
-                      onChange={(e) => updateHint(index, e.target.value)}
-                      placeholder={`Hint ${index + 1}`}
-                      maxLength={500}
-                    />
-                    {form.hints.length > 1 && (
-                      <button type="button" onClick={() => removeHintField(index)} className="btn btn-ghost btn-sm">
-                        <Trash2 className="w-4 h-4" />
+              {form.hintsEnabled && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="label"><span className="label-text">Hints</span></label>
+                    {form.hints.map((hint, index) => (
+                      <div key={index} className="flex gap-2">
+                        <input
+                          type="text"
+                          className="input input-bordered flex-1"
+                          value={hint}
+                          onChange={(e) => updateHint(index, e.target.value)}
+                          placeholder={`Hint ${index + 1}`}
+                          maxLength={500}
+                        />
+                        {form.hints.length > 1 && (
+                          <button type="button" onClick={() => removeHintField(index)} className="btn btn-ghost btn-sm">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    {form.hints.length < 5 && (
+                      <button type="button" onClick={addHintField} className="btn btn-ghost btn-sm gap-2">
+                        <Plus className="w-4 h-4" /> Add Hint
                       </button>
                     )}
                   </div>
-                ))}
-                {form.hints.length < 5 && (
-                  <button type="button" onClick={addHintField} className="btn btn-ghost btn-sm gap-2">
-                    <Plus className="w-4 h-4" /> Add Hint
-                  </button>
-                )}
-              </div>
-              
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text">Hint Penalty % (optional)</span>
-                  <span className="label-text-alt">Leave blank to not apply a penalty</span>
-                </label>
-                <input
-                  type="number"
-                  className="input input-bordered w-32"
-                  value={form.hintPenaltyPercent}
-                  onChange={(e) => setForm(prev => ({ ...prev, hintPenaltyPercent: e.target.value }))}
-                  placeholder="25"
-                  min={0}
-                  max={100}
-                />
-                <div className="text-xs text-gray-500 mt-1">
-                  Reduces bit reward by this % for each hint used
+                  
+                  <div className="form-control">
+                    <label className="label">
+                      <span className="label-text">Hint Penalty % (optional)</span>
+                      <span className="label-text-alt">Leave blank to not apply a penalty</span>
+                    </label>
+                    <input
+                      type="number"
+                      className="input input-bordered w-32"
+                      value={form.hintPenaltyPercent}
+                      onChange={(e) => setForm(prev => ({ ...prev, hintPenaltyPercent: e.target.value }))}
+                      placeholder="25"
+                      min={0}
+                      max={100}
+                    />
+                    <div className="text-xs text-gray-500 mt-1">
+                      Reduces bit reward by this % for each hint used
+                    </div>
+                  </div>
                 </div>
+              )}
+            </>
+          )}
+
+          {form.isMultiStep && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h5 className="font-medium flex items-center gap-2">
+                  <Layers className="w-4 h-4" />
+                  Challenge Steps
+                </h5>
+                <button
+                  type="button"
+                  onClick={addStep}
+                  className="btn btn-ghost btn-sm gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Step
+                </button>
               </div>
+
+              {form.steps.length === 0 && (
+                <div className={`text-center py-8 rounded-lg border-2 border-dashed ${isDark ? 'border-base-content/20' : 'border-gray-300'}`}>
+                  <Layers className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm opacity-70">No steps yet. Add your first step to get started.</p>
+                </div>
+              )}
+
+              {form.steps.map((step, stepIndex) => (
+                <div 
+                  key={step._id || stepIndex} 
+                  className={`card ${isDark ? 'bg-base-100' : 'bg-white'} border ${isDark ? 'border-base-content/10' : 'border-gray-200'}`}
+                >
+                  <div className="card-body p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="badge badge-primary badge-sm">Step {stepIndex + 1}</span>
+                        {step.isRequired ? (
+                          <span className="badge badge-outline badge-sm">Required</span>
+                        ) : (
+                          <span className="badge badge-ghost badge-sm">Optional</span>
+                        )}
+                        {(step.prerequisites || []).length > 0 && (
+                          <span className="badge badge-info badge-sm gap-1">
+                            <Lock className="w-3 h-3" />
+                            {step.prerequisites.length} prereq
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeStep(stepIndex)}
+                        className="btn btn-ghost btn-xs text-error"
+                        disabled={form.steps.length <= 1}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="form-control">
+                        <label className="label py-1"><span className="label-text text-xs">Title *</span></label>
+                        <input
+                          type="text"
+                          className="input input-bordered input-sm"
+                          value={step.title}
+                          onChange={(e) => updateStep(stepIndex, 'title', e.target.value)}
+                          placeholder="Step title"
+                          maxLength={200}
+                        />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <div className={`text-xs px-2 py-1 rounded ${isDark ? 'bg-primary/20 text-primary' : 'bg-primary/10 text-primary'}`}>
+                          <Gift className="w-3 h-3 inline mr-1" />
+                          Rewards below are awarded when this step is completed
+                        </div>
+                      </div>
+
+                      <div className="form-control">
+                        <label className="label py-1"><span className="label-text text-xs">Bits Reward</span></label>
+                        <input
+                          type="number"
+                          className="input input-bordered input-sm"
+                          value={step.bits}
+                          onChange={(e) => updateStep(stepIndex, 'bits', e.target.value)}
+                          min={0}
+                          placeholder="0"
+                        />
+                      </div>
+
+                      <div className="form-control">
+                        <label className="label py-1">
+                          <span className="label-text text-xs flex items-center gap-1">
+                            <Target className="w-3 h-3" /> Multiplier
+                          </span>
+                        </label>
+                        <input
+                          type="number"
+                          className="input input-bordered input-sm"
+                          value={step.multiplier || 1}
+                          onChange={(e) => updateStep(stepIndex, 'multiplier', e.target.value)}
+                          min={1}
+                          step={0.1}
+                          placeholder="1.0"
+                        />
+                      </div>
+
+                      <div className="form-control">
+                        <label className="label py-1">
+                          <span className="label-text text-xs flex items-center gap-1">
+                            <Clover className="w-3 h-3" /> Luck
+                          </span>
+                        </label>
+                        <input
+                          type="number"
+                          className="input input-bordered input-sm"
+                          value={step.luck || 1}
+                          onChange={(e) => updateStep(stepIndex, 'luck', e.target.value)}
+                          min={1}
+                          step={0.1}
+                          placeholder="1.0"
+                        />
+                      </div>
+
+                      <div className="form-control">
+                        <label className="label py-1">
+                          <span className="label-text text-xs flex items-center gap-1">
+                            <Percent className="w-3 h-3" /> Discount %
+                          </span>
+                        </label>
+                        <input
+                          type="number"
+                          className="input input-bordered input-sm"
+                          value={step.discount || 0}
+                          onChange={(e) => updateStep(stepIndex, 'discount', e.target.value)}
+                          min={0}
+                          max={100}
+                          placeholder="0"
+                        />
+                      </div>
+
+                      <div className="form-control">
+                        <label className="label cursor-pointer justify-start gap-2 py-1">
+                          <input
+                            type="checkbox"
+                            className="checkbox checkbox-sm"
+                            checked={step.shield || false}
+                            onChange={(e) => updateStep(stepIndex, 'shield', e.target.checked)}
+                          />
+                          <span className="label-text text-xs flex items-center gap-1">
+                            <Shield className="w-3 h-3" /> Shield
+                          </span>
+                        </label>
+                      </div>
+
+                      <div className="form-control md:col-span-2">
+                        <label className="label py-1"><span className="label-text text-xs">Description</span></label>
+                        <textarea
+                          className="textarea textarea-bordered textarea-sm h-16"
+                          value={step.description}
+                          onChange={(e) => updateStep(stepIndex, 'description', e.target.value)}
+                          placeholder="Step instructions"
+                          maxLength={2000}
+                        />
+                      </div>
+
+                      <div className="form-control">
+                        <label className="label py-1"><span className="label-text text-xs">Template Type</span></label>
+                        <select
+                          className="select select-bordered select-sm"
+                          value={step.templateType}
+                          onChange={(e) => updateStep(stepIndex, 'templateType', e.target.value)}
+                        >
+                          <option value="passcode">Static Passcode</option>
+                          <option value="cipher">Cipher Decoder</option>
+                          <option value="hash">Hash Cracker</option>
+                          <option value="hidden-message">Hidden Message</option>
+                          <option value="pattern-find">Pattern Find</option>
+                        </select>
+                      </div>
+
+                      {step.templateType === 'passcode' && (
+                        <div className="form-control">
+                          <label className="label py-1"><span className="label-text text-xs">Solution *</span></label>
+                          <div className="relative">
+                            <input
+                              type={showSolution[`step-${stepIndex}`] ? 'text' : 'password'}
+                              className="input input-bordered input-sm w-full pr-8"
+                              value={step.solution}
+                              onChange={(e) => updateStep(stepIndex, 'solution', e.target.value)}
+                              placeholder="Solution"
+                            />
+                            <button
+                              type="button"
+                              className="absolute right-1 top-1/2 -translate-y-1/2 btn btn-ghost btn-xs"
+                              onClick={() => setShowSolution(prev => ({ ...prev, [`step-${stepIndex}`]: !prev[`step-${stepIndex}`] }))}
+                            >
+                              {showSolution[`step-${stepIndex}`] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="form-control">
+                        <label className="label py-1"><span className="label-text text-xs">Max Attempts</span></label>
+                        <input
+                          type="number"
+                          className="input input-bordered input-sm"
+                          value={step.maxAttempts}
+                          onChange={(e) => updateStep(stepIndex, 'maxAttempts', e.target.value)}
+                          placeholder="Unlimited"
+                          min={1}
+                        />
+                      </div>
+
+                      <div className="form-control flex-row items-center gap-3">
+                        <label className="label cursor-pointer gap-2">
+                          <input
+                            type="checkbox"
+                            className="checkbox checkbox-sm"
+                            checked={step.isRequired}
+                            onChange={(e) => updateStep(stepIndex, 'isRequired', e.target.checked)}
+                          />
+                          <span className="label-text text-xs">Required</span>
+                        </label>
+                        <label className="label cursor-pointer gap-2">
+                          <input
+                            type="checkbox"
+                            className="checkbox checkbox-sm"
+                            checked={step.hintsEnabled}
+                            onChange={(e) => updateStep(stepIndex, 'hintsEnabled', e.target.checked)}
+                          />
+                          <span className="label-text text-xs">Enable Hints</span>
+                        </label>
+                      </div>
+
+                      {stepIndex > 0 && (
+                        <div className="form-control md:col-span-2">
+                          <label className="label py-1">
+                            <span className="label-text text-xs flex items-center gap-1">
+                              <Lock className="w-3 h-3" />
+                              Prerequisites (must complete before this step)
+                            </span>
+                          </label>
+                          <div className="flex flex-wrap gap-2">
+                            {form.steps.slice(0, stepIndex).map((prevStep, prevIndex) => (
+                              <label 
+                                key={prevStep._id || prevIndex}
+                                className="label cursor-pointer gap-2 p-2 rounded border border-base-300"
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="checkbox checkbox-xs"
+                                  checked={(step.prerequisites || []).includes(prevStep._id)}
+                                  onChange={() => toggleStepPrerequisite(stepIndex, prevStep._id)}
+                                />
+                                <span className="label-text text-xs">
+                                  Step {prevIndex + 1}: {prevStep.title || 'Untitled'}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {step.hintsEnabled && (
+                        <div className="md:col-span-2 space-y-2">
+                          <label className="label py-1"><span className="label-text text-xs">Hints</span></label>
+                          {(step.hints || ['']).map((hint, hintIndex) => (
+                            <div key={hintIndex} className="flex gap-2">
+                              <input
+                                type="text"
+                                className="input input-bordered input-sm flex-1"
+                                value={hint}
+                                onChange={(e) => updateStepHint(stepIndex, hintIndex, e.target.value)}
+                                placeholder={`Hint ${hintIndex + 1}`}
+                                maxLength={500}
+                              />
+                              {(step.hints || []).length > 1 && (
+                                <button 
+                                  type="button" 
+                                  onClick={() => removeStepHint(stepIndex, hintIndex)} 
+                                  className="btn btn-ghost btn-xs"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                          {(step.hints || []).length < 5 && (
+                            <button 
+                              type="button" 
+                              onClick={() => addStepHint(stepIndex)} 
+                              className="btn btn-ghost btn-xs gap-1"
+                            >
+                              <Plus className="w-3 h-3" /> Add Hint
+                            </button>
+                          )}
+                          <div className="form-control">
+                            <label className="label py-1">
+                              <span className="label-text text-xs">Hint Penalty %</span>
+                            </label>
+                            <input
+                              type="number"
+                              className="input input-bordered input-sm w-24"
+                              value={step.hintPenaltyPercent}
+                              onChange={(e) => updateStep(stepIndex, 'hintPenaltyPercent', e.target.value)}
+                              placeholder="25"
+                              min={0}
+                              max={100}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {form.steps.length > 0 && (
+                <div className={`p-3 rounded-lg ${isDark ? 'bg-base-100' : 'bg-gray-50'}`}>
+                  <div className="text-sm">
+                    <span className="font-medium">Summary: </span>
+                    <span>{form.steps.length} step{form.steps.length !== 1 ? 's' : ''}</span>
+                    <span className="mx-2">•</span>
+                    <span>{form.steps.filter(s => s.isRequired).length} required</span>
+                    <span className="mx-2">•</span>
+                    <span>{form.steps.reduce((sum, s) => sum + (parseInt(s.bits) || 0), 0) + (parseInt(form.completionBonus) || 0)} total bits</span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1041,19 +1603,19 @@ const CustomChallengeBuilder = ({
         <div className="space-y-2">
           {challenges.map((challenge, index) => (
             <div
-              key={challenge._id}
+              key={challenge._id || challenge._draftId || `challenge-${index}`}
               className={`card ${isDark ? 'bg-base-300' : 'bg-base-200'} p-3`}
               onDragOver={handleDragOver}                 
-              onDrop={(e) => handleDrop(e, challenge._id)} 
+              onDrop={(e) => handleDrop(e, challenge._id || challenge._draftId)} 
             >
               <div className="flex items-center gap-3">
                 {}
                 <div
                   className={`flex items-center gap-2 text-gray-400 select-none ${
-                    String(draggingId) === String(challenge._id) ? 'opacity-60' : ''
+                    String(draggingId) === String(challenge._id || challenge._draftId) ? 'opacity-60' : ''
                   }`}
                   draggable 
-                  onDragStart={(e) => handleDragStart(e, challenge._id)} 
+                  onDragStart={(e) => handleDragStart(e, challenge._id || challenge._draftId)} 
                   onDragEnd={() => setDraggingId(null)} 
                   title="Drag to reorder"
                   aria-label="Drag to reorder"
@@ -1069,7 +1631,12 @@ const CustomChallengeBuilder = ({
                     {!challenge.visible && (
                       <span className="badge badge-sm badge-warning">Hidden</span>
                     )}
-                    {challenge.templateType && challenge.templateType !== 'passcode' ? (
+                    {challenge.isMultiStep ? (
+                      <span className="badge badge-sm badge-primary gap-1">
+                        <Layers className="w-2.5 h-2.5" />
+                        {challenge.steps?.length || 0} steps
+                      </span>
+                    ) : challenge.templateType && challenge.templateType !== 'passcode' ? (
                       <span className="badge badge-sm badge-success gap-1">
                         <Shield className="w-2.5 h-2.5" />
                         {challenge.templateName || challenge.templateType}
@@ -1097,6 +1664,11 @@ const CustomChallengeBuilder = ({
                         <Users className="w-3 h-3" />
                         ×{[challenge.applyPersonalMultiplier && 'P', challenge.applyGroupMultiplier && 'G'].filter(Boolean).join('+')}
                       </span>
+                    )}
+                    {challenge.isMultiStep ? (
+                      <span>{challenge.totalBits || ((challenge.steps || []).reduce((sum, s) => sum + (s.bits || 0), 0) + (challenge.completionBonus || 0))} total bits</span>
+                    ) : (
+                      <span>{challenge.bits} bits</span>
                     )}
 
                     {Number(challenge.multiplier || 1) > 1 && (
@@ -1159,10 +1731,10 @@ const CustomChallengeBuilder = ({
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
-                    onClick={() => toggleCardExpanded(challenge._id)}
+                    onClick={() => toggleCardExpanded(challenge._id || challenge._draftId)}
                     className="btn btn-ghost btn-sm btn-circle"
                   >
-                    {expandedCards[challenge._id] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    {expandedCards[challenge._id || challenge._draftId] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                   </button>
                   <button
                     type="button"
@@ -1181,7 +1753,7 @@ const CustomChallengeBuilder = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleDelete(challenge._id)}
+                    onClick={() => handleDelete(challenge._id || challenge._draftId)}
                     className="btn btn-ghost btn-sm text-error"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -1189,7 +1761,7 @@ const CustomChallengeBuilder = ({
                 </div>
               </div>
 
-              {expandedCards[challenge._id] && (
+              {expandedCards[challenge._id || challenge._draftId] && (
                 <div className="mt-3 pt-3 border-t border-base-content/10 space-y-3">
                   {challenge.description && (
                     <p

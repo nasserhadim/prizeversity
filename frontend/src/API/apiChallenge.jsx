@@ -7,6 +7,8 @@ export const getChallengeData = async (classroomId) => {
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
       },
     });
 
@@ -595,6 +597,48 @@ export const resetAllCustomChallenges = async (classroomId, studentId) => {
   if (!response.ok) {
     const errorData = await response.json();
     throw new Error(errorData.message || 'Failed to reset all custom challenges');
+  }
+  return await response.json();
+};
+
+export const startCustomChallengeStep = async (classroomId, challengeId, stepId) => {
+  const response = await fetch(`${API_BASE}/api/challenges/${classroomId}/custom/${challengeId}/step/${stepId}/start`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' }
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Failed to start step');
+  }
+  return await response.json();
+};
+
+export const verifyCustomChallengeStep = async (classroomId, challengeId, stepId, passcode) => {
+  const response = await fetch(`${API_BASE}/api/challenges/${classroomId}/custom/${challengeId}/step/${stepId}/verify`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ passcode })
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    const error = new Error(errorData.message || 'Incorrect passcode');
+    error.attemptsLeft = errorData.attemptsLeft;
+    throw error;
+  }
+  return await response.json();
+};
+
+export const unlockCustomChallengeStepHint = async (classroomId, challengeId, stepId) => {
+  const response = await fetch(`${API_BASE}/api/challenges/${classroomId}/custom/${challengeId}/step/${stepId}/hint`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' }
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Failed to unlock hint');
   }
   return await response.json();
 };

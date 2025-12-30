@@ -45,25 +45,51 @@ router.post('/', ensureAuthenticated, ensureTeacher, async (req, res) => {
       return res.status(400).json({ message: 'A template with this name already exists' });
     }
 
-    const sanitizedChallenges = challenges.map(c => ({
-      title: (c.title || '').trim().slice(0, 200),
-      description: (c.description || '').trim().slice(0, 2000),
-      externalUrl: (c.externalUrl || '').trim(),
-      solution: (c.solution || '').trim().slice(0, 500),
-      templateType: c.templateType || 'passcode',
-      templateConfig: c.templateConfig || {},
-      maxAttempts: c.maxAttempts || null,
-      hintsEnabled: Boolean(c.hintsEnabled),
-      hints: Array.isArray(c.hints) ? c.hints.filter(h => h && h.trim()).map(h => h.trim().slice(0, 500)) : [],
-      hintPenaltyPercent: c.hintPenaltyPercent != null ? Number(c.hintPenaltyPercent) : null,
-      bits: Number(c.bits) || 50,
-      multiplier: Number(c.multiplier) || 1.0,
-      luck: Number(c.luck) || 1.0,
-      discount: Number(c.discount) || 0,
-      shield: Boolean(c.shield),
-      visible: c.visible !== false,
-      dueDateEnabled: Boolean(c.dueDateEnabled)
-    }));
+    const sanitizedChallenges = challenges.map(c => {
+      const challengeData = {
+        title: (c.title || '').trim().slice(0, 200),
+        description: (c.description || '').trim().slice(0, 2000),
+        externalUrl: (c.externalUrl || '').trim(),
+        solution: (c.solution || '').trim().slice(0, 500),
+        templateType: c.templateType || 'passcode',
+        templateConfig: c.templateConfig || {},
+        maxAttempts: c.maxAttempts || null,
+        hintsEnabled: Boolean(c.hintsEnabled),
+        hints: Array.isArray(c.hints) ? c.hints.filter(h => h && h.trim()).map(h => h.trim().slice(0, 500)) : [],
+        hintPenaltyPercent: c.hintPenaltyPercent != null ? Number(c.hintPenaltyPercent) : null,
+        bits: Number(c.bits) || 50,
+        multiplier: Number(c.multiplier) || 1.0,
+        luck: Number(c.luck) || 1.0,
+        discount: Number(c.discount) || 0,
+        shield: Boolean(c.shield),
+        visible: c.visible !== false,
+        dueDateEnabled: Boolean(c.dueDateEnabled),
+        isMultiStep: Boolean(c.isMultiStep),
+        completionBonus: Number(c.completionBonus) || 0
+      };
+
+      if (c.isMultiStep && Array.isArray(c.steps)) {
+        challengeData.steps = c.steps.map(step => ({
+          title: (step.title || '').trim().slice(0, 200),
+          description: (step.description || '').trim().slice(0, 2000),
+          templateType: step.templateType || 'passcode',
+          templateConfig: step.templateConfig || {},
+          solution: (step.solution || '').trim().slice(0, 500),
+          bits: Number(step.bits) || 0,
+          multiplier: Number(step.multiplier) || 1.0,
+          luck: Number(step.luck) || 1.0,
+          discount: Number(step.discount) || 0,
+          shield: Boolean(step.shield),
+          maxAttempts: step.maxAttempts || null,
+          hintsEnabled: Boolean(step.hintsEnabled),
+          hints: Array.isArray(step.hints) ? step.hints.filter(h => h && h.trim()).map(h => h.trim().slice(0, 500)) : [],
+          hintPenaltyPercent: step.hintPenaltyPercent != null ? Number(step.hintPenaltyPercent) : null,
+          isRequired: step.isRequired !== false
+        }));
+      }
+
+      return challengeData;
+    });
 
     const template = new CustomChallengeTemplate({
       name: name.trim(),
