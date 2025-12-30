@@ -969,13 +969,13 @@ const CustomChallengeBuilder = ({
                     <span>{challenge.bits} bits</span>
 
                     {Number(challenge.multiplier || 1) > 1 && (
-                      <span>+{(Number(challenge.multiplier) - 1).toFixed(1)}x mult</span>
+                      <span>+{Math.round((Number(challenge.multiplier || 1) - 1) * 100)}% mult</span>
                     )}
 
                     {Number(challenge.luck || 1) > 1 && (
                       <span className="flex items-center gap-1">
                         <Clover className="w-3 h-3" />
-                        ×{Number(challenge.luck).toFixed(1)} luck
+                        +{Math.round((Number(challenge.luck || 1) - 1) * 100)}% luck
                       </span>
                     )}
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Edit3, Save } from 'lucide-react';
+import { Edit3, Save, Info } from 'lucide-react';
 import { CHALLENGE_NAMES } from '../../../constants/challengeConstants';
 import { DEFAULT_CHALLENGE_CONFIG } from '../../../constants/challengeConstants';
 import { updateChallenge } from '../../../API/apiChallenge';
@@ -600,19 +600,22 @@ const ChallengeUpdateModal = ({
                       <label className="label py-1">
                         <span className="label-text text-sm font-medium">Max Hints</span>
                       </label>
-                      <input
-                        type="number"
-                        className="input input-bordered input-sm w-full text-center"
-                        value={updateData.maxHintsPerChallenge}
-                        onChange={(e) => {
-                          const v = parseInt(e.target.value);
-                          setUpdateData(prev => ({ 
-                            ...prev, 
-                            maxHintsPerChallenge: isNaN(v) ? 2 : Math.max(0, v) 
-                          }));
-                        }}
-                        min="0"
-                      />
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="number"
+                          className="input input-bordered input-sm w-18 sm:w-14 text-center touch-manipulation"
+                          value={updateData.maxHintsPerChallenge}
+                          onChange={(e) => {
+                            const v = parseInt(e.target.value);
+                            setUpdateData(prev => ({ ...prev, maxHintsPerChallenge: isNaN(v) ? 2 : Math.max(0, v) }));
+                          }}
+                          min="0"
+                        />
+                        <Info
+                          className="w-4 h-4 text-gray-400 ml-2 cursor-help"
+                          title="You may need to save the series before additional hints can be added. Custom challenges may require activation to modify hints."
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
