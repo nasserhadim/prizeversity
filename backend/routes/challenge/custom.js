@@ -614,8 +614,9 @@ router.post('/:classroomId/custom/:challengeId/verify', ensureAuthenticated, asy
     }
 
     if (customRewards.luck > 1.0) {
+      const luckIncrease = customRewards.luck - 1.0;
       passiveTarget.luck =
-        Math.round((passiveTarget.luck || 1.0) * customRewards.luck * 10) / 10;
+        Math.round(((passiveTarget.luck || 1.0) + luckIncrease) * 10) / 10;
       rewardsEarned.luck = customRewards.luck;
     }
 
