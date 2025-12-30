@@ -35,9 +35,10 @@ const RewardsDisplay = ({ rewards, isDark, isCompleted, size = 'sm' }) => {
   }
 
   if (rewards.luck > 1.0) {
+    const luckPercent = Math.round((rewards.luck - 1.0) * 100);
     rewardItems.push({
       icon: <Zap className="w-3 h-3" />,
-      value: `${rewards.luck.toFixed(1)}x`,
+      value: `+${luckPercent}%`,
       label: 'luck',
       color: isCompleted ? 'text-green-500' : 'text-purple-500'
     });

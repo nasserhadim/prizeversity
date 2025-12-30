@@ -157,7 +157,9 @@ const ChallengeSite = () => {
                       <Clover className="w-4 h-4 text-green-400 flex-shrink-0" />
                       <span className="text-green-400 font-mono text-xs sm:text-sm">LUCK</span>
                     </div>
-                    <span className="text-green-400 font-mono text-xs sm:text-sm font-bold">×{rewardData.luck.toFixed(1)}</span>
+                    <span className="text-green-400 font-mono text-xs sm:text-sm font-bold">
+                    +{Math.round((rewardData.luck - 1) * 100)}%
+                    </span>
                   </div>
                 )}
 

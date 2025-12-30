@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'; 
-import { Settings, Zap, Shield, AlertTriangle } from 'lucide-react';
+import { Settings, Zap, Shield, AlertTriangle, Info } from 'lucide-react';
 import { CHALLENGE_NAMES } from '../../../constants/challengeConstants';
 import { DEFAULT_CHALLENGE_CONFIG } from '../../../constants/challengeConstants';
 import { configureChallenge, initiateChallenge, createCustomChallenge, uploadCustomChallengeAttachment } from '../../../API/apiChallenge';
@@ -923,12 +923,13 @@ const ChallengeConfigModal = ({
                             value={challengeConfig.maxHintsPerChallenge}
                             onChange={(e) => {
                               const v = parseInt(e.target.value);
-                              setChallengeConfig(prev => ({ 
-                                ...prev, 
-                                maxHintsPerChallenge: isNaN(v) ? 2 : Math.max(0, v) 
-                              }));
+                              setChallengeConfig(prev => ({ ...prev, maxHintsPerChallenge: isNaN(v) ? 2 : Math.max(0, v) }));
                             }}
                             min="0"
+                          />
+                          <Info
+                            className="w-4 h-4 text-gray-400 ml-2 cursor-help"
+                            title="If you increase the max hints, save the challenge series first. Custom challenges may require the series to be activated before adding additional hints."
                           />
                         </div>
                       </div>
