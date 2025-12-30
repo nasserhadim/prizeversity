@@ -34,6 +34,7 @@ const CustomChallengeSchema = new mongoose.Schema({
   description: { type: String, default: '' },
   externalUrl: { type: String, default: '' },
   solutionHash: { type: String },
+  solutionPlaintext: { type: String, maxlength: 500 },
   
   // Template configuration
   templateType: { 

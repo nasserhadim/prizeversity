@@ -169,8 +169,17 @@ router.get('/:classroomId', ensureAuthenticated, async (req, res) => {
     );
 
     if (isTeacher) {
+      const challengeObj = challenge.toObject ? challenge.toObject() : JSON.parse(JSON.stringify(challenge));
+      
+      if (challengeObj.customChallenges && Array.isArray(challengeObj.customChallenges)) {
+        challengeObj.customChallenges = challengeObj.customChallenges.map(cc => ({
+          ...cc,
+          solution: cc.solutionPlaintext || ''
+        }));
+      }
+      
       return res.json({ 
-        challenge,
+        challenge: challengeObj,
         userChallenge,
         isTeacher: true
       });

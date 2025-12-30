@@ -2,7 +2,7 @@ import { useState, useEffect, useContext, useRef } from 'react';
 import { 
   Plus, Trash2, GripVertical, ExternalLink, Paperclip, X, Eye, EyeOff, 
   ChevronDown, ChevronUp, Shield, AlertTriangle,
-  Target, Lightbulb, Clover, Percent, Clock, Users
+  Target, Lightbulb, Clover, Percent, Clock, FolderOpen, Save, FileDown
 } from 'lucide-react';
 import { ThemeContext } from '../../context/ThemeContext';
 import {
@@ -14,6 +14,7 @@ import {
   getCustomChallengeAttachmentUrl,
   reorderCustomChallenges 
 } from '../../API/apiChallenge';
+import { useCustomChallengeTemplates } from '../../hooks/useCustomChallengeTemplates';
 import TemplateSelector from './TemplateSelector';
 import toast from 'react-hot-toast';
 import ConfirmModal from '../ConfirmModal';
@@ -63,7 +64,30 @@ const CustomChallengeBuilder = ({
   const isDark = theme === 'dark';
 
   const [challenges, setChallenges] = useState(customChallenges);
-  const [draggingId, setDraggingId] = useState(null); 
+  const [draggingId, setDraggingId] = useState(null);
+
+  const {
+    templates: ccTemplates,
+    showSaveModal: showCCTSaveModal,
+    setShowSaveModal: setShowCCTSaveModal,
+    showLoadModal: showCCTLoadModal,
+    setShowLoadModal: setShowCCTLoadModal,
+    templateName: cctTemplateName,
+    setTemplateName: setCCTTemplateName,
+    saving: cctSaving,
+    loading: cctLoading,
+    fetchTemplates: fetchCCTTemplates,
+    openSaveModal: openCCTSaveModal,
+    handleSave: handleCCTSave,
+    handleLoad: handleCCTLoad,
+    handleDelete: handleCCTDelete,
+    deleteModal: cctDeleteModal,
+    confirmDelete: confirmCCTDelete,
+    cancelDelete: cancelCCTDelete,
+    deleting: cctDeleting,
+    challengesToSave: cctChallengesToSave,
+    isSingleChallenge: cctIsSingleChallenge
+  } = useCustomChallengeTemplates(); 
 
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -138,6 +162,10 @@ const CustomChallengeBuilder = ({
   useEffect(() => {
     setChallenges(customChallenges);
   }, [customChallenges]);
+
+  useEffect(() => {
+    fetchCCTTemplates();
+  }, []);
   
   useEffect(() => {
     if (!isSelectingFileRef.current) return;
@@ -195,6 +223,25 @@ const CustomChallengeBuilder = ({
     setPendingAttachments([]);
     setEditingId(null);
     setShowForm(false);
+  };
+
+  const handleLoadTemplate = (loadedChallenges, isSingle) => {
+    if (draftMode && onDraftUpdate) {
+      const newDrafts = loadedChallenges.map((c, i) => ({
+        ...c,
+        _id: `draft-${Date.now()}-${i}`,
+        order: challenges.length + i
+      }));
+      onDraftUpdate([...challenges, ...newDrafts]);
+    } else {
+      const newChallenges = loadedChallenges.map((c, i) => ({
+        ...c,
+        _id: `loaded-${Date.now()}-${i}`,
+        order: challenges.length + i
+      }));
+      setChallenges([...challenges, ...newChallenges]);
+    }
+    setShowCCTLoadModal(false);
   };
   
   const handleAddPendingAttachment = (e) => {
@@ -266,7 +313,7 @@ const CustomChallengeBuilder = ({
       title: challenge.title || '',
       description: challenge.description || '',
       externalUrl: challenge.externalUrl || '',
-      solution: '',
+      solution: challenge.solution || '',
       maxAttempts: challenge.maxAttempts || '',
       hintsEnabled: challenge.hintsEnabled || false,
       hints: challenge.hints?.length ? [...challenge.hints] : [''],
@@ -559,18 +606,51 @@ const CustomChallengeBuilder = ({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h3 className="text-lg font-semibold">Custom Challenges</h3>
         {!showForm && (
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); setShowForm(true); }}
-            className="btn btn-primary btn-sm gap-2"
-            disabled={!canAdd}
-          >
-            <Plus className="w-4 h-4" />
-            Add Challenge
-          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="dropdown dropdown-end">
+              <label tabIndex={0} className="btn btn-ghost btn-sm gap-2">
+                <FolderOpen className="w-4 h-4" />
+                Templates
+                <ChevronDown className="w-3 h-3" />
+              </label>
+              <ul tabIndex={0} className={`dropdown-content z-[999] menu p-2 shadow-lg rounded-box w-52 ${isDark ? 'bg-base-300' : 'bg-base-100'}`}>
+                <li>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); setShowCCTLoadModal(true); }}
+                    className="gap-2"
+                  >
+                    <FileDown className="w-4 h-4" />
+                    Load Template
+                  </button>
+                </li>
+                {challenges.length > 0 && (
+                  <>
+                    <li>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); openCCTSaveModal(challenges, false); }}
+                        className="gap-2"
+                      >
+                        <Save className="w-4 h-4" />
+                        Save All as Template
+                      </button>
+                    </li>
+                  </>
+                )}
+              </ul>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setShowForm(true); }}
+              className="btn btn-primary btn-sm gap-2"
+              disabled={!canAdd}
+            >
+              <Plus className="w-4 h-4" />
+              Add Challenge
+            </button>
+          </div>
         )}
       </div>
 
@@ -643,7 +723,7 @@ const CustomChallengeBuilder = ({
             {form.templateType === 'passcode' && (
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text">Solution Passcode {editingId ? '(leave blank to keep)' : '*'}</span>
+                  <span className="label-text">Solution Passcode *</span>
                 </label>
                 <div className="relative">
                   <input
@@ -651,8 +731,8 @@ const CustomChallengeBuilder = ({
                     className="input input-bordered w-full pr-10"
                     value={form.solution}
                     onChange={(e) => setForm(prev => ({ ...prev, solution: e.target.value }))}
-                    placeholder={editingId ? 'Enter new passcode or leave blank' : 'Enter solution passcode'}
-                    required={!editingId}
+                    placeholder="Enter solution passcode"
+                    required
                   />
                   <button
                     type="button"
@@ -1093,6 +1173,14 @@ const CustomChallengeBuilder = ({
                   </button>
                   <button
                     type="button"
+                    onClick={() => openCCTSaveModal([challenge], true)}
+                    className="btn btn-ghost btn-sm"
+                    title="Save as template"
+                  >
+                    <Save className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => handleDelete(challenge._id)}
                     className="btn btn-ghost btn-sm text-error"
                   >
@@ -1194,6 +1282,130 @@ const CustomChallengeBuilder = ({
         cancelText={confirmOptions.cancelText}
         confirmButtonClass={confirmOptions.confirmButtonClass}
         onConfirm={handleConfirm}
+      />
+
+      {showCCTSaveModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4" onClick={() => setShowCCTSaveModal(false)}>
+          <div className={`card w-full max-w-md shadow-2xl ${isDark ? 'bg-base-200' : 'bg-white'}`} onClick={(e) => e.stopPropagation()}>
+            <div className="card-body">
+              <h3 className="card-title">Save as Template</h3>
+              <p className="text-sm text-gray-500">
+                {cctChallengesToSave?.length === 1 
+                  ? 'Save this challenge as a reusable template.' 
+                  : `Save ${cctChallengesToSave?.length || 0} challenges as a template set.`}
+              </p>
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text">Template Name</span>
+                </label>
+                <input
+                  type="text"
+                  className="input input-bordered"
+                  value={cctTemplateName}
+                  onChange={(e) => setCCTTemplateName(e.target.value)}
+                  placeholder="My Challenge Template"
+                  maxLength={100}
+                />
+              </div>
+              <div className="text-xs text-gray-500 mt-2">
+                Your challenge configuration including solutions will be saved for easy reuse.
+              </div>
+              <div className="card-actions justify-end mt-4">
+                <button className="btn btn-ghost" onClick={() => setShowCCTSaveModal(false)}>Cancel</button>
+                <button 
+                  className="btn btn-primary gap-2" 
+                  onClick={() => handleCCTSave(classroomId)}
+                  disabled={cctSaving || !cctTemplateName.trim()}
+                >
+                  {cctSaving ? <span className="loading loading-spinner loading-sm"></span> : <Save className="w-4 h-4" />}
+                  Save Template
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCCTLoadModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4" onClick={() => setShowCCTLoadModal(false)}>
+          <div className={`card w-full max-w-lg shadow-2xl ${isDark ? 'bg-base-200' : 'bg-white'} max-h-[80vh] overflow-hidden flex flex-col`} onClick={(e) => e.stopPropagation()}>
+            <div className="card-body flex flex-col overflow-hidden">
+              <div className="flex items-center justify-between">
+                <h3 className="card-title">Load Template</h3>
+                <button className="btn btn-ghost btn-sm btn-circle" onClick={() => setShowCCTLoadModal(false)}>
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              
+              {cctLoading ? (
+                <div className="flex justify-center py-8">
+                  <span className="loading loading-spinner loading-lg"></span>
+                </div>
+              ) : ccTemplates.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <p>No saved templates yet.</p>
+                  <p className="text-sm">Save challenges as templates to reuse them later.</p>
+                </div>
+              ) : (
+                <div className="overflow-y-auto flex-1 space-y-2 pr-2">
+                  {ccTemplates.map((template) => (
+                    <div 
+                      key={template._id} 
+                      className={`p-3 rounded-lg border ${isDark ? 'bg-base-300 border-base-content/10' : 'bg-gray-50 border-gray-200'}`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium truncate">{template.name}</div>
+                          <div className="text-xs text-gray-500">
+                            {template.challenges?.length || 0} challenge{(template.challenges?.length || 0) !== 1 ? 's' : ''}
+                            {template.sourceClassroom?.name && (
+                              <span> • from {template.sourceClassroom.name}</span>
+                            )}
+                          </div>
+                          {template.challenges?.length > 0 && (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {template.challenges.slice(0, 3).map((c, i) => (
+                                <span key={i} className="badge badge-sm badge-ghost">{c.title}</span>
+                              ))}
+                              {template.challenges.length > 3 && (
+                                <span className="badge badge-sm badge-ghost">+{template.challenges.length - 3} more</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            className="btn btn-primary btn-sm"
+                            onClick={() => handleCCTLoad(template, handleLoadTemplate)}
+                          >
+                            Load
+                          </button>
+                          <button
+                            className="btn btn-ghost btn-sm text-error"
+                            onClick={() => handleCCTDelete(template._id, template.name)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ConfirmModal
+        isOpen={!!cctDeleteModal}
+        onClose={cancelCCTDelete}
+        title="Delete Template"
+        message={`Are you sure you want to delete "${cctDeleteModal?.name}"? This cannot be undone.`}
+        confirmText={cctDeleting ? 'Deleting...' : 'Delete'}
+        cancelText="Cancel"
+        confirmButtonClass="btn-error"
+        onConfirm={confirmCCTDelete}
       />
     </div>
   );
