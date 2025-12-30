@@ -15,18 +15,22 @@ const { getClassroomIdFromReq, getScopedUserStats } = require('../utils/classroo
 // helpers for classroom-scoped balances
 function getClassroomBalance(user, classroomId) {
   if (!classroomId) return user.balance || 0;
-  if (!Array.isArray(user.classroomBalances)) return user.balance || 0;
+  if (!Array.isArray(user.classroomBalances)) return 0; // CHANGED: don't fall back to global
   const entry = user.classroomBalances.find(cb => String(cb.classroom) === String(classroomId));
-  return entry ? entry.balance : (user.balance || 0);
+  return entry ? (entry.balance || 0) : 0; // CHANGED: don't fall back to global
 }
+
 function setClassroomBalance(user, classroomId, newBalance) {
-  if (!classroomId) { user.balance = newBalance; return; }
+  if (!classroomId) {
+    user.balance = Math.max(0, newBalance);
+    return;
+  }
   if (!Array.isArray(user.classroomBalances)) user.classroomBalances = [];
   const idx = user.classroomBalances.findIndex(cb => String(cb.classroom) === String(classroomId));
   if (idx >= 0) {
-    user.classroomBalances[idx].balance = newBalance;
+    user.classroomBalances[idx].balance = Math.max(0, newBalance);
   } else {
-    user.classroomBalances.push({ classroom: classroomId, balance: newBalance });
+    user.classroomBalances.push({ classroom: classroomId, balance: Math.max(0, newBalance) });
   }
 }
 
@@ -192,6 +196,10 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
     // If no shield, proceed with attack
     const effectNotes = [];
     const walletLogs = [];
+
+    // ADD: declare these before any possible assignment/use
+    let targetGroupAggPrev = null;
+    let targetGroupAggAfter = null;
 
     let nullifyNoop = false;
     const nullifyNoopExtraForAttacker = [];
@@ -796,31 +804,32 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
           const bitsEarnedRate = Number(cls.xpSettings.bitsEarned || 0);
           const statRate = Number(cls.xpSettings.statIncrease || 0);
 
-          const safeNum = (v, d = 0) => {
-            const n = Number(v);
-            return Number.isFinite(n) ? n : d;
-          };
-
           const attackerBitsAfter = getClassroomBalance(attacker, classroomId);
           const targetBitsAfter = getClassroomBalance(target, classroomId);
 
           const attackerBitsDelta = attackerBitsAfter - attackerBitsBefore;
           const targetBitsDelta = targetBitsAfter - targetBitsBefore;
 
-          // FIX: use ??-based defaults so 0 does NOT turn into 1
+          // CHANGED: classroom-scoped stats (no groupMultiplier from passiveAttributes)
+          const attackerAfterScoped = getScopedUserStats(attacker, classroomId, { create: true });
+          const targetAfterScoped = getScopedUserStats(target, classroomId, { create: true });
+
           const attackerAfter = {
-            multiplier: stat(attacker.passiveAttributes?.multiplier, 1),
-            luck: stat(attacker.passiveAttributes?.luck, 1),
-            discount: stat(attacker.passiveAttributes?.discount, 0),
-            shield: stat(attacker.shieldCount, 0),
-            groupMultiplier: stat(attacker.passiveAttributes?.groupMultiplier, 1)
+            multiplier: attackerAfterScoped.passive?.multiplier ?? 1,
+            luck: attackerAfterScoped.passive?.luck ?? 1,
+            discount: attackerAfterScoped.passive?.discount ?? 0,
+            shield: attackerAfterScoped.shieldCount ?? 0
           };
           const targetAfter = {
-            multiplier: stat(target.passiveAttributes?.multiplier, 1),
-            luck: stat(target.passiveAttributes?.luck, 1),
-            discount: stat(target.passiveAttributes?.discount, 0),
-            shield: stat(target.shieldCount, 0),
-            groupMultiplier: stat(target.passiveAttributes?.groupMultiplier, 1)
+            multiplier: targetAfterScoped.passive?.multiplier ?? 1,
+            luck: targetAfterScoped.passive?.luck ?? 1,
+            discount: targetAfterScoped.passive?.discount ?? 0,
+            shield: targetAfterScoped.shieldCount ?? 0
+          };
+
+          const safeNum = (v, d = 0) => {
+            const n = Number(v);
+            return Number.isFinite(n) ? n : d;
           };
 
           const collectPositiveStatIncreases = (before, after) => {
@@ -844,10 +853,6 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
               count += 1;
               parts.push(`Shield: ${safeNum(before.shield, 0)} → ${safeNum(after.shield, 0)}`);
             }
-            if (safeNum(after.groupMultiplier, 1) > safeNum(before.groupMultiplier, 1)) {
-              count += 1;
-              parts.push(`Group Multiplier: ${safeNum(before.groupMultiplier, 1)} → ${safeNum(after.groupMultiplier, 1)}`);
-            }
 
             return { count, parts };
           };
@@ -857,12 +862,12 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
             if (bitsEarnedRate <= 0) return;
             if (bitsDelta <= 0) return;
 
-            const xpBits = Math.abs(bitsDelta); // attacks do not apply multipliers => base == final
+            const xpBits = Math.abs(bitsDelta); // attacks: base == final
             const xpToAward = xpBits * bitsEarnedRate;
             if (xpToAward <= 0) return;
 
             const xpRes = await awardXP(userDoc._id, classroomId, xpToAward, 'earning bits (attack outcome)', cls.xpSettings);
-            if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+            if (xpRes && xpRes.newXP !== xpRes.oldXP) {
               await logStatChanges({
                 io,
                 classroomId,
@@ -888,7 +893,7 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
             if (xpToAward <= 0) return;
 
             const xpRes = await awardXP(userDoc._id, classroomId, xpToAward, 'stat increase (attack outcome)', cls.xpSettings);
-            if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
+            if (xpRes && xpRes.newXP !== xpRes.oldXP) {
               await logStatChanges({
                 io,
                 classroomId,

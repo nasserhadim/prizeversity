@@ -547,7 +547,16 @@ router.post('/:classroomId/custom/:challengeId/verify', ensureAuthenticated, asy
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    // ADD: classroom-scoped stats target (no cross-classroom leakage)
+    // ADD: snapshot BEFORE (classroom-scoped)
+    const scopedBefore = getScopedUserStats(user, classroomId, { create: true });
+    const prevStats = {
+      multiplier: scopedBefore.passive?.multiplier ?? 1,
+      luck: scopedBefore.passive?.luck ?? 1,
+      discount: scopedBefore.passive?.discount ?? 0,
+      shield: scopedBefore.shieldCount ?? 0,
+    };
+
+    // existing: classroom-scoped target
     const scoped = getScopedUserStats(user, classroomId, { create: true });
     const passiveTarget = scoped.cs ? scoped.cs.passiveAttributes : (user.passiveAttributes ||= {});
 
@@ -629,6 +638,52 @@ router.post('/:classroomId/custom/:challengeId/verify', ensureAuthenticated, asy
 
     await user.save();
     await challenge.save();
+
+    // ADD: snapshot AFTER + emit legacy-style stat delta notification/log
+    try {
+      const scopedAfter = getScopedUserStats(user, classroomId, { create: true });
+      const currStats = {
+        multiplier: scopedAfter.passive?.multiplier ?? 1,
+        luck: scopedAfter.passive?.luck ?? 1,
+        discount: scopedAfter.passive?.discount ?? 0,
+        shield: scopedAfter.shieldCount ?? 0,
+      };
+
+      const parts = [];
+      const fmt1 = (n) => Number(Number(n).toFixed(1));
+      if (String(prevStats.multiplier) !== String(currStats.multiplier)) {
+        parts.push(`multiplier: ${fmt1(prevStats.multiplier)} → ${fmt1(currStats.multiplier)}`);
+      }
+      if (String(prevStats.luck) !== String(currStats.luck)) {
+        parts.push(`luck: ${fmt1(prevStats.luck)} → ${fmt1(currStats.luck)}`);
+      }
+      if (String(prevStats.discount) !== String(currStats.discount)) {
+        parts.push(`discount: ${Math.round(prevStats.discount)} → ${Math.round(currStats.discount)}`);
+      }
+      if (String(prevStats.shield) !== String(currStats.shield)) {
+        parts.push(`shield: ${parseInt(prevStats.shield, 10) || 0} → ${parseInt(currStats.shield, 10) || 0}`);
+      }
+
+      if (parts.length) {
+        const io = getIO();
+        const title = customChallenge?.title || 'Custom Challenge';
+        const effectsText = `You earned stat boosts from ${title}: ${parts.join('; ')}.`;
+
+        await logStatChanges({
+          io,
+          classroomId,
+          user,
+          actionBy: user._id,
+          prevStats,
+          currStats,
+          context: `Custom Challenge - ${title}`,
+          details: { effectsText },
+          forceLog: true,
+        });
+      }
+    } catch (e) {
+      console.warn('[custom challenge] failed to log stat deltas:', e);
+    }
 
     // Award XP
     await awardCustomChallengeXP({
