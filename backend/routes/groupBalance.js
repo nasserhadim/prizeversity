@@ -10,6 +10,19 @@ const { awardXP } = require('../utils/awardXP');
 const { logStatChanges } = require('../utils/statChangeLog');
 const Classroom = require('../models/Classroom');
 const PendingAssignment = require('../models/PendingAssignment'); // Import PendingAssignment model
+const { getScopedUserStats } = require('../utils/classroomStats'); // ADD
+
+// ADD: classroom-scoped personal multiplier helper (no global fallback when classroomId exists)
+function getPersonalMultiplierForClassroom(userDoc, classroomId) {
+  if (classroomId) {
+    const scoped = getScopedUserStats(userDoc, classroomId, { create: false });
+    if (!scoped || !scoped.cs) return 1;
+    const m = Number(scoped.passive?.multiplier ?? 1);
+    return Number.isFinite(m) && m > 0 ? m : 1;
+  }
+  const m = Number(userDoc?.passiveAttributes?.multiplier ?? 1);
+  return Number.isFinite(m) && m > 0 ? m : 1;
+}
 
 // Utility to check if a TA can assign bits based on classroom policy
 async function canTAAssignBits({ taUser, classroomId }) {
@@ -159,10 +172,15 @@ router.post(
       const group = await Group.findById(groupId).populate({
         path: 'members._id',
         model: 'User',
-        select: 'balance passiveAttributes transactions role classroomBalances',
+        select: 'balance passiveAttributes transactions role classroomBalances classroomStats',
       });
 
       if (!group) return res.status(404).json({ error: 'Group not found' });
+
+      // Compute classroomId once (used everywhere)
+      const classroomId = groupSet?.classroom
+        ? (groupSet.classroom._id || groupSet.classroom)
+        : group.classroom;
 
       // Compose the transaction description once (in outer scope) so it's available
       // everywhere: per-user transactions, notifications, and emitted events.
@@ -190,7 +208,7 @@ router.post(
           let user = member._id;
           if (!user || !user._id) {
             // fallback: fetch user document
-            user = await User.findById(member._id).select('balance passiveAttributes transactions role classroomBalances');
+            user = await User.findById(member._id).select('balance passiveAttributes transactions role classroomBalances classroomStats');
           }
 
           // Skip teachers (teachers shouldn't be adjusted). Allow admins/TAs who are group members.
@@ -200,36 +218,24 @@ router.post(
            continue;
          }
 
-          // Apply multipliers separately based on flags
-          // OLD multiplicative logic (replace)
-          // let finalMultiplier = 1;
-          // if (numericAmount > 0) {
-          //   if (applyGroupMultipliers) {
-          //     finalMultiplier *= (group.groupMultiplier || 1);
-          //   }
-          //   if (applyPersonalMultipliers) {
-          //     finalMultiplier *= (user.passiveAttributes?.multiplier || 1);
-          //   }
-          // }
+          // CHANGED: classroom-scoped personal multiplier (no global fallback when classroomId present)
+          const personalMultiplier = getPersonalMultiplierForClassroom(user, classroomId);
 
-          // NEW additive logic
+          // NEW additive logic (existing), but replace user.passiveAttributes?.multiplier with personalMultiplier
           let finalMultiplier;
           if (numericAmount > 0) {
-            // Start from base 1 and add only the extra above 1.0 from each source
             finalMultiplier = 1;
             if (applyGroupMultipliers) finalMultiplier += ((group.groupMultiplier || 1) - 1);
-            if (applyPersonalMultipliers) finalMultiplier += ((user.passiveAttributes?.multiplier || 1) - 1);
+            if (applyPersonalMultipliers) finalMultiplier += ((personalMultiplier || 1) - 1);
           } else {
             finalMultiplier = 1;
           }
 
-          let adjustedAmount = numericAmount > 0 && (applyGroupMultipliers || applyPersonalMultipliers)
+          const adjustedAmount = (numericAmount > 0 && (applyGroupMultipliers || applyPersonalMultipliers))
             ? Math.round(numericAmount * finalMultiplier)
             : numericAmount;
 
-          // Update user balance using classroom-aware functions
-          const classroomId = groupSet?.classroom ? groupSet.classroom._id || groupSet.classroom : group.classroom;
-        
+          // Update user balance using classroom-aware functions (use the outer classroomId)
           if (classroomId) {
             const currentBalance = getClassroomBalance(user, classroomId);
             const newBalance = Math.max(0, currentBalance + adjustedAmount);
@@ -248,7 +254,7 @@ router.post(
             classroom: classroomId || null,
             calculation: (numericAmount > 0 && (applyGroupMultipliers || applyPersonalMultipliers)) ? {
               baseAmount: numericAmount,
-              personalMultiplier: applyPersonalMultipliers ? (user.passiveAttributes?.multiplier || 1) : 1,
+              personalMultiplier: applyPersonalMultipliers ? personalMultiplier : 1, // CHANGED
               groupMultiplier: applyGroupMultipliers ? (group.groupMultiplier || 1) : 1,
               totalMultiplier: finalMultiplier,
             } : {
@@ -330,14 +336,14 @@ router.post(
           }
 
           // Add result summary for the student
-          results.push({ 
-            id: user._id, 
+          results.push({
+            id: user._id,
             newBalance: classroomId ? getClassroomBalance(user, classroomId) : user.balance,
             baseAmount: numericAmount,
             adjustedAmount: adjustedAmount,
             multipliersApplied: {
               group: applyGroupMultipliers ? (group.groupMultiplier || 1) : 1,
-              personal: applyPersonalMultipliers ? (user.passiveAttributes?.multiplier || 1) : 1,
+              personal: applyPersonalMultipliers ? personalMultiplier : 1, // CHANGED
               total: finalMultiplier
             }
           });
@@ -345,8 +351,7 @@ router.post(
       }
 
       // Emit classroom-aware event including classroomId, use composed description
-      const classroomId = groupSet?.classroom ? groupSet.classroom._id || groupSet.classroom : group.classroom;
-      
+      // CHANGED: remove redeclaration; reuse `classroomId` from above
       req.app.get('io').to(`group-${group._id}`).emit('balance_adjust', {
         groupId: group._id,
         classroomId,

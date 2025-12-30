@@ -11,6 +11,7 @@ const blockIfFrozen = require('../middleware/blockIfFrozen');
 const { populateNotification } = require('../utils/notifications');
 const { logStatChanges } = require('../utils/statChangeLog'); // NEW: used for daily check-in + other stat logs
 const { awardXP } = require('../utils/awardXP');
+const { getOrCreateClassroomStatsEntry } = require('../utils/classroomStats');
 
 const router = express.Router();
 
@@ -1068,7 +1069,6 @@ router.patch('/:id/feedback-reward', ensureAuthenticated, async (req, res) => {
 router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, res) => {
   try {
     const { classId, userId } = req.params;
-
     const {
       multiplier,
       luck,
@@ -1086,49 +1086,28 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
     }
 
     const student = await User.findById(userId);
-
-    // NEW: snapshot BEFORE any mutations (used by optional stat-increase XP award)
-    const beforeForXP = {
-      multiplier: Number(student?.passiveAttributes?.multiplier ?? 1),
-      luck: Number(student?.passiveAttributes?.luck ?? 1),
-      discount: Number(student?.passiveAttributes?.discount ?? 0),
-      shield: Number(student?.shieldCount ?? 0)
-    };
-
     if (!student) return res.status(404).json({ error: 'Student not found' });
-    if (student.role === 'teacher') return res.status(400).json({ error: 'Cannot adjust teacher stats' });
 
-    if (!student.passiveAttributes) student.passiveAttributes = {};
+    // NEW: classroom-scoped stats entry
+    const cs = getOrCreateClassroomStatsEntry(student, classId);
 
-    // Capture previous values for change log
+    // Capture previous values for change log (classroom-scoped)
     const prev = {
-      multiplier: student.passiveAttributes.multiplier ?? 1,
-      luck: student.passiveAttributes.luck ?? 1,
-      discount: student.passiveAttributes.discount ?? null,
-      shield: student.shieldCount ?? 0
+      multiplier: cs.passiveAttributes?.multiplier ?? 1,
+      luck: cs.passiveAttributes?.luck ?? 1,
+      discount: cs.passiveAttributes?.discount ?? 0,
+      shield: cs.shieldCount ?? 0,
     };
 
-    // Apply updates for multiplier/luck/discount like before
-    if (typeof multiplier !== 'undefined') {
-      student.passiveAttributes.multiplier = Number(multiplier) || 1;
-    }
-    if (typeof luck !== 'undefined') {
-      student.passiveAttributes.luck = Number(luck) || 1;
-    }
-    if (typeof discount !== 'undefined') {
-      const d = Number(discount);
-      if (!d) {
-        delete student.passiveAttributes.discount;
-      } else {
-        student.passiveAttributes.discount = d;
-      }
-    }
+    // Apply updates (classroom-scoped)
+    if (typeof multiplier !== 'undefined') cs.passiveAttributes.multiplier = Number(multiplier) || 1;
+    if (typeof luck !== 'undefined') cs.passiveAttributes.luck = Number(luck) || 1;
+    if (typeof discount !== 'undefined') cs.passiveAttributes.discount = Math.round(Number(discount) || 0);
 
-    // Apply shield update if provided: shield is treated as count; activate shield if > 0
     if (typeof shield !== 'undefined') {
       const sc = Math.max(0, parseInt(shield, 10) || 0);
-      student.shieldCount = sc;
-      student.shieldActive = sc > 0;
+      cs.shieldCount = sc;
+      cs.shieldActive = sc > 0;
     }
 
     // --- NEW: handle xp adjustment (absolute value) ---
@@ -1170,15 +1149,17 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
     }
     // --- END: xp adjustment ---
 
+    // Build curr from cs (classroom-scoped) for the change list
+    const curr = {
+      multiplier: cs.passiveAttributes?.multiplier ?? 1,
+      luck: cs.passiveAttributes?.luck ?? 1,
+      discount: cs.passiveAttributes?.discount ?? 0,
+      shield: cs.shieldCount ?? 0,
+    };
+
     // Build changes array (including xp if adjusted)
     const changes = [];
     const now = new Date();
-    const curr = {
-      multiplier: student.passiveAttributes.multiplier ?? 1,
-      luck: student.passiveAttributes.luck ?? 1,
-      discount: student.passiveAttributes.discount ?? null,
-      shield: student.shieldCount ?? 0
-    };
 
     ['multiplier', 'luck', 'discount', 'shield'].forEach((f) => {
       const before = prev[f];
@@ -1208,7 +1189,7 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
       return res.json({
         message: 'No stats were adjusted',
         noChange: true,
-        passiveAttributes: student.passiveAttributes,
+        passiveAttributes: cs.passiveAttributes,
         changes: []
       });
     }
@@ -1222,17 +1203,17 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
         const rate = Number(classroom.xpSettings.statIncrease || 0);
         if (rate > 0) {
           const afterForXP = {
-            multiplier: student.passiveAttributes?.multiplier ?? 1,
-            luck: student.passiveAttributes?.luck ?? 1,
-            discount: student.passiveAttributes?.discount ?? student.passiveAttributes?.discountShop ?? 0,
-            shield: student.shieldCount ?? 0
+            multiplier: cs.passiveAttributes?.multiplier ?? 1,
+            luck: cs.passiveAttributes?.luck ?? 1,
+            discount: cs.passiveAttributes?.discount ?? cs.passiveAttributes?.discountShop ?? 0,
+            shield: cs.shieldCount ?? 0
           };
 
           let statIncreaseCount = 0;
-          if (Number(afterForXP.multiplier) > Number(beforeForXP.multiplier)) statIncreaseCount += 1;
-          if (Number(afterForXP.luck) > Number(beforeForXP.luck)) statIncreaseCount += 1;
-          if (Number(afterForXP.discount) > Number(beforeForXP.discount)) statIncreaseCount += 1;
-          if (Number(afterForXP.shield) > Number(beforeForXP.shield)) statIncreaseCount += 1;
+          if (Number(afterForXP.multiplier) > Number(prev.multiplier)) statIncreaseCount += 1;
+          if (Number(afterForXP.luck) > Number(prev.luck)) statIncreaseCount += 1;
+          if (Number(afterForXP.discount) > Number(prev.discount)) statIncreaseCount += 1;
+          if (Number(afterForXP.shield) > Number(prev.shield)) statIncreaseCount += 1;
 
           const xpToAward = statIncreaseCount * rate;
           if (xpToAward > 0) {
@@ -1354,10 +1335,10 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
 
     // emit stats update for the student so clients refresh displays
     try {
-      req.app.get('io').to(`user-${student._id}`).emit('user_stats_update', { userId: student._id, passiveAttributes: student.passiveAttributes });
+      req.app.get('io').to(`user-${student._id}`).emit('user_stats_update', { userId: student._id, passiveAttributes: cs.passiveAttributes });
     } catch(e){/*ignore*/}
 
-    res.json({ message: 'Stats updated', passiveAttributes: student.passiveAttributes, changes });
+    res.json({ message: 'Stats updated', passiveAttributes: cs.passiveAttributes, changes });
   } catch (err) {
     console.error('[Patch student stats] error:', err);
     res.status(500).json({ error: 'Server error' });

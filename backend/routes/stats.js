@@ -5,6 +5,7 @@ const User = require('../models/User');
 const Item = require('../models/Item');
 const Classroom = require('../models/Classroom');
 const mongoose = require('mongoose');
+const { getClassroomStatsEntry } = require('../utils/classroomStats');
 
 // Will show all the attributes (that can be earned from the items from bazaar)in the statistics page
 
@@ -80,6 +81,11 @@ router.get('/student/:id', ensureAuthenticated, async (req, res) => {
       return passiveItems.some((item) => item.primaryEffect === effectName);
     }
 
+    const cs = classroomId ? getClassroomStatsEntry(user, classroomId) : null;
+    const passive = cs?.passiveAttributes || user.passiveAttributes || {};
+    const shieldCount = (cs?.shieldCount ?? user.shieldCount ?? 0);
+    const shieldActive = (cs?.shieldActive ?? user.shieldActive ?? (shieldCount > 0));
+
     // Keep the EXISTING return structure - don't change anything else
     return res.json({
       student: {
@@ -87,19 +93,18 @@ router.get('/student/:id', ensureAuthenticated, async (req, res) => {
         email: user.email,
       },
       classroom: classroom?._id || null,
-      // Keep existing user stats from schema
-      luck: user.passiveAttributes?.luck || 1,
-      multiplier: user.passiveAttributes?.multiplier || 1,
-      groupMultiplier: actualGroupMultiplier, // Use calculated value instead
-      shieldActive: user.shieldActive || false,
-      shieldCount: user.shieldCount || 0,
+
+      // NOW classroom-scoped when classroomId is supplied
+      luck: passive.luck || 1,
+      multiplier: passive.multiplier || 1,
+      groupMultiplier: actualGroupMultiplier,
+      shieldActive,
+      shieldCount,
+
       attackPower: attackCount,
-      // Keep existing computed stats from items
       doubleEarnings: hasEffect('doubleEarnings'),
-      // Prefer teacher-applied discount stored on passiveAttributes.discount; fall back to item effects
-      discountShop: (user.passiveAttributes?.discount != null)
-        ? user.passiveAttributes.discount
-        : (hasEffect('discountShop') ? 20 : 0),
+      discountShop: (passive.discount != null) ? passive.discount : (hasEffect('discountShop') ? 20 : 0),
+
       passiveItemsCount: passiveItems.length
     });
   } catch (err) {

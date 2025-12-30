@@ -1,4 +1,6 @@
 const mongoose = require('mongoose');
+const { Schema } = mongoose;
+
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
 function generateShortId() {
@@ -38,6 +40,20 @@ const TransactionSchema = new mongoose.Schema({
     totalMultiplier: Number,
   }
 });
+
+const ClassroomStatsSchema = new Schema(
+  {
+    classroom: { type: Schema.Types.ObjectId, ref: 'Classroom', required: true, index: true },
+    passiveAttributes: {
+      multiplier: { type: Number, default: 1 },
+      luck: { type: Number, default: 1 },
+      discount: { type: Number, default: 0 },
+    },
+    shieldCount: { type: Number, default: 0 },
+    shieldActive: { type: Boolean, default: false },
+  },
+  { _id: false }
+);
 
 const UserSchema = new mongoose.Schema({
   googleId: { type: String },
@@ -119,6 +135,7 @@ const UserSchema = new mongoose.Schema({
       }
     }]
   }],
+  classroomStats: { type: [ClassroomStatsSchema], default: [] },
 }, { 
   timestamps: true  // This should be here to automatically add createdAt and updatedAt
 });

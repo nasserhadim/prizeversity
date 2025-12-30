@@ -3,6 +3,7 @@ const { CHALLENGE_NAMES } = require('./constants');
 const Notification = require('../../models/Notification');
 const { populateNotification } = require('../../utils/notifications');
 const { awardXP } = require('../../utils/awardXP'); // Changed from '../utils/awardXP'
+const { getScopedUserStats } = require('../../utils/classroomStats'); // ADD
 
 function isChallengeExpired(challenge) {
   if (!challenge.settings.dueDateEnabled || !challenge.settings.dueDate) {
@@ -53,16 +54,21 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
 
   if (!user) return rewardsEarned;
 
-  // --- BEGIN: Track stat changes ---
   const now = new Date();
   const classroomId = challenge.classroomId;
+
+  // CHANGED: classroom-scoped stats snapshot + target
+  const scopedBefore = getScopedUserStats(user, classroomId, { create: true });
+  const passiveTarget = scopedBefore.cs
+    ? scopedBefore.cs.passiveAttributes
+    : (user.passiveAttributes ||= {});
+
   const prevStats = {
-    multiplier: user.passiveAttributes?.multiplier || 1,
-    luck: user.passiveAttributes?.luck || 1,
-    discount: user.passiveAttributes?.discount || 0,
-    shield: user.shieldCount || 0,
+    multiplier: scopedBefore.passive?.multiplier ?? 1,
+    luck: scopedBefore.passive?.luck ?? 1,
+    discount: scopedBefore.passive?.discount ?? 0,
+    shield: scopedBefore.shieldCount ?? 0,
   };
-  // --- END: Track stat changes ---
 
   let bitsAwarded = 0;
   const settings = challenge.settings;
@@ -83,7 +89,9 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
 
   if (bitsAwarded > 0) {
     if (classroomId) {
-      const classroomBalance = user.classroomBalances.find(cb => cb.classroom.toString() === classroomId.toString());
+      const classroomBalance = user.classroomBalances.find(
+        cb => cb.classroom.toString() === classroomId.toString()
+      );
       if (classroomBalance) {
         classroomBalance.balance = (classroomBalance.balance || 0) + bitsAwarded;
       } else {
@@ -123,13 +131,13 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
     }
   }
 
+  // CHANGED: write multiplier/luck/discount into classroom-scoped passiveTarget
   if (settings.multiplierMode === 'individual') {
     const multiplier = (settings.challengeMultipliers || [])[challengeIndex] || 1.0;
     if (multiplier > 1.0) {
       const multiplierIncrease = multiplier - 1.0;
-      if (!user.passiveAttributes) user.passiveAttributes = {};
-      // round to 2 decimals to avoid floating point artifacts
-      user.passiveAttributes.multiplier = Math.round(((user.passiveAttributes.multiplier || 1.0) + multiplierIncrease) * 100) / 100;
+      passiveTarget.multiplier =
+        Math.round(((passiveTarget.multiplier || 1.0) + multiplierIncrease) * 100) / 100;
       rewardsEarned.multiplier = multiplierIncrease;
     }
   }
@@ -137,9 +145,8 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
   if (settings.luckMode === 'individual') {
     const luck = (settings.challengeLuck || [])[challengeIndex] || 1.0;
     if (luck > 1.0) {
-      if (!user.passiveAttributes) user.passiveAttributes = {};
-      const newLuck = (user.passiveAttributes.luck || 1.0) * luck;
-      user.passiveAttributes.luck = Math.round(newLuck * 10) / 10; // Round to 1 decimal place
+      const newLuck = (passiveTarget.luck || 1.0) * luck;
+      passiveTarget.luck = Math.round(newLuck * 10) / 10;
       rewardsEarned.luck = luck;
     }
   }
@@ -147,29 +154,31 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
   if (settings.discountMode === 'individual') {
     const discount = (settings.challengeDiscounts || [])[challengeIndex] || 0;
     if (discount > 0) {
-      if (!user.passiveAttributes) user.passiveAttributes = {};
-      const currentDiscount = user.passiveAttributes.discount || 0;
-      user.passiveAttributes.discount = Math.min(100, currentDiscount + discount);
+      const currentDiscount = passiveTarget.discount || 0;
+      passiveTarget.discount = Math.min(100, currentDiscount + discount);
       rewardsEarned.discount = discount;
     }
   }
 
+  // CHANGED: shield is classroom-scoped when classroomId exists
   if (settings.shieldMode === 'individual' && settings.challengeShields?.[challengeIndex]) {
-    if (!user.shieldActive) {
-      user.shieldActive = true;
-      rewardsEarned.shield = true;
+    if (scopedBefore.cs) {
+      scopedBefore.cs.shieldCount = (scopedBefore.cs.shieldCount || 0) + 1;
+      scopedBefore.cs.shieldActive = true;
+    } else {
+      if (!user.shieldActive) user.shieldActive = true;
+      user.shieldCount = (user.shieldCount || 0) + 1;
     }
-    // Also increment shield count
-    user.shieldCount = (user.shieldCount || 0) + 1;
     rewardsEarned.shield = true;
   }
 
-  // --- BEGIN: Create notifications for stat changes ---
+  // CHANGED: classroom-scoped currStats
+  const scopedAfter = getScopedUserStats(user, classroomId, { create: true });
   const currStats = {
-    multiplier: user.passiveAttributes?.multiplier || 1,
-    luck: user.passiveAttributes?.luck || 1,
-    discount: user.passiveAttributes?.discount || 0,
-    shield: user.shieldCount || 0,
+    multiplier: scopedAfter.passive?.multiplier ?? 1,
+    luck: scopedAfter.passive?.luck ?? 1,
+    discount: scopedAfter.passive?.discount ?? 0,
+    shield: scopedAfter.shieldCount ?? 0,
   };
 
   const statChanges = [];
@@ -222,16 +231,30 @@ async function awardChallengeBits(userId, challengeIndex, challenge) {
     const bitsToAward = challenge.getBitsForChallenge(challengeIndex);
     if (bitsToAward <= 0) return 0;
 
-    user.balance = (user.balance || 0) + bitsToAward;
+    // CHANGED: respect classroom-scoped balances when available
+    const classroomId = challenge.classroomId;
+    if (classroomId) {
+      const classroomBalance = user.classroomBalances.find(
+        cb => cb.classroom.toString() === classroomId.toString()
+      );
+      if (classroomBalance) {
+        classroomBalance.balance = (classroomBalance.balance || 0) + bitsToAward;
+      } else {
+        user.classroomBalances.push({ classroom: classroomId, balance: bitsToAward });
+      }
+    } else {
+      user.balance = (user.balance || 0) + bitsToAward;
+    }
+
     await user.save();
-    
+
     const userChallenge = challenge.userChallenges.find(
       uc => uc.userId.toString() === userId.toString()
     );
     if (userChallenge) {
       userChallenge.bitsAwarded += bitsToAward;
     }
-    
+
     return bitsToAward;
   } catch (error) {
     console.error('Error awarding challenge bits:', error);

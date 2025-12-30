@@ -12,6 +12,7 @@ import { API_BASE } from '../config/api';
 import socket, { joinUserRoom, joinClassroom } from '../utils/socket';
 import axios from 'axios';
 import ConfirmModal from './ConfirmModal';
+import useDailyCheckin from '../hooks/useDailyCheckin'; // <-- add this
 
 import {
   Home,
@@ -80,6 +81,9 @@ const Navbar = () => {
   const classroomMatch = location.pathname.match(/^\/classroom\/([^\/]+)/);
   const classroomId = classroomMatch ? classroomMatch[1] : null;
   const insideClassroom = Boolean(classroomId);
+
+  // NEW: run daily check-in whenever we are inside a classroom route (covers refresh on bazaar/leaderboard/etc)
+  useDailyCheckin({ user, classroomId });
 
   // Use classroom-scoped cart API
   const { getCart, getCount, removeFromCart, clearCart } = useCart();
