@@ -26,11 +26,11 @@ function getPersonalMultiplierForClassroom(userDoc, classroomId) {
 
 // Utility to check if a TA can assign bits based on classroom policy
 async function canTAAssignBits({ taUser, classroomId }) {
-  const classroom = await Classroom.findById(classroomId).select('taBitPolicy students');
+  const classroom = await Classroom.findById(classroomId).select('taBitPolicy admins');
   if (!classroom) return { ok: false, status: 404, msg: 'Classroom not found' };
 
-  // TAs must be part of the classroom they are trying to affect
-  if (!classroom.students.map(String).includes(String(taUser._id))) {
+  // Require classroom-level admin membership (scoped)
+  if (!classroom.admins.map(String).includes(String(taUser._id))) {
     return { ok: false, status: 403, msg: 'You are not part of this classroom' };
   }
 
@@ -78,7 +78,7 @@ async function ensureTeacher(req, res, next) {
     return res.status(gate.status || 403).json({ error: gate.msg || 'You are not authorized to perform this action.' });
   }
 
-  return res.status(403).json({ error: 'Only teachers or admins can adjust group balances' });
+  return res.status(403).json({ error: 'Only teachers or admins can adjust group balances. If you are an Admin/TA, please ensure you have the necessary permissions.' });
 }
 
 // Helper function for multiplier notes

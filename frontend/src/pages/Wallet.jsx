@@ -10,25 +10,48 @@ import socket from '../utils/socket';
 import ExportButtons from '../components/ExportButtons';
 import { Info } from 'lucide-react';
 
+// NEW: helper to detect classroom-scoped admin membership (uses fetched classroom/student list)
+function userIsClassroomAdmin({ user, classroom, studentList }) {
+  if (!user) return false;
+  // teacher is implicitly an admin
+  if (classroom && (String(classroom.teacher?._id || classroom.teacher) === String(user._id))) return true;
+  if (Array.isArray(studentList)) {
+    const me = studentList.find(s => String(s._id) === String(user._id));
+    if (me && me.isClassroomAdmin) return true;
+  }
+  return false;
+}
+
 const Wallet = () => {
   const { user } = useAuth();
   const { id: classroomId } = useParams();
-
   // ADD: classroom-scoped stats used in this page
   const [classroomStats, setClassroomStats] = useState({ multiplier: 1 });
+  const [studentList, setStudentList] = useState([]);
+  const [classroom, setClassroom] = useState(null);
+  const isClassroomAdmin = userIsClassroomAdmin({ user, classroom, studentList });
 
-  // Only show the "All users" / assigner filter to teachers/admins
-  const canSeeUserFilter = Boolean(user && ['teacher', 'admin'].includes((user.role || '').toString().toLowerCase()));
+  const isTeacher = Boolean(
+    user &&
+    classroom &&
+    String(classroom.teacher?._id || classroom.teacher) === String(user._id)
+  );
 
-  // Default tab logic for students
-  const isStudent = user && user.role === 'student';
+  // Teacher OR classroom-scoped Admin/TA should see "All Transactions"
+  const canViewAllTx = Boolean(user && (isTeacher || isClassroomAdmin));
+
+  // Only show the "All users" / assigner filter to teachers or classroom-scoped Admin/TAs
+  const canSeeUserFilter = canViewAllTx;
+
+  // "Student view" should exclude classroom-scoped Admin/TAs (they should see teacher-style wallet)
+  const isStudentView = Boolean(user && user.role === 'student' && !isClassroomAdmin);
+
   const [studentTab, setStudentTab] = useState('transfer'); // 'transfer' or 'transactions'
 
-  // Default tab: teachers/admins should land on Transactions so they see classroom txs immediately
-  const defaultTab = (user && ['teacher','admin'].includes(user.role)) ? 'transactions' : 'edit';
+  // Default tab: teachers or classroom-scoped Admin/TAs land on Transactions
+  const defaultTab = (user && (user.role === 'teacher' || isClassroomAdmin)) ? 'transactions' : 'edit';
   const [activeTab, setActiveTab] = useState(defaultTab);
   const [transactions, setTransactions] = useState([]);
-  const [classroom, setClassroom] = useState(null);
   const [balance, setBalance] = useState(0);
   const [recipientId, setRecipientId] = useState('');
   const [selectedRecipientId, setSelectedRecipientId] = useState(''); 
@@ -37,7 +60,6 @@ const Wallet = () => {
   const [search, setSearch] = useState(''); // Add search state
   const [allTx, setAllTx] = useState([]);
   const [studentFilter, setStudentFilter] = useState('');  
-  const [studentList, setStudentList] = useState([]);
   const [roleFilter, setRoleFilter] = useState('all');
   const [directionFilter, setDirectionFilter] = useState('all');
   const [assignerFilter, setAssignerFilter] = useState('');
@@ -202,7 +224,7 @@ const Wallet = () => {
 
   // Filter + sort transactions based on selected role, direction, search and sort settings
   const filteredTx = useMemo(() => {
-    const sourceTx = user.role === 'student' ? transactions : allTx;
+    const sourceTx = canViewAllTx ? allTx : transactions;
 
     // Filtering (deep search)
     const qRaw = (search || '').trim();
@@ -337,6 +359,7 @@ const Wallet = () => {
      assignerFilter,
      search,
      user.role,
+     canViewAllTx,
      classroom,
      studentList,
      sortField,
@@ -361,29 +384,27 @@ const Wallet = () => {
     }
   };
   // On user or initial load, fetch wallet info and students
-    useEffect(() => {
-   if (!user) return;
+  useEffect(() => {
+    if (!user) return;
     // always fetch classroom info & own wallet
     fetchClassroom();
     fetchWallet();
     fetchUsers();
     fetchBalance(); // Add this to fetch per-classroom balance
 
-    const role = (user.role || '').toString().toLowerCase();
-    if ((role === 'teacher' || role === 'admin') && classroomId) {
-      // explicit call so teachers see classroom transactions reliably
+    if (canViewAllTx && classroomId) {
+      // explicit call so teacher/classroom-TA sees classroom transactions reliably
       fetchAllTx();
     }
-  }, [user, classroomId]);
+  }, [user, classroomId, canViewAllTx]);
 
   // Fetch transactions whenever teacher/admin switches to Transactions tab (or on initial load)
   useEffect(() => {
     if (!user) return;
-    const role = (user.role || '').toString().toLowerCase();
-    if ((role === 'teacher' || role === 'admin') && activeTab === 'transactions' && classroomId) {
+    if (canViewAllTx && activeTab === 'transactions' && classroomId) {
       fetchAllTx(studentFilter);
     }
-  }, [activeTab, user, classroomId, studentFilter]);
+  }, [activeTab, user, classroomId, studentFilter, canViewAllTx]);
 
   // ensure fetchAllTx includes classroomId
   const fetchAllTx = async (studentId = '') => {
@@ -477,14 +498,14 @@ const fetchWallet = async () => {
   };
 
   // Refresh wallet transactions and all transactions (for teachers/admins)
-    const refreshTransactions = async () => {
-      await fetchWallet();
-      if (['teacher', 'admin'].includes(user.role)) {
-        await fetchAllTx(studentFilter);
-      }
-    };
+  const refreshTransactions = async () => {
+    await fetchWallet();
+    if (canViewAllTx) {
+      await fetchAllTx(studentFilter);
+    }
+  };
 
-    // Fetch classroom details
+  // Fetch classroom details
   const fetchClassroom = async () => {
     if (!classroomId) return;
     try {
@@ -512,17 +533,12 @@ const fetchWallet = async () => {
     if (!user) return;
     const handler = (payload) => {
       try {
-        // payload example: { studentId, newBalance, classroomId }
-        // If this update is for the current user (student) and same classroom scope, refresh
         if (payload?.studentId && String(payload.studentId) === String(user._id)) {
-          // refresh the wallet view/balance/transactions
           fetchBalance();
           fetchWallet && fetchWallet();
         }
 
-        // If teacher/admin and classroom matches, refresh teacher views (all transactions)
-        const role = (user.role || '').toString().toLowerCase();
-        if ((role === 'teacher' || role === 'admin') && payload?.classroomId && String(payload.classroomId) === String(classroomId)) {
+        if (canViewAllTx && payload?.classroomId && String(payload.classroomId) === String(classroomId)) {
           fetchAllTx && fetchAllTx();
         }
       } catch (e) {
@@ -534,7 +550,7 @@ const fetchWallet = async () => {
     return () => {
       socket.off('balance_update', handler);
     };
-  }, [user, classroomId]); // fetchBalance/fetchWallet/fetchAllTx are stable in this module
+  }, [user, classroomId, canViewAllTx]); // fetchBalance/fetchWallet/fetchAllTx are stable in this module
   // ─ end realtime listener ─
 
   // Join rooms after socket connects and debug incoming events
@@ -547,11 +563,9 @@ useEffect(() => {
     if (classroomId) socket.emit('join-classroom', classroomId);
   };
 
-  // If already connected, join immediately; also join on future connects
   if (socket.connected) joinRooms();
   socket.on('connect', joinRooms);
 
-  // Enhanced handler with debug
   const handler = (payload) => {
     console.debug('[socket] balance_update received in Wallet:', payload);
     try {
@@ -559,8 +573,7 @@ useEffect(() => {
         fetchBalance();
         fetchWallet && fetchWallet();
       }
-      const role = (user.role || '').toString().toLowerCase();
-      if ((role === 'teacher' || role === 'admin') && payload?.classroomId && String(payload.classroomId) === String(classroomId)) {
+      if (canViewAllTx && payload?.classroomId && String(payload.classroomId) === String(classroomId)) {
         fetchAllTx && fetchAllTx();
       }
     } catch (e) {
@@ -574,31 +587,25 @@ useEffect(() => {
     socket.off('connect', joinRooms);
     socket.off('balance_update', handler);
   };
-}, [user?._id, classroomId]);
+}, [user?._id, classroomId, canViewAllTx]);
 
-// Add notification listener to trigger wallet refreshes
 useEffect(() => {
   if (!user?._id) return;
 
   const notificationHandler = (payload) => {
     console.debug('[socket] Wallet received notification:', payload);
-    // backend notification payload shape includes: { type, user, classroom, ... }
     const affectedUserId = payload?.user?._id || payload?.studentId || payload?.student?._id;
     const notifType = payload?.type;
 
-    // Only react to wallet-related notifications
     const walletTypes = new Set(['wallet_topup', 'wallet_transfer', 'wallet_adjustment', 'wallet_payment']);
     if (!walletTypes.has(notifType)) return;
 
-    // If notification targets this user, refresh their wallet
     if (String(affectedUserId) === String(user._id)) {
       fetchBalance();
       fetchWallet && fetchWallet();
     }
 
-    // If teacher/admin viewing a classroom and the notification is classroom-scoped, refresh all tx
-    const role = (user.role || '').toString().toLowerCase();
-    if ((role === 'teacher' || role === 'admin') && payload?.classroom?._id && String(payload.classroom._id) === String(classroomId)) {
+    if (canViewAllTx && payload?.classroom?._id && String(payload.classroom._id) === String(classroomId)) {
       fetchAllTx && fetchAllTx();
     }
   };
@@ -607,7 +614,7 @@ useEffect(() => {
   return () => {
     socket.off('notification', notificationHandler);
   };
-}, [user?._id, classroomId]);
+}, [user?._id, classroomId, canViewAllTx]);
 
   // Compute total spent (sum of negative amounts) scoped to current classroom if provided
   const totalSpent = useMemo(() => {
@@ -650,7 +657,7 @@ useEffect(() => {
            </h1>
 
         {/* ▼ Tab buttons */}
-        {(user.role === 'teacher' || user.role === 'admin') && (
+        {(user.role === 'teacher' || isClassroomAdmin) && (
           <div role="tablist" className="tabs tabs-boxed">
             <a
               role="tab"
@@ -671,7 +678,7 @@ useEffect(() => {
       </div>
 
       {/* ▼ Student tab switcher */}
-      {isStudent && classroom?.studentSendEnabled && (
+      {isStudentView && classroom?.studentSendEnabled && (
         <div role="tablist" className="tabs tabs-boxed mb-6">
           <a
             role="tab"
@@ -691,12 +698,12 @@ useEffect(() => {
       )}
 
       {/* ▼ Edit/Bulk tab */}
-      {activeTab === 'edit' && (user.role === 'teacher' || user.role === 'admin') && (
+      {activeTab === 'edit' && (user.role === 'teacher' || isClassroomAdmin) && (
         <BulkBalanceEditor classroomId={classroomId} />
       )}
 
-      {/* ▼ Transactions tab */}
-      {activeTab === 'transactions' && (user.role === 'teacher' || user.role === 'admin') && (
+      {/* ▼ Transactions tab (full) */}
+      {activeTab === 'transactions' && (user.role === 'teacher' || isClassroomAdmin) && (
         <div className="space-y-4">
           <h2 className="font-bold">
             All Transactions <span className="text-sm text-gray-500">({transactionCount})</span>
@@ -801,10 +808,11 @@ useEffect(() => {
           <TransactionList transactions={filteredTx} />
         </div>
       )}
-      {user.role === 'student' && (
+
+      {isStudentView && (
         <>
           {/* ▼ Student: Wallet Transfer */}
-          {isStudent && studentTab === 'transfer' && classroom?.studentSendEnabled && (
+          {isStudentView && studentTab === 'transfer' && classroom?.studentSendEnabled && (
             <div className="mb-6 space-y-2">
               <h2 className="font-bold mb-2">Wallet Transfer</h2>
 
@@ -922,7 +930,7 @@ useEffect(() => {
           )}
 
           {/* ▼ Student: Transaction History */}
-          {isStudent && (studentTab === 'transactions' || !classroom?.studentSendEnabled) && (
+          {isStudentView && (studentTab === 'transactions' || !classroom?.studentSendEnabled) && (
             <div className="mt-6">
               <div className="mb-4">
                 <p className="font-medium">Base Balance: {balance} ₿</p>

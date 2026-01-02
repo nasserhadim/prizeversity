@@ -14,6 +14,17 @@ import Avatar from '../components/Avatar';
 import XPSettings from '../components/XPSettings';
 import { ThemeContext } from '../context/ThemeContext'; // NEW
 
+// NEW helper for classroom-scoped admin detection (uses fetched classroom + students)
+function userIsClassroomAdmin({ user, classroom, students }) {
+  if (!user) return false;
+  if (classroom && String(classroom.teacher?._id || classroom.teacher) === String(user._id)) return true;
+  if (Array.isArray(students)) {
+    const me = students.find(s => String(s._id) === String(user._id));
+    if (me && me.isClassroomAdmin) return true;
+  }
+  return false;
+}
+
 const ROLE_LABELS = {
   student: 'Student',
   admin: 'Admin/TA',
@@ -197,6 +208,22 @@ const People = () => {
   const [taBitPolicy, setTaBitPolicy] = useState('full');
   const [studentsCanViewStats, setStudentsCanViewStats] = useState(true);
   const [students, setStudents] = useState([]);
+  const [classroom, setClassroom] = useState(null);
+  // Compute classroom-scoped admin flag from annotated students list
+  const isClassroomAdmin = React.useMemo(() => {
+    return userIsClassroomAdmin({ user, classroom, students });
+  }, [user?._id, classroom, students]);
+
+  // NEW: detect if current user is a student member of this classroom
+  const isMemberStudent = React.useMemo(() => {
+    if (!user?._id || !Array.isArray(students)) return false;
+    return students.some(s => String(s._id) === String(user._id));
+  }, [students, user?._id]);
+
+  // NEW: viewer is student-only (not teacher, not classroom TA) — should still see "My Stat Changes"
+  const isTeacher = String(classroom?.teacher?._id || classroom?.teacher || '') === String(user?._id);
+  const studentViewOnly = !isTeacher && !isClassroomAdmin && isMemberStudent;
+
   // Map of studentId -> total spent (number)
   const [totalSpentMap, setTotalSpentMap] = useState({});
   // per-student cached stats and loading flag
@@ -206,7 +233,6 @@ const People = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOption, setSortOption] = useState('default');
   const [roleFilter, setRoleFilter] = useState('all'); // Add role filter state
-  const [classroom, setClassroom] = useState(null);
   const [siphonTimeoutHours, setSiphonTimeoutHours] = useState(72);
   const [showUnassigned, setShowUnassigned] = useState(false);
   const [unassignedSearch, setUnassignedSearch] = useState('');
@@ -641,15 +667,15 @@ const getBanInfo = (student, classroomObj) => {
     })
     .sort((a, b) => {
       // Only allow balance sorting for teachers/admins
-      if (sortOption === 'balanceDesc' && (user?.role === 'teacher' || user?.role === 'admin')) {
+      if (sortOption === 'balanceDesc' && (user?.role === 'teacher' || isClassroomAdmin)) {
         return (b.balance || 0) - (a.balance || 0);
-      } else if (sortOption === 'balanceAsc' && (user?.role === 'teacher' || user?.role === 'admin')) {
+      } else if (sortOption === 'balanceAsc' && (user?.role === 'teacher' || isClassroomAdmin)) {
         return (a.balance || 0) - (b.balance || 0);
-      } else if (sortOption === 'totalSpentDesc' && (user?.role === 'teacher' || user?.role === 'admin')) {
+      } else if (sortOption === 'totalSpentDesc' && (user?.role === 'teacher' || isClassroomAdmin)) {
         const aVal = Number(totalSpentMap[a._id] || 0);
         const bVal = Number(totalSpentMap[b._id] || 0);
         return bVal - aVal;
-      } else if (sortOption === 'totalSpentAsc' && (user?.role === 'teacher' || user?.role === 'admin')) {
+      } else if (sortOption === 'totalSpentAsc' && (user?.role === 'teacher' || isClassroomAdmin)) {
         const aVal = Number(totalSpentMap[a._id] || 0);
         const bVal = Number(totalSpentMap[b._id] || 0);
         return aVal - bVal;
@@ -740,9 +766,8 @@ const getBanInfo = (student, classroomObj) => {
 
   // ── Fetch per-student "total spent" (sum of negative transaction amounts) for teacher/admin viewers ──
   useEffect(() => {
-    // Only fetch when a teacher/admin is viewing and we have a classroom
-    const viewerRole = (user?.role || '').toString().toLowerCase();
-    if (!user || !['teacher', 'admin'].includes(viewerRole)) return;
+    // Only fetch when classroom teacher or classroom-scoped Admin/TA is viewing
+    if (!user || !(user?.role === 'teacher' || isClassroomAdmin)) return;
     if (!classroomId) return;
 
     // Fetch for all students in the classroom (not just first N)
@@ -800,9 +825,10 @@ const getBanInfo = (student, classroomObj) => {
     // Only fetch stats if:
     // - we have a classroom and students
     // - and either viewer is teacher/admin, or student view is allowed, or a stat-based sort is active
+    const viewerIsTeacherOrClassAdmin = (user?.role === 'teacher' || isClassroomAdmin);
     const shouldFetch = classroomId &&
       Array.isArray(students) && students.length > 0 &&
-      (viewerRole === 'teacher' || viewerRole === 'admin' || (viewerRole === 'student' && studentsCanViewStats) || statSortSelected);
+      (viewerIsTeacherOrClassAdmin || (user?.role === 'student' && studentsCanViewStats) || statSortSelected);
  
     if (!shouldFetch) {
       setStudentStatsMap({});
@@ -925,7 +951,7 @@ const getBanInfo = (student, classroomObj) => {
           Email: student.email,
           UserId: student._id,
           ShortId: student.shortId || '',
-          Role: ROLE_LABELS[student.role] || student.role,
+          Role: student.isClassroomAdmin ? ROLE_LABELS['admin'] : (ROLE_LABELS[student.role] || student.role),
           Balance: student.balance?.toFixed(2) || '0.00',
           TotalSpent: (Number(totalSpentMap[student._id] || 0)).toFixed(2),
           JoinedDate: student.joinedAt
@@ -1264,13 +1290,13 @@ const visibleCount = filteredStudents.length;
           >
             Groups
           </button>
-          {/* NEW: Stat Changes tab (teacher/admin only) */}
-          {(user?.role?.toLowerCase() === 'teacher' || user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'student') && (
+          {/* Stat Changes tab (teacher, classroom TA, or student member of this classroom) */}
+          {(isTeacher || isClassroomAdmin || isMemberStudent) && (
             <button
               className={`btn flex-shrink-0 ${tab === 'stat-changes' ? 'btn-success' : 'btn-outline'}`}
               onClick={() => setTab('stat-changes')}
             >
-              {user?.role?.toLowerCase() === 'student' ? 'My Stat Changes' : 'Stat Changes'}
+              {studentViewOnly ? 'My Stat Changes' : 'Stat Changes'}
             </button>
           )}
           {user?.role?.toLowerCase() === 'teacher' && (
@@ -1496,7 +1522,7 @@ const visibleCount = filteredStudents.length;
                   onChange={(e) => setSortOption(e.target.value)}
                 >
                    <option value="default">Sort By</option>
-                   {(user?.role === 'teacher' || user?.role === 'admin') && (
+                   {(user?.role === 'teacher' || isClassroomAdmin) && (
                      <>
                        <option value="balanceDesc">Balance (High → Low)</option>
                        <option value="balanceAsc">Balance (Low → High)</option>
@@ -1537,7 +1563,7 @@ const visibleCount = filteredStudents.length;
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                {(user?.role === 'teacher' || user?.role === 'admin') && (
+                {(user?.role === 'teacher' || isClassroomAdmin) && (
                   <div className="ml-auto flex items-center">
                     <ExportButtons
                       onExportCSV={exportPeopleToCSV}
@@ -1590,7 +1616,18 @@ const visibleCount = filteredStudents.length;
                             ? `${student.firstName || ''} ${student.lastName || ''}`.trim()
                             : student.name || student.email}
                         <span className={`ml-2 ${subtleText} text-sm`}>
-                          – Role: {ROLE_LABELS[student.role] || student.role}
+                          {/* Classroom‑scoped role label */}
+                          {(() => {
+                            const teacherId = String(classroom?.teacher?._id || classroom?.teacher || '');
+                            const isTeacher = String(student._id) === teacherId || student.role === 'teacher';
+                            const isTA = !!student.isClassroomAdmin;
+                            const label = isTeacher
+                              ? ROLE_LABELS.teacher
+                              : isTA
+                                ? ROLE_LABELS.admin
+                                : ROLE_LABELS.student;
+                            return <> – Role: {label}</>;
+                          })()}
                         </span>
                         </div>
 
@@ -1600,9 +1637,9 @@ const visibleCount = filteredStudents.length;
                             <div className="text-xs text-red-600">
                               {banRecord ? (
                                 <div>
-                                 { (user?.role === 'teacher' || user?.role === 'admin') ? (
+                                  {(user?.role === 'teacher' || isClassroomAdmin) ? (
                                     <div>
-                                     Reason: {banRecord.reason || 'Not specified'}
+                                      Reason: {banRecord.reason || 'Not specified'}
                                       <div>• {new Date(banRecord.bannedAt).toLocaleString()}</div>
                                     </div>
                                   ) : (
@@ -1617,14 +1654,14 @@ const visibleCount = filteredStudents.length;
                         )}
 
                         {/* Only show balance to teachers/admins */}
-                        {(user?.role?.toLowerCase() === 'teacher' || user?.role?.toLowerCase() === 'admin') && (
+                        {(user?.role?.toLowerCase() === 'teacher' || isClassroomAdmin) && (
                           <div className="text-sm text-gray-500 mt-1">
                             Balance: ₿{student.balance?.toFixed(2) || '0.00'}
                           </div>
                         )}
 
                         {/* Show total spent to teachers/admins */}
-                        {(user?.role?.toLowerCase() === 'teacher' || user?.role?.toLowerCase() === 'admin') && (
+                        {(user?.role?.toLowerCase() === 'teacher' || isClassroomAdmin) && (
                           <div className="text-sm text-gray-500">
                             Total spent: ₿{((totalSpentMap[student._id] || 0)).toFixed(2)}
                           </div>
@@ -1664,8 +1701,8 @@ const visibleCount = filteredStudents.length;
                           2. The student in the list is the current user (you can always see your own stats).
                           OR
                           3. The current user is a student AND the classroom setting allows it.
-                        */}
-                        {(user?.role === 'teacher' || user?.role === 'admin' || String(student._id) === String(user?._id) || (user?.role === 'student' && studentsCanViewStats)) && (
+                                               */}
+                        {(user?.role === 'teacher' || isClassroomAdmin || String(student._id) === String(user?._id) || (user?.role === 'student' && studentsCanViewStats)) && (
                           <button
                             className="btn btn-xs sm:btn-sm btn-success"
                             onClick={() => navigate(`/classroom/${classroomId}/student/${student._id}/stats`, {
@@ -2030,7 +2067,7 @@ const visibleCount = filteredStudents.length;
      )}
 
      {/* Add this stats display section */}
-     {user?.role === 'teacher' && (
+     {(user?.role === 'teacher' || isClassroomAdmin) && (
       <div className="mb-6">
         <h2 className="text-2xl font-semibold mb-4">Group Assignment Stats</h2>
         <div className="stats stats-vertical md:stats-horizontal shadow mb-4">
@@ -2051,21 +2088,20 @@ const visibleCount = filteredStudents.length;
     )}
           </div>
         )}
-                  {/* NEW: Recent stat changes - show for teachers/admins (all changes) and students (their own changes) */}
-          {tab === 'stat-changes' && (user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'student') && (
+                  {/* NEW: Recent stat changes - teacher/classroom TA see all, student (including global admin not TA) sees own */}
+          {tab === 'stat-changes' && (isTeacher || isClassroomAdmin || isMemberStudent) && (
             <div className="bg-base-100 border border-base-300 rounded p-4 mt-4">
               <div className="flex items-center gap-2 mb-4">
                 <h3 className="font-medium flex-1">
-                  {user?.role?.toLowerCase() === 'student' ? 'My recent stat changes' : 'Recent stat changes'}
+                  {studentViewOnly ? 'My recent stat changes' : 'Recent stat changes'}
                 </h3>
                 <div className="text-sm text-base-content/70">{statChanges.length} records</div>
               </div>
- 
-               {/* Controls: deep search + sort */}
+              {/* Controls: deep search + sort */}
                <div className="flex flex-col sm:flex-row gap-2 mb-4">
                  <input
                    type="search"
-                   placeholder={user?.role?.toLowerCase() === 'student' ? 'Search your stat changes...' : 'Search by user, actor, field, or value...'}
+                   placeholder={studentViewOnly ? 'Search your stat changes...' : 'Search by user, actor, field, or value...'}
                   className="input input-bordered flex-1 min-w-[220px]"
                    value={statSearch}
                    onChange={(e) => setStatSearch(e.target.value)}
@@ -2097,10 +2133,10 @@ const visibleCount = filteredStudents.length;
                  (() => {
                    const q = (statSearch || '').toLowerCase().trim();
                    let filtered = statChanges.filter(s => {
-                     // For students, only show their own stat changes
-                     if (user?.role?.toLowerCase() === 'student') {
-                       if (String(s.user) !== String(user._id)) return false;
-                     }
+                    // Student-view (including global admin not TA): only show own entries
+                    if (studentViewOnly) {
+                      if (String(s.user) !== String(user._id) && String(s.targetUser) !== String(user._id)) return false;
+                    }
 
                      if (!q) return true;
 
@@ -2138,19 +2174,19 @@ const visibleCount = filteredStudents.length;
                      return false;
                    });
 
-                    filtered.sort((a, b) => {
-                      const ad = new Date(a.createdAt || 0).getTime();
-                      const bd = new Date(b.createdAt || 0).getTime();
-                      return statSort === 'desc' ? bd - ad : ad - bd;
-                    });
+                   filtered.sort((a, b) => {
+                     const ad = new Date(a.createdAt || 0).getTime();
+                     const bd = new Date(b.createdAt || 0).getTime();
+                     return statSort === 'desc' ? bd - ad : ad - bd;
+                   });
 
-                    return (
-                      <ul className="space-y-2 text-sm">
-                        {filtered.map((s) => (
-                          <li key={s._id} className="p-2 border border-base-300 rounded bg-base-100">
-                            <div className="text-xs text-base-content/60 mb-1">
-                              {new Date(s.createdAt).toLocaleString()}
-                              {s.actionBy && (s.message?.includes('updated by your teacher') || s.message?.includes('Updated stats for')) ? (
+                   return (
+                     <ul className="space-y-2 text-sm">
+                       {filtered.map((s) => (
+                         <li key={s._id} className="p-2 border border-base-300 rounded bg-base-100">
+                           <div className="text-xs text-base-content/60 mb-1">
+                             {new Date(s.createdAt).toLocaleString()}
+                             {s.actionBy && (s.message?.includes('updated by your teacher') || s.message?.includes('Updated stats for')) ? (
                                 ` — by ${s.actionBy.firstName || ''} ${s.actionBy.lastName || ''}`.trim()
                               ) : (
                                 (() => {
@@ -2158,16 +2194,16 @@ const visibleCount = filteredStudents.length;
                                   return src ? ` — via ${src}` : ' — from System';
                                 })()
                               )}
-                            </div>
-                            {/* For students, don't show target user name since it's always them */}
-                            {user?.role?.toLowerCase() !== 'student' && (
-                              <div className="font-semibold text-lg mt-1">
-                                {s.targetUser ? (
-                                  `${s.targetUser.firstName || ''} ${s.targetUser.lastName || ''}`.trim()
-                                ) : 'Unknown user'}
-                              </div>
-                            )}
-                            <div className="mt-1">
+                           </div>
+                           {/* For student view, do not show target user */}
+                          {!studentViewOnly && (
+                             <div className="font-semibold text-lg mt-1">
+                               {s.targetUser ? (
+                                 `${s.targetUser.firstName || ''} ${s.targetUser.lastName || ''}`.trim()
+                               ) : 'Unknown user'}
+                             </div>
+                           )}
+                           <div className="mt-1">
                               {Array.isArray(s.changes) && s.changes.length ? (
                                 <ul className="list-disc ml-4">
                                   {s.changes.map((c, idx) => (
@@ -2196,8 +2232,8 @@ const visibleCount = filteredStudents.length;
                             </div>
                           </li>
                         ))}
-                      </ul>
-                    );
+                     </ul>
+                   );
                  })()
                )}
              </div>

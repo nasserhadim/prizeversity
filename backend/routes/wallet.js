@@ -12,7 +12,7 @@ const Notification = require('../models/Notification');
 const { populateNotification } = require('../utils/notifications');
 const { awardXP } = require('../utils/awardXP');
 const { logStatChanges } = require('../utils/statChangeLog');
-const { getScopedUserStats } = require('../utils/classroomStats'); // ADD
+const { getScopedUserStats, isClassroomAdmin } = require('../utils/classroomStats'); // ADD near top
 
 // helper to select basis for XP from bits
 function computeXPBits({ numericAmount, adjustedAmount, xpSettings }) {
@@ -20,14 +20,16 @@ function computeXPBits({ numericAmount, adjustedAmount, xpSettings }) {
   return Math.abs(basis === 'base' ? Number(numericAmount || 0) : Number(adjustedAmount || 0));
 }
 
-// Utility to check if a Admin/TA can assign bits based on classroom policy
+// Utility to check if a TA can assign bits based on classroom policy
 async function canTAAssignBits({ taUser, classroomId }) {
   const Classroom = require('../models/Classroom');
-  const classroom = await Classroom.findById(classroomId).select('taBitPolicy students');
+  const classroom = await Classroom.findById(classroomId).select('taBitPolicy admins').lean();
   if (!classroom) return { ok: false, status: 404, msg: 'Classroom not found' };
 
-  if (!classroom.students.map(String).includes(String(taUser._id))) {
-    return { ok: false, status: 403, msg: 'You are not part of this classroom' };
+  // TAs must be listed as classroom admins to act
+  const isAdminMember = Array.isArray(classroom.admins) && classroom.admins.map(a => String(a._id || a)).includes(String(taUser._id));
+  if (!isAdminMember) {
+    return { ok: false, status: 403, msg: 'You are not part of this classroom as an Admin/TA' };
   }
 
   switch (classroom.taBitPolicy) {
@@ -38,7 +40,7 @@ async function canTAAssignBits({ taUser, classroomId }) {
     case 'approval':
       return { ok: false, requiresApproval: true };
     default:
-      return { ok: false, status: 500, msg: 'Unknown policy' };
+      return { ok: true };
   }
 }
 
@@ -83,12 +85,21 @@ const getGroupMultiplierForStudentInClassroom = async (studentId, classroomId) =
 
 // Admin/teacher fetches all user transactions (optionally filtered by studentID & classroom)
 router.get('/transactions/all', ensureAuthenticated, async (req, res) => {
-  if (!['teacher', 'admin'].includes(req.user.role)) {
-    return res.status(403).json({ error: 'Forbidden' });
-  }
-
   try {
     const { studentId, classroomId } = req.query;
+
+    // permission:
+    // - teacher always allowed
+    // - classroom-scoped Admin/TA allowed ONLY when classroomId is provided
+    const isTeacher = req.user.role === 'teacher';
+    const isClassAdmin = classroomId ? await isClassroomAdmin(req.user, classroomId) : false;
+    if (!isTeacher && !isClassAdmin) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    if (isClassAdmin && !classroomId) {
+      return res.status(400).json({ error: 'classroomId is required' });
+    }
+
     if (studentId && !mongoose.Types.ObjectId.isValid(studentId)) {
       return res.status(400).json({ error: 'Bad studentId' });
     }
