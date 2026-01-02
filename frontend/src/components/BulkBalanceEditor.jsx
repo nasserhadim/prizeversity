@@ -120,8 +120,13 @@ const BulkBalanceEditor = ({onSuccess}) => {
   };
 
   const userIsTeacher = (user?.role || '').toLowerCase() === 'teacher';
-  const userIsTA = (user?.role || '').toLowerCase() === 'admin';
-  const taMayAssign = userIsTeacher || (userIsTA && taBitPolicy === 'full');
+  // Classroom-scoped Admin/TA: derive from annotated student list
+  const userIsTAInClass = useMemo(() => {
+    if (!user || !Array.isArray(students)) return false;
+    const me = students.find(s => String(s._id) === String(user._id));
+    return Boolean(me && me.isClassroomAdmin);
+  }, [user?._id, students]);
+  const taMayAssign = userIsTeacher || (userIsTAInClass && taBitPolicy === 'full');
   
   const fullName = (u) =>
   (u.firstName || u.lastName)

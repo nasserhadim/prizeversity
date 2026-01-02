@@ -60,9 +60,24 @@ function getScopedUserStats(user, classroomId, { create = false } = {}) {
   return { classroomId, cs, passive, shieldCount, shieldActive };
 }
 
+const Classroom = require('../models/Classroom');
+
+async function isClassroomAdmin(userOrId, classroomId) {
+  if (!classroomId) return false;
+  const userId = (userOrId && userOrId._id) ? String(userOrId._id) : String(userOrId || '');
+  if (!userId) return false;
+  const classroom = await Classroom.findById(classroomId).select('admins teacher').lean();
+  if (!classroom) return false;
+  // teacher is implicitly an admin for classroom-scoped operations
+  if (classroom.teacher && String(classroom.teacher) === String(userId)) return true;
+  const adminIds = Array.isArray(classroom.admins) ? classroom.admins.map(a => String(a._id || a)) : [];
+  return adminIds.includes(userId);
+}
+
 module.exports = {
   getClassroomIdFromReq,
   getClassroomStatsEntry,
   getOrCreateClassroomStatsEntry,
   getScopedUserStats,
+  isClassroomAdmin,
 };

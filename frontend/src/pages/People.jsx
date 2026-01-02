@@ -13,6 +13,18 @@ import StatsAdjustModal from '../components/StatsAdjustModal';
 import Avatar from '../components/Avatar';
 import XPSettings from '../components/XPSettings';
 import { ThemeContext } from '../context/ThemeContext'; // NEW
+import { inferAssignerRole } from '../utils/transactions';
+
+// NEW helper for classroom-scoped admin detection (uses fetched classroom + students)
+function userIsClassroomAdmin({ user, classroom, students }) {
+  if (!user) return false;
+  if (classroom && String(classroom.teacher?._id || classroom.teacher) === String(user._id)) return true;
+  if (Array.isArray(students)) {
+    const me = students.find(s => String(s._id) === String(user._id));
+    if (me && me.isClassroomAdmin) return true;
+  }
+  return false;
+}
 
 const ROLE_LABELS = {
   student: 'Student',
@@ -160,7 +172,7 @@ function formatStatChange(c) {
 }
 
 // add helper near the top (after imports / before component)
-const computeTotalSpent = (transactions = [], classroomId) => {
+const computeTotalSpent = (transactions = [], classroomId, studentList = []) => {
   return (transactions || []).reduce((sum, t) => {
     const amt = Number(t?.amount) || 0;
     if (amt >= 0) return sum;
@@ -172,8 +184,8 @@ const computeTotalSpent = (transactions = [], classroomId) => {
     // Keep classroom filter
     if (classroomId && t?.classroom && String(t.classroom) !== String(classroomId)) return sum;
 
-    // Exclude teacher/admin adjustments
-    const assignerRole = t?.assignedBy?.role ? String(t.assignedBy.role).toLowerCase() : '';
+    // Exclude teacher/admin adjustments (classroom-scoped)
+    const assignerRole = inferAssignerRole(t, studentList);
     if (assignerRole === 'teacher' || assignerRole === 'admin') return sum;
 
     return sum + Math.abs(amt);
@@ -196,7 +208,83 @@ const People = () => {
   const [statSort, setStatSort] = useState('desc'); // 'desc' | 'asc'
   const [taBitPolicy, setTaBitPolicy] = useState('full');
   const [studentsCanViewStats, setStudentsCanViewStats] = useState(true);
+
+  // NEW: Settings sub-tabs + pending count badge
+  const [settingsSubTab, setSettingsSubTab] = useState('general'); // 'general' | 'ta-requests'
+  const [taRequestCount, setTaRequestCount] = useState(0);
+
+  // NEW: refresh pending/assigned Admin/TA request count even if the Requests sub-tab isn't open
+  const refreshTaRequestCount = React.useCallback(async () => {
+    try {
+      if (!classroomId) return;
+      if ((user?.role || '').toLowerCase() !== 'teacher') return;
+      if (taBitPolicy !== 'approval') {
+        setTaRequestCount(0);
+        return;
+      }
+
+      const res = await axios.get(`/api/pending-assignments/${classroomId}`, { withCredentials: true });
+      setTaRequestCount(Array.isArray(res.data) ? res.data.length : 0);
+    } catch {
+      // don't spam toast; just fail closed
+      setTaRequestCount(0);
+    }
+  }, [classroomId, user?.role, taBitPolicy]);
+
+  // When opening Settings, compute the count immediately (no click needed)
+  useEffect(() => {
+    if (tab !== 'settings') return;
+    refreshTaRequestCount();
+  }, [tab, refreshTaRequestCount]);
+
+  // Optional: update count when teacher receives request/approval/rejection notifications
+  useEffect(() => {
+    if ((user?.role || '').toLowerCase() !== 'teacher') return;
+    if (taBitPolicy !== 'approval') return;
+
+    const onNotif = (payload) => {
+      const type = String(payload?.type || '');
+      const relevant = new Set([
+        'bit_assignment_request',
+        'bit_assignment_approved',
+        'bit_assignment_rejected',
+      ]);
+      if (!relevant.has(type)) return;
+
+      const notifClassroomId = payload?.classroom?._id || payload?.classroom;
+      if (notifClassroomId && String(notifClassroomId) !== String(classroomId)) return;
+
+      refreshTaRequestCount();
+    };
+
+    socket.on('notification', onNotif);
+    return () => socket.off('notification', onNotif);
+  }, [classroomId, taBitPolicy, user?.role, refreshTaRequestCount]);
+
+  // If approval is disabled, don't leave user stuck on the Requests tab
+  useEffect(() => {
+    if (taBitPolicy !== 'approval' && settingsSubTab === 'ta-requests') {
+      setSettingsSubTab('general');
+    }
+  }, [taBitPolicy, settingsSubTab]);
+
   const [students, setStudents] = useState([]);
+  const [classroom, setClassroom] = useState(null);
+  // Compute classroom-scoped admin flag from annotated students list
+  const isClassroomAdmin = React.useMemo(() => {
+    return userIsClassroomAdmin({ user, classroom, students });
+  }, [user?._id, classroom, students]);
+
+  // NEW: detect if current user is a student member of this classroom
+  const isMemberStudent = React.useMemo(() => {
+    if (!user?._id || !Array.isArray(students)) return false;
+    return students.some(s => String(s._id) === String(user._id));
+  }, [students, user?._id]);
+
+  // NEW: viewer is student-only (not teacher, not classroom TA) — should still see "My Stat Changes"
+  const isTeacher = String(classroom?.teacher?._id || classroom?.teacher || '') === String(user?._id);
+  const studentViewOnly = !isTeacher && !isClassroomAdmin && isMemberStudent;
+
   // Map of studentId -> total spent (number)
   const [totalSpentMap, setTotalSpentMap] = useState({});
   // per-student cached stats and loading flag
@@ -206,7 +294,6 @@ const People = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOption, setSortOption] = useState('default');
   const [roleFilter, setRoleFilter] = useState('all'); // Add role filter state
-  const [classroom, setClassroom] = useState(null);
   const [siphonTimeoutHours, setSiphonTimeoutHours] = useState(72);
   const [showUnassigned, setShowUnassigned] = useState(false);
   const [unassignedSearch, setUnassignedSearch] = useState('');
@@ -641,15 +728,15 @@ const getBanInfo = (student, classroomObj) => {
     })
     .sort((a, b) => {
       // Only allow balance sorting for teachers/admins
-      if (sortOption === 'balanceDesc' && (user?.role === 'teacher' || user?.role === 'admin')) {
+      if (sortOption === 'balanceDesc' && (user?.role === 'teacher' || isClassroomAdmin)) {
         return (b.balance || 0) - (a.balance || 0);
-      } else if (sortOption === 'balanceAsc' && (user?.role === 'teacher' || user?.role === 'admin')) {
+      } else if (sortOption === 'balanceAsc' && (user?.role === 'teacher' || isClassroomAdmin)) {
         return (a.balance || 0) - (b.balance || 0);
-      } else if (sortOption === 'totalSpentDesc' && (user?.role === 'teacher' || user?.role === 'admin')) {
+      } else if (sortOption === 'totalSpentDesc' && (user?.role === 'teacher' || isClassroomAdmin)) {
         const aVal = Number(totalSpentMap[a._id] || 0);
         const bVal = Number(totalSpentMap[b._id] || 0);
         return bVal - aVal;
-      } else if (sortOption === 'totalSpentAsc' && (user?.role === 'teacher' || user?.role === 'admin')) {
+      } else if (sortOption === 'totalSpentAsc' && (user?.role === 'teacher' || isClassroomAdmin)) {
         const aVal = Number(totalSpentMap[a._id] || 0);
         const bVal = Number(totalSpentMap[b._id] || 0);
         return aVal - bVal;
@@ -740,9 +827,8 @@ const getBanInfo = (student, classroomObj) => {
 
   // ── Fetch per-student "total spent" (sum of negative transaction amounts) for teacher/admin viewers ──
   useEffect(() => {
-    // Only fetch when a teacher/admin is viewing and we have a classroom
-    const viewerRole = (user?.role || '').toString().toLowerCase();
-    if (!user || !['teacher', 'admin'].includes(viewerRole)) return;
+    // Only fetch when classroom teacher or classroom-scoped Admin/TA is viewing
+    if (!user || !(user?.role === 'teacher' || isClassroomAdmin)) return;
     if (!classroomId) return;
 
     // Fetch for all students in the classroom (not just first N)
@@ -764,9 +850,12 @@ const getBanInfo = (student, classroomObj) => {
               const spent = txs.reduce((sum, t) => {
                 const amt = Number(t?.amount) || 0;
                 if (amt >= 0) return sum;
-                const assignerRole = t?.assignedBy?.role ? String(t.assignedBy.role).toLowerCase() : '';
+
+                const assignerRole = inferAssignerRole(t, students);
                 if (assignerRole === 'teacher' || assignerRole === 'admin') return sum;
+
                 if (classroomId && t?.classroom && String(t.classroom) !== String(classroomId)) return sum;
+
                 return sum + Math.abs(amt);
               }, 0);
               return { id, spent };
@@ -800,9 +889,10 @@ const getBanInfo = (student, classroomObj) => {
     // Only fetch stats if:
     // - we have a classroom and students
     // - and either viewer is teacher/admin, or student view is allowed, or a stat-based sort is active
+    const viewerIsTeacherOrClassAdmin = (user?.role === 'teacher' || isClassroomAdmin);
     const shouldFetch = classroomId &&
       Array.isArray(students) && students.length > 0 &&
-      (viewerRole === 'teacher' || viewerRole === 'admin' || (viewerRole === 'student' && studentsCanViewStats) || statSortSelected);
+      (viewerIsTeacherOrClassAdmin || (user?.role === 'student' && studentsCanViewStats) || statSortSelected);
  
     if (!shouldFetch) {
       setStudentStatsMap({});
@@ -925,7 +1015,7 @@ const getBanInfo = (student, classroomObj) => {
           Email: student.email,
           UserId: student._id,
           ShortId: student.shortId || '',
-          Role: ROLE_LABELS[student.role] || student.role,
+          Role: student.isClassroomAdmin ? ROLE_LABELS['admin'] : (ROLE_LABELS[student.role] || student.role),
           Balance: student.balance?.toFixed(2) || '0.00',
           TotalSpent: (Number(totalSpentMap[student._id] || 0)).toFixed(2),
           JoinedDate: student.joinedAt
@@ -1050,7 +1140,7 @@ const getBanInfo = (student, classroomObj) => {
           totalSpent: Number(
             (totalSpentMap && typeof totalSpentMap[student._id] !== 'undefined')
               ? totalSpentMap[student._id]
-              : computeTotalSpent(student.transactions || [], classroomId)
+              : computeTotalSpent(student.transactions || [], classroomId, students)
           ),
           joinedDate: student.joinedAt || student.createdAt || null,
           lastAccessed: student.lastAccessed ? new Date(student.lastAccessed).toISOString() : null,
@@ -1264,13 +1354,13 @@ const visibleCount = filteredStudents.length;
           >
             Groups
           </button>
-          {/* NEW: Stat Changes tab (teacher/admin only) */}
-          {(user?.role?.toLowerCase() === 'teacher' || user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'student') && (
+          {/* Stat Changes tab (teacher, classroom TA, or student member of this classroom) */}
+          {(isTeacher || isClassroomAdmin || isMemberStudent) && (
             <button
               className={`btn flex-shrink-0 ${tab === 'stat-changes' ? 'btn-success' : 'btn-outline'}`}
               onClick={() => setTab('stat-changes')}
             >
-              {user?.role?.toLowerCase() === 'student' ? 'My Stat Changes' : 'Stat Changes'}
+              {studentViewOnly ? 'My Stat Changes' : 'Stat Changes'}
             </button>
           )}
           {user?.role?.toLowerCase() === 'teacher' && (
@@ -1287,165 +1377,183 @@ const visibleCount = filteredStudents.length;
           <div className="w-full space-y-6 min-w-0">
              <h2 className="text-2xl font-semibold">People Settings</h2>
 
-            <label className="form-control w-full">
-              <span className="label-text mb-2 font-medium">
-                Admin/TA bit assignment
-              </span>
-
-              <select
-                className="select select-bordered w-full"
-                value={taBitPolicy ?? 'full'}
-                onChange={async (e) => {
-                  const newPolicy = e.target.value;
-                  try {
-                    await axios.patch(
-                      `/api/classroom/${classroomId}/ta-bit-policy`,
-                      { taBitPolicy: newPolicy },
-                      { withCredentials: true }
-                    );
-                    toast.success('Updated Admin/TA bit policy');
-                    setTaBitPolicy(newPolicy);
-                  } catch (err) {
-                    toast.error(
-                      err.response?.data?.error || 'Failed to update policy'
-                    );
-                  }
-                }}
+            {/* settings sub-tabs */}
+            <div role="tablist" className="tabs tabs-boxed">
+              <button
+                type="button"
+                role="tab"
+                className={`tab ${settingsSubTab === 'general' ? 'tab-active' : ''}`}
+                onClick={() => setSettingsSubTab('general')}
               >
-                <option value="full">Full permission (no approval needed)</option>
-                <option value="approval">Approval required</option>
-                <option value="none">No permission</option>
-              </select>
-              <div className="label">
-                <span className="label-text-alt">
-                  Controls whether Admin/TAs can assign bits to students and adjust group balances directly or need teacher approval
-                </span>
-              </div>
-            </label>
+                General
+              </button>
 
-            {/* Add Siphon Timeout Setting */}
-            <label className="form-control w-full">
-              <span className="label-text mb-2 font-medium">
-                Siphon Review Timeout
-              </span>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min="1"
-                  max="168"
-                  className="input input-bordered w-24"
-                  value={siphonTimeoutHours}
-                  onChange={async (e) => {
-                    const newTimeout = parseInt(e.target.value);
-                    if (newTimeout < 1 || newTimeout > 168) {
-                      toast.error('Timeout must be between 1 and 168 hours');
-                      return;
-                    }
-                    try {
-                      await axios.post(
-                        `/api/classroom/${classroomId}/siphon-timeout`,
-                        { siphonTimeoutHours: newTimeout },
-                        { withCredentials: true }
-                      );
-                      toast.success('Updated siphon timeout');
-                      setSiphonTimeoutHours(newTimeout);
-                    } catch (err) {
-                      toast.error(
-                        err.response?.data?.error || 'Failed to update siphon timeout'
-                      );
-                    }
-                  }}
-                />
-                <span className="label-text">hours</span>
-              </div>
-              <div className="label">
-                <span className="label-text-alt">
-                  How long students have to vote and teacher has to review siphon requests before they automatically expire
-                </span>
-              </div>
-            </label>
+              {taBitPolicy === 'approval' && (
+                <button
+                  type="button"
+                  role="tab"
+                  className={`tab ${settingsSubTab === 'ta-requests' ? 'tab-active' : ''}`}
+                  onClick={() => setSettingsSubTab('ta-requests')}
+                >
+                  Admin/TA Requests ({taRequestCount})
+                </button>
+              )}
+            </div>
 
-            <label className="form-control w-full">
-              <span className="label-text mb-2 font-medium">
-                Student-to-student bit transfers
-              </span>
-              <input
-                type="checkbox"
-                className="toggle toggle-success"
-                checked={studentSendEnabled}
-                onChange={async (e) => {
-                  const isEnabled = e.target.checked;
-                  try {
-                    await axios.patch(
-                      `/api/classroom/${classroomId}/student-send-enabled`,
-                      { studentSendEnabled: isEnabled },
-                      { withCredentials: true }
-                    );
-                    toast.success(
-                      `Student transfers ${isEnabled ? 'enabled' : 'disabled'}`
-                    );
-                    setStudentSendEnabled(isEnabled);
-                  } catch (err) {
-                    toast.error('Failed to update setting');
-                  }
-                }}
-              />
-              <div className="label">
-                <span className="label-text-alt">
-                  Allow students to send bits to each other directly
-                </span>
+            {/* GENERAL SETTINGS PANEL */}
+            {settingsSubTab === 'general' && (
+              <div className="space-y-6">
+                <label className="form-control w-full">
+                  <span className="label-text mb-2 font-medium">Admin/TA bit assignment</span>
+
+                  <select
+                    className="select select-bordered w-full"
+                    value={taBitPolicy ?? 'full'}
+                    onChange={async (e) => {
+                      const newPolicy = e.target.value;
+                      try {
+                        await axios.patch(
+                          `/api/classroom/${classroomId}/ta-bit-policy`,
+                          { taBitPolicy: newPolicy },
+                          { withCredentials: true }
+                        );
+                        toast.success('Updated Admin/TA bit policy');
+                        setTaBitPolicy(newPolicy);
+                      } catch (err) {
+                        toast.error(err.response?.data?.error || 'Failed to update policy');
+                      }
+                    }}
+                  >
+                    <option value="full">Full permission (no approval needed)</option>
+                    <option value="approval">Approval required</option>
+                    <option value="none">No permission</option>
+                  </select>
+
+                  <div className="label">
+                    <span className="label-text-alt">
+                      Controls whether Admin/TAs can assign bits to students and adjust group balances directly or need
+                      teacher approval
+                    </span>
+                  </div>
+                </label>
+
+                {/* Add Siphon Timeout Setting */}
+                <label className="form-control w-full">
+                  <span className="label-text mb-2 font-medium">Siphon Review Timeout</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      max="168"
+                      className="input input-bordered w-24"
+                      value={siphonTimeoutHours}
+                      onChange={async (e) => {
+                        const newTimeout = parseInt(e.target.value);
+                        if (newTimeout < 1 || newTimeout > 168) {
+                          toast.error('Timeout must be between 1 and 168 hours');
+                          return;
+                        }
+                        try {
+                          await axios.post(
+                            `/api/classroom/${classroomId}/siphon-timeout`,
+                            { siphonTimeoutHours: newTimeout },
+                            { withCredentials: true }
+                          );
+                          toast.success('Updated siphon timeout');
+                          setSiphonTimeoutHours(newTimeout);
+                        } catch (err) {
+                          toast.error(err.response?.data?.error || 'Failed to update siphon timeout');
+                        }
+                      }}
+                    />
+                    <span className="label-text">hours</span>
+                  </div>
+                  <div className="label">
+                    <span className="label-text-alt">
+                      How long students have to vote and teacher has to review siphon requests before they automatically
+                      expire
+                    </span>
+                  </div>
+                </label>
+
+                <label className="form-control w-full">
+                  <span className="label-text mb-2 font-medium">Student-to-student bit transfers</span>
+                  <input
+                    type="checkbox"
+                    className="toggle toggle-success"
+                    checked={studentSendEnabled}
+                    onChange={async (e) => {
+                      const isEnabled = e.target.checked;
+                      try {
+                        await axios.patch(
+                          `/api/classroom/${classroomId}/student-send-enabled`,
+                          { studentSendEnabled: isEnabled },
+                          { withCredentials: true }
+                        );
+                        toast.success(`Student transfers ${isEnabled ? 'enabled' : 'disabled'}`);
+                        setStudentSendEnabled(isEnabled);
+                      } catch (err) {
+                        toast.error('Failed to update setting');
+                      }
+                    }}
+                  />
+                  <div className="label">
+                    <span className="label-text-alt">Allow students to send bits to each other directly</span>
+                  </div>
+                </label>
+
+                <label className="form-control w-full">
+                  <span className="label-text mb-2 font-medium">Allow students to view other students' stats</span>
+                  <input
+                    type="checkbox"
+                    className="toggle toggle-success"
+                    checked={studentsCanViewStats}
+                    onChange={async (e) => {
+                      const isEnabled = e.target.checked;
+                      setStudentsCanViewStats(isEnabled);
+                      try {
+                        await axios.patch(
+                          `/api/classroom/${classroomId}/students-can-view-stats`,
+                          { studentsCanViewStats: isEnabled },
+                          { withCredentials: true }
+                        );
+                        toast.success(
+                          `Students can ${isEnabled ? 'now' : 'no longer'} view other students' stats`
+                        );
+                      } catch (err) {
+                        setStudentsCanViewStats(!isEnabled);
+                        toast.error('Failed to update setting');
+                      }
+                    }}
+                  />
+                  <div className="label">
+                    <span className="label-text-alt">
+                      Allow students to see each other's luck, multiplier, and other stats
+                    </span>
+                  </div>
+                </label>
+
+                {/* XP & Leveling Settings */}
+                <XPSettings classroomId={classroomId} />
               </div>
-            </label>
+            )}
 
-            {/* Add the new setting for students viewing stats */}
-            <label className="form-control w-full">
-              <span className="label-text mb-2 font-medium">
-                Allow students to view other students' stats
-              </span>
-              <input
-                type="checkbox"
-                className="toggle toggle-success"
-                checked={studentsCanViewStats}
-                onChange={async (e) => {
-                  const isEnabled = e.target.checked;
-                  
-                  // Optimistically update the UI immediately
-                  setStudentsCanViewStats(isEnabled);
-                  
-                  try {
-                    // Send the update to the server
-                    await axios.patch(
-                      `/api/classroom/${classroomId}/students-can-view-stats`,
-                      { studentsCanViewStats: isEnabled },
-                      { withCredentials: true }
-                    );
-                    toast.success(
-                      `Students can ${isEnabled ? 'now' : 'no longer'} view other students' stats`
-                    );
-                    
-                    // The socket event will update other users, but this user sees immediate feedback
-                    
-                  } catch (err) {
-                    // If the request fails, revert the optimistic update
-                    setStudentsCanViewStats(!isEnabled);
-                    toast.error('Failed to update setting');
-                  }
-                }}
-              />
-              <div className="label">
-                <span className="label-text-alt">
-                  Allow students to see each other's luck, multiplier, and other stats
-                </span>
+            {/* ADMIN/TA REQUESTS PANEL */}
+            {settingsSubTab === 'ta-requests' && taBitPolicy === 'approval' && (
+              <div className="card bg-base-100 border border-base-200">
+                <div className="card-body">
+                  <h3 className="card-title text-base">Admin/TA Adjustment Requests</h3>
+                  <p className="text-sm text-base-content/70">
+                    These requests require teacher approval.
+                  </p>
+
+                  <PendingApprovals
+                    classroomId={classroomId}
+                    onCountChange={setTaRequestCount}
+                  />
+                </div>
               </div>
-            </label>
-
-            {/* Show teacher's approval queue when policy=approval */}
-    {taBitPolicy === 'approval' && (
-      <PendingApprovals classroomId={classroomId} />
-    )}
-
-    {/* XP & Leveling Settings */}
-    <XPSettings classroomId={classroomId} />
+            )}
           </div>
         )}
         {/* ───────────────────────────────────────────── */}
@@ -1496,7 +1604,7 @@ const visibleCount = filteredStudents.length;
                   onChange={(e) => setSortOption(e.target.value)}
                 >
                    <option value="default">Sort By</option>
-                   {(user?.role === 'teacher' || user?.role === 'admin') && (
+                   {(user?.role === 'teacher' || isClassroomAdmin) && (
                      <>
                        <option value="balanceDesc">Balance (High → Low)</option>
                        <option value="balanceAsc">Balance (Low → High)</option>
@@ -1537,7 +1645,7 @@ const visibleCount = filteredStudents.length;
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                {(user?.role === 'teacher' || user?.role === 'admin') && (
+                {(user?.role === 'teacher' || isClassroomAdmin) && (
                   <div className="ml-auto flex items-center">
                     <ExportButtons
                       onExportCSV={exportPeopleToCSV}
@@ -1590,7 +1698,18 @@ const visibleCount = filteredStudents.length;
                             ? `${student.firstName || ''} ${student.lastName || ''}`.trim()
                             : student.name || student.email}
                         <span className={`ml-2 ${subtleText} text-sm`}>
-                          – Role: {ROLE_LABELS[student.role] || student.role}
+                          {/* Classroom‑scoped role label */}
+                          {(() => {
+                            const teacherId = String(classroom?.teacher?._id || classroom?.teacher || '');
+                            const isTeacher = String(student._id) === teacherId || student.role === 'teacher';
+                            const isTA = !!student.isClassroomAdmin;
+                            const label = isTeacher
+                              ? ROLE_LABELS.teacher
+                              : isTA
+                                ? ROLE_LABELS.admin
+                                : ROLE_LABELS.student;
+                            return <> – Role: {label}</>;
+                          })()}
                         </span>
                         </div>
 
@@ -1600,9 +1719,9 @@ const visibleCount = filteredStudents.length;
                             <div className="text-xs text-red-600">
                               {banRecord ? (
                                 <div>
-                                 { (user?.role === 'teacher' || user?.role === 'admin') ? (
+                                  {(user?.role === 'teacher' || isClassroomAdmin) ? (
                                     <div>
-                                     Reason: {banRecord.reason || 'Not specified'}
+                                      Reason: {banRecord.reason || 'Not specified'}
                                       <div>• {new Date(banRecord.bannedAt).toLocaleString()}</div>
                                     </div>
                                   ) : (
@@ -1617,14 +1736,14 @@ const visibleCount = filteredStudents.length;
                         )}
 
                         {/* Only show balance to teachers/admins */}
-                        {(user?.role?.toLowerCase() === 'teacher' || user?.role?.toLowerCase() === 'admin') && (
+                        {(user?.role?.toLowerCase() === 'teacher' || isClassroomAdmin) && (
                           <div className="text-sm text-gray-500 mt-1">
                             Balance: ₿{student.balance?.toFixed(2) || '0.00'}
                           </div>
                         )}
 
                         {/* Show total spent to teachers/admins */}
-                        {(user?.role?.toLowerCase() === 'teacher' || user?.role?.toLowerCase() === 'admin') && (
+                        {(user?.role?.toLowerCase() === 'teacher' || isClassroomAdmin) && (
                           <div className="text-sm text-gray-500">
                             Total spent: ₿{((totalSpentMap[student._id] || 0)).toFixed(2)}
                           </div>
@@ -1636,6 +1755,7 @@ const visibleCount = filteredStudents.length;
                             ? new Date(student.joinedAt).toLocaleString()
                             : student.createdAt
                               ? new Date(student.createdAt).toLocaleString()
+
                               : 'Unknown'}
                         </div>
                         {/* NEW: Last accessed display */}
@@ -1664,8 +1784,8 @@ const visibleCount = filteredStudents.length;
                           2. The student in the list is the current user (you can always see your own stats).
                           OR
                           3. The current user is a student AND the classroom setting allows it.
-                        */}
-                        {(user?.role === 'teacher' || user?.role === 'admin' || String(student._id) === String(user?._id) || (user?.role === 'student' && studentsCanViewStats)) && (
+                                               */}
+                        {(user?.role === 'teacher' || isClassroomAdmin || String(student._id) === String(user?._id) || (user?.role === 'student' && studentsCanViewStats)) && (
                           <button
                             className="btn btn-xs sm:btn-sm btn-success"
                             onClick={() => navigate(`/classroom/${classroomId}/student/${student._id}/stats`, {
@@ -2030,7 +2150,7 @@ const visibleCount = filteredStudents.length;
      )}
 
      {/* Add this stats display section */}
-     {user?.role === 'teacher' && (
+     {(user?.role === 'teacher' || isClassroomAdmin) && (
       <div className="mb-6">
         <h2 className="text-2xl font-semibold mb-4">Group Assignment Stats</h2>
         <div className="stats stats-vertical md:stats-horizontal shadow mb-4">
@@ -2051,21 +2171,20 @@ const visibleCount = filteredStudents.length;
     )}
           </div>
         )}
-                  {/* NEW: Recent stat changes - show for teachers/admins (all changes) and students (their own changes) */}
-          {tab === 'stat-changes' && (user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'student') && (
+                  {/* NEW: Recent stat changes - teacher/classroom TA see all, student (including global admin not TA) sees own */}
+          {tab === 'stat-changes' && (isTeacher || isClassroomAdmin || isMemberStudent) && (
             <div className="bg-base-100 border border-base-300 rounded p-4 mt-4">
               <div className="flex items-center gap-2 mb-4">
                 <h3 className="font-medium flex-1">
-                  {user?.role?.toLowerCase() === 'student' ? 'My recent stat changes' : 'Recent stat changes'}
+                  {studentViewOnly ? 'My recent stat changes' : 'Recent stat changes'}
                 </h3>
                 <div className="text-sm text-base-content/70">{statChanges.length} records</div>
               </div>
- 
-               {/* Controls: deep search + sort */}
+              {/* Controls: deep search + sort */}
                <div className="flex flex-col sm:flex-row gap-2 mb-4">
                  <input
                    type="search"
-                   placeholder={user?.role?.toLowerCase() === 'student' ? 'Search your stat changes...' : 'Search by user, actor, field, or value...'}
+                   placeholder={studentViewOnly ? 'Search your stat changes...' : 'Search by user, actor, field, or value...'}
                   className="input input-bordered flex-1 min-w-[220px]"
                    value={statSearch}
                    onChange={(e) => setStatSearch(e.target.value)}
@@ -2097,10 +2216,10 @@ const visibleCount = filteredStudents.length;
                  (() => {
                    const q = (statSearch || '').toLowerCase().trim();
                    let filtered = statChanges.filter(s => {
-                     // For students, only show their own stat changes
-                     if (user?.role?.toLowerCase() === 'student') {
-                       if (String(s.user) !== String(user._id)) return false;
-                     }
+                    // Student-view (including global admin not TA): only show own entries
+                    if (studentViewOnly) {
+                      if (String(s.user) !== String(user._id) && String(s.targetUser) !== String(user._id)) return false;
+                    }
 
                      if (!q) return true;
 
@@ -2138,19 +2257,19 @@ const visibleCount = filteredStudents.length;
                      return false;
                    });
 
-                    filtered.sort((a, b) => {
-                      const ad = new Date(a.createdAt || 0).getTime();
-                      const bd = new Date(b.createdAt || 0).getTime();
-                      return statSort === 'desc' ? bd - ad : ad - bd;
-                    });
+                   filtered.sort((a, b) => {
+                     const ad = new Date(a.createdAt || 0).getTime();
+                     const bd = new Date(b.createdAt || 0).getTime();
+                     return statSort === 'desc' ? bd - ad : ad - bd;
+                   });
 
-                    return (
-                      <ul className="space-y-2 text-sm">
-                        {filtered.map((s) => (
-                          <li key={s._id} className="p-2 border border-base-300 rounded bg-base-100">
-                            <div className="text-xs text-base-content/60 mb-1">
-                              {new Date(s.createdAt).toLocaleString()}
-                              {s.actionBy && (s.message?.includes('updated by your teacher') || s.message?.includes('Updated stats for')) ? (
+                   return (
+                     <ul className="space-y-2 text-sm">
+                       {filtered.map((s) => (
+                         <li key={s._id} className="p-2 border border-base-300 rounded bg-base-100">
+                           <div className="text-xs text-base-content/60 mb-1">
+                             {new Date(s.createdAt).toLocaleString()}
+                             {s.actionBy && (s.message?.includes('updated by your teacher') || s.message?.includes('Updated stats for')) ? (
                                 ` — by ${s.actionBy.firstName || ''} ${s.actionBy.lastName || ''}`.trim()
                               ) : (
                                 (() => {
@@ -2158,16 +2277,16 @@ const visibleCount = filteredStudents.length;
                                   return src ? ` — via ${src}` : ' — from System';
                                 })()
                               )}
-                            </div>
-                            {/* For students, don't show target user name since it's always them */}
-                            {user?.role?.toLowerCase() !== 'student' && (
-                              <div className="font-semibold text-lg mt-1">
-                                {s.targetUser ? (
-                                  `${s.targetUser.firstName || ''} ${s.targetUser.lastName || ''}`.trim()
-                                ) : 'Unknown user'}
-                              </div>
-                            )}
-                            <div className="mt-1">
+                           </div>
+                           {/* For student view, do not show target user */}
+                          {!studentViewOnly && (
+                             <div className="font-semibold text-lg mt-1">
+                               {s.targetUser ? (
+                                 `${s.targetUser.firstName || ''} ${s.targetUser.lastName || ''}`.trim()
+                               ) : 'Unknown user'}
+                             </div>
+                           )}
+                           <div className="mt-1">
                               {Array.isArray(s.changes) && s.changes.length ? (
                                 <ul className="list-disc ml-4">
                                   {s.changes.map((c, idx) => (
@@ -2196,8 +2315,8 @@ const visibleCount = filteredStudents.length;
                             </div>
                           </li>
                         ))}
-                      </ul>
-                    );
+                     </ul>
+                   );
                  })()
                )}
              </div>

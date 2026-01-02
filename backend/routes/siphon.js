@@ -15,6 +15,7 @@ const Notification = require('../models/Notification');
 const { ensureAuthenticated } = require('../config/auth');
 const { populateNotification } = require('../utils/notifications');
 const User = require('../models/User');
+const { isClassroomAdmin } = require('../utils/classroomStats'); // ADD
 
 // Create a new siphon request (it requries file upload for proof and user authentication)
 router.post(
@@ -334,10 +335,16 @@ router.post('/:id/vote', ensureAuthenticated, async (req,res)=>{
 
 // TEACHER REJECT a siphon request
 router.post('/:id/teacher-reject', ensureAuthenticated, async (req, res) => {
-  if (req.user.role !== 'teacher' && req.user.role !== 'admin')
-    return res.status(403).json({ error: 'Only teacher or admin can reject' });
+  // Resolve classroom for permission check and load siphon once
+  const siphon = await SiphonRequest.findById(req.params.id).populate('group');
+  const groupSet = siphon ? await GroupSet.findOne({ groups: siphon.group._id }).select('classroom') : null;
+  const classroomId = groupSet?.classroom ?? null;
+  const isTeacherOfClass = classroomId ? String((await Classroom.findById(classroomId).select('teacher')).teacher) === String(req.user._id) : false;
+  const isClassAdmin = classroomId ? await isClassroomAdmin(req.user, classroomId) : false;
+  if (!isTeacherOfClass && !isClassAdmin) {
+    return res.status(403).json({ error: 'Only the classroom teacher or classroom-scoped Admin/TA can reject' });
+  }
 
-  const siphon = await SiphonRequest.findById(req.params.id);
   if (!siphon || siphon.status !== 'group_approved')
     return res.status(400).json({ error: 'Not ready for teacher rejection. Perhaps try refreshing the page.' });
 
@@ -420,10 +427,15 @@ router.post('/:id/teacher-reject', ensureAuthenticated, async (req, res) => {
 
 // Route for teacher/admin to approve and execute siphon transfer
 router.post('/:id/teacher-approve', ensureAuthenticated, async (req, res) => {
-  if (req.user.role !== 'teacher' && req.user.role !== 'admin')
-    return res.status(403).json({ error: 'Only teacher or admin can approve' });
-
-  const siphon = await SiphonRequest.findById(req.params.id).populate('group').populate('targetUser', 'firstName lastName email');
+  // Load siphon once and perform classroom-scoped permission check
+  const siphon = await SiphonRequest.findById(req.params.id).populate('group');
+  const groupSet = siphon ? await GroupSet.findOne({ groups: siphon.group._id }).select('classroom') : null;
+  const classroomId = groupSet?.classroom ?? null;
+  const isTeacherOfClass = classroomId ? String((await Classroom.findById(classroomId).select('teacher')).teacher) === String(req.user._id) : false;
+  const isClassAdmin = classroomId ? await isClassroomAdmin(req.user, classroomId) : false;
+  if (!isTeacherOfClass && !isClassAdmin) {
+    return res.status(403).json({ error: 'Only the classroom teacher or classroom-scoped Admin/TA can approve' });
+  }
   if (!siphon || siphon.status !== 'group_approved')
     return res.status(400).json({ error: 'Not ready for teacher approval. Perhaps try refreshing the page.' });
 
@@ -675,10 +687,12 @@ router.get('/:id/proof', ensureAuthenticated, async (req, res) => {
 
     // Only allow group members and teachers to view proof
     const isMember = group.members.some(m => m._id.equals(req.user._id));
-    const isTeacher = req.user.role === 'teacher';
-    const isAdmin = req.user.role === 'admin';
-
-    if (!isMember && !isTeacher && !isAdmin) {
+    // Resolve classroom and use classroom-scoped admin check
+    const groupSet = await GroupSet.findOne({ groups: group._id }).select('classroom');
+    const classroomId = groupSet?.classroom ?? null;
+    const isTeacher = classroomId ? String((await Classroom.findById(classroomId).select('teacher')).teacher) === String(req.user._id) : false;
+    const isClassAdmin = classroomId ? await isClassroomAdmin(req.user, classroomId) : false;
+    if (!isMember && !isTeacher && !isClassAdmin) {
       return res.status(403).json({ error: 'Not authorized to view this proof' });
     }
 

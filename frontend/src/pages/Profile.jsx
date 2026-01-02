@@ -16,7 +16,18 @@ import ExportButtons from '../components/ExportButtons';
 import { exportOrdersToCSV, exportOrdersToJSON } from '../utils/exportOrders';
 import formatExportFilename from '../utils/formatExportFilename';
 import { useLocation, Link } from 'react-router-dom';
-import { Info } from 'lucide-react'; // ADD
+import { Info } from 'lucide-react';
+// NEW: helper to check classroom-scoped admin membership when needed
+async function checkIsClassroomAdminForCurrentUser(classroomId) {
+  if (!classroomId) return false;
+  try {
+    const res = await axios.get(`/api/classroom/${classroomId}/students`, { withCredentials: true });
+    if (!Array.isArray(res.data)) return false;
+    return res.data.some(u => String(u._id) === String(window.__CURRENT_USER__?._id) && u.isClassroomAdmin);
+  } catch {
+    return false;
+  }
+}
 
 const ROLE_LABELS = {
     student: 'Student',
@@ -41,6 +52,8 @@ function classroomLabel(o) {
 
 export default function Profile() {
   const { user, updateUser } = useContext(AuthContext);
+  // Classroom-scoped role label for display
+  const [roleLabel, setRoleLabel] = useState('');
   const [profile, setProfile] = useState(null);
   const [orders, setOrders] = useState([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
@@ -122,6 +135,8 @@ export default function Profile() {
       setImageUrl('');
       setImageSource('file');
       setProfile(res.data);
+      // initialize roleLabel immediately to a sensible default
+      setRoleLabel(ROLE_LABELS[res.data.role] || res.data.role || '');
     } catch (err) {
       console.error('Profile fetch error:', err);
       setProfile(null); // Ensure profile is set to null on error
@@ -133,28 +148,68 @@ export default function Profile() {
   if (profileId) fetchProfile();
 }, [profileId, classroomId]);
 
+  // Compute classroom-scoped role label when profile or classroomId is available.
+  useEffect(() => {
+    if (!profile) return;
+    // No classroom context -> show global role label
+    if (!classroomId) {
+      setRoleLabel(ROLE_LABELS[profile.role] || profile.role || '');
+      return;
+    }
+
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await axios.get(`/api/classroom/${classroomId}/students`, { withCredentials: true });
+        const students = Array.isArray(res.data) ? res.data : [];
+        const entry = students.find(s => String(s._id) === String(profileId));
+        if (!mounted) return;
+        if (entry) {
+          if (entry.role === 'teacher') setRoleLabel(ROLE_LABELS.teacher);
+          else if (entry.isClassroomAdmin) setRoleLabel(ROLE_LABELS.admin);
+          else setRoleLabel(ROLE_LABELS.student);
+        } else {
+          // Not a member of this classroom — fall back to global role
+          setRoleLabel(ROLE_LABELS[profile.role] || profile.role || '');
+        }
+      } catch (e) {
+        // On error, fallback to global role
+        setRoleLabel(ROLE_LABELS[profile.role] || profile.role || '');
+      }
+    })();
+    return () => { mounted = false; };
+  }, [profile, classroomId, profileId]);
+
   // Added new useEffect to fetch the stats into a table.
   useEffect(() => {
-      // Allow teachers and admins/TAs to view a student's purchase history
-      if ((user.role === 'teacher' || user.role === 'admin') && profile?.role === 'student') {
+      // Allow teachers and classroom-scoped Admin/TAs to view a student's purchase history
+      (async () => {
+        let allowed = false;
+        if (user?.role === 'teacher') allowed = true;
+        else if (user?.role === 'admin') {
+          // Allow admin to request orders; server will only return orders from classrooms
+          // where the admin is authorized (per-classroom admins). This lets the UI show
+          // the same "All Classrooms" behavior but scoped server-side.
+          allowed = true;
+        }
+        if (allowed && profile?.role === 'student') {
           axios
-              .get(`/api/bazaar/orders/user/${profileId}`, {
-                  withCredentials: true
-              })
-              .then(res => {
-                  // ADD: Filter out orders that are just mystery box opens (they don't have items)
-                  const validOrders = (res.data || []).filter(order => 
-                    order.items && order.items.length > 0
-                  );
-                  setOrders(validOrders);
-                  setLoadingOrders(false);
-              })
-              .catch(err => {
-                  setOrdersError(err.response?.data?.error || 'Failed to load orders');
-                  setLoadingOrders(false);
-              });
-      }
-  }, [profile, user?.role, profileId]);
+            .get(`/api/bazaar/orders/user/${profileId}`, {
+              withCredentials: true
+            })
+            .then(res => {
+              // Keep only orders with items (exclude zero‑item mystery-box opens)
+              const validOrders = (res.data || []).filter(order => order.items && order.items.length > 0);
+              setOrders(validOrders);
+              setLoadingOrders(false);
+            })
+            .catch(err => {
+              setOrdersError(err.response?.data?.error || 'Failed to load orders');
+              setLoadingOrders(false);
+            });
+        }
+      })();
+   }, [profile, user?.role, profileId, classroomId]);
 
   // Fetch additional stats about the profile (e.g., balances, activity)
   useEffect(() => {
@@ -663,7 +718,8 @@ export default function Profile() {
                       value={profile?.shortId || '—'}
                       help="This is the shortId (human‑friendly) code useful for display, search, user-facing reports, or classroom management such as wallet transfers. A different, 24‑character internal user _id (Mongo ObjectId) is used for programmatic integrations such as API relations, joins, socket connections, etc."
                     />
-                    {profile?.role && <InfoRow label="Role" value={ROLE_LABELS[profile.role] || profile.role} />}
+                    {/* Use classroom-scoped roleLabel when available */}
+                    {profile && <InfoRow label="Role" value={roleLabel || (ROLE_LABELS[profile.role] || profile.role)} />}
                     
                     {/* Add Member Since row */}
                     <InfoRow 

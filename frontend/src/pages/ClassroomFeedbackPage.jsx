@@ -34,7 +34,13 @@ const ClassroomFeedbackPage = ({ userId }) => {
   const [reportReason, setReportReason] = useState('');
   const [reporterEmail, setReporterEmail] = useState('');
   const [total, setTotal] = useState(null);
-
+  // classroom-scoped admin detection (based on annotated student list)
+  const [students, setStudents] = useState([]);
+  const isClassroomAdmin = React.useMemo(() => {
+    if (!user || !Array.isArray(students)) return false;
+    const me = students.find(s => String(s._id) === String(user._id));
+    return Boolean(me && me.isClassroomAdmin);
+  }, [user?._id, students]);
   // --- NEW: feedback reward config (teacher-only) ---
   const [feedbackRewardConfig, setFeedbackRewardConfig] = useState({
     feedbackRewardEnabled: false,
@@ -66,6 +72,14 @@ const ClassroomFeedbackPage = ({ userId }) => {
     if (classroomId) fetchClass();
   }, [classroomId]);
   
+  // fetch annotated students for isClassroomAdmin flag
+  useEffect(() => {
+    if (!classroomId) return;
+    axios.get(`/api/classroom/${classroomId}/students`, { withCredentials: true })
+      .then(res => setStudents(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setStudents([]));
+  }, [classroomId]);
+ 
   // --- NEW: load feedback reward config for teachers ---
   useEffect(() => {
     if (!classroomId || !user || user.role !== 'teacher') return;
@@ -95,7 +109,7 @@ const ClassroomFeedbackPage = ({ userId }) => {
   const fetchClassroomFeedback = async (nextPage = 1, append = false) => {
     if (!classroomId) return;
     try {
-      const includeHidden = user && (user.role === 'teacher' || user.role === 'admin') ? '&includeHidden=true' : '';
+      const includeHidden = user && (user.role === 'teacher' || isClassroomAdmin) ? '&includeHidden=true' : '';
       const res = await axios.get(`${API_BASE}/api/feedback/classroom/${classroomId}?page=${nextPage}&perPage=${perPage}${includeHidden}`, { withCredentials: true });
       // STRICTLY use envelope fields from API
       const data = res.data || {};
@@ -274,7 +288,7 @@ const ClassroomFeedbackPage = ({ userId }) => {
   // pull ALL classroom feedback before exporting (respects includeHidden for teacher/admin)
   const fetchAllClassroomFeedbackForExport = async () => {
     if (!classroomId) return [];
-    const includeHidden = user && (user.role === 'teacher' || user.role === 'admin') ? '&includeHidden=true' : '';
+    const includeHidden = user && (user.role === 'teacher' || isClassroomAdmin) ? '&includeHidden=true' : '';
     const per = 200; // batch size
     let pageNum = 1;
     let all = [];
@@ -499,7 +513,7 @@ const ClassroomFeedbackPage = ({ userId }) => {
               <a role="tab" className={`tab ${tab === 'recent' ? 'tab-active' : ''}`} onClick={() => setTab('recent')}>Recent</a>
               <a role="tab" className={`tab ${tab === 'submit' ? 'tab-active' : ''}`} onClick={() => setTab('submit')}>Submit</a>
               {/* Moderation tab (teacher/admin only) */}
-              {user && (user.role === 'teacher' || user.role === 'admin') && (
+              {user && (user.role === 'teacher' || isClassroomAdmin) && (
                 <a
                   role="tab"
                   className={`tab ${tab === 'moderation' ? 'tab-active' : ''}`}
@@ -570,7 +584,7 @@ const ClassroomFeedbackPage = ({ userId }) => {
                 <FeedbackList
                   feedbacks={feedbacks}
                   total={total}
-                  showModeration={user && (user.role === 'teacher' || user.role === 'admin')}
+                  showModeration={user && (user.role === 'teacher' || isClassroomAdmin)}
                   onToggleHide={handleToggleHide}
                   onReport={handleReport}
                 />
@@ -578,7 +592,7 @@ const ClassroomFeedbackPage = ({ userId }) => {
               </div>
             )}
  
-            {tab === 'moderation' && user && (user.role === 'teacher' || user.role === 'admin') && (
+            {tab === 'moderation' && user && (user.role === 'teacher' || isClassroomAdmin) && (
               <div>
                 <ModerationLog classroomId={classroomId} />
               </div>

@@ -986,33 +986,38 @@ router.get('/orders/user/:userId', ensureAuthenticated, async (req, res) => {
     } else if (req.user.role === 'admin' && req.user._id.toString() !== userId) {
       const Classroom = require('../models/Classroom');
 
-      // Find classrooms where this admin/TA is a member (i.e., in classroom.students)
-      const adminClassrooms = await Classroom.find({ students: req.user._id }).select('_id');
+      // Find classrooms where this admin/TA is assigned in the per-classroom admins list
+      const adminClassrooms = await Classroom.find({
+        $or: [
+          { admins: req.user._id },
+          { teacher: req.user._id } // include teacher-owned classrooms if needed
+        ]
+      }).select('_id');
       const adminClassroomIds = adminClassrooms.map(c => c._id);
+ 
+       // Fetch all orders for the target user, then filter by the admin's classroom membership
+       const allOrders = await Order.find({ user: userId })
+         .populate('items')
+         .populate({
+           path: 'items',
+           populate: {
+             path: 'bazaar',
+             populate: {
+               path: 'classroom',
+               select: '_id name code'
+             }
+           }
+         })
+         .sort({ createdAt: -1 });
 
-      // Fetch all orders for the target user, then filter by the admin's classroom membership
-      const allOrders = await Order.find({ user: userId })
-        .populate('items')
-        .populate({
-          path: 'items',
-          populate: {
-            path: 'bazaar',
-            populate: {
-              path: 'classroom',
-              select: '_id name code'
-            }
-          }
-        })
-        .sort({ createdAt: -1 });
+       orders = allOrders.filter(order =>
+         order.items.some(item => {
+           const classroomId = item.bazaar?.classroom?._id;
+           return classroomId && adminClassroomIds.some(acId => acId.equals(classroomId));
+         })
+       );
 
-      orders = allOrders.filter(order =>
-        order.items.some(item => {
-          const classroomId = item.bazaar?.classroom?._id;
-          return classroomId && adminClassroomIds.some(acId => acId.equals(classroomId));
-        })
-      );
-
-    } else {
+     } else {
       // Self (student) or admin/teacher viewing own orders: return all orders for that user
       orders = await Order.find({ user: userId })
         .populate('items')

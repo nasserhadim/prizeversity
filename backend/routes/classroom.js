@@ -12,6 +12,7 @@ const { populateNotification } = require('../utils/notifications');
 const { logStatChanges } = require('../utils/statChangeLog'); // NEW: used for daily check-in + other stat logs
 const { awardXP } = require('../utils/awardXP');
 const { getOrCreateClassroomStatsEntry } = require('../utils/classroomStats');
+const { isClassroomAdmin } = require('../utils/classroomStats');
 
 const router = express.Router();
 
@@ -670,10 +671,12 @@ router.get('/:id/students', ensureAuthenticated, async (req, res) => {
 
     const classroom = await Classroom.findById(req.params.id)
       .populate('teacher', 'email role firstName lastName shortId createdAt avatar profileImage')
-      .populate('students', 'email role firstName lastName shortId createdAt avatar profileImage');
+      .populate('students', 'email role firstName lastName shortId createdAt avatar profileImage')
+      .populate('admins', 'email role firstName lastName shortId createdAt avatar profileImage');
     if (!classroom) {
       return res.status(404).json({ error: 'Classroom not found' });
     }
+    const adminIds = (classroom.admins || []).map(a => String(a._id || a));
 
     const allUsers = [...classroom.students];
     if (classroom.teacher) {
@@ -690,11 +693,17 @@ router.get('/:id/students', ensureAuthenticated, async (req, res) => {
         const classroomBalance = user.classroomBalances.find(cb => cb.classroom.toString() === req.params.id);
         const classroomJoinDate = user.classroomJoinDates?.find(cjd => cjd.classroom.toString() === req.params.id);
 
+        const base = (person && person.toObject) ? person.toObject() : { ...person };
+        const isAdmin = adminIds.includes(String(person._id));
+        // Annotate per-classroom admin flag and override role for UI consumers that read role
+        base.isClassroomAdmin = isAdmin;
+        if (isAdmin && String(person._id) !== String(classroom.teacher?._id || classroom.teacher)) {
+          base.role = 'admin';
+        }
         return {
-          ...person.toObject(),
+          ...base,
           balance: classroomBalance ? classroomBalance.balance : 0,
           joinedAt: classroomJoinDate?.joinedAt || person.createdAt,
-          // NEW: expose lastAccessed
           lastAccessed: classroomJoinDate?.lastAccessed || null,
         };
       })
@@ -1345,22 +1354,24 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
   }
 });
 
-// NEW: Fetch recent stat-change notifications for a classroom (teacher/admin access)
+// NEW: Fetch recent stat-change notifications for a classroom (teacher/classroom-admin/student access)
 router.get('/:id/stat-changes', ensureAuthenticated, async (req, res) => {
   try {
     const classroomId = req.params.id;
     const classroom = await Classroom.findById(classroomId);
     if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
 
-    // allow classroom teacher or platform admins
-    const isTeacherOrAdmin = String(classroom.teacher) === String(req.user._id) || req.user.role === 'admin';
+    // allow classroom teacher or classroom-scoped Admin/TA
+    const isTeacher = String(classroom.teacher) === String(req.user._id);
+    const isClassAdmin = await isClassroomAdmin(req.user, classroomId);
+    const isTeacherOrClassAdmin = isTeacher || isClassAdmin;
 
-    if (!isTeacherOrAdmin && req.user.role !== 'student') {
+    if (!isTeacherOrClassAdmin && req.user.role !== 'student') {
       return res.status(403).json({ error: 'Forbidden' });
     }
-
+ 
     let query;
-    if (isTeacherOrAdmin) {
+    if (isTeacherOrClassAdmin) {
       // Teachers/Admins see all stat changes in the classroom
       query = {
         classroom: classroomId,
@@ -1397,6 +1408,7 @@ router.get('/:id/stat-changes', ensureAuthenticated, async (req, res) => {
 router.post('/:id/access', ensureAuthenticated, async (req, res) => {
   try {
     const classroomId = req.params.id;
+
     const classroom = await Classroom.findById(classroomId).select('_id teacher students');
     if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
 
@@ -1409,27 +1421,30 @@ router.post('/:id/access', ensureAuthenticated, async (req, res) => {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    const user = await User.findById(req.user._id).select('classroomJoinDates');
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    if (!Array.isArray(user.classroomJoinDates)) user.classroomJoinDates = [];
-
-    const entry = user.classroomJoinDates.find(
-      cjd => String(cjd.classroom) === String(classroomId)
-    );
+    // IMPORTANT: avoid `save()` on a partially-selected User doc (it can regenerate shortId)
     const now = new Date();
 
-    if (entry) {
-      entry.lastAccessed = now;
-    } else {
-      user.classroomJoinDates.push({
-        classroom: classroom._id,
-        joinedAt: now,
-        lastAccessed: now
-      });
+    const upd = await User.updateOne(
+      { _id: req.user._id, 'classroomJoinDates.classroom': classroomId },
+      { $set: { 'classroomJoinDates.$.lastAccessed': now } }
+    );
+
+    // If no existing entry, push a new one
+    if ((upd?.matchedCount || 0) === 0) {
+      await User.updateOne(
+        { _id: req.user._id },
+        {
+          $push: {
+            classroomJoinDates: {
+              classroom: classroomId,
+              joinedAt: now,
+              lastAccessed: now,
+            },
+          },
+        }
+      );
     }
 
-    await user.save();
     res.json({ ok: true, lastAccessed: now });
   } catch (err) {
     console.error('[Record classroom access] error:', err);

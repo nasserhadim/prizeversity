@@ -203,11 +203,19 @@ const Support = () => {
           question: "How do I award bits to students?",
           answer: [
             "As a teacher or Admin/TA (if approved by teacher), you can award bits by:",
-            "• Manually assigning bits to students through the Wallet feature within a classroom",
-            "• Transferring bits to students at the group level",
-            "• Teachers may also enable bit awards on challenges (if configured)"
+            "• Manually assigning bits to students through the Wallet/Group **Adjust** feature within a classroom",
+            "• Teachers may also enable bit awards on challenges/feedback (if configured)"
           ],
           role: ["teacher", "admin"]
+        },
+        {
+          question: "How do I approve/reject Admin/TA bit adjustment requests?",
+          answer: [
+            "As a teacher, you can approve or reject Admin/TA bit adjustment requests as follows:",
+            "• Navigate to the People page within a classroom, then selecting Settings → Admin/TA Requests tab (visible only if **Approval Required** is enabled for Admin/TA bit adjustments)",
+            "• From the list of pending requests, click 'Approve' or 'Reject' next to each request",
+          ],
+          role: ["teacher"]
         },
         {
           question: "Can I transfer bits to others?",
@@ -215,7 +223,7 @@ const Support = () => {
             "If enabled by your teacher within a classroom, yes!",
             "**To send bits:**",
             "• Go to your Wallet",
-            "• Use the 'Send Bits' feature",
+            "• Click the 'Transfer' feature",
             "• Select the recipient",
             "• Enter the amount to transfer",
             "• Confirm the transaction"

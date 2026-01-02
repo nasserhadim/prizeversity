@@ -11,16 +11,16 @@ const { populateNotification } = require('../utils/notifications');
 router.get('/:classroomId', ensureAuthenticated, async (req, res) => {
   const { classroomId } = req.params;
 
-  // Ensuring the requester is the teacher of the classroom
   const classroom = await Classroom.findById(classroomId);
   if (!classroom || classroom.teacher.toString() !== req.user._id.toString()) {
     return res.status(403).json({ error: 'Forbidden' });
   }
 
-  // Find all pending assignments for the classroom, and populating the student/'requestBy' info
   const list = await PendingAssignment.find({ classroom: classroomId, status: 'pending' })
-    .populate('student','firstName lastName email')
-    .populate('requestedBy','email');
+    .populate('student', 'firstName lastName email')
+    // CHANGED: include more requestor info for UI
+    .populate('requestedBy', 'firstName lastName email');
+
   res.json(list);
 });
 
@@ -57,11 +57,16 @@ router.patch('/:id/approve', ensureAuthenticated, async (req, res) => {
   }
 
   // push transaction (include classroom)
+  const safeDesc = (d, fallback) => {
+    const t = String(d || '').trim();
+    return t ? t : fallback;
+  };
+
   student.transactions.push({
     amount: pa.amount,
-    description: pa.description,
-    assignedBy: pa.requestedBy,
-    classroom: pa.classroom || null,
+    description: safeDesc(pa.description, 'Balance adjustment'), // CHANGED (avoid '')
+    assignedBy: req.user._id,
+    classroom: pa.classroom,
     createdAt: new Date()
   });
 

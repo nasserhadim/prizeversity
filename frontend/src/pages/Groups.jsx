@@ -12,6 +12,17 @@ import { API_BASE } from '../config/api'; // add
 import { resolveImageSrc, resolveGroupSetSrc, isPlaceholderGroupSetImage } from '../utils/image'; // OR import the helper
 import Avatar from '../components/Avatar';
 
+// NEW: helper to detect classroom-scoped admin membership (uses fetched classroom/allStudents)
+function userIsClassroomAdmin({ user, classroom, allStudents }) {
+  if (!user) return false;
+  if (classroom && String(classroom.teacher?._id || classroom.teacher) === String(user._id)) return true;
+  if (Array.isArray(allStudents)) {
+    const me = allStudents.find(s => String(s._id) === String(user._id));
+    if (me && me.isClassroomAdmin) return true;
+  }
+  return false;
+}
+
 function getMemberId(member) {
   if (!member) return null;
   // member may be { _id: ObjectId | populatedDoc } or may already be the id value
@@ -32,7 +43,8 @@ const Groups = () => {
   const { user } = useAuth();
   const [groupSets, setGroupSets] = useState([]);
   const [classroom, setClassroom] = useState(null);
-  const [allStudents, setAllStudents] = useState([]); // Add state for all students
+  const [allStudents, setAllStudents] = useState([]);
+  const isClassroomAdmin = userIsClassroomAdmin({ user, classroom, allStudents });
   const [addMemberModal, setAddMemberModal] = useState(null); // { groupId, groupSetId }
   const [selectedStudent, setSelectedStudent] = useState(''); // student id for the add dropdown
   const [addMemberSearch, setAddMemberSearch] = useState('');
@@ -1248,7 +1260,7 @@ const Groups = () => {
                         </div>
                       </div>
                       
-                      {(user.role === 'teacher' || user.role === 'admin') && (
+                      {(user.role === 'teacher' || isClassroomAdmin) && (
                         <GroupMultiplierControl 
                           group={group} 
                           groupSetId={gs._id}
@@ -1345,7 +1357,7 @@ const Groups = () => {
                         );
                       })()}
 
-                      {(user.role === 'teacher' || user.role === 'admin') && (
+                      {(user.role === 'teacher' || isClassroomAdmin) && (
                         <>
                           <button className="btn btn-xs btn-primary" onClick={() => { setAddMemberModal({ groupId: group._id, groupSetId: gs._id }); setSelectedStudent(''); }}>Add Member</button>
                           <button className="btn btn-xs btn-info" onClick={() => openEditGroupModal(gs._id, group._id, group.name, group.maxMembers)}>Edit</button>

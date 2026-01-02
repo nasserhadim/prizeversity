@@ -151,4 +151,22 @@ UserSchema.pre('validate', async function (next) {
   next();
 });
 
+// NEW: shortId must never change once it exists in DB (prevents "changing on refresh")
+UserSchema.pre('save', async function (next) {
+  try {
+    if (!this.isNew && this.isModified('shortId')) {
+      const prev = await mongoose.models.User.findById(this._id).select('shortId').lean();
+      const prevSid = prev?.shortId;
+
+      // Allow backfill if previously missing; otherwise block changes
+      if (prevSid && String(prevSid) !== String(this.shortId)) {
+        return next(new Error(`shortId is immutable (attempted ${prevSid} -> ${this.shortId})`));
+      }
+    }
+    return next();
+  } catch (e) {
+    return next(e);
+  }
+});
+
 module.exports = mongoose.model('User', UserSchema);

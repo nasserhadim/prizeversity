@@ -11,6 +11,8 @@ const ClassroomSchema = new mongoose.Schema({
   },
   teacher: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   students: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  // Per-classroom Admin/TAs (scoped to this classroom)
+  admins: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   bazaars: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Bazaar' }],
   groups: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Group' }],
   // Students who are banned from this classroom (kept separate so they cannot rejoin)

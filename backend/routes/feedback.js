@@ -10,7 +10,8 @@ const { ensureAuthenticated } = require('../config/auth');
 const sendEmail = require('../../send-email'); // root-level send-email.js
 const { awardXP } = require('../utils/awardXP');
 const { logStatChanges } = require('../utils/statChangeLog');
-const { getScopedUserStats } = require('../utils/classroomStats'); // ADD
+const { getScopedUserStats } = require('../utils/classroomStats'); // ADD if present
+const { isClassroomAdmin } = require('../utils/classroomStats'); // ADD
 
 // ADD: classroom-scoped personal multiplier helper (no global fallback when classroomId exists)
 function getPersonalMultiplierForClassroom(userDoc, classroomId) {
@@ -708,13 +709,15 @@ router.post('/:id/respond', ensureAuthenticated, async (req, res) => {
     const feedback = await Feedback.findById(req.params.id);
     if (!feedback) return res.status(404).json({ error: 'Feedback not found' });
 
-    // only admin or classroom teacher can respond
+    // Only site admins may respond to site feedback; for classroom feedback, allow teacher or classroom-scoped admin/TA
     if (!feedback.classroom) {
       if (req.user.role !== 'admin') return res.status(403).json({ error: 'Only admins can respond to site feedback' });
     } else {
-      const classroom = await Classroom.findById(feedback.classroom);
+      const classroomId = feedback.classroom;
+      const classroom = await Classroom.findById(classroomId).select('teacher');
       const isTeacherOfClass = classroom && String(classroom.teacher) === String(req.user._id);
-      if (!isTeacherOfClass && req.user.role !== 'admin') return res.status(403).json({ error: 'Only the classroom teacher or admin can respond' });
+      const isClassAdmin = await isClassroomAdmin(req.user, classroomId);
+      if (!isTeacherOfClass && !isClassAdmin) return res.status(403).json({ error: 'Only the classroom teacher or classroom-scoped Admin/TA can respond' });
     }
 
     const log = await ModerationLog.create({
@@ -816,10 +819,12 @@ router.patch('/:id/hide', ensureAuthenticated, async (req, res) => {
     if (!feedback.classroom) {
       if (req.user.role !== 'admin') return res.status(403).json({ error: 'Only admins can change visibility of site feedback' });
     } else {
-      // classroom feedback => classroom teacher or admin
-      const classroom = await Classroom.findById(feedback.classroom).select('teacher');
+      // classroom feedback => classroom teacher or classroom-scoped admin/TA
+      const classroomId = feedback.classroom;
+      const classroom = await Classroom.findById(classroomId).select('teacher');
       const isTeacher = classroom && String(classroom.teacher) === String(req.user._id);
-      if (!isTeacher && req.user.role !== 'admin') return res.status(403).json({ error: 'Only the classroom teacher or admin can change visibility' });
+      const isClassAdmin = await isClassroomAdmin(req.user, classroomId);
+      if (!isTeacher && !isClassAdmin) return res.status(403).json({ error: 'Only the classroom teacher or classroom-scoped Admin/TA can change visibility' });
     }
 
     feedback.hidden = !!hide;

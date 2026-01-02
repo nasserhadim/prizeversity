@@ -261,83 +261,116 @@ router.get('/:id', ensureAuthenticated, async (req, res) => {
 
 
 
-// Promote a student to admin
+// Promote a student to admin (scoped to a classroom)
 router.post('/:id/make-admin', ensureAuthenticated, async (req, res) => {
   try {
     const { classroomId } = req.body;
+    if (!classroomId) return res.status(400).json({ error: 'classroomId is required' });
+
+    const classroom = await Classroom.findById(classroomId);
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+
+    if (String(classroom.teacher) !== String(req.user._id)) {
+      return res.status(403).json({ error: 'Only the teacher can promote Admin/TAs for this classroom' });
+    }
+
     const student = await User.findById(req.params.id);
     if (!student) return res.status(404).json({ error: 'Student not found' });
 
-    student.role = 'admin';
-    await student.save();
+    classroom.admins = classroom.admins || [];
+    if (!classroom.admins.map(String).includes(String(student._id))) {
+      classroom.admins.push(student._id);
+      await classroom.save();
+    }
 
-    
+    // IMPORTANT: Do NOT set student.role = 'admin' here (Admin/TA is classroom-scoped).
+    // Keep global role unchanged so site profile remains Student unless they are a real site admin.
+
     const notification = await Notification.create({
       user: student._id,
       actionBy: req.user._id,
-      type: 'ta_promotion',                                     //creating a notification for the student promoting to Admin/TA
-      message: `You have been promoted to Admin/TA.`,
+      type: 'ta_promotion',
+      message: `You have been promoted to Admin/TA for classroom ${classroom.name || classroom.code}.`,
       read: false,
-      classroom: classroomId, 
+      classroom: classroomId,
       createdAt: new Date(),
     });
 
     const populatedNotification = await populateNotification(notification._id);
-      req.app.get('io').to(`user-${student._id}`).emit('notification', populatedNotification); // or req.io
+    req.app.get('io').to(`user-${student._id}`).emit('notification', populatedNotification);
+    req.app.get('io').to(`user-${student._id}`).emit('role_change', {
+      newRole: 'admin',
+      userId: student._id,
+      classroomId
+    });
+    req.app.get('io').to(`classroom-${classroomId}`).emit('user_role_update', {
+      userId: student._id,
+      newRole: 'admin',
+      classroomId
+    });
 
-    res.status(200).json({ message: 'Student promoted to admin' });
+    return res.status(200).json({ message: 'Student promoted to Admin/TA' });
   } catch (err) {
     console.error('Failed to promote student:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Demote an admin back to student
+// Demote an admin back to student (scoped to a classroom)
 router.post('/:id/demote-admin', ensureAuthenticated, async (req, res) => {
   try {
     const { classroomId } = req.body;
-    // Only teachers can demote admins
-    if (req.user.role !== 'teacher') {
-  return res.status(403).json({ error: 'Only teachers can demote admins' });
-  }
+    if (!classroomId) return res.status(400).json({ error: 'classroomId is required' });
+
+    const classroom = await Classroom.findById(classroomId);
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+
+    if (String(classroom.teacher) !== String(req.user._id)) {
+      return res.status(403).json({ error: 'Only the teacher can demote Admin/TAs for this classroom' });
+    }
+
     const admin = await User.findById(req.params.id);
     if (!admin) return res.status(404).json({ error: 'User not found' });
 
-    if (admin.role !== 'admin')
-      return res.status(400).json({ error: 'User is not an admin' });
+    classroom.admins = (classroom.admins || []).filter(a => String(a) !== String(admin._id));
+    await classroom.save();
 
-    admin.role = 'student';
-   await admin.save();
+    // If this user was previously (incorrectly) promoted globally, revert them to student
+    // once they are no longer an Admin/TA in ANY classroom.
+    const stillTAAnywhere = await Classroom.exists({ admins: admin._id });
+    if (!stillTAAnywhere && String(admin.role) === 'admin') {
+      admin.role = 'student';
+      await admin.save();
+    }
 
-  const notification = await Notification.create({
-  user: admin._id,
-  actionBy: req.user._id,
-  type: 'ta_demotion',
-  message: `You have been demoted from Admin/TA to a student.`,
-  classroom: classroomId,
-  read: false,
-  createdAt: new Date(),
-});
+    const notification = await Notification.create({
+      user: admin._id,
+      actionBy: req.user._id,
+      type: 'ta_demotion',
+      message: `You have been demoted from Admin/TA for classroom ${classroom.name || classroom.code}.`,
+      read: false,
+      classroom: classroomId,
+      createdAt: new Date(),
+    });
 
-const populated = await populateNotification(notification._id);
-req.app.get('io').to(`user-${admin._id}`).emit('notification', populated);
+    const populated = await populateNotification(notification._id);
+    req.app.get('io').to(`user-${admin._id}`).emit('notification', populated);
 
-// After role promotion/demotion
-req.app.get('io').to(`user-${admin._id}`).emit('role_change', {
-  newRole: 'student', // or whatever the new role is
-  userId: admin._id
-});
+    req.app.get('io').to(`user-${admin._id}`).emit('role_change', {
+      newRole: 'student',
+      userId: admin._id,
+      classroomId
+    });
+    req.app.get('io').to(`classroom-${classroomId}`).emit('user_role_update', {
+      userId: admin._id,
+      newRole: 'student',
+      classroomId
+    });
 
-req.app.get('io').to(`classroom-${classroomId}`).emit('user_role_update', {
-  userId: admin._id,
-  newRole: 'student',
-  classroomId
-});
-
-   res.status(200).json({ message: 'Admin/TA demoted to student' });
+    return res.status(200).json({ message: 'Admin/TA demoted to student' });
   } catch (err) {
     console.error('Failed to demote admin:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
