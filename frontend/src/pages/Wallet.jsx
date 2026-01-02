@@ -9,6 +9,7 @@ import Footer from '../components/Footer';
 import socket from '../utils/socket';
 import ExportButtons from '../components/ExportButtons';
 import { Info } from 'lucide-react';
+import { inferAssignerRole } from '../utils/transactions';
 
 // NEW: helper to detect classroom-scoped admin membership (uses fetched classroom/student list)
 function userIsClassroomAdmin({ user, classroom, studentList }) {
@@ -293,26 +294,7 @@ const Wallet = () => {
         tx.type === 'siphon' ||
         (tx.description?.includes('transferred from') && tx.description?.includes('group'));
 
-      const rawAssigner = tx.assignedBy;
-      const assignerId = rawAssigner ? (rawAssigner._id || rawAssigner).toString() : '';
-      
-      // Infer assigner role for unpopulated transactions (students' own view)
-      let assignerRole = isSiphon ? 'siphon' : 'system';
-      if (rawAssigner) {
-        // If backend populated assignedBy with role, prefer that
-        if (typeof rawAssigner === 'object' && rawAssigner.role) {
-          assignerRole = rawAssigner.role;
-        } else {
-          // rawAssigner is likely an id string -> try to resolve from classroom/studentList
-          if (classroom?.teacher && assignerId === String(classroom.teacher?._id || classroom.teacher)) {
-            assignerRole = 'teacher';
-          } else {
-            const found = (studentList || []).find(u => String(u._id) === assignerId);
-            if (found) assignerRole = found.role || 'student';
-            else assignerRole = 'unknown';
-          }
-        }
-      }
+      const assignerRole = inferAssignerRole(tx, studentList);
 
       const roleMatch =
         roleFilter === 'all' ||
@@ -630,9 +612,7 @@ useEffect(() => {
       // Exclude teacher/admin adjustments from "total spent"
       // `assignedBy` is populated by backend for the student's own transactions route:
       // see router.get('/transactions') in backend/routes/wallet.js
-      const assignerRole = (t.assignedBy && t.assignedBy.role) ? String(t.assignedBy.role).toLowerCase() : '';
-
-      // Exclude teacher/admin adjustments
+      const assignerRole = inferAssignerRole(t, studentList);
       if (assignerRole === 'teacher' || assignerRole === 'admin') {
         return sum;
       }

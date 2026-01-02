@@ -10,7 +10,8 @@ const { awardXP } = require('../utils/awardXP');
 const { logStatChanges } = require('../utils/statChangeLog');
 const Classroom = require('../models/Classroom');
 const PendingAssignment = require('../models/PendingAssignment'); // Import PendingAssignment model
-const { getScopedUserStats } = require('../utils/classroomStats'); // ADD
+const { getScopedUserStats } = require('../utils/classroomStats'); // existing
+const { isClassroomAdmin } = require('../utils/classroomStats'); // NEW
 
 // ADD: classroom-scoped personal multiplier helper (no global fallback when classroomId exists)
 function getPersonalMultiplierForClassroom(userDoc, classroomId) {
@@ -50,35 +51,31 @@ async function canTAAssignBits({ taUser, classroomId }) {
 
 // Middleware will allow only teachers or admins to access certain routes
 async function ensureTeacher(req, res, next) {
-  if (req.user.role === 'teacher') {
+  if (req.user.role === 'teacher') return next();
+
+  // CHANGED: classroom-scoped Admin/TA allowed (subject to policy)
+  const { groupSetId } = req.params;
+  const groupSet = await GroupSet.findById(groupSetId).populate('classroom');
+
+  if (!groupSet || !groupSet.classroom) {
+    return res.status(404).json({ error: 'Classroom context not found for this group. Admins/TAs cannot adjust balances.' });
+  }
+
+  const classroomId = groupSet.classroom._id;
+  const isTAInClass = await isClassroomAdmin(req.user, classroomId);
+  if (!isTAInClass) {
+    return res.status(403).json({ error: 'Only teachers or Admin/TAs for this classroom can adjust group balances.' });
+  }
+
+  const gate = await canTAAssignBits({ taUser: req.user, classroomId });
+  if (gate.ok) return next();
+
+  if (gate.requiresApproval) {
+    req.requiresApproval = true;
     return next();
   }
 
-  if (req.user.role === 'admin') {
-    const { groupSetId } = req.params;
-    const groupSet = await GroupSet.findById(groupSetId).populate('classroom');
-    
-    // If there's no classroom context, we can't check policy, so deny for safety.
-    // Teachers can still operate on such groups.
-    if (!groupSet || !groupSet.classroom) {
-      return res.status(404).json({ error: 'Classroom context not found for this group. TAs cannot adjust balances.' });
-    }
-    const classroomId = groupSet.classroom._id;
-    const gate = await canTAAssignBits({ taUser: req.user, classroomId });
-
-    if (gate.ok) {
-      return next();
-    }
-
-    if (gate.requiresApproval) {
-      req.requiresApproval = true; // Pass this to the main route handler
-      return next();
-    }
-    
-    return res.status(gate.status || 403).json({ error: gate.msg || 'You are not authorized to perform this action.' });
-  }
-
-  return res.status(403).json({ error: 'Only teachers or admins can adjust group balances. If you are an Admin/TA, please ensure you have the necessary permissions.' });
+  return res.status(gate.status || 403).json({ error: gate.msg || 'You are not authorized to perform this action.' });
 }
 
 // Helper function for multiplier notes
@@ -134,26 +131,35 @@ router.post(
     const { groupId, groupSetId } = req.params;
     const groupSet = await GroupSet.findById(groupSetId).populate('classroom');
     const { amount, description, applyGroupMultipliers = true, applyPersonalMultipliers = true, memberIds } = req.body;
-    
+
     try {
-      // First validate the amount
       const numericAmount = Number(amount);
       if (isNaN(numericAmount)) {
         return res.status(400).json({ error: 'Invalid amount' });
       }
 
+      // NEW: fetch minimal group info early (needed for approval description)
+      const groupMeta = await Group.findById(groupId).select('name');
+      if (!groupMeta) return res.status(404).json({ error: 'Group not found' });
+
       // If approval is required, create pending assignments and return
       if (req.requiresApproval) {
         const classroom = groupSet.classroom;
-        for (const memberId of memberIds) {
+
+        const base = `Group adjust (${groupSet?.name || groupSet?._id}: ${groupMeta?.name || groupMeta?._id})`;
+        const userDesc = (description && String(description).trim()) ? String(description).trim() : '';
+        const pendingDesc = userDesc ? `${base} - ${userDesc}` : base;
+
+        for (const memberId of memberIds || []) {
           await PendingAssignment.create({
             classroom: classroom._id,
             student: memberId,
             amount: numericAmount,
-            description: description || `Group adjust`,
+            description: pendingDesc,
             requestedBy: req.user._id,
           });
         }
+
         // Notify teacher
         const notification = await Notification.create({
           user: classroom.teacher,
@@ -168,13 +174,12 @@ router.post(
         return res.status(202).json({ message: 'Request queued for teacher approval' });
       }
 
-      // Find the group with members populated including their passiveAttributes
+      // CHANGED: rename to avoid collision/TDZ issues
       const group = await Group.findById(groupId).populate({
         path: 'members._id',
         model: 'User',
-        select: 'balance passiveAttributes transactions role classroomBalances classroomStats',
+        select: 'shortId balance passiveAttributes transactions role classroomBalances classroomStats',
       });
-
       if (!group) return res.status(404).json({ error: 'Group not found' });
 
       // Compute classroomId once (used everywhere)
@@ -184,7 +189,11 @@ router.post(
 
       // Compose the transaction description once (in outer scope) so it's available
       // everywhere: per-user transactions, notifications, and emitted events.
-      const roleLabel = req.user.role === 'admin' ? 'Admin/TA' : 'Teacher';
+      const teacherId = String(groupSet?.classroom?.teacher?._id || groupSet?.classroom?.teacher || '');
+      const isTeacherActor = teacherId && String(req.user._id) === teacherId;
+      const isTAActor = !isTeacherActor && classroomId ? await isClassroomAdmin(req.user, classroomId) : false;
+      const roleLabel = isTeacherActor ? 'Teacher' : (isTAActor ? 'Admin/TA' : 'Teacher');
+
       const userName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email || String(req.user._id);
       const baseDesc = (description && String(description).trim()) ? `: ${String(description).trim()}` : '';
       const txDescription = `Group adjust (${group.name})${baseDesc} by ${roleLabel} (${userName})`;
@@ -208,7 +217,8 @@ router.post(
           let user = member._id;
           if (!user || !user._id) {
             // fallback: fetch user document
-            user = await User.findById(member._id).select('balance passiveAttributes transactions role classroomBalances classroomStats');
+            // IMPORTANT: include shortId because we call `user.save()` later
+            user = await User.findById(member._id).select('shortId balance passiveAttributes transactions role classroomBalances classroomStats');
           }
 
           // Skip teachers (teachers shouldn't be adjusted). Allow admins/TAs who are group members.
@@ -371,10 +381,10 @@ router.post(
       });
     } catch (err) {
       console.error('Group balance adjust error:', err);
-      res.status(500).json({ 
+      return res.status(500).json({
         success: false,
         error: 'Failed to adjust group balances',
-        details: err.message 
+        details: err.message
       });
     }
   }

@@ -13,6 +13,7 @@ import StatsAdjustModal from '../components/StatsAdjustModal';
 import Avatar from '../components/Avatar';
 import XPSettings from '../components/XPSettings';
 import { ThemeContext } from '../context/ThemeContext'; // NEW
+import { inferAssignerRole } from '../utils/transactions';
 
 // NEW helper for classroom-scoped admin detection (uses fetched classroom + students)
 function userIsClassroomAdmin({ user, classroom, students }) {
@@ -171,7 +172,7 @@ function formatStatChange(c) {
 }
 
 // add helper near the top (after imports / before component)
-const computeTotalSpent = (transactions = [], classroomId) => {
+const computeTotalSpent = (transactions = [], classroomId, studentList = []) => {
   return (transactions || []).reduce((sum, t) => {
     const amt = Number(t?.amount) || 0;
     if (amt >= 0) return sum;
@@ -183,8 +184,8 @@ const computeTotalSpent = (transactions = [], classroomId) => {
     // Keep classroom filter
     if (classroomId && t?.classroom && String(t.classroom) !== String(classroomId)) return sum;
 
-    // Exclude teacher/admin adjustments
-    const assignerRole = t?.assignedBy?.role ? String(t.assignedBy.role).toLowerCase() : '';
+    // Exclude teacher/admin adjustments (classroom-scoped)
+    const assignerRole = inferAssignerRole(t, studentList);
     if (assignerRole === 'teacher' || assignerRole === 'admin') return sum;
 
     return sum + Math.abs(amt);
@@ -207,6 +208,66 @@ const People = () => {
   const [statSort, setStatSort] = useState('desc'); // 'desc' | 'asc'
   const [taBitPolicy, setTaBitPolicy] = useState('full');
   const [studentsCanViewStats, setStudentsCanViewStats] = useState(true);
+
+  // NEW: Settings sub-tabs + pending count badge
+  const [settingsSubTab, setSettingsSubTab] = useState('general'); // 'general' | 'ta-requests'
+  const [taRequestCount, setTaRequestCount] = useState(0);
+
+  // NEW: refresh pending/assigned Admin/TA request count even if the Requests sub-tab isn't open
+  const refreshTaRequestCount = React.useCallback(async () => {
+    try {
+      if (!classroomId) return;
+      if ((user?.role || '').toLowerCase() !== 'teacher') return;
+      if (taBitPolicy !== 'approval') {
+        setTaRequestCount(0);
+        return;
+      }
+
+      const res = await axios.get(`/api/pending-assignments/${classroomId}`, { withCredentials: true });
+      setTaRequestCount(Array.isArray(res.data) ? res.data.length : 0);
+    } catch {
+      // don't spam toast; just fail closed
+      setTaRequestCount(0);
+    }
+  }, [classroomId, user?.role, taBitPolicy]);
+
+  // When opening Settings, compute the count immediately (no click needed)
+  useEffect(() => {
+    if (tab !== 'settings') return;
+    refreshTaRequestCount();
+  }, [tab, refreshTaRequestCount]);
+
+  // Optional: update count when teacher receives request/approval/rejection notifications
+  useEffect(() => {
+    if ((user?.role || '').toLowerCase() !== 'teacher') return;
+    if (taBitPolicy !== 'approval') return;
+
+    const onNotif = (payload) => {
+      const type = String(payload?.type || '');
+      const relevant = new Set([
+        'bit_assignment_request',
+        'bit_assignment_approved',
+        'bit_assignment_rejected',
+      ]);
+      if (!relevant.has(type)) return;
+
+      const notifClassroomId = payload?.classroom?._id || payload?.classroom;
+      if (notifClassroomId && String(notifClassroomId) !== String(classroomId)) return;
+
+      refreshTaRequestCount();
+    };
+
+    socket.on('notification', onNotif);
+    return () => socket.off('notification', onNotif);
+  }, [classroomId, taBitPolicy, user?.role, refreshTaRequestCount]);
+
+  // If approval is disabled, don't leave user stuck on the Requests tab
+  useEffect(() => {
+    if (taBitPolicy !== 'approval' && settingsSubTab === 'ta-requests') {
+      setSettingsSubTab('general');
+    }
+  }, [taBitPolicy, settingsSubTab]);
+
   const [students, setStudents] = useState([]);
   const [classroom, setClassroom] = useState(null);
   // Compute classroom-scoped admin flag from annotated students list
@@ -789,9 +850,12 @@ const getBanInfo = (student, classroomObj) => {
               const spent = txs.reduce((sum, t) => {
                 const amt = Number(t?.amount) || 0;
                 if (amt >= 0) return sum;
-                const assignerRole = t?.assignedBy?.role ? String(t.assignedBy.role).toLowerCase() : '';
+
+                const assignerRole = inferAssignerRole(t, students);
                 if (assignerRole === 'teacher' || assignerRole === 'admin') return sum;
+
                 if (classroomId && t?.classroom && String(t.classroom) !== String(classroomId)) return sum;
+
                 return sum + Math.abs(amt);
               }, 0);
               return { id, spent };
@@ -1076,7 +1140,7 @@ const getBanInfo = (student, classroomObj) => {
           totalSpent: Number(
             (totalSpentMap && typeof totalSpentMap[student._id] !== 'undefined')
               ? totalSpentMap[student._id]
-              : computeTotalSpent(student.transactions || [], classroomId)
+              : computeTotalSpent(student.transactions || [], classroomId, students)
           ),
           joinedDate: student.joinedAt || student.createdAt || null,
           lastAccessed: student.lastAccessed ? new Date(student.lastAccessed).toISOString() : null,
@@ -1313,165 +1377,183 @@ const visibleCount = filteredStudents.length;
           <div className="w-full space-y-6 min-w-0">
              <h2 className="text-2xl font-semibold">People Settings</h2>
 
-            <label className="form-control w-full">
-              <span className="label-text mb-2 font-medium">
-                Admin/TA bit assignment
-              </span>
-
-              <select
-                className="select select-bordered w-full"
-                value={taBitPolicy ?? 'full'}
-                onChange={async (e) => {
-                  const newPolicy = e.target.value;
-                  try {
-                    await axios.patch(
-                      `/api/classroom/${classroomId}/ta-bit-policy`,
-                      { taBitPolicy: newPolicy },
-                      { withCredentials: true }
-                    );
-                    toast.success('Updated Admin/TA bit policy');
-                    setTaBitPolicy(newPolicy);
-                  } catch (err) {
-                    toast.error(
-                      err.response?.data?.error || 'Failed to update policy'
-                    );
-                  }
-                }}
+            {/* settings sub-tabs */}
+            <div role="tablist" className="tabs tabs-boxed">
+              <button
+                type="button"
+                role="tab"
+                className={`tab ${settingsSubTab === 'general' ? 'tab-active' : ''}`}
+                onClick={() => setSettingsSubTab('general')}
               >
-                <option value="full">Full permission (no approval needed)</option>
-                <option value="approval">Approval required</option>
-                <option value="none">No permission</option>
-              </select>
-              <div className="label">
-                <span className="label-text-alt">
-                  Controls whether Admin/TAs can assign bits to students and adjust group balances directly or need teacher approval
-                </span>
-              </div>
-            </label>
+                General
+              </button>
 
-            {/* Add Siphon Timeout Setting */}
-            <label className="form-control w-full">
-              <span className="label-text mb-2 font-medium">
-                Siphon Review Timeout
-              </span>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min="1"
-                  max="168"
-                  className="input input-bordered w-24"
-                  value={siphonTimeoutHours}
-                  onChange={async (e) => {
-                    const newTimeout = parseInt(e.target.value);
-                    if (newTimeout < 1 || newTimeout > 168) {
-                      toast.error('Timeout must be between 1 and 168 hours');
-                      return;
-                    }
-                    try {
-                      await axios.post(
-                        `/api/classroom/${classroomId}/siphon-timeout`,
-                        { siphonTimeoutHours: newTimeout },
-                        { withCredentials: true }
-                      );
-                      toast.success('Updated siphon timeout');
-                      setSiphonTimeoutHours(newTimeout);
-                    } catch (err) {
-                      toast.error(
-                        err.response?.data?.error || 'Failed to update siphon timeout'
-                      );
-                    }
-                  }}
-                />
-                <span className="label-text">hours</span>
-              </div>
-              <div className="label">
-                <span className="label-text-alt">
-                  How long students have to vote and teacher has to review siphon requests before they automatically expire
-                </span>
-              </div>
-            </label>
+              {taBitPolicy === 'approval' && (
+                <button
+                  type="button"
+                  role="tab"
+                  className={`tab ${settingsSubTab === 'ta-requests' ? 'tab-active' : ''}`}
+                  onClick={() => setSettingsSubTab('ta-requests')}
+                >
+                  Admin/TA Requests ({taRequestCount})
+                </button>
+              )}
+            </div>
 
-            <label className="form-control w-full">
-              <span className="label-text mb-2 font-medium">
-                Student-to-student bit transfers
-              </span>
-              <input
-                type="checkbox"
-                className="toggle toggle-success"
-                checked={studentSendEnabled}
-                onChange={async (e) => {
-                  const isEnabled = e.target.checked;
-                  try {
-                    await axios.patch(
-                      `/api/classroom/${classroomId}/student-send-enabled`,
-                      { studentSendEnabled: isEnabled },
-                      { withCredentials: true }
-                    );
-                    toast.success(
-                      `Student transfers ${isEnabled ? 'enabled' : 'disabled'}`
-                    );
-                    setStudentSendEnabled(isEnabled);
-                  } catch (err) {
-                    toast.error('Failed to update setting');
-                  }
-                }}
-              />
-              <div className="label">
-                <span className="label-text-alt">
-                  Allow students to send bits to each other directly
-                </span>
+            {/* GENERAL SETTINGS PANEL */}
+            {settingsSubTab === 'general' && (
+              <div className="space-y-6">
+                <label className="form-control w-full">
+                  <span className="label-text mb-2 font-medium">Admin/TA bit assignment</span>
+
+                  <select
+                    className="select select-bordered w-full"
+                    value={taBitPolicy ?? 'full'}
+                    onChange={async (e) => {
+                      const newPolicy = e.target.value;
+                      try {
+                        await axios.patch(
+                          `/api/classroom/${classroomId}/ta-bit-policy`,
+                          { taBitPolicy: newPolicy },
+                          { withCredentials: true }
+                        );
+                        toast.success('Updated Admin/TA bit policy');
+                        setTaBitPolicy(newPolicy);
+                      } catch (err) {
+                        toast.error(err.response?.data?.error || 'Failed to update policy');
+                      }
+                    }}
+                  >
+                    <option value="full">Full permission (no approval needed)</option>
+                    <option value="approval">Approval required</option>
+                    <option value="none">No permission</option>
+                  </select>
+
+                  <div className="label">
+                    <span className="label-text-alt">
+                      Controls whether Admin/TAs can assign bits to students and adjust group balances directly or need
+                      teacher approval
+                    </span>
+                  </div>
+                </label>
+
+                {/* Add Siphon Timeout Setting */}
+                <label className="form-control w-full">
+                  <span className="label-text mb-2 font-medium">Siphon Review Timeout</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      max="168"
+                      className="input input-bordered w-24"
+                      value={siphonTimeoutHours}
+                      onChange={async (e) => {
+                        const newTimeout = parseInt(e.target.value);
+                        if (newTimeout < 1 || newTimeout > 168) {
+                          toast.error('Timeout must be between 1 and 168 hours');
+                          return;
+                        }
+                        try {
+                          await axios.post(
+                            `/api/classroom/${classroomId}/siphon-timeout`,
+                            { siphonTimeoutHours: newTimeout },
+                            { withCredentials: true }
+                          );
+                          toast.success('Updated siphon timeout');
+                          setSiphonTimeoutHours(newTimeout);
+                        } catch (err) {
+                          toast.error(err.response?.data?.error || 'Failed to update siphon timeout');
+                        }
+                      }}
+                    />
+                    <span className="label-text">hours</span>
+                  </div>
+                  <div className="label">
+                    <span className="label-text-alt">
+                      How long students have to vote and teacher has to review siphon requests before they automatically
+                      expire
+                    </span>
+                  </div>
+                </label>
+
+                <label className="form-control w-full">
+                  <span className="label-text mb-2 font-medium">Student-to-student bit transfers</span>
+                  <input
+                    type="checkbox"
+                    className="toggle toggle-success"
+                    checked={studentSendEnabled}
+                    onChange={async (e) => {
+                      const isEnabled = e.target.checked;
+                      try {
+                        await axios.patch(
+                          `/api/classroom/${classroomId}/student-send-enabled`,
+                          { studentSendEnabled: isEnabled },
+                          { withCredentials: true }
+                        );
+                        toast.success(`Student transfers ${isEnabled ? 'enabled' : 'disabled'}`);
+                        setStudentSendEnabled(isEnabled);
+                      } catch (err) {
+                        toast.error('Failed to update setting');
+                      }
+                    }}
+                  />
+                  <div className="label">
+                    <span className="label-text-alt">Allow students to send bits to each other directly</span>
+                  </div>
+                </label>
+
+                <label className="form-control w-full">
+                  <span className="label-text mb-2 font-medium">Allow students to view other students' stats</span>
+                  <input
+                    type="checkbox"
+                    className="toggle toggle-success"
+                    checked={studentsCanViewStats}
+                    onChange={async (e) => {
+                      const isEnabled = e.target.checked;
+                      setStudentsCanViewStats(isEnabled);
+                      try {
+                        await axios.patch(
+                          `/api/classroom/${classroomId}/students-can-view-stats`,
+                          { studentsCanViewStats: isEnabled },
+                          { withCredentials: true }
+                        );
+                        toast.success(
+                          `Students can ${isEnabled ? 'now' : 'no longer'} view other students' stats`
+                        );
+                      } catch (err) {
+                        setStudentsCanViewStats(!isEnabled);
+                        toast.error('Failed to update setting');
+                      }
+                    }}
+                  />
+                  <div className="label">
+                    <span className="label-text-alt">
+                      Allow students to see each other's luck, multiplier, and other stats
+                    </span>
+                  </div>
+                </label>
+
+                {/* XP & Leveling Settings */}
+                <XPSettings classroomId={classroomId} />
               </div>
-            </label>
+            )}
 
-            {/* Add the new setting for students viewing stats */}
-            <label className="form-control w-full">
-              <span className="label-text mb-2 font-medium">
-                Allow students to view other students' stats
-              </span>
-              <input
-                type="checkbox"
-                className="toggle toggle-success"
-                checked={studentsCanViewStats}
-                onChange={async (e) => {
-                  const isEnabled = e.target.checked;
-                  
-                  // Optimistically update the UI immediately
-                  setStudentsCanViewStats(isEnabled);
-                  
-                  try {
-                    // Send the update to the server
-                    await axios.patch(
-                      `/api/classroom/${classroomId}/students-can-view-stats`,
-                      { studentsCanViewStats: isEnabled },
-                      { withCredentials: true }
-                    );
-                    toast.success(
-                      `Students can ${isEnabled ? 'now' : 'no longer'} view other students' stats`
-                    );
-                    
-                    // The socket event will update other users, but this user sees immediate feedback
-                    
-                  } catch (err) {
-                    // If the request fails, revert the optimistic update
-                    setStudentsCanViewStats(!isEnabled);
-                    toast.error('Failed to update setting');
-                  }
-                }}
-              />
-              <div className="label">
-                <span className="label-text-alt">
-                  Allow students to see each other's luck, multiplier, and other stats
-                </span>
+            {/* ADMIN/TA REQUESTS PANEL */}
+            {settingsSubTab === 'ta-requests' && taBitPolicy === 'approval' && (
+              <div className="card bg-base-100 border border-base-200">
+                <div className="card-body">
+                  <h3 className="card-title text-base">Admin/TA Adjustment Requests</h3>
+                  <p className="text-sm text-base-content/70">
+                    These requests require teacher approval.
+                  </p>
+
+                  <PendingApprovals
+                    classroomId={classroomId}
+                    onCountChange={setTaRequestCount}
+                  />
+                </div>
               </div>
-            </label>
-
-            {/* Show teacher's approval queue when policy=approval */}
-    {taBitPolicy === 'approval' && (
-      <PendingApprovals classroomId={classroomId} />
-    )}
-
-    {/* XP & Leveling Settings */}
-    <XPSettings classroomId={classroomId} />
+            )}
           </div>
         )}
         {/* ───────────────────────────────────────────── */}
@@ -1673,6 +1755,7 @@ const visibleCount = filteredStudents.length;
                             ? new Date(student.joinedAt).toLocaleString()
                             : student.createdAt
                               ? new Date(student.createdAt).toLocaleString()
+
                               : 'Unknown'}
                         </div>
                         {/* NEW: Last accessed display */}

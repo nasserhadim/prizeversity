@@ -182,10 +182,17 @@ const updateClassroomBalance = (user, classroomId, newBalance) => {
 
 // Assign Balance to Student (updated for per-classroom)
 router.post('/assign', ensureAuthenticated, async (req, res) => {
-  const { classroomId, studentId, amount, description, applyGroupMultipliers = true, applyPersonalMultipliers = true } = req.body; // Add separate parameters
+  const { classroomId, studentId, amount, description, applyGroupMultipliers = true, applyPersonalMultipliers = true } = req.body;
 
-  // Check Admin/TA permission
-  if (req.user.role === 'admin') {
+  const isTeacher = req.user.role === 'teacher';
+  const isTAInClass = classroomId ? await isClassroomAdmin(req.user, classroomId) : false;
+
+  // CHANGED: allow classroom-scoped Admin/TA (subject to policy) instead of global role === 'admin'
+  if (!isTeacher && !isTAInClass) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  if (isTAInClass && !isTeacher) {
     const gate = await canTAAssignBits({ taUser: req.user, classroomId });
     if (!gate.ok) {
       if (gate.requiresApproval) {
@@ -196,7 +203,7 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
           description,
           requestedBy: req.user._id,
         });
-        // Notify teacher
+
         const classroom = await Classroom.findById(classroomId).populate('teacher');
         const notification = await Notification.create({
           user: classroom.teacher._id,
@@ -208,14 +215,10 @@ router.post('/assign', ensureAuthenticated, async (req, res) => {
         const populated = await populateNotification(notification._id);
         req.app.get('io').to(`user-${classroom.teacher._id}`).emit('notification', populated);
 
-        return res
-          .status(202)
-          .json({ message: 'Request queued for teacher approval' });
+        return res.status(202).json({ message: 'Request queued for teacher approval' });
       }
-      return res.status(gate.status).json({ error: gate.msg });
+      return res.status(gate.status || 403).json({ error: gate.msg || 'Forbidden' });
     }
-  } else if (req.user.role !== 'teacher') {
-    return res.status(403).json({ error: 'Forbidden' });
   }
 
   try {
@@ -376,30 +379,69 @@ res.status(200).json({
 
 // Bulk assign balances to mulitpler students
 router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
-  if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
-    return res.status(403).json({ 
-      success: false,
-      error: 'Only teachers can bulk-assign' 
-    });
-  }
-
-  const { classroomId, updates, applyGroupMultipliers = true, applyPersonalMultipliers = true } = req.body; // Add separate parameters
+  const { classroomId, updates, applyGroupMultipliers = true, applyPersonalMultipliers = true } = req.body;
   const customDescription = req.body.description;
 
-  const roleLabel = req.user.role === 'admin' ? 'Admin/TA' : 'Teacher';
+  if (!classroomId) {
+    return res.status(400).json({ success: false, error: 'classroomId is required' });
+  }
+
+  const isTeacher = req.user.role === 'teacher';
+  const isTAInClass = await isClassroomAdmin(req.user, classroomId);
+
+  // CHANGED: allow classroom-scoped Admin/TA instead of global role === 'admin'
+  if (!isTeacher && !isTAInClass) {
+    return res.status(403).json({ success: false, error: 'Forbidden' });
+  }
+
+  // CHANGED: policy gating for classroom-scoped Admin/TA
+  if (isTAInClass && !isTeacher) {
+    const gate = await canTAAssignBits({ taUser: req.user, classroomId });
+    if (!gate.ok) {
+      if (gate.requiresApproval) {
+        const classroom = await Classroom.findById(classroomId).populate('teacher');
+
+        // NEW: ensure non-empty description is stored on pending assignments
+        const pendingDesc =
+          (customDescription && String(customDescription).trim())
+            ? `${String(customDescription).trim()} (${attribution})`
+            : attribution;
+
+        for (const upd of updates || []) {
+          await PendingAssignment.create({
+            classroom: classroomId,
+            student: upd.studentId,
+            amount: Number(upd.amount),
+            description: pendingDesc, // CHANGED (was customDescription)
+            requestedBy: req.user._id,
+          });
+        }
+
+        // Notify teacher of bulk request
+        const notification = await Notification.create({
+          user: classroom.teacher._id,
+          type: 'bit_assignment_request',
+          message: `Admin/TA ${req.user.firstName || req.user.email} requested a bit balance assignment/adjustment for ${(updates || []).length} student(s).`,
+          classroom: classroomId,
+          actionBy: req.user._id,
+        });
+        const populated = await populateNotification(notification._id);
+        req.app.get('io').to(`user-${classroom.teacher._id}`).emit('notification', populated);
+
+        return res.status(202).json({ message: 'Request queued for teacher approval' });
+      }
+      return res.status(gate.status || 403).json({ error: gate.msg || 'Forbidden' });
+    }
+  }
+
+  // attribution label should reflect classroom-TA too
+  const roleLabel = (isTeacher ? 'Teacher' : 'Admin/TA');
   const userName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email;
   const attribution = `Adjustment by ${roleLabel} (${userName})`;
 
   const description = customDescription
-    ? `${customDescription} (${attribution})`
+    ? `${String(customDescription).trim()} (${attribution})`
     : attribution;
-
-  if (!classroomId) {
-    return res.status(400).json({
-      success: false,
-      error: 'classroomId is required'
-    });
-  }
 
   if (!Array.isArray(updates) || updates.length === 0) {
     return res.status(400).json({
