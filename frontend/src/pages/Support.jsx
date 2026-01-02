@@ -212,7 +212,7 @@ const Support = () => {
           question: "How do I approve/reject Admin/TA bit adjustment requests?",
           answer: [
             "As a teacher, you can approve or reject Admin/TA bit adjustment requests as follows:",
-            "• Navigate to the People page within a classroom, then selecting Settings → Admin/TA Requests tab",
+            "• Navigate to the People page within a classroom, then selecting Settings → Admin/TA Requests tab (visible only if **Approval Required** is enabled for Admin/TA bit adjustments)",
             "• From the list of pending requests, click 'Approve' or 'Reject' next to each request",
           ],
           role: ["teacher"]
