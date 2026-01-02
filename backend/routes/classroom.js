@@ -278,6 +278,79 @@ router.patch('/:id/ta-bit-policy', ensureAuthenticated, async (req, res) => {
   }
 });
 
+// Get the Admin/TA group management policy
+router.get('/:id/ta-group-policy', ensureAuthenticated, async (req, res) => {
+  try {
+    const classroom = await Classroom.findById(req.params.id).select('teacher taGroupPolicy');
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+    if (String(classroom.teacher) !== String(req.user._id)) {
+      return res.status(403).json({ error: 'Only the teacher can view this policy' });
+    }
+    res.json({ taGroupPolicy: classroom.taGroupPolicy || 'none' });
+  } catch (err) {
+    console.error('[Get TA-group policy] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Update the Admin/TA group management policy
+router.patch('/:id/ta-group-policy', ensureAuthenticated, async (req, res) => {
+  const { taGroupPolicy } = req.body;
+  const valid = ['full', 'none'];
+  if (!valid.includes(taGroupPolicy)) {
+    return res.status(400).json({ error: 'Invalid policy value' });
+  }
+  try {
+    const classroom = await Classroom.findById(req.params.id);
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+    if (String(classroom.teacher) !== String(req.user._id)) {
+      return res.status(403).json({ error: 'Only the teacher can change this policy' });
+    }
+    classroom.taGroupPolicy = taGroupPolicy;
+    await classroom.save();
+    res.json({ taGroupPolicy });
+  } catch (err) {
+    console.error('[Patch TA-group policy] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get the Admin/TA feedback moderation policy
+router.get('/:id/ta-feedback-policy', ensureAuthenticated, async (req, res) => {
+  try {
+    const classroom = await Classroom.findById(req.params.id).select('teacher taFeedbackPolicy');
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+    if (String(classroom.teacher) !== String(req.user._id)) {
+      return res.status(403).json({ error: 'Only the teacher can view this policy' });
+    }
+    res.json({ taFeedbackPolicy: classroom.taFeedbackPolicy || 'none' });
+  } catch (err) {
+    console.error('[Get TA-feedback policy] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Update the Admin/TA feedback moderation policy
+router.patch('/:id/ta-feedback-policy', ensureAuthenticated, async (req, res) => {
+  const { taFeedbackPolicy } = req.body;
+  const valid = ['full', 'none'];
+  if (!valid.includes(taFeedbackPolicy)) {
+    return res.status(400).json({ error: 'Invalid policy value' });
+  }
+  try {
+    const classroom = await Classroom.findById(req.params.id);
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+    if (String(classroom.teacher) !== String(req.user._id)) {
+      return res.status(403).json({ error: 'Only the teacher can change this policy' });
+    }
+    classroom.taFeedbackPolicy = taFeedbackPolicy;
+    await classroom.save();
+    res.json({ taFeedbackPolicy });
+  } catch (err) {
+    console.error('[Patch TA-feedback policy] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 
 // GET route to retrieve whether students can send items in a specific classroom.
 // Only the teacher of the classroom is allowed to access this setting.

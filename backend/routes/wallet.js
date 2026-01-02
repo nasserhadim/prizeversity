@@ -379,22 +379,20 @@ res.status(200).json({
 
 // Bulk assign balances to mulitpler students
 router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
-  const { classroomId, updates, applyGroupMultipliers = true, applyPersonalMultipliers = true } = req.body;
-  const customDescription = req.body.description;
-
-  if (!classroomId) {
-    return res.status(400).json({ success: false, error: 'classroomId is required' });
-  }
-
+  const { classroomId, updates, customDescription, applyGroupMultipliers = true, applyPersonalMultipliers = true } = req.body;
+  
   const isTeacher = req.user.role === 'teacher';
-  const isTAInClass = await isClassroomAdmin(req.user, classroomId);
+  const isTAInClass = classroomId ? await isClassroomAdmin(req.user, classroomId) : false;
 
-  // CHANGED: allow classroom-scoped Admin/TA instead of global role === 'admin'
   if (!isTeacher && !isTAInClass) {
-    return res.status(403).json({ success: false, error: 'Forbidden' });
+    return res.status(403).json({ error: 'Forbidden' });
   }
 
-  // CHANGED: policy gating for classroom-scoped Admin/TA
+  // MOVED: Define attribution variables BEFORE they're used
+  const roleLabel = (isTeacher ? 'Teacher' : 'Admin/TA');
+  const userName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email;
+  const attribution = `Adjustment by ${roleLabel} (${userName})`;
+
   if (isTAInClass && !isTeacher) {
     const gate = await canTAAssignBits({ taUser: req.user, classroomId });
     if (!gate.ok) {
@@ -412,7 +410,7 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
             classroom: classroomId,
             student: upd.studentId,
             amount: Number(upd.amount),
-            description: pendingDesc, // CHANGED (was customDescription)
+            description: pendingDesc,
             requestedBy: req.user._id,
           });
         }
@@ -430,14 +428,9 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
 
         return res.status(202).json({ message: 'Request queued for teacher approval' });
       }
-      return res.status(gate.status || 403).json({ error: gate.msg || 'Forbidden' });
+      return res.status(gate.status).json({ error: gate.msg });
     }
   }
-
-  // attribution label should reflect classroom-TA too
-  const roleLabel = (isTeacher ? 'Teacher' : 'Admin/TA');
-  const userName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email;
-  const attribution = `Adjustment by ${roleLabel} (${userName})`;
 
   const description = customDescription
     ? `${String(customDescription).trim()} (${attribution})`

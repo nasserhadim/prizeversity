@@ -517,7 +517,22 @@ router.get('/classroom/:id', async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const perPage = Math.max(1, parseInt(req.query.perPage) || 10);
-    const includeHidden = req.query.includeHidden === 'true' && req.user && (req.user.role === 'teacher' || req.user.role === 'admin');
+    
+    // FIXED: rename local variable to avoid collision with imported function
+    let includeHidden = false;
+    if (req.user) {
+      const isGlobalAdmin = req.user.role === 'admin';
+      const isTeacher = req.user.role === 'teacher';
+      
+      // Check if user is classroom admin AND teacher allows feedback moderation
+      let userCanModerate = false;
+      if (await isClassroomAdmin(req.user, req.params.id)) {
+        const classroom = await Classroom.findById(req.params.id).select('taFeedbackPolicy');
+        userCanModerate = classroom && classroom.taFeedbackPolicy === 'full';
+      }
+      
+      includeHidden = isGlobalAdmin || isTeacher || userCanModerate;
+    }
 
     const filter = { classroom: req.params.id };
     if (!includeHidden) filter.hidden = { $ne: true };
@@ -614,29 +629,60 @@ router.post('/:id/report', ensureAuthenticated, async (req, res) => {
         }
       }
     } else {
-      // classroom report: existing teacher notification flow (unchanged)
-      const classroom = await Classroom.findById(feedback.classroom).populate('teacher', 'email firstName lastName');
-      if (classroom && classroom.teacher) {
-        const teacher = classroom.teacher;
-        if (Notification) {
-          const created = await Notification.create({
-            user: teacher._id,
-            type: 'feedback_report',
-            message: `A feedback in "${classroom.name}" was reported.`,
-            feedback: feedback._id,
-            classroom: classroom._id,
-            createdAt: new Date(),
-            actionBy: req.user ? req.user._id : undefined
-          });
-          try {
-            const populated = await populateNotification(created._id);
-            const io = req.app.get('io');
-            if (io) {
-              io.to(`user-${classroom.teacher._id}`).emit('notification', populated);
-              io.to(`user-${classroom.teacher._id}`).emit('feedback_report', populated);
+      // classroom report: notify teacher AND classroom-scoped Admin/TAs
+      const classroom = await Classroom.findById(feedback.classroom)
+        .populate('teacher', 'email firstName lastName')
+        .populate('admins', 'email firstName lastName'); // ADD: populate admins
+      
+      if (classroom) {
+        const recipients = [classroom.teacher];
+        // ADD: include classroom admins
+        if (Array.isArray(classroom.admins)) {
+          recipients.push(...classroom.admins);
+        }
+
+        for (const recipient of recipients) {
+          if (!recipient || !recipient._id) continue;
+          
+          if (Notification) {
+            const created = await Notification.create({
+              user: recipient._id,
+              type: 'feedback_report',
+              message: `A feedback in "${classroom.name}" was reported.`,
+              feedback: feedback._id,
+              classroom: classroom._id,
+              createdAt: new Date(),
+              actionBy: req.user ? req.user._id : undefined
+            });
+            try {
+              const populated = await populateNotification(created._id);
+              const io = req.app.get('io');
+              if (io) {
+                io.to(`user-${recipient._id}`).emit('notification', populated);
+                io.to(`user-${recipient._id}`).emit('feedback_report', populated);
+              }
+            } catch (emitErr) {
+              console.error('Failed to emit notification:', emitErr);
             }
-          } catch (emitErr) {
-            console.error('Failed to emit teacher notification:', emitErr);
+          }
+
+          // Send email notification
+          if (recipient.email && typeof sendEmail === 'function') {
+            try {
+              const subject = `[Prizeversity] Classroom feedback reported`;
+              const html = `
+                <p>Hi ${recipient.firstName || 'there'},</p>
+                <p>A feedback in classroom "${classroom.name}" was reported.</p>
+                <p><strong>Reason:</strong> ${reason || '(no reason provided)'}</p>
+                <p><strong>Reporter:</strong> ${bodyEmail || req.user?.email || 'Anonymous'}</p>
+                <p><a href="${process.env.REDIRECT_BASE || ''}/classroom/${classroom._id}/feedback">View classroom feedback</a></p>
+                <hr/>
+                <p>This is an automated notification from Prizeversity.</p>
+              `;
+              await sendEmail({ to: recipient.email, subject, html });
+            } catch (emailErr) {
+              console.error('Failed sending email:', emailErr);
+            }
           }
         }
       }
@@ -714,10 +760,16 @@ router.post('/:id/respond', ensureAuthenticated, async (req, res) => {
       if (req.user.role !== 'admin') return res.status(403).json({ error: 'Only admins can respond to site feedback' });
     } else {
       const classroomId = feedback.classroom;
-      const classroom = await Classroom.findById(classroomId).select('teacher');
+      const classroom = await Classroom.findById(classroomId).select('teacher taFeedbackPolicy');
       const isTeacherOfClass = classroom && String(classroom.teacher) === String(req.user._id);
-      const isClassAdmin = await isClassroomAdmin(req.user, classroomId);
-      if (!isTeacherOfClass && !isClassAdmin) return res.status(403).json({ error: 'Only the classroom teacher or classroom-scoped Admin/TA can respond' });
+      
+      // Check if user is classroom admin AND teacher allows feedback moderation
+      let userCanModerate = false;
+      if (await isClassroomAdmin(req.user, classroomId)) {
+        userCanModerate = classroom && classroom.taFeedbackPolicy === 'full';
+      }
+      
+      if (!isTeacherOfClass && !userCanModerate) return res.status(403).json({ error: 'Only the classroom teacher or classroom-scoped Admin/TA can respond' });
     }
 
     const log = await ModerationLog.create({
@@ -776,10 +828,19 @@ router.get('/moderation-log', ensureAuthenticated, async (req, res) => {
 
     // permission checks
     if (classroomId) {
-      const classroom = await Classroom.findById(classroomId).select('teacher');
+      const classroom = await Classroom.findById(classroomId).select('teacher admins taFeedbackPolicy');
       if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
       const isTeacher = String(classroom.teacher) === String(req.user._id);
-      if (!isTeacher && req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+      
+      // Check if user is classroom admin AND teacher allows feedback moderation
+      let userCanModerate = false;
+      if (await isClassroomAdmin(req.user, classroomId)) {
+        userCanModerate = classroom.taFeedbackPolicy === 'full';
+      }
+      
+      if (!isTeacher && !userCanModerate && req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
     } else {
       if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admins only' });
     }
@@ -821,10 +882,16 @@ router.patch('/:id/hide', ensureAuthenticated, async (req, res) => {
     } else {
       // classroom feedback => classroom teacher or classroom-scoped admin/TA
       const classroomId = feedback.classroom;
-      const classroom = await Classroom.findById(classroomId).select('teacher');
+      const classroom = await Classroom.findById(classroomId).select('teacher taFeedbackPolicy');
       const isTeacher = classroom && String(classroom.teacher) === String(req.user._id);
-      const isClassAdmin = await isClassroomAdmin(req.user, classroomId);
-      if (!isTeacher && !isClassAdmin) return res.status(403).json({ error: 'Only the classroom teacher or classroom-scoped Admin/TA can change visibility' });
+      
+      // Check if user is classroom admin AND teacher allows feedback moderation
+      let userCanModerate = false;
+      if (await isClassroomAdmin(req.user, classroomId)) {
+        userCanModerate = classroom && classroom.taFeedbackPolicy === 'full';
+      }
+      
+      if (!isTeacher && !userCanModerate) return res.status(403).json({ error: 'Only the classroom teacher or classroom-scoped Admin/TA can change visibility' });
     }
 
     feedback.hidden = !!hide;
@@ -846,9 +913,17 @@ router.patch('/:id/hide', ensureAuthenticated, async (req, res) => {
       if (io) {
         if (feedback.classroom) {
           io.to(`classroom-${feedback.classroom}`).emit('moderation_log_updated', populatedLog);
-          const classroom = await Classroom.findById(feedback.classroom);
-          if (classroom?.teacher) {
-            io.to(`user-${classroom.teacher}`).emit('moderation_log_updated', populatedLog);
+          const classroom = await Classroom.findById(feedback.classroom).select('teacher admins');
+          if (classroom) {
+            if (classroom.teacher) {
+              io.to(`user-${classroom.teacher}`).emit('moderation_log_updated', populatedLog);
+            }
+            // ADD: notify classroom admins
+            if (Array.isArray(classroom.admins)) {
+              for (const adminId of classroom.admins) {
+                io.to(`user-${adminId}`).emit('moderation_log_updated', populatedLog);
+              }
+            }
           }
         } else {
           const admins = await User.find({ role: 'admin' }).select('_id');
@@ -880,10 +955,25 @@ router.patch('/:id/hide', ensureAuthenticated, async (req, res) => {
         if (feedback.classroom) {
           io.to(`classroom-${feedback.classroom}`).emit('feedback_visibility_changed', { feedbackId: feedback._id, hidden: feedback.hidden });
           io.to(`classroom-${feedback.classroom}`).emit('feedback_updated', feedback);
+          
+          // ALSO notify teacher and classroom admins directly
+          const classroom = await Classroom.findById(feedback.classroom).select('teacher admins');
+          if (classroom) {
+            if (classroom.teacher) {
+              io.to(`user-${classroom.teacher}`).emit('feedback_visibility_changed', { feedbackId: feedback._id, hidden: feedback.hidden });
+              io.to(`user-${classroom.teacher}`).emit('feedback_updated', feedback);
+            }
+            if (Array.isArray(classroom.admins)) {
+              for (const adminId of classroom.admins) {
+                io.to(`user-${adminId}`).emit('feedback_visibility_changed', { feedbackId: feedback._id, hidden: feedback.hidden });
+                io.to(`user-${adminId}`).emit('feedback_updated', feedback);
+              }
+            }
+          }
         } else {
           const admins = await User.find({ role: 'admin' }).select('_id');
           for (const a of admins) {
-            io.to(`user-${a._1d}`).emit('feedback_visibility_changed', { feedbackId: feedback._id, hidden: feedback.hidden });
+            io.to(`user-${a._id}`).emit('feedback_visibility_changed', { feedbackId: feedback._id, hidden: feedback.hidden });
             io.to(`user-${a._id}`).emit('feedback_updated', feedback);
           }
         }

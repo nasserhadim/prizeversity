@@ -207,6 +207,8 @@ const People = () => {
   const [statSearch, setStatSearch] = useState('');
   const [statSort, setStatSort] = useState('desc'); // 'desc' | 'asc'
   const [taBitPolicy, setTaBitPolicy] = useState('full');
+  const [taGroupPolicy, setTaGroupPolicy] = useState('none'); // NEW
+  const [taFeedbackPolicy, setTaFeedbackPolicy] = useState('none'); // NEW
   const [studentsCanViewStats, setStudentsCanViewStats] = useState(true);
 
   // NEW: Settings sub-tabs + pending count badge
@@ -402,6 +404,34 @@ const People = () => {
     }
   };
 
+  // NEW: fetch Admin/TA group management policy
+  const fetchTaGroupPolicy = async () => {
+    try {
+      const res = await axios.get(
+        `/api/classroom/${classroomId}/ta-group-policy`,
+        { withCredentials: true }
+      );
+      setTaGroupPolicy(res.data.taGroupPolicy || 'none');
+    } catch (err) {
+      // endpoint is teacher-only; default safely
+      setTaGroupPolicy('none');
+    }
+  };
+
+  // NEW: fetch Admin/TA feedback moderation policy
+  const fetchTaFeedbackPolicy = async () => {
+    try {
+      const res = await axios.get(
+        `/api/classroom/${classroomId}/ta-feedback-policy`,
+        { withCredentials: true }
+      );
+      setTaFeedbackPolicy(res.data.taFeedbackPolicy || 'none');
+    } catch (err) {
+      // endpoint is teacher-only; default safely
+      setTaFeedbackPolicy('none');
+    }
+  };
+
   // Add function to fetch the students can view stats setting
   const fetchStudentsCanViewStatsSetting = async () => {
     try {
@@ -446,6 +476,8 @@ const People = () => {
     fetchStudents();
     fetchGroupSets();
     fetchTaBitPolicy();
+    fetchTaGroupPolicy(); // NEW
+    fetchTaFeedbackPolicy(); // NEW
     fetchSiphonTimeout();
     fetchStatChanges();
 
@@ -1433,6 +1465,73 @@ const visibleCount = filteredStudents.length;
                     <span className="label-text-alt">
                       Controls whether Admin/TAs can assign bits to students and adjust group balances directly or need
                       teacher approval
+                    </span>
+                  </div>
+                </label>
+
+                {/* NEW: Admin/TA group management */}
+                <label className="form-control w-full">
+                  <span className="label-text mb-2 font-medium">Admin/TA group management</span>
+
+                  <select
+                    className="select select-bordered w-full"
+                    value={taGroupPolicy ?? 'none'}
+                    onChange={async (e) => {
+                      const newPolicy = e.target.value;
+                      try {
+                        await axios.patch(
+                          `/api/classroom/${classroomId}/ta-group-policy`,
+                          { taGroupPolicy: newPolicy },
+                          { withCredentials: true }
+                        );
+                        toast.success('Updated Admin/TA group management policy');
+                        setTaGroupPolicy(newPolicy);
+                      } catch (err) {
+                        toast.error(err.response?.data?.error || 'Failed to update policy');
+                      }
+                    }}
+                  >
+                    <option value="full">Enabled (Admin/TA can manage groups)</option>
+                    <option value="none">Disabled (teacher only)</option>
+                  </select>
+
+                  <div className="label">
+                    <span className="label-text-alt">
+                      Controls whether classroom Admin/TAs can add/edit/delete GroupSets/Groups, approve/reject/suspend members, and modify GroupSet/Group multipliers.
+                      (Group Adjust remains controlled by the Admin/TA bit policy.)
+                    </span>
+                  </div>
+                </label>
+
+                {/* NEW: Admin/TA feedback moderation */}
+                <label className="form-control w-full">
+                  <span className="label-text mb-2 font-medium">Admin/TA feedback moderation</span>
+
+                  <select
+                    className="select select-bordered w-full"
+                    value={taFeedbackPolicy ?? 'none'}
+                    onChange={async (e) => {
+                      const newPolicy = e.target.value;
+                      try {
+                        await axios.patch(
+                          `/api/classroom/${classroomId}/ta-feedback-policy`,
+                          { taFeedbackPolicy: newPolicy },
+                          { withCredentials: true }
+                        );
+                        toast.success('Updated Admin/TA feedback moderation policy');
+                        setTaFeedbackPolicy(newPolicy);
+                      } catch (err) {
+                        toast.error(err.response?.data?.error || 'Failed to update policy');
+                      }
+                    }}
+                  >
+                    <option value="full">Enabled (Admin/TA can moderate feedback)</option>
+                    <option value="none">Disabled (teacher only)</option>
+                  </select>
+
+                  <div className="label">
+                    <span className="label-text-alt">
+                      Controls whether classroom Admin/TAs can view hidden feedback, access moderation logs, hide/unhide feedback, and respond to reports.
                     </span>
                   </div>
                 </label>
