@@ -553,19 +553,24 @@ router.get('/:id', ensureAuthenticated, async (req, res) => {
     // Ensure a canonical banLog is present (backend historically used banLog or bannedRecords)
     const classroomObj = classroom && classroom.toObject ? classroom.toObject() : classroom;
     classroomObj.banLog = classroomObj.banLog || classroomObj.bannedRecords || [];
-    console.log('Fetched classroom banLog:', classroomObj.banLog);
 
-    // Sanitize banLog for non-privileged viewers: remove the 'reason' field for students/others
-    if (!['teacher', 'admin'].includes(req.user.role)) {
-      classroomObj.banLog = (classroomObj.banLog || []).map(br => {
-        return {
-          user: br.user,
-          bannedAt: br.bannedAt
-          // intentionally omit `reason`
-        };
-      });
+    // NEW: allow classroom-scoped Admin/TA to see ban reasons too
+    const isTAInClass = await isClassroomAdmin(req.user, classroom._id);
+    const canSeeBanReasons =
+      req.user.role === 'admin' ||
+      (req.user.role === 'teacher' && isTeacherUser) ||
+      isTAInClass;
+
+    // Sanitize banLog for non-privileged viewers: remove the 'reason' field
+    if (!canSeeBanReasons) {
+      classroomObj.banLog = (classroomObj.banLog || []).map(br => ({
+        user: br.user,
+        bannedAt: br.bannedAt
+        // intentionally omit `reason`
+      }));
     }
-    res.status(200).json(classroomObj);
+
+    return res.status(200).json(classroomObj);
   } catch (err) {
     console.error('[Fetch Classroom] error:', err);
     res.status(500).json({ error: 'Failed to fetch classroom' });
