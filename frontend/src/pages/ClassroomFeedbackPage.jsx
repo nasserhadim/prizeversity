@@ -36,11 +36,14 @@ const ClassroomFeedbackPage = ({ userId }) => {
   const [total, setTotal] = useState(null);
   // classroom-scoped admin detection (based on annotated student list)
   const [students, setStudents] = useState([]);
+  // NEW: respect taFeedbackPolicy when determining if user can moderate
   const isClassroomAdmin = React.useMemo(() => {
     if (!user || !Array.isArray(students)) return false;
     const me = students.find(s => String(s._id) === String(user._id));
-    return Boolean(me && me.isClassroomAdmin);
-  }, [user?._id, students]);
+    const isAdmin = Boolean(me && me.isClassroomAdmin);
+    // Only return true if user is admin AND classroom allows feedback moderation
+    return isAdmin && classroom?.taFeedbackPolicy === 'full';
+  }, [user?._id, students, classroom?.taFeedbackPolicy]);
   // --- NEW: feedback reward config (teacher-only) ---
   const [feedbackRewardConfig, setFeedbackRewardConfig] = useState({
     feedbackRewardEnabled: false,

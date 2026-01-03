@@ -27,7 +27,9 @@ router.get('/:classroomId', ensureAuthenticated, async (req, res) => {
 
 // A PATCH ROUTE to approve a pending assignment
 router.patch('/:id/approve', ensureAuthenticated, async (req, res) => {
-  const pa = await PendingAssignment.findById(req.params.id).populate('student', 'firstName lastName email');
+  const pa = await PendingAssignment.findById(req.params.id)
+    .populate('student', 'firstName lastName email')
+    .populate('requestedBy', 'firstName lastName email role'); // ADD: populate requestedBy for attribution
   if (!pa) return res.status(404).json({ error: 'Not found' });
 
   // Will ensure the requester is the teacher of the classroom
@@ -36,9 +38,9 @@ router.patch('/:id/approve', ensureAuthenticated, async (req, res) => {
     return res.status(403).json({ error: 'Forbidden' });
   }
 
-
   // Update the student's balance and add a transaction
   const User = require('../models/User');
+  // FIXED: Include shortId in select, or remove select entirely
   const student = await User.findById(pa.student);
 
   // Use per-classroom balance when approving pending assignment
@@ -56,23 +58,36 @@ router.patch('/:id/approve', ensureAuthenticated, async (req, res) => {
     student.classroomBalances.push({ classroom: pa.classroom, balance: newBalance });
   }
 
-  // push transaction (include classroom)
-  const safeDesc = (d, fallback) => {
-    const t = String(d || '').trim();
-    return t ? t : fallback;
-  };
+  // CHANGED: create detailed transaction matching direct adjustment format
+  const taName = `${pa.requestedBy.firstName || ''} ${pa.requestedBy.lastName || ''}`.trim() || pa.requestedBy.email;
+  const baseDesc = (pa.description && String(pa.description).trim()) 
+    ? String(pa.description).trim() 
+    : 'Balance adjustment';
+  
+  // Extract custom description if it was stored with attribution
+  // (handle both "desc by Admin/TA (name)" and plain "desc" formats)
+  const descParts = baseDesc.match(/^(.+?)\s+by\s+Admin\/TA\s+\(.+?\)$/i);
+  const customPart = descParts ? descParts[1] : baseDesc;
 
   student.transactions.push({
     amount: pa.amount,
-    description: safeDesc(pa.description, 'Balance adjustment'), // CHANGED (avoid '')
-    assignedBy: req.user._id,
+    description: `${customPart} by Admin/TA (${taName})`,
+    assignedBy: req.user._id, // teacher who approved
     classroom: pa.classroom,
-    createdAt: new Date()
+    createdAt: new Date(),
+    // ADD: calculation object for consistency (multipliers were not applied during approval flow)
+    calculation: pa.amount >= 0 ? {
+      baseAmount: pa.amount,
+      personalMultiplier: 1,
+      groupMultiplier: 1,
+      totalMultiplier: 1,
+      note: 'Admin/TA adjustment (approved by teacher)'
+    } : undefined
   });
 
   await student.save();
 
-  // Mark the pending asignment as approved
+  // Mark the pending assignment as approved
   pa.status = 'approved';
   pa.respondedBy = req.user._id;
   pa.respondedAt = new Date();

@@ -45,6 +45,15 @@ const Groups = () => {
   const [classroom, setClassroom] = useState(null);
   const [allStudents, setAllStudents] = useState([]);
   const isClassroomAdmin = userIsClassroomAdmin({ user, classroom, allStudents });
+
+  const taGroupPolicy = classroom?.taGroupPolicy ?? 'none';
+  const canTAGroupManage = Boolean(isClassroomAdmin && taGroupPolicy === 'full');
+  const canManageGroups = user?.role === 'teacher' || canTAGroupManage;
+  const canModerateMembers = canManageGroups;
+
+  const taBitPolicy = classroom?.taBitPolicy ?? 'full';
+  const canAdjustBalances = user?.role === 'teacher' || (isClassroomAdmin && taBitPolicy !== 'none');
+  
   const [addMemberModal, setAddMemberModal] = useState(null); // { groupId, groupSetId }
   const [selectedStudent, setSelectedStudent] = useState(''); // student id for the add dropdown
   const [addMemberSearch, setAddMemberSearch] = useState('');
@@ -917,7 +926,7 @@ const Groups = () => {
         </h1>
 
         {/* Teacher controls */}
-        {(user.role === 'teacher' || user.role === 'admin') && (
+        {(user.role === 'teacher' || canManageGroups) && (
           <div role="tablist" className="tabs tabs-boxed mb-6">
             <a
               role="tab"
@@ -937,7 +946,7 @@ const Groups = () => {
         )}
 
         {/* Create Group Set Form */}
-        {(user.role === 'teacher' || user.role === 'admin') && activeTab === 'create' && !showEditGroupSetModal && (
+        {(user.role === 'teacher' || canManageGroups) && activeTab === 'create' && !showEditGroupSetModal && (
           <div className="card bg-base-100 shadow-md p-4 space-y-4 mb-6">
             <h2 className="text-xl font-semibold">Create Group Set</h2>
             <input
@@ -1082,7 +1091,7 @@ const Groups = () => {
         {/* Group Sets List */}
         {activeTab === 'list' && (
           <>
-            {(user.role === 'teacher' || user.role === 'admin') && groupSets.length > 0 && (
+            {(user.role === 'teacher' || canManageGroups) && groupSets.length > 0 && (
               <div className="flex flex-wrap items-center gap-3 mb-4">
                 <label className="flex items-center gap-2 w-full sm:w-auto">
                   <input
@@ -1135,7 +1144,7 @@ const Groups = () => {
                         alt={gs.name}
                         className="w-16 h-16 object-cover rounded border"
                       />
-                      {(user.role === 'teacher' || user.role === 'admin') && (
+                      {(user.role === 'teacher' || canManageGroups) && (
                         <input
                           type="checkbox"
                           className="checkbox checkbox-sm absolute -top-2 -left-2 bg-white"
@@ -1160,7 +1169,7 @@ const Groups = () => {
                     </div>
                   </div>
                   
-                  {(user.role === 'teacher' || user.role === 'admin') && (
+                  {(user.role === 'teacher' || canManageGroups) && (
                     <div className="flex gap-2">
                       <button className="btn btn-sm btn-info" onClick={() => handleEditGroupSet(gs)}>Edit</button>
                       <button className="btn btn-sm btn-error" onClick={() => setConfirmDeleteGroupSet(gs)}>Delete</button>
@@ -1169,7 +1178,7 @@ const Groups = () => {
                 </div>
 
                 {/* Create Group */}
-                {(user.role === 'teacher' || user.role === 'admin') && (
+                {(user.role === 'teacher' || canManageGroups) && (
                   <div>
                     <h4 className="text-md font-semibold">Create group</h4>
                     <input
@@ -1194,7 +1203,7 @@ const Groups = () => {
                 )}
 
                 {/* Bulk Actions for Groups */}
-                {(user.role === 'teacher' || user.role === 'admin') && selectedGroups[gs._id]?.length > 0 && (
+                {(user.role === 'teacher' || canManageGroups) && selectedGroups[gs._id]?.length > 0 && (
                   <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium">
@@ -1217,7 +1226,7 @@ const Groups = () => {
                 )}
 
                 {/* Select All Groups Checkbox */}
-                {(user.role === 'teacher' || user.role === 'admin') && gs.groups.length > 0 && (
+                {(user.role === 'teacher' || canManageGroups) && gs.groups.length > 0 && (
                   <div className="mb-3">
                     <label className="flex items-center gap-2 text-sm font-medium">
                       <input
@@ -1237,7 +1246,7 @@ const Groups = () => {
                     <div className="flex justify-between items-start">
                       <div className="flex items-start gap-3">
                         {/* Group Selection Checkbox */}
-                        {(user.role === 'teacher' || user.role === 'admin') && (
+                        {(user.role === 'teacher' || canManageGroups) && (
                           <input
                             type="checkbox"
                             className="checkbox checkbox-sm mt-1"
@@ -1260,7 +1269,7 @@ const Groups = () => {
                         </div>
                       </div>
                       
-                      {(user.role === 'teacher' || isClassroomAdmin) && (
+                      {(user.role === 'teacher' || canManageGroups) && (
                         <GroupMultiplierControl 
                           group={group} 
                           groupSetId={gs._id}
@@ -1357,27 +1366,34 @@ const Groups = () => {
                         );
                       })()}
 
-                      {(user.role === 'teacher' || isClassroomAdmin) && (
+                      {(user.role === 'teacher' || canManageGroups) && (
                         <>
-                          <button className="btn btn-xs btn-primary" onClick={() => { setAddMemberModal({ groupId: group._id, groupSetId: gs._id }); setSelectedStudent(''); }}>Add Member</button>
+                          <button className="btn btn-xs btn-primary" onClick={() => { setAddMemberModal({ groupId: group._id, groupSetId: gs._id }); setSelectedStudent(''); }}>
+                            Add Member
+                          </button>
                           <button className="btn btn-xs btn-info" onClick={() => openEditGroupModal(gs._id, group._id, group.name, group.maxMembers)}>Edit</button>
-                          <button className="btn btn-xs btn-error" onClick={() =>
-                            setConfirmDeleteGroup({
-                              groupId: group._id,
-                              groupSetId: gs._id,
-                              groupName: group.name,
-                            })
-                          }>Delete</button>
+                          <button className="btn btn-xs btn-error" onClick={() => setConfirmDeleteGroup({ groupId: group._id, groupSetId: gs._id, groupName: group.name })}>
+                            Delete
+                          </button>
                           <button className="btn btn-xs btn-warning" onClick={() => setOpenSiphonModal(group)}>Siphon</button>
-                          <button className="btn btn-xs btn-success" onClick={() => openAdjustModal(gs._id, group._id)}>Adjust</button>
                         </>
+                      )}
+
+                      {/* Adjust should depend on bit-adjust permission, not group-management permission */}
+                      {canAdjustBalances && (
+                        <button
+                          className="btn btn-xs btn-success"
+                          onClick={() => openAdjustModal(gs._id, group._id)}
+                        >
+                          Adjust
+                        </button>
                       )}
                     </div>
 
                     {/* Siphon requests - Only show to group members, teachers, and admins */}
                     {group.siphonRequests?.length > 0 && (
                       user.role === 'teacher' || 
-                      user.role === 'admin' || 
+                      canManageGroups || 
                       group.members.some(m => m._id && m._id._id === user._id && m.status === 'approved')
                     ) && (
                       <div className="mt-4">
@@ -1400,7 +1416,7 @@ const Groups = () => {
                             const timeRemainingStr = msRemaining == null ? null : formatMs(msRemaining);
                             
                             const pct = r.requestedPercent ?? r.requestedPercentage ?? r.percentage ?? null;
-                            const isPrivileged = user.role === 'teacher' || user.role === 'admin';
+                            const isPrivileged = user.role === 'teacher' || canManageGroups;
                             const targetName =
                               `${r.targetUser?.firstName || ''} ${r.targetUser?.lastName || ''}`.trim() ||
                               r.targetUser?.email || 'Unknown';
@@ -1559,7 +1575,7 @@ const Groups = () => {
 
                                         const canSeeSiphoned = isSiphoned && (
                                           user.role === 'teacher' ||
-                                          user.role === 'admin' ||
+                                          canManageGroups ||
                                           viewerIsGroupMember
                                         );
 
@@ -1582,7 +1598,7 @@ const Groups = () => {
                                       ) && (
                                         // Only show frozen icon to group members, teachers, and admins
                                         (user.role === 'teacher' || 
-                                         user.role === 'admin' || 
+                                         canManageGroups || 
                                          group.members.some(m => m._id && m._id._id === user._id && m.status === 'approved')
                                         ) && (
                                           <div className="tooltip" data-tip="Account frozen due to siphon request">
@@ -1604,7 +1620,7 @@ const Groups = () => {
                         </table>
                       </div>
 
-                      {(user.role === 'teacher' || user.role === 'admin') && (
+                      {(user.role === 'teacher' || canManageGroups) && (
                         <div className="mt-2 flex gap-2">
                           <button className="btn btn-xs btn-success" disabled={!selectedMembers[group._id]?.length} onClick={() => handleApproveMembers(gs._id, group._id)}>Approve</button>
                           <button className="btn btn-xs btn-error" disabled={!selectedMembers[group._id]?.length} onClick={() => handleRejectMembers(gs._id, group._id)}>Reject</button>
@@ -1715,7 +1731,7 @@ const Groups = () => {
                   <img src={resolveGroupSetSrc(groupSetImage)} alt="Preview" className="w-28 h-28 object-cover rounded border" />
                 ) : (
                   <img src="/images/groupset-placeholder.svg" alt="Preview" className="w-28 h-28 object-cover rounded border" />
-                )}
+                               )}
               </div>
 
               {/* Remove button only when current image is not placeholder */}

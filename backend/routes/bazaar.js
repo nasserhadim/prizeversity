@@ -666,7 +666,10 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
       return res.status(400).json({ error: 'Invalid checkout data or missing classroomId' });
     }
 
-    const user = await User.findById(userId).select('balance classroomBalances classroomFrozen transactions');
+    const user = await User.findById(userId)
+      // IMPORTANT: include shortId if we will call `user.save()` later,
+      // otherwise pre-validate may generate a new shortId and the immutability hook will throw.
+      .select('balance classroomBalances classroomFrozen transactions shortId');
     if (!user) {
       console.error("User not found:", userId);
       return res.status(404).json({ error: 'User not found' });

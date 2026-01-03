@@ -578,10 +578,6 @@ router.delete('/groupset/:groupSetId/group/:groupId', ensureAuthenticated, async
 
 // Add members to a group (Teacher/Admin action)
 router.post('/groupset/:groupSetId/group/:groupId/add-members', ensureAuthenticated, async (req, res) => {
-  if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
-    return res.status(403).json({ error: 'Only teachers or admins can add members. If you are an Admin/TA, please ensure you have the necessary permissions.' });
-  }
-
   const { memberIds } = req.body;
   if (!memberIds || !Array.isArray(memberIds) || memberIds.length === 0) {
     return res.status(400).json({ error: 'Member IDs are required.' });

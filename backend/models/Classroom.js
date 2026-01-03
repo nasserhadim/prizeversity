@@ -32,6 +32,28 @@ const ClassroomSchema = new mongoose.Schema({
     enum: ['full', 'approval', 'none'],
     default: 'full',
   },
+
+  // NEW: controls whether classroom-scoped Admin/TAs can manage groups (add/edit/delete/moderate/siphon)
+  taGroupPolicy: {
+    type: String,
+    enum: ['full', 'none'],
+    default: 'none',
+  },
+
+  // NEW: controls whether classroom-scoped Admin/TAs can moderate feedback
+  taFeedbackPolicy: {
+    type: String,
+    enum: ['full', 'none'],
+    default: 'none',
+  },
+
+  // NEW: controls whether classroom-scoped Admin/TAs can adjust student stats
+  taStatsPolicy: {
+    type: String,
+    enum: ['full', 'none'],
+    default: 'none',
+  },
+
   siphonTimeoutHours: {
     type: Number,
     default: 72,

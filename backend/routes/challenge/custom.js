@@ -668,7 +668,7 @@ router.post('/:classroomId/custom/:challengeId/verify', ensureAuthenticated, asy
       if (parts.length) {
         const io = getIO();
         const title = customChallenge?.title || 'Custom Challenge';
-        const effectsText = `You earned stat boosts from ${title}: ${parts.join('; ')}.`;
+        const effectsText = `Earned stat boosts from custom challenge ${title}: ${parts.join('; ')}.`;
 
         await logStatChanges({
           io,

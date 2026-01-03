@@ -199,7 +199,7 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
     // 1. Notify student about their new stats
     Notification.create({
       user: user._id,
-      actionBy: challenge.createdBy,
+      actionBy: null, // Changed from challenge.createdBy
       type: 'stats_adjusted',
       message: studentMessage,
       classroom: classroomId,
