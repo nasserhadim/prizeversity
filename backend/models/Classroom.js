@@ -47,6 +47,13 @@ const ClassroomSchema = new mongoose.Schema({
     default: 'none',
   },
 
+  // NEW: controls whether classroom-scoped Admin/TAs can adjust student stats
+  taStatsPolicy: {
+    type: String,
+    enum: ['full', 'none'],
+    default: 'none',
+  },
+
   siphonTimeoutHours: {
     type: Number,
     default: 72,

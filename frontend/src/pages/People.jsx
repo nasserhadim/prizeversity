@@ -209,6 +209,7 @@ const People = () => {
   const [taBitPolicy, setTaBitPolicy] = useState('full');
   const [taGroupPolicy, setTaGroupPolicy] = useState('none'); // NEW
   const [taFeedbackPolicy, setTaFeedbackPolicy] = useState('none'); // NEW
+  const [taStatsPolicy, setTaStatsPolicy] = useState('none'); // NEW
   const [studentsCanViewStats, setStudentsCanViewStats] = useState(true);
 
   // NEW: Settings sub-tabs + pending count badge
@@ -287,6 +288,14 @@ const People = () => {
   const isTeacher = String(classroom?.teacher?._id || classroom?.teacher || '') === String(user?._id);
   const studentViewOnly = !isTeacher && !isClassroomAdmin && isMemberStudent;
 
+  // NEW: compute if viewer can adjust stats (teacher OR Admin/TA with permission)
+  const canAdjustStats = React.useMemo(() => {
+    if (!user || !classroomId) return false;
+    if (isTeacher) return true;
+    if (isClassroomAdmin && taStatsPolicy === 'full') return true;
+    return false;
+  }, [user?._id, isTeacher, isClassroomAdmin, taStatsPolicy]);
+
   // Map of studentId -> total spent (number)
   const [totalSpentMap, setTotalSpentMap] = useState({});
   // per-student cached stats and loading flag
@@ -356,7 +365,7 @@ const People = () => {
    let mounted = true;
    (async () => {
      try {
-       await fetchStatChanges();
+       await fetchStatChanges({ page: 1, append: false });
      } catch (e) {
        if (mounted) console.debug('[People] failed to auto-load stat changes', e);
      }
@@ -432,6 +441,20 @@ const People = () => {
     }
   };
 
+  // NEW: fetch Admin/TA stats adjustment policy
+  const fetchTaStatsPolicy = async () => {
+    try {
+      const res = await axios.get(
+        `/api/classroom/${classroomId}/ta-stats-policy`,
+        { withCredentials: true }
+      );
+      setTaStatsPolicy(res.data.taStatsPolicy || 'none');
+    } catch (err) {
+      // endpoint is teacher-only; default safely
+      setTaStatsPolicy('none');
+    }
+  };
+
   // Add function to fetch the students can view stats setting
   const fetchStudentsCanViewStatsSetting = async () => {
     try {
@@ -445,16 +468,54 @@ const People = () => {
     }
   };
 
-  // Fetch recent stat-change log for this classroom (teacher/admin only)
-  const fetchStatChanges = async () => {
+  // NEW: stat-changes paging state
+  const STAT_CHANGES_PER_PAGE = 200;
+  const [statChangesTotal, setStatChangesTotal] = useState(0);
+  const [statChangesPage, setStatChangesPage] = useState(1);
+
+  // UPDATED: Fetch stat-change log for this classroom with pagination
+  const fetchStatChanges = async ({ page = 1, append = false } = {}) => {
     if (!classroomId) return;
     try {
       setLoadingStatChanges(true);
-      const res = await axios.get(`/api/classroom/${classroomId}/stat-changes`, { withCredentials: true });
-      setStatChanges(res.data || []);
+
+      const res = await axios.get(`/api/classroom/${classroomId}/stat-changes`, {
+        withCredentials: true,
+        params: { page, perPage: STAT_CHANGES_PER_PAGE }
+      });
+
+      const data = res.data;
+
+      // Back-compat: old endpoint returned an array
+      const logs = Array.isArray(data) ? (data || []) : (data?.logs || []);
+      const total = Array.isArray(data) ? logs.length : Number(data?.total ?? logs.length);
+
+      setStatChangesTotal(Number.isFinite(total) ? total : logs.length);
+      setStatChangesPage(Array.isArray(data) ? 1 : Number(data?.page ?? page));
+
+      if (!append || page === 1) {
+        setStatChanges(Array.isArray(logs) ? logs : []);
+        return;
+      }
+
+      // append with de-dupe by _id
+      setStatChanges(prev => {
+        const map = new Map();
+        (Array.isArray(prev) ? prev : []).forEach(x => {
+          const k = x?._id ? String(x._id) : null;
+          if (k) map.set(k, x);
+        });
+        (Array.isArray(logs) ? logs : []).forEach(x => {
+          const k = x?._id ? String(x._id) : null;
+          if (k && !map.has(k)) map.set(k, x);
+        });
+        return Array.from(map.values());
+      });
     } catch (err) {
       console.error('[People] fetchStatChanges failed', err);
       setStatChanges([]);
+      setStatChangesTotal(0);
+      setStatChangesPage(1);
     } finally {
       setLoadingStatChanges(false);
     }
@@ -478,8 +539,9 @@ const People = () => {
     fetchTaBitPolicy();
     fetchTaGroupPolicy(); // NEW
     fetchTaFeedbackPolicy(); // NEW
+    fetchTaStatsPolicy(); // NEW
     fetchSiphonTimeout();
-    fetchStatChanges();
+    fetchStatChanges({ page: 1, append: false });
 
     // Add classroom removal handler
     const handleClassroomRemoval = (data) => {
@@ -1536,6 +1598,39 @@ const visibleCount = filteredStudents.length;
                   </div>
                 </label>
 
+                {/* NEW: Admin/TA stats adjustment */}
+                <label className="form-control w-full">
+                  <span className="label-text mb-2 font-medium">Admin/TA stats adjustment</span>
+
+                  <select
+                    className="select select-bordered w-full"
+                    value={taStatsPolicy ?? 'none'}
+                    onChange={async (e) => {
+                      const newPolicy = e.target.value;
+                      try {
+                        await axios.patch(
+                          `/api/classroom/${classroomId}/ta-stats-policy`,
+                          { taStatsPolicy: newPolicy },
+                          { withCredentials: true }
+                        );
+                        toast.success('Updated Admin/TA stats adjustment policy');
+                        setTaStatsPolicy(newPolicy);
+                      } catch (err) {
+                        toast.error(err.response?.data?.error || 'Failed to update policy');
+                      }
+                    }}
+                  >
+                    <option value="full">Enabled (Admin/TA can adjust stats)</option>
+                    <option value="none">Disabled (teacher only)</option>
+                  </select>
+
+                  <div className="label">
+                    <span className="label-text-alt">
+                      Controls whether classroom Admin/TAs can adjust student stats (multiplier, luck, discount, shield, XP) using the Adjust Stats button.
+                    </span>
+                  </div>
+                </label>
+
                 {/* Add Siphon Timeout Setting */}
                 <label className="form-control w-full">
                   <span className="label-text mb-2 font-medium">Siphon Review Timeout</span>
@@ -1895,8 +1990,8 @@ const visibleCount = filteredStudents.length;
                           </button>
                         )}
 
-                        {/* Teacher-only: open modal to adjust student stats */}
-                        {user?.role?.toLowerCase() === 'teacher' && String(student._id) !== String(user._id) && (
+                        {/* Teacher OR Admin/TA (if allowed): open modal to adjust student stats */}
+                        {canAdjustStats && String(student._id) !== String(user._id) && (
                           <button
                             className="btn btn-xs sm:btn-sm btn-outline ml-2"
                             onClick={(e) => { e.stopPropagation(); setStatsModalStudent(student); setStatsModalOpen(true); }}
@@ -2277,8 +2372,32 @@ const visibleCount = filteredStudents.length;
                 <h3 className="font-medium flex-1">
                   {studentViewOnly ? 'My recent stat changes' : 'Recent stat changes'}
                 </h3>
-                <div className="text-sm text-base-content/70">{statChanges.length} records</div>
+
+                {/* UPDATED: show total + load older */}
+                <div className="text-sm text-base-content/70">
+                  Showing {statChanges.length} of {statChangesTotal || statChanges.length}
+                </div>
+
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline"
+                  onClick={() => fetchStatChanges({ page: 1, append: false })}
+                  disabled={loadingStatChanges}
+                >
+                  Refresh
+                </button>
+
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={() => fetchStatChanges({ page: statChangesPage + 1, append: true })}
+                  disabled={loadingStatChanges || (statChangesTotal ? statChanges.length >= statChangesTotal : statChanges.length < STAT_CHANGES_PER_PAGE)}
+                  title="Load older records"
+                >
+                  Load older
+                </button>
               </div>
+
               {/* Controls: deep search + sort */}
                <div className="flex flex-col sm:flex-row gap-2 mb-4">
                  <input
@@ -2368,14 +2487,17 @@ const visibleCount = filteredStudents.length;
                          <li key={s._id} className="p-2 border border-base-300 rounded bg-base-100">
                            <div className="text-xs text-base-content/60 mb-1">
                              {new Date(s.createdAt).toLocaleString()}
-                             {s.actionBy && (s.message?.includes('updated by your teacher') || s.message?.includes('Updated stats for')) ? (
-                                ` — by ${s.actionBy.firstName || ''} ${s.actionBy.lastName || ''}`.trim()
-                              ) : (
-                                (() => {
-                                  const src = getStatChangeSource(s.message);
-                                  return src ? ` — via ${src}` : ' — from System';
-                                })()
-                              )}
+                             {(() => {
+                               // Prefer the populated actor when present (manual adjustments, teacher/admin-triggered logs, etc.)
+                               if (s.actionBy) {
+                                 const actor =
+                                   `${s.actionBy.firstName || ''} ${s.actionBy.lastName || ''}`.trim() ||
+                                   'Unknown';
+                                 return ` — by ${actor}`;
+                               }
+                               const src = getStatChangeSource(s.message);
+                               return src ? ` — via ${src}` : ' — from System';
+                             })()}
                            </div>
                            {/* For student view, do not show target user */}
                           {!studentViewOnly && (

@@ -352,6 +352,49 @@ router.patch('/:id/ta-feedback-policy', ensureAuthenticated, async (req, res) =>
   }
 });
 
+// Get the Admin/TA stats adjustment policy
+router.get('/:id/ta-stats-policy', ensureAuthenticated, async (req, res) => {
+  try {
+    const classroom = await Classroom.findById(req.params.id).select('teacher taStatsPolicy admins');
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+
+    const isTeacher = String(classroom.teacher) === String(req.user._id);
+    const isTAInClass = await isClassroomAdmin(req.user, classroom._id);
+
+    // CHANGED: allow teacher OR classroom-scoped Admin/TA to view this policy (read-only)
+    if (!isTeacher && !isTAInClass) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    res.json({ taStatsPolicy: classroom.taStatsPolicy || 'none' });
+  } catch (err) {
+    console.error('[Get TA-stats policy] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Update the Admin/TA stats adjustment policy
+router.patch('/:id/ta-stats-policy', ensureAuthenticated, async (req, res) => {
+  const { taStatsPolicy } = req.body;
+  const valid = ['full', 'none'];
+  if (!valid.includes(taStatsPolicy)) {
+    return res.status(400).json({ error: 'Invalid policy value' });
+  }
+  try {
+    const classroom = await Classroom.findById(req.params.id);
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+    if (String(classroom.teacher) !== String(req.user._id)) {
+      return res.status(403).json({ error: 'Only the teacher can change this policy' });
+    }
+    classroom.taStatsPolicy = taStatsPolicy;
+    await classroom.save();
+    res.json({ taStatsPolicy });
+  } catch (err) {
+    console.error('[Patch TA-stats policy] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // GET route to retrieve whether students can send items in a specific classroom.
 // Only the teacher of the classroom is allowed to access this setting.
 router.get('/:id/student-send-enabled', ensureAuthenticated, async (req, res) => {
@@ -1163,12 +1206,25 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
 
     const classroom = await Classroom.findById(classId);
     if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
-    if (classroom.teacher.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ error: 'Only the teacher can update student stats' });
+
+    // Allow teacher OR classroom-scoped Admin/TA (if policy permits)
+    const isTeacher = classroom.teacher.toString() === req.user._id.toString();
+    const isClassAdmin = await isClassroomAdmin(req.user, classId);
+    const canAdjustStats = isTeacher || (isClassAdmin && classroom.taStatsPolicy === 'full');
+
+    if (!canAdjustStats) {
+      return res.status(403).json({ error: 'Only the teacher or authorized Admin/TAs can update student stats' });
     }
 
     const student = await User.findById(userId);
     if (!student) return res.status(404).json({ error: 'Student not found' });
+
+    // NEW: actor label for transparency in notifications/logs
+    const roleLabel = isTeacher ? 'Teacher' : (isClassAdmin ? 'Admin/TA' : 'Teacher');
+    const actorName =
+      `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() ||
+      req.user.email ||
+      String(req.user._id);
 
     // NEW: classroom-scoped stats entry
     const cs = getOrCreateClassroomStatsEntry(student, classId);
@@ -1317,7 +1373,8 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
                 prevStats: { xp: xpRes.oldXP },
                 currStats: { xp: xpRes.newXP },
                 context: 'stat increase (manual adjustment)',
-                details: { effectsText: `Manual stat adjustment: +${xpToAward} XP` },
+                // CHANGED: include actor identity for transparency
+                details: { effectsText: `Manual stat adjustment by ${roleLabel} (${actorName}): +${xpToAward} XP` },
                 forceLog: true
               });
             }
@@ -1386,7 +1443,8 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
       user: student._id,
       actionBy: req.user._id,
       type: 'stats_adjusted',
-      message: `Your stats were updated by your teacher: ${summary}.${noteSuffix}`,
+      // CHANGED: include actor name + role
+      message: `Your stats were updated by ${roleLabel} (${actorName}): ${summary}.${noteSuffix}`,
       classroom: classId,
       read: false,
       changes,
@@ -1442,7 +1500,12 @@ router.get('/:id/stat-changes', ensureAuthenticated, async (req, res) => {
     if (!isTeacherOrClassAdmin && req.user.role !== 'student') {
       return res.status(403).json({ error: 'Forbidden' });
     }
- 
+
+    // NEW: pagination params (defaults preserve existing behavior)
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const perPageRaw = parseInt(req.query.perPage, 10) || 200;
+    const perPage = Math.min(500, Math.max(1, perPageRaw)); // safety cap
+
     let query;
     if (isTeacherOrClassAdmin) {
       // Teachers/Admins see all stat changes in the classroom
@@ -1463,14 +1526,18 @@ router.get('/:id/stat-changes', ensureAuthenticated, async (req, res) => {
       };
     }
 
-    const logs = await Notification.find(query)
-      .sort({ createdAt: -1 })
-      .limit(200)
-      .populate('actionBy', 'firstName lastName')
-      .populate('targetUser', 'firstName lastName email') // This was missing
-      .lean();
+    const [total, logs] = await Promise.all([
+      Notification.countDocuments(query),
+      Notification.find(query)
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * perPage)
+        .limit(perPage)
+        .populate('actionBy', 'firstName lastName')
+        .populate('targetUser', 'firstName lastName email')
+        .lean()
+    ]);
 
-    res.json(logs);
+    return res.json({ logs, total, page, perPage });
   } catch (err) {
     console.error('[Get stat-changes] error:', err);
     res.status(500).json({ error: 'Server error' });
