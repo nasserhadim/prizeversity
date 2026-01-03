@@ -114,6 +114,12 @@ const ClassroomSchema = new mongoose.Schema({
       default: 15, // 15 XP for joining a group (one-time)
       min: 0
     },
+    // NEW: XP awarded when a badge is unlocked
+    badgeUnlock: {
+      type: Number,
+      default: 25, // 25 XP per badge unlocked
+      min: 0
+    },
     // NEW: XP awarded for submitting classroom feedback (teacher config)
     feedbackSubmission: {
       type: Number,
@@ -131,6 +137,27 @@ const ClassroomSchema = new mongoose.Schema({
       type: Number, 
       default: 100,
       min: 10
+    },
+    
+    // NEW: Level-up rewards configuration
+    levelUpRewards: {
+      enabled: { type: Boolean, default: false },
+      // Bits awarded per level gained
+      bitsPerLevel: { type: Number, default: 0, min: 0 },
+      // Whether to scale bits by level (e.g., level 5 = 5x bits)
+      scaleBitsByLevel: { type: Boolean, default: false },
+      // NEW: Apply multipliers to level-up bits
+      applyPersonalMultiplier: { type: Boolean, default: false },
+      applyGroupMultiplier: { type: Boolean, default: false },
+      // Stat boosts per level-up
+      multiplierPerLevel: { type: Number, default: 0, min: 0 },
+      luckPerLevel: { type: Number, default: 0, min: 0 },
+      discountPerLevel: { type: Number, default: 0, min: 0 },
+      // Award shield on specific levels (comma-separated, e.g., "5,10,15")
+      shieldAtLevels: { type: String, default: '' },
+      // NEW: Count level-up rewards toward XP (circular economy)
+      countBitsTowardXP: { type: Boolean, default: false },
+      countStatsTowardXP: { type: Boolean, default: false }
     },
 
     // NEW: basis used for XP-per-bit calculation ('final' includes multipliers; 'base' ignores them)

@@ -6,7 +6,7 @@ import { describeEffectFromForm, normalizeSwapOptions } from '../utils/itemHelpe
 
 const CATEGORY_OPTIONS = {
   Attack: [
-    { label: 'Bit Splitter (halve bits)', value: 'halveBits' },
+    { label: 'Bit Splitter', value: 'halveBits' },
     { label: 'Bit Leech (drain %)', value: 'drainBits' },
     { label: 'Attribute Swapper', value: 'swapper' },
     { label: 'Nullifier (reset to default)', value: 'nullify' }
@@ -152,6 +152,11 @@ const EditItemModal = ({ open, onClose, item, classroomId, bazaarId, onUpdated }
         { label: 'Attack Group Multiplier (-1x)', value: 'attackGroupMultiplier' }
       ],
       Passive: [
+        { label: 'Grants Luck (+1 luck)', value: 'grantsLuck' },
+        { label: 'Grants Multiplier (+1x)', value: 'grantsMultiplier' },
+        { label: 'Grants Group Multiplier (+1x)', value: 'grantsGroupMultiplier' }
+      ],
+      Utility: [
         { label: 'Grants Luck (+1 luck)', value: 'grantsLuck' },
         { label: 'Grants Multiplier (+1x)', value: 'grantsMultiplier' },
         { label: 'Grants Group Multiplier (+1x)', value: 'grantsGroupMultiplier' }
@@ -553,6 +558,32 @@ const EditItemModal = ({ open, onClose, item, classroomId, bazaarId, onUpdated }
                 </div>
               )}
 
+              {/* Bit Splitter Percentage - NEW */}
+              {form.primaryEffect === 'halveBits' && (
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text font-medium">Split Percentage</span>
+                  </label>
+                  <div className="join">
+                    <input
+                      type="number"
+                      className="input input-bordered join-item w-full"
+                      value={form.primaryEffectValue || 50}
+                      onChange={(e) => setForm(prev => ({
+                        ...prev,
+                        primaryEffectValue: Math.min(100, Math.max(1, e.target.value))
+                      }))}
+                      min="1"
+                      max="100"
+                    />
+                    <span className="join-item bg-base-200 px-4 flex items-center">%</span>
+                  </div>
+                  <label className="label">
+                    <span className="label-text-alt">Percentage of target's bits to remove (default: 50%)</span>
+                  </label>
+                </div>
+              )}
+
               {/* Swapper Options */}
               {form.primaryEffect === 'swapper' && (
                 <div className="form-control">
@@ -616,7 +647,7 @@ const EditItemModal = ({ open, onClose, item, classroomId, bazaarId, onUpdated }
           )}
 
           {/* Secondary Effects (Attack & Passive only) */}
-          {(form.category === 'Attack' || form.category === 'Passive') && (
+          {(form.category === 'Attack' || form.category === 'Passive' || form.category === 'Utility') && (
             <div className="space-y-3">
               <label className="label">
                 <span className="label-text font-medium">Secondary Effects</span>

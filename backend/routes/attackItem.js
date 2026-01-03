@@ -216,13 +216,13 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
         const tBefore = getClassroomBalance(target, classroomId);
         const tAfter = Math.floor(tBefore / 2);
         setClassroomBalance(target, classroomId, tAfter);
-        effectNotes.push('Halved bits');
+        effectNotes.push('Split bits');
 
         const lost = tBefore - tAfter;
         if (lost > 0) {
           target.transactions.push({
             amount: -lost,
-            description: `Attack: ${item.name} by ${attackerName} (halved bits)`,
+            description: `Attack: ${item.name} by ${attackerName} (split bits)`,
             assignedBy: attacker._id,
             classroom: classroomId || null,
             createdAt: new Date(),

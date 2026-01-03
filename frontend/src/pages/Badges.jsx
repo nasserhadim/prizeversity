@@ -956,8 +956,10 @@ const Badges = () => {
                               </div>
                             </td>
                             <td>
-                              <div className="badge badge-primary">
-                                Level {student.level || 1}
+                              <div className="badge badge-primary badge-sm sm:badge-md whitespace-nowrap px-2 sm:px-3">
+                                <span className="hidden sm:inline">Level</span>
+                                <span className="sm:hidden">Lv</span>
+                                {' '}{student.level || 1}
                               </div>
                             </td>
                             <td>{student.xp || 0} XP</td>
