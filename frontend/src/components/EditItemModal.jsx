@@ -155,6 +155,11 @@ const EditItemModal = ({ open, onClose, item, classroomId, bazaarId, onUpdated }
         { label: 'Grants Luck (+1 luck)', value: 'grantsLuck' },
         { label: 'Grants Multiplier (+1x)', value: 'grantsMultiplier' },
         { label: 'Grants Group Multiplier (+1x)', value: 'grantsGroupMultiplier' }
+      ],
+      Utility: [
+        { label: 'Grants Luck (+1 luck)', value: 'grantsLuck' },
+        { label: 'Grants Multiplier (+1x)', value: 'grantsMultiplier' },
+        { label: 'Grants Group Multiplier (+1x)', value: 'grantsGroupMultiplier' }
       ]
     };
     
@@ -642,7 +647,7 @@ const EditItemModal = ({ open, onClose, item, classroomId, bazaarId, onUpdated }
           )}
 
           {/* Secondary Effects (Attack & Passive only) */}
-          {(form.category === 'Attack' || form.category === 'Passive') && (
+          {(form.category === 'Attack' || form.category === 'Passive' || form.category === 'Utility') && (
             <div className="space-y-3">
               <label className="label">
                 <span className="label-text font-medium">Secondary Effects</span>

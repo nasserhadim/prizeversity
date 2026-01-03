@@ -252,6 +252,11 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
         { label: 'Grants Luck (+1 luck)', value: 'grantsLuck' },
         { label: 'Grants Multiplier (+1x)', value: 'grantsMultiplier' },
         { label: 'Grants Group Multiplier (+1x)', value: 'grantsGroupMultiplier' }
+      ],
+      Utility: [
+        { label: 'Grants Luck (+1 luck)', value: 'grantsLuck' },
+        { label: 'Grants Multiplier (+1x)', value: 'grantsMultiplier' },
+        { label: 'Grants Group Multiplier (+1x)', value: 'grantsGroupMultiplier' }
       ]
     };
     const effectsForCategory = allEffects[form.category] || [];
@@ -654,7 +659,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
        )}
  
        {/* Secondary Effects (for Attack and Passive, NOT MysteryBox) */}
-       {(form.category === 'Attack' || form.category === 'Passive') && (
+       {(form.category === 'Attack' || form.category === 'Passive' || form.category === 'Utility') && (
          <div className="form-control space-y-2">
            <label className="label">
              <span className="label-text font-medium">Secondary Effects</span>

@@ -188,8 +188,14 @@ export const describeEffectFromForm = (form) => {
 
   // Utility
   if (form.category === 'Utility') {
-    if (form.primaryEffect === 'doubleEarnings') return 'Double Earnings (2x multiplier)';
-    if (form.primaryEffect === 'discountShop') return '20% shop discount';
+    let primary = '';
+    if (form.primaryEffect === 'doubleEarnings') primary = 'Double Earnings (2x multiplier)';
+    if (form.primaryEffect === 'discountShop') primary = '20% shop discount';
+    
+    const secondaryText = formatSecondary(form.secondaryEffects);
+    if (primary && secondaryText) return `${primary}. Secondary: ${secondaryText}`;
+    if (primary) return primary;
+    if (secondaryText) return `Secondary: ${secondaryText}`;
     return '';
   }
 
