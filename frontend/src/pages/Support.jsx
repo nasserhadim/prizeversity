@@ -150,7 +150,8 @@ const Support = () => {
             "• Teacher manual adjustments (People page).",
             "• Joining groups that have member size-based group multipliers (if configured).",
             "• Using utility/passive items with embedded stat effects.",
-            "• Gaining positive outcomes from attacks (e.g. swaps)."
+            "• Gaining positive outcomes from attacks (e.g. swaps).",
+            "• Gaining stat increases from leveling (if configured)."
           ],
           role: ["all"]
         },
@@ -174,7 +175,7 @@ const Support = () => {
         {
           question: "Why didn’t my multiplier apply on a transaction?",
           answer: [
-            "• Teachers/Admins can toggle multiplier and/or group multiplier application when awarding bits manually.",
+            "• Teachers/Admins can toggle multiplier and/or group multiplier application when awarding bits.",
             "• Deductions never apply multipliers to avoid excessive penalties.",
             "• Check the transaction detail line to see which multipliers were applied."
           ],
@@ -191,8 +192,8 @@ const Support = () => {
           answer: [
             "Bits are PrizeVersity's virtual currency",
             "**Students earn bits through:**",
-            "• Classroom participation and activities",
-            "• Completing assignments",
+            "• Classroom participation and activities such as completing assignments",
+            "• XP and leveling rewards (if configured)",
             "• Participating in challenges (if configured)",
             "• Manual awards from teachers or Admins/TAs (if allowed by teacher)",
             "",
@@ -207,7 +208,7 @@ const Support = () => {
           answer: [
             "As a teacher or Admin/TA (if approved by teacher), you can award bits by:",
             "• Manually assigning bits to students through the Wallet/Group **Adjust** feature within a classroom",
-            "• Teachers may also enable bit awards on challenges/feedback (if configured)"
+            "• Teachers may also enable bit awards on challenges/feedback/XP & Leveling (if configured)"
           ],
           role: ["teacher", "admin"]
         },
@@ -290,7 +291,7 @@ const Support = () => {
             "• Spend bits on rewards and power-ups",
             "• Purchase items with special effects like:",
             "  - Luck and Multiplier boosts",
-            "  - Group collaboration multipliers",
+            "  - Group multipliers",
             "  - Fun rewards (extra credit, etc.)",
             "• View your inventory of purchased items"
           ],
@@ -559,6 +560,21 @@ const Support = () => {
           role: ["all"]
         },
         {
+          question: "How do I change XP settings for my classroom?",
+          answer: [
+            "Go to People → XP & Leveling Settings.",
+            "You can configure:",
+            "• Enable/disable XP system",
+            "• XP per bit earned/spent",
+            "• Challenge/daily check‑in/mystery box/group join/feedback submission/Badge Unlock XP",
+            "• Leveling formula and base XP for Level 2 and beyond (since the base is level 1)",
+            "• Bits→XP basis (with or without multipliers)",
+            "• Level-up rewards (bits, multiplier, luck, discount, shield)",
+            "• Circular economy options (count level-up bits/stats toward XP)"
+          ],
+          role: ["teacher"]
+        },
+        {
           question: "Which actions give XP?",
           answer: [
             "Teachers configure XP awards per classroom. Common sources include:",
@@ -570,6 +586,7 @@ const Support = () => {
             "• Mystery box usage",
             "• Joining a group (one‑time per GroupSet)",
             "• Feedback submission (regardless whether or not bit award is enabled for feedback)",
+            "• Badge unlocks (configurable XP per badge earned)",
             "",
             "**Tip:** To see the exact XP values and applicability for a classroom, view the Stats and click the small info (i) icon next to the Level — the popover shows the configured settings and notes.",
             "",
@@ -593,17 +610,33 @@ const Support = () => {
           role: ["all"]
         },
         {
-          question: "How do I change XP settings for my classroom?",
+          question: "What are level-up rewards?",
           answer: [
-            "Go to People → XP & Leveling Settings.",
-            "You can configure:",
-            "• Enable/disable XP system",
-            "• XP per bit earned/spent",
-            "• Challenge/daily check‑in/mystery box/group join/feedback submission XP",
-            "• Leveling formula and base XP for Level 2 and beyond (since the base is level 1)",
-            "• Bits→XP basis (with or without multipliers)"
+            "Teachers can configure rewards that students automatically receive when leveling up:",
+            "",
+            "**Possible rewards per level:**",
+            "• Bits (optionally scaled by level, e.g., Level 5 = 5× base bits)",
+            "• Multiplier boost",
+            "• Luck boost", 
+            "• Discount percentage",
+            "• Shield (at specific milestone levels)",
+            "",
+            "**Multiplier Options:**",
+            "• Teachers can enable personal and/or group multipliers on level-up bits",
+            "• This means bit rewards may scale with current multipliers",
+            "",
+            "**Circular Economy:**",
+            "• Teachers can optionally count level-up bits toward 'Bits Earned' XP",
+            "• Teachers can optionally count level-up stats toward 'Stat Increase' XP",
+            "• This creates a feedback loop where leveling grants more XP!",
+            "",
+            "**Example:** A teacher sets 10 bits per level with scaling and personal multiplier enabled. At Level 5 with a 2× personal multiplier, a student would earn 100 bits (10 × 5 × 2).",
+            "",
+            "Multi-level jumps (e.g., Level 3 → 6) award cumulative rewards for each level crossed.",
+            "",
+            "Level-up bit rewards appear in your transaction history with calculation details."
           ],
-          role: ["teacher"]
+          role: ["all"]
         },
         // NEW: leaderboard impact
         {

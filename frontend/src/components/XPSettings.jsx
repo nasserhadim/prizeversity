@@ -13,9 +13,24 @@ const XPSettings = ({ classroomId }) => {
     challengeCompletion: 20,
     mysteryBox: 3,
     groupJoin: 15,
+    badgeUnlock: 25,
+    feedbackSubmission: 0,
     levelingFormula: 'exponential',
     baseXPForLevel2: 100,
-    bitsXPBasis: 'final'
+    bitsXPBasis: 'final',
+    levelUpRewards: {
+      enabled: false,
+      bitsPerLevel: 0,
+      scaleBitsByLevel: false,
+      applyPersonalMultiplier: false,  // NEW
+      applyGroupMultiplier: false,     // NEW
+      multiplierPerLevel: 0,
+      luckPerLevel: 0,
+      discountPerLevel: 0,
+      shieldAtLevels: '',
+      countBitsTowardXP: false,        // NEW
+      countStatsTowardXP: false        // NEW
+    }
   });
   const [loading, setLoading] = useState(true);
 
@@ -341,7 +356,269 @@ const XPSettings = ({ classroomId }) => {
                     </span>
                   </div>
                 </div>
+
+                {/* NEW: Badge Unlock XP */}
+                <div className="form-control">
+                  <label className="label">
+                    <div className="flex items-center gap-2">
+                      <span className="label-text">Badge Unlock</span>
+                      <span
+                        className="tooltip tooltip-bottom"
+                        data-tip="XP awarded when unlocking a badge. Stacks if multiple badges unlock at once."
+                      >
+                        <Info className="w-4 h-4 text-base-content/60" />
+                      </span>
+                    </div>
+                  </label>
+                  <input
+                    type="number"
+                    className="input input-bordered"
+                    value={settings?.badgeUnlock ?? 25}
+                    onChange={(e) => setSettings({ ...settings, badgeUnlock: parseInt(e.target.value) })}
+                    min={0}
+                  />
+                  <label className="label">
+                    <span className="label-text-alt">XP per badge unlocked</span>
+                  </label>
+                </div>
               </div>
+
+              {/* NEW: Level-Up Rewards Section */}
+              <div className="divider">Level-Up Rewards</div>
+              
+              <div className="form-control">
+                <label className="label cursor-pointer justify-start gap-4">
+                  <input
+                    type="checkbox"
+                    className="toggle toggle-secondary"
+                    checked={settings?.levelUpRewards?.enabled ?? false}
+                    onChange={(e) => setSettings({
+                      ...settings,
+                      levelUpRewards: { ...settings.levelUpRewards, enabled: e.target.checked }
+                    })}
+                  />
+                  <span className="label-text">Enable Level-Up Rewards</span>
+                </label>
+                <span className="text-xs text-base-content/60 ml-14">
+                  Award bits and/or stat boosts when students level up
+                </span>
+              </div>
+
+              {settings?.levelUpRewards?.enabled && (
+                <div className="bg-base-200 p-4 rounded-lg space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Bits per level */}
+                    <div className="form-control">
+                      <label className="label">
+                        <span className="label-text">Bits per Level</span>
+                      </label>
+                      <input
+                        type="number"
+                        className="input input-bordered"
+                        value={settings?.levelUpRewards?.bitsPerLevel ?? 0}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          levelUpRewards: { ...settings.levelUpRewards, bitsPerLevel: parseInt(e.target.value) || 0 }
+                        })}
+                        min={0}
+                      />
+                    </div>
+
+                    {/* Scale by level */}
+                    <div className="form-control justify-end">
+                      <label className="label cursor-pointer justify-start gap-2">
+                        <input
+                          type="checkbox"
+                          className="checkbox checkbox-sm"
+                          checked={settings?.levelUpRewards?.scaleBitsByLevel ?? false}
+                          onChange={(e) => setSettings({
+                            ...settings,
+                            levelUpRewards: { ...settings.levelUpRewards, scaleBitsByLevel: e.target.checked }
+                          })}
+                        />
+                        <span className="label-text text-sm">Scale by level</span>
+                      </label>
+                      <span className="text-xs text-base-content/60">
+                        E.g., Level 5 = 5× bits
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* NEW: Multiplier options for bits */}
+                  {(settings?.levelUpRewards?.bitsPerLevel ?? 0) > 0 && (
+                    <div className="bg-base-300 p-3 rounded-lg">
+                      <div className="text-sm font-medium mb-2">Bit Multipliers</div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <label className="label cursor-pointer justify-start gap-2">
+                          <input
+                            type="checkbox"
+                            className="checkbox checkbox-sm checkbox-primary"
+                            checked={settings?.levelUpRewards?.applyPersonalMultiplier ?? false}
+                            onChange={(e) => setSettings({
+                              ...settings,
+                              levelUpRewards: { ...settings.levelUpRewards, applyPersonalMultiplier: e.target.checked }
+                            })}
+                          />
+                          <span className="label-text text-sm">Apply Personal Multiplier</span>
+                        </label>
+                        <label className="label cursor-pointer justify-start gap-2">
+                          <input
+                            type="checkbox"
+                            className="checkbox checkbox-sm checkbox-primary"
+                            checked={settings?.levelUpRewards?.applyGroupMultiplier ?? false}
+                            onChange={(e) => setSettings({
+                              ...settings,
+                              levelUpRewards: { ...settings.levelUpRewards, applyGroupMultiplier: e.target.checked }
+                            })}
+                          />
+                          <span className="label-text text-sm">Apply Group Multiplier</span>
+                        </label>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Multiplier per level */}
+                    <div className="form-control">
+                      <label className="label">
+                        <span className="label-text">Multiplier per Level</span>
+                      </label>
+                      <input
+                        type="number"
+                        className="input input-bordered"
+                        value={settings?.levelUpRewards?.multiplierPerLevel ?? 0}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          levelUpRewards: { ...settings.levelUpRewards, multiplierPerLevel: parseFloat(e.target.value) || 0 }
+                        })}
+                        min={0}
+                        step={0.1}
+                      />
+                      <label className="label">
+                        <span className="label-text-alt">Added to personal multiplier</span>
+                      </label>
+                    </div>
+
+                    {/* Luck per level */}
+                    <div className="form-control">
+                      <label className="label">
+                        <span className="label-text">Luck per Level</span>
+                      </label>
+                      <input
+                        type="number"
+                        className="input input-bordered"
+                        value={settings?.levelUpRewards?.luckPerLevel ?? 0}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          levelUpRewards: { ...settings.levelUpRewards, luckPerLevel: parseFloat(e.target.value) || 0 }
+                        })}
+                        min={0}
+                        step={0.1}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Discount per level */}
+                    <div className="form-control">
+                      <label className="label">
+                        <span className="label-text">Discount % per Level</span>
+                      </label>
+                      <input
+                        type="number"
+                        className="input input-bordered"
+                        value={settings?.levelUpRewards?.discountPerLevel ?? 0}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          levelUpRewards: { ...settings.levelUpRewards, discountPerLevel: parseInt(e.target.value) || 0 }
+                        })}
+                        min={0}
+                        max={100}
+                      />
+                      <label className="label">
+                        <span className="label-text-alt">Capped at 100% total</span>
+                      </label>
+                    </div>
+
+                    {/* Shield at levels */}
+                    <div className="form-control">
+                      <label className="label">
+                        <span className="label-text">Shield at Levels</span>
+                      </label>
+                      <input
+                        type="text"
+                        className="input input-bordered"
+                        placeholder="e.g., 5, 10, 15, 20"
+                        value={settings?.levelUpRewards?.shieldAtLevels ?? ''}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          levelUpRewards: { ...settings.levelUpRewards, shieldAtLevels: e.target.value }
+                        })}
+                      />
+                      <label className="label">
+                        <span className="label-text-alt">Comma-separated level numbers</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* NEW: Circular Economy Options */}
+                  <div className="divider text-xs">Circular Economy (XP from Level-Up Rewards)</div>
+                  
+                  <div className="bg-base-300 p-3 rounded-lg space-y-2">
+                    <label className="label cursor-pointer justify-start gap-3">
+                      <input
+                        type="checkbox"
+                        className="checkbox checkbox-sm checkbox-secondary"
+                        checked={settings?.levelUpRewards?.countBitsTowardXP ?? false}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          levelUpRewards: { ...settings.levelUpRewards, countBitsTowardXP: e.target.checked }
+                        })}
+                        disabled={(settings?.levelUpRewards?.bitsPerLevel ?? 0) <= 0}
+                      />
+                      <div>
+                        <span className="label-text">Count level-up bits toward "Bits Earned" XP</span>
+                        <div className="text-xs text-base-content/60">
+                          Uses the configured Bits Earned rate ({settings?.bitsEarned ?? 0} XP/bit)
+                        </div>
+                      </div>
+                    </label>
+
+                    <label className="label cursor-pointer justify-start gap-3">
+                      <input
+                        type="checkbox"
+                        className="checkbox checkbox-sm checkbox-secondary"
+                        checked={settings?.levelUpRewards?.countStatsTowardXP ?? false}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          levelUpRewards: { ...settings.levelUpRewards, countStatsTowardXP: e.target.checked }
+                        })}
+                        disabled={
+                          (settings?.levelUpRewards?.multiplierPerLevel ?? 0) <= 0 &&
+                          (settings?.levelUpRewards?.luckPerLevel ?? 0) <= 0 &&
+                          (settings?.levelUpRewards?.discountPerLevel ?? 0) <= 0 &&
+                          !(settings?.levelUpRewards?.shieldAtLevels ?? '').trim()
+                        }
+                      />
+                      <div>
+                        <span className="label-text">Count level-up stats toward "Stat Increase" XP</span>
+                        <div className="text-xs text-base-content/60">
+                          Uses the configured Stat Increase rate ({settings?.statIncrease ?? 0} XP/stat)
+                        </div>
+                      </div>
+                    </label>
+
+                    <div className="text-xs text-warning mt-2">
+                      ⚠️ Enabling these creates a circular economy where leveling up grants more XP, potentially causing rapid progression.
+                    </div>
+                  </div>
+
+                  <div className="alert alert-info text-sm">
+                    <Info className="w-4 h-4" />
+                    <span>Rewards apply when crossing each level threshold. Multi-level jumps award cumulative rewards.</span>
+                  </div>
+                </div>
+              )}
 
               <div className="alert alert-info">
                 <div>

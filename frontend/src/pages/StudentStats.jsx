@@ -150,7 +150,7 @@ const StudentStats = () => {
     }
 
     return (
-      <div className="text-sm space-y-3 max-w-sm">  {/* { changed code } */}
+      <div className="text-sm space-y-3 max-w-sm">
         <div>
           <strong>Total cumulative XP</strong>
           <div className="text-xs text-base-content/70">Total cumulative XP earned in this classroom (includes all prior levels).</div>
@@ -167,9 +167,62 @@ const StudentStats = () => {
             <li>Mystery Box: <strong>{s.mysteryBox ?? 0}</strong> XP</li>
             <li>Group Join: <strong>{s.groupJoin ?? 0}</strong> XP (one‑time per GroupSet)</li>
             <li>Feedback Submission: <strong>{s.feedbackSubmission ?? 0}</strong> XP</li>
+            <li>Badge Unlock: <strong>{s.badgeUnlock ?? 0}</strong> XP per badge earned</li>
             <li>Bits→XP Basis: <strong>{s.bitsXPBasis === 'base' ? 'Base (before multipliers)' : 'Final (after multipliers)'}</strong></li>
           </ul>
         </div>
+
+        {/* Level-Up Rewards Section */}
+        {s.levelUpRewards?.enabled && (
+          <div>
+            <div className="font-semibold">Level-Up Rewards</div>
+            <ul className="list-disc ml-4 mt-1 space-y-1">
+              {(s.levelUpRewards.bitsPerLevel ?? 0) > 0 && (
+                <li>
+                  Bits per Level: <strong>{s.levelUpRewards.bitsPerLevel}</strong>
+                  {s.levelUpRewards.scaleBitsByLevel && (
+                    <span className="text-xs text-base-content/60"> (scaled by level)</span>
+                  )}
+                  {(s.levelUpRewards.applyPersonalMultiplier || s.levelUpRewards.applyGroupMultiplier) && (
+                    <span className="text-xs text-base-content/60">
+                      {' '}(×{' '}
+                      {[
+                        s.levelUpRewards.applyPersonalMultiplier && 'personal',
+                        s.levelUpRewards.applyGroupMultiplier && 'group'
+                      ].filter(Boolean).join(' & ')}
+                      {' '}multiplier)
+                    </span>
+                  )}
+                </li>
+              )}
+              {(s.levelUpRewards.multiplierPerLevel ?? 0) > 0 && (
+                <li>Multiplier per Level: <strong>+{s.levelUpRewards.multiplierPerLevel}</strong></li>
+              )}
+              {(s.levelUpRewards.luckPerLevel ?? 0) > 0 && (
+                <li>Luck per Level: <strong>+{s.levelUpRewards.luckPerLevel}</strong></li>
+              )}
+              {(s.levelUpRewards.discountPerLevel ?? 0) > 0 && (
+                <li>Discount per Level: <strong>+{s.levelUpRewards.discountPerLevel}%</strong></li>
+              )}
+              {s.levelUpRewards.shieldAtLevels && s.levelUpRewards.shieldAtLevels.trim() && (
+                <li>Shield at Levels: <strong>{s.levelUpRewards.shieldAtLevels}</strong></li>
+              )}
+            </ul>
+            {/* Circular Economy Indicators */}
+            {(s.levelUpRewards.countBitsTowardXP || s.levelUpRewards.countStatsTowardXP) && (
+              <div className="text-xs text-base-content/60 mt-1 bg-base-200 p-1 rounded">
+                <strong>Circular XP:</strong>{' '}
+                {[
+                  s.levelUpRewards.countBitsTowardXP && `bits→XP (${s.bitsEarned ?? 0} XP/bit)`,
+                  s.levelUpRewards.countStatsTowardXP && `stats→XP (${s.statIncrease ?? 0} XP/stat)`
+                ].filter(Boolean).join(', ')}
+              </div>
+            )}
+            <div className="text-xs text-base-content/60 mt-1">
+              Rewards are awarded automatically when you level up.
+            </div>
+          </div>
+        )}
 
         <div>
           <div className="font-semibold">Applicability notes</div>
@@ -177,6 +230,16 @@ const StudentStats = () => {
             <li>Bits earned includes Teacher or Admin/TA balance adjustments, challenge rewards, attack gains, and feedback bit rewards (if enabled).</li>
             <li>Bits Spent applies to intentional spending (i.e. bazaar purchases) and does NOT include balance debits such as wallet transfers or siphons/attacks.</li>
             <li>Certain bit awards (e.g., balance adjustments or feedback bit rewards if enabled) may yield more XP depending on multipliers and the Bits→XP basis setting.</li>
+            <li>Badge Unlock XP is awarded each time you earn a new badge (stacks if multiple badges unlock at once).</li>
+            {s.levelUpRewards?.enabled && s.levelUpRewards?.scaleBitsByLevel && (
+              <li>Scaled bits means Level N awards N × base bits (e.g., Level 5 = 5× the configured bits per level).</li>
+            )}
+            {s.levelUpRewards?.enabled && (s.levelUpRewards?.applyPersonalMultiplier || s.levelUpRewards?.applyGroupMultiplier) && (
+              <li>Level-up bit rewards can be multiplied by your personal and/or group multipliers if enabled.</li>
+            )}
+            {s.levelUpRewards?.enabled && (s.levelUpRewards?.countBitsTowardXP || s.levelUpRewards?.countStatsTowardXP) && (
+              <li>Circular XP means level-up rewards can grant additional XP, creating a feedback loop for faster progression.</li>
+            )}
           </ul>
         </div>
 
