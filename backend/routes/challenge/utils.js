@@ -145,8 +145,8 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
   if (settings.luckMode === 'individual') {
     const luck = (settings.challengeLuck || [])[challengeIndex] || 1.0;
     if (luck > 1.0) {
-      const newLuck = (passiveTarget.luck || 1.0) * luck;
-      passiveTarget.luck = Math.round(newLuck * 10) / 10;
+      const luckIncrease = luck - 1.0;
+      passiveTarget.luck = Math.round(((passiveTarget.luck || 1.0) + luckIncrease) * 10) / 10;
       rewardsEarned.luck = luck;
     }
   }

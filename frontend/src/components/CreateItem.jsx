@@ -7,7 +7,7 @@ import { describeEffectFromForm, normalizeSwapOptions } from '../utils/itemHelpe
 // Will define the primary effect options by item category
 const CATEGORY_OPTIONS = {
   Attack: [
-    { label: 'Bit Splitter (halve bits)', value: 'halveBits' },
+    { label: 'Bit Splitter', value: 'halveBits' },
     { label: 'Bit Leech (drain %)', value: 'drainBits' },
     { label: 'Attribute Swapper', value: 'swapper' },
     { label: 'Nullifier (reset to default)', value: 'nullify'}
@@ -562,6 +562,32 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                  />
                  <span className="join-item bg-base-200 px-4 flex items-center">%</span>
                </div>
+             </div>
+           )}
+
+           {/* Bit Splitter Percentage Input - NEW */}
+           {form.primaryEffect === 'halveBits' && (
+             <div className="form-control">
+               <label className="label">
+                 <span className="label-text font-medium">Split Percentage</span>
+               </label>
+               <div className="join">
+                 <input
+                   type="number"
+                   className="input input-bordered join-item w-full"
+                   value={form.primaryEffectValue || 50}
+                   onChange={(e) => setForm(prev => ({
+                     ...prev,
+                     primaryEffectValue: Math.min(100, Math.max(1, e.target.value))
+                   }))}
+                   min="1"
+                   max="100"
+                 />
+                 <span className="join-item bg-base-200 px-4 flex items-center">%</span>
+               </div>
+               <label className="label">
+                 <span className="label-text-alt">Percentage of target's bits to remove (default: 50%)</span>
+               </label>
              </div>
            )}
  

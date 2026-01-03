@@ -17,14 +17,16 @@ export const getEffectDescription = (item) => {
 
   // Attack
   if (item.category === 'Attack') {
-    
     if (item.primaryEffect === 'swapper') {
       return `Swaps attributes with target (${swapOpts.join(', ')})`;
     }
     if (item.primaryEffect === 'nullify') {
       return `Resets target's ${swapOpts.join(', ')} to default`;
     }
-    if (item.primaryEffect === 'halveBits') return 'Halves target bits';
+    if (item.primaryEffect === 'halveBits') {
+      const pct = item.primaryEffectValue || 50;
+      return `Removes ${pct}% of target bits`;
+    }
     if (item.primaryEffect === 'drainBits') {
       const pct = item.primaryEffectValue || 10;
       return `Drains ${pct}% of target bits`;
@@ -164,7 +166,8 @@ export const describeEffectFromForm = (form) => {
     } else if (form.primaryEffect === 'nullify') {
       primary = `Resets target's ${swapOpts.join(', ')} to default`;
     } else if (form.primaryEffect === 'halveBits') {
-      primary = 'Halves target bits';
+      const pct = form.primaryEffectValue || 50;
+      primary = `Removes ${pct}% of target bits`;
     } else if (form.primaryEffect === 'drainBits') {
       const pct = form.primaryEffectValue || 10;
       primary = `Drains ${pct}% of target bits`;
