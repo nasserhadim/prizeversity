@@ -1472,24 +1472,35 @@ const visibleCount = filteredStudents.length;
              <h2 className="text-2xl font-semibold">People Settings</h2>
 
             {/* settings sub-tabs */}
-            <div role="tablist" className="tabs tabs-boxed">
+            <div role="tablist" className="tabs tabs-boxed flex-wrap">
               <button
                 type="button"
                 role="tab"
-                className={`tab ${settingsSubTab === 'general' ? 'tab-active' : ''}`}
+                className={`tab min-w-0 ${settingsSubTab === 'general' ? 'tab-active' : ''}`}
                 onClick={() => setSettingsSubTab('general')}
               >
                 General
+              </button>
+
+              <button
+                type="button"
+                role="tab"
+                className={`tab min-w-0 ${settingsSubTab === 'xp-leveling' ? 'tab-active' : ''}`}
+                onClick={() => setSettingsSubTab('xp-leveling')}
+              >
+                <span className="hidden sm:inline">XP & Leveling</span>
+                <span className="sm:hidden">XP/Leveling</span>
               </button>
 
               {taBitPolicy === 'approval' && (
                 <button
                   type="button"
                   role="tab"
-                  className={`tab ${settingsSubTab === 'ta-requests' ? 'tab-active' : ''}`}
+                  className={`tab min-w-0 ${settingsSubTab === 'ta-requests' ? 'tab-active' : ''}`}
                   onClick={() => setSettingsSubTab('ta-requests')}
                 >
-                  Admin/TA Requests ({taRequestCount})
+                  <span className="hidden sm:inline">Admin/TA Requests ({taRequestCount})</span>
+                  <span className="sm:hidden">Requests ({taRequestCount})</span>
                 </button>
               )}
             </div>
@@ -1726,8 +1737,12 @@ const visibleCount = filteredStudents.length;
                     </span>
                   </div>
                 </label>
+              </div>
+            )}
 
-                {/* XP & Leveling Settings */}
+            {/* XP & LEVELING SETTINGS PANEL - NEW TAB */}
+            {settingsSubTab === 'xp-leveling' && (
+              <div className="space-y-6">
                 <XPSettings classroomId={classroomId} />
               </div>
             )}

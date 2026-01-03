@@ -270,12 +270,12 @@ const Support = () => {
         {
           question: "How do I create items for the Bazaar?",
           answer: [
-            "As a teacher, assuming you've already setup a bazaar within a classroom, you can create custom items:",
+            "As a teacher, assuming you've already setup a bazaar within a classroom, you can create custom items as follows:",
             "• Navigate to the Bazaar section",
             "• Click 'Create Item'",
             "• Set item name, description, and cost in bits",
             "• Configure special effects (optional):",
-            "  - Stat boosts (luck, shields)",
+            "  - Stat boosts (luck, multiplier, shields)",
             "  - Group multipliers",
             "  - Special abilities",
             "• Upload item images"
@@ -289,7 +289,7 @@ const Support = () => {
             "• Browse items created by your teacher",
             "• Spend bits on rewards and power-ups",
             "• Purchase items with special effects like:",
-            "  - Luck boosts",
+            "  - Luck and Multiplier boosts",
             "  - Group collaboration multipliers",
             "  - Fun rewards (extra credit, etc.)",
             "• View your inventory of purchased items"
@@ -353,7 +353,7 @@ const Support = () => {
           answer: [
             "• A special bazaar item that, when opened, awards one item from a configured drop pool.",
             "• Teachers define a pool of existing (non‑mystery) items plus each item's base drop chance (must sum to 100%).",
-            "• Each student open consumes one use; some boxes can allow multiple opens via a max opens setting."
+            "• Each open consumes one use."
           ],
           role: ["all"]
         },
@@ -377,19 +377,10 @@ const Support = () => {
           role: ["all"]
         },
         {
-          question: "Can Mystery Boxes limit how many times a student opens them?",
-          answer: [
-            "• Yes. A box can set 'Max Opens Per Student'.",
-            "• Once that limit is reached, that template box cannot be opened again.",
-            "• Owned (purchased) mystery boxes with usesRemaining = 0 are filtered out of inventory."
-          ],
-          role: ["all"]
-        },
-        {
           question: "How are Mystery Boxes created?",
           answer: [
             "• Teacher selects 'MysteryBox' category when creating an item in the Bazaar.",
-            "• Configurable fields: luckMultiplier, pity toggle & thresholds, minimum pity rarity, max opens/student, item pool with per‑item baseDropChance.",
+            "• Configurable fields: luckMultiplier, pity toggle & thresholds, minimum pity rarity, item pool with per‑item baseDropChance.",
             "• System validates: no duplicate items, sum of baseDropChance = 100%, no nested mystery boxes."
           ],
           role: ["teacher"]
@@ -413,15 +404,15 @@ const Support = () => {
         {
           question: "How do I create and manage group sets/groups?",
           answer: [
-            "As a teacher, you can organize collaborative learning:",
+            "As a teacher (or Admin/TA if permitted), you can organize collaborative learning as follows:",
             "• Create group sets/groups for different projects",
             "• Set group size limits and join/approval requirements",
             "• Review and approve/reject student join requests",
-            "• Configure group-specific settings and permissions",
+            "• Configure group-specific settings (e.g. group multiplier) and permissions",
             "• Suspend group members (if necessary)",
             "• Adjust bits at the group level for bulk awards"
           ],
-          role: ["teacher"]
+          role: ["teacher", "admin"]
         },
         {
           question: "How do group sets/groups work for students?",

@@ -166,9 +166,13 @@ const Classroom = () => {
       const userIdStr = String(user._id);
       const teacherIdStr = String(classroom.teacher?._id || classroom.teacher);
       const studentIdStrs = Array.isArray(classroom.students) ? classroom.students.map(s => String(s._id || s)) : [];
+      
+      // Allow access if user is the teacher (by ID, regardless of current persona role),
+      // or if user is an admin, or if user is a student member
+      const isTeacherOfClassroom = teacherIdStr === userIdStr;
       const hasAccess =
         user.role === 'admin' ||
-        (user.role === 'teacher' && teacherIdStr === userIdStr) ||
+        isTeacherOfClassroom ||
         (user.role === 'student' && studentIdStrs.includes(userIdStr));
 
       if (!hasAccess) {
