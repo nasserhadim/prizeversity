@@ -114,7 +114,7 @@ const Support = () => {
             "• Bits Earned Formula (conceptual): Base Award × Personal Multiplier × Group Multiplier (if teacher/admin enables both).",
             "• Luck increases chances for better outcome tiers (e.g. Mystery Box higher rarity).",
             "• Discount reduces Bazaar purchase cost (percentage).",
-            "• Shield protects from certain attack / negative item effects (consumed when triggered).",
+            "• Shield protects from certain attack / debuffs (negative item effects) and is consumed when triggered.",
             "• Attack Bonus represents offensive item count/effects (e.g. stat swaps, drains, debuffs).",
             "• Group Multiplier adds additional earning scaling based on group size (applied only if teacher keeps group multiplier enabled)."
           ],
@@ -163,7 +163,7 @@ const Support = () => {
           role: ["all"]
         },
         {
-          question: "Are negative effects permanent?",
+          question: "Are debuffs (negative item effects) permanent?",
           answer: [
             "• Most attack effects are one-time (e.g. drains, swaps, nullifiers, stat debuffs).",
             "• Shields mitigate or absorb a single incoming attack then decrement/de-activate.",
