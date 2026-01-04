@@ -147,7 +147,7 @@ const Support = () => {
           answer: [
             "• Completing challenges (if configured and award stat boosts).",
             "• Purchasing Bazaar items that grant boosts (Multiplier, Luck, Shields, Discounts).",
-            "• Teacher manual adjustments (People page).",
+            "• Teacher (and Admins/TAs with appropriate permissions) manual adjustments (from People page, Adjust Stats/Bulk Adjust Stats).",
             "• Joining groups that have member size-based group multipliers (if configured).",
             "• Using utility/passive items with embedded stat effects.",
             "• Gaining positive outcomes from attacks (e.g. swaps).",
@@ -168,7 +168,7 @@ const Support = () => {
           answer: [
             "• Most attack effects are one-time (e.g. drains, swaps, nullifiers, stat debuffs).",
             "• Shields mitigate or absorb a single incoming attack then decrement/de-activate.",
-            "• Teachers can rebalance by adjusting stats manually (through People page if needed)."
+            "• Teachers (and Admins/TAs with appropriate permissions) can rebalance by adjusting stats manually (through People page Adjust Stats/Bulk Adjust Stats if needed)."
           ],
           role: ["all"]
         },
@@ -634,7 +634,7 @@ const Support = () => {
             "",
             "Multi-level jumps (e.g., Level 3 → 6) award cumulative rewards for each level crossed.",
             "",
-            "Level-up bit rewards appear in your transaction history with calculation details."
+            "Level-up bit rewards appear in transaction history with calculation details."
           ],
           role: ["all"]
         },

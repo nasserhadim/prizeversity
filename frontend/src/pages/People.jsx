@@ -14,6 +14,7 @@ import Avatar from '../components/Avatar';
 import XPSettings from '../components/XPSettings';
 import { ThemeContext } from '../context/ThemeContext'; // NEW
 import { inferAssignerRole } from '../utils/transactions';
+import BulkStatsEditor from '../components/BulkStatsEditor';
 
 // NEW helper for classroom-scoped admin detection (uses fetched classroom + students)
 function userIsClassroomAdmin({ user, classroom, students }) {
@@ -1465,6 +1466,14 @@ const visibleCount = filteredStudents.length;
               Settings
             </button>
           )}
+          {(user?.role?.toLowerCase() === 'teacher' || (isClassroomAdmin && taStatsPolicy === 'full')) && (
+  <button
+    className={`btn flex-shrink-0 ${tab === 'bulk-stats' ? 'btn-success' : 'btn-outline'}`}
+    onClick={() => setTab('bulk-stats')}
+  >
+    Bulk Adjust Stats
+  </button>
+)}
         </div>
 {/* ─────────────── Settings TAB ─────────────── */}
         {tab === 'settings' && (user?.role || '').toLowerCase() === 'teacher' && (
@@ -2557,6 +2566,21 @@ const visibleCount = filteredStudents.length;
                )}
              </div>
            )}
+           {tab === 'bulk-stats' && (user?.role?.toLowerCase() === 'teacher' || (isClassroomAdmin && taStatsPolicy === 'full')) && (
+  <div className="bg-base-100 border border-base-300 rounded p-4 mt-4">
+    <h3 className="font-medium mb-4">Bulk Stats Adjustment</h3>
+    <p className="text-sm text-base-content/70 mb-4">
+      Select multiple students and adjust their stats (multiplier, luck, discount, shield, XP) in bulk.
+      Changes are applied as deltas (added to current values).
+    </p>
+    <BulkStatsEditor
+      onSuccess={async () => {
+        await fetchStudents();
+        await fetchClassroom();
+      }}
+    />
+  </div>
+)}
       </main>
 
       {/* Stats adjust modal (teacher only) */}

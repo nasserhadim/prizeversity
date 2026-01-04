@@ -1341,8 +1341,9 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
 
     // OPTIONAL: award XP for *increases* caused by this manual adjustment
     try {
-      // If teacher explicitly set absolute XP (xpChangeRecorded), don't also auto-award here.
-      if (!xpChangeRecorded && awardStatBoostXP && classroom?.xpSettings?.enabled) {
+      // FIX: Award stat boost XP REGARDLESS of whether xp was also directly changed
+      // Only skip if awardStatBoostXP is explicitly false
+      if (awardStatBoostXP && classroom?.xpSettings?.enabled) {
         const rate = Number(classroom.xpSettings.statIncrease || 0);
         if (rate > 0) {
           const afterForXP = {
@@ -1360,26 +1361,27 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
 
           const xpToAward = statIncreaseCount * rate;
           if (xpToAward > 0) {
+            // FIX: Reload student to get fresh XP state after direct XP change (if any)
+            const freshStudent = await User.findById(userId);
             const xpRes = await awardXP(
-              student._id,
+              freshStudent._id,
               classId,
               xpToAward,
               'stat increase (manual adjustment)',
               classroom.xpSettings,
-              { user: student } // reuse loaded doc per [`awardXP`](backend/utils/awardXP.js)
+              { user: freshStudent }
             );
 
             if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
               await logStatChanges({
                 io: req.app && req.app.get ? req.app.get('io') : null,
                 classroomId: classId,
-                user: student,
+                user: freshStudent,
                 actionBy: req.user ? req.user._id : undefined,
                 prevStats: { xp: xpRes.oldXP },
                 currStats: { xp: xpRes.newXP },
                 context: 'stat increase (manual adjustment)',
-                // CHANGED: include actor identity for transparency
-                details: { effectsText: `Manual stat adjustment by ${roleLabel} (${actorName}): +${xpToAward} XP` },
+                details: { effectsText: `Manual stat adjustment by ${roleLabel} (${actorName}): +${xpToAward} XP for ${statIncreaseCount} stat boost(s)` },
                 forceLog: true
               });
             }
@@ -1486,6 +1488,224 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
     res.json({ message: 'Stats updated', passiveAttributes: cs.passiveAttributes, changes });
   } catch (err) {
     console.error('[Patch student stats] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Bulk update stats for multiple students
+router.post('/:classId/stats/bulk', ensureAuthenticated, async (req, res) => {
+  try {
+    const { classId } = req.params;
+    const { studentIds, deltas, note, awardStatBoostXP = true } = req.body;
+
+    if (!Array.isArray(studentIds) || studentIds.length === 0) {
+      return res.status(400).json({ error: 'No students selected' });
+    }
+
+    const classroom = await Classroom.findById(classId);
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+
+    // Permission check: teacher or Admin/TA with stats policy
+    const isTeacher = String(classroom.teacher) === String(req.user._id);
+    const isClassAdmin = await isClassroomAdmin(req.user, classId);
+    const canAdjustStats = isTeacher || (isClassAdmin && classroom.taStatsPolicy === 'full');
+
+    if (!canAdjustStats) {
+      return res.status(403).json({ error: 'Not authorized to adjust stats' });
+    }
+
+    // Validate deltas
+    const { multiplier = 0, luck = 0, discount = 0, shield = 0, xp = 0 } = deltas || {};
+    const hasChange = multiplier !== 0 || luck !== 0 || discount !== 0 || shield !== 0 || xp !== 0;
+
+    if (!hasChange) {
+      return res.status(400).json({ error: 'No stat changes provided' });
+    }
+
+    const roleLabel = isTeacher ? 'Teacher' : 'Admin/TA';
+    const actorName =
+      `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() ||
+      req.user.email ||
+      String(req.user._id);
+
+    const results = { updated: 0, skipped: [] };
+    const now = new Date();
+
+    for (const studentId of studentIds) {
+      try {
+        const student = await User.findById(studentId);
+        if (!student) {
+          results.skipped.push({ studentId, reason: 'User not found' });
+          continue;
+        }
+
+        // Get or create classroom stats entry
+        const cs = getOrCreateClassroomStatsEntry(student, classId);
+
+        // Capture previous stat values
+        const prev = {
+          multiplier: cs.passiveAttributes?.multiplier ?? 1,
+          luck: cs.passiveAttributes?.luck ?? 1,
+          discount: cs.passiveAttributes?.discount ?? cs.passiveAttributes?.discountShop ?? 0,
+          shield: cs.shieldCount ?? 0,
+        };
+
+        // Get previous XP from classroomXP array (NOT from cs.xp)
+        if (!Array.isArray(student.classroomXP)) student.classroomXP = [];
+        let classroomXPEntry = student.classroomXP.find(cx => String(cx.classroom) === String(classId));
+        if (!classroomXPEntry) {
+          classroomXPEntry = { classroom: classId, xp: 0, level: 1, earnedBadges: [] };
+          student.classroomXP.push(classroomXPEntry);
+        }
+        const prevXP = classroomXPEntry.xp || 0;
+
+        // Apply stat deltas
+        const newMultiplier = Math.max(0.1, Number((prev.multiplier + multiplier).toFixed(1)));
+        const newLuck = Math.max(0.1, Number((prev.luck + luck).toFixed(1)));
+        const newDiscount = Math.max(0, Math.round(prev.discount + discount));
+        const newShield = Math.max(0, Math.round(prev.shield + shield));
+
+        // Update stats
+        cs.passiveAttributes = cs.passiveAttributes || {};
+        cs.passiveAttributes.multiplier = newMultiplier;
+        cs.passiveAttributes.luck = newLuck;
+        cs.passiveAttributes.discount = newDiscount;
+        cs.passiveAttributes.discountShop = newDiscount;
+        cs.shieldCount = newShield;
+        // FIX: Set shieldActive based on shield count
+        cs.shieldActive = newShield > 0;
+
+        // Handle direct XP change (if xp delta provided)
+        let newXP = prevXP;
+        let xpChangeRecorded = false;
+        if (xp !== 0 && classroom?.xpSettings?.enabled) {
+          newXP = Math.max(0, Math.round(prevXP + xp));
+          classroomXPEntry.xp = newXP;
+          
+          // Recalculate level
+          const { calculateLevelFromXP } = require('../utils/xp');
+          const newLevel = calculateLevelFromXP(
+            newXP,
+            classroom.xpSettings?.levelingFormula || 'exponential',
+            classroom.xpSettings?.baseXPForLevel2 || 100
+          );
+          classroomXPEntry.level = newLevel;
+          xpChangeRecorded = true;
+        }
+
+        await student.save();
+
+        // Build changes array for notification
+        const changes = [];
+        if (multiplier !== 0) changes.push({ field: 'multiplier', from: prev.multiplier, to: newMultiplier });
+        if (luck !== 0) changes.push({ field: 'luck', from: prev.luck, to: newLuck });
+        if (discount !== 0) changes.push({ field: 'discount', from: prev.discount, to: newDiscount });
+        if (shield !== 0) changes.push({ field: 'shield', from: prev.shield, to: newShield });
+        if (xpChangeRecorded) changes.push({ field: 'xp', from: prevXP, to: newXP });
+
+        // Format summary
+        const formatChange = (c) => {
+          const delta = c.to - c.from;
+          const sign = delta >= 0 ? '+' : '';
+          if (['multiplier', 'luck'].includes(c.field)) {
+            return `${c.field}: ${Number(c.from).toFixed(1)} → ${Number(c.to).toFixed(1)} (${sign}${delta.toFixed(1)})`;
+          }
+          if (c.field === 'xp') {
+            return `xp: ${c.from} → ${c.to} (${sign}${delta} XP)`;
+          }
+          return `${c.field}: ${c.from} → ${c.to} (${sign}${delta})`;
+        };
+
+        const summary = changes.map(formatChange).join('; ');
+        const noteSuffix = note ? ` Reason: ${note}.` : '';
+
+        // Create notification for student
+        const notification = await Notification.create({
+          user: student._id,
+          actionBy: req.user._id,
+          type: 'stats_adjusted',
+          message: `Your stats were updated by ${roleLabel} (${actorName}) via bulk adjustment: ${summary}.${noteSuffix}`,
+          classroom: classId,
+          read: false,
+          changes,
+          targetUser: student._id,
+          createdAt: now,
+        });
+
+        // Emit real-time notification
+        try {
+          const populated = await populateNotification(notification._id);
+          if (populated) {
+            req.app.get('io').to(`user-${student._id}`).emit('notification', populated);
+          }
+        } catch (e) {
+          /* ignore */
+        }
+
+        // FIX: Award XP for stat increases REGARDLESS of whether xp delta was also provided
+        // Only skip if awardStatBoostXP is explicitly false
+        if (awardStatBoostXP && classroom?.xpSettings?.enabled) {
+          const rate = Number(classroom.xpSettings.statIncrease || 0);
+          if (rate > 0) {
+            // Count POSITIVE stat increases only
+            let statIncreaseCount = 0;
+            if (multiplier > 0) statIncreaseCount += 1;
+            if (luck > 0) statIncreaseCount += 1;
+            if (discount > 0) statIncreaseCount += 1;
+            if (shield > 0) statIncreaseCount += 1;
+
+            if (statIncreaseCount > 0) {
+              const xpToAward = statIncreaseCount * rate;
+              try {
+                // Reload student to get fresh XP state after direct XP change
+                const freshStudent = await User.findById(studentId);
+                const xpRes = await awardXP(freshStudent._id, classId, xpToAward, 'stat increase (bulk adjustment)', classroom.xpSettings);
+                if (xpRes?.newXP !== xpRes?.oldXP) {
+                  await logStatChanges({
+                    io: req.app.get('io'),
+                    classroomId: classId,
+                    user: freshStudent,
+                    actionBy: req.user._id,
+                    prevStats: { xp: xpRes.oldXP },
+                    currStats: { xp: xpRes.newXP },
+                    context: 'stat increase (bulk adjustment)',
+                    details: { effectsText: `Bulk stat adjustment by ${roleLabel} (${actorName}): +${xpToAward} XP for ${statIncreaseCount} stat boost(s)` },
+                    forceLog: true,
+                  });
+                }
+              } catch (e) {
+                console.warn('[bulk stats] XP award failed:', e);
+              }
+            }
+          }
+        }
+
+        // Emit stats update
+        try {
+          req.app.get('io').to(`user-${student._id}`).emit('user_stats_update', {
+            userId: student._id,
+            passiveAttributes: cs.passiveAttributes,
+            shieldCount: cs.shieldCount,
+            shieldActive: cs.shieldActive,
+          });
+        } catch (e) {
+          /* ignore */
+        }
+
+        results.updated += 1;
+      } catch (err) {
+        console.error(`[bulk stats] Failed to update student ${studentId}:`, err);
+        results.skipped.push({ studentId, reason: err.message });
+      }
+    }
+
+    res.json({
+      message: `Bulk stats update complete`,
+      updated: results.updated,
+      skipped: results.skipped,
+    });
+  } catch (err) {
+    console.error('[Bulk stats] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
