@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Award, Lock, Trophy, Plus, Edit2, Trash2, Calendar, TrendingUp, ArrowUp, ArrowDown, Package, Save } from 'lucide-react';
+import { Award, Lock, Trophy, Plus, Edit2, Trash2, Calendar, TrendingUp, ArrowUp, ArrowDown, Package, Save, Star } from 'lucide-react';
 import axios from 'axios';
 import Footer from '../components/Footer';
 import { useAuth } from '../context/AuthContext';
@@ -11,6 +11,7 @@ import { useLocation, useNavigate, useParams, Link } from 'react-router-dom';
 import EmojiPicker from '../components/EmojiPicker'; // Import the new EmojiPicker component
 import { getBadgeTemplates, saveBadgeTemplate, deleteBadgeTemplate, applyBadgeTemplate } from '../API/apiBadgeTemplate';
 import ConfirmModal from '../components/ConfirmModal';
+import { equipBadge, unequipBadge } from '../API/apiBadge';
 
 const Badges = () => {
   const location = useLocation();
@@ -25,7 +26,7 @@ const Badges = () => {
   // Management mode only when teacher AND not viewing a specific student
   const isManagement = isTeacher && !forceCollection;
 
-  // NEW: state for “whose collection”
+  // NEW: state for "whose collection"
   const [collectionStudent, setCollectionStudent] = useState(null);
   const [myXP, setMyXP] = useState(null);
   const [badges, setBadges] = useState([]);
@@ -52,6 +53,10 @@ const Badges = () => {
   const [badgeFilter, setBadgeFilter] = useState('all'); // 'all', 'hasBadges', 'noBadges'
   const [sortField, setSortField] = useState('name'); // 'name', 'level', 'xp', 'badges'
   const [sortDirection, setSortDirection] = useState('asc'); // 'asc' or 'desc'
+
+  // NEW: equipped badge state
+  const [equippedBadgeId, setEquippedBadgeId] = useState(null);
+  const [equipping, setEquipping] = useState(false);
 
   // NEW: badge template states
   const [badgeTemplates, setBadgeTemplates] = useState([]);
@@ -149,6 +154,50 @@ const Badges = () => {
     }
   };
 
+  // Fetch equipped badge when loading XP data
+  useEffect(() => {
+    if (myXP?.equippedBadge) {
+      setEquippedBadgeId(
+        typeof myXP.equippedBadge === 'object' 
+          ? myXP.equippedBadge._id || myXP.equippedBadge 
+          : myXP.equippedBadge
+      );
+    } else {
+      setEquippedBadgeId(null);
+    }
+  }, [myXP]);
+
+  // NEW: equip handler
+  const handleEquipBadge = async (badgeId) => {
+    setEquipping(true);
+    try {
+      await equipBadge(classroomId, badgeId);
+      setEquippedBadgeId(badgeId);
+      toast.success('Badge equipped! It will now appear next to your name.');
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to equip badge');
+    } finally {
+      setEquipping(false);
+    }
+  };
+
+  // NEW: unequip handler
+  const handleUnequipBadge = async () => {
+    setEquipping(true);
+    try {
+      await unequipBadge(classroomId);
+      setEquippedBadgeId(null);
+      toast.success('Badge unequipped');
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to unequip badge');
+    } finally {
+      setEquipping(false);
+    }
+  };
+
+  // Determine if viewing own collection (can equip)
+  const isOwnCollection = !viewingStudentId || viewingStudentId === user?._id;
+
   useEffect(() => {
     if (!classroomId || !user) return;
 
@@ -183,7 +232,7 @@ const Badges = () => {
             );
             setMyXP(res.data || null);
 
-            // Try to resolve student’s display name for the banner
+            // Try to resolve student's display name for the banner
             if (targetId !== user._id) {
               const p = await axios.get(`/api/profile/student/${targetId}`, { withCredentials: true });
               setCollectionStudent(p.data || null);
@@ -1144,7 +1193,6 @@ const Badges = () => {
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {earnedFilteredSorted.map((badge) => {
-                    // Use myXP for collection view; fall back to table data if available
                     const earnedInfo =
                       (myXP?.earnedBadges || []).find(
                         eb => String(eb.badge) === String(badge._id)
@@ -1152,12 +1200,27 @@ const Badges = () => {
                       studentBadgeData
                         ?.find(s => String(s._id) === String(viewingStudentId || user._id))
                         ?.earnedBadges?.find(eb => String(eb.badge) === String(badge._id));
+                    
+                    const isEquipped = String(equippedBadgeId) === String(badge._id);
+                    
                     return (
                       <div 
                         key={badge._id}
-                        className="card bg-gradient-to-br from-yellow-50 to-amber-50 border-2 border-yellow-300 shadow-lg hover:shadow-xl transition-all duration-200"
+                        className={`card bg-gradient-to-br from-yellow-50 to-amber-50 shadow-lg hover:shadow-xl transition-all duration-200 ${
+                          isEquipped ? 'border-4 border-yellow-400 ring-2 ring-yellow-300' : 'border-2 border-yellow-300'
+                        }`}
                       >
-                        <div className="card-body items-center text-center">
+                        <div className="card-body items-center text-center relative">
+                          {/* Equipped indicator */}
+                          {isEquipped && (
+                            <div className="absolute top-2 right-2">
+                              <span className="badge badge-warning gap-1">
+                                <Star className="w-3 h-3 fill-current" />
+                                Equipped
+                              </span>
+                            </div>
+                          )}
+
                           {/* Icon at top */}
                           <div className="text-6xl mb-3 animate-bounce">
                             {badge.icon}
@@ -1183,11 +1246,36 @@ const Badges = () => {
                             <Award className="w-3 h-3" />
                             Level {badge.levelRequired}
                           </div>
-                          {/* Show earned date sourced from myXP */}
+                          {/* Show earned date */}
                           {earnedInfo?.earnedAt && (
                             <div className="flex items-center gap-1 text-xs text-base-content/60 mt-2">
                               <Calendar className="w-3 h-3" />
                               {new Date(earnedInfo.earnedAt).toLocaleString()}
+                            </div>
+                          )}
+
+                          {/* Equip/Unequip button - only for own collection */}
+                          {isOwnCollection && (
+                            <div className="mt-3">
+                              {isEquipped ? (
+                                <button
+                                  className="btn btn-sm btn-warning gap-1"
+                                  onClick={handleUnequipBadge}
+                                  disabled={equipping}
+                                >
+                                  <Star className="w-3 h-3 fill-current" />
+                                  {equipping ? 'Updating...' : 'Unequip'}
+                                </button>
+                              ) : (
+                                <button
+                                  className="btn btn-sm btn-outline btn-primary gap-1"
+                                  onClick={() => handleEquipBadge(badge._id)}
+                                  disabled={equipping}
+                                >
+                                  <Star className="w-3 h-3" />
+                                  {equipping ? 'Updating...' : 'Equip'}
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>

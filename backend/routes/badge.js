@@ -183,6 +183,7 @@ router.get('/classroom/:classroomId/student-progress', ensureAuthenticated, ensu
       const level = classroomXP?.level || 1;
       const xp = classroomXP?.xp || 0;
       const earnedBadges = classroomXP?.earnedBadges || [];
+      const equippedBadgeId = classroomXP?.equippedBadge?.toString() || null;
 
       // Find next badge to unlock
       const earnedBadgeIds = earnedBadges.map(eb => eb.badge.toString());
@@ -201,6 +202,11 @@ router.get('/classroom/:classroomId/student-progress', ensureAuthenticated, ensu
         xpUntilNextBadge = Math.max(0, xpForNextBadgeLevel - xp);
       }
 
+      // Find equipped badge details
+      const equippedBadge = equippedBadgeId 
+        ? badges.find(b => b._id.toString() === equippedBadgeId)
+        : null;
+
       return {
         _id: student._id,
         email: student.email,
@@ -209,6 +215,12 @@ router.get('/classroom/:classroomId/student-progress', ensureAuthenticated, ensu
         level,
         xp,
         earnedBadges,
+        equippedBadge: equippedBadge ? {
+          _id: equippedBadge._id,
+          name: equippedBadge.name,
+          icon: equippedBadge.icon,
+          image: equippedBadge.image
+        } : null,
         nextBadge: nextBadge ? {
           _id: nextBadge._id,
           name: nextBadge.name,
@@ -223,6 +235,107 @@ router.get('/classroom/:classroomId/student-progress', ensureAuthenticated, ensu
     res.json(studentProgress);
   } catch (err) {
     console.error('Error fetching student badge progress:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST equip a badge (student equips their own badge)
+router.post('/equip', ensureAuthenticated, async (req, res) => {
+  try {
+    const { classroomId, badgeId } = req.body;
+    
+    if (!classroomId) {
+      return res.status(400).json({ error: 'classroomId is required' });
+    }
+
+    const user = await require('../models/User').findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Find or create classroomXP entry
+    let classroomXPEntry = user.classroomXP?.find(
+      cx => cx.classroom.toString() === classroomId.toString()
+    );
+
+    if (!classroomXPEntry) {
+      return res.status(404).json({ error: 'Not enrolled in this classroom' });
+    }
+
+    // If badgeId is null/undefined, unequip
+    if (!badgeId) {
+      classroomXPEntry.equippedBadge = null;
+      await user.save();
+      return res.json({ message: 'Badge unequipped', equippedBadge: null });
+    }
+
+    // Verify the badge exists and belongs to this classroom
+    const badge = await require('../models/Badge').findById(badgeId);
+    if (!badge || badge.classroom.toString() !== classroomId.toString()) {
+      return res.status(404).json({ error: 'Badge not found in this classroom' });
+    }
+
+    // Verify user has earned this badge
+    const hasEarned = classroomXPEntry.earnedBadges?.some(
+      eb => eb.badge.toString() === badgeId.toString()
+    );
+
+    if (!hasEarned) {
+      return res.status(403).json({ error: 'You have not earned this badge' });
+    }
+
+    // Equip the badge
+    classroomXPEntry.equippedBadge = badgeId;
+    await user.save();
+
+    res.json({ 
+      message: 'Badge equipped successfully', 
+      equippedBadge: {
+        _id: badge._id,
+        name: badge.name,
+        icon: badge.icon,
+        image: badge.image
+      }
+    });
+  } catch (err) {
+    console.error('Error equipping badge:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET equipped badge for a user in a classroom
+router.get('/equipped/:classroomId/:userId?', ensureAuthenticated, async (req, res) => {
+  try {
+    const { classroomId, userId } = req.params;
+    const targetUserId = userId || req.user._id;
+
+    const User = require('../models/User');
+    const user = await User.findById(targetUserId);
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const classroomXPEntry = user.classroomXP?.find(
+      cx => cx.classroom.toString() === classroomId.toString()
+    );
+
+    if (!classroomXPEntry || !classroomXPEntry.equippedBadge) {
+      return res.json({ equippedBadge: null });
+    }
+
+    const badge = await require('../models/Badge').findById(classroomXPEntry.equippedBadge);
+    
+    res.json({
+      equippedBadge: badge ? {
+        _id: badge._id,
+        name: badge.name,
+        icon: badge.icon,
+        image: badge.image
+      } : null
+    });
+  } catch (err) {
+    console.error('Error fetching equipped badge:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

@@ -792,7 +792,7 @@ router.get('/:id/students', ensureAuthenticated, async (req, res) => {
 
     const classroom = await Classroom.findById(req.params.id)
       .populate('teacher', 'email role firstName lastName shortId createdAt avatar profileImage')
-      .populate('students', 'email role firstName lastName shortId createdAt avatar profileImage')
+      .populate('students', 'email role firstName lastName shortId createdAt avatar profileImage classroomXP')
       .populate('admins', 'email role firstName lastName shortId createdAt avatar profileImage');
     if (!classroom) {
       return res.status(404).json({ error: 'Classroom not found' });
@@ -807,12 +807,33 @@ router.get('/:id/students', ensureAuthenticated, async (req, res) => {
       }
     }
 
+    // Import Badge model for equipped badge lookup
+    const Badge = require('../models/Badge');
+
     // Fetch per-classroom balances for each student
     const usersWithData = await Promise.all(
       allUsers.map(async (person) => {
-        const user = await User.findById(person._id).select('classroomBalances classroomJoinDates');
+        const user = await User.findById(person._id).select('classroomBalances classroomJoinDates classroomXP');
         const classroomBalance = user.classroomBalances.find(cb => cb.classroom.toString() === req.params.id);
         const classroomJoinDate = user.classroomJoinDates?.find(cjd => cjd.classroom.toString() === req.params.id);
+
+        // Get equipped badge for this classroom
+        const classroomXPEntry = user.classroomXP?.find(
+          cx => cx.classroom.toString() === req.params.id
+        );
+        
+        let equippedBadge = null;
+        if (classroomXPEntry?.equippedBadge) {
+          const badge = await Badge.findById(classroomXPEntry.equippedBadge).select('name icon image');
+          if (badge) {
+            equippedBadge = {
+              _id: badge._id,
+              name: badge.name,
+              icon: badge.icon,
+              image: badge.image
+            };
+          }
+        }
 
         const base = (person && person.toObject) ? person.toObject() : { ...person };
         const isAdmin = adminIds.includes(String(person._id));
@@ -826,6 +847,7 @@ router.get('/:id/students', ensureAuthenticated, async (req, res) => {
           balance: classroomBalance ? classroomBalance.balance : 0,
           joinedAt: classroomJoinDate?.joinedAt || person.createdAt,
           lastAccessed: classroomJoinDate?.lastAccessed || null,
+          equippedBadge
         };
       })
     );

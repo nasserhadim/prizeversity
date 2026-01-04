@@ -26,6 +26,9 @@ const BulkBalanceEditor = ({onSuccess}) => {
   // NEW: classroom meta (to detect banned students / banLog)
   const [classroom, setClassroom] = useState(null);
 
+  // NEW: track siphoned user IDs from groupSets data
+  const [siphonedUserIds, setSiphonedUserIds] = useState(new Set());
+
   useEffect(() => {
     if (!classroomId) return;
     let mounted = true;
@@ -56,67 +59,10 @@ const BulkBalanceEditor = ({onSuccess}) => {
     return Boolean(banRecord);
   };
 
-  // helper: detect siphoned/frozen for this classroom (robust across shapes)
+  // helper: detect siphoned/frozen for this classroom (uses groupSets data)
   const isSiphonedInClassroom = (student) => {
     if (!student) return false;
-
-    // Guarded deep walk to find any isFrozen flag or any classroomFrozen arrays.
-    const seen = new WeakSet();
-    let foundFrozen = false;
-    const cfEntries = [];
-
-    const walk = (obj, depth = 0) => {
-      if (!obj || typeof obj !== 'object' || depth > 8) return;
-      if (seen.has(obj)) return;
-      seen.add(obj);
-
-      // direct flags
-      if (obj.isFrozen === true || obj.frozen === true) {
-        foundFrozen = true;
-        return;
-      }
-
-      // direct array named classroomFrozen
-      if (Array.isArray(obj.classroomFrozen)) {
-        cfEntries.push(...obj.classroomFrozen);
-      }
-
-      // also accept arrays on other keys that look like classroomFrozen
-      for (const key of Object.keys(obj)) {
-        const val = obj[key];
-        if (Array.isArray(val) && key.toLowerCase().includes('classroom') && val.length) {
-          cfEntries.push(...val);
-        }
-      }
-
-      // recurse
-      for (const key of Object.keys(obj)) {
-        try {
-          const v = obj[key];
-          if (v && typeof v === 'object') walk(v, depth + 1);
-        } catch (e) {}
-      }
-    };
-
-    walk(student);
-
-    // quick return if a global freeze flag is present anywhere
-    if (foundFrozen) return true;
-
-    // No classroom freeze entries found
-    if (cfEntries.length === 0) {
-      // Temporary debug: uncomment if you still don't see badge to inspect the incoming object
-      // console.log('[isSiphonedInClassroom] student sample:', student);
-      return false;
-    }
-
-    const targetClassroomId = String(classroomId);
-    return cfEntries.some(cf => {
-      // handle shapes: ObjectId string, { classroom: id }, { classroom: { _id: id } }, or { classRoom: id }
-      const room = cf && (cf.classroom || cf.classRoom || cf.classroomId || cf);
-      const roomId = room && (room._id ? String(room._id) : String(room));
-      return roomId === targetClassroomId;
-    });
+    return siphonedUserIds.has(String(student._id));
   };
 
   const userIsTeacher = (user?.role || '').toLowerCase() === 'teacher';
@@ -177,17 +123,28 @@ const BulkBalanceEditor = ({onSuccess}) => {
         .get(`/api/group/groupset/classroom/${classroomId}`, { withCredentials: true })
         .then(res => {
           const ids = new Set();
+          const siphonedIds = new Set(); // NEW: track siphoned users
           (res.data || []).forEach(gs => {
             (gs.groups || []).forEach(g => {
               (g.members || []).forEach(m => {
                 const mid = m && (m._id? (m._id._id || m._id) : m);
                 if (mid) ids.add(String(mid));
+                
+                // NEW: check if member is frozen in this classroom
+                const memberData = m._id && typeof m._id === 'object' ? m._id : null;
+                if (memberData?.classroomFrozen?.some(cf => String(cf.classroom) === String(classroomId))) {
+                  siphonedIds.add(String(mid));
+                }
               });
             });
           });
           setGroupMembership(ids);
+          setSiphonedUserIds(siphonedIds); // NEW
         })
-        .catch(() => setGroupMembership(new Set()));
+        .catch(() => {
+          setGroupMembership(new Set());
+          setSiphonedUserIds(new Set()); // NEW
+        });
     }
   }, [classroomId]);
 

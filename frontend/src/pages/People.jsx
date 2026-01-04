@@ -15,6 +15,7 @@ import XPSettings from '../components/XPSettings';
 import { ThemeContext } from '../context/ThemeContext'; // NEW
 import { inferAssignerRole } from '../utils/transactions';
 import BulkStatsEditor from '../components/BulkStatsEditor';
+import EquippedBadge from '../components/EquippedBadge';
 
 // NEW helper for classroom-scoped admin detection (uses fetched classroom + students)
 function userIsClassroomAdmin({ user, classroom, students }) {
@@ -1911,10 +1912,14 @@ const visibleCount = filteredStudents.length;
                           {/* NEW: avatar next to the name */}
                           <Avatar user={student} size={36} showStatus />
                         </div>
-                        <div className="font-medium text-lg">
+                        <div className="font-medium text-lg flex items-center gap-2">
                           {student.firstName || student.lastName
                             ? `${student.firstName || ''} ${student.lastName || ''}`.trim()
                             : student.name || student.email}
+                          {/* NEW: Show equipped badge */}
+                          {student.equippedBadge && (
+                            <EquippedBadge badge={student.equippedBadge} size={20} />
+                          )}
                         <span className={`ml-2 ${subtleText} text-sm`}>
                           {/* Classroom‑scoped role label */}
                           {(() => {
@@ -2197,15 +2202,19 @@ const visibleCount = filteredStudents.length;
                             key={student._id} 
                             className="flex justify-between items-center p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800"
                           >
-                            {/* NEW: avatar + name */}
+                            {/* avatar + name + equipped badge */}
                             <div className="flex items-center gap-2">
                               <Avatar user={student} size={24} />
                               <span className="font-medium">
                                 {student.firstName || student.lastName
                                   ? `${student.firstName || ''} ${student.lastName || ''}`.trim()
                                   : student.email}
-                                {isBanned && <span className="badge badge-error ml-2">BANNED</span>}
                               </span>
+                              {/* Show equipped badge */}
+                              {student.equippedBadge && (
+                                <EquippedBadge badge={student.equippedBadge} size={18} />
+                              )}
+                              {isBanned && <span className="badge badge-error ml-2">BANNED</span>}
                             </div>
 
                             <div className="flex items-center gap-2">
@@ -2300,6 +2309,10 @@ const visibleCount = filteredStudents.length;
                           ? `${memberUser.firstName || ''} ${memberUser.lastName || ''}`.trim()
                           : memberUser?.name || memberUser?.email || 'Unknown User';
 
+                        // Find equipped badge from students array (which has equippedBadge from backend)
+                        const studentData = students.find(s => String(s._id) === String(userId));
+                        const equippedBadge = studentData?.equippedBadge || null;
+
                          // Determine banned state for this member (reuse classroom shape logic)
                         const banLog = (Array.isArray(classroom?.banLog) && classroom.banLog.length)
                           ? classroom.banLog
@@ -2337,10 +2350,14 @@ const visibleCount = filteredStudents.length;
  
                         return (
                           <li key={String(userId)} className="flex justify-between items-center w-full">
-                            {/* NEW: avatar + name + badges */}
+                            {/* NEW: avatar + name + equipped badge + status badges */}
                             <span className="flex items-center gap-2">
                               <Avatar user={memberUser} size={24} />
                               <span>{displayName}</span>
+                              {/* Show equipped badge */}
+                              {equippedBadge && (
+                                <EquippedBadge badge={equippedBadge} size={18} />
+                              )}
                               {isBannedMember && <span className="badge badge-error">BANNED</span>}
                               {isSiphoned && canSeeSiphon && <span className="badge badge-warning">SIPHONED</span>}
                               {isPending && <span className="badge badge-info">PENDING</span>}

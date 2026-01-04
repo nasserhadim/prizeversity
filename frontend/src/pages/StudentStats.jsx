@@ -12,6 +12,7 @@ import {
 import Footer from '../components/Footer';
 import StatsRadar from '../components/StatsRadar'; // <-- add this import
 import { getThemeClasses } from '../utils/themeUtils'; // <-- new import
+import EquippedBadge from '../components/EquippedBadge';
 
 const StudentStats = () => {
   const { classroomId, id: studentId } = useParams();
@@ -483,6 +484,20 @@ const StudentStats = () => {
             <div className="stat-value">x{displayLuck}</div>
           </div>
         </div>
+
+        {/* Equipped Badge Display */}
+        {xpData?.equippedBadge && (
+          <div className="stat">
+            <div className="stat-figure text-secondary">
+              <EquippedBadge badge={xpData.equippedBadge} size={40} showTooltip={false} />
+            </div>
+            <div className="stat-title">Equipped Badge</div>
+            <div className="stat-value text-lg wrap-any max-w-[200px]">
+              {xpData.equippedBadge.name}
+            </div>
+            <div className="stat-desc">Shown next to name</div>
+          </div>
+        )}
       </div>
 
       <div className="max-w-md mx-auto mt-6 mb-6">
