@@ -11,6 +11,7 @@ import { useAuth } from '../context/AuthContext'; // Add this import
 import Avatar from '../components/Avatar';
 import ExportButtons from '../components/ExportButtons';
 import formatExportFilename from '../utils/formatExportFilename';
+import EquippedBadge from '../components/EquippedBadge';
 
 const Leaderboard = () => {
   const { classId } = useParams();
@@ -269,6 +270,10 @@ const Leaderboard = () => {
                         <div className="flex items-center gap-2">
                           <Avatar user={student} size={28} />
                           {getDisplayName(student)}
+                          {/* NEW: Show equipped badge */}
+                          {student.equippedBadge && (
+                            <EquippedBadge badge={student.equippedBadge} size={18} />
+                          )}
                         </div>
                       </td>
                       <td>

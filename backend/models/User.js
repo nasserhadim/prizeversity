@@ -133,7 +133,9 @@ const UserSchema = new mongoose.Schema({
         type: Date, 
         default: Date.now 
       }
-    }]
+    }],
+    // NEW: equipped badge for this classroom
+    equippedBadge: { type: mongoose.Schema.Types.ObjectId, ref: 'Badge', default: null }
   }],
   classroomStats: { type: [ClassroomStatsSchema], default: [] },
 }, { 

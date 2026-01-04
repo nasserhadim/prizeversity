@@ -147,7 +147,7 @@ const Support = () => {
           answer: [
             "• Completing challenges (if configured and award stat boosts).",
             "• Purchasing Bazaar items that grant boosts (Multiplier, Luck, Shields, Discounts).",
-            "• Teacher manual adjustments (People page).",
+            "• Teacher (and Admins/TAs with appropriate permissions) manual adjustments (from People page, Adjust Stats/Bulk Adjust Stats).",
             "• Joining groups that have member size-based group multipliers (if configured).",
             "• Using utility/passive items with embedded stat effects.",
             "• Gaining positive outcomes from attacks (e.g. swaps).",
@@ -168,7 +168,7 @@ const Support = () => {
           answer: [
             "• Most attack effects are one-time (e.g. drains, swaps, nullifiers, stat debuffs).",
             "• Shields mitigate or absorb a single incoming attack then decrement/de-activate.",
-            "• Teachers can rebalance by adjusting stats manually (through People page if needed)."
+            "• Teachers (and Admins/TAs with appropriate permissions) can rebalance by adjusting stats manually (through People page Adjust Stats/Bulk Adjust Stats if needed)."
           ],
           role: ["all"]
         },
@@ -634,7 +634,7 @@ const Support = () => {
             "",
             "Multi-level jumps (e.g., Level 3 → 6) award cumulative rewards for each level crossed.",
             "",
-            "Level-up bit rewards appear in your transaction history with calculation details."
+            "Level-up bit rewards appear in transaction history with calculation details."
           ],
           role: ["all"]
         },
@@ -731,6 +731,49 @@ const Support = () => {
             "This helps you identify students who are close to milestones and provide targeted motivation!"
           ],
           role: ["teacher"]
+        },
+        {
+          question: "How do I equip a badge to display next to my name?",
+          answer: [
+            "You can equip one of your earned badges to show off next to your name throughout the classroom!",
+            "",
+            "**To equip a badge:**",
+            "• Go to the Badges page in your classroom",
+            "• Find a badge you've already earned (in the 'Earned Badges' section)",
+            "• Click the 'Equip' button on that badge",
+            "• The badge will now display a golden border and 'Equipped' label",
+            "",
+            "**Where your equipped badge appears:**",
+            "• Next to your name on the Leaderboard",
+            "• Next to your name in the People page",
+            "• In group member lists (Groups page)",
+            "• On your Stats page",
+            "",
+            "**To change or remove your equipped badge:**",
+            "• Go back to the Badges page",
+            "• Click 'Unequip' on your currently equipped badge",
+            "• Optionally, equip a different earned badge",
+            "",
+            "**Note:** You can only equip badges you've earned, and only one badge can be equipped at a time per classroom."
+          ],
+          role: ["student"]
+        },
+        {
+          question: "What is the badge icon shown next to student names?",
+          answer: [
+            "The small icon you see next to some student names is their **equipped badge**.",
+            "",
+            "Students can choose to display one of their earned badges as a 'title' or 'flair' that appears:",
+            "• On the Leaderboard",
+            "• In the People page",
+            "• In group member lists",
+            "• On their Stats page",
+            "",
+            "Hover over the badge icon to see the badge name (shown as 'Badge: [name]').",
+            "",
+            "This feature allows students to show off their achievements and adds a fun personalization element to the classroom!"
+          ],
+          role: ["all"]
         }
       ]
     },
@@ -821,9 +864,8 @@ const Support = () => {
         {
           question: "What does banning a student do?",
           answer: [
-            "• Banning prevents a student from accessing the classroom and from receiving any balance adjustments for that classroom (credits/assignments/transfers).",
-            "• Banned students are blocked at the server level so they cannot bypass the ban by re-entering the classroom code.",
-            "• The system will also prevent any balance changes targeted at a banned student for the affected classroom."
+            "• Banning prevents a student from accessing the classroom.",
+            "• Banned students are blocked at the server level so they cannot bypass the ban by re-entering the classroom code."
           ],
           role: ["teacher","admin","student"]
         },

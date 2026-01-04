@@ -11,6 +11,7 @@ import Footer from '../components/Footer';
 import { API_BASE } from '../config/api'; // add
 import { resolveImageSrc, resolveGroupSetSrc, isPlaceholderGroupSetImage } from '../utils/image'; // OR import the helper
 import Avatar from '../components/Avatar';
+import EquippedBadge from '../components/EquippedBadge';
 
 // NEW: helper to detect classroom-scoped admin membership (uses fetched classroom/allStudents)
 function userIsClassroomAdmin({ user, classroom, allStudents }) {
@@ -96,6 +97,7 @@ const Groups = () => {
   const [selectedGroupSets, setSelectedGroupSets] = useState([]); // track selected GroupSet ids
   const [groupSetMultiplierIncrement, setGroupSetMultiplierIncrement] = useState(0); // Default to 0
   const [now, setNow] = useState(Date.now());
+  const [memberEquippedBadges, setMemberEquippedBadges] = useState({}); // { odierI: badge }
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000); // update every second for countdown
@@ -236,6 +238,45 @@ const Groups = () => {
       socket.off('classroom_removal', handleClassroomRemoval); // Add cleanup
     };
   }, [id, navigate]); // Add navigate to dependencies
+
+  // NEW: Fetch equipped badges for all group members
+  useEffect(() => {
+    const fetchEquippedBadges = async () => {
+      if (!groupSets?.length || !id) return;
+      
+      // Collect all unique member IDs
+      const memberIds = new Set();
+      groupSets.forEach(gs => {
+        gs.groups?.forEach(g => {
+          g.members?.forEach(m => {
+            const memberId = getMemberId(m);
+            if (memberId) memberIds.add(String(memberId));
+          });
+        });
+      });
+      
+      if (memberIds.size === 0) return;
+      
+      // Fetch equipped badge for each member
+      const badgeMap = {};
+      await Promise.all(
+        Array.from(memberIds).map(async (memberId) => {
+          try {
+            const res = await axios.get(`/api/badge/equipped/${id}/${memberId}`, { withCredentials: true });
+            if (res.data?.equippedBadge) {
+              badgeMap[memberId] = res.data.equippedBadge;
+            }
+          } catch (e) {
+            // Ignore errors for individual fetches
+          }
+        })
+      );
+      
+      setMemberEquippedBadges(badgeMap);
+    };
+    
+    fetchEquippedBadges();
+  }, [groupSets, id]);
 
   // GroupSet creation/update/reset
   const handleCreateGroupSet = async () => {
@@ -1559,6 +1600,11 @@ const Groups = () => {
                                       </div>
                                       {`${member._id?.firstName || ''} ${member._id?.lastName || ''}`.trim() || member._id?.email || 'Unknown User'}
                                       
+                                      {/* Show equipped badge */}
+                                      {memberEquippedBadges[String(mid)] && (
+                                        <EquippedBadge badge={memberEquippedBadges[String(mid)]} size={18} />
+                                      )}
+
                                       {/* Show banned badge if user is banned in this classroom */}
                                       {isBannedInClassroom(mid) && (
                                         <span className="badge badge-error ml-2">BANNED</span>

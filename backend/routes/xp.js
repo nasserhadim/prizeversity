@@ -3,6 +3,7 @@ const router = express.Router();
 const { ensureAuthenticated, ensureTeacher } = require('../middleware/auth'); // Changed from '../config/auth'
 const Classroom = require('../models/Classroom');
 const User = require('../models/User');
+const Badge = require('../models/Badge');
 const { calculateNextLevelProgress } = require('../utils/xp');
 
 // GET XP settings for classroom (teacher only)
@@ -80,6 +81,7 @@ router.get('/classroom/:classroomId/user/:userId', ensureAuthenticated, async (r
         xp: 0,
         level: 1,
         earnedBadges: [],
+        equippedBadge: null,
         nextLevelProgress: {
           xpForCurrentLevel: 0,
           xpForNextLevel: classroom.xpSettings.baseXPForLevel2 || 100,
@@ -98,10 +100,25 @@ router.get('/classroom/:classroomId/user/:userId', ensureAuthenticated, async (r
       classroom.xpSettings.baseXPForLevel2
     );
 
+    // Fetch equipped badge details if one is equipped
+    let equippedBadge = null;
+    if (classroomXP.equippedBadge) {
+      const badge = await Badge.findById(classroomXP.equippedBadge).select('name icon image');
+      if (badge) {
+        equippedBadge = {
+          _id: badge._id,
+          name: badge.name,
+          icon: badge.icon,
+          image: badge.image
+        };
+      }
+    }
+
     res.json({
       xp: classroomXP.xp,
       level: classroomXP.level,
       earnedBadges: classroomXP.earnedBadges,
+      equippedBadge,
       nextLevelProgress: progress
     });
   } catch (err) {
