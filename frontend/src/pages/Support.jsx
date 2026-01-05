@@ -145,13 +145,12 @@ const Support = () => {
         {
           question: "How can stats be amplified?",
           answer: [
-            "• Completing challenges (if configured and award stat boosts).",
             "• Purchasing Bazaar items that grant boosts (Multiplier, Luck, Shields, Discounts).",
             "• Teacher (and Admins/TAs with appropriate permissions) manual adjustments (from People page, Adjust Stats/Bulk Adjust Stats).",
             "• Joining groups that have member size-based group multipliers (if configured).",
             "• Using utility/passive items with embedded stat effects.",
             "• Gaining positive outcomes from attacks (e.g. swaps).",
-            "• Gaining stat increases from leveling (if configured)."
+            "• Gaining stat increases from challenges, leveling, and/or badges (if configured).",
           ],
           role: ["all"]
         },
@@ -279,7 +278,7 @@ const Support = () => {
             "  - Stat boosts (luck, multiplier, shields)",
             "  - Group multipliers",
             "  - Special abilities",
-            "• Upload item images"
+            "• Upload item images (note that if the image doesn't show up immediately after saving, try refreshing the page.)"
           ],
           role: ["teacher"]
         },
@@ -692,7 +691,8 @@ const Support = () => {
             "  - Badge name and description",
             "  - Level requirement (when students unlock it)",
             "  - Icon/emoji representation",
-            "  - Optional: Upload a custom image",
+            "  - Optional: Upload a custom image (note that if the image doesn't show up immediately upon saving, try refreshing the page.)",
+            "  - Custom Rewards (bits, multiplier, luck, discount, shield)",
             "",
             "**Badge Management Dashboard:**",
             "The Badges page provides a comprehensive dashboard showing:",
@@ -715,6 +715,28 @@ const Support = () => {
             "Students automatically earn badges when they reach the required level!"
           ],
           role: ["teacher"]
+        },
+        {
+          question: "What are badge rewards?",
+          answer: [
+            "Badges may include rewards that are automatically granted when unlocked!",
+            "",
+            "**Possible badge rewards:**",
+            "• Bits (₿) - virtual currency",
+            "• Multiplier boost - increases future earnings",
+            "• Luck boost - improves mystery box outcomes",
+            "• Discount % - reduces bazaar prices",
+            "• Shield - protects against attacks",
+            "",
+            "**Multiplier Options:**",
+            "• Teachers can enable personal and/or group multipliers on badge bit rewards",
+            "• This means bit rewards may scale with your current multipliers",
+            "",
+            "Badge rewards are shown as small indicators on each badge card, similar to challenge rewards.",
+            "",
+            "When a badge with rewards is earned, a notification is emitted showing exactly what was earned!"
+          ],
+          role: ["all"]
         },
         {
           question: "Can I see which students are close to earning badges?",
@@ -772,6 +794,33 @@ const Support = () => {
             "Hover over the badge icon to see the badge name (shown as 'Badge: [name]').",
             "",
             "This feature allows students to show off their achievements and adds a fun personalization element to the classroom!"
+          ],
+          role: ["all"]
+        },
+        {
+          question: "What happens if a badge is added at a lower level than a student's level?",
+          answer: [
+            "If a teacher creates or updates a badge with a level requirement lower than a student's current level, it will be retroactively unlocked the next time they earn XP.",
+            "",
+            "**Example:**",
+            "• Student at Level 18",
+            "• Teacher creates a new badge requiring Level 15",
+            "• Next time they earn any XP, the badge will be retroactively unlocked",
+            "",
+            "This ensures students never miss out on badges even if they're added after they've passed that level!"
+          ],
+          role: ["all"]
+        },
+        {
+          question: "What happens when a badge is deleted?",
+          answer: [
+            "When a teacher deletes a badge:",
+            "",
+            "• If a student had earned that badge, it will be removed from their collection",
+            "• If it was their equipped badge, it will be unequipped",
+            "• Students will receive a notification informing them of the removal",
+            "",
+            "Note: Any rewards students received from earning the badge (bits, stats) are NOT revoked."
           ],
           role: ["all"]
         }

@@ -74,15 +74,43 @@ router.post('/classroom/:classroomId', ensureAuthenticated, ensureTeacher, uploa
       return res.status(403).json({ error: 'Only the teacher can create badges' });
     }
 
+    // Check for duplicate badge name in this classroom
+    const existingBadge = await Badge.findOne({ 
+      classroom: classroomId, 
+      name: { $regex: new RegExp(`^${name.trim()}$`, 'i') }
+    });
+    if (existingBadge) {
+      return res.status(400).json({ error: `A badge named "${name}" already exists in this classroom` });
+    }
+
+    // Parse rewards from request body (handle both FormData strings and JSON booleans)
+    const parseBoolean = (val) => val === true || val === 'true';
+    
+    const rewards = {
+      bits: parseInt(req.body['rewards.bits']) || 0,
+      multiplier: parseFloat(req.body['rewards.multiplier']) || 0,
+      luck: parseFloat(req.body['rewards.luck']) || 0,
+      discount: parseInt(req.body['rewards.discount']) || 0,
+      shield: parseInt(req.body['rewards.shield']) || 0,
+      applyPersonalMultiplier: parseBoolean(req.body['rewards.applyPersonalMultiplier']),
+      applyGroupMultiplier: parseBoolean(req.body['rewards.applyGroupMultiplier'])
+    };
+
+    let imagePath = '';
+    if (req.file) {
+      imagePath = `/uploads/badges/${req.file.filename}`;
+    } else if (req.body.imageUrl) {
+      imagePath = req.body.imageUrl;
+    }
+
     const badge = new Badge({
-      name,
+      name: name.trim(),
       description,
       classroom: classroomId,
       levelRequired: parseInt(levelRequired),
       icon: icon || '🏅',
-      // allow either uploaded file or a direct URL from body
-      image: req.file ? `/uploads/badges/${req.file.filename}` : (req.body.image || ''),
-      unlockedBazaarItems: unlockedBazaarItems ? JSON.parse(unlockedBazaarItems) : [],
+      image: imagePath,
+      rewards,
       createdBy: req.user._id
     });
 
@@ -91,7 +119,11 @@ router.post('/classroom/:classroomId', ensureAuthenticated, ensureTeacher, uploa
     res.json({ message: 'Badge created successfully', badge });
   } catch (err) {
     console.error('Error creating badge:', err);
-    res.status(500).json({ error: err.message || 'Server error' });
+    // Handle duplicate key error with friendly message
+    if (err.code === 11000) {
+      return res.status(400).json({ error: 'A badge with this name already exists in this classroom' });
+    }
+    res.status(500).json({ error: 'Failed to create badge. Please try again.' });
   }
 });
 
@@ -110,28 +142,56 @@ router.patch('/:badgeId', ensureAuthenticated, ensureTeacher, upload.single('ima
       return res.status(403).json({ error: 'Only the teacher can update badges' });
     }
 
-    if (name) badge.name = name;
-    if (description) badge.description = description;
-    if (levelRequired) badge.levelRequired = parseInt(levelRequired);
-    if (icon) badge.icon = icon;
+    // Check for duplicate name (excluding current badge)
+    if (name && name.trim().toLowerCase() !== badge.name.toLowerCase()) {
+      const existingBadge = await Badge.findOne({ 
+        classroom: badge.classroom._id, 
+        name: { $regex: new RegExp(`^${name.trim()}$`, 'i') },
+        _id: { $ne: badgeId }
+      });
+      if (existingBadge) {
+        return res.status(400).json({ error: `A badge named "${name}" already exists in this classroom` });
+      }
+    }
+
+    // Parse rewards from request body (handle both FormData strings and JSON booleans)
+    const parseBoolean = (val) => val === true || val === 'true';
+    
+    const rewards = {
+      bits: parseInt(req.body['rewards.bits']) || 0,
+      multiplier: parseFloat(req.body['rewards.multiplier']) || 0,
+      luck: parseFloat(req.body['rewards.luck']) || 0,
+      discount: parseInt(req.body['rewards.discount']) || 0,
+      shield: parseInt(req.body['rewards.shield']) || 0,
+      applyPersonalMultiplier: parseBoolean(req.body['rewards.applyPersonalMultiplier']),
+      applyGroupMultiplier: parseBoolean(req.body['rewards.applyGroupMultiplier'])
+    };
+
+    badge.name = name ? name.trim() : badge.name;
+    badge.description = description || badge.description;
+    badge.levelRequired = levelRequired ? parseInt(levelRequired) : badge.levelRequired;
+    badge.icon = icon || badge.icon;
+    badge.rewards = rewards;
+    
     if (req.file) {
       badge.image = `/uploads/badges/${req.file.filename}`;
-    } else if (Object.prototype.hasOwnProperty.call(req.body, 'image')) {
-      // allow replacing or clearing image via URL (empty string clears)
-      badge.image = req.body.image || '';
+    } else if (req.body.imageUrl !== undefined) {
+      badge.image = req.body.imageUrl;
     }
-    if (unlockedBazaarItems) badge.unlockedBazaarItems = JSON.parse(unlockedBazaarItems);
 
     await badge.save();
 
     res.json({ message: 'Badge updated successfully', badge });
   } catch (err) {
     console.error('Error updating badge:', err);
-    res.status(500).json({ error: 'Server error' });
+    if (err.code === 11000) {
+      return res.status(400).json({ error: 'A badge with this name already exists in this classroom' });
+    }
+    res.status(500).json({ error: 'Failed to update badge. Please try again.' });
   }
 });
 
-// DELETE badge (teacher only)
+// DELETE badge (teacher only) - Add notification for affected users
 router.delete('/:badgeId', ensureAuthenticated, ensureTeacher, async (req, res) => {
   try {
     const { badgeId } = req.params;
@@ -145,12 +205,75 @@ router.delete('/:badgeId', ensureAuthenticated, ensureTeacher, async (req, res) 
       return res.status(403).json({ error: 'Only the teacher can delete badges' });
     }
 
+    const classroomId = badge.classroom._id;
+    const badgeName = badge.name;
+    const badgeIcon = badge.icon;
+
+    // Find all users who earned this badge before deleting
+    const User = require('../models/User');
+    const Notification = require('../models/Notification');
+    const { populateNotification } = require('../utils/notifications');
+    
+    const usersWithBadge = await User.find({
+      'classroomXP.classroom': classroomId,
+      'classroomXP.earnedBadges.badge': badgeId
+    }).select('_id');
+
+    const affectedUserIds = usersWithBadge.map(u => u._id);
+
+    // Remove this badge from all users' earnedBadges and equippedBadge
+    await User.updateMany(
+      { 'classroomXP.classroom': classroomId },
+      {
+        $pull: { 'classroomXP.$[elem].earnedBadges': { badge: badgeId } }
+      },
+      {
+        arrayFilters: [{ 'elem.classroom': classroomId }]
+      }
+    );
+
+    // Clear equippedBadge if it matches the deleted badge
+    await User.updateMany(
+      { 
+        'classroomXP.classroom': classroomId,
+        'classroomXP.equippedBadge': badgeId 
+      },
+      {
+        $set: { 'classroomXP.$[elem].equippedBadge': null }
+      },
+      {
+        arrayFilters: [{ 'elem.classroom': classroomId, 'elem.equippedBadge': badgeId }]
+      }
+    );
+
     await Badge.findByIdAndDelete(badgeId);
 
-    res.json({ message: 'Badge deleted successfully' });
+    // Send notifications to affected users
+    const io = req.app.get('io');
+    for (const userId of affectedUserIds) {
+      try {
+        const notification = await Notification.create({
+          user: userId,
+          type: 'badge_earned', // reuse type, message makes it clear
+          message: `${badgeIcon} The badge "${badgeName}" has been removed from the classroom. It has been removed from your collection.`,
+          classroom: classroomId,
+          actionBy: req.user._id,
+          read: false
+        });
+
+        const populated = await populateNotification(notification._id);
+        if (populated && io) {
+          io.to(`user-${userId}`).emit('notification', populated);
+        }
+      } catch (notifErr) {
+        console.warn('[badge delete] failed to notify user:', userId, notifErr);
+      }
+    }
+
+    res.json({ message: 'Badge deleted successfully', affectedUsers: affectedUserIds.length });
   } catch (err) {
     console.error('Error deleting badge:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Failed to delete badge. Please try again.' });
   }
 });
 

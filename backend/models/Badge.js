@@ -30,6 +30,17 @@ const BadgeSchema = new mongoose.Schema({
     type: String, 
     default: '' 
   },
+  // NEW: Badge rewards configuration
+  rewards: {
+    bits: { type: Number, default: 0, min: 0 },
+    multiplier: { type: Number, default: 0, min: 0 },
+    luck: { type: Number, default: 0, min: 0 },
+    discount: { type: Number, default: 0, min: 0, max: 100 },
+    shield: { type: Number, default: 0, min: 0 },
+    // Multiplier application options
+    applyPersonalMultiplier: { type: Boolean, default: false },
+    applyGroupMultiplier: { type: Boolean, default: false }
+  },
   // Optional: Link badges to bazaar items
   unlockedBazaarItems: [{ 
     type: mongoose.Schema.Types.ObjectId, 

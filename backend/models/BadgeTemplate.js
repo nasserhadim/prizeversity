@@ -6,7 +6,17 @@ const TemplateBadgeSchema = new mongoose.Schema({
   levelRequired: { type: Number, required: true, min: 2 },
   icon: { type: String, default: '🏅' },
   image: { type: String, default: '' },
-  unlockedBazaarItems: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Item' }]
+  unlockedBazaarItems: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Item' }],
+  // NEW: Badge rewards configuration
+  rewards: {
+    bits: { type: Number, default: 0, min: 0 },
+    multiplier: { type: Number, default: 0, min: 0 },
+    luck: { type: Number, default: 0, min: 0 },
+    discount: { type: Number, default: 0, min: 0, max: 100 },
+    shield: { type: Number, default: 0, min: 0 },
+    applyPersonalMultiplier: { type: Boolean, default: false },
+    applyGroupMultiplier: { type: Boolean, default: false }
+  }
 }, { _id: false });
 
 const BadgeTemplateSchema = new mongoose.Schema({

@@ -72,14 +72,16 @@ async function awardXP(userId, classroomId, xpAmount, reason, xpSettings, option
     });
   }
 
-  // Check for new badges earned
+  // Check for new badges earned (including retroactive unlocks)
   const earnedBadges = [];
   let badgeXPAwarded = 0;
   
-  if (leveledUp) {
+  // Always check for badges when leveling up OR when level is > 1 (catch retroactive unlocks)
+  if (leveledUp || newLevel > 1) {
+    // Find ALL badges that should be unlocked at current level (not just between old and new)
     const badges = await Badge.find({
       classroom: classroomId,
-      levelRequired: { $lte: newLevel, $gt: oldLevel }
+      levelRequired: { $lte: newLevel }
     }).sort({ levelRequired: 1 });
 
     for (const badge of badges) {
@@ -94,11 +96,39 @@ async function awardXP(userId, classroomId, xpAmount, reason, xpSettings, option
         });
         earnedBadges.push(badge);
 
-        // Create notification for badge earned
+        // Award badge rewards if configured
+        const { awardBadgeRewards, awardBadgeRewardXP } = require('./badgeRewards');
+        const badgeRewardsAwarded = await awardBadgeRewards({
+          user,
+          classroomId,
+          badge,
+          io: options.io
+        });
+
+        // Build reward parts for notification
+        const rewardParts = [];
+        if (badgeRewardsAwarded.bits > 0) {
+          if (badgeRewardsAwarded.baseBits !== badgeRewardsAwarded.bits) {
+            rewardParts.push(`${badgeRewardsAwarded.bits} ₿ (${badgeRewardsAwarded.totalMultiplier.toFixed(2)}x)`);
+          } else {
+            rewardParts.push(`${badgeRewardsAwarded.bits} ₿`);
+          }
+        }
+        if (badgeRewardsAwarded.multiplier > 0) rewardParts.push(`+${badgeRewardsAwarded.multiplier.toFixed(1)} Multiplier`);
+        if (badgeRewardsAwarded.luck > 0) rewardParts.push(`+${badgeRewardsAwarded.luck.toFixed(1)} Luck`);
+        if (badgeRewardsAwarded.discount > 0) rewardParts.push(`+${badgeRewardsAwarded.discount}% Discount`);
+        if (badgeRewardsAwarded.shield > 0) rewardParts.push(`+${badgeRewardsAwarded.shield} Shield`);
+
+        // Create notification for badge earned (include rewards if any)
+        let badgeMessage = `🏅 You earned the "${badge.name}" badge! ${badge.description}`;
+        if (rewardParts.length > 0) {
+          badgeMessage += ` Rewards: ${rewardParts.join(', ')}`;
+        }
+
         const badgeNotification = await Notification.create({
           user: userId,
           type: 'badge_earned',
-          message: `🏅 You earned the "${badge.name}" badge! ${badge.description}`,
+          message: badgeMessage,
           classroom: classroomId,
           badge: badge._id,
           read: false
@@ -115,6 +145,16 @@ async function awardXP(userId, classroomId, xpAmount, reason, xpSettings, option
         if (badgeXPRate > 0) {
           badgeXPAwarded += badgeXPRate;
         }
+
+        // Award XP for badge rewards (bits earned, stat increases)
+        await awardBadgeRewardXP({
+          user,
+          classroomId,
+          badge,
+          awarded: badgeRewardsAwarded,
+          xpSettings,
+          io: options.io
+        });
       }
     }
 
