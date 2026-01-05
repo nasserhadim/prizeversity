@@ -1070,7 +1070,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                  <span className="label-text font-medium flex items-center gap-2">
                    Enable Pity System
                    <div 
-                     className="tooltip tooltip-right" 
+                     className="tooltip tooltip-bottom" 
                      data-tip="Guarantees a high-rarity item after X unsuccessful attempts"
                    >
                      <Info size={16} className="text-info cursor-help" />
@@ -1152,7 +1152,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                <span className="label-text font-medium flex items-center gap-2">
                  Max Opens Per Student
                  <div 
-                   className="tooltip tooltip-right" 
+                   className="tooltip tooltip-bottom" 
                    data-tip="Limit how many times each student can open this box"
                  >
                    <Info size={16} className="text-info cursor-help" />
@@ -1175,7 +1175,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
              <label className="label">
                <span className="label-text font-medium flex items-center gap-2">
                  Item Pool
-                 <div className="tooltip tooltip-right" data-tip="Drop chances must total 100%. Rarity auto-suggests rates but you can customize.">
+                 <div className="tooltip tooltip-bottom" data-tip="Drop chances must total 100%. Rarity auto-suggests rates but you can customize.">
                    <Info size={16} className="text-info cursor-help" />
                  </div>
                </span>
