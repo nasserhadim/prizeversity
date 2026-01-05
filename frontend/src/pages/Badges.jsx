@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Award, Lock, Trophy, Plus, Edit2, Trash2, Calendar, TrendingUp, ArrowUp, ArrowDown, Package, Save, Star } from 'lucide-react';
+import { Award, Lock, Trophy, Plus, Edit2, Trash2, Calendar, TrendingUp, ArrowUp, ArrowDown, Package, Save, Star, Coins, Zap, ShoppingCart, Shield, HelpCircle } from 'lucide-react';
 import axios from 'axios';
 import Footer from '../components/Footer';
 import { useAuth } from '../context/AuthContext';
@@ -12,6 +12,7 @@ import EmojiPicker from '../components/EmojiPicker'; // Import the new EmojiPick
 import { getBadgeTemplates, saveBadgeTemplate, deleteBadgeTemplate, applyBadgeTemplate } from '../API/apiBadgeTemplate';
 import ConfirmModal from '../components/ConfirmModal';
 import { equipBadge, unequipBadge } from '../API/apiBadge';
+import BadgeRewardsDisplay from '../components/BadgeRewardsDisplay';
 
 const Badges = () => {
   const location = useLocation();
@@ -34,12 +35,22 @@ const Badges = () => {
   const [classroom, setClassroom] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [editingBadge, setEditingBadge] = useState(null);
+  // Update formData state to include rewards
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     levelRequired: 2,
     icon: '🏅',
-    image: null
+    image: null,
+    rewards: {
+      bits: 0,
+      multiplier: 0,
+      luck: 0,
+      discount: 0,
+      shield: 0,
+      applyPersonalMultiplier: false,
+      applyGroupMultiplier: false
+    }
   });
   const [showEmojiPicker, setShowEmojiPicker] = useState(false); // NEW: state for emoji picker
   // NEW: support URL or file for badge image
@@ -278,10 +289,20 @@ const Badges = () => {
     }
   };
 
+  // Add updateReward helper function (add after other helper functions)
+  const updateReward = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      rewards: {
+        ...prev.rewards,
+        [field]: value
+      }
+    }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // common fields
     const base = {
       name: formData.name,
       description: formData.description,
@@ -295,6 +316,15 @@ const Badges = () => {
         const fd = new FormData();
         Object.entries(base).forEach(([k, v]) => fd.append(k, v));
         fd.append('image', formData.image);
+        
+        // Append rewards
+        fd.append('rewards.bits', formData.rewards.bits);
+        fd.append('rewards.multiplier', formData.rewards.multiplier);
+        fd.append('rewards.luck', formData.rewards.luck);
+        fd.append('rewards.discount', formData.rewards.discount);
+        fd.append('rewards.shield', formData.rewards.shield);
+        fd.append('rewards.applyPersonalMultiplier', formData.rewards.applyPersonalMultiplier);
+        fd.append('rewards.applyGroupMultiplier', formData.rewards.applyGroupMultiplier);
 
         if (editingBadge) {
           await axios.patch(`/api/badge/${editingBadge._id}`, fd, {
@@ -310,10 +340,19 @@ const Badges = () => {
           toast.success('Badge created successfully');
         }
       } else {
-        // JSON path (optional image URL)
-        const payload = { ...base };
+        // JSON path
+        const payload = { 
+          ...base,
+          'rewards.bits': formData.rewards.bits,
+          'rewards.multiplier': formData.rewards.multiplier,
+          'rewards.luck': formData.rewards.luck,
+          'rewards.discount': formData.rewards.discount,
+          'rewards.shield': formData.rewards.shield,
+          'rewards.applyPersonalMultiplier': formData.rewards.applyPersonalMultiplier,
+          'rewards.applyGroupMultiplier': formData.rewards.applyGroupMultiplier
+        };
         if (imageSource === 'url' && imageUrl.trim()) {
-          payload.image = imageUrl.trim();
+          payload.imageUrl = imageUrl.trim();
         }
 
         if (editingBadge) {
@@ -345,10 +384,18 @@ const Badges = () => {
       description: '',
       levelRequired: 2,
       icon: '🏅',
-      image: null
+      image: null,
+      rewards: {
+        bits: 0,
+        multiplier: 0,
+        luck: 0,
+        discount: 0,
+        shield: 0,
+        applyPersonalMultiplier: false,
+        applyGroupMultiplier: false
+      }
     });
     setEditingBadge(null);
-    // NEW
     setImageSource('file');
     setImageUrl('');
   };
@@ -360,11 +407,25 @@ const Badges = () => {
       description: badge.description,
       levelRequired: badge.levelRequired,
       icon: badge.icon,
-      image: null
+      image: null,
+      rewards: {
+        bits: badge.rewards?.bits || 0,
+        multiplier: badge.rewards?.multiplier || 0,
+        luck: badge.rewards?.luck || 0,
+        discount: badge.rewards?.discount || 0,
+        shield: badge.rewards?.shield || 0,
+        applyPersonalMultiplier: badge.rewards?.applyPersonalMultiplier || false,
+        applyGroupMultiplier: badge.rewards?.applyGroupMultiplier || false
+      }
     });
-    // NEW: default to file; teacher can switch to URL if they want to replace image via URL
-    setImageSource('file');
-    setImageUrl('');
+    // Detect if existing image is a URL
+    if (badge.image && (badge.image.startsWith('http://') || badge.image.startsWith('https://'))) {
+      setImageSource('url');
+      setImageUrl(badge.image);
+    } else {
+      setImageSource('file');
+      setImageUrl('');
+    }
     setShowModal(true);
   };
 
@@ -823,6 +884,13 @@ const Badges = () => {
                             <Lock className="w-3 h-3" />
                             Level {badge.levelRequired}
                           </div>
+
+                          {/* Badge Rewards Display */}
+                          {badge.rewards && (
+                            <div className="mt-2">
+                              <BadgeRewardsDisplay rewards={badge.rewards} size="xs" />
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -1278,6 +1346,13 @@ const Badges = () => {
                               )}
                             </div>
                           )}
+
+                          {/* Badge Rewards Display */}
+                          {badge.rewards && (
+                            <div className="mt-2">
+                              <BadgeRewardsDisplay rewards={badge.rewards} size="xs" />
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -1303,7 +1378,7 @@ const Badges = () => {
                         key={badge._id}
                         className="card bg-base-100 border-2 border-gray-300 shadow-md opacity-70 hover:opacity-100 transition-opacity"
                       >
-                        <div className="card-body items-center text-center">
+                        <div className="card-body items-center text-center relative">
                           {/* Icon at top with grayscale */}
                           <div className="text-6xl mb-3 filter grayscale">
                             {badge.icon}
@@ -1337,6 +1412,13 @@ const Badges = () => {
                             <p className="text-xs text-base-content/60 mt-2">
                               {levelsNeeded} level{levelsNeeded !== 1 ? 's' : ''} to unlock
                             </p>
+                          )}
+
+                          {/* Badge Rewards Display (preview what they'll get) */}
+                          {badge.rewards && (
+                            <div className="mt-2">
+                              <BadgeRewardsDisplay rewards={badge.rewards} size="xs" />
+                            </div>
                           )}
                         </div>
                       </div>
@@ -1449,46 +1531,195 @@ const Badges = () => {
                 </label>
 
                 {/* Toggle: Upload first, then URL */}
-                <div className="inline-flex rounded-full bg-gray-200 p-1 mb-2">
+                <div className="inline-flex rounded-full bg-base-200 p-1 mb-2 w-fit">
                   <button
                     type="button"
                     onClick={() => setImageSource('file')}
-                    className={`px-3 py-1 rounded-full text-sm transition ${imageSource === 'file' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
+                    className={`px-3 py-1 rounded-full text-sm transition ${imageSource === 'file' ? 'bg-base-100 shadow text-base-content' : 'text-base-content/60 hover:bg-base-100/50'}`}
                   >
                     Upload
                   </button>
                   <button
                     type="button"
                     onClick={() => setImageSource('url')}
-                    className={`ml-1 px-3 py-1 rounded-full text-sm transition ${imageSource === 'url' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
+                    className={`ml-1 px-3 py-1 rounded-full text-sm transition ${imageSource === 'url' ? 'bg-base-100 shadow text-base-content' : 'text-base-content/60 hover:bg-base-100/50'}`}
                   >
                     Use image URL
                   </button>
                 </div>
 
                 {imageSource === 'file' ? (
-                  <>
+                  <div>
                     <input
                       type="file"
-                      className="file-input file-input-bordered"
+                      className="file-input file-input-bordered w-full"
                       accept="image/png,image/jpeg,image/webp,image/gif"
                       onChange={(e) => setFormData({ ...formData, image: e.target.files[0] })}
                     />
-                    <p className="text-xs text-gray-500 mt-1">Allowed: jpg, png, webp, gif. Max: 5 MB.</p>
-                  </>
+                    <p className="text-xs text-base-content/60 mt-1">Allowed: jpg, png, webp, gif. Max: 5 MB.</p>
+                    {/* Image Preview */}
+                    {formData.image && (
+                      <div className="mt-2">
+                        <img
+                          src={URL.createObjectURL(formData.image)}
+                          alt="Preview"
+                          className="w-24 h-24 object-cover rounded border"
+                        />
+                      </div>
+                    )}
+                  </div>
                 ) : (
-                  <>
+                  <div>
                     <input
                       type="url"
                       placeholder="https://example.com/badge.png"
-                      className="input input-bordered"
+                      className="input input-bordered w-full"
                       value={imageUrl}
                       onChange={(e) => setImageUrl(e.target.value)}
                     />
-                    <p className="text-xs text-gray-500 mt-1">Use a direct image URL (jpg, png, webp, gif). Recommended ≤ 5 MB.</p>
-                  </>
+                    <p className="text-xs text-base-content/60 mt-1">Use a direct image URL (jpg, png, webp, gif). Recommended ≤ 5 MB.</p>
+                    {/* URL Preview */}
+                    {imageUrl && (
+                      <div className="mt-2">
+                        <img
+                          src={imageUrl}
+                          alt="Preview"
+                          className="w-24 h-24 object-cover rounded border"
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Show existing image when editing */}
+                {editingBadge?.image && !formData.image && !imageUrl && (
+                  <div className="mt-2">
+                    <p className="text-xs text-base-content/60 mb-1">Current image:</p>
+                    <img
+                      src={resolveBadgeSrc(editingBadge.image)}
+                      alt="Current"
+                      className="w-24 h-24 object-cover rounded border"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                  </div>
                 )}
               </div>
+
+              {/* Rewards Section */}
+              <div className="divider">Rewards</div>
+
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {/* Bits reward */}
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text flex items-center gap-1">
+                      <Coins className="w-4 h-4 text-yellow-500" /> Bits
+                    </span>
+                  </label>
+                  <input
+                    type="number"
+                    className="input input-bordered input-sm"
+                    value={formData.rewards.bits}
+                    onChange={(e) => updateReward('bits', parseInt(e.target.value) || 0)}
+                    min={0}
+                  />
+                </div>
+
+                {/* Multiplier reward */}
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text flex items-center gap-1">
+                      <TrendingUp className="w-4 h-4 text-blue-500" /> Multiplier
+                    </span>
+                  </label>
+                  <input
+                    type="number"
+                    className="input input-bordered input-sm"
+                    value={formData.rewards.multiplier}
+                    onChange={(e) => updateReward('multiplier', parseFloat(e.target.value) || 0)}
+                    step="0.1"
+                    min={0}
+                  />
+                </div>
+
+                {/* Luck reward */}
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text flex items-center gap-1">
+                      <Zap className="w-4 h-4 text-purple-500" /> Luck
+                    </span>
+                  </label>
+                  <input
+                    type="number"
+                    className="input input-bordered input-sm"
+                    value={formData.rewards.luck}
+                    onChange={(e) => updateReward('luck', parseFloat(e.target.value) || 0)}
+                    step="0.1"
+                    min={0}
+                  />
+                </div>
+
+                {/* Discount reward */}
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text flex items-center gap-1">
+                      <ShoppingCart className="w-4 h-4 text-green-500" /> Discount %
+                    </span>
+                  </label>
+                  <input
+                    type="number"
+                    className="input input-bordered input-sm"
+                    value={formData.rewards.discount}
+                    onChange={(e) => updateReward('discount', parseInt(e.target.value) || 0)}
+                    min={0}
+                    max={100}
+                  />
+                </div>
+
+                {/* Shield reward */}
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text flex items-center gap-1">
+                      <Shield className="w-4 h-4 text-cyan-500" /> Shield
+                    </span>
+                  </label>
+                  <input
+                    type="number"
+                    className="input input-bordered input-sm"
+                    value={formData.rewards.shield}
+                    onChange={(e) => updateReward('shield', parseInt(e.target.value) || 0)}
+                    min={0}
+                  />
+                </div>
+              </div>
+
+              {/* Multiplier Options (show if bits > 0 OR if either multiplier option is already enabled) */}
+              {(formData.rewards.bits > 0 || formData.rewards.applyPersonalMultiplier || formData.rewards.applyGroupMultiplier) && (
+                <div className="bg-base-200 p-3 rounded-lg space-y-2">
+                  <div className="text-sm font-medium">Apply multipliers to bit rewards:</div>
+                  <div className="flex flex-wrap gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="checkbox checkbox-sm checkbox-primary"
+                        checked={formData.rewards.applyPersonalMultiplier}
+                        onChange={(e) => updateReward('applyPersonalMultiplier', e.target.checked)}
+                      />
+                      <span className="text-sm">Personal Multiplier</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="checkbox checkbox-sm checkbox-primary"
+                        checked={formData.rewards.applyGroupMultiplier}
+                        onChange={(e) => updateReward('applyGroupMultiplier', e.target.checked)}
+                      />
+                      <span className="text-sm">Group Multiplier</span>
+                    </label>
+                  </div>
+                </div>
+              )}
 
               <div className="modal-action">
                 <button
@@ -1507,6 +1738,7 @@ const Badges = () => {
               </div>
             </form>
           </div>
+          <div className="modal-backdrop bg-black/50" onClick={() => { setShowModal(false); resetForm(); }}></div>
         </div>
       )}
 

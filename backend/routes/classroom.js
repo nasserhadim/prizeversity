@@ -1302,6 +1302,7 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
       }
 
       if (xpFrom !== xpTo) {
+        const oldLevel = classroomXPEntry.level || 1;
         classroomXPEntry.xp = xpTo;
 
         // recompute level from xp using shared helper
@@ -1310,6 +1311,47 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
         classroomXPEntry.level = newLevel;
 
         xpChangeRecorded = (Number(xpFrom) !== Number(xpTo));
+
+        // NEW: Log the manual XP change FIRST before any level-up processing
+        // This ensures the manual adjustment appears before rewards/badges in the log
+        if (xpChangeRecorded) {
+          try {
+            const { logStatChanges } = require('../utils/statChangeLog');
+            await logStatChanges({
+              io: req.app.get('io'),
+              classroomId: classId,
+              user: student,
+              actionBy: req.user._id,
+              prevStats: { xp: xpFrom },
+              currStats: { xp: xpTo },
+              context: 'manual XP adjustment',
+              details: { 
+                effectsText: `Manual XP set by ${roleLabel} (${actorName}): ${xpFrom} → ${xpTo}` 
+              },
+              forceLog: true
+            });
+          } catch (logErr) {
+            console.warn('[classroom] failed to log manual XP change:', logErr);
+          }
+        }
+
+        // THEN handle level-up rewards, badges, and notifications if level increased
+        if (newLevel > oldLevel && classroom.xpSettings?.enabled) {
+          try {
+            const { awardLevelUpRewardsManual } = require('../utils/manualXPLevelUp');
+            
+            await awardLevelUpRewardsManual({
+              user: student,
+              classroomId: classId,
+              oldLevel,
+              newLevel,
+              xpSettings: classroom.xpSettings,
+              io: req.app.get('io')
+            });
+          } catch (levelUpErr) {
+            console.warn('[classroom] manual XP level-up processing failed:', levelUpErr);
+          }
+        }
       }
     }
     // --- END: xp adjustment ---
@@ -1333,10 +1375,6 @@ router.patch('/:classId/users/:userId/stats', ensureAuthenticated, async (req, r
         changes.push({ field: f, from: before, to: after });
       }
     });
-
-    if (xpChangeRecorded) {
-      changes.push({ field: 'xp', from: xpFrom, to: xpTo });
-    }
 
     // Normalize optional note (avoid huge payloads)
     const noteText = (typeof note === 'string') ? note.trim().slice(0, 500) : '';
@@ -1601,6 +1639,7 @@ router.post('/:classId/stats/bulk', ensureAuthenticated, async (req, res) => {
         let newXP = prevXP;
         let xpChangeRecorded = false;
         if (xp !== 0 && classroom?.xpSettings?.enabled) {
+          const oldLevel = classroomXPEntry.level || 1;
           newXP = Math.max(0, Math.round(prevXP + xp));
           classroomXPEntry.xp = newXP;
           
@@ -1613,6 +1652,44 @@ router.post('/:classId/stats/bulk', ensureAuthenticated, async (req, res) => {
           );
           classroomXPEntry.level = newLevel;
           xpChangeRecorded = true;
+
+          // NEW: Log the bulk XP change FIRST before any level-up processing
+          try {
+            const { logStatChanges } = require('../utils/statChangeLog');
+            await logStatChanges({
+              io: req.app.get('io'),
+              classroomId: classId,
+              user: student,
+              actionBy: req.user._id,
+              prevStats: { xp: prevXP },
+              currStats: { xp: newXP },
+              context: 'bulk XP adjustment',
+              details: { 
+                effectsText: `Bulk XP adjustment by ${roleLabel} (${actorName}): ${prevXP} → ${newXP}` 
+              },
+              forceLog: true
+            });
+          } catch (logErr) {
+            console.warn('[classroom] failed to log bulk XP change:', logErr);
+          }
+
+          // THEN handle level-up rewards, badges, and notifications if level increased
+          if (newLevel > oldLevel && classroom.xpSettings?.enabled) {
+            try {
+              const { awardLevelUpRewardsManual } = require('../utils/manualXPLevelUp');
+              
+              await awardLevelUpRewardsManual({
+                user: student,
+                classroomId: classId,
+                oldLevel,
+                newLevel,
+                xpSettings: classroom.xpSettings,
+                io: req.app.get('io')
+              });
+            } catch (levelUpErr) {
+              console.warn('[classroom] bulk XP level-up processing failed:', levelUpErr);
+            }
+          }
         }
 
         await student.save();
@@ -1623,7 +1700,6 @@ router.post('/:classId/stats/bulk', ensureAuthenticated, async (req, res) => {
         if (luck !== 0) changes.push({ field: 'luck', from: prev.luck, to: newLuck });
         if (discount !== 0) changes.push({ field: 'discount', from: prev.discount, to: newDiscount });
         if (shield !== 0) changes.push({ field: 'shield', from: prev.shield, to: newShield });
-        if (xpChangeRecorded) changes.push({ field: 'xp', from: prevXP, to: newXP });
 
         // Format summary
         const formatChange = (c) => {

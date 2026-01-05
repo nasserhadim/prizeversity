@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { Award, Plus, Trash2, Edit2 } from 'lucide-react';
+import { Award, Plus, Trash2, Edit2, Coins, TrendingUp, Zap, ShoppingCart, Shield } from 'lucide-react';
 import EmojiPicker from './EmojiPicker';
+import BadgeRewardsDisplay from './BadgeRewardsDisplay';
 
 const BadgeManager = ({ classroomId }) => {
   const [badges, setBadges] = useState([]);
@@ -14,7 +15,16 @@ const BadgeManager = ({ classroomId }) => {
     description: '',
     levelRequired: 2,
     icon: '🏅',
-    image: null
+    image: null,
+    rewards: {
+      bits: 0,
+      multiplier: 0,
+      luck: 0,
+      discount: 0,
+      shield: 0,
+      applyPersonalMultiplier: false,
+      applyGroupMultiplier: false
+    }
   });
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [imageSource, setImageSource] = useState('file');
@@ -52,6 +62,15 @@ const BadgeManager = ({ classroomId }) => {
         const fd = new FormData();
         Object.entries(base).forEach(([k, v]) => fd.append(k, v));
         fd.append('image', formData.image);
+        
+        // Append rewards
+        fd.append('rewards.bits', formData.rewards.bits);
+        fd.append('rewards.multiplier', formData.rewards.multiplier);
+        fd.append('rewards.luck', formData.rewards.luck);
+        fd.append('rewards.discount', formData.rewards.discount);
+        fd.append('rewards.shield', formData.rewards.shield);
+        fd.append('rewards.applyPersonalMultiplier', formData.rewards.applyPersonalMultiplier);
+        fd.append('rewards.applyGroupMultiplier', formData.rewards.applyGroupMultiplier);
 
         if (editingBadge) {
           await axios.patch(`/api/badge/${editingBadge._id}`, fd, {
@@ -67,8 +86,17 @@ const BadgeManager = ({ classroomId }) => {
           toast.success('Badge created successfully');
         }
       } else {
-        const payload = { ...base };
-        if (imageSource === 'url' && imageUrl.trim()) payload.image = imageUrl.trim();
+        const payload = { 
+          ...base,
+          'rewards.bits': formData.rewards.bits,
+          'rewards.multiplier': formData.rewards.multiplier,
+          'rewards.luck': formData.rewards.luck,
+          'rewards.discount': formData.rewards.discount,
+          'rewards.shield': formData.rewards.shield,
+          'rewards.applyPersonalMultiplier': formData.rewards.applyPersonalMultiplier,
+          'rewards.applyGroupMultiplier': formData.rewards.applyGroupMultiplier
+        };
+        if (imageSource === 'url' && imageUrl.trim()) payload.imageUrl = imageUrl.trim();
 
         if (editingBadge) {
           await axios.patch(`/api/badge/${editingBadge._id}`, payload, { withCredentials: true });
@@ -105,9 +133,20 @@ const BadgeManager = ({ classroomId }) => {
       description: '',
       levelRequired: 2,
       icon: '🏅',
-      image: null
+      image: null,
+      rewards: {
+        bits: 0,
+        multiplier: 0,
+        luck: 0,
+        discount: 0,
+        shield: 0,
+        applyPersonalMultiplier: false,
+        applyGroupMultiplier: false
+      }
     });
     setEditingBadge(null);
+    setImageSource('file');
+    setImageUrl('');
   };
 
   const openEditModal = (badge) => {
@@ -117,9 +156,35 @@ const BadgeManager = ({ classroomId }) => {
       description: badge.description,
       levelRequired: badge.levelRequired,
       icon: badge.icon,
-      image: null
+      image: null,
+      rewards: {
+        bits: badge.rewards?.bits || 0,
+        multiplier: badge.rewards?.multiplier || 0,
+        luck: badge.rewards?.luck || 0,
+        discount: badge.rewards?.discount || 0,
+        shield: badge.rewards?.shield || 0,
+        applyPersonalMultiplier: badge.rewards?.applyPersonalMultiplier || false,
+        applyGroupMultiplier: badge.rewards?.applyGroupMultiplier || false
+      }
     });
+    if (badge.image && badge.image.startsWith('http')) {
+      setImageSource('url');
+      setImageUrl(badge.image);
+    } else {
+      setImageSource('file');
+      setImageUrl('');
+    }
     setShowModal(true);
+  };
+
+  const updateReward = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      rewards: {
+        ...prev.rewards,
+        [field]: value
+      }
+    }));
   };
 
   if (loading) {
@@ -171,6 +236,9 @@ const BadgeManager = ({ classroomId }) => {
               <div className="badge badge-primary">
                 Level {badge.levelRequired} Required
               </div>
+              
+              {/* Badge Rewards Display */}
+              <BadgeRewardsDisplay rewards={badge.rewards} size="sm" />
             </div>
           </div>
         ))}
@@ -179,7 +247,7 @@ const BadgeManager = ({ classroomId }) => {
       {/* Modal for creating/editing badges */}
       {showModal && (
         <div className="modal modal-open">
-          <div className="modal-box">
+          <div className="modal-box max-w-2xl">
             <h3 className="font-bold text-lg mb-4">
               {editingBadge ? 'Edit Badge' : 'Create Badge'}
             </h3>
@@ -255,26 +323,135 @@ const BadgeManager = ({ classroomId }) => {
                 )}
               </div>
 
+              {/* Rewards Section */}
+              <div className="divider">Rewards</div>
+              
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text flex items-center gap-1">
+                      <Coins className="w-4 h-4 text-yellow-500" /> Bits
+                    </span>
+                  </label>
+                  <input
+                    type="number"
+                    className="input input-bordered input-sm"
+                    value={formData.rewards.bits}
+                    onChange={(e) => updateReward('bits', parseInt(e.target.value) || 0)}
+                    min={0}
+                  />
+                </div>
+
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text flex items-center gap-1">
+                      <TrendingUp className="w-4 h-4 text-blue-500" /> Multiplier
+                    </span>
+                  </label>
+                  <input
+                    type="number"
+                    className="input input-bordered input-sm"
+                    value={formData.rewards.multiplier}
+                    onChange={(e) => updateReward('multiplier', parseFloat(e.target.value) || 0)}
+                    min={0}
+                    step={0.1}
+                  />
+                </div>
+
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text flex items-center gap-1">
+                      <Zap className="w-4 h-4 text-purple-500" /> Luck
+                    </span>
+                  </label>
+                  <input
+                    type="number"
+                    className="input input-bordered input-sm"
+                    value={formData.rewards.luck}
+                    onChange={(e) => updateReward('luck', parseFloat(e.target.value) || 0)}
+                    min={0}
+                    step={0.1}
+                  />
+                </div>
+
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text flex items-center gap-1">
+                      <ShoppingCart className="w-4 h-4 text-green-500" /> Discount %
+                    </span>
+                  </label>
+                  <input
+                    type="number"
+                    className="input input-bordered input-sm"
+                    value={formData.rewards.discount}
+                    onChange={(e) => updateReward('discount', parseInt(e.target.value) || 0)}
+                    min={0}
+                    max={100}
+                  />
+                </div>
+
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text flex items-center gap-1">
+                      <Shield className="w-4 h-4 text-cyan-500" /> Shield
+                    </span>
+                  </label>
+                  <input
+                    type="number"
+                    className="input input-bordered input-sm"
+                    value={formData.rewards.shield}
+                    onChange={(e) => updateReward('shield', parseInt(e.target.value) || 0)}
+                    min={0}
+                  />
+                </div>
+              </div>
+
+              {/* Multiplier Options (only show if bits > 0) */}
+              {formData.rewards.bits > 0 && (
+                <div className="bg-base-200 p-3 rounded-lg space-y-2">
+                  <div className="text-sm font-medium">Apply multipliers to bit rewards:</div>
+                  <div className="flex flex-wrap gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="checkbox checkbox-sm checkbox-primary"
+                        checked={formData.rewards.applyPersonalMultiplier}
+                        onChange={(e) => updateReward('applyPersonalMultiplier', e.target.checked)}
+                      />
+                      <span className="text-sm">Personal Multiplier</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="checkbox checkbox-sm checkbox-primary"
+                        checked={formData.rewards.applyGroupMultiplier}
+                        onChange={(e) => updateReward('applyGroupMultiplier', e.target.checked)}
+                      />
+                      <span className="text-sm">Group Multiplier</span>
+                    </label>
+                  </div>
+                </div>
+              )}
+
               <div className="form-control">
                 <label className="label">
                   <span className="label-text">Badge Image (Optional)</span>
                 </label>
 
-                {/* NEW: URL / Upload switch */}
                 <div className="inline-flex rounded-full bg-gray-200 p-1 mb-2">
                   <button
                     type="button"
-                    onClick={() => setImageSource('url')}
-                    className={`px-3 py-1 rounded-full text-sm transition ${imageSource === 'url' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
+                    onClick={() => setImageSource('file')}
+                    className={`px-3 py-1 rounded-full text-sm transition ${imageSource === 'file' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
                   >
-                    Use image URL
+                    Upload
                   </button>
                   <button
                     type="button"
-                    onClick={() => setImageSource('file')}
-                    className={`ml-1 px-3 py-1 rounded-full text-sm transition ${imageSource === 'file' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
+                    onClick={() => setImageSource('url')}
+                    className={`ml-1 px-3 py-1 rounded-full text-sm transition ${imageSource === 'url' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
                   >
-                    Upload
+                    Use image URL
                   </button>
                 </div>
 
@@ -313,6 +490,7 @@ const BadgeManager = ({ classroomId }) => {
               </div>
             </form>
           </div>
+          <div className="modal-backdrop" onClick={() => { setShowModal(false); resetForm(); }}></div>
         </div>
       )}
     </div>

@@ -51,7 +51,17 @@ router.post('/', ensureAuthenticated, ensureTeacher, async (req, res) => {
 
         icon: b.icon,
         image: b.image,
-        unlockedBazaarItems: (b.unlockedBazaarItems || []).map(i => i._id)
+        unlockedBazaarItems: (b.unlockedBazaarItems || []).map(i => i._id),
+        // NEW: Include rewards in template
+        rewards: {
+          bits: b.rewards?.bits || 0,
+          multiplier: b.rewards?.multiplier || 0,
+          luck: b.rewards?.luck || 0,
+          discount: b.rewards?.discount || 0,
+          shield: b.rewards?.shield || 0,
+          applyPersonalMultiplier: b.rewards?.applyPersonalMultiplier || false,
+          applyGroupMultiplier: b.rewards?.applyGroupMultiplier || false
+        }
       }))
     });
 
@@ -112,6 +122,16 @@ router.post('/:templateId/apply', ensureAuthenticated, ensureTeacher, async (req
           icon: b.icon,
           image: b.image,
           unlockedBazaarItems: b.unlockedBazaarItems || [],
+          // NEW: Apply rewards from template
+          rewards: {
+            bits: b.rewards?.bits || 0,
+            multiplier: b.rewards?.multiplier || 0,
+            luck: b.rewards?.luck || 0,
+            discount: b.rewards?.discount || 0,
+            shield: b.rewards?.shield || 0,
+            applyPersonalMultiplier: b.rewards?.applyPersonalMultiplier || false,
+            applyGroupMultiplier: b.rewards?.applyGroupMultiplier || false
+          },
           createdBy: req.user._id
         });
 

@@ -1,7 +1,6 @@
 const User = require('../models/User');
 const Badge = require('../models/Badge');
 const Notification = require('../models/Notification');
-const Classroom = require('../models/Classroom');
 const Group = require('../models/Group');
 const GroupSet = require('../models/GroupSet');
 const { calculateLevelFromXP } = require('./xp');
@@ -9,261 +8,46 @@ const { populateNotification } = require('./notifications');
 const { logStatChanges } = require('./statChangeLog');
 
 /**
- * Award XP to a user in a specific classroom
- * @param {string} userId - User ID
- * @param {string} classroomId - Classroom ID
- * @param {number} xpAmount - Amount of XP to award
- * @param {string} reason - Reason for XP award
- * @param {object} xpSettings - Classroom XP settings
- * @param {object} options - Additional options (user, io)
- * @returns {Promise<object>} { leveledUp, oldLevel, newLevel, earnedBadges, levelUpRewards }
- */
-async function awardXP(userId, classroomId, xpAmount, reason, xpSettings, options = {}) {
-  if (!xpSettings?.enabled || xpAmount <= 0) {
-    return { leveledUp: false, oldLevel: 1, newLevel: 1, earnedBadges: [], levelUpRewards: null };
-  }
-
-  const user = options.user || await User.findById(userId);
-  if (!user) throw new Error('User not found');
-
-  let classroomXPEntry = user.classroomXP.find(
-    cx => cx.classroom.toString() === classroomId.toString()
-  );
-
-  if (!classroomXPEntry) {
-    classroomXPEntry = {
-      classroom: classroomId,
-      xp: 0,
-      level: 1,
-      earnedBadges: []
-    };
-    user.classroomXP.push(classroomXPEntry);
-  }
-
-  const oldXP = classroomXPEntry.xp;
-  const oldLevel = classroomXPEntry.level;
-
-  // Award XP
-  classroomXPEntry.xp += xpAmount;
-
-  // Calculate new level
-  const newLevel = calculateLevelFromXP(
-    classroomXPEntry.xp,
-    xpSettings.levelingFormula,
-    xpSettings.baseXPForLevel2
-  );
-
-  const leveledUp = newLevel > oldLevel;
-  classroomXPEntry.level = newLevel;
-
-  // Track level-up rewards
-  let levelUpRewardsAwarded = null;
-
-  // Award level-up rewards if enabled
-  if (leveledUp && xpSettings.levelUpRewards?.enabled) {
-    levelUpRewardsAwarded = await awardLevelUpRewards({
-      user,
-      classroomId,
-      oldLevel,
-      newLevel,
-      rewards: xpSettings.levelUpRewards,
-      xpSettings,
-      io: options.io || null
-    });
-  }
-
-  // Check for new badges earned (including retroactive unlocks)
-  const earnedBadges = [];
-  let badgeXPAwarded = 0;
-  
-  // Always check for badges when leveling up OR when level is > 1 (catch retroactive unlocks)
-  if (leveledUp || newLevel > 1) {
-    // Find ALL badges that should be unlocked at current level (not just between old and new)
-    const badges = await Badge.find({
-      classroom: classroomId,
-      levelRequired: { $lte: newLevel }
-    }).sort({ levelRequired: 1 });
-
-    for (const badge of badges) {
-      const alreadyEarned = classroomXPEntry.earnedBadges.some(
-        eb => eb.badge.toString() === badge._id.toString()
-      );
-
-      if (!alreadyEarned) {
-        classroomXPEntry.earnedBadges.push({
-          badge: badge._id,
-          earnedAt: new Date()
-        });
-        earnedBadges.push(badge);
-
-        // Award badge rewards if configured
-        const { awardBadgeRewards, awardBadgeRewardXP } = require('./badgeRewards');
-        const badgeRewardsAwarded = await awardBadgeRewards({
-          user,
-          classroomId,
-          badge,
-          io: options.io
-        });
-
-        // Build reward parts for notification
-        const rewardParts = [];
-        if (badgeRewardsAwarded.bits > 0) {
-          if (badgeRewardsAwarded.baseBits !== badgeRewardsAwarded.bits) {
-            rewardParts.push(`${badgeRewardsAwarded.bits} ₿ (${badgeRewardsAwarded.totalMultiplier.toFixed(2)}x)`);
-          } else {
-            rewardParts.push(`${badgeRewardsAwarded.bits} ₿`);
-          }
-        }
-        if (badgeRewardsAwarded.multiplier > 0) rewardParts.push(`+${badgeRewardsAwarded.multiplier.toFixed(1)} Multiplier`);
-        if (badgeRewardsAwarded.luck > 0) rewardParts.push(`+${badgeRewardsAwarded.luck.toFixed(1)} Luck`);
-        if (badgeRewardsAwarded.discount > 0) rewardParts.push(`+${badgeRewardsAwarded.discount}% Discount`);
-        if (badgeRewardsAwarded.shield > 0) rewardParts.push(`+${badgeRewardsAwarded.shield} Shield`);
-
-        // Create notification for badge earned (include rewards if any)
-        let badgeMessage = `🏅 You earned the "${badge.name}" badge! ${badge.description}`;
-        if (rewardParts.length > 0) {
-          badgeMessage += ` Rewards: ${rewardParts.join(', ')}`;
-        }
-
-        const badgeNotification = await Notification.create({
-          user: userId,
-          type: 'badge_earned',
-          message: badgeMessage,
-          classroom: classroomId,
-          badge: badge._id,
-          read: false
-        });
-
-        const populated = await populateNotification(badgeNotification._id);
-        if (populated) {
-          const io = options.io || (user.db?.base?.io);
-          if (io) io.to(`user-${userId}`).emit('notification', populated);
-        }
-
-        // Award XP for badge unlock (if configured)
-        const badgeXPRate = xpSettings?.badgeUnlock || 0;
-        if (badgeXPRate > 0) {
-          badgeXPAwarded += badgeXPRate;
-        }
-
-        // Award XP for badge rewards (bits earned, stat increases)
-        await awardBadgeRewardXP({
-          user,
-          classroomId,
-          badge,
-          awarded: badgeRewardsAwarded,
-          xpSettings,
-          io: options.io
-        });
-      }
-    }
-
-    // Apply badge unlock XP if any badges were earned
-    if (badgeXPAwarded > 0) {
-      const xpBeforeBadge = classroomXPEntry.xp;
-      classroomXPEntry.xp += badgeXPAwarded;
-
-      // Recalculate level after badge XP
-      const updatedLevel = calculateLevelFromXP(
-        classroomXPEntry.xp,
-        xpSettings.levelingFormula,
-        xpSettings.baseXPForLevel2
-      );
-      classroomXPEntry.level = updatedLevel;
-
-      // Log the badge unlock XP as a stat change
-      try {
-        // Build badge names string
-        const badgeNames = earnedBadges.map(b => `"${b.name}"`).join(', ');
-        const badgeCount = earnedBadges.length;
-        const badgeText = badgeCount === 1 
-          ? `Unlocked badge ${badgeNames}` 
-          : `Unlocked ${badgeCount} badges: ${badgeNames}`;
-
-        await logStatChanges({
-          io: options.io || null,
-          classroomId,
-          user,
-          actionBy: null, // system
-          prevStats: { xp: xpBeforeBadge },
-          currStats: { xp: classroomXPEntry.xp },
-          context: 'badge unlock XP',
-          details: { 
-            effectsText: `${badgeText}: +${badgeXPAwarded} XP`
-          },
-          forceLog: true
-        });
-      } catch (err) {
-        console.warn('[awardXP] failed to log badge unlock XP:', err);
-      }
-    }
-  }
-
-  await user.save();
-
-  // Send level-up notification
-  if (leveledUp) {
-    await sendLevelUpNotification({ 
-      userId, 
-      classroomId, 
-      newLevel, 
-      reason, 
-      levelUpRewards: levelUpRewardsAwarded,
-      io: options.io
-    });
-  }
-
-  return {
-    leveledUp,
-    oldLevel,
-    newLevel,
-    oldXP,
-    newXP: classroomXPEntry.xp,
-    xpGained: xpAmount,
-    earnedBadges,
-    badgeXPAwarded,
-    levelUpRewards: levelUpRewardsAwarded
-  };
-}
-
-/**
- * Helper to get user's group multiplier for a classroom
+ * Get user's group multiplier for a classroom (sum of all group multipliers)
  */
 async function getUserGroupMultiplier(userId, classroomId) {
   try {
-    // Find all GroupSets in this classroom
-    const groupSets = await GroupSet.find({ classroom: classroomId }).select('groups');
+    const groupSets = await GroupSet.find({ classroom: classroomId }).select('_id');
     if (!groupSets.length) return 1;
 
-    // Get all group IDs from these GroupSets
-    const groupIds = groupSets.flatMap(gs => gs.groups || []);
-    if (!groupIds.length) return 1;
-
-    // Find groups where user is an approved member
+    const groupSetIds = groupSets.map(gs => gs._id);
     const groups = await Group.find({
-      _id: { $in: groupIds },
-      members: {
-        $elemMatch: {
-          _id: userId,
-          status: 'approved'
-        }
+      groupSet: { $in: groupSetIds },
+      members: userId
+    }).select('multiplier');
+
+    if (!groups.length) return 1;
+
+    let totalMultiplier = 1;
+    for (const group of groups) {
+      if (group.multiplier && group.multiplier > 1) {
+        totalMultiplier += (group.multiplier - 1);
       }
-    }).select('groupMultiplier');
-
-    if (!groups || groups.length === 0) return 1;
-
-    // Sum of multipliers across distinct groups (consistent with wallet/stats logic)
-    return groups.reduce((sum, g) => sum + (g.groupMultiplier || 1), 0);
+    }
+    return totalMultiplier;
   } catch (err) {
-    console.warn('[awardXP] getUserGroupMultiplier failed:', err);
+    console.warn('[manualXPLevelUp] getUserGroupMultiplier failed:', err);
     return 1;
   }
 }
 
 /**
- * Helper to award level-up rewards with multipliers and XP options
+ * Award level-up rewards for manual XP adjustment
  */
-async function awardLevelUpRewards({ user, classroomId, oldLevel, newLevel, rewards, xpSettings, io }) {
+async function awardLevelUpRewardsManual({ user, classroomId, oldLevel, newLevel, xpSettings, io }) {
+  const rewards = xpSettings?.levelUpRewards;
+  if (!rewards?.enabled) {
+    // Still check badges and send notification even without rewards
+    const badgeResult = await checkAndAwardBadges({ user, classroomId, newLevel, xpSettings, io });
+    await sendLevelUpNotificationManual({ userId: user._id, classroomId, newLevel, io });
+    return { levelUpRewards: null, badges: badgeResult };
+  }
+
   const levelsGained = newLevel - oldLevel;
   if (levelsGained <= 0) return null;
 
@@ -292,7 +76,7 @@ async function awardLevelUpRewards({ user, classroomId, oldLevel, newLevel, rewa
   }
   awarded.baseBits = baseBits;
 
-  // Apply multipliers if enabled (using ADDITIVE logic consistent with wallet/groupBalance)
+  // Apply multipliers if enabled
   let finalBits = baseBits;
   if (baseBits > 0) {
     let personalMult = 1;
@@ -310,8 +94,7 @@ async function awardLevelUpRewards({ user, classroomId, oldLevel, newLevel, rewa
     awarded.personalMultiplier = personalMult;
     awarded.groupMultiplier = groupMult;
 
-    // CHANGED: Use additive logic (consistent with wallet, groupBalance, users, feedback routes)
-    // Formula: 1 + (personal - 1) + (group - 1)
+    // Use additive logic
     let finalMultiplier = 1;
     if (rewards.applyPersonalMultiplier) {
       finalMultiplier += (personalMult - 1);
@@ -378,7 +161,7 @@ async function awardLevelUpRewards({ user, classroomId, oldLevel, newLevel, rewa
     if (!user.transactions) user.transactions = [];
     user.transactions.push({
       amount: awarded.bits,
-      description: `Level-up reward (Level ${newLevel})`,
+      description: `Level-up reward (Level ${newLevel}) - Manual XP adjustment`,
       type: 'level_up_reward',
       classroom: classroomId,
       calculation: awarded.baseBits !== awarded.bits ? {
@@ -393,6 +176,9 @@ async function awardLevelUpRewards({ user, classroomId, oldLevel, newLevel, rewa
   }
 
   // Apply stat rewards
+  if (!cs.passiveAttributes) {
+    cs.passiveAttributes = { multiplier: 1, luck: 1, discount: 0 };
+  }
   if (awarded.multiplier > 0) {
     cs.passiveAttributes.multiplier = (cs.passiveAttributes.multiplier || 1) + awarded.multiplier;
   }
@@ -429,7 +215,6 @@ async function awardLevelUpRewards({ user, classroomId, oldLevel, newLevel, rewa
   if (xpSettings?.enabled) {
     // XP from level-up bits
     if (rewards.countBitsTowardXP && awarded.bits > 0 && (xpSettings.bitsEarned || 0) > 0) {
-      // Use base or final based on bitsXPBasis setting
       const xpBits = xpSettings.bitsXPBasis === 'base' ? awarded.baseBits : awarded.bits;
       xpFromLevelUpBits = Math.round(xpBits * (xpSettings.bitsEarned || 0));
     }
@@ -439,7 +224,7 @@ async function awardLevelUpRewards({ user, classroomId, oldLevel, newLevel, rewa
       xpFromLevelUpStats = statIncreaseCount * (xpSettings.statIncrease || 0);
     }
 
-    // Apply the XP directly (avoid recursive call)
+    // Apply the XP directly
     const totalLevelUpXP = xpFromLevelUpBits + xpFromLevelUpStats;
     if (totalLevelUpXP > 0) {
       let classroomXPEntry = user.classroomXP.find(
@@ -475,7 +260,7 @@ async function awardLevelUpRewards({ user, classroomId, oldLevel, newLevel, rewa
             forceLog: true
           });
         } catch (err) {
-          console.warn('[awardXP] failed to log level-up reward XP:', err);
+          console.warn('[manualXPLevelUp] failed to log level-up reward XP:', err);
         }
       }
     }
@@ -484,7 +269,7 @@ async function awardLevelUpRewards({ user, classroomId, oldLevel, newLevel, rewa
   awarded.xpFromBits = xpFromLevelUpBits;
   awarded.xpFromStats = xpFromLevelUpStats;
 
-  // Log stat changes
+  // Log stat changes for level-up rewards
   const hasChanges = awarded.bits > 0 || awarded.multiplier > 0 || awarded.luck > 0 || awarded.discount > 0 || awarded.shield > 0;
   if (hasChanges) {
     try {
@@ -513,14 +298,163 @@ async function awardLevelUpRewards({ user, classroomId, oldLevel, newLevel, rewa
         forceLog: true
       });
     } catch (err) {
-      console.warn('[awardXP] failed to log level-up reward stat changes:', err);
+      console.warn('[manualXPLevelUp] failed to log level-up reward stat changes:', err);
     }
   }
 
-  return awarded;
+  // Check and award badges
+  const badgeResult = await checkAndAwardBadges({ user, classroomId, newLevel, xpSettings, io });
+
+  // Send level-up notification
+  await sendLevelUpNotificationManual({ 
+    userId: user._id, 
+    classroomId, 
+    newLevel, 
+    levelUpRewards: awarded,
+    io 
+  });
+
+  return { levelUpRewards: awarded, badges: badgeResult };
 }
 
-async function sendLevelUpNotification({ userId, classroomId, newLevel, reason, levelUpRewards, io }) {
+/**
+ * Check and award badges for manual XP adjustment
+ */
+async function checkAndAwardBadges({ user, classroomId, newLevel, xpSettings, io }) {
+  const earnedBadges = [];
+  let badgeXPAwarded = 0;
+
+  let classroomXPEntry = user.classroomXP.find(
+    cx => cx.classroom.toString() === classroomId.toString()
+  );
+
+  if (!classroomXPEntry) return { earnedBadges, badgeXPAwarded };
+
+  // Find ALL badges that should be unlocked at current level
+  const badges = await Badge.find({
+    classroom: classroomId,
+    levelRequired: { $lte: newLevel }
+  }).sort({ levelRequired: 1 });
+
+  for (const badge of badges) {
+    const alreadyEarned = classroomXPEntry.earnedBadges.some(
+      eb => eb.badge.toString() === badge._id.toString()
+    );
+
+    if (!alreadyEarned) {
+      classroomXPEntry.earnedBadges.push({
+        badge: badge._id,
+        earnedAt: new Date()
+      });
+      earnedBadges.push(badge);
+
+      // Award badge rewards if configured
+      const { awardBadgeRewards, awardBadgeRewardXP } = require('./badgeRewards');
+      const badgeRewardsAwarded = await awardBadgeRewards({
+        user,
+        classroomId,
+        badge,
+        io
+      });
+
+      // Build reward parts for notification
+      const rewardParts = [];
+      if (badgeRewardsAwarded.bits > 0) {
+        if (badgeRewardsAwarded.baseBits !== badgeRewardsAwarded.bits) {
+          rewardParts.push(`${badgeRewardsAwarded.bits} ₿ (${badgeRewardsAwarded.totalMultiplier.toFixed(2)}x)`);
+        } else {
+          rewardParts.push(`${badgeRewardsAwarded.bits} ₿`);
+        }
+      }
+      if (badgeRewardsAwarded.multiplier > 0) rewardParts.push(`+${badgeRewardsAwarded.multiplier.toFixed(1)} Multiplier`);
+      if (badgeRewardsAwarded.luck > 0) rewardParts.push(`+${badgeRewardsAwarded.luck.toFixed(1)} Luck`);
+      if (badgeRewardsAwarded.discount > 0) rewardParts.push(`+${badgeRewardsAwarded.discount}% Discount`);
+      if (badgeRewardsAwarded.shield > 0) rewardParts.push(`+${badgeRewardsAwarded.shield} Shield`);
+
+      // Create notification for badge earned
+      let badgeMessage = `🏅 You earned the "${badge.name}" badge! ${badge.description}`;
+      if (rewardParts.length > 0) {
+        badgeMessage += ` Rewards: ${rewardParts.join(', ')}`;
+      }
+
+      const badgeNotification = await Notification.create({
+        user: user._id,
+        type: 'badge_earned',
+        message: badgeMessage,
+        classroom: classroomId,
+        badge: badge._id,
+        read: false
+      });
+
+      const populated = await populateNotification(badgeNotification._id);
+      if (populated && io) {
+        io.to(`user-${user._id}`).emit('notification', populated);
+      }
+
+      // Award XP for badge unlock
+      const badgeXPRate = xpSettings?.badgeUnlock || 0;
+      if (badgeXPRate > 0) {
+        badgeXPAwarded += badgeXPRate;
+      }
+
+      // Award XP for badge rewards
+      await awardBadgeRewardXP({
+        user,
+        classroomId,
+        badge,
+        awarded: badgeRewardsAwarded,
+        xpSettings,
+        io
+      });
+    }
+  }
+
+  // Apply badge unlock XP if any badges were earned
+  if (badgeXPAwarded > 0 && xpSettings?.enabled) {
+    const xpBeforeBadge = classroomXPEntry.xp;
+    classroomXPEntry.xp += badgeXPAwarded;
+
+    // Recalculate level after badge XP
+    const updatedLevel = calculateLevelFromXP(
+      classroomXPEntry.xp,
+      xpSettings.levelingFormula,
+      xpSettings.baseXPForLevel2
+    );
+    classroomXPEntry.level = updatedLevel;
+
+    // Log the badge unlock XP
+    try {
+      const badgeNames = earnedBadges.map(b => `"${b.name}"`).join(', ');
+      const badgeCount = earnedBadges.length;
+      const badgeText = badgeCount === 1 
+        ? `Unlocked badge ${badgeNames}` 
+        : `Unlocked ${badgeCount} badges: ${badgeNames}`;
+
+      await logStatChanges({
+        io,
+        classroomId,
+        user,
+        actionBy: null,
+        prevStats: { xp: xpBeforeBadge },
+        currStats: { xp: classroomXPEntry.xp },
+        context: 'badge unlock XP',
+        details: { 
+          effectsText: `${badgeText}: +${badgeXPAwarded} XP`
+        },
+        forceLog: true
+      });
+    } catch (err) {
+      console.warn('[manualXPLevelUp] failed to log badge unlock XP:', err);
+    }
+  }
+
+  return { earnedBadges, badgeXPAwarded };
+}
+
+/**
+ * Send level-up notification for manual XP adjustment
+ */
+async function sendLevelUpNotificationManual({ userId, classroomId, newLevel, levelUpRewards, io }) {
   let message = `🎉 You've reached Level ${newLevel}!`;
   
   if (levelUpRewards) {
@@ -556,8 +490,12 @@ async function sendLevelUpNotification({ userId, classroomId, newLevel, reason, 
       io.to(`user-${userId}`).emit('notification', populated);
     }
   } catch (err) {
-    console.warn('[awardXP] sendLevelUpNotification failed:', err);
+    console.warn('[manualXPLevelUp] sendLevelUpNotificationManual failed:', err);
   }
 }
 
-module.exports = { awardXP };
+module.exports = { 
+  awardLevelUpRewardsManual, 
+  checkAndAwardBadges, 
+  sendLevelUpNotificationManual 
+};
