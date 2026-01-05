@@ -183,6 +183,10 @@ const computeTotalSpent = (transactions = [], classroomId, studentList = []) => 
     const tType = String(t?.type || t?.metadata?.type || '').toLowerCase();
     if (tType === 'attack' || tType === 'siphon') return sum;
 
+    // Also check description for attack-related keywords (for older transactions without type)
+    const desc = String(t?.description || '').toLowerCase();
+    if (desc.includes('attack:') || desc.includes('drained') || desc.includes('split bits')) return sum;
+
     // Keep classroom filter
     if (classroomId && t?.classroom && String(t.classroom) !== String(classroomId)) return sum;
 

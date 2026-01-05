@@ -610,8 +610,6 @@ useEffect(() => {
       if (amt >= 0) return sum;
 
       // Exclude teacher/admin adjustments from "total spent"
-      // `assignedBy` is populated by backend for the student's own transactions route:
-      // see router.get('/transactions') in backend/routes/wallet.js
       const assignerRole = inferAssignerRole(t, studentList);
       if (assignerRole === 'teacher' || assignerRole === 'admin') {
         return sum;
@@ -620,6 +618,12 @@ useEffect(() => {
       // Exclude attacks and siphons from "spent"
       const tType = String(t?.type || t?.metadata?.type || '').toLowerCase();
       if (tType === 'attack' || tType === 'siphon') {
+        return sum;
+      }
+
+      // Also check description for attack-related keywords (for older transactions without type)
+      const desc = String(t?.description || '').toLowerCase();
+      if (desc.includes('attack:') || desc.includes('drained') || desc.includes('split bits')) {
         return sum;
       }
 
