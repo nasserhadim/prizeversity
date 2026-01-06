@@ -232,7 +232,7 @@ const CustomChallengeBuilder = ({
     setShowForm(false);
   };
 
-  const handleLoadTemplate = (loadedChallenges, isSingle) => {
+  const handleLoadTemplate = async (loadedChallenges, isSingle) => {
     if (draftMode && onDraftUpdate) {
       const newDrafts = loadedChallenges.map((c, i) => ({
         ...c,
@@ -240,15 +240,99 @@ const CustomChallengeBuilder = ({
         order: challenges.length + i
       }));
       onDraftUpdate([...challenges, ...newDrafts]);
-    } else {
-      const newChallenges = loadedChallenges.map((c, i) => ({
-        ...c,
-        _id: `loaded-${Date.now()}-${i}`,
-        order: challenges.length + i
-      }));
-      setChallenges([...challenges, ...newChallenges]);
+      setShowCCTLoadModal(false);
+      return;
     }
+    
+    // Save each challenge to the backend
     setShowCCTLoadModal(false);
+    setSaving(true);
+    
+    try {
+      let successCount = 0;
+      let failCount = 0;
+      const createdChallenges = [];
+      
+      for (const challenge of loadedChallenges) {
+        const payload = {
+          title: challenge.title?.trim() || 'Untitled Challenge',
+          description: challenge.description?.trim() || '',
+          externalUrl: challenge.externalUrl?.trim() || '',
+          maxAttempts: challenge.maxAttempts ? parseInt(challenge.maxAttempts) : null,
+          hintsEnabled: Boolean(challenge.hintsEnabled),
+          hints: challenge.hints?.filter(h => h?.trim()) || [],
+          hintPenaltyPercent: challenge.hintPenaltyPercent !== '' && challenge.hintPenaltyPercent !== undefined 
+            ? parseInt(challenge.hintPenaltyPercent) 
+            : null,
+          bits: parseInt(challenge.bits) || 50,
+          multiplier: parseFloat(challenge.multiplier) || 1.0,
+          luck: parseFloat(challenge.luck) || 1.0,
+          discount: parseInt(challenge.discount) || 0,
+          shield: Boolean(challenge.shield),
+          applyPersonalMultiplier: Boolean(challenge.applyPersonalMultiplier),
+          applyGroupMultiplier: Boolean(challenge.applyGroupMultiplier),
+          visible: challenge.visible !== false,
+          templateType: challenge.templateType || 'passcode',
+          templateConfig: challenge.templateConfig || {},
+          dueDateEnabled: Boolean(challenge.dueDateEnabled),
+          dueDate: null,
+          isMultiStep: Boolean(challenge.isMultiStep),
+          steps: (challenge.steps || []).map(step => ({
+            title: step.title?.trim() || 'Step',
+            description: step.description?.trim() || '',
+            templateType: step.templateType || 'passcode',
+            templateConfig: step.templateConfig || {},
+            solution: step.solution?.trim() || '',
+            bits: parseInt(step.bits) || 0,
+            multiplier: parseFloat(step.multiplier) || 1.0,
+            luck: parseFloat(step.luck) || 1.0,
+            discount: parseInt(step.discount) || 0,
+            shield: Boolean(step.shield),
+            maxAttempts: step.maxAttempts ? parseInt(step.maxAttempts) : null,
+            hintsEnabled: Boolean(step.hintsEnabled),
+            hints: step.hints?.filter(h => h?.trim()) || [],
+            hintPenaltyPercent: step.hintPenaltyPercent !== '' && step.hintPenaltyPercent !== undefined 
+              ? parseInt(step.hintPenaltyPercent) 
+              : null,
+            prerequisites: [],
+            isRequired: step.isRequired !== false
+          })),
+          completionBonus: parseInt(challenge.completionBonus) || 0
+        };
+        
+        // Include solution for passcode-type challenges
+        if (challenge.templateType === 'passcode' && challenge.solution?.trim()) {
+          payload.solution = challenge.solution.trim();
+        }
+        
+        try {
+          const result = await createCustomChallenge(classroomId, payload);
+          if (result.challenge) {
+            createdChallenges.push(result.challenge);
+          }
+          successCount++;
+        } catch (err) {
+          console.error('Failed to create challenge from template:', err);
+          failCount++;
+        }
+      }
+      
+      if (successCount > 0) {
+        toast.success(`${successCount} challenge${successCount > 1 ? 's' : ''} loaded from template`);
+      }
+      if (failCount > 0) {
+        toast.error(`${failCount} challenge${failCount > 1 ? 's' : ''} failed to load`);
+      }
+      
+      if (createdChallenges.length > 0) {
+        setChallenges(prev => [...prev, ...createdChallenges]);
+      }
+    } catch (error) {
+      console.error('Error loading template:', error);
+      toast.error('Failed to load template');
+    } finally {
+      setSaving(false);
+    }
   };
   
   const handleAddPendingAttachment = (e) => {
