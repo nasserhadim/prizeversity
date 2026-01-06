@@ -1067,7 +1067,14 @@ const TeacherView = ({
         const allCompleted = totalChallenges > 0 && completedChallenges === totalChallenges;
         const anyFailed = perChallenge.some(x => x.failed);
 
-        const currentEntry = perChallenge.find(x => x.started && !x.completed && !x.failed);
+        const inProgressEntries = perChallenge.filter(x => x.started && !x.completed && !x.failed);
+        const currentEntry = inProgressEntries.length > 0
+          ? inProgressEntries.reduce((latest, entry) => {
+              const latestTime = latest.p?.startedAt ? new Date(latest.p.startedAt).getTime() : 0;
+              const entryTime = entry.p?.startedAt ? new Date(entry.p.startedAt).getTime() : 0;
+              return entryTime > latestTime ? entry : latest;
+            })
+          : null;
         const currentChallenge = currentEntry?.cc || null;
 
         const statusLabel = allCompleted
@@ -2218,7 +2225,14 @@ const TeacherView = ({
                       const anyFailed = perChallenge.some(x => x.failed);
 
                       
-                      const currentEntry = perChallenge.find(x => x.started && !x.completed && !x.failed);
+                      const inProgressEntries = perChallenge.filter(x => x.started && !x.completed && !x.failed);
+                      const currentEntry = inProgressEntries.length > 0
+                        ? inProgressEntries.reduce((latest, entry) => {
+                            const latestTime = latest.p?.startedAt ? new Date(latest.p.startedAt).getTime() : 0;
+                            const entryTime = entry.p?.startedAt ? new Date(entry.p.startedAt).getTime() : 0;
+                            return entryTime > latestTime ? entry : latest;
+                          })
+                        : null;
                       const currentChallenge = currentEntry?.cc || null;
                       const currentProgress = currentEntry?.p || null;
 
