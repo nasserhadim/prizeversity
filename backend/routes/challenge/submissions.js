@@ -198,7 +198,7 @@ router.post('/:classroomId/submit', ensureAuthenticated, async (req, res) => {
       };
 
       if (user) {
-        rewardsEarned = calculateChallengeRewards(user, challenge, challengeIndex, userChallenge);
+        rewardsEarned = await calculateChallengeRewards(user, challenge, challengeIndex, userChallenge);
         await user.save();
         // NEW: award XP for challenge 6 rewards + completion
         await awardChallengeXP({
@@ -304,7 +304,7 @@ router.post('/challenge4/:uniqueId/submit', ensureAuthenticated, async (req, res
         userChallenge.challengeCompletedAt[3] = new Date();
         
         const user = await User.findById(userId);
-        const rewardsEarned = calculateChallengeRewards(user, challenge, 3, userChallenge);
+        const rewardsEarned = await calculateChallengeRewards(user, challenge, 3, userChallenge);
         await user.save();
         // NEW: award XP for Challenge 4
         await awardChallengeXP({
@@ -604,7 +604,7 @@ router.post('/submit-challenge6', ensureAuthenticated, async (req, res) => {
       };
 
       if (user) {
-        rewards = calculateChallengeRewards(user, challenge, challengeIndex, userChallenge);
+        rewards = await calculateChallengeRewards(user, challenge, challengeIndex, userChallenge);
         await user.save();
         // NEW: award XP for challenge 6 rewards + completion
         await awardChallengeXP({
@@ -788,7 +788,7 @@ router.post('/submit-challenge7', ensureAuthenticated, async (req, res) => {
         const user = await User.findById(userId);
         
         if (user) {
-          rewards = calculateChallengeRewards(user, challenge, challengeIndex, userChallenge);
+          rewards = await calculateChallengeRewards(user, challenge, challengeIndex, userChallenge);
           await user.save();
           // NEW: award XP for Challenge 7
           await awardChallengeXP({

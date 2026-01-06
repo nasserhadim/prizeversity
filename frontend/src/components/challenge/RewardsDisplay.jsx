@@ -1,7 +1,16 @@
 import React from 'react';
-import { Coins, Zap, TrendingUp, ShoppingCart, Shield } from 'lucide-react';
+import { Coins, Zap, TrendingUp, ShoppingCart, Shield, Users } from 'lucide-react';
 
-const RewardsDisplay = ({ rewards, isDark, isCompleted, size = 'sm' }) => {
+const RewardsDisplay = ({ 
+  rewards, 
+  isDark, 
+  isCompleted, 
+  size = 'sm',
+  // NEW: multiplier indicator props
+  showMultiplierIndicator = false,
+  applyPersonalMultiplier = false,
+  applyGroupMultiplier = false
+}) => {
   if (!rewards) return null;
 
   const hasRewards = rewards.bits > 0 || rewards.multiplier > 0 || rewards.luck > 1.0 || rewards.discount > 0 || rewards.shield || rewards.attackBonus > 0;
@@ -22,6 +31,20 @@ const RewardsDisplay = ({ rewards, isDark, isCompleted, size = 'sm' }) => {
       value: rewards.bits,
       label: 'bits',
       color: isCompleted ? 'text-green-500' : 'text-yellow-500'
+    });
+  }
+
+  // NEW: Add multiplier indicator if enabled
+  if (showMultiplierIndicator && (applyPersonalMultiplier || applyGroupMultiplier) && rewards.bits > 0) {
+    const indicators = [];
+    if (applyPersonalMultiplier) indicators.push('P');
+    if (applyGroupMultiplier) indicators.push('G');
+    rewardItems.push({
+      icon: <Users className="w-3 h-3" />,
+      value: `×${indicators.join('+')}`,
+      label: '',
+      color: 'text-info',
+      tooltip: `Applies ${applyPersonalMultiplier ? 'Personal' : ''}${applyPersonalMultiplier && applyGroupMultiplier ? ' & ' : ''}${applyGroupMultiplier ? 'Group' : ''} Multiplier`
     });
   }
 
@@ -78,10 +101,11 @@ const RewardsDisplay = ({ rewards, isDark, isCompleted, size = 'sm' }) => {
           <div 
             key={index}
             className={`badge badge-outline badge-lg gap-1 ${item.color} ${isDark ? 'border-gray-600' : 'border-gray-300'}`}
+            title={item.tooltip}
           >
             {item.icon}
             {item.value && <span className="font-medium">{item.value}</span>}
-            <span className="text-xs opacity-75">{item.label}</span>
+            {item.label && <span className="text-xs opacity-75">{item.label}</span>}
           </div>
         ))}
       </div>
@@ -91,10 +115,13 @@ const RewardsDisplay = ({ rewards, isDark, isCompleted, size = 'sm' }) => {
   if (rewardItems.length === 1) {
     const item = rewardItems[0];
     return (
-      <div className={`badge badge-outline badge-${size} gap-1 ${item.color} ${isDark ? 'border-gray-600' : 'border-gray-300'}`}>
+      <div 
+        className={`badge badge-outline badge-${size} gap-1 ${item.color} ${isDark ? 'border-gray-600' : 'border-gray-300'}`}
+        title={item.tooltip}
+      >
         {item.icon}
         {item.value && <span className="font-medium">{item.value}</span>}
-        <span className="text-xs opacity-75">{item.label}</span>
+        {item.label && <span className="text-xs opacity-75">{item.label}</span>}
       </div>
     );
   }
@@ -105,6 +132,7 @@ const RewardsDisplay = ({ rewards, isDark, isCompleted, size = 'sm' }) => {
         <div 
           key={index}
           className={`badge badge-outline badge-xs gap-1 ${item.color} ${isDark ? 'border-gray-600' : 'border-gray-300'}`}
+          title={item.tooltip}
         >
           {item.icon}
           {item.value && <span className="font-medium">{item.value}</span>}

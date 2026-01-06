@@ -45,7 +45,13 @@ const ChallengeUpdateModal = ({
   fetchChallengeData,
   classroomId,
   setShowHintModal,
-  setEditingHints
+  setEditingHints,
+  // NEW: Template support props
+  templates = [],
+  handleLoadTemplate,
+  handleDeleteTemplate,
+  setShowSaveTemplateModal,
+  fetchTemplates // NEW: Add fetchTemplates prop
 }) => {
   
   const seriesType = challengeData?.seriesType || 'legacy';
@@ -100,6 +106,9 @@ const ChallengeUpdateModal = ({
     challengeBits: [],
     totalRewardBits: 0,
     rewardMode: 'individual',
+    // NEW: Multiplier application settings
+    applyPersonalMultiplier: false,
+    applyGroupMultiplier: false,
     challengeMultipliers: [],
     totalMultiplier: 1.0,
     multiplierMode: 'individual',
@@ -122,6 +131,13 @@ const ChallengeUpdateModal = ({
   });
 
   useEffect(() => {
+    // NEW: Fetch templates when modal opens
+    if (showUpdateModal && typeof fetchTemplates === 'function') {
+      fetchTemplates();
+    }
+  }, [showUpdateModal]);
+
+  useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
     };
@@ -141,6 +157,9 @@ const ChallengeUpdateModal = ({
         challengeBits: challengeData.settings?.challengeBits || [50,75,100,125,150,175,200],
         totalRewardBits: challengeData.settings?.totalRewardBits || 0,
         rewardMode: challengeData.settings?.rewardMode || 'individual',
+        // NEW: Load multiplier application settings
+        applyPersonalMultiplier: challengeData.settings?.applyPersonalMultiplier || false,
+        applyGroupMultiplier: challengeData.settings?.applyGroupMultiplier || false,
         challengeMultipliers: challengeData.settings?.challengeMultipliers || [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
         totalMultiplier: challengeData.settings?.totalMultiplier || 1.0,
         multiplierMode: challengeData.settings?.multiplierMode || 'individual',
@@ -169,6 +188,9 @@ const ChallengeUpdateModal = ({
       setUpdating(true);
       const updatePayload = {
         ...updateData,
+        // NEW: Include multiplier application settings
+        applyPersonalMultiplier: updateData.applyPersonalMultiplier,
+        applyGroupMultiplier: updateData.applyGroupMultiplier,
         dueDate: updateData.dueDateEnabled && updateData.dueDate 
           ? localDateTimeToUTC(updateData.dueDate) 
           : (updateData.dueDateEnabled ? null : undefined)
@@ -252,6 +274,66 @@ const ChallengeUpdateModal = ({
               />
             </div>
 
+            {/* Templates Section */}
+            <div className="collapse collapse-arrow bg-base-200 rounded-lg">
+              <input type="checkbox" />
+              <div className="collapse-title font-semibold flex items-center gap-2">
+                Templates {templates?.length > 0 && `(${templates.length})`}
+              </div>
+              <div className="collapse-content">
+                <div className="flex justify-end mb-3">
+                  {setShowSaveTemplateModal && (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-primary"
+                      onClick={() => {
+                        // Store the current update data and custom challenges for template save
+                        window.__templateSaveData = {
+                          config: updateData,
+                          customChallenges: challengeData?.customChallenges || []
+                        };
+                        setShowSaveTemplateModal(true);
+                      }}
+                    >
+                      Save Current Config
+                    </button>
+                  )}
+                </div>
+                {templates && templates.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {templates.map((template) => (
+                      <div key={template._id} className="flex items-center justify-between bg-base-100 p-3 rounded">
+                        <div className="min-w-0">
+                          <div className="font-medium break-words">{template.name}</div>
+                          <div className="text-xs text-base-content/60">
+                            {template.createdAt ? new Date(template.createdAt).toLocaleString() : '—'}
+                          </div>
+                        </div>
+                        <div className="flex gap-1 flex-shrink-0">
+                          <button
+                            className="btn btn-xs btn-ghost"
+                            onClick={() => handleLoadTemplate && handleLoadTemplate(template, setUpdateData)}
+                            title="Load template"
+                          >
+                            Load
+                          </button>
+                          <button
+                            className="btn btn-xs btn-ghost text-error"
+                            onClick={() => handleDeleteTemplate && handleDeleteTemplate(template._id, template.name)}
+                            title="Delete template"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-base-content/60">No templates saved yet.</p>
+                )}
+              </div>
+            </div>
+
             {showCustom && (
               <div className="text-xs text-gray-500">
                 Custom challenges save immediately when you create/update/reorder them. The button below saves series settings (legacy challenges, rewards, hints, due date, visibility).
@@ -261,6 +343,40 @@ const ChallengeUpdateModal = ({
             {showLegacy && (
               <>
                 <div className="divider">Legacy Challenge Configuration</div>
+
+                {/* NEW: Multiplier Application Options - Add before the mobile/desktop table */}
+                <div className="bg-base-200 p-4 rounded-lg mb-4">
+                  <h4 className="font-semibold mb-3">Bit Reward Multipliers</h4>
+                  <p className="text-sm text-gray-500 mb-3">
+                    When enabled, bit rewards will be scaled by the student's current multipliers
+                  </p>
+                  <div className="flex flex-wrap gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="checkbox checkbox-sm checkbox-primary"
+                        checked={updateData.applyPersonalMultiplier || false}
+                        onChange={(e) => setUpdateData(prev => ({ 
+                          ...prev, 
+                          applyPersonalMultiplier: e.target.checked 
+                        }))}
+                      />
+                      <span className="text-sm">Apply Personal Multiplier</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="checkbox checkbox-sm checkbox-primary"
+                        checked={updateData.applyGroupMultiplier || false}
+                        onChange={(e) => setUpdateData(prev => ({ 
+                          ...prev, 
+                          applyGroupMultiplier: e.target.checked 
+                        }))}
+                      />
+                      <span className="text-sm">Apply Group Multiplier</span>
+                    </label>
+                  </div>
+                </div>
 
                 {isMobile ? (
               <div className="space-y-4">

@@ -13,6 +13,9 @@ export const DEFAULT_CHALLENGE_CONFIG = {
   rewardMode: 'individual',
   challengeBits: [50, 75, 100, 125, 150, 175, 200],
   totalRewardBits: 775,
+  // NEW: Multiplier application settings
+  applyPersonalMultiplier: false,
+  applyGroupMultiplier: false,
   multiplierMode: 'individual',
   challengeMultipliers: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
   totalMultiplier: 1.0,
@@ -25,14 +28,16 @@ export const DEFAULT_CHALLENGE_CONFIG = {
   shieldMode: 'individual',
   challengeShields: [false, false, false, false, false, false, false],
   totalShield: false,
+  attackMode: 'individual',
+  challengeAttackBonuses: [0, 0, 0, 0, 0, 0, 0],
+  totalAttackBonus: 0,
   challengeHintsEnabled: [false, false, false, false, false, false, false],
   challengeHints: [[], [], [], [], [], [], []],
   hintPenaltyPercent: 25,
   maxHintsPerChallenge: 2,
-  // NEW: per-challenge visibility (true = visible)
-  challengeVisibility: [true, true, true, true, true, true, true],
   dueDateEnabled: false,
   dueDate: '',
+  challengeVisibility: [true, true, true, true, true, true, true]
 };
 
 export const CHALLENGE_IDS = [

@@ -73,7 +73,7 @@ router.post('/verify-password', ensureAuthenticated, async (req, res) => {
       
       const user = await User.findById(userId);
       if (user) {
-        rewardsEarned = calculateChallengeRewards(user, challenge, 0, userChallenge);
+        rewardsEarned = await calculateChallengeRewards(user, challenge, 0, userChallenge);
         await user.save();
         // NEW: award XP for rewards and completion
         await awardChallengeXP({
@@ -182,7 +182,7 @@ router.post('/verify-challenge2-external', ensureAuthenticated, async (req, res)
       let bitsAwarded = 0;
 
       if (user) {
-        const rewards = calculateChallengeRewards(user, challenge, 1, userChallenge);
+        const rewards = await calculateChallengeRewards(user, challenge, 1, userChallenge);
         Object.assign(rewardsEarned, rewards);
         bitsAwarded = rewards.bits;
         await user.save();
@@ -331,7 +331,7 @@ router.post('/challenge3/:uniqueId/verify', ensureAuthenticated, async (req, res
       }
       userChallenge.challengeCompletedAt[2] = new Date();
       
-      rewardsEarned = calculateChallengeRewards(user, challenge, 2, userChallenge);
+      rewardsEarned = await calculateChallengeRewards(user, challenge, 2, userChallenge);
       await user.save();
       // NEW: award XP for Challenge 3
       await awardChallengeXP({
@@ -424,7 +424,7 @@ router.post('/verify-challenge5-external', ensureAuthenticated, async (req, res)
     };
     
     if (user) {
-      rewardsEarned = calculateChallengeRewards(user, challenge, 4, userChallenge);
+      rewardsEarned = await calculateChallengeRewards(user, challenge, 4, userChallenge);
       await user.save();
       // NEW
       await awardChallengeXP({

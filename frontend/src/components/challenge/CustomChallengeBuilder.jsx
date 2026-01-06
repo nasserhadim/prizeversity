@@ -2,7 +2,7 @@ import { useState, useEffect, useContext, useRef } from 'react';
 import { 
   Plus, Trash2, GripVertical, ExternalLink, Paperclip, X, Eye, EyeOff, 
   ChevronDown, ChevronUp, Shield, AlertTriangle,
-  Target, Lightbulb, Clover, Percent, Clock
+  Target, Lightbulb, Clover, Percent, Clock, Users
 } from 'lucide-react';
 import { ThemeContext } from '../../context/ThemeContext';
 import {
@@ -113,13 +113,16 @@ const CustomChallengeBuilder = ({
     solution: '',
     maxAttempts: '',
     hintsEnabled: false,
-    hints: ['', ''],
+    hints: [''],
     hintPenaltyPercent: '',
-    bits: 50,
-    multiplier: 1.0,
-    luck: 1.0,
-    discount: 0,
+    bits: '50',
+    multiplier: '1.0',
+    luck: '1.0',
+    discount: '0',
     shield: false,
+    // NEW: Multiplier application settings
+    applyPersonalMultiplier: false,
+    applyGroupMultiplier: false,
     visible: true,
     templateType: 'passcode',
     templateConfig: {},
@@ -173,13 +176,16 @@ const CustomChallengeBuilder = ({
       solution: '',
       maxAttempts: '',
       hintsEnabled: false,
-      hints: ['', ''],
+      hints: [''],
       hintPenaltyPercent: '',
-      bits: 50,
-      multiplier: 1.0,
-      luck: 1.0,
-      discount: 0,
+      bits: '50',
+      multiplier: '1.0',
+      luck: '1.0',
+      discount: '0',
       shield: false,
+      // NEW: Multiplier application settings
+      applyPersonalMultiplier: false,
+      applyGroupMultiplier: false,
       visible: true,
       templateType: 'passcode',
       templateConfig: {},
@@ -263,13 +269,16 @@ const CustomChallengeBuilder = ({
       solution: '',
       maxAttempts: challenge.maxAttempts || '',
       hintsEnabled: challenge.hintsEnabled || false,
-      hints: challenge.hints?.length ? [...challenge.hints] : ['', ''],
+      hints: challenge.hints?.length ? [...challenge.hints] : [''],
       hintPenaltyPercent: challenge.hintPenaltyPercent ?? '',
       bits: challenge.bits || 50,
       multiplier: challenge.multiplier || 1.0,
       luck: challenge.luck || 1.0,
       discount: challenge.discount || 0,
       shield: challenge.shield || false,
+      // ADD: Load multiplier application settings
+      applyPersonalMultiplier: challenge.applyPersonalMultiplier || false,
+      applyGroupMultiplier: challenge.applyGroupMultiplier || false,
       visible: challenge.visible !== false,
       templateType: challenge.templateType || 'passcode',
       templateConfig: challenge.templateConfig || {},
@@ -315,6 +324,9 @@ const CustomChallengeBuilder = ({
         luck: parseFloat(form.luck) || 1.0,
         discount: parseInt(form.discount) || 0,
         shield: form.shield,
+        // NEW: Multiplier application settings
+        applyPersonalMultiplier: form.applyPersonalMultiplier || false,
+        applyGroupMultiplier: form.applyGroupMultiplier || false,
         visible: form.visible,
         templateType: form.templateType,
         templateConfig: isTemplateChallenge ? form.templateConfig : {},
@@ -725,6 +737,37 @@ const CustomChallengeBuilder = ({
               </label>
             </div>
 
+            {/* NEW: Multiplier Application Options */}
+            {parseInt(form.bits) > 0 && (
+              <div className="md:col-span-2 bg-base-200 p-3 rounded-lg space-y-2">
+                <div className="text-sm font-medium">Apply multipliers to bit rewards</div>
+                
+                <div className="form-control">
+                  <label className="label cursor-pointer justify-start gap-2">
+                    <input
+                      type="checkbox"
+                      className="checkbox checkbox-primary"
+                      checked={form.applyPersonalMultiplier}
+                      onChange={(e) => setForm(prev => ({ ...prev, applyPersonalMultiplier: e.target.checked }))}
+                    />
+                    <span className="label-text">Personal Multiplier</span>
+                  </label>
+                </div>
+
+                <div className="form-control">
+                  <label className="label cursor-pointer justify-start gap-2">
+                    <input
+                      type="checkbox"
+                      className="checkbox checkbox-primary"
+                      checked={form.applyGroupMultiplier}
+                      onChange={(e) => setForm(prev => ({ ...prev, applyGroupMultiplier: e.target.checked }))}
+                    />
+                    <span className="label-text">Group Multiplier</span>
+                  </label>
+                </div>
+              </div>
+            )}
+
             <div className="form-control">
               <label className="label cursor-pointer justify-start gap-3">
                 <input
@@ -967,6 +1010,14 @@ const CustomChallengeBuilder = ({
                     )}
 
                     <span>{challenge.bits} bits</span>
+                    
+                    {/* NEW: Show multiplier application indicators */}
+                    {(challenge.applyPersonalMultiplier || challenge.applyGroupMultiplier) && (
+                      <span className="flex items-center gap-1 text-info" title={`Applies ${challenge.applyPersonalMultiplier ? 'Personal' : ''}${challenge.applyPersonalMultiplier && challenge.applyGroupMultiplier ? ' & ' : ''}${challenge.applyGroupMultiplier ? 'Group' : ''} Multiplier`}>
+                        <Users className="w-3 h-3" />
+                        ×{[challenge.applyPersonalMultiplier && 'P', challenge.applyGroupMultiplier && 'G'].filter(Boolean).join('+')}
+                      </span>
+                    )}
 
                     {Number(challenge.multiplier || 1) > 1 && (
                       <span>+{Math.round((Number(challenge.multiplier || 1) - 1) * 100)}% mult</span>

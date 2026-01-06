@@ -357,7 +357,15 @@ const CustomChallengeCard = ({
               {challenge.title}
             </span>
 
-            <RewardsDisplay rewards={rewards} isDark={isDark} isCompleted={isCompleted} size="sm" />
+            <RewardsDisplay 
+              rewards={rewards} 
+              isDark={isDark} 
+              isCompleted={isCompleted} 
+              size="sm"
+              showMultiplierIndicator={true}
+              applyPersonalMultiplier={challenge.applyPersonalMultiplier}
+              applyGroupMultiplier={challenge.applyGroupMultiplier}
+            />
             
             {challenge.dueDateEnabled && challenge.dueDate && (
               <DueDateCountdown dueDate={challenge.dueDate} />
@@ -376,7 +384,15 @@ const CustomChallengeCard = ({
               {challenge.title}
             </span>
 
-            <RewardsDisplay rewards={rewards} isDark={isDark} isCompleted={isCompleted} size="sm" />
+            <RewardsDisplay 
+              rewards={rewards} 
+              isDark={isDark} 
+              isCompleted={isCompleted} 
+              size="sm"
+              showMultiplierIndicator={true}
+              applyPersonalMultiplier={challenge.applyPersonalMultiplier}
+              applyGroupMultiplier={challenge.applyGroupMultiplier}
+            />
 
             <span className={`text-sm ${isDark ? 'text-base-content/50' : 'text-gray-400'}`}>
               {isCompleted ? 'Completed' : isFailed ? 'Failed' : isStarted ? 'In Progress' : 'Not Started'}
@@ -404,7 +420,15 @@ const CustomChallengeCard = ({
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-sm font-medium">Challenge Rewards</span>
               </div>
-              <RewardsDisplay rewards={rewards} isDark={isDark} isCompleted={isCompleted} size="lg" />
+              <RewardsDisplay 
+                rewards={rewards} 
+                isDark={isDark} 
+                isCompleted={isCompleted} 
+                size="lg"
+                showMultiplierIndicator={true}
+                applyPersonalMultiplier={challenge.applyPersonalMultiplier}
+                applyGroupMultiplier={challenge.applyGroupMultiplier}
+              />
             </div>
 
             {challenge.description && (

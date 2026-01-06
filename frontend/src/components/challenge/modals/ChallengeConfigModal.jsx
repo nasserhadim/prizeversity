@@ -100,6 +100,9 @@ const ChallengeConfigModal = ({
         discountMode: challengeConfig.discountMode,
         shieldMode: challengeConfig.shieldMode,
         attackMode: challengeConfig.attackMode,
+        // NEW: Include multiplier application settings
+        applyPersonalMultiplier: challengeConfig.applyPersonalMultiplier || false,
+        applyGroupMultiplier: challengeConfig.applyGroupMultiplier || false,
         difficulty: 'medium'
       };
 
@@ -771,6 +774,42 @@ const ChallengeConfigModal = ({
                             }}
                             min="0"
                           />
+                        </div>
+                      )}
+                      
+                      {/* NEW: Multiplier Application Options */}
+                      {(challengeConfig.rewardMode === 'individual' || challengeConfig.rewardMode === 'total') && (
+                        <div className="mt-3 bg-base-200 p-3 rounded-lg space-y-2">
+                          <div className="text-sm font-medium">Apply multipliers to bit rewards:</div>
+                          <div className="flex flex-wrap gap-4">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                className="checkbox checkbox-sm checkbox-primary"
+                                checked={challengeConfig.applyPersonalMultiplier || false}
+                                onChange={(e) => setChallengeConfig(prev => ({ 
+                                  ...prev, 
+                                  applyPersonalMultiplier: e.target.checked 
+                                }))}
+                              />
+                              <span className="text-sm">Personal Multiplier</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                className="checkbox checkbox-sm checkbox-primary"
+                                checked={challengeConfig.applyGroupMultiplier || false}
+                                onChange={(e) => setChallengeConfig(prev => ({ 
+                                  ...prev, 
+                                  applyGroupMultiplier: e.target.checked 
+                                }))}
+                              />
+                              <span className="text-sm">Group Multiplier</span>
+                            </label>
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            When enabled, bit rewards will be scaled by the student's current multipliers
+                          </div>
                         </div>
                       )}
                     </div>

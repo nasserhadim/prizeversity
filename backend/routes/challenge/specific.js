@@ -728,7 +728,7 @@ router.post('/challenge6/:uniqueId/complete', ensureAuthenticated, async (req, r
     const studentId = userChallenge.userId;
     const user = await User.findById(studentId);
     if (user) {
-      const rewards = calculateChallengeRewards(user, challenge, 5, userChallenge);
+      const rewards = await calculateChallengeRewards(user, challenge, 5, userChallenge);
       await user.save();
 
       // persist rewards for this challenge entry
@@ -815,7 +815,7 @@ router.post('/challenge7/:uniqueId/complete', ensureAuthenticated, async (req, r
       const studentId = userChallenge.userId;
       const user = await User.findById(studentId);
       if (user) {
-        const rewards = calculateChallengeRewards(user, challenge, 6, userChallenge);
+        const rewards = await calculateChallengeRewards(user, challenge, 6, userChallenge);
         await user.save();
 
         if (!userChallenge.challengeRewards) userChallenge.challengeRewards = {};
