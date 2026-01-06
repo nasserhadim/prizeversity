@@ -222,13 +222,11 @@ const ChallengeConfigModal = ({
         }
       }
 
-      // FIX: only prompt for password when legacy challenges are involved
-      const requiresSeriesPassword = seriesType === 'legacy' || seriesType === 'mixed';
+      const requiresSeriesPassword = seriesType === 'legacy' || seriesType === 'mixed' || seriesType === 'custom';
 
       if (requiresSeriesPassword) {
         setShowPasswordPrompt(true);
       } else {
-        // custom-only: auto-initiate (no password)
         const response = await initiateChallenge(classroomId);
         toast.success(response?.message || 'Challenge series launched');
 

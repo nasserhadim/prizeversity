@@ -379,9 +379,8 @@ router.post('/:classroomId/initiate', ensureAuthenticated, ensureTeacher, async 
       return res.status(404).json({ message: 'Challenge series not found' });
     }
 
-    // Only enforce the env password when legacy challenges are involved
     const seriesType = challenge.seriesType || 'legacy';
-    const requiresSeriesPassword = seriesType === 'legacy' || seriesType === 'mixed';
+    const requiresSeriesPassword = seriesType === 'legacy' || seriesType === 'mixed' || seriesType === 'custom';
 
     if (requiresSeriesPassword) {
       // Robust validation of server-side challenge password:
