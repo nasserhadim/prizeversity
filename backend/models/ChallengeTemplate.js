@@ -68,6 +68,13 @@ ChallengeTemplateSchema.pre('save', function(next) {
   if (!this.settings.shieldMode) {
     this.settings.shieldMode = 'individual';
   }
+  // NEW: ensure multiplier application settings default
+  if (this.settings.applyPersonalMultiplier === undefined) {
+    this.settings.applyPersonalMultiplier = false;
+  }
+  if (this.settings.applyGroupMultiplier === undefined) {
+    this.settings.applyGroupMultiplier = false;
+  }
   // NEW: ensure challengeVisibility default so loading templates doesn't drop the setting
   if (!Array.isArray(this.settings.challengeVisibility) || this.settings.challengeVisibility.length === 0) {
     this.settings.challengeVisibility = [true, true, true, true, true, true, true];

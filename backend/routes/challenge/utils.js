@@ -2,8 +2,9 @@ const crypto = require('crypto');
 const { CHALLENGE_NAMES } = require('./constants');
 const Notification = require('../../models/Notification');
 const { populateNotification } = require('../../utils/notifications');
-const { awardXP } = require('../../utils/awardXP'); // Changed from '../utils/awardXP'
-const { getScopedUserStats } = require('../../utils/classroomStats'); // ADD
+const { awardXP } = require('../../utils/awardXP');
+const { getScopedUserStats } = require('../../utils/classroomStats');
+const { getUserGroupMultiplier } = require('../../utils/groupMultiplier');
 
 function isChallengeExpired(challenge) {
   if (!challenge.settings.dueDateEnabled || !challenge.settings.dueDate) {
@@ -43,13 +44,19 @@ function isChallengeVisibleToUser(challenge, userRole, challengeIndex) {
   return true;
 }
 
-function calculateChallengeRewards(user, challenge, challengeIndex, userChallenge, options = {}) {
+async function calculateChallengeRewards(user, challenge, challengeIndex, userChallenge, options = {}) {
   const rewardsEarned = {
     bits: 0,
+    baseBits: 0,
     multiplier: 0,
     luck: 1.0,
     discount: 0,
     shield: false,
+    personalMultiplier: 1,
+    groupMultiplier: 1,
+    totalMultiplier: 1,
+    appliedPersonalMultiplier: false,
+    appliedGroupMultiplier: false
   };
 
   if (!user) return rewardsEarned;
@@ -71,6 +78,7 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
   };
 
   let bitsAwarded = 0;
+  let baseBits = 0;
   const settings = challenge.settings;
 
   const hintsEnabled = (settings.challengeHintsEnabled || [])[challengeIndex];
@@ -78,13 +86,47 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
   const maxHints = settings.maxHintsPerChallenge ?? 2;
   const usedHints = Math.min((userChallenge.hintsUsed?.[challengeIndex] || 0), maxHints);
   
-  const baseBits = (settings.challengeBits || [])[challengeIndex] || 0;
+  baseBits = (settings.challengeBits || [])[challengeIndex] || 0;
   bitsAwarded = baseBits;
 
   if (hintsEnabled && bitsAwarded > 0 && usedHints > 0 && penaltyPercent > 0) {
     const totalPenalty = (penaltyPercent * usedHints) / 100;
     const cappedPenalty = Math.min(totalPenalty, 0.8); 
     bitsAwarded = Math.round(bitsAwarded * (1 - cappedPenalty));
+  }
+
+  // Store base bits before multiplier application
+  rewardsEarned.baseBits = bitsAwarded;
+
+  // NEW: Apply personal/group multipliers if enabled
+  if (bitsAwarded > 0) {
+    let personalMult = 1;
+    let groupMult = 1;
+
+    if (settings.applyPersonalMultiplier) {
+      personalMult = scopedBefore.passive?.multiplier || 1;
+      rewardsEarned.appliedPersonalMultiplier = true;
+    }
+
+    if (settings.applyGroupMultiplier) {
+      groupMult = await getUserGroupMultiplier(user._id, classroomId);
+      rewardsEarned.appliedGroupMultiplier = true;
+    }
+
+    rewardsEarned.personalMultiplier = personalMult;
+    rewardsEarned.groupMultiplier = groupMult;
+
+    // ADDITIVE multiplier logic (consistent with other features)
+    let finalMultiplier = 1;
+    if (settings.applyPersonalMultiplier) {
+      finalMultiplier += (personalMult - 1);
+    }
+    if (settings.applyGroupMultiplier) {
+      finalMultiplier += (groupMult - 1);
+    }
+
+    rewardsEarned.totalMultiplier = finalMultiplier;
+    bitsAwarded = Math.round(bitsAwarded * finalMultiplier);
   }
 
   if (bitsAwarded > 0) {
@@ -104,12 +146,19 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
     rewardsEarned.bits = bitsAwarded;
     
     if (options.addTransactionEntry !== false) {
-      const { CHALLENGE_NAMES } = require('./constants');
       const challengeName = CHALLENGE_NAMES[challengeIndex] || `Challenge ${challengeIndex + 1}`;
       
-      const transactionDescription = usedHints > 0 
-        ? `Completed Challenge: ${challengeName} (${baseBits} - ${baseBits - bitsAwarded} hint penalty)`
-        : `Completed Challenge: ${challengeName}`;
+      let transactionDescription;
+      if (usedHints > 0) {
+        transactionDescription = `Completed Challenge: ${challengeName} (${rewardsEarned.baseBits} - hint penalty)`;
+      } else {
+        transactionDescription = `Completed Challenge: ${challengeName}`;
+      }
+
+      // Add multiplier info to description if applied
+      if (rewardsEarned.totalMultiplier > 1) {
+        transactionDescription += ` (${rewardsEarned.totalMultiplier.toFixed(2)}x multiplier)`;
+      }
 
       user.transactions = user.transactions || [];
       user.transactions.push({
@@ -120,12 +169,15 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
         challengeName: challengeName,
         classroom: classroomId,
         assignedBy: challenge.createdBy,
-        calculation: hintsEnabled && usedHints > 0 ? {
-          baseAmount: baseBits,
-          hintsUsed: usedHints,
-          penaltyPercent: penaltyPercent,
+        calculation: {
+          baseAmount: rewardsEarned.baseBits,
+          hintsUsed: usedHints > 0 ? usedHints : undefined,
+          penaltyPercent: usedHints > 0 ? penaltyPercent : undefined,
+          personalMultiplier: rewardsEarned.appliedPersonalMultiplier ? rewardsEarned.personalMultiplier : undefined,
+          groupMultiplier: rewardsEarned.appliedGroupMultiplier ? rewardsEarned.groupMultiplier : undefined,
+          totalMultiplier: rewardsEarned.totalMultiplier > 1 ? rewardsEarned.totalMultiplier : undefined,
           finalAmount: bitsAwarded
-        } : undefined,
+        },
         createdAt: new Date()
       });
     }
@@ -154,26 +206,28 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
   if (settings.discountMode === 'individual') {
     const discount = (settings.challengeDiscounts || [])[challengeIndex] || 0;
     if (discount > 0) {
-      const currentDiscount = passiveTarget.discount || 0;
-      passiveTarget.discount = Math.min(100, currentDiscount + discount);
+      passiveTarget.discount = Math.min(100, (passiveTarget.discount || 0) + discount);
       rewardsEarned.discount = discount;
     }
   }
 
-  // CHANGED: shield is classroom-scoped when classroomId exists
-  if (settings.shieldMode === 'individual' && settings.challengeShields?.[challengeIndex]) {
-    if (scopedBefore.cs) {
-      scopedBefore.cs.shieldCount = (scopedBefore.cs.shieldCount || 0) + 1;
-      scopedBefore.cs.shieldActive = true;
-    } else {
-      if (!user.shieldActive) user.shieldActive = true;
-      user.shieldCount = (user.shieldCount || 0) + 1;
+  if (settings.shieldMode === 'individual') {
+    const shield = (settings.challengeShields || [])[challengeIndex];
+    if (shield) {
+      if (scopedBefore.cs) {
+        scopedBefore.cs.shieldCount = (scopedBefore.cs.shieldCount || 0) + 1;
+        scopedBefore.cs.shieldActive = true;
+      } else {
+        user.shieldActive = true;
+        user.shieldCount = (user.shieldCount || 0) + 1;
+      }
+      rewardsEarned.shield = true;
     }
-    rewardsEarned.shield = true;
   }
 
-  // CHANGED: classroom-scoped currStats
+  // Snapshot after changes
   const scopedAfter = getScopedUserStats(user, classroomId, { create: true });
+
   const currStats = {
     multiplier: scopedAfter.passive?.multiplier ?? 1,
     luck: scopedAfter.passive?.luck ?? 1,
@@ -193,19 +247,20 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
   if (statChanges.length > 0 && classroomId) {
     const challengeName = CHALLENGE_NAMES[challengeIndex] || `Challenge ${challengeIndex + 1}`;
     const changeSummary = statChanges.map(c => `${c.field}: ${c.from} → ${c.to}`).join('; ');
+
     const studentMessage = `You earned stat boosts from ${challenge.title} - ${challengeName}: ${changeSummary}.`;
     const teacherMessage = `Earned stat boosts from ${challenge.title} - ${challengeName}: ${changeSummary}.`;
 
     // 1. Notify student about their new stats
     Notification.create({
       user: user._id,
-      actionBy: null, // Changed from challenge.createdBy
+      actionBy: null,
       type: 'stats_adjusted',
       message: studentMessage,
       classroom: classroomId,
       changes: statChanges,
       createdAt: now,
-      targetUser: user._id // Explicitly set targetUser for student's own notification
+      targetUser: user._id
     }).then(notification => {
       populateNotification(notification._id).then(populated => {
         if (populated) {
@@ -213,11 +268,8 @@ function calculateChallengeRewards(user, challenge, challengeIndex, userChalleng
           if (io) io.to(`user-${user._id}`).emit('notification', populated);
         }
       });
-    }).catch(e => console.error('Failed to create student stat-change notification from challenge:', e));
-
-    // REMOVE the teacher log creation that used user: null (no bell spam, no schema violation)
+    }).catch(err => console.error('Notification error:', err));
   }
-  // --- END: Create notifications for stat changes ---
 
   return rewardsEarned;
 }

@@ -755,7 +755,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                <span className="label-text font-medium flex items-center gap-2">
                  Luck Factor
                  <div 
-                   className="tooltip tooltip-right" 
+                   className="tooltip tooltip-bottom" 
                    data-tip="Controls how much student luck stat boosts their chances for rare+ items"
                  >
                    <Info size={16} className="text-info cursor-help" />

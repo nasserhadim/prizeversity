@@ -14,7 +14,9 @@ const fs = require('fs').promises;
 const path = require('path');
 const upload = require('../../middleware/upload');
 const templateEngine = require('../../utils/challengeTemplates');
-const { getScopedUserStats } = require('../../utils/classroomStats'); // ADD
+const { getScopedUserStats } = require('../../utils/classroomStats');
+// ADD: Import group multiplier utility
+const { getUserGroupMultiplier } = require('../../utils/groupMultiplier');
 
 async function awardCustomChallengeXP({ userId, classroomId, rewards, challengeName }) {
   try {
@@ -172,7 +174,7 @@ router.post('/:classroomId/custom', ensureAuthenticated, ensureTeacher, async (r
     const { 
       title, description, externalUrl, solution, maxAttempts, 
       hintsEnabled, hints, hintPenaltyPercent, bits, multiplier, luck, discount, shield, visible,
-      templateType, templateConfig, dueDateEnabled, dueDate
+      templateType, templateConfig, dueDateEnabled, dueDate, applyPersonalMultiplier, applyGroupMultiplier
     } = req.body;
 
     if (!title) {
@@ -237,6 +239,8 @@ router.post('/:classroomId/custom', ensureAuthenticated, ensureTeacher, async (r
       luck: Number(luck) || 1.0,
       discount: Number(discount) || 0,
       shield: Boolean(shield),
+      applyPersonalMultiplier: Boolean(applyPersonalMultiplier),
+      applyGroupMultiplier: Boolean(applyGroupMultiplier),
       visible: visible !== false,
       dueDateEnabled: Boolean(dueDateEnabled),
       dueDate: dueDateEnabled && dueDate ? new Date(dueDate) : null,
@@ -287,7 +291,9 @@ router.put('/:classroomId/custom/:challengeId', ensureAuthenticated, ensureTeach
     const { 
       title, description, externalUrl, solution, maxAttempts, 
       hintsEnabled, hints, hintPenaltyPercent, bits, multiplier, luck, discount, shield, visible,
-      templateType, templateConfig, dueDateEnabled, dueDate
+      templateType, templateConfig, dueDateEnabled, dueDate,
+      // ADD: Include multiplier application settings
+      applyPersonalMultiplier, applyGroupMultiplier
     } = req.body;
 
     const challenge = await Challenge.findOne({ classroomId });
@@ -328,6 +334,8 @@ router.put('/:classroomId/custom/:challengeId', ensureAuthenticated, ensureTeach
     if (luck !== undefined) customChallenge.luck = Number(luck) || 1.0;
     if (discount !== undefined) customChallenge.discount = Math.min(100, Math.max(0, Number(discount) || 0));
     if (shield !== undefined) customChallenge.shield = Boolean(shield);
+    if (applyPersonalMultiplier !== undefined) customChallenge.applyPersonalMultiplier = Boolean(applyPersonalMultiplier);
+    if (applyGroupMultiplier !== undefined) customChallenge.applyGroupMultiplier = Boolean(applyGroupMultiplier);
     if (visible !== undefined) customChallenge.visible = Boolean(visible);
     if (dueDateEnabled !== undefined) customChallenge.dueDateEnabled = Boolean(dueDateEnabled);
     if (dueDateEnabled !== undefined && dueDate !== undefined) {
@@ -565,18 +573,50 @@ router.post('/:classroomId/custom/:challengeId/verify', ensureAuthenticated, asy
       multiplier: customChallenge.multiplier || 1.0,
       luck: customChallenge.luck || 1.0,
       discount: customChallenge.discount || 0,
-      shield: customChallenge.shield || false
+      shield: customChallenge.shield || false,
+      applyPersonalMultiplier: customChallenge.applyPersonalMultiplier || false,
+      applyGroupMultiplier: customChallenge.applyGroupMultiplier || false
     };
 
     // Apply hint penalty
     const hintsUsed = progress.hintsUsed || 0;
-    const hintPenaltyPercent = challenge.settings?.hintPenaltyPercent || 25;
-    let bitsAwarded = customRewards.bits;
+    const hintPenaltyPercent = customChallenge.hintPenaltyPercent ?? challenge.settings?.hintPenaltyPercent ?? 25;
+    let baseBitsAfterPenalty = customRewards.bits;
 
-    if (customChallenge.hintsEnabled && bitsAwarded > 0 && hintsUsed > 0) {
+    if (customChallenge.hintsEnabled && baseBitsAfterPenalty > 0 && hintsUsed > 0) {
       const totalPenalty = (hintPenaltyPercent * hintsUsed) / 100;
       const cappedPenalty = Math.min(totalPenalty, 0.8);
-      bitsAwarded = Math.round(bitsAwarded * (1 - cappedPenalty));
+      baseBitsAfterPenalty = Math.round(baseBitsAfterPenalty * (1 - cappedPenalty));
+    }
+
+    // NEW: Apply personal/group multipliers if enabled
+    let bitsAwarded = baseBitsAfterPenalty;
+    let personalMult = 1;
+    let groupMult = 1;
+    let appliedPersonalMultiplier = false;
+    let appliedGroupMultiplier = false;
+
+    if (baseBitsAfterPenalty > 0) {
+      if (customRewards.applyPersonalMultiplier) {
+        personalMult = scoped.passive?.multiplier || 1;
+        appliedPersonalMultiplier = true;
+      }
+
+      if (customRewards.applyGroupMultiplier) {
+        groupMult = await getUserGroupMultiplier(user._id, classroomId);
+        appliedGroupMultiplier = true;
+      }
+
+      // ADDITIVE multiplier logic
+      let finalMultiplier = 1;
+      if (customRewards.applyPersonalMultiplier) {
+        finalMultiplier += (personalMult - 1);
+      }
+      if (customRewards.applyGroupMultiplier) {
+        finalMultiplier += (groupMult - 1);
+      }
+
+      bitsAwarded = Math.round(baseBitsAfterPenalty * finalMultiplier);
     }
 
     // Award bits
@@ -588,14 +628,33 @@ router.post('/:classroomId/custom/:challengeId/verify', ensureAuthenticated, asy
         user.classroomBalances.push({ classroom: classroomId, balance: bitsAwarded });
       }
 
+      let transactionDescription = `Completed Custom Challenge: ${customChallenge.title}`;
+      const totalMultiplier = (appliedPersonalMultiplier || appliedGroupMultiplier) 
+        ? (1 + (appliedPersonalMultiplier ? personalMult - 1 : 0) + (appliedGroupMultiplier ? groupMult - 1 : 0))
+        : 1;
+
+      if (totalMultiplier > 1) {
+        transactionDescription += ` (${totalMultiplier.toFixed(2)}x multiplier)`;
+      }
+
       user.transactions = user.transactions || [];
       user.transactions.push({
         amount: bitsAwarded,
-        description: `Completed Custom Challenge: ${customChallenge.title}`,
+        description: transactionDescription,
         type: 'challenge_completion',
         challengeName: customChallenge.title,
         classroom: classroomId,
         assignedBy: challenge.createdBy,
+        calculation: {
+          baseAmount: customRewards.bits,
+          hintsUsed: hintsUsed > 0 ? hintsUsed : undefined,
+          penaltyPercent: hintsUsed > 0 ? hintPenaltyPercent : undefined,
+          bitsAfterPenalty: baseBitsAfterPenalty !== customRewards.bits ? baseBitsAfterPenalty : undefined,
+          personalMultiplier: appliedPersonalMultiplier ? personalMult : undefined,
+          groupMultiplier: appliedGroupMultiplier ? groupMult : undefined,
+          totalMultiplier: totalMultiplier > 1 ? totalMultiplier : undefined,
+          finalAmount: bitsAwarded
+        },
         createdAt: new Date()
       });
 
@@ -604,7 +663,22 @@ router.post('/:classroomId/custom/:challengeId/verify', ensureAuthenticated, asy
     }
 
     // Apply stat rewards (CHANGED: write to classroom-scoped entry)
-    const rewardsEarned = { bits: bitsAwarded, multiplier: 0, luck: 1.0, discount: 0, shield: false };
+    const rewardsEarned = { 
+      bits: bitsAwarded, 
+      baseBits: customRewards.bits,
+      bitsAfterPenalty: baseBitsAfterPenalty,
+      multiplier: 0, 
+      luck: 1.0, 
+      discount: 0, 
+      shield: false,
+      personalMultiplier: personalMult,
+      groupMultiplier: groupMult,
+      totalMultiplier: (appliedPersonalMultiplier || appliedGroupMultiplier) 
+        ? (1 + (appliedPersonalMultiplier ? personalMult - 1 : 0) + (appliedGroupMultiplier ? groupMult - 1 : 0))
+        : 1,
+      appliedPersonalMultiplier,
+      appliedGroupMultiplier
+    };
 
     if (customRewards.multiplier > 1.0) {
       const multiplierIncrease = customRewards.multiplier - 1.0;
@@ -926,6 +1000,9 @@ router.get('/:classroomId/custom', ensureAuthenticated, async (req, res) => {
           luck: cc.luck,
           discount: cc.discount,
           shield: cc.shield,
+          // ADD: Include multiplier application settings
+          applyPersonalMultiplier: cc.applyPersonalMultiplier || false,
+          applyGroupMultiplier: cc.applyGroupMultiplier || false,
           visible: cc.visible,
           hintsEnabled: cc.hintsEnabled,
           hintsCount: (cc.hints || []).length,

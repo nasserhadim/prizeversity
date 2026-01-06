@@ -22,6 +22,7 @@ import NeedleInAHaystackChallenge from '../components/challenge/cards/NeedleInAH
 import QuoteHangmanChallenge from '../components/challenge/cards/QuoteHangmanChallenge';
 import CustomChallengeCard from '../components/challenge/cards/CustomChallengeCard';
 import Footer from '../components/Footer';
+import ChallengeUpdateModal from '../components/challenge/modals/ChallengeUpdateModal';
 
 // Hooks
 import { useChallengeData } from '../hooks/useChallengeData';
@@ -108,6 +109,7 @@ const Challenge = () => {
   const [showHintModal, setShowHintModal] = useState(false);
   const [editingHints, setEditingHints] = useState(null);
   const [confirmText, setConfirmText] = useState('');
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
   
   // Theme classes
   const themeClasses = getThemeClasses(isDark);
@@ -251,7 +253,16 @@ const Challenge = () => {
                   </button>
                   <button
                     className="btn btn-primary"
-                    onClick={() => handleSaveTemplate(challengeConfig, classroomId)} // NEW
+                    onClick={() => {
+                      // Check if we have template data from update modal
+                      const templateData = window.__templateSaveData;
+                      if (templateData) {
+                        handleSaveTemplate(templateData.config, classroomId, templateData.customChallenges);
+                        window.__templateSaveData = null;
+                      } else {
+                        handleSaveTemplate(challengeConfig, classroomId, challengeData?.customChallenges || []);
+                      }
+                    }}
                     disabled={savingTemplate || !templateName.trim()}
                   >
                     {savingTemplate ? (
@@ -396,6 +407,22 @@ const Challenge = () => {
             </div>
           </div>
         )}
+
+        <ChallengeUpdateModal
+          showUpdateModal={showUpdateModal}
+          setShowUpdateModal={setShowUpdateModal}
+          challengeData={challengeData}
+          fetchChallengeData={fetchChallengeData}
+          classroomId={classroomId}
+          setShowHintModal={setShowHintModal}
+          setEditingHints={setEditingHints}
+          // Template props
+          templates={templates}
+          handleLoadTemplate={handleLoadTemplate}
+          handleDeleteTemplate={handleDeleteTemplate}
+          setShowSaveTemplateModal={setShowSaveTemplateModal}
+          fetchTemplates={fetchTemplates}  // ADD THIS
+        />
       </>
     );
   }

@@ -24,7 +24,8 @@ export const useTemplates = () => {
     }
   };
 
-  const handleSaveTemplate = async (challengeConfig, classroomId) => {
+  // UPDATED: Accept optional customChallenges parameter
+  const handleSaveTemplate = async (challengeConfig, classroomId, customChallenges = []) => {
     if (!templateName.trim()) {
       toast.error('Please enter a template name');
       return;
@@ -44,6 +45,9 @@ export const useTemplates = () => {
         discountMode: challengeConfig.discountMode,
         shieldMode: challengeConfig.shieldMode,
         attackMode: challengeConfig.attackMode,
+        // Multiplier application settings
+        applyPersonalMultiplier: challengeConfig.applyPersonalMultiplier || false,
+        applyGroupMultiplier: challengeConfig.applyGroupMultiplier || false,
         challengeBits: challengeConfig.challengeBits,
         totalRewardBits: challengeConfig.totalRewardBits,
         challengeMultipliers: challengeConfig.challengeMultipliers,
@@ -55,21 +59,43 @@ export const useTemplates = () => {
         challengeShields: challengeConfig.challengeShields,
         totalShield: challengeConfig.totalShield,
         challengeAttackBonuses: challengeConfig.challengeAttackBonuses,
+        totalAttackBonus: challengeConfig.totalAttackBonus,
         challengeHintsEnabled: challengeConfig.challengeHintsEnabled,
         challengeHints: challengeConfig.challengeHints,
         hintPenaltyPercent: challengeConfig.hintPenaltyPercent,
         maxHintsPerChallenge: challengeConfig.maxHintsPerChallenge,
-        totalAttackBonus: challengeConfig.totalAttackBonus,
-        // NEW: persist per-challenge visibility in templates
         challengeVisibility: Array.isArray(challengeConfig.challengeVisibility)
           ? challengeConfig.challengeVisibility.map(v => !!v)
           : [true, true, true, true, true, true, true],
         dueDateEnabled: challengeConfig.dueDateEnabled,
         dueDate: challengeConfig.dueDate,
-        difficulty: 'medium'
+        difficulty: 'medium',
+        // NEW: Include custom challenges in template
+        customChallenges: customChallenges.map(cc => ({
+          title: cc.title,
+          description: cc.description,
+          externalUrl: cc.externalUrl,
+          templateType: cc.templateType || 'passcode',
+          templateConfig: cc.templateConfig || {},
+          maxAttempts: cc.maxAttempts,
+          hintsEnabled: cc.hintsEnabled,
+          hints: cc.hints || [],
+          hintPenaltyPercent: cc.hintPenaltyPercent,
+          bits: cc.bits || 50,
+          multiplier: cc.multiplier || 1.0,
+          luck: cc.luck || 1.0,
+          discount: cc.discount || 0,
+          shield: cc.shield || false,
+          applyPersonalMultiplier: cc.applyPersonalMultiplier || false,
+          applyGroupMultiplier: cc.applyGroupMultiplier || false,
+          visible: cc.visible !== false,
+          dueDateEnabled: cc.dueDateEnabled || false,
+          // Note: Don't include solution/solutionHash for security
+          // Note: Don't include attachments as they're file-based
+        }))
       };
 
-      await saveChallengeTemplate(templateName.trim(), challengeConfig.title, settings, classroomId); // NEW
+      await saveChallengeTemplate(templateName.trim(), challengeConfig.title, settings, classroomId);
       toast.success('Template saved successfully!');
       setShowSaveTemplateModal(false);
       setTemplateName('');
@@ -104,41 +130,49 @@ export const useTemplates = () => {
 
   const cancelDeleteTemplate = () => setDeleteTemplateModal(null);
 
-  const handleLoadTemplate = (template, setChallengeConfig) => {
-    const newConfig = {
-      title: template.title,
+  // UPDATED: handleLoadTemplate to include custom challenges
+  const handleLoadTemplate = (template, setConfigFn) => {
+    if (!template?.settings) {
+      toast.error('Invalid template data');
+      return;
+    }
+
+    setConfigFn(prev => ({
+      ...prev,
+      title: template.title || prev.title,
       rewardMode: template.settings.rewardMode || 'individual',
-      challengeBits: template.settings.challengeBits || [50, 75, 100, 125],
+      challengeBits: template.settings.challengeBits || [50, 75, 100, 125, 150, 175, 200],
       totalRewardBits: template.settings.totalRewardBits || 350,
+      // Multiplier application settings
+      applyPersonalMultiplier: template.settings.applyPersonalMultiplier || false,
+      applyGroupMultiplier: template.settings.applyGroupMultiplier || false,
       multiplierMode: template.settings.multiplierMode || 'individual',
-      challengeMultipliers: template.settings.challengeMultipliers || [1.0, 1.0, 1.0, 1.0],
+      challengeMultipliers: template.settings.challengeMultipliers || [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
       totalMultiplier: template.settings.totalMultiplier || 1.0,
       luckMode: template.settings.luckMode || 'individual',
-      challengeLuck: template.settings.challengeLuck || [1.0, 1.0, 1.0, 1.0],
+      challengeLuck: template.settings.challengeLuck || [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
       totalLuck: template.settings.totalLuck || 1.0,
       discountMode: template.settings.discountMode || 'individual',
-      challengeDiscounts: template.settings.challengeDiscounts || [0, 0, 0, 0],
+      challengeDiscounts: template.settings.challengeDiscounts || [0, 0, 0, 0, 0, 0, 0],
       totalDiscount: template.settings.totalDiscount || 0,
       shieldMode: template.settings.shieldMode || 'individual',
-      challengeShields: template.settings.challengeShields || [false, false, false, false],
+      challengeShields: template.settings.challengeShields || [false, false, false, false, false, false, false],
       totalShield: template.settings.totalShield || false,
-      attackMode: template.settings.attackMode || 'individual',
-      challengeAttackBonuses: template.settings.challengeAttackBonuses || [0, 0, 0, 0],
-      totalAttackBonus: template.settings.totalAttackBonus || 0,
-      challengeHintsEnabled: template.settings.challengeHintsEnabled || [false, false, false, false],
-      challengeHints: template.settings.challengeHints || [[], [], [], []],
+      challengeHintsEnabled: template.settings.challengeHintsEnabled || [false, false, false, false, false, false, false],
+      challengeHints: template.settings.challengeHints || [[], [], [], [], [], [], []],
       hintPenaltyPercent: template.settings.hintPenaltyPercent ?? 25,
       maxHintsPerChallenge: template.settings.maxHintsPerChallenge ?? 2,
+      challengeVisibility: template.settings.challengeVisibility || [true, true, true, true, true, true, true],
       dueDateEnabled: template.settings.dueDateEnabled || false,
       dueDate: template.settings.dueDate || '',
-      // NEW: restore per-challenge visibility (default to visible)
-      challengeVisibility: Array.isArray(template.settings.challengeVisibility)
-        ? template.settings.challengeVisibility.map(v => !!v)
-        : [true, true, true, true, true, true, true],
-    };
-
-    setChallengeConfig(newConfig);
-    toast.success(`Template "${template.name}" loaded!`);
+      // NEW: Include custom challenges from template
+      customChallengesFromTemplate: template.settings.customChallenges || []
+    }));
+    
+    toast.success(`Loaded template: ${template.name}${template.settings.customChallenges?.length ? ` (includes ${template.settings.customChallenges.length} custom challenge(s))` : ''}`);
+    
+    // Return custom challenges for caller to handle
+    return template.settings.customChallenges || [];
   };
 
   // NEW: bulk delete helper (Delete All / Delete Filtered)
@@ -159,9 +193,9 @@ export const useTemplates = () => {
       if (deleted) toast.success(`Deleted ${deleted} template(s)`);
       if (failed) toast.error(`Failed to delete ${failed} template(s)`);
 
-      await fetchTemplates();
-    } catch (e) {
-      toast.error(e?.message || 'Bulk delete failed');
+      fetchTemplates();
+    } catch (error) {
+      toast.error(error.message || 'Bulk delete failed');
     } finally {
       setBulkDeletingTemplates(false);
     }
@@ -179,13 +213,10 @@ export const useTemplates = () => {
     handleSaveTemplate,
     handleLoadTemplate,
     handleDeleteTemplate,
-    // expose modal state & handlers for UI
     deleteTemplateModal,
     confirmDeleteTemplate,
     cancelDeleteTemplate,
     deletingTemplate,
-
-    // NEW exports
     bulkDeleteTemplates,
     bulkDeletingTemplates
   };

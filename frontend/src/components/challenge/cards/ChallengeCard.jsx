@@ -233,6 +233,9 @@ const ChallengeCard = ({
               isDark={isDark} 
               isCompleted={isCompleted}
               size="sm"
+              showMultiplierIndicator={true}
+              applyPersonalMultiplier={challengeData?.settings?.applyPersonalMultiplier}
+              applyGroupMultiplier={challengeData?.settings?.applyGroupMultiplier}
             />
             {userChallenge?.hintsUsed?.[challengeIndex] > 0 && (
               <div className="badge badge-warning badge-xs">
@@ -264,6 +267,9 @@ const ChallengeCard = ({
               isDark={isDark} 
               isCompleted={isCompleted}
               size="sm"
+              showMultiplierIndicator={true}
+              applyPersonalMultiplier={challengeData?.settings?.applyPersonalMultiplier}
+              applyGroupMultiplier={challengeData?.settings?.applyGroupMultiplier}
             />
             {userChallenge?.hintsUsed?.[challengeIndex] > 0 && (
               <div className="badge badge-warning badge-xs">
@@ -305,6 +311,9 @@ const ChallengeCard = ({
                 isDark={isDark} 
                 isCompleted={isCompleted}
                 size="lg"
+                showMultiplierIndicator={true}
+                applyPersonalMultiplier={challengeData?.settings?.applyPersonalMultiplier}
+                applyGroupMultiplier={challengeData?.settings?.applyGroupMultiplier}
               />
               {userChallenge?.hintsUsed?.[challengeIndex] > 0 && (
                 <div className="text-xs text-orange-600 dark:text-orange-400">

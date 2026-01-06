@@ -763,7 +763,9 @@ const TeacherView = ({
           failureReason: status === 'Failed' ? 
             (idx === 2 ? 'Max attempts or time limit exceeded' : 
              idx === 5 || idx === 6 ? 'Max attempts exceeded' : 'Unknown') : '',
-          hintPenaltyPercent: challengeData.settings?.hintPenaltyPercent || 0
+          hintPenaltyPercent: challengeData.settings?.hintPenaltyPercent || 0,
+          applyPersonalMultiplier: challengeData.settings?.applyPersonalMultiplier || false,
+          applyGroupMultiplier: challengeData.settings?.applyGroupMultiplier || false,
         });
       }
     }
@@ -975,6 +977,9 @@ const TeacherView = ({
           rewardsAvailable: rewardsAvailableLabel,
           rewardsEarned: rewardsEarnedLabel,
           bitsAwarded: rewardsEarnedBits,
+
+          applyPersonalMultiplier: cc.applyPersonalMultiplier || false,
+          applyGroupMultiplier: cc.applyGroupMultiplier || false,
 
           solution
         });

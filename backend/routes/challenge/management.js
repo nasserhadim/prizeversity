@@ -445,7 +445,16 @@ router.post('/:classroomId/initiate', ensureAuthenticated, ensureTeacher, async 
 router.put('/:classroomId/update', ensureAuthenticated, ensureTeacher, async (req, res) => {
   try {
     const { classroomId } = req.params;
-    const { title, challengeBits, totalRewardBits, rewardMode, challengeMultipliers, totalMultiplier, multiplierMode, challengeLuck, totalLuck, luckMode, challengeDiscounts, totalDiscount, discountMode, challengeShields, totalShield, shieldMode, challengeHints, challengeHintsEnabled, hintPenaltyPercent, maxHintsPerChallenge, dueDateEnabled, dueDate, challengeVisibility } = req.body;
+    const { 
+      title, challengeBits, totalRewardBits, rewardMode, 
+      challengeMultipliers, totalMultiplier, multiplierMode, 
+      challengeLuck, totalLuck, luckMode, 
+      challengeDiscounts, totalDiscount, discountMode, 
+      challengeShields, totalShield, shieldMode, 
+      challengeHints, challengeHintsEnabled, hintPenaltyPercent, maxHintsPerChallenge, 
+      dueDateEnabled, dueDate, challengeVisibility,
+      applyPersonalMultiplier, applyGroupMultiplier  // NEW
+    } = req.body;
     const teacherId = req.user._id;
 
     const classroom = await Classroom.findById(classroomId);
@@ -476,6 +485,15 @@ router.put('/:classroomId/update', ensureAuthenticated, ensureTeacher, async (re
 
     if (rewardMode !== undefined) {
       challenge.settings.rewardMode = rewardMode;
+    }
+
+    // NEW: Handle multiplier application settings
+    if (applyPersonalMultiplier !== undefined) {
+      challenge.settings.applyPersonalMultiplier = Boolean(applyPersonalMultiplier);
+    }
+
+    if (applyGroupMultiplier !== undefined) {
+      challenge.settings.applyGroupMultiplier = Boolean(applyGroupMultiplier);
     }
 
     if (challengeMultipliers !== undefined) {

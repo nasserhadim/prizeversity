@@ -30,11 +30,9 @@ const AttachmentSchema = new mongoose.Schema({
 // Schema for teacher-created custom challenges
 const CustomChallengeSchema = new mongoose.Schema({
   order: { type: Number, required: true },
-  title: { type: String, required: true, maxlength: 200 },
-  description: { type: String, maxlength: 5000 },
-  externalUrl: { type: String, maxlength: 500 },
-  
-  // For 'passcode' mode: teacher sets a static solution
+  title: { type: String, required: true },
+  description: { type: String, default: '' },
+  externalUrl: { type: String, default: '' },
   solutionHash: { type: String },
   
   // Template configuration
@@ -70,7 +68,7 @@ const CustomChallengeSchema = new mongoose.Schema({
   attachments: [AttachmentSchema],
   maxAttempts: { type: Number, default: null },
   hintsEnabled: { type: Boolean, default: false },
-  hints: [{ type: String, maxlength: 500 }],
+  hints: [{ type: String }],
   hintPenaltyPercent: { type: Number, default: null, min: 0, max: 100 },
   // Per-challenge rewards
   bits: { type: Number, default: 50, min: 0 },
@@ -78,6 +76,9 @@ const CustomChallengeSchema = new mongoose.Schema({
   luck: { type: Number, default: 1.0, min: 0 },
   discount: { type: Number, default: 0, min: 0, max: 100 },
   shield: { type: Boolean, default: false },
+  // NEW: Multiplier options for bit rewards
+  applyPersonalMultiplier: { type: Boolean, default: false },
+  applyGroupMultiplier: { type: Boolean, default: false },
   visible: { type: Boolean, default: true },
   dueDateEnabled: { type: Boolean, default: false },
   dueDate: { type: Date, default: null },
@@ -164,6 +165,10 @@ const ChallengeSchema = new mongoose.Schema({
     rewardMode: { type: String, enum: ['individual', 'total'], default: 'individual' },
     challengeBits: [{ type: Number, default: 50, min: 0 }],
     totalRewardBits: { type: Number, default: 350, min: 0 },
+    
+    // NEW: Multiplier options for legacy challenge bit rewards
+    applyPersonalMultiplier: { type: Boolean, default: false },
+    applyGroupMultiplier: { type: Boolean, default: false },
     
     multiplierMode: { type: String, enum: ['individual', 'total'], default: 'individual' },
     challengeMultipliers: [{ type: Number, default: 1.0, min: 0 }],
