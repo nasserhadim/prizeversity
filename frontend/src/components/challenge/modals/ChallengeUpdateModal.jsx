@@ -195,6 +195,7 @@ const ChallengeUpdateModal = ({
           ? localDateTimeToUTC(updateData.dueDate) 
           : (updateData.dueDateEnabled ? null : undefined)
       };
+      
       await updateChallenge(classroomId, updatePayload);
       toast.success('Challenge updated successfully');
       setShowUpdateModal(false);
