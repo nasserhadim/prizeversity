@@ -191,7 +191,7 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticate
         pityEnabled: !!parsedMysteryBoxConfig.pityEnabled,
         guaranteedItemAfter: Number(parsedMysteryBoxConfig.guaranteedItemAfter || 10),
         pityMinimumRarity: parsedMysteryBoxConfig.pityMinimumRarity || 'rare',
-        maxOpensPerStudent: parsedMysteryBoxConfig.maxOpensPerStudent ? Number(parsedMysteryBoxConfig.maxOpensPerStudent) : null,
+        // maxOpensPerStudent removed
         itemPool: parsedMysteryBoxConfig.itemPool.map(p => ({
           item: p.item,
           rarity: p.rarity,
@@ -504,9 +504,9 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
           pityEnabled: item.mysteryBoxConfig.pityEnabled,
           guaranteedItemAfter: item.mysteryBoxConfig.guaranteedItemAfter,
           pityMinimumRarity: item.mysteryBoxConfig.pityMinimumRarity,
-          maxOpensPerStudent: item.mysteryBoxConfig.maxOpensPerStudent,
+          // maxOpensPerStudent removed
           itemPool: item.mysteryBoxConfig.itemPool.map(p => ({
-            item: p.item._id || p.item, // Handle both populated and non-populated
+            item: p.item._id || p.item,
             rarity: p.rarity,
             baseDropChance: p.baseDropChance
           }))
@@ -786,9 +786,9 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
           pityEnabled: item.mysteryBoxConfig.pityEnabled,
           guaranteedItemAfter: item.mysteryBoxConfig.guaranteedItemAfter,
           pityMinimumRarity: item.mysteryBoxConfig.pityMinimumRarity,
-          maxOpensPerStudent: item.mysteryBoxConfig.maxOpensPerStudent,
+          // maxOpensPerStudent removed
           itemPool: item.mysteryBoxConfig.itemPool.map(p => ({
-            item: p.item._id || p.item, // Handle both populated and non-populated
+            item: p.item._id || p.item,
             rarity: p.rarity,
             baseDropChance: p.baseDropChance
           }))

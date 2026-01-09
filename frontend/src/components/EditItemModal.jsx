@@ -49,7 +49,6 @@ const EditItemModal = ({ open, onClose, item, classroomId, bazaarId, onUpdated }
     pityEnabled: false,
     guaranteedItemAfter: 10,
     pityMinimumRarity: 'rare',
-    maxOpensPerStudent: null,
     itemPool: [] // local pool representation: [{ itemId, rarity, baseDropChance }]
   });
 
@@ -90,7 +89,6 @@ const EditItemModal = ({ open, onClose, item, classroomId, bazaarId, onUpdated }
         pityEnabled: !!item.mysteryBoxConfig?.pityEnabled,
         guaranteedItemAfter: item.mysteryBoxConfig?.guaranteedItemAfter ?? 10,
         pityMinimumRarity: item.mysteryBoxConfig?.pityMinimumRarity ?? 'rare',
-        maxOpensPerStudent: item.mysteryBoxConfig?.maxOpensPerStudent ?? null,
         itemPool: (item.mysteryBoxConfig?.itemPool || []).map(p => ({
           itemId: (p.item && (p.item._id || p.item)) || '',
           rarity: p.rarity || 'common',
@@ -331,7 +329,6 @@ const EditItemModal = ({ open, onClose, item, classroomId, bazaarId, onUpdated }
           pityEnabled: !!mysteryConfig.pityEnabled,
           guaranteedItemAfter: Number(mysteryConfig.guaranteedItemAfter),
           pityMinimumRarity: mysteryConfig.pityMinimumRarity,
-          maxOpensPerStudent: mysteryConfig.maxOpensPerStudent ? Number(mysteryConfig.maxOpensPerStudent) : null,
           itemPool: (mysteryConfig.itemPool || []).map(p => ({
             item: p.itemId,
             rarity: p.rarity,
@@ -789,19 +786,6 @@ const EditItemModal = ({ open, onClose, item, classroomId, bazaarId, onUpdated }
                   ) : (
                     <div className="text-xs text-base-content/60">Pity system is disabled — enable it to configure guarantees.</div>
                   )}
-
-                  {/* Max Opens / Student is independent of pity */}
-                  <div className="form-control">
-                    <label className="label"><span className="label-text">Max Opens / Student</span></label>
-                    <input
-                      type="number"
-                      min="1"
-                      placeholder="Unlimited"
-                      className="input input-bordered"
-                      value={mysteryConfig.maxOpensPerStudent || ''}
-                      onChange={e => setMysteryConfig(prev => ({ ...prev, maxOpensPerStudent: e.target.value ? Number(e.target.value) : null }))}
-                    />
-                  </div>
                 </div>
                 <p className="text-xs text-gray-500">You can edit the item pool below plus luck/pity settings.</p>
               </div>

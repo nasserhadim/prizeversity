@@ -379,15 +379,24 @@ res.status(200).json({
 
 // Bulk assign balances to mulitpler students
 router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
-  const { classroomId, updates, customDescription, applyGroupMultipliers = true, applyPersonalMultipliers = true } = req.body;
+  // Accept either `customDescription` (older API) or `description` (frontend)
+  const {
+    classroomId,
+    updates,
+    customDescription,
+    description: descriptionFromBody,
+    applyGroupMultipliers = true,
+    applyPersonalMultipliers = true
+  } = req.body;
+  const suppliedDescription = customDescription || descriptionFromBody || '';
   
   const isTeacher = req.user.role === 'teacher';
   const isTAInClass = classroomId ? await isClassroomAdmin(req.user, classroomId) : false;
-
+  
   if (!isTeacher && !isTAInClass) {
     return res.status(403).json({ error: 'Forbidden' });
   }
-
+  
   // MOVED: Define attribution variables BEFORE they're used
   const roleLabel = (isTeacher ? 'Teacher' : 'Admin/TA');
   const userName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email;
@@ -400,10 +409,9 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
         const classroom = await Classroom.findById(classroomId).populate('teacher');
 
         // NEW: ensure non-empty description is stored on pending assignments
-        const pendingDesc =
-          (customDescription && String(customDescription).trim())
-            ? `${String(customDescription).trim()} (${attribution})`
-            : attribution;
+        const pendingDesc = suppliedDescription
+          ? `${String(suppliedDescription).trim()} (${attribution})`
+          : attribution;
 
         for (const upd of updates || []) {
           await PendingAssignment.create({
@@ -432,19 +440,19 @@ router.post('/assign/bulk', ensureAuthenticated, async (req, res) => {
     }
   }
 
-  const description = customDescription
-    ? `${String(customDescription).trim()} (${attribution})`
+  // When creating pendingDesc or recording transactions, prefer suppliedDescription
+  const description = suppliedDescription
+    ? `${String(suppliedDescription).trim()} (${attribution})`
     : attribution;
-
+  
   if (!Array.isArray(updates) || updates.length === 0) {
     return res.status(400).json({
       success: false,
       error: 'Updates array is required and must not be empty'
     });
   }
-
+  
   try {
-
     // Admin/TA policy check
     if (req.user.role === 'admin') {
       const gate = await canTAAssignBits({ taUser: req.user, classroomId });

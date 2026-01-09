@@ -36,11 +36,7 @@ const ItemSchema = new mongoose.Schema({
   usesRemaining: { 
     type: Number, 
     default: function() {
-      // Mystery boxes can have multiple uses
-      if (this.category === 'MysteryBox') {
-        return this.mysteryBoxConfig?.maxOpensPerStudent || 1;
-      }
-      // Most items are single-use
+      // Mystery boxes default to 1 use per owned copy; purchase limits are enforced at buy-time
       return 1;
     }
   },
@@ -64,7 +60,6 @@ const ItemSchema = new mongoose.Schema({
       enum: ['uncommon', 'rare', 'epic', 'legendary'],
       default: 'rare'
     },
-    maxOpensPerStudent: { type: Number, default: null },
     itemPool: [{
       item: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' },
       rarity: { 
