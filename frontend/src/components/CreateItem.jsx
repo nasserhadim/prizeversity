@@ -55,12 +55,11 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
     primaryEffectValue: 1,
     secondaryEffects: [],
     swapOptions: [],
-    // ADD: Mystery Box fields
+    // removed: maxOpensPerStudent
     luckMultiplier: 1.5,
     pityEnabled: false,
     guaranteedItemAfter: 10,
-    pityMinimumRarity: 'rare',
-    maxOpensPerStudent: null
+    pityMinimumRarity: 'rare'
   });
   
   const [itemPool, setItemPool] = useState([]);
@@ -176,7 +175,7 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
       pityEnabled: false,
       guaranteedItemAfter: 10,
       pityMinimumRarity: 'rare',
-      maxOpensPerStudent: null
+      // maxOpensPerStudent: null
     });
     setItemPool([]);
     // reset image controls too
@@ -310,13 +309,13 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
           category: 'MysteryBox',
           bazaar: bazaarId,
           mysteryBoxConfig: {
-            luckMultiplier: Number(form.luckMultiplier),
-            pityEnabled: form.pityEnabled,
-            guaranteedItemAfter: Number(form.guaranteedItemAfter),
+            luckMultiplier: Number(form.luckMultiplier || 1.5),
+            pityEnabled: !!form.pityEnabled,
+            guaranteedItemAfter: Number(form.guaranteedItemAfter || 10),
             pityMinimumRarity: form.pityMinimumRarity,
-            maxOpensPerStudent: form.maxOpensPerStudent ? Number(form.maxOpensPerStudent) : null,
+            // maxOpensPerStudent omitted
             itemPool: itemPool.map(p => ({
-              item: p.itemId,  // This should be the selected item's ID
+              item: p.itemId,
               rarity: p.rarity,
               baseDropChance: Number(p.baseDropChance)
             }))
@@ -1145,30 +1144,6 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                </div>
              </div>
            )}
- 
-           {/* Max Opens */}
-           <div className="form-control">
-             <label className="label">
-               <span className="label-text font-medium flex items-center gap-2">
-                 Max Opens Per Student
-                 <div 
-                   className="tooltip tooltip-bottom" 
-                   data-tip="Limit how many times each student can open this box"
-                 >
-                   <Info size={16} className="text-info cursor-help" />
-                 </div>
-               </span>
-             </label>
-             <input
-               type="number"
-               name="maxOpensPerStudent"
-               min="1"
-               placeholder="Unlimited"
-               className="input input-bordered"
-               value={form.maxOpensPerStudent || ''}
-               onChange={(e) => setForm({ ...form, maxOpensPerStudent: e.target.value })}
-             />
-           </div>
  
            {/* Item Pool */}
            <div className="form-control">

@@ -81,7 +81,7 @@ router.post('/', ensureAuthenticated, ensureTeacher, async (req, res) => {
             pityEnabled: item.mysteryBoxConfig.pityEnabled,
             guaranteedItemAfter: item.mysteryBoxConfig.guaranteedItemAfter,
             pityMinimumRarity: item.mysteryBoxConfig.pityMinimumRarity,
-            maxOpensPerStudent: item.mysteryBoxConfig.maxOpensPerStudent ?? null,
+            // maxOpensPerStudent removed
             itemPool: (item.mysteryBoxConfig.itemPool || [])
               .map(p => ({
                 itemName:
@@ -381,7 +381,6 @@ router.post('/:templateId/apply', ensureAuthenticated, ensureTeacher, async (req
             pityEnabled: !!itemData.mysteryBoxConfig?.pityEnabled,
             guaranteedItemAfter: Number(itemData.mysteryBoxConfig?.guaranteedItemAfter || 10),
             pityMinimumRarity: itemData.mysteryBoxConfig?.pityMinimumRarity || 'rare',
-            maxOpensPerStudent: itemData.mysteryBoxConfig?.maxOpensPerStudent ?? null,
             itemPool: resolved
           }
         });
@@ -472,7 +471,6 @@ router.post('/:templateId/apply', ensureAuthenticated, ensureTeacher, async (req
           pityEnabled: !!itemData.mysteryBoxConfig?.pityEnabled,
           guaranteedItemAfter: Number(itemData.mysteryBoxConfig?.guaranteedItemAfter || 10),
           pityMinimumRarity: itemData.mysteryBoxConfig?.pityMinimumRarity || 'rare',
-          maxOpensPerStudent: itemData.mysteryBoxConfig?.maxOpensPerStudent ?? null,
           itemPool: resolved
         }
       });

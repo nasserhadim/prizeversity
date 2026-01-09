@@ -40,7 +40,7 @@ const BazaarTemplateSchema = new mongoose.Schema({
       pityEnabled: { type: Boolean },
       guaranteedItemAfter: { type: Number },
       pityMinimumRarity: { type: String },
-      maxOpensPerStudent: { type: Number, default: null },
+      // maxOpensPerStudent removed from template
       itemPool: [{
         itemName: { type: String, required: true }, // portable reference
         rarity: { type: String, default: 'common' },

@@ -252,7 +252,7 @@ const ItemCard = ({
          open={showDetails}
          onClose={() => setShowDetails(false)}
          box={item}
-         userLuck={userLuck} // CHANGED
+         userLuck={typeof userLuck !== 'undefined' ? userLuck : (stats?.luck ?? 1)} // ensure classroom‑scoped luck is passed
        />
      )}
     </div>

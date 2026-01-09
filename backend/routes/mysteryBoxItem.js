@@ -84,20 +84,6 @@ router.post('/open/:itemId', ensureAuthenticated, blockIfFrozen, async (req, res
       });
     }
 
-    // Check max opens limit (scope to classroom)
-    if (!mysteryBoxItem.owner && config.maxOpensPerStudent) {
-      const openCount = user.transactions.filter(
-        t =>
-          String(t.classroom || '') === String(classroomId || '') &&
-          t.description &&
-          t.description.includes(`Opened ${mysteryBoxItem.name}`)
-      ).length;
-
-      if (openCount >= config.maxOpensPerStudent) {
-        return res.status(400).json({ error: 'Maximum opens reached for this mystery box' });
-      }
-    }
-
     // PITY SYSTEM: Check consecutive bad luck (scope to classroom)
     let isPityTriggered = false;
     if (config.pityEnabled) {
@@ -155,7 +141,7 @@ router.post('/open/:itemId', ensureAuthenticated, blockIfFrozen, async (req, res
       wonRarity = wonPoolItem.rarity;
       if (wonPoolItem.item && wonPoolItem.item._id) wonItemDoc = wonPoolItem.item;
       else if (wonPoolItem.item) wonItemDoc = await Item.findById(wonPoolItem.item);
-      else return res.status(500).json({ error: 'Failed to determine won item' });
+      else return res.status(500).json({ error: 'Failed to determine won item. Perhaps it was deleted?' });
     }
 
     if (!wonItemDoc || !wonItemDoc._id) {
