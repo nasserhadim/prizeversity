@@ -192,11 +192,19 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticate
         guaranteedItemAfter: Number(parsedMysteryBoxConfig.guaranteedItemAfter || 10),
         pityMinimumRarity: parsedMysteryBoxConfig.pityMinimumRarity || 'rare',
         // maxOpensPerStudent removed
-        itemPool: parsedMysteryBoxConfig.itemPool.map(p => ({
-          item: p.item,
-          rarity: p.rarity,
-          baseDropChance: Number(p.baseDropChance)
-        }))
+        itemPool: (parsedMysteryBoxConfig.itemPool || [])
+          .map(p => {
+            // support populated { item: { _id, ... } } or an id/string; tolerate nulls
+            const poolItemId = p?.item && typeof p.item === 'object'
+              ? (p.item._id || p.item)
+              : (p?.item || null);
+            return {
+              item: poolItemId,
+              rarity: p?.rarity || 'common',
+              baseDropChance: Number(p?.baseDropChance || 0)
+            };
+          })
+          .filter(entry => entry.item) // drop broken/null entries to avoid NPE
       };
       
       // ADD: Log what we're about to save
@@ -505,11 +513,19 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
           guaranteedItemAfter: item.mysteryBoxConfig.guaranteedItemAfter,
           pityMinimumRarity: item.mysteryBoxConfig.pityMinimumRarity,
           // maxOpensPerStudent removed
-          itemPool: item.mysteryBoxConfig.itemPool.map(p => ({
-            item: p.item._id || p.item,
-            rarity: p.rarity,
-            baseDropChance: p.baseDropChance
-          }))
+          itemPool: (item.mysteryBoxConfig.itemPool || [])
+            .map(p => {
+              // support populated { item: { _id, ... } } or an id/string; tolerate nulls
+              const poolItemId = p?.item && typeof p.item === 'object'
+                ? (p.item._id || p.item)
+                : (p?.item || null);
+              return {
+                item: poolItemId,
+                rarity: p?.rarity || 'common',
+                baseDropChance: Number(p?.baseDropChance || 0)
+              };
+            })
+            .filter(entry => entry.item) // drop broken/null entries to avoid NPE
         };
 
         console.log('[Buy Item] Created mysteryBoxConfig with itemPool:', 
@@ -787,11 +803,19 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
           guaranteedItemAfter: item.mysteryBoxConfig.guaranteedItemAfter,
           pityMinimumRarity: item.mysteryBoxConfig.pityMinimumRarity,
           // maxOpensPerStudent removed
-          itemPool: item.mysteryBoxConfig.itemPool.map(p => ({
-            item: p.item._id || p.item,
-            rarity: p.rarity,
-            baseDropChance: p.baseDropChance
-          }))
+          itemPool: (item.mysteryBoxConfig.itemPool || [])
+            .map(p => {
+              // support populated { item: { _id, ... } } or an id/string; tolerate nulls
+              const poolItemId = p?.item && typeof p.item === 'object'
+                ? (p.item._id || p.item)
+                : (p?.item || null);
+              return {
+                item: poolItemId,
+                rarity: p?.rarity || 'common',
+                baseDropChance: Number(p?.baseDropChance || 0)
+              };
+            })
+            .filter(entry => entry.item) // drop broken/null entries to avoid NPE
         };
 
         console.log('[Checkout] Created mysteryBoxConfig with itemPool:', 
@@ -1060,11 +1084,11 @@ router.get('/orders/:orderId', async (req, res) => {
 });
 
 // Get the inventory page for the user to see what items they have
-router.get('/inventory/:userId', async (req, res) => {
-  const { userId } = req.params;
-  const { classroomId } = req.query;
-  
+router.get('/inventory/:userId', ensureAuthenticated, async (req, res) => {
   try {
+    const { userId } = req.params;
+    const { classroomId } = req.query;
+    
     let items;
     if (classroomId) {
       items = await Item.find({ 
@@ -1078,7 +1102,9 @@ router.get('/inventory/:userId', async (req, res) => {
             path: 'classroom',
             select: '_id'
           }
-        });
+        })
+        // NEW: ensure owned MysteryBox copies include populated pool item docs
+        .populate('mysteryBoxConfig.itemPool.item');
       
       items = items.filter(item => 
         item.bazaar && 
@@ -1088,9 +1114,10 @@ router.get('/inventory/:userId', async (req, res) => {
     } else {
       items = await Item.find({ 
         owner: userId,
-        consumed: { $ne: true }, // Filter out consumed items
-        usesRemaining: { $gt: 0 } // Only show items with uses remaining
-      });
+        consumed: { $ne: true },
+        usesRemaining: { $gt: 0 }
+      })
+      .populate('mysteryBoxConfig.itemPool.item'); // ALSO populate in global case
     }
     
     res.json({ items });
@@ -1104,15 +1131,24 @@ router.get('/inventory/:userId', async (req, res) => {
 router.get('/mystery-box/:itemId', ensureAuthenticated, async (req, res) => {
   try {
     const { itemId } = req.params;
-    const box = await Item.findById(itemId)
-      .populate('mysteryBoxConfig.itemPool.item');
-    if (!box || box.category !== 'MysteryBox') {
-      return res.status(404).json({ error: 'Mystery box not found' });
+    const classroomId = req.query.classroomId || undefined;
+
+    const item = await Item.findById(itemId).populate('mysteryBoxConfig.itemPool.item');
+    if (!item || item.category !== 'MysteryBox') return res.status(404).json({ error: 'Mystery box not found' });
+
+    // Compute classroom-scoped luck if classroomId provided
+    let userLuck = 1;
+    if (classroomId && req.user) {
+      const scoped = getScopedUserStats(req.user, classroomId, { create: false });
+      userLuck = Number(scoped?.passive?.luck ?? 1);
+    } else {
+      userLuck = Number(req.user?.passiveAttributes?.luck ?? 1);
     }
-    res.json({ item: box });
-  } catch (e) {
-    console.error('[MysteryBox details] error:', e);
-    res.status(500).json({ error: 'Failed to load mystery box details' });
+
+    res.json({ item, userLuck });
+  } catch (err) {
+    console.error('[Get Mystery Box] error', err);
+    res.status(500).json({ error: 'Failed to fetch mystery box details' });
   }
 });
 

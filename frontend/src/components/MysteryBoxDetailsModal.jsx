@@ -25,6 +25,7 @@ export default function MysteryBoxDetailsModal({ open, onClose, box, userLuck })
   }, [open, box, populatedBox]);
 
   useEffect(() => {
+    console.log('[MysteryBoxDetailsModal] received userLuck prop:', userLuck);
     if (!populatedBox?.mysteryBoxConfig?.itemPool) return;
     const luckMultiplier = populatedBox.mysteryBoxConfig.luckMultiplier || 1.5;
     const rawLuck = Number(userLuck || 1);

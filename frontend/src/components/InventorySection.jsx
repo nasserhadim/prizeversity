@@ -10,6 +10,7 @@ import NullifyModal from '../components/NullifyModal';
 import socket from '../utils/socket'; // Changed from '../API/socket' to '../utils/socket'
 import { getEffectDescription, splitDescriptionEffect, normalizeSwapOptions } from '../utils/itemHelpers'; // ADD import
 import { resolveImageSrc } from '../utils/image';
+import MysteryBoxDetailsModal from './MysteryBoxDetailsModal';
 
 // Inventory section for using, managing, and interacting with items
 const InventorySection = ({ userId, classroomId }) => {
@@ -30,6 +31,10 @@ const InventorySection = ({ userId, classroomId }) => {
   const [sortKey, setSortKey] = useState('addedDesc'); // addedDesc|addedAsc|name|category|activeFirst|activatedDesc
   const [confirmRemove, setConfirmRemove] = useState(null); // item object
   const [confirmClear, setConfirmClear] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [detailsBox, setDetailsBox] = useState(null);
+  const [detailsBoxLuck, setDetailsBoxLuck] = useState(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
 
   // HOIST: load so socket handlers can call it
   const load = async () => {
@@ -335,6 +340,23 @@ const InventorySection = ({ userId, classroomId }) => {
     }
   }, [currentItem, JSON.stringify(currentItem?.swapOptions || [])]);
 
+  const viewFullDetails = async (item) => {
+    try {
+      setDetailsLoading(true);
+      const qs = classroomId ? `?classroomId=${encodeURIComponent(classroomId)}` : '';
+      const res = await apiBazaar.get(`/mystery-box/${item._id}${qs}`);
+      // backend should return { item, userLuck } — fallback defensively
+      setDetailsBox(res.data.item || res.data.box || null);
+      setDetailsBoxLuck(res.data.userLuck ?? res.data.user_luck ?? null);
+      setShowDetailsModal(true);
+    } catch (err) {
+      console.error('Failed to load mystery box details:', err);
+      toast.error(err.response?.data?.error || 'Failed to load details');
+    } finally {
+      setDetailsLoading(false);
+    }
+  };
+
   return (
     <div>
       <h2 className="text-2xl font-bold text-success flex items-center gap-2">
@@ -459,6 +481,18 @@ const InventorySection = ({ userId, classroomId }) => {
             >
               {getButtonText(item)}
             </button>
+
+            {item.category === 'MysteryBox' && (
+              <button
+                type="button"
+                className="btn btn-sm btn-outline w-full mt-1"
+                onClick={() => viewFullDetails(item)}
+                disabled={detailsLoading}
+              >
+                {detailsLoading ? 'Loading…' : 'View full details'}
+              </button>
+            )}
+
             <button
               className="btn btn-sm btn-outline btn-error"
               onClick={() => setConfirmRemove(item)}
@@ -584,6 +618,16 @@ const InventorySection = ({ userId, classroomId }) => {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Details modal */}
+      {showDetailsModal && detailsBox && (
+        <MysteryBoxDetailsModal
+          open={showDetailsModal}
+          onClose={() => { setShowDetailsModal(false); setDetailsBox(null); setDetailsBoxLuck(null); }}
+          box={detailsBox}
+          userLuck={detailsBoxLuck ?? undefined}
+        />
       )}
     </div>
   );

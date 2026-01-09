@@ -116,6 +116,18 @@ const Bazaar = () => {
     fetchTemplates();
   }, [classroomId]);
 
+  // compute classroom-scoped luck once (supports array or map shape)
+  const classroomLuck = useMemo(() => {
+    if (!classroomId) return classroom?.stats?.luck ?? 1;
+    if (Array.isArray(user?.classroomStats)) {
+      const cs = user.classroomStats.find(e => String(e.classroom) === String(classroomId));
+      return Number(cs?.passiveAttributes?.luck ?? cs?.passive?.luck ?? classroom?.stats?.luck ?? 1);
+    }
+    const map = user?.classroomStats || {};
+    const cs = map[classroomId] || null;
+    return Number(cs?.luck ?? cs?.passive?.luck ?? classroom?.stats?.luck ?? 1);
+  }, [user?.classroomStats, classroomId, classroom, user]);
+  
   // Save current bazaar as template
   const handleSaveTemplate = async () => {
     if (!templateName.trim()) {
@@ -724,6 +736,7 @@ const Bazaar = () => {
                     item={item}
                     role={user.role}
                     classroomId={classroomId}
+                    userLuck={classroomLuck}
                     onEdit={(it) => {
                       setEditItem(it);
                       setShowEditModal(true);

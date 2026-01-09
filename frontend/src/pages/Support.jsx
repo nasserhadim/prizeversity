@@ -249,7 +249,7 @@ const Support = () => {
           answer: [
             "• If a transaction shows something like (Base: 5₿, Personal: 1.00x, Group: 1.00x, Total: 1.00x) it usually means the instructor chose to bypass personal and/or group multipliers for that specific adjustment so the system records them as 1.00x and the math matches the flat amount shown.",
             "• Teachers (and admins/TAs) can enable or disable applying group and personal multipliers when assigning or adjusting balances.",
-            "• Note that multipliers always apply to positive transactions (awards) but are ignored for negative transactions (deductions) to avoid penalizing students too harshly."
+            "• Note that multipliers always apply to positive transactions (awards) but are ignored for negative transactions (deductions) to avoid penalizing students too harshly. If multiplier < 1.0 it will be detrimental to the final amount."
           ],
           role: ["all"]
         }
@@ -363,7 +363,8 @@ const Support = () => {
             "• The personal luck stat increases odds of higher‑rarity items.",
             "• Formula: bonus = (luck − 1) × luckMultiplier (baseline luck = 1.0 → no bonus).",
             "• Pre-Configured but customizable rarity weights by tier (portion of the luck bonus each tier receives): Common=20%, Uncommon=40%, Rare=60%, Epic=80%, Legendary=100%.",
-            "• After adjustment all chances are normalized back to 100% to keep probabilities valid."
+            "• After adjustment all chances are normalized back to 100% to keep probabilities valid.",
+            "• Note: If luck <= 1.0, no bonus is applied and could be detrimental to reward odds."
           ],
           role: ["all"]
         },
@@ -1020,7 +1021,7 @@ const Support = () => {
             "2. Wait a few seconds—changes may load shortly after the success message.",
             "3. Refresh the page (Ctrl+R / Cmd+R). This forces a full reload and usually shows the newly applied items/badges.",
             "",
-            "If it still doesn’t appear after refreshing, the template may have skipped duplicates (same-name items/badges), or the apply action may have partially completed. Try applying again or contact support."
+            "If it still doesn’t appear after refreshing, the template may have skipped duplicates (same-name badges/items or in the case of mystery box items didn't exist prior to mystery box import), or the apply action may have partially completed. Try applying again or contact support."
           ],
           role: ["teacher"]
         },

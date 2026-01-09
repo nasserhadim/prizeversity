@@ -141,7 +141,7 @@ router.post('/open/:itemId', ensureAuthenticated, blockIfFrozen, async (req, res
       wonRarity = wonPoolItem.rarity;
       if (wonPoolItem.item && wonPoolItem.item._id) wonItemDoc = wonPoolItem.item;
       else if (wonPoolItem.item) wonItemDoc = await Item.findById(wonPoolItem.item);
-      else return res.status(500).json({ error: 'Failed to determine won item' });
+      else return res.status(500).json({ error: 'Failed to determine won item. Perhaps it was deleted?' });
     }
 
     if (!wonItemDoc || !wonItemDoc._id) {
