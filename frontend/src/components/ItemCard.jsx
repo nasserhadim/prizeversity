@@ -163,12 +163,13 @@ const ItemCard = ({
          <h3 className="card-title text-lg md:text-xl font-semibold wrap-any">
            {item.name}
          </h3>
-        <p className="text-sm text-base-content/70 whitespace-pre-wrap wrap-any">
-          {main || 'No description provided.'}
-        </p>
-
+        {main && (
+          <div className="text-xs text-base-content/70 whitespace-pre-line break-words">
+            {main}
+          </div>
+        )}
         {effect && (
-          <div className="text-sm text-base-content/60 mt-1">
+          <div className="text-xs text-base-content/60 mt-1 whitespace-pre-line">
             <strong>Effect:</strong> {effect}
           </div>
         )}

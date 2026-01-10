@@ -70,7 +70,7 @@ const TeacherView = ({
     confirmText: 'Confirm',
     onConfirm: null
   });
-
+  const [selectedAssignIds, setSelectedAssignIds] = useState(new Set());
   
   const openConfirm = ({ title = 'Confirm', message = '', confirmText = 'Confirm', cancelText = 'Cancel', confirmButtonClass = 'btn-primary', onConfirm = null }) => {
     setConfirmOptions({ title, message, confirmText, cancelText, confirmButtonClass, onConfirm });
@@ -212,6 +212,7 @@ const TeacherView = ({
   
   useEffect(() => {
     if (!showAssignDropdown) setAssignSearch('');
+    if (!showAssignDropdown) setSelectedAssignIds(new Set());
   }, [showAssignDropdown]);
 
   useEffect(() => {
@@ -1286,35 +1287,83 @@ const TeacherView = ({
                      {}
                      {(() => {
                        const q = (assignSearch || '').trim().toLowerCase();
-                       return (q === '')
+                       const filtered = (q === '')
                          ? unassignedStudentIds
                          : unassignedStudentIds.filter(id => {
                              const name = (studentNames[id] || '').toLowerCase();
                              return name.includes(q) || String(id).toLowerCase().includes(q);
                            });
-                     })().length > 0 ? (
-                       (() => {
-                         const filtered = (assignSearch || '').trim() === ''
-                           ? unassignedStudentIds
-                           : unassignedStudentIds.filter(id => {
-                               const name = (studentNames[id] || '').toLowerCase();
-                               const q = (assignSearch || '').trim().toLowerCase();
-                               return name.includes(q) || String(id).toLowerCase().includes(q);
-                             });
-                         return filtered.map((studentId, index) => (
-                           <button
-                             key={`unassigned-${studentId}-${index}`}
-                             onClick={() => handleAssignStudent(studentId)}
-                             className="w-full text-left p-2 text-sm hover:bg-base-200 rounded flex items-center justify-between"
-                           >
-                             <span>{studentNames[studentId] || 'Loading...'}</span>
-                             <UserPlus className="w-3 h-3" />
-                           </button>
-                         ));
-                       })()
-                     ) : (
-                       <div className="text-xs text-gray-500 p-2">No matching students</div>
-                     )}
+ 
+                       if (!filtered.length) return <div className="text-xs text-gray-500 p-2">No matching students</div>;
+ 
+                       return (
+                         <>
+                           <div className="max-h-48 overflow-y-auto -mx-3 px-3">
+                             {filtered.map((studentId, index) => (
+                               <label key={`assign-${studentId}-${index}`} className="flex items-center gap-2 p-2 hover:bg-base-200 rounded cursor-pointer">
+                                 <input
+                                   type="checkbox"
+                                   className="checkbox checkbox-sm"
+                                   checked={selectedAssignIds.has(studentId)}
+                                   onChange={(e) => {
+                                     setSelectedAssignIds(prev => {
+                                       const next = new Set(prev);
+                                       next.has(studentId) ? next.delete(studentId) : next.add(studentId);
+                                       return next;
+                                     });
+                                   }}
+                                 />
+                                 <span className="flex-1 text-sm">{studentNames[studentId] || 'Loading...'}</span>
+                               </label>
+                             ))}
+                           </div>
+ 
+                           <div className="flex items-center gap-2 mt-2">
+                             <label className="flex items-center gap-2 text-sm">
+                               <input
+                                 type="checkbox"
+                                 className="checkbox checkbox-sm"
+                                 checked={filtered.every(id => selectedAssignIds.has(id)) && filtered.length > 0}
+                                 onChange={() => {
+                                   setSelectedAssignIds(prev => {
+                                     const next = new Set(prev);
+                                     const allSelected = filtered.every(id => next.has(id));
+                                     if (allSelected) {
+                                       filtered.forEach(id => next.delete(id));
+                                     } else {
+                                       filtered.forEach(id => next.add(id));
+                                     }
+                                     return next;
+                                   });
+                                 }}
+                               />
+                               <span>Select all</span>
+                             </label>
+ 
+                             <button
+                               className="btn btn-sm btn-primary ml-auto"
+                               onClick={async () => {
+                                 if (selectedAssignIds.size === 0) return;
+                                 // assign all selected
+                                 const ids = Array.from(selectedAssignIds);
+                                 const promises = ids.map(id => handleAssignStudent(id));
+                                 try {
+                                   await Promise.all(promises);
+                                   setShowAssignDropdown(false);
+                                   setSelectedAssignIds(new Set());
+                                   await fetchChallengeData();
+                                   toast.success(`Assigned ${ids.length} student(s)`);
+                                 } catch (err) {
+                                   toast.error('Failed to assign some students');
+                                 }
+                               }}
+                             >
+                               Assign Selected ({selectedAssignIds.size})
+                             </button>
+                           </div>
+                         </>
+                       );
+                     })()}
                     </div>
                   </div>
                 )}
