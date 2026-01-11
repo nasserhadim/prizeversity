@@ -16,6 +16,7 @@ import { ThemeContext } from '../context/ThemeContext'; // NEW
 import { inferAssignerRole } from '../utils/transactions';
 import BulkStatsEditor from '../components/BulkStatsEditor';
 import EquippedBadge from '../components/EquippedBadge';
+import ConfirmModal from '../components/ConfirmModal';
 
 // NEW helper for classroom-scoped admin detection (uses fetched classroom + students)
 function userIsClassroomAdmin({ user, classroom, students }) {
@@ -323,6 +324,120 @@ const People = () => {
   const [loadingStatChanges, setLoadingStatChanges] = useState(false);
   const [onlineUserIds, setOnlineUserIds] = useState(new Set());
   const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'online' | 'offline'
+  
+  // ADDED: selection + range delete state for stat-change logs
+  const [selectStatsMode, setSelectStatsMode] = useState(false);
+  const [selectedStatIds, setSelectedStatIds] = useState(new Set());
+  const [statDeleteFrom, setStatDeleteFrom] = useState('');
+  const [statDeleteTo, setStatDeleteTo] = useState('');
+
+  // NEW: quick "select visible" support
+  const [selectAllVisible, setSelectAllVisible] = useState(false);
+
+  const getVisibleStatIds = () => {
+    const q = (statSearch || '').toLowerCase().trim();
+    return (statChanges || []).filter(s => {
+      if (!q) return true;
+      const target = `${s.targetUser?.firstName || ''} ${s.targetUser?.lastName || ''}`.toLowerCase();
+      if (target.includes(q)) return true;
+      const actor = `${s.actionBy?.firstName || ''} ${s.actionBy?.lastName || ''}`.toLowerCase();
+      if (actor.includes(q)) return true;
+      if ((s.message || '').toLowerCase().includes(q)) return true;
+      if ((s.createdAt || '').toLowerCase().includes(q)) return true;
+      if (Array.isArray(s.changes)) {
+        for (const c of s.changes) {
+          if (String(c.field || '').toLowerCase().includes(q)) return true;
+          if (String(c.from || '').toLowerCase().includes(q)) return true;
+          if (String(c.to || '').toLowerCase().includes(q)) return true;
+        }
+      }
+      return false;
+    }).map(s => String(s._id));
+  };
+
+  // keep selection in sync when the visible set or search changes
+  useEffect(() => {
+    if (!selectAllVisible) return;
+    const ids = getVisibleStatIds();
+    setSelectedStatIds(new Set(ids));
+  }, [statChanges, statSearch]);
+
+  const toggleSelectVisible = () => {
+    const ids = getVisibleStatIds();
+    if (!ids.length) {
+      setSelectedStatIds(new Set());
+      setSelectAllVisible(false);
+      return;
+    }
+    const next = new Set(selectedStatIds);
+    const allSelected = ids.every(id => next.has(id));
+    if (allSelected) {
+      ids.forEach(id => next.delete(id));
+      setSelectAllVisible(false);
+    } else {
+      ids.forEach(id => next.add(id));
+      setSelectAllVisible(true);
+    }
+    setSelectedStatIds(next);
+  };
+
+  const [confirmAction, setConfirmAction] = useState(null);
+
+  const toggleStatSelect = (id) => {
+    setSelectedStatIds(prev => {
+      const s = new Set(prev);
+      if (s.has(id)) s.delete(id); else s.add(id);
+      return s;
+    });
+  };
+
+  const handleDeleteSelectedStats = async () => {
+    if (selectedStatIds.size === 0) return toast.error('No entries selected');
+    setConfirmAction({
+      type: 'delete-selected-stats',
+      title: 'Delete selected stat logs?',
+      message: `Delete ${selectedStatIds.size} selected stat log entry(ies)? This cannot be undone.`,
+      confirmText: 'Delete',
+      confirmButtonClass: 'btn-error',
+      onConfirm: async () => {
+        try {
+          const ids = Array.from(selectedStatIds);
+          const res = await axios.delete(`/api/classroom/${classroomId}/stat-changes/bulk`, { data: { ids }, withCredentials: true });
+          toast.success(`${res.data.deleted || 0} entries deleted`);
+          setSelectedStatIds(new Set());
+          setSelectStatsMode(false);
+          await fetchStatChanges({ page: 1, append: false });
+        } catch (err) {
+          console.error('[People] delete selected stats failed', err);
+          toast.error('Delete failed. Try limiting the batch load and try again.');
+        }
+      }
+    });
+  };
+
+  const handleDeleteStatRange = async () => {
+    if (!statDeleteFrom && !statDeleteTo) return toast.error('Specify from/to dates or use Select mode');
+    setConfirmAction({
+      type: 'delete-stat-range',
+      title: 'Delete stat logs in the selected date range?',
+      message: `Delete stat logs between ${statDeleteFrom || 'the beginning'} and ${statDeleteTo || 'now'}? This cannot be undone.`,
+      confirmText: 'Delete',
+      confirmButtonClass: 'btn-error',
+      onConfirm: async () => {
+        try {
+          const payload = { before: statDeleteTo || undefined, after: statDeleteFrom || undefined };
+          const res = await axios.delete(`/api/classroom/${classroomId}/stat-changes/bulk`, { data: payload, withCredentials: true });
+          toast.success(`${res.data.deleted || 0} entries deleted`);
+          setStatDeleteFrom(''); setStatDeleteTo('');
+          await fetchStatChanges({ page: 1, append: false });
+        } catch (err) {
+          console.error('[People] delete stat range failed', err);
+          toast.error('Delete failed. Try limiting the batch load and try again.');
+        }
+      }
+    });
+  };
+  
   // Helper: compute online presence for a student
   const isStudentOnline = (s) => onlineUserIds.has(String(s._id));
 
@@ -2441,6 +2556,46 @@ const visibleCount = filteredStudents.length;
                 >
                   Load older
                 </button>
+
+                {/* SELECT / BULK DELETE CONTROLS (teachers / class-admins only) */}
+                {(isTeacher || isClassroomAdmin) && (
+                  <div className="ml-4 flex items-center gap-2 flex-wrap">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        className="checkbox checkbox-sm"
+                        checked={selectStatsMode}
+                        onChange={() => { setSelectStatsMode(!selectStatsMode); setSelectedStatIds(new Set()); setSelectAllVisible(false); }}
+                      />
+                      <span className="text-sm">Select</span>
+                    </label>
+
+                    {selectStatsMode && (
+                      <label className="flex items-center gap-2 ml-2">
+                        <input
+                          type="checkbox"
+                          className="checkbox checkbox-sm"
+                          checked={selectAllVisible}
+                          onChange={toggleSelectVisible}
+                          disabled={(statChanges || []).length === 0}
+                        />
+                        <span className="text-sm">Select visible</span>
+                      </label>
+                    )}
+
+                    {selectStatsMode ? (
+                      <button className="btn btn-sm btn-error" onClick={handleDeleteSelectedStats} disabled={selectedStatIds.size === 0}>
+                        Delete Selected
+                      </button>
+                    ) : (
+                      <>
+                        <input type="date" className="input input-sm" value={statDeleteFrom} onChange={e => setStatDeleteFrom(e.target.value)} />
+                        <input type="date" className="input input-sm" value={statDeleteTo} onChange={e => setStatDeleteTo(e.target.value)} />
+                        <button className="btn btn-sm" onClick={handleDeleteStatRange}>Delete by range</button>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Controls: deep search + sort */}
@@ -2528,37 +2683,42 @@ const visibleCount = filteredStudents.length;
 
                    return (
                      <ul className="space-y-2 text-sm">
-                       {filtered.map((s) => (
-                         <li key={s._id} className="p-2 border border-base-300 rounded bg-base-100">
-                           <div className="text-xs text-base-content/60 mb-1">
-                             {new Date(s.createdAt).toLocaleString()}
-                             {(() => {
-                               // Prefer the populated actor when present (manual adjustments, teacher/admin-triggered logs, etc.)
-                               if (s.actionBy) {
-                                 const actor =
-                                   `${s.actionBy.firstName || ''} ${s.actionBy.lastName || ''}`.trim() ||
-                                   'Unknown';
-                                 return ` — by ${actor}`;
-                               }
-                               const src = getStatChangeSource(s.message);
-                               return src ? ` — via ${src}` : ' — from System';
-                             })()}
-                           </div>
-                           {/* For student view, do not show target user */}
-                          {!studentViewOnly && (
-                             <div className="font-semibold text-lg mt-1">
-                               {s.targetUser ? (
-                                 `${s.targetUser.firstName || ''} ${s.targetUser.lastName || ''}`.trim()
-                               ) : 'Unknown user'}
-                             </div>
-                           )}
-                           <div className="mt-1">
+                     {filtered.map((s) => (
+                        <li key={s._id} className="p-3 border border-base-300 rounded bg-base-100 flex gap-4 items-start">
+                          {/* checkbox for selection mode (teacher/class-admin only) */}
+                          {(isTeacher || isClassroomAdmin) && selectStatsMode && (
+                            <div className="flex-shrink-0 mt-1">
+                              <input type="checkbox" className="checkbox checkbox-sm" checked={selectedStatIds.has(String(s._id))} onChange={() => toggleStatSelect(String(s._id))} />
+                            </div>
+                          )}
+
+                          {/* LEFT: compact meta column (fixed width on larger screens; hidden on xs) */}
+                          <div className="w-40 min-w-[120px] text-xs text-base-content/60 hidden sm:block">
+                            <div>{new Date(s.createdAt).toLocaleString()}</div>
+                            <div className="mt-2">
+                              {s.actionBy ? `${s.actionBy.firstName || ''} ${s.actionBy.lastName || ''}`.trim() : getStatChangeSource(s.message) || 'System'}
+                            </div>
+                          </div>
+
+                          {/* RIGHT: main content */}
+                          <div className="flex-1">
+                            {/* On small screens show date/actor at top */}
+                            <div className="sm:hidden text-xs text-base-content/60 mb-2">
+                              {new Date(s.createdAt).toLocaleString()} — {s.actionBy ? `${s.actionBy.firstName || ''} ${s.actionBy.lastName || ''}`.trim() : getStatChangeSource(s.message) || 'System'}
+                            </div>
+
+                            {!studentViewOnly && (
+                              <div className="font-semibold text-lg mb-1">
+                                {s.targetUser ? `${s.targetUser.firstName || ''} ${s.targetUser.lastName || ''}`.trim() : 'Unknown user'}
+                              </div>
+                            )}
+
+                            <div className="text-sm mb-2">
                               {Array.isArray(s.changes) && s.changes.length ? (
-                                <ul className="list-disc ml-4">
+                                <ul className="list-disc ml-5 space-y-1">
                                   {s.changes.map((c, idx) => (
-                                    <li key={idx} className="flex items-start gap-2">
-                                      <span className="bullet">•</span>
-                                      <span className="break-words">{formatStatChange(c)}</span>
+                                    <li key={idx} className="break-words">
+                                      {formatStatChange(c)}
                                     </li>
                                   ))}
                                 </ul>
@@ -2566,24 +2726,22 @@ const visibleCount = filteredStudents.length;
                                 <div className="text-xs text-base-content/60">No details available</div>
                               )}
                             </div>
-                            <div className="mt-1">
-                              {(() => {
-                                const suffix = getMessageSuffix(s.message);
-                                if (!suffix?.text) return null;
-                                return (
-                                  <div className="flex items-start gap-2 mt-1">
-                                    <div className="text-xs text-base-content/60 flex-1">
-                                      {suffix.label}: <span className="italic">{suffix.text}</span>
-                                    </div>
-                                  </div>
-                                );
-                              })()}
-                            </div>
-                          </li>
-                        ))}
-                     </ul>
-                   );
-                 })()
+
+                            {(() => {
+                              const suffix = getMessageSuffix(s.message);
+                              if (!suffix?.text) return null;
+                              return (
+                                <div className="text-xs text-base-content/60 italic">
+                                  {suffix.label}: {suffix.text}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </li>
+                     ))}
+                   </ul>
+                 );
+               })()
                )}
              </div>
            )}
@@ -2613,6 +2771,25 @@ const visibleCount = filteredStudents.length;
         onUpdated={async () => { await fetchStudents(); await fetchClassroom(); }}
       />
       
+      {/* Confirm modal for deletions / destructive actions */}
+      <ConfirmModal
+        isOpen={!!confirmAction}
+        onClose={() => setConfirmAction(null)}
+        title={confirmAction?.title}
+        message={confirmAction?.message}
+        confirmText={confirmAction?.confirmText || 'Confirm'}
+        cancelText="Cancel"
+        confirmButtonClass={confirmAction?.confirmButtonClass || 'btn-primary'}
+        onConfirm={async () => {
+          if (!confirmAction?.onConfirm) { setConfirmAction(null); return; }
+          try {
+            await confirmAction.onConfirm();
+          } finally {
+            setConfirmAction(null);
+          }
+        }}
+      />
+
        <Footer />
      </div>
    );

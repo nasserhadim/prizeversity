@@ -2021,4 +2021,42 @@ router.post('/:classroomId/checkin', ensureAuthenticated, async (req, res) => {
   }
 });
 
+// BULK DELETE stat-change logs for a classroom
+router.delete('/:id/stat-changes/bulk', ensureAuthenticated, async (req, res) => {
+  try {
+    const classroomId = req.params.id;
+    const { ids, before, after, userId } = req.body || {};
+
+    const classroom = await Classroom.findById(classroomId);
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+
+    // Permission: teacher or classroom admin can delete any; students only their own
+    const isTeacher = String(classroom.teacher) === String(req.user._id);
+    const isClassAdmin = await isClassroomAdmin(req.user, classroomId);
+    const canDeleteAny = isTeacher || isClassAdmin || req.user.role === 'admin';
+
+    const q = { classroom: classroomId, type: 'stats_adjusted' };
+    if (Array.isArray(ids) && ids.length) {
+      q._id = { $in: ids.map(id => new (require('mongoose').Types.ObjectId)(String(id))) };
+    } else {
+      if (userId && !canDeleteAny) {
+        return res.status(403).json({ error: 'Not allowed to delete others' });
+      }
+      if (userId) q.user = userId;
+      if (before || after) {
+        q.createdAt = {};
+        if (before) q.createdAt.$lt = new Date(before);
+        if (after) q.createdAt.$gte = new Date(after);
+      }
+      if (!canDeleteAny) q.user = req.user._id; // students only their own
+    }
+
+    const result = await Notification.deleteMany(q);
+    return res.json({ deleted: result.deletedCount || 0 });
+  } catch (err) {
+    console.error('[stat-changes bulk delete] error:', err);
+    return res.status(500).json({ error: 'Failed to delete stat-change logs' });
+  }
+});
+
 module.exports = router;
