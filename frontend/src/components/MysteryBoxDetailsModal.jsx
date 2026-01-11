@@ -27,6 +27,11 @@ export default function MysteryBoxDetailsModal({ open, onClose, box, userLuck })
   useEffect(() => {
     console.log('[MysteryBoxDetailsModal] received userLuck prop:', userLuck);
     if (!populatedBox?.mysteryBoxConfig?.itemPool) return;
+
+    // NEW: don't compute/display rates when pool entries are still raw ids
+    const needsPopulate = populatedBox.mysteryBoxConfig.itemPool.some(p => typeof p.item === 'string');
+    if (needsPopulate) return;
+
     const luckMultiplier = populatedBox.mysteryBoxConfig.luckMultiplier || 1.5;
     const rawLuck = Number(userLuck || 1);
     const luckBonus = (rawLuck - 1) * luckMultiplier; // matches backend
