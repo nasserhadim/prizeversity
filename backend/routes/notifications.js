@@ -118,4 +118,44 @@ router.post('/create', ensureAuthenticated, async (req, res) => {
   }
 });
 
+// BULK DELETE notifications
+router.delete('/bulk', ensureAuthenticated, async (req, res) => {
+  try {
+    const { ids, type, before, after, userId } = req.body || {};
+    const q = {};
+
+    // Permission: teachers/admins may delete for other users; regular users only own notifications
+    const isAdminOrTeacher = req.user && ['teacher', 'admin'].includes((req.user.role || '').toLowerCase());
+    if (userId) {
+      if (!isAdminOrTeacher) return res.status(403).json({ error: 'Not allowed to delete others' });
+      q.user = userId;
+    } else {
+      q.user = req.user._id;
+    }
+
+    if (Array.isArray(ids) && ids.length) {
+      // delete by explicit ids
+      q._id = { $in: ids.map(id => new (require('mongoose').Types.ObjectId)(String(id))) };
+    } else {
+      if (type) q.type = { $in: Array.isArray(type) ? type : String(type).split(',') };
+      if (before || after) {
+        q.createdAt = {};
+        if (before) q.createdAt.$lt = new Date(before);
+        if (after) q.createdAt.$gte = new Date(after);
+      }
+    }
+
+    // Safety: only allow certain types if not admin/teacher
+    if (!isAdminOrTeacher && !q._id && q.type && (!Array.isArray(q.type.$in) || q.type.$in.length > 5)) {
+      // no-op safeguard
+    }
+
+    const result = await Notification.deleteMany(q);
+    return res.json({ deleted: result.deletedCount || 0 });
+  } catch (err) {
+    console.error('[notifications bulk delete] error:', err);
+    return res.status(500).json({ error: 'Failed to delete notifications' });
+  }
+});
+
 module.exports = router;

@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 import { CSSTransition } from 'react-transition-group';
 import { subscribeToNotifications } from '../utils/socket';
 import { Bell } from 'lucide-react';
 import { useAuth } from '../context/AuthContext'; // NEW
+import ConfirmModal from './ConfirmModal'; // NEW
 
 // helper: stable classroom label used across notifications
 function getClassLabel(notification) {
@@ -25,16 +28,40 @@ const NotificationBell = () => {
   const notificationsPerPage = 2;
   const dropdownRef = useRef(null);
   const nodeRef = useRef(null); // Add this new ref for CSSTransition
-// NEW: explicit sort direction
+  // NEW: explicit sort direction
   const [sortDir, setSortDir] = useState('desc');
+
+  // add state near top of component
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [deleteFrom, setDeleteFrom] = useState('');
+  const [deleteTo, setDeleteTo] = useState('');
+  const [deleteTypes, setDeleteTypes] = useState(''); // comma-separated types
+
+  // NEW: delete popover state (rendered as portal to avoid clipping)
+  const [showDeleteMenu, setShowDeleteMenu] = useState(false);
+  const deleteButtonRef = useRef(null);
+  const deleteMenuRef = useRef(null);
+  const [deleteMenuPos, setDeleteMenuPos] = useState({ top: 0, left: 0 });
+
+  // NEW: confirm modal state
+  const [confirmDelete, setConfirmDelete] = useState({
+    open: false,
+    action: null, // 'all' | 'range' | 'selected'
+    title: '',
+    message: ''
+  });
 
   useEffect(() => {
     fetchNotifications();
-    // Close dropdown when clicking outside
+    // Close dropdown when clicking outside (don't close when clicking inside portal)
     const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setShowNotifications(false);
-      }
+      // if click is inside main dropdown, keep it open
+      if (dropdownRef.current && dropdownRef.current.contains(event.target)) return;
+      // if click is inside the delete menu portal, keep it open
+      if (deleteMenuRef.current && deleteMenuRef.current.contains(event.target)) return;
+      setShowNotifications(false);
+      setShowDeleteMenu(false);
     };
 
     document.addEventListener('mousedown', handleClickOutside);
@@ -116,6 +143,74 @@ const NotificationBell = () => {
     }
   };
 
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => {
+      const s = new Set(prev);
+      if (s.has(id)) s.delete(id); else s.add(id);
+      return s;
+    });
+  };
+
+  const handleDeleteSelected = () => {
+    if (selectedIds.size === 0) return toast.error('No notifications selected');
+    setConfirmDelete({
+      open: true,
+      action: 'selected',
+      title: `Delete ${selectedIds.size} selected notification(s)?`,
+      message: `Delete ${selectedIds.size} selected notification(s)? This cannot be undone.`
+    });
+  };
+
+  const handleDeleteRange = () => {
+    const from = deleteFrom || '(no lower bound)';
+    const to = deleteTo || '(no upper bound)';
+    const types = deleteTypes ? `Types: ${deleteTypes}` : 'All types';
+    setConfirmDelete({
+      open: true,
+      action: 'range',
+      title: 'Delete notifications in selected range/type?',
+      message: `Delete notifications in selected range/type? This cannot be undone.\n\nFrom: ${from}\nTo: ${to}\n${types}`
+    });
+  };
+
+  const handleDeleteAll = () => {
+    setConfirmDelete({
+      open: true,
+      action: 'all',
+      title: 'Delete ALL notifications?',
+      message: 'Delete ALL notifications? This cannot be undone.'
+    });
+  };
+
+  // perform actual delete after modal confirm
+  const performConfirmedDelete = async () => {
+    const act = confirmDelete.action;
+    setConfirmDelete(prev => ({ ...prev, open: false }));
+    try {
+      if (act === 'all') {
+        await axios.delete('/api/notifications/bulk', { data: {}, withCredentials: true });
+        toast.success('Deleted all notifications');
+        setShowDeleteMenu(false);
+        setSelectedIds(new Set());
+        setSelectMode(false);
+      } else if (act === 'range') {
+        const payload = { before: deleteTo || undefined, after: deleteFrom || undefined, type: deleteTypes || undefined };
+        await axios.delete('/api/notifications/bulk', { data: payload, withCredentials: true });
+        toast.success('Deleted notifications by range/type');
+      } else if (act === 'selected') {
+        const ids = Array.from(selectedIds);
+        await axios.delete('/api/notifications/bulk', { data: { ids }, withCredentials: true });
+        toast.success('Deleted selected notifications');
+        setSelectedIds(new Set());
+        setSelectMode(false);
+      }
+      fetchNotifications();
+    } catch (e) {
+      console.error(e);
+      toast.error('Delete failed. Try limiting the batch load and try again.');
+    }
+  };
+
   // Work only with non-null notifications to avoid runtime errors
   const safeNotifications = (notifications || []).filter(Boolean);
   const filteredNotifications = safeNotifications
@@ -160,6 +255,20 @@ const NotificationBell = () => {
     return user.email;
   };
 
+  // Helper to open delete menu and compute fixed position to avoid clipping
+  const toggleDeleteMenu = (e) => {
+    e.stopPropagation();
+    if (deleteButtonRef.current) {
+      const rect = deleteButtonRef.current.getBoundingClientRect();
+      const menuWidth = 320;
+      // prefer aligning right edge of menu with button right, but clamp to viewport
+      const left = Math.max(8, Math.min(rect.right - menuWidth, rect.left));
+      const top = rect.bottom + 8;
+      setDeleteMenuPos({ top, left });
+    }
+    setShowDeleteMenu(s => !s);
+  };
+
   return (
     <div className="relative" ref={dropdownRef}>
       <div
@@ -191,7 +300,8 @@ const NotificationBell = () => {
                      max-sm:fixed max-sm:inset-x-4 max-sm:w-auto max-sm:right-4 max-sm:left-4
                      max-h-[80vh] flex flex-col overflow-hidden"
         >
-          <div className="p-4 border-b border-base-300">
+          {/* Make header relative so delete popover can be absolute and overlay (not push) */}
+          <div className="p-4 border-b border-base-300 relative">
             <h3 className="text-lg font-semibold text-base-content">Notifications</h3>
             <div className="flex flex-wrap gap-3 mt-3">
               <input
@@ -221,37 +331,112 @@ const NotificationBell = () => {
                   ? (sortDir === 'asc' ? 'Oldest' : 'Newest')
                   : (sortDir === 'asc' ? 'A→Z' : 'Z→A')}
               </button>
+
               <select
                 value={filterBy}
                 onChange={(e) => setFilterBy(e.target.value)}
                 className="select select-bordered"
               >
                 <option value="all">All</option>
-                <option value="unread">Unread</option>                                      {/* NEW */}
-                <option value="announcement">Announcements</option>                          {/* NEW */}
-                <option value="group_add">Group Adds</option>                                {/* NEW */}
+                <option value="unread">Unread</option>
+                <option value="announcement">Announcements</option>
+                <option value="group_add">Group Adds</option>
                 <option value="group_approval">Approvals</option>
                 <option value="group_rejection">Rejections</option>
                 <option value="classroom_removal">Removals</option>
                 <option value="group_suspension">Suspensions</option>
                 <option value="group_deletion,classroom_deletion,groupset_deletion">Deletions</option>
                 <option value="classroom_update,groupset_update,group_update">Updates</option>
-                <option value="siphon_request,siphon_review,siphon_approved,siphon_rejected">Siphon</option>  {/* NEW */}
-                <option value="classroom_ban,classroom_unban,group_suspension">Bans & Suspensions</option>     {/* NEW */}
-                <option value="wallet_topup,wallet_transaction">Wallet</option>                                 {/* NEW */}
-                <option value="attack,defend">Attacks/Defends</option>                                          {/* NEW */}
-                <option value="stats_adjusted">Stat Changes</option>                                            {/* NEW */}
-                <option value="level_up,badge_earned,challenge_series_completed">XP/Leveling/Badges</option>            {/* NEW */}
-                <option value="challenge_assigned,challenge_removed,challenge_reset,challenge_series_completed">Challenges</option> {/* NEW */}
-                <option value="feedback_report">Feedback</option>                                    {/* NEW */}
-                <option value="bit_assignment_request,bit_assignment_approved,bit_assignment_rejected">Bit Assignment</option>       {/* NEW */}
+                <option value="siphon_request,siphon_review,siphon_approved,siphon_rejected">Siphon</option>
+                <option value="classroom_ban,classroom_unban,group_suspension">Bans & Suspensions</option>
+                <option value="wallet_topup,wallet_transaction">Wallet</option>
+                <option value="attack,defend">Attacks/Defends</option>
+                <option value="stats_adjusted">Stat Changes</option>
+                <option value="level_up,badge_earned,challenge_series_completed">XP/Leveling/Badges</option>
+                <option value="challenge_assigned,challenge_removed,challenge_reset,challenge_series_completed">Challenges</option>
+                <option value="feedback_report">Feedback</option>
+                <option value="bit_assignment_request,bit_assignment_approved,bit_assignment_rejected">Bit Assignment</option>
               </select>
+
               <button
                 onClick={handleDismissAll}
                 className="btn btn-outline btn-sm"
               >
                 Dismiss All
               </button>
+
+              {/* NEW: Delete menu trigger (rendered as a fixed portal to avoid clipping) */}
+              <div className="relative">
+                <button
+                  ref={deleteButtonRef}
+                  className="btn btn-outline btn-sm"
+                  onClick={toggleDeleteMenu}
+                >
+                  Delete
+                </button>
+
+                {/* Render menu into document.body so it is not clipped by the notification container */}
+                {showDeleteMenu && ReactDOM.createPortal(
+                  <div
+                    ref={deleteMenuRef} // ATTACH ref so outside-click checks work
+                    style={{
+                      position: 'fixed',
+                      top: deleteMenuPos.top,
+                      left: deleteMenuPos.left,
+                      width: 320,
+                      zIndex: 9999,
+                    }}
+                    className="bg-base-100 border border-base-300 rounded shadow-lg p-3"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <button
+                        className="btn btn-sm btn-error flex-1"
+                        onClick={handleDeleteAll}
+                      >
+                        Delete All
+                      </button>
+                      <button
+                        className={`btn btn-sm ${selectMode ? 'btn-success' : 'btn-ghost'}`}
+                        onClick={() => setSelectMode(m => !m)}
+                        title="Toggle select mode"
+                      >
+                        {selectMode ? 'Selecting' : 'Select'}
+                      </button>
+                    </div>
+
+                    <div className="text-xs text-base-content/60 mb-2">Delete by date range / type</div>
+                    <div className="flex gap-2 mb-2">
+                      <input type="date" className="input input-sm flex-1" value={deleteFrom} onChange={(e) => setDeleteFrom(e.target.value)} />
+                      <input type="date" className="input input-sm flex-1" value={deleteTo} onChange={(e) => setDeleteTo(e.target.value)} />
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="type(s) comma-separated (optional)"
+                      className="input input-sm w-full mb-2"
+                      value={deleteTypes}
+                      onChange={(e) => setDeleteTypes(e.target.value)}
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        className="btn btn-sm btn-error flex-1"
+                        onClick={handleDeleteRange}
+                      >
+                        Delete by range/type
+                      </button>
+                      <button
+                        className={`btn btn-sm btn-warning flex-1 ${selectedIds.size === 0 ? 'opacity-50 pointer-events-none' : ''}`}
+                        onClick={handleDeleteSelected}
+                      >
+                        Delete Selected ({selectedIds.size})
+                      </button>
+                    </div>
+                    <div className="text-xs text-base-content/60 mt-2">Note: this is rendered over the UI so notifications remain visible.</div>
+                  </div>,
+                  document.body
+                )}
+              </div>
+
             </div>
           </div>
 
@@ -265,19 +450,33 @@ const NotificationBell = () => {
                       notification.read ? 'opacity-70' : 'hover:bg-base-200'
                     }`}
                   >
-                    <div className="flex-1">
-                      <p
-                        className="notification-message text-sm text-base-content whitespace-pre-wrap break-words"
-                      >
-                        {notification.message}
-                      </p>
-                      <small className="text-base-content/60 block mt-1">
-                        by {getDisplayName(notification.actionBy)} at{' '}
-                        {new Date(notification.createdAt).toLocaleString()}
-                        {getClassLabel(notification) && ` in classroom "${getClassLabel(notification)}"`}
-                      </small>
+                    <div className="flex items-start gap-3 flex-1">
+                      {/* NEW: selection checkbox shown when selectMode is active */}
+                      {selectMode && (
+                        <input
+                          type="checkbox"
+                          className="checkbox checkbox-sm mt-1"
+                          checked={selectedIds.has(String(notification._id))}
+                          onChange={() => toggleSelect(String(notification._id))}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      )}
+
+                      <div className="flex-1">
+                        <p
+                          className="notification-message text-sm text-base-content whitespace-pre-wrap break-words"
+                        >
+                          {notification.message}
+                        </p>
+                        <small className="text-base-content/60 block mt-1">
+                          by {getDisplayName(notification.actionBy)} at{' '}
+                          {new Date(notification.createdAt).toLocaleString()}
+                          {getClassLabel(notification) && ` in classroom "${getClassLabel(notification)}"`}
+                        </small>
+                      </div>
                     </div>
-                    {!notification.read && (
+
+                    {!notification.read && !selectMode && (
                       <button
                         className="text-lg text-base-content/60 hover:text-error"
                         onClick={() => handleDismissNotification(notification._id)}
@@ -316,6 +515,18 @@ const NotificationBell = () => {
           </div>
         </div>
       </CSSTransition>
+
+      {/* Confirm modal (replaces native confirm) */}
+      <ConfirmModal
+        isOpen={confirmDelete.open}
+        onClose={() => setConfirmDelete(prev => ({ ...prev, open: false }))}
+        onConfirm={performConfirmedDelete}
+        title={confirmDelete.title}
+        message={confirmDelete.message}
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmButtonClass="btn-error"
+      />
     </div>
   );
 };
