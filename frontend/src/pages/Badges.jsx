@@ -581,11 +581,23 @@ const Badges = () => {
   useEffect(() => {
     if (!classroomId || !user) return;
 
-    const handleBadgeEarned = (data) => {
-      if (String(data.userId) === String(user._id)) {
-        toast.success(`🏆 You earned a badge: ${data.badgeName}`);
-        // Refetch badges to update the UI
-        fetchBadges();
+    const handleBadgeEarned = (payload) => {
+      try {
+        // Only react if this event is for me or for this classroom (avoid triggering server actions)
+        const payloadUserId = payload?.userId || payload?.user?._id || payload?.user;
+        const payloadClass = payload?.classroom?._id || payload?.classroomId || payload?.classroom;
+        const isForMe = payloadUserId && String(payloadUserId) === String(user?._id);
+        const sameClass = !payloadClass || String(payloadClass) === String(classroomId);
+
+        if (!isForMe && !sameClass) return; // ignore irrelevant events
+
+        // UI-only: show toast + re-fetch badges via safe GET (no POST / award calls)
+        if (isForMe) {
+          toast.success(payload?.badgeName ? `🏆 You earned a badge: ${payload.badgeName}` : '🏆 Badge earned');
+        }
+        fetchBadges(); // safe: GET only
+      } catch (e) {
+        console.error('badge socket handler failed:', e);
       }
     };
 

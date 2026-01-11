@@ -377,18 +377,29 @@ async function checkAndAwardBadges({ user, classroomId, newLevel, xpSettings, io
         badgeMessage += ` Rewards: ${rewardParts.join(', ')}`;
       }
 
-      const badgeNotification = await Notification.create({
+      // DEDUPE: avoid creating many identical badge notifications in a short window
+      const recentBadge = await Notification.findOne({
         user: user._id,
         type: 'badge_earned',
         message: badgeMessage,
-        classroom: classroomId,
-        badge: badge._id,
-        read: false
-      });
+        createdAt: { $gte: new Date(Date.now() - 5000) } // 5s window
+      }).lean();
+      if (recentBadge) {
+        console.warn('[DEDUP] Skipping duplicate badge_earned for user', String(user._id));
+      } else {
+        const badgeNotification = await Notification.create({
+          user: user._id,
+          type: 'badge_earned',
+          message: badgeMessage,
+          classroom: classroomId,
+          badge: badge._id,
+          read: false
+        });
 
-      const populated = await populateNotification(badgeNotification._id);
-      if (populated && io) {
-        io.to(`user-${user._id}`).emit('notification', populated);
+        const populated = await populateNotification(badgeNotification._id);
+        if (populated && io) {
+          io.to(`user-${user._id}`).emit('notification', populated);
+        }
       }
 
       // Award XP for badge unlock
