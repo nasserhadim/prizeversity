@@ -90,82 +90,68 @@ async function awardXP(userId, classroomId, xpAmount, reason, xpSettings, option
       );
 
       if (!alreadyEarned) {
-        classroomXPEntry.earnedBadges.push({
-          badge: badge._id,
-          earnedAt: new Date()
-        });
-        earnedBadges.push(badge);
+        // Idempotent add: ensure we only add badge once (guard against concurrent awardXP calls)
+        // Update DB atomically and only proceed with notification if modification happened.
+        const mongoose = require('mongoose');
+        const upd = await mongoose.model('User').updateOne(
+          { _id: userId, 'classroomXP.classroom': classroomId, 'classroomXP.earnedBadges.badge': { $ne: badge._id } },
+          { $addToSet: { 'classroomXP.$[cx].earnedBadges': { badge: badge._id, earnedAt: new Date() } } },
+          { arrayFilters: [{ 'cx.classroom': classroomId }] }
+        );
+        if (upd.modifiedCount && upd.modifiedCount > 0) {
+          earnedBadges.push(badge);
 
-        // Award badge rewards if configured
-        const { awardBadgeRewards, awardBadgeRewardXP } = require('./badgeRewards');
-        const badgeRewardsAwarded = await awardBadgeRewards({
-          user,
-          classroomId,
-          badge,
-          io: options.io
-        });
-
-        // Build reward parts for notification
-        const rewardParts = [];
-        if (badgeRewardsAwarded.bits > 0) {
-          if (badgeRewardsAwarded.baseBits !== badgeRewardsAwarded.bits) {
-            rewardParts.push(`${badgeRewardsAwarded.bits} ₿ (${badgeRewardsAwarded.totalMultiplier.toFixed(2)}x)`);
-          } else {
-            rewardParts.push(`${badgeRewardsAwarded.bits} ₿`);
-          }
-        }
-        if (badgeRewardsAwarded.multiplier > 0) rewardParts.push(`+${badgeRewardsAwarded.multiplier.toFixed(1)} Multiplier`);
-        if (badgeRewardsAwarded.luck > 0) rewardParts.push(`+${badgeRewardsAwarded.luck.toFixed(1)} Luck`);
-        if (badgeRewardsAwarded.discount > 0) rewardParts.push(`+${badgeRewardsAwarded.discount}% Discount`);
-        if (badgeRewardsAwarded.shield > 0) rewardParts.push(`+${badgeRewardsAwarded.shield} Shield`);
-
-        // Create notification for badge earned (include rewards if any)
-        let badgeMessage = `🏅 You earned the "${badge.name}" badge! ${badge.description}`;
-        if (rewardParts.length > 0) {
-          badgeMessage += ` Rewards: ${rewardParts.join(', ')}`;
-        }
-
-        // DEDUPE: avoid creating many identical badge notifications in a short window
-        const recentBadge = await Notification.findOne({
-          user: userId,
-          type: 'badge_earned',
-          message: badgeMessage,
-          createdAt: { $gte: new Date(Date.now() - 5000) } // 5s window
-        }).lean();
-        if (recentBadge) {
-          console.warn('[DEDUP] Skipping duplicate badge_earned for user', String(userId));
-        } else {
-          const badgeNotification = await Notification.create({
-            user: userId,
-            type: 'badge_earned',
-            message: badgeMessage,
-            classroom: classroomId,
-            badge: badge._id,
-            read: false
+          // Award badge rewards as before
+          const { awardBadgeRewards, awardBadgeRewardXP } = require('./badgeRewards');
+          const badgeRewardsAwarded = await awardBadgeRewards({
+            user,
+            classroomId,
+            badge,
+            io: options.io
           });
-
-          const populated = await populateNotification(badgeNotification._id);
-          if (populated) {
-            const io = options.io || (user.db?.base?.io);
-            if (io) io.to(`user-${userId}`).emit('notification', populated);
+          // Build notification message (same as before)
+          const rewardParts = [];
+          if (badgeRewardsAwarded.bits > 0) {
+            if (badgeRewardsAwarded.baseBits !== badgeRewardsAwarded.bits) {
+              rewardParts.push(`${badgeRewardsAwarded.bits} ₿ (${badgeRewardsAwarded.totalMultiplier.toFixed(2)}x)`);
+            } else {
+              rewardParts.push(`${badgeRewardsAwarded.bits} ₿`);
+            }
           }
-        }
-        
-        // Award XP for badge unlock (if configured)
-        const badgeXPRate = xpSettings?.badgeUnlock || 0;
-        if (badgeXPRate > 0) {
-          badgeXPAwarded += badgeXPRate;
-        }
+          if (badgeRewardsAwarded.multiplier > 0) rewardParts.push(`+${badgeRewardsAwarded.multiplier.toFixed(1)} Multiplier`);
+          if (badgeRewardsAwarded.luck > 0) rewardParts.push(`+${badgeRewardsAwarded.luck.toFixed(1)} Luck`);
+          if (badgeRewardsAwarded.discount > 0) rewardParts.push(`+${badgeRewardsAwarded.discount}% Discount`);
+          if (badgeRewardsAwarded.shield > 0) rewardParts.push(`+${badgeRewardsAwarded.shield} Shield`);
 
-        // Award XP for badge rewards (bits earned, stat increases)
-        await awardBadgeRewardXP({
-          user,
-          classroomId,
-          badge,
-          awarded: badgeRewardsAwarded,
-          xpSettings,
-          io: options.io
-        });
+          // Create notification for badge earned (include rewards if any)
+          let badgeMessage = `🏅 You earned the "${badge.name}" badge! ${badge.description}`;
+          if (rewardParts.length > 0) {
+            badgeMessage += ` Rewards: ${rewardParts.join(', ')}`;
+          }
+
+          // Dedupe by explicit badge field (safer than message-based window)
+          const existing = await Notification.findOne({ user: userId, type: 'badge_earned', badge: badge._id }).lean();
+          if (!existing) {
+            const badgeNotification = await Notification.create({
+              user: userId,
+              type: 'badge_earned',
+              message: badgeMessage,
+              classroom: classroomId,
+              badge: badge._id,
+              read: false
+            });
+            const populated = await populateNotification(badgeNotification._id);
+            if (populated) {
+              const io = options.io || (user.db?.base?.io);
+              if (io) io.to(`user-${userId}`).emit('notification', populated);
+            }
+          } else {
+            console.warn('[DEDUP] badge_earned notification exists (user, badge):', String(userId), String(badge._id));
+          }
+        } else {
+          // someone else already added the badge concurrently; skip notify
+          console.debug('[awardXP] badge already present for user (concurrent) ', String(userId), String(badge._id));
+        }
       }
     }
 

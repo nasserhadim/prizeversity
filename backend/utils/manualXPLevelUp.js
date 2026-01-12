@@ -378,14 +378,10 @@ async function checkAndAwardBadges({ user, classroomId, newLevel, xpSettings, io
       }
 
       // DEDUPE: avoid creating many identical badge notifications in a short window
-      const recentBadge = await Notification.findOne({
-        user: user._id,
-        type: 'badge_earned',
-        message: badgeMessage,
-        createdAt: { $gte: new Date(Date.now() - 5000) } // 5s window
-      }).lean();
-      if (recentBadge) {
-        console.warn('[DEDUP] Skipping duplicate badge_earned for user', String(user._id));
+      // Safer dedupe: prefer existing badge-field check; skip if notification already exists
+      const existing = await Notification.findOne({ user: user._id, type: 'badge_earned', badge: badge._id }).lean();
+      if (existing) {
+        console.warn('[DEDUP] Skipping duplicate badge_earned (already exists) for user', String(user._id), String(badge._id));
       } else {
         const badgeNotification = await Notification.create({
           user: user._id,
@@ -395,7 +391,6 @@ async function checkAndAwardBadges({ user, classroomId, newLevel, xpSettings, io
           badge: badge._id,
           read: false
         });
-
         const populated = await populateNotification(badgeNotification._id);
         if (populated && io) {
           io.to(`user-${user._id}`).emit('notification', populated);
