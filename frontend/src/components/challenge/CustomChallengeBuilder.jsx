@@ -2,8 +2,8 @@ import { useState, useEffect, useContext, useRef } from 'react';
 import { 
   Plus, Trash2, GripVertical, ExternalLink, Paperclip, X, Eye, EyeOff, 
   ChevronDown, ChevronUp, Shield, AlertTriangle,
-  Target, Lightbulb, Clover, Percent, Clock, FolderOpen, Save, FileDown,
-  Lock, Unlock, Layers, Gift
+  Target, Lightbulb, Clover, Percent, Clock, Users, FolderOpen, Save, 
+  FileDown, Lock, Layers, Gift
 } from 'lucide-react';
 import { ThemeContext } from '../../context/ThemeContext';
 import {
