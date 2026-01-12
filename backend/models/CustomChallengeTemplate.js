@@ -15,7 +15,9 @@ const TemplateStepSchema = new mongoose.Schema({
   hintsEnabled: { type: Boolean, default: false },
   hints: [{ type: String, maxlength: 500 }],
   hintPenaltyPercent: { type: Number, default: null, min: 0, max: 100 },
-  isRequired: { type: Boolean, default: true }
+  isRequired: { type: Boolean, default: true },
+  applyPersonalMultiplier: { type: Boolean, default: false },
+  applyGroupMultiplier: { type: Boolean, default: false }
 }, { _id: false });
 
 const CustomChallengeTemplateItemSchema = new mongoose.Schema({
@@ -38,7 +40,9 @@ const CustomChallengeTemplateItemSchema = new mongoose.Schema({
   dueDateEnabled: { type: Boolean, default: false },
   isMultiStep: { type: Boolean, default: false },
   steps: [TemplateStepSchema],
-  completionBonus: { type: Number, default: 0, min: 0 }
+  completionBonus: { type: Number, default: 0, min: 0 },
+  applyPersonalMultiplier: { type: Boolean, default: false },
+  applyGroupMultiplier: { type: Boolean, default: false }
 }, { _id: false });
 
 const CustomChallengeTemplateSchema = new mongoose.Schema({

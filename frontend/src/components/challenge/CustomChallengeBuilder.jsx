@@ -295,7 +295,9 @@ const CustomChallengeBuilder = ({
               ? parseInt(step.hintPenaltyPercent) 
               : null,
             prerequisites: [],
-            isRequired: step.isRequired !== false
+            isRequired: step.isRequired !== false,
+            applyPersonalMultiplier: Boolean(step.applyPersonalMultiplier),
+            applyGroupMultiplier: Boolean(step.applyGroupMultiplier)
           })),
           completionBonus: parseInt(challenge.completionBonus) || 0
         };
@@ -426,7 +428,9 @@ const CustomChallengeBuilder = ({
       steps: challenge.steps?.length ? challenge.steps.map(s => ({
         ...s,
         solution: s.solutionPlaintext || s.solution || '',
-        prerequisites: s.prerequisites?.map(p => p.toString()) || []
+        prerequisites: s.prerequisites?.map(p => p.toString()) || [],
+        applyPersonalMultiplier: s.applyPersonalMultiplier || false,
+        applyGroupMultiplier: s.applyGroupMultiplier || false
       })) : [],
       completionBonus: challenge.completionBonus || 0
     });
@@ -505,7 +509,9 @@ const CustomChallengeBuilder = ({
           maxAttempts: step.maxAttempts ? parseInt(step.maxAttempts) : null,
           hintPenaltyPercent: step.hintPenaltyPercent !== '' && step.hintPenaltyPercent !== undefined ? parseInt(step.hintPenaltyPercent) : null,
           prerequisites: step.prerequisites || [],
-          isRequired: step.isRequired !== false
+          isRequired: step.isRequired !== false,
+          applyPersonalMultiplier: Boolean(step.applyPersonalMultiplier),
+          applyGroupMultiplier: Boolean(step.applyGroupMultiplier)
         })) : [],
         completionBonus: isMultiStepChallenge ? (parseInt(form.completionBonus) || 0) : 0
       };
@@ -676,7 +682,9 @@ const CustomChallengeBuilder = ({
       hints: [''],
       hintPenaltyPercent: '',
       prerequisites: [],
-      isRequired: true
+      isRequired: true,
+      applyPersonalMultiplier: false,
+      applyGroupMultiplier: false
     };
     setForm(prev => ({ ...prev, steps: [...prev.steps, newStep] }));
   };
@@ -920,7 +928,9 @@ const CustomChallengeBuilder = ({
                     hints: [''],
                     hintPenaltyPercent: '',
                     prerequisites: [],
-                    isRequired: true
+                    isRequired: true,
+                    applyPersonalMultiplier: false,
+                    applyGroupMultiplier: false
                   }] : prev.steps
                 }))}
               />
@@ -1351,6 +1361,34 @@ const CustomChallengeBuilder = ({
                           placeholder="0"
                         />
                       </div>
+
+                      {parseInt(step.bits) > 0 && (
+                        <div className="md:col-span-2 bg-base-200 p-2 rounded space-y-1">
+                          <div className="text-xs font-medium">Apply multipliers to bit rewards</div>
+                          <div className="form-control">
+                            <label className="label cursor-pointer justify-start gap-2 py-0">
+                              <input
+                                type="checkbox"
+                                className="checkbox checkbox-xs checkbox-primary"
+                                checked={step.applyPersonalMultiplier || false}
+                                onChange={(e) => updateStep(stepIndex, 'applyPersonalMultiplier', e.target.checked)}
+                              />
+                              <span className="label-text text-xs">Personal Multiplier</span>
+                            </label>
+                          </div>
+                          <div className="form-control">
+                            <label className="label cursor-pointer justify-start gap-2 py-0">
+                              <input
+                                type="checkbox"
+                                className="checkbox checkbox-xs checkbox-primary"
+                                checked={step.applyGroupMultiplier || false}
+                                onChange={(e) => updateStep(stepIndex, 'applyGroupMultiplier', e.target.checked)}
+                              />
+                              <span className="label-text text-xs">Group Multiplier</span>
+                            </label>
+                          </div>
+                        </div>
+                      )}
 
                       <div className="form-control">
                         <label className="label py-1">

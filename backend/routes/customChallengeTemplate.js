@@ -65,7 +65,9 @@ router.post('/', ensureAuthenticated, ensureTeacher, async (req, res) => {
         visible: c.visible !== false,
         dueDateEnabled: Boolean(c.dueDateEnabled),
         isMultiStep: Boolean(c.isMultiStep),
-        completionBonus: Number(c.completionBonus) || 0
+        completionBonus: Number(c.completionBonus) || 0,
+        applyPersonalMultiplier: Boolean(c.applyPersonalMultiplier),
+        applyGroupMultiplier: Boolean(c.applyGroupMultiplier)
       };
 
       if (c.isMultiStep && Array.isArray(c.steps)) {
@@ -84,7 +86,9 @@ router.post('/', ensureAuthenticated, ensureTeacher, async (req, res) => {
           hintsEnabled: Boolean(step.hintsEnabled),
           hints: Array.isArray(step.hints) ? step.hints.filter(h => h && h.trim()).map(h => h.trim().slice(0, 500)) : [],
           hintPenaltyPercent: step.hintPenaltyPercent != null ? Number(step.hintPenaltyPercent) : null,
-          isRequired: step.isRequired !== false
+          isRequired: step.isRequired !== false,
+          applyPersonalMultiplier: Boolean(step.applyPersonalMultiplier),
+          applyGroupMultiplier: Boolean(step.applyGroupMultiplier)
         }));
       }
 

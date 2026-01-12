@@ -288,7 +288,9 @@ router.post('/:classroomId/custom', ensureAuthenticated, ensureTeacher, async (r
           hints: Array.isArray(step.hints) ? step.hints.filter(h => h && h.trim()).map(h => h.trim()) : [],
           hintPenaltyPercent: step.hintPenaltyPercent !== undefined ? Number(step.hintPenaltyPercent) : null,
           prerequisites: prereqObjectIds,
-          isRequired: step.isRequired !== false
+          isRequired: step.isRequired !== false,
+          applyPersonalMultiplier: Boolean(step.applyPersonalMultiplier),
+          applyGroupMultiplier: Boolean(step.applyGroupMultiplier)
         });
       }
     }
@@ -483,7 +485,9 @@ router.put('/:classroomId/custom/:challengeId', ensureAuthenticated, ensureTeach
           hints: Array.isArray(step.hints) ? step.hints.filter(h => h && h.trim()).map(h => h.trim()) : [],
           hintPenaltyPercent: step.hintPenaltyPercent !== undefined ? Number(step.hintPenaltyPercent) : null,
           prerequisites: prereqObjectIds,
-          isRequired: step.isRequired !== false
+          isRequired: step.isRequired !== false,
+          applyPersonalMultiplier: Boolean(step.applyPersonalMultiplier),
+          applyGroupMultiplier: Boolean(step.applyGroupMultiplier)
         });
       }
       customChallenge.steps = processedSteps;
@@ -1337,12 +1341,42 @@ router.post('/:classroomId/custom/:challengeId/step/:stepId/verify', ensureAuthe
 
     const hintsUsed = stepProgress.hintsUsed || 0;
     const hintPenaltyPercent = step.hintPenaltyPercent ?? challenge.settings?.hintPenaltyPercent ?? 25;
-    let bitsAwarded = step.bits || 0;
+    let baseBitsAfterPenalty = step.bits || 0;
 
-    if (step.hintsEnabled && bitsAwarded > 0 && hintsUsed > 0) {
+    if (step.hintsEnabled && baseBitsAfterPenalty > 0 && hintsUsed > 0) {
       const totalPenalty = (hintPenaltyPercent * hintsUsed) / 100;
       const cappedPenalty = Math.min(totalPenalty, 0.8);
-      bitsAwarded = Math.round(bitsAwarded * (1 - cappedPenalty));
+      baseBitsAfterPenalty = Math.round(baseBitsAfterPenalty * (1 - cappedPenalty));
+    }
+
+    let bitsAwarded = baseBitsAfterPenalty;
+    let personalMult = 1;
+    let groupMult = 1;
+    let appliedPersonalMultiplier = false;
+    let appliedGroupMultiplier = false;
+
+    const scoped = getScopedUserStats(user, classroomId, { create: true });
+
+    if (baseBitsAfterPenalty > 0) {
+      if (step.applyPersonalMultiplier) {
+        personalMult = scoped.passive?.multiplier || 1;
+        appliedPersonalMultiplier = true;
+      }
+
+      if (step.applyGroupMultiplier) {
+        groupMult = await getUserGroupMultiplier(user._id, classroomId);
+        appliedGroupMultiplier = true;
+      }
+
+      let finalMultiplier = 1;
+      if (step.applyPersonalMultiplier) {
+        finalMultiplier += (personalMult - 1);
+      }
+      if (step.applyGroupMultiplier) {
+        finalMultiplier += (groupMult - 1);
+      }
+
+      bitsAwarded = Math.round(baseBitsAfterPenalty * finalMultiplier);
     }
 
     if (bitsAwarded > 0) {
@@ -1353,14 +1387,33 @@ router.post('/:classroomId/custom/:challengeId/step/:stepId/verify', ensureAuthe
         user.classroomBalances.push({ classroom: classroomId, balance: bitsAwarded });
       }
 
+      const totalMultiplier = (appliedPersonalMultiplier || appliedGroupMultiplier) 
+        ? (1 + (appliedPersonalMultiplier ? personalMult - 1 : 0) + (appliedGroupMultiplier ? groupMult - 1 : 0))
+        : 1;
+
+      let transactionDescription = `Completed Step: ${step.title} in ${customChallenge.title}`;
+      if (totalMultiplier > 1) {
+        transactionDescription += ` (${totalMultiplier.toFixed(2)}x multiplier)`;
+      }
+
       user.transactions = user.transactions || [];
       user.transactions.push({
         amount: bitsAwarded,
-        description: `Completed Step: ${step.title} in ${customChallenge.title}`,
+        description: transactionDescription,
         type: 'challenge_completion',
         challengeName: `${customChallenge.title} - ${step.title}`,
         classroom: classroomId,
         assignedBy: challenge.createdBy,
+        calculation: {
+          baseAmount: step.bits || 0,
+          hintsUsed: hintsUsed > 0 ? hintsUsed : undefined,
+          penaltyPercent: hintsUsed > 0 ? hintPenaltyPercent : undefined,
+          bitsAfterPenalty: baseBitsAfterPenalty !== (step.bits || 0) ? baseBitsAfterPenalty : undefined,
+          personalMultiplier: appliedPersonalMultiplier ? personalMult : undefined,
+          groupMultiplier: appliedGroupMultiplier ? groupMult : undefined,
+          totalMultiplier: totalMultiplier > 1 ? totalMultiplier : undefined,
+          finalAmount: bitsAwarded
+        },
         createdAt: new Date()
       });
 
@@ -1368,7 +1421,6 @@ router.post('/:classroomId/custom/:challengeId/step/:stepId/verify', ensureAuthe
       progress.bitsAwarded = (progress.bitsAwarded || 0) + bitsAwarded;
     }
 
-    const scoped = getScopedUserStats(user, classroomId, { create: true });
     const passiveTarget = scoped.cs ? scoped.cs.passiveAttributes : (user.passiveAttributes ||= {});
 
     if (stepProgress.multiplierAwarded === undefined) stepProgress.multiplierAwarded = 0;
@@ -1440,10 +1492,19 @@ router.post('/:classroomId/custom/:challengeId/step/:stepId/verify', ensureAuthe
 
     const rewardsEarned = {
       bits: bitsAwarded + (allRequiredComplete ? completionBonusAwarded : 0),
+      baseBits: step.bits || 0,
+      bitsAfterPenalty: baseBitsAfterPenalty,
       multiplier: stepProgress.multiplierAwarded || 0,
       luck: stepProgress.luckAwarded || 0,
       discount: stepProgress.discountAwarded || 0,
-      shield: stepProgress.shieldAwarded || false
+      shield: stepProgress.shieldAwarded || false,
+      personalMultiplier: appliedPersonalMultiplier ? personalMult : undefined,
+      groupMultiplier: appliedGroupMultiplier ? groupMult : undefined,
+      totalMultiplier: (appliedPersonalMultiplier || appliedGroupMultiplier) 
+        ? (1 + (appliedPersonalMultiplier ? personalMult - 1 : 0) + (appliedGroupMultiplier ? groupMult - 1 : 0))
+        : 1,
+      appliedPersonalMultiplier,
+      appliedGroupMultiplier
     };
 
     res.json({
@@ -1698,6 +1759,8 @@ router.get('/:classroomId/custom', ensureAuthenticated, async (req, res) => {
               maxAttempts: step.maxAttempts,
               prerequisites: step.prerequisites,
               isRequired: step.isRequired,
+              applyPersonalMultiplier: step.applyPersonalMultiplier || false,
+              applyGroupMultiplier: step.applyGroupMultiplier || false,
               isUnlocked: prereqsMet,
               progress: stepProgress ? {
                 attempts: stepProgress.attempts,

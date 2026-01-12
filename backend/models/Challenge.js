@@ -61,7 +61,9 @@ const ChallengeStepSchema = new mongoose.Schema({
   hints: [{ type: String, maxlength: 500 }],
   hintPenaltyPercent: { type: Number, default: null, min: 0, max: 100 },
   prerequisites: [{ type: mongoose.Schema.Types.ObjectId }],
-  isRequired: { type: Boolean, default: true }
+  isRequired: { type: Boolean, default: true },
+  applyPersonalMultiplier: { type: Boolean, default: false },
+  applyGroupMultiplier: { type: Boolean, default: false }
 }, { _id: true });
 
 const StepProgressSchema = new mongoose.Schema({
