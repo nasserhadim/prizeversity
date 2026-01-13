@@ -59,18 +59,47 @@ async function awardXP(userId, classroomId, xpAmount, reason, xpSettings, option
   // Track level-up rewards
   let levelUpRewardsAwarded = null;
 
-  // Award level-up rewards if enabled
+  // Award level-up rewards per level (so each intermediate level emits its own logs/notifications)
+  let levelUpNotificationsSent = false;
   if (leveledUp && xpSettings.levelUpRewards?.enabled) {
-    levelUpRewardsAwarded = await awardLevelUpRewards({
-      user,
-      classroomId,
-      oldLevel,
-      newLevel,
-      rewards: xpSettings.levelUpRewards,
-      xpSettings,
-      io: options.io || null
-    });
-  }
+    let lastAward = null;
+    for (let lvl = oldLevel + 1; lvl <= newLevel; lvl++) {
+      // Award rewards for this single level (oldLevel -> lvl)
+      // ensure awardLevelUpRewards captures prevStats internally before mutating cs
+      const awarded = await awardLevelUpRewards({
+         user,
+         classroomId,
+         oldLevel: lvl - 1,
+         newLevel: lvl,
+         rewards: xpSettings.levelUpRewards,
+         xpSettings,
+         io: options.io || null
+       });
+       lastAward = awarded;
+       // persist after each per-level award so the next iteration reads updated stats
+       try {
+         await user.save();
+       } catch (saveErr) {
+         console.warn('[awardXP] failed to persist user after level-up award for level', lvl, saveErr);
+       }
+       // Send per-level notification
+       try {
+         await sendLevelUpNotification({
+           userId,
+           classroomId,
+           newLevel: lvl,
+           reason,
+           levelUpRewards: awarded,
+           io: options.io || null
+         });
+         levelUpNotificationsSent = true;
+       } catch (e) {
+         console.warn('[awardXP] per-level sendLevelUpNotification failed for level', lvl, e);
+       }
+     }
+     // keep previous API shape: expose last level's awarded object
+     levelUpRewardsAwarded = lastAward;
+   }
 
   // Check for new badges earned (including retroactive unlocks)
   const earnedBadges = [];
@@ -197,9 +226,10 @@ async function awardXP(userId, classroomId, xpAmount, reason, xpSettings, option
   }
 
   await user.save();
-
+ 
   // Send level-up notification
-  if (leveledUp) {
+  // If no per-level notifications were emitted above, send a single notification as fallback
+  if (leveledUp && !levelUpNotificationsSent) {
     await sendLevelUpNotification({ 
       userId, 
       classroomId, 
@@ -337,7 +367,7 @@ async function awardLevelUpRewards({ user, classroomId, oldLevel, newLevel, rewa
     }
   }
 
-  // Get or create classroom stats entry
+  // Get or create classroom stats entry and capture prevStats BEFORE applying changes
   let cs = user.classroomStats?.find(s => String(s.classroom) === String(classroomId));
   if (!cs) {
     if (!user.classroomStats) user.classroomStats = [];
@@ -350,6 +380,7 @@ async function awardLevelUpRewards({ user, classroomId, oldLevel, newLevel, rewa
     user.classroomStats.push(cs);
   }
 
+  // capture previous snapshot for accurate logging
   const prevStats = {
     balance: cs.balance || 0,
     multiplier: cs.passiveAttributes?.multiplier || 1,
@@ -357,6 +388,14 @@ async function awardLevelUpRewards({ user, classroomId, oldLevel, newLevel, rewa
     discount: cs.passiveAttributes?.discount || 0,
     shield: cs.shieldCount || 0
   };
+  
+  const prev = {
+     balance: cs.balance || 0,
+     multiplier: cs.passiveAttributes?.multiplier || 1,
+     luck: cs.passiveAttributes?.luck || 1,
+     discount: cs.passiveAttributes?.discount || 0,
+     shield: cs.shieldCount || 0
+   };
 
   // Apply bit rewards
   if (awarded.bits > 0) {
@@ -404,11 +443,12 @@ async function awardLevelUpRewards({ user, classroomId, oldLevel, newLevel, rewa
     cs.shieldActive = cs.shieldCount > 0;
   }
 
+  // after applying, compute currStats for return/logging
   const currStats = {
     balance: cs.balance,
-    multiplier: cs.passiveAttributes.multiplier,
-    luck: cs.passiveAttributes.luck,
-    discount: cs.passiveAttributes.discount,
+    multiplier: cs.passiveAttributes?.multiplier,
+    luck: cs.passiveAttributes?.luck,
+    discount: cs.passiveAttributes?.discount,
     shield: cs.shieldCount
   };
 
@@ -514,7 +554,7 @@ async function awardLevelUpRewards({ user, classroomId, oldLevel, newLevel, rewa
     }
   }
 
-  return awarded;
+  return { ...awarded, prevStats, currStats };
 }
 
 async function sendLevelUpNotification({ userId, classroomId, newLevel, reason, levelUpRewards, io }) {
