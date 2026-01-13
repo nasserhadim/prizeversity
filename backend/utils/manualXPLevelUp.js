@@ -305,16 +305,55 @@ async function awardLevelUpRewardsManual({ user, classroomId, oldLevel, newLevel
   // Check and award badges
   const badgeResult = await checkAndAwardBadges({ user, classroomId, newLevel, xpSettings, io });
 
-  // Send level-up notification
-  await sendLevelUpNotificationManual({ 
-    userId: user._id, 
-    classroomId, 
-    newLevel, 
-    levelUpRewards: awarded,
-    io 
-  });
+  // Emit per-level rewards/notifications for manual adjustments (preserve old behaviour if single-level)
+  let manualNotified = false;
+  if (newLevel > oldLevel && xpSettings?.levelUpRewards?.enabled) {
+    for (let lvl = oldLevel + 1; lvl <= newLevel; lvl++) {
+      try {
+        // award this single level and get prev/curr for accurate logging
+        const res = await awardLevelUpRewardsManual({
+          user,
+          classroomId,
+          oldLevel: lvl - 1,
+          newLevel: lvl,
+          xpSettings,
+          io
+        });
 
-  return { levelUpRewards: awarded, badges: badgeResult };
+        // persist after each per-level award so next iteration sees updated stats
+        try {
+          await user.save();
+        } catch (saveErr) {
+          console.warn('[manualXPLevelUp] failed to persist user after level', lvl, saveErr);
+        }
+
+        // notify for this level using the exact award payload returned
+        await sendLevelUpNotificationManual({
+          userId: user._id,
+          classroomId,
+          newLevel: lvl,
+          levelUpRewards: res,
+          io
+        });
+        manualNotified = true;
+      } catch (e) {
+        console.warn('[manualXPLevelUp] per-level award/notify failed for level', lvl, e);
+      }
+    }
+  }
+  // If nothing sent above (e.g., level rewards disabled), send a single notification as before
+  if (!manualNotified) {
+    await sendLevelUpNotificationManual({ 
+      userId: user._id, 
+      classroomId, 
+      newLevel, 
+      levelUpRewards: awarded,
+      io 
+    });
+  }
+
+  // Return prev/curr snapshots for callers to use in per-level logging/notifications
+  return { levelUpRewards: awarded, badges: badgeResult, prevStats, currStats };
 }
 
 /**
