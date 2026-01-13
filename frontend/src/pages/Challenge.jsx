@@ -675,12 +675,36 @@ const Challenge = () => {
                   .sort((a, b) => a.order - b.order)
                   .map(customChallenge => {
                     const progress = userChallenge?.customChallengeProgress?.find(
-                      p => p.challengeId === customChallenge._id
+                      p => p.challengeId === customChallenge._id || p.challengeId?.toString() === customChallenge._id?.toString()
                     );
+                    const stepsWithProgress = customChallenge.isMultiStep && customChallenge.steps 
+                      ? customChallenge.steps.map(step => {
+                          const stepProg = progress?.stepProgress?.find(
+                            sp => sp.stepId === step._id || sp.stepId?.toString() === step._id?.toString()
+                          );
+                          const completedStepIds = progress?.stepProgress?.filter(sp => sp.completed)
+                            .map(sp => sp.stepId?.toString()) || [];
+                          const prereqsMet = (step.prerequisites || []).every(prereqId => 
+                            completedStepIds.includes(prereqId?.toString())
+                          );
+                          return { ...step, progress: stepProg || null, isUnlocked: prereqsMet };
+                        })
+                      : customChallenge.steps;
+                    
+                    // Calculate completedStepsCount from progress data if not provided by API
+                    const calculatedCompletedStepsCount = progress?.stepProgress 
+                      ? progress.stepProgress.filter(sp => sp.completed).length 
+                      : (customChallenge.completedStepsCount || 0);
+                    
                     return (
                       <CustomChallengeCard
                         key={customChallenge._id}
-                        challenge={{ ...customChallenge, progress }}
+                        challenge={{ 
+                          ...customChallenge, 
+                          progress, 
+                          steps: stepsWithProgress,
+                          completedStepsCount: calculatedCompletedStepsCount
+                        }}
                         classroomId={classroomId}
                         onUpdate={fetchChallengeData}
                         isTeacher={isTeacher}
