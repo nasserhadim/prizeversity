@@ -1407,19 +1407,62 @@ const ChallengeConfigModal = ({
 
             {}
             {(seriesType === 'custom' || seriesType === 'mixed') && (
-              <div className="bg-base-200 p-4 rounded-lg">
-                <div className="divider">Custom Challenges</div>
-                <CustomChallengeBuilder
-                  classroomId={classroomId}
-                  customChallenges={pendingCustomChallenges}
-                  onUpdate={() => {}}
-                  isActive={false}
-                  allowAddBeforeActive={true}
-                  draftMode={true}
-                  onDraftUpdate={setPendingCustomChallenges}
-                  onFileSelectionChange={setIsFileSelectionActive}
-                />
-              </div>
+              <>
+                {seriesType === 'custom' && (
+                  <div className="bg-base-200 p-3 rounded-lg">
+                    <h3 className="text-base font-semibold mb-3">Global Settings</h3>
+                    <div className="space-y-4">
+                      <div className="form-control">
+                        <div className="mt-3 bg-base-100 p-3 rounded-lg space-y-2">
+                          <div className="text-sm font-medium">Apply multipliers to custom challenge bit rewards:</div>
+                          <div className="flex flex-wrap gap-4">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                className="checkbox checkbox-sm checkbox-primary"
+                                checked={challengeConfig.applyPersonalMultiplier || false}
+                                onChange={(e) => setChallengeConfig(prev => ({ 
+                                  ...prev, 
+                                  applyPersonalMultiplier: e.target.checked 
+                                }))}
+                              />
+                              <span className="text-sm">Personal Multiplier</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                className="checkbox checkbox-sm checkbox-primary"
+                                checked={challengeConfig.applyGroupMultiplier || false}
+                                onChange={(e) => setChallengeConfig(prev => ({ 
+                                  ...prev, 
+                                  applyGroupMultiplier: e.target.checked 
+                                }))}
+                              />
+                              <span className="text-sm">Group Multiplier</span>
+                            </label>
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            When enabled, bit rewards will be scaled by the student's current multipliers. Individual challenges can override this setting.
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div className="bg-base-200 p-4 rounded-lg">
+                  <div className="divider">Custom Challenges</div>
+                  <CustomChallengeBuilder
+                    classroomId={classroomId}
+                    customChallenges={pendingCustomChallenges}
+                    onUpdate={() => {}}
+                    isActive={false}
+                    allowAddBeforeActive={true}
+                    draftMode={true}
+                    onDraftUpdate={setPendingCustomChallenges}
+                    onFileSelectionChange={setIsFileSelectionActive}
+                  />
+                </div>
+              </>
             )}
           </div>
 
