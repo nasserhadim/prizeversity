@@ -15,7 +15,7 @@ import RatingDistribution from '../components/RatingDistribution';
 import ExportButtons from '../components/ExportButtons';
 import { exportFeedbacksToCSV, exportFeedbacksToJSON } from '../utils/exportFeedbacks';
 import AverageRating from '../components/AverageRating';
-import { Settings } from 'lucide-react'; // ADD
+import { Settings, Info } from 'lucide-react'; // ADD Info
  
 const ClassroomFeedbackPage = ({ userId }) => {
   const { classroomId } = useParams();
@@ -568,7 +568,39 @@ const ClassroomFeedbackPage = ({ userId }) => {
  
                   <div className="form-control">
                     <label className="cursor-pointer label">
-                      <span className="label-text">Submit as Anonymous</span>
+                      <div className="flex items-center gap-2">
+                        <span className="label-text">Submit as Anonymous</span>
+                        {/* Info icon shown when rewards are configured - with scenario-specific messaging */}
+                        {(() => {
+                          const xpEnabled = classroom?.xpSettings?.enabled && Number(classroom?.xpSettings?.feedbackSubmission || 0) > 0;
+                          const bitsEnabled = (classroom?.feedbackRewardEnabled && classroom?.feedbackRewardAllowAnonymous) ||
+                                              (feedbackRewardConfig?.feedbackRewardEnabled && feedbackRewardConfig?.feedbackRewardAllowAnonymous);
+                          
+                          if (!xpEnabled && !bitsEnabled) return null;
+                          
+                          let tooltipMessage = '';
+                          
+                          if (xpEnabled && bitsEnabled) {
+                            // Both enabled
+                            tooltipMessage = "The feedback will appear anonymous, but since both XP and bit rewards are enabled for anonymous submissions, stat change and wallet transaction records will be created for reward tracking.";
+                          } else if (xpEnabled) {
+                            // Only XP enabled
+                            tooltipMessage = "The feedback will appear anonymous, but since feedback submission XP is enabled, a stat change record will be created for XP tracking.";
+                          } else if (bitsEnabled) {
+                            // Only bits enabled
+                            tooltipMessage = "The feedback will appear anonymous, but since bit rewards are enabled for anonymous submissions, a wallet transaction record will be created for reward tracking.";
+                          }
+                          
+                          return (
+                            <span
+                              className="tooltip tooltip-top"
+                              data-tip={tooltipMessage}
+                            >
+                              <Info size={14} className="text-warning" />
+                            </span>
+                          );
+                        })()}
+                      </div>
                       <input type="checkbox" className="toggle toggle-primary" checked={anonymous} onChange={(e)=>setAnonymous(e.target.checked)} />
                     </label>
                   </div>

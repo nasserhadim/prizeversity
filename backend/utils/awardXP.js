@@ -43,8 +43,8 @@ async function awardXP(userId, classroomId, xpAmount, reason, xpSettings, option
   const oldXP = classroomXPEntry.xp;
   const oldLevel = classroomXPEntry.level;
 
-  // Award XP
-  classroomXPEntry.xp += xpAmount;
+  // Award XP - Round to avoid floating point precision issues
+  classroomXPEntry.xp = Math.round((classroomXPEntry.xp + xpAmount) * 10) / 10;
 
   // Calculate new level
   const newLevel = calculateLevelFromXP(

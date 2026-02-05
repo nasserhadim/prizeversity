@@ -854,7 +854,7 @@ const Support = () => {
           question: "Can I submit anonymously?",
           answer: [
             "• Yes if you toggle Anonymous before submitting.",
-            "• Teachers may optionally allow anonymous submissions to receive the reward (configurable).",
+            "• Teachers may optionally allow anonymous submissions to receive a reward (configurable). Note that the feedback will appear anonymous, but if XP and/or bit rewards are enabled for anonymous submissions, stat change/wallet transaction records will be created for reward tracking purposes, and the records are visible to teachers and admins/TAs.",
             "• Anonymous still enforces cooldown and duplicate prevention."
           ],
           role: ["all"]

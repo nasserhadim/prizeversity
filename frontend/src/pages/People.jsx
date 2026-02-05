@@ -1242,7 +1242,7 @@ const getBanInfo = (student, classroomObj) => {
             ? new Date(student.lastAccessed).toLocaleString()
             : '—',
           Level: xpData.level || 1,
-          XP: xpData.xp || 0,
+          XP: Number(xpData.xp || 0).toFixed(1),
           Luck: stats.luck || 1,
           Multiplier: stats.multiplier || 1,
           GroupMultiplier: stats.groupMultiplier || 1,

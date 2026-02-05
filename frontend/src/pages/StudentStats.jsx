@@ -325,7 +325,7 @@ const StudentStats = () => {
                     Level {xpData.level}
                   </h2>
                   <p className={`text-sm ${subtleText}`}>
-                    {xpData.xp} / {xpData.nextLevelProgress.xpForNextLevel} XP
+                    {Number(xpData.xp).toFixed(1)} / {xpData.nextLevelProgress.xpForNextLevel} XP
                     <span className="relative inline-block ml-2" ref={popoverRef}>
                       <button
                         type="button"
