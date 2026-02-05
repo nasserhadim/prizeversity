@@ -7,6 +7,17 @@ const RARITY_WEIGHTS = { common: 0.2, uncommon: 0.4, rare: 0.6, epic: 0.8, legen
 export default function MysteryBoxDetailsModal({ open, onClose, box, userLuck }) {
   const [populatedBox, setPopulatedBox] = useState(box);
   const [rates, setRates] = useState([]);
+  const [previewLuck, setPreviewLuck] = useState(Number(userLuck || 1)); // NEW: preview luck state
+  const [sliderMax, setSliderMax] = useState(10); // NEW: dynamic slider max
+
+  // Reset preview luck when modal opens or userLuck changes
+  useEffect(() => {
+    if (open) {
+      setPreviewLuck(Number(userLuck || 1));
+      // Reset slider max, but ensure it accommodates the user's actual luck
+      setSliderMax(Math.max(10, Math.ceil(Number(userLuck || 1))));
+    }
+  }, [open, userLuck]);
 
   useEffect(() => {
     if (!open) return;
@@ -24,8 +35,9 @@ export default function MysteryBoxDetailsModal({ open, onClose, box, userLuck })
     }
   }, [open, box, populatedBox]);
 
+  // CHANGED: compute rates based on previewLuck instead of userLuck
   useEffect(() => {
-    console.log('[MysteryBoxDetailsModal] received userLuck prop:', userLuck);
+    console.log('[MysteryBoxDetailsModal] received userLuck prop:', userLuck, 'previewLuck:', previewLuck);
     if (!populatedBox?.mysteryBoxConfig?.itemPool) return;
 
     // NEW: don't compute/display rates when pool entries are still raw ids
@@ -33,7 +45,7 @@ export default function MysteryBoxDetailsModal({ open, onClose, box, userLuck })
     if (needsPopulate) return;
 
     const luckMultiplier = populatedBox.mysteryBoxConfig.luckMultiplier || 1.5;
-    const rawLuck = Number(userLuck || 1);
+    const rawLuck = Number(previewLuck || 1); // CHANGED: use previewLuck
     const luckBonus = (rawLuck - 1) * luckMultiplier; // matches backend
     const pool = populatedBox.mysteryBoxConfig.itemPool;
 
@@ -61,17 +73,18 @@ export default function MysteryBoxDetailsModal({ open, onClose, box, userLuck })
       };
     });
     setRates(final);
-  }, [populatedBox, userLuck]);
+  }, [populatedBox, previewLuck]); // CHANGED: depend on previewLuck
 
   if (!open || !populatedBox) return null;
 
   const cfg = populatedBox.mysteryBoxConfig;
   const luckMultiplier = cfg.luckMultiplier || 1.5;
-  const rawLuck = Number(userLuck || 1);
+  const rawLuck = Number(previewLuck || 1); // CHANGED: use previewLuck for display
+  const actualUserLuck = Number(userLuck || 1); // Keep actual luck for reference
   const luckBonus = (rawLuck - 1) * luckMultiplier;
   const pityEnabled = cfg.pityEnabled;
 
-  // NEW: build rarity-grouped math breakdown (Steps 1–3)
+  // NEW: build rarity-grouped math breakdown (Steps 1–3) using previewLuck
   const pool = cfg.itemPool || [];
   const rarityKeys = ['common','uncommon','rare','epic','legendary'];
   const byRarity = rarityKeys.reduce((acc, r) => {
@@ -101,6 +114,9 @@ export default function MysteryBoxDetailsModal({ open, onClose, box, userLuck })
     g.normTotal = (g.preNormTotal / preNormGrandTotal) * 100;
   });
 
+  // Helper to check if preview differs from actual
+  const isPreviewingDifferentLuck = Math.abs(previewLuck - actualUserLuck) > 0.01;
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 p-4 overflow-y-auto">
       <div className="bg-base-100 text-base-content w-full max-w-xl rounded-xl shadow-lg p-4 space-y-4 border border-base-300">
@@ -128,7 +144,7 @@ export default function MysteryBoxDetailsModal({ open, onClose, box, userLuck })
           </div>
           <div className="p-2 rounded bg-base-200">
             <div className="font-semibold">Your Luck:</div>
-            <div>{rawLuck.toFixed(1)}×</div>
+            <div>{actualUserLuck.toFixed(1)}×</div>
           </div>
           <div className="p-2 rounded bg-base-200 relative">
             <div className="font-semibold flex items-center gap-1">
@@ -162,8 +178,71 @@ export default function MysteryBoxDetailsModal({ open, onClose, box, userLuck })
             <Info size={16} /> Your Personalized Drop Rates
           </div>
           <div className="collapse-content space-y-3">
+            {/* NEW: Preview Luck Slider */}
+            <div className="bg-base-200 border border-base-300 rounded p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium flex items-center gap-2">
+                  🔮 Preview Luck:
+                  <span
+                    className="tooltip tooltip-top cursor-help"
+                    data-tip="Adjust this slider to see how different luck values would affect your drop rates. Your actual luck is shown above."
+                  >
+                    <Info size={14} className="text-info" />
+                  </span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0.1"
+                    className="input input-bordered input-xs w-20"
+                    value={previewLuck}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value);
+                      if (Number.isFinite(v) && v >= 0.1) {
+                        setPreviewLuck(v);
+                        // Dynamically expand slider max if user types a higher value
+                        if (v > sliderMax) {
+                          setSliderMax(Math.ceil(v));
+                        }
+                      } else {
+                        setPreviewLuck(actualUserLuck);
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-xs"
+                    onClick={() => setPreviewLuck(actualUserLuck)}
+                    disabled={!isPreviewingDifferentLuck}
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+              <input
+                type="range"
+                min="0.1"
+                max={sliderMax}
+                step="0.1"
+                className="range range-sm range-primary"
+                value={previewLuck}
+                onChange={(e) => setPreviewLuck(parseFloat(e.target.value))}
+              />
+              <div className="flex justify-between text-xs text-base-content/60">
+                <span>0.1× (Very Unlucky)</span>
+                <span>1.0× (Neutral)</span>
+                <span>{sliderMax}× (Very Lucky)</span>
+              </div>
+              {isPreviewingDifferentLuck && (
+                <div className="alert alert-warning py-2 text-xs">
+                  <span>⚠️ Previewing with {previewLuck.toFixed(1)}× luck (your actual luck is {actualUserLuck.toFixed(1)}×)</span>
+                </div>
+              )}
+            </div>
+
             <div className="alert alert-info py-2 text-xs">
-              Your luck ({rawLuck.toFixed(1)}×) with luck factor/multiplier {luckMultiplier.toFixed(1)}× gives a luck bonus {luckBonus.toFixed(2)}.
+              {isPreviewingDifferentLuck ? 'Preview' : 'Your'} luck ({rawLuck.toFixed(1)}×) with luck factor/multiplier {luckMultiplier.toFixed(1)}× gives a luck bonus {luckBonus.toFixed(2)}.
             </div>
             <div className="overflow-x-auto -mx-4 px-4">
               <table className="table table-xs">
@@ -172,7 +251,7 @@ export default function MysteryBoxDetailsModal({ open, onClose, box, userLuck })
                     <th>Item</th>
                     <th>Rarity</th>
                     <th>Base Drop Rate %</th>
-                    <th>Your Drop Rate %</th>
+                    <th>{isPreviewingDifferentLuck ? 'Preview' : 'Your'} Drop Rate %</th>
                     <th>Change</th>
                   </tr>
                 </thead>
@@ -196,7 +275,7 @@ export default function MysteryBoxDetailsModal({ open, onClose, box, userLuck })
                       <td>{r.basePct}%</td>
                       <td>{r.userPct}%</td>
                       <td className={parseFloat(r.changePct) > 0 ? 'text-success' : (parseFloat(r.changePct) < 0 ? 'text-error' : '')}>
-                        {r.changePct}%
+                        {parseFloat(r.changePct) > 0 ? '+' : ''}{r.changePct}%
                       </td>
                     </tr>
                   ))}
@@ -224,15 +303,16 @@ export default function MysteryBoxDetailsModal({ open, onClose, box, userLuck })
 
               {/* Step 2 */}
               <div className="bg-info/10 border border-info/30 rounded p-2">
-                <div className="font-semibold mb-1">Step 2: Apply Luck (Your ×{rawLuck.toFixed(1)} luck stat and the mystery box luck factor/multiplier x{luckMultiplier.toFixed(1)})</div>
+                <div className="font-semibold mb-1">
+                  Step 2: Apply Luck ({isPreviewingDifferentLuck ? 'Preview' : 'Your'} ×{rawLuck.toFixed(1)} luck stat and the mystery box luck factor/multiplier x{luckMultiplier.toFixed(1)})
+                </div>
                 <div className="bg-base-100 p-2 rounded mb-2">
                   Why (luck − 1)? Luck 1.0 is neutral. Luck bonus = ({rawLuck.toFixed(1)} − 1) × {luckMultiplier.toFixed(1)} = <span className="font-mono">{luckBonus.toFixed(2)}</span>
                 </div>
                 {rarityKeys.filter(r => byRarity[r].count > 0).map(r => {
                   const g = byRarity[r];
                   const weight = g.weight; // 0.2, 0.4, ... 1.0
-                  // show the “× count” since luck adjustment is applied per item of this rarity
-                  const adjPerItem = luckBonus * weight * 10;
+                  // show the "× count" since luck adjustment is applied per item of this rarity
                   const formulaRight = `${g.baseTotal.toFixed(1)} + (${luckBonus.toFixed(2)} × ${weight.toFixed(1)} × 10 × ${g.count})`;
                   return (
                     <div key={r} className="flex justify-between items-center">
