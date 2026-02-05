@@ -50,8 +50,10 @@ export default function MysteryBoxDetailsModal({ open, onClose, box, userLuck })
 
     const final = adjusted.map(r => {
       const pct = (r.preNorm / totalPreNorm) * 100;
+      const itemPrice = r.entry.item?.price;
       return {
         name: r.entry.item?.name || '(item)',
+        price: itemPrice,
         rarity: r.rarity,
         basePct: r.base.toFixed(2),
         userPct: pct.toFixed(2),
@@ -177,7 +179,12 @@ export default function MysteryBoxDetailsModal({ open, onClose, box, userLuck })
                 <tbody>
                   {rates.map(r => (
                     <tr key={r.name + r.rarity}>
-                      <td>{r.name}</td>
+                      <td>
+                        {r.name}
+                        {r.price != null && (
+                          <span className="text-base-content/60 ml-1">({r.price} ₿)</span>
+                        )}
+                      </td>
                       <td>
                         <span className={`badge badge-sm ${
                           r.rarity === 'legendary' ? 'badge-warning' :
