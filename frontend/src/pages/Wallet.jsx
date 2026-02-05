@@ -309,6 +309,10 @@ const Wallet = () => {
           ? Number(tx.amount) > 0
           : Number(tx.amount) < 0;
 
+      // Define assignerId from the transaction's assignedBy field
+      const ab = tx?.assignedBy;
+      const assignerId = ab && typeof ab === 'object' ? (ab._id || ab.id) : ab;
+
       const assignerMatch = !assignerFilter || assignerFilter === assignerId;
 
       const searchMatch = matchesDeep(tx);

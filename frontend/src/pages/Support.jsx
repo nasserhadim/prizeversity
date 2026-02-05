@@ -1230,7 +1230,7 @@ const Support = () => {
         <div className="text-center mb-8"> {/* reduced bottom margin since search follows */}
           <h1 className="text-4xl font-bold text-base-content mb-4">Help & Support</h1>
           <p className="text-lg text-base-content/70 max-w-2xl mx-auto">
-            Find answers to common questions, learn about PrizeVersity features, or get in touch with our support team.
+            Find answers to common questions, learn about PrizeVersity features, or get in touch with us.
           </p>
         </div>
 
@@ -1294,7 +1294,7 @@ const Support = () => {
               <Mail size={40} className="mx-auto text-primary mb-4" />
               <h3 className="card-title justify-center mb-2">Contact Support</h3>
               <p className="text-base-content/70 mb-4">
-                Need personalized help? Email our support team.
+                Need personalized help? Email us.
               </p>
               <a 
                 href="mailto:info@prizeversity.com"
@@ -1486,7 +1486,7 @@ const Support = () => {
           <div className="card-body text-center">
             <h2 className="card-title justify-center mb-4">Still Need Help?</h2>
             <p className="text-base-content/70 mb-6 max-w-2xl mx-auto">
-              Can't find what you're looking for? Our support team is here to help! 
+              Can't find what you're looking for? We are here to help! 
               Send us an email and we'll get back to you as soon as possible.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">

@@ -427,10 +427,8 @@ router.post('/classroom', ensureAuthenticated, async (req, res) => {
               // Log stat change so notification shows "xp: A → B (+Δ)"
               if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
                 try {
-                  // only advertise a "Feedback reward: N bits" effect when the classroom actually has the bit reward enabled
-                  const effectsText = (cls2.feedbackRewardEnabled && Number(cls2.feedbackRewardBits) > 0)
-                    ? `Feedback reward: ${cls2.feedbackRewardBits} bits`
-                    : undefined;
+                  // Build effects text for feedback submission XP
+                  const effectsText = `Feedback submission: +${xpAmount} XP`;
 
                   await logStatChanges({
                     io: req.app.get('io'),
