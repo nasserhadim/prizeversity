@@ -131,11 +131,10 @@ const ChallengeUpdateModal = ({
   });
 
   useEffect(() => {
-    // NEW: Fetch templates when modal opens
     if (showUpdateModal && typeof fetchTemplates === 'function') {
       fetchTemplates();
     }
-  }, [showUpdateModal]);
+  }, [showUpdateModal, fetchTemplates]);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -195,6 +194,7 @@ const ChallengeUpdateModal = ({
           ? localDateTimeToUTC(updateData.dueDate) 
           : (updateData.dueDateEnabled ? null : undefined)
       };
+      
       await updateChallenge(classroomId, updatePayload);
       toast.success('Challenge updated successfully');
       setShowUpdateModal(false);
@@ -274,69 +274,68 @@ const ChallengeUpdateModal = ({
               />
             </div>
 
-            {/* Templates Section */}
-            <div className="collapse collapse-arrow bg-base-200 rounded-lg">
-              <input type="checkbox" />
-              <div className="collapse-title font-semibold flex items-center gap-2">
-                Templates {templates?.length > 0 && `(${templates.length})`}
-              </div>
-              <div className="collapse-content">
-                <div className="flex justify-end mb-3">
-                  {setShowSaveTemplateModal && (
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-primary"
-                      onClick={() => {
-                        // Store the current update data and custom challenges for template save
-                        window.__templateSaveData = {
-                          config: updateData,
-                          customChallenges: challengeData?.customChallenges || []
-                        };
-                        setShowSaveTemplateModal(true);
-                      }}
-                    >
-                      Save Current Config
-                    </button>
-                  )}
+            {/* Series Settings Templates Section */}
+            {showLegacy && (
+              <div className="collapse collapse-arrow bg-base-200 rounded-lg">
+                <input type="checkbox" />
+                <div className="collapse-title font-semibold flex items-center gap-2">
+                  Series Settings Templates {templates?.length > 0 && `(${templates.length})`}
                 </div>
-                {templates && templates.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {templates.map((template) => (
-                      <div key={template._id} className="flex items-center justify-between bg-base-100 p-3 rounded">
-                        <div className="min-w-0">
-                          <div className="font-medium break-words">{template.name}</div>
-                          <div className="text-xs text-base-content/60">
-                            {template.createdAt ? new Date(template.createdAt).toLocaleString() : '—'}
+                <div className="collapse-content">
+                  <p className="text-xs text-base-content/60 mb-3">
+                    Save/load legacy challenge settings (bits, multipliers, hints, etc.). 
+                    Custom challenge templates are managed separately in the Custom Challenges section below.
+                  </p>
+                  <div className="flex justify-end mb-3">
+                    {setShowSaveTemplateModal && (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary"
+                        onClick={() => {
+                          window.__templateSaveData = {
+                            config: updateData,
+                            customChallenges: challengeData?.customChallenges || []
+                          };
+                          setShowSaveTemplateModal(true);
+                        }}
+                      >
+                        Save Current Config
+                      </button>
+                    )}
+                  </div>
+                  {templates && templates.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {templates.map((template) => (
+                        <div key={template._id} className="flex items-center justify-between bg-base-100 p-3 rounded">
+                          <div className="min-w-0">
+                            <div className="font-medium break-words">{template.name}</div>
+                            <div className="text-xs text-base-content/60">
+                              {template.createdAt ? new Date(template.createdAt).toLocaleString() : '—'}
+                            </div>
+                          </div>
+                          <div className="flex gap-1 flex-shrink-0">
+                            <button
+                              className="btn btn-xs btn-ghost"
+                              onClick={() => handleLoadTemplate && handleLoadTemplate(template, setUpdateData)}
+                              title="Load template"
+                            >
+                              Load
+                            </button>
+                            <button
+                              className="btn btn-xs btn-ghost text-error"
+                              onClick={() => handleDeleteTemplate && handleDeleteTemplate(template._id, template.name)}
+                              title="Delete template"
+                            >
+                              ✕
+                            </button>
                           </div>
                         </div>
-                        <div className="flex gap-1 flex-shrink-0">
-                          <button
-                            className="btn btn-xs btn-ghost"
-                            onClick={() => handleLoadTemplate && handleLoadTemplate(template, setUpdateData)}
-                            title="Load template"
-                          >
-                            Load
-                          </button>
-                          <button
-                            className="btn btn-xs btn-ghost text-error"
-                            onClick={() => handleDeleteTemplate && handleDeleteTemplate(template._id, template.name)}
-                            title="Delete template"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-base-content/60">No templates saved yet.</p>
-                )}
-              </div>
-            </div>
-
-            {showCustom && (
-              <div className="text-xs text-gray-500">
-                Custom challenges save immediately when you create/update/reorder them. The button below saves series settings (legacy challenges, rewards, hints, due date, visibility).
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-base-content/60">No series settings templates saved yet.</p>
+                  )}
+                </div>
               </div>
             )}
 
@@ -1149,6 +1148,9 @@ const ChallengeUpdateModal = ({
             {showCustom && (
               <>
                 <div className="divider">Custom Challenges</div>
+                <p className="text-xs text-gray-500 mb-2">
+                  Custom challenges save immediately. Use the Templates dropdown below to save/load custom challenge templates (separate from series settings templates above).
+                </p>
                 
                 <CustomChallengeBuilder
                   classroomId={classroomId}

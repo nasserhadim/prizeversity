@@ -859,20 +859,36 @@ const TeacherView = ({
     setCustomChallengeFilter('all');
   };
 
-  const getCustomRewardsLabel = (cc) => {
+  const getCustomRewardsLabel = (cc, currentStep = null) => {
     if (!cc) return '—';
     const rewards = [];
-    const bits = Number(cc.bits || 0);
-    const multiplier = Number(cc.multiplier || 1.0);
-    const luck = Number(cc.luck || 1.0);
-    const discount = Number(cc.discount || 0);
-    const shield = Boolean(cc.shield);
+    
+    if (currentStep) {
+      const bits = Number(currentStep.bits || 0);
+      const multiplier = Number(currentStep.multiplier || 1.0);
+      const luck = Number(currentStep.luck || 1.0);
+      const discount = Number(currentStep.discount || 0);
+      const shield = Boolean(currentStep.shield);
 
-    if (bits > 0) rewards.push(`${bits} ₿`);
-    if (multiplier > 1.0) rewards.push(`${multiplier}x Multiplier`);
-    if (luck > 1.0) rewards.push(`${luck}x Luck`);
-    if (discount > 0) rewards.push(`${discount}% Discount`);
-    if (shield) rewards.push('Shield');
+      if (bits > 0) rewards.push(`${bits} ₿`);
+      if (multiplier > 1.0) rewards.push(`+${((multiplier - 1) * 100).toFixed(0)}% mult`);
+      if (luck > 1.0) rewards.push(`+${((luck - 1) * 100).toFixed(0)}% luck`);
+      if (discount > 0) rewards.push(`${discount}% disc`);
+      if (shield) rewards.push('Shield');
+    } else {
+      // For regular challenges, show challenge rewards
+      const bits = Number(cc.bits || 0);
+      const multiplier = Number(cc.multiplier || 1.0);
+      const luck = Number(cc.luck || 1.0);
+      const discount = Number(cc.discount || 0);
+      const shield = Boolean(cc.shield);
+
+      if (bits > 0) rewards.push(`${bits} ₿`);
+      if (multiplier > 1.0) rewards.push(`+${((multiplier - 1) * 100).toFixed(0)}% mult`);
+      if (luck > 1.0) rewards.push(`+${((luck - 1) * 100).toFixed(0)}% luck`);
+      if (discount > 0) rewards.push(`${discount}% disc`);
+      if (shield) rewards.push('Shield');
+    }
 
     return rewards.length ? rewards.join(', ') : 'No rewards';
   };
@@ -1051,7 +1067,14 @@ const TeacherView = ({
         const allCompleted = totalChallenges > 0 && completedChallenges === totalChallenges;
         const anyFailed = perChallenge.some(x => x.failed);
 
-        const currentEntry = perChallenge.find(x => x.started && !x.completed && !x.failed);
+        const inProgressEntries = perChallenge.filter(x => x.started && !x.completed && !x.failed);
+        const currentEntry = inProgressEntries.length > 0
+          ? inProgressEntries.reduce((latest, entry) => {
+              const latestTime = latest.p?.startedAt ? new Date(latest.p.startedAt).getTime() : 0;
+              const entryTime = entry.p?.startedAt ? new Date(entry.p.startedAt).getTime() : 0;
+              return entryTime > latestTime ? entry : latest;
+            })
+          : null;
         const currentChallenge = currentEntry?.cc || null;
 
         const statusLabel = allCompleted
@@ -1505,7 +1528,7 @@ const TeacherView = ({
                       <th className="whitespace-nowrap">Current Challenge</th>
                       <th className="hidden md:table-cell whitespace-nowrap">Challenge Data</th>
                       <th className="whitespace-nowrap">Solution</th>
-                      <th className="hidden xl:table-cell whitespace-nowrap">Available Rewards</th> {}
+                      <th className="hidden xl:table-cell whitespace-nowrap">Available Rewards</th>
                       <th className="hidden sm:table-cell whitespace-nowrap">Started At</th>
                       <th className="hidden lg:table-cell whitespace-nowrap">Completed At</th>
                       <th className="whitespace-nowrap">Status</th>
@@ -2202,7 +2225,14 @@ const TeacherView = ({
                       const anyFailed = perChallenge.some(x => x.failed);
 
                       
-                      const currentEntry = perChallenge.find(x => x.started && !x.completed && !x.failed);
+                      const inProgressEntries = perChallenge.filter(x => x.started && !x.completed && !x.failed);
+                      const currentEntry = inProgressEntries.length > 0
+                        ? inProgressEntries.reduce((latest, entry) => {
+                            const latestTime = latest.p?.startedAt ? new Date(latest.p.startedAt).getTime() : 0;
+                            const entryTime = entry.p?.startedAt ? new Date(entry.p.startedAt).getTime() : 0;
+                            return entryTime > latestTime ? entry : latest;
+                          })
+                        : null;
                       const currentChallenge = currentEntry?.cc || null;
                       const currentProgress = currentEntry?.p || null;
 
@@ -2224,7 +2254,21 @@ const TeacherView = ({
                         .map(p => new Date(p.completedAt))
                         .sort((a, b) => b - a)[0];
 
-                      const currentSolution = currentProgress?.generatedContent?.expectedAnswer || null;
+                      let currentSolution = currentProgress?.generatedContent?.expectedAnswer || null;
+                      let currentStepForSolution = null;
+                      if (currentChallenge?.isMultiStep && currentProgress?.stepProgress) {
+                        currentStepForSolution = currentChallenge.steps?.find(s => {
+                          const sp = currentProgress.stepProgress.find(sp => 
+                            sp.stepId?.toString() === s._id?.toString()
+                          );
+                          return sp?.startedAt && !sp?.completed;
+                        });
+                        if (currentStepForSolution) {
+                          currentSolution = currentStepForSolution.solution || currentStepForSolution.solutionPlaintext || null;
+                        }
+                      } else if (currentChallenge && !currentSolution) {
+                        currentSolution = currentChallenge.solution || currentChallenge.solutionPlaintext || null;
+                      }
 
                       return (
                         <tr key={uc._id} className="align-top">
@@ -2237,7 +2281,31 @@ const TeacherView = ({
                             <div className="flex flex-col">
                               <span className="font-medium">{completedChallenges}/{totalChallenges} completed</span>
                               {currentChallenge ? (
-                                <span className="text-xs text-gray-500">Working on: {currentChallenge.title}</span>
+                                <>
+                                  <span className="text-xs text-gray-500">Working on: {currentChallenge.title}</span>
+                                  {currentChallenge.isMultiStep && currentProgress?.stepProgress && (
+                                    <div className="text-xs text-gray-400 mt-1">
+                                      {(() => {
+                                        const completedSteps = currentProgress.stepProgress.filter(sp => sp.completed).length;
+                                        const totalSteps = currentChallenge.steps?.length || 0;
+                                        const currentStep = currentChallenge.steps?.find(s => {
+                                          const stepProg = currentProgress.stepProgress.find(sp => 
+                                            sp.stepId?.toString() === s._id?.toString()
+                                          );
+                                          return stepProg?.startedAt && !stepProg?.completed;
+                                        });
+                                        return (
+                                          <>
+                                            <span className="badge badge-xs badge-ghost">{completedSteps}/{totalSteps} steps</span>
+                                            {currentStep && (
+                                              <span className="ml-1">→ {currentStep.title}</span>
+                                            )}
+                                          </>
+                                        );
+                                      })()}
+                                    </div>
+                                  )}
+                                </>
                               ) : anyFailed && !allCompleted ? (
                                 <span className="text-xs text-gray-500">No active challenge (failed / max attempts reached)</span>
                               ) : null}
@@ -2263,7 +2331,29 @@ const TeacherView = ({
 
                           <td className="hidden md:table-cell">
                             {currentChallenge ? (
-                              <div className="text-sm font-medium">{currentChallenge.title}</div>
+                              <div>
+                                <div className="text-sm font-medium">{currentChallenge.title}</div>
+                                {currentChallenge.isMultiStep && currentProgress?.stepProgress && (
+                                  <div className="text-xs text-gray-500 mt-1">
+                                    {(() => {
+                                      const completedSteps = currentProgress.stepProgress.filter(sp => sp.completed).length;
+                                      const totalSteps = currentChallenge.steps?.length || 0;
+                                      const currentStep = currentChallenge.steps?.find(s => {
+                                        const sp = currentProgress.stepProgress.find(sp => 
+                                          sp.stepId?.toString() === s._id?.toString()
+                                        );
+                                        return sp?.startedAt && !sp?.completed;
+                                      });
+                                      return (
+                                        <>
+                                          <span className="badge badge-xs badge-ghost mr-1">{completedSteps}/{totalSteps} steps</span>
+                                          {currentStep && <span>→ {currentStep.title}</span>}
+                                        </>
+                                      );
+                                    })()}
+                                  </div>
+                                )}
+                              </div>
                             ) : (
                               <span className="text-sm text-gray-400">—</span>
                             )}
@@ -2273,8 +2363,13 @@ const TeacherView = ({
                             {currentChallenge ? (
                               <div className="space-y-1">
                                 <div className="text-xs font-medium text-blue-600">
-                                  {getCustomRewardsLabel(currentChallenge)}
+                                  {getCustomRewardsLabel(currentChallenge, currentStepForSolution)}
                                 </div>
+                                {currentChallenge.isMultiStep && currentStepForSolution && (
+                                  <div className="text-xs text-gray-500 mt-1">
+                                    Step: {currentStepForSolution.title}
+                                  </div>
+                                )}
 
                                 {currentChallenge?.hintsEnabled && (Number(currentChallenge?.hintsCount) || (currentChallenge?.hints || []).length || 0) > 0 && (
                                   <>
@@ -2299,19 +2394,24 @@ const TeacherView = ({
 
                           <td className="hidden lg:table-cell">
                             {currentSolution ? (
-                              <div className="flex items-center gap-2">
-                                <code className="bg-green-100 px-2 py-1 rounded text-sm font-mono text-green-700">
-                                  {showPasswords[`custom-${uc._id}`] 
-                                    ? currentSolution
-                                    : '••••••••'}
-                                </code>
-                                <button
-                                  onClick={() => togglePasswordVisibility(`custom-${uc._id}`)}
-                                  className="btn btn-ghost btn-xs"
-                                  aria-label="Toggle solution visibility"
-                                >
-                                  {showPasswords[`custom-${uc._id}`] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                </button>
+                              <div>
+                                {currentStepForSolution && (
+                                  <div className="text-xs text-gray-400 mb-1">Step: {currentStepForSolution.title}</div>
+                                )}
+                                <div className="flex items-center gap-2">
+                                  <code className="bg-green-100 px-2 py-1 rounded text-sm font-mono text-green-700">
+                                    {showPasswords[`custom-${uc._id}`] 
+                                      ? currentSolution
+                                      : '••••••••'}
+                                  </code>
+                                  <button
+                                    onClick={() => togglePasswordVisibility(`custom-${uc._id}`)}
+                                    className="btn btn-ghost btn-xs"
+                                    aria-label="Toggle solution visibility"
+                                  >
+                                    {showPasswords[`custom-${uc._id}`] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                  </button>
+                                </div>
                               </div>
                             ) : (
                               <span className="text-sm text-gray-400">-</span>

@@ -27,6 +27,67 @@ const AttachmentSchema = new mongoose.Schema({
   size: { type: Number, required: true }
 }, { _id: true });
 
+const ChallengeStepSchema = new mongoose.Schema({
+  title: { type: String, required: true, maxlength: 200 },
+  description: { type: String, maxlength: 2000 },
+  templateType: { 
+    type: String, 
+    enum: ['passcode', 'cipher', 'hash', 'hidden-message', 'pattern-find'],
+    default: 'passcode'
+  },
+  templateConfig: {
+    cipherType: { type: String, enum: ['caesar', 'base64', 'rot13', 'atbash', 'vigenere'] },
+    difficulty: { type: String, enum: ['easy', 'medium', 'hard'], default: 'medium' },
+    wordCategory: { type: String },
+    customWordList: [{ type: String }],
+    hashAlgorithm: { type: String, enum: ['md5', 'sha256'], default: 'sha256' },
+    codeTemplate: { type: String },
+    language: { type: String, enum: ['javascript', 'python', 'pseudocode'], default: 'pseudocode' },
+    variableRanges: { type: mongoose.Schema.Types.Mixed },
+    baseImagePath: { type: String },
+    embedMethod: { type: String, enum: ['exif', 'filename'], default: 'exif' },
+    patternLength: { type: Number, default: 6, min: 4, max: 12 },
+    noiseLevel: { type: String, enum: ['low', 'medium', 'high'], default: 'medium' }
+  },
+  solutionHash: { type: String },
+  solutionPlaintext: { type: String, maxlength: 500 },
+  bits: { type: Number, default: 0, min: 0 },
+  multiplier: { type: Number, default: 1.0, min: 0 },
+  luck: { type: Number, default: 1.0, min: 0 },
+  discount: { type: Number, default: 0, min: 0, max: 100 },
+  shield: { type: Boolean, default: false },
+  maxAttempts: { type: Number, default: null },
+  hintsEnabled: { type: Boolean, default: false },
+  hints: [{ type: String, maxlength: 500 }],
+  hintPenaltyPercent: { type: Number, default: null, min: 0, max: 100 },
+  prerequisites: [{ type: mongoose.Schema.Types.ObjectId }],
+  isRequired: { type: Boolean, default: true },
+  applyPersonalMultiplier: { type: Boolean, default: false },
+  applyGroupMultiplier: { type: Boolean, default: false }
+}, { _id: true });
+
+const StepProgressSchema = new mongoose.Schema({
+  stepId: { type: mongoose.Schema.Types.ObjectId, required: true },
+  completed: { type: Boolean, default: false },
+  completedAt: { type: Date },
+  startedAt: { type: Date },
+  attempts: { type: Number, default: 0 },
+  hintsUsed: { type: Number, default: 0 },
+  hintsUnlocked: [{ type: String }],
+  bitsAwarded: { type: Number, default: 0 },
+  multiplierAwarded: { type: Number, default: 0 },
+  luckAwarded: { type: Number, default: 0 },
+  discountAwarded: { type: Number, default: 0 },
+  shieldAwarded: { type: Boolean, default: false },
+  generatedContent: {
+    displayData: { type: String },
+    expectedAnswer: { type: String },
+    generationSeed: { type: String },
+    generatedAt: { type: Date },
+    metadata: { type: mongoose.Schema.Types.Mixed }
+  }
+}, { _id: false });
+
 // Schema for teacher-created custom challenges
 const CustomChallengeSchema = new mongoose.Schema({
   order: { type: Number, required: true },
@@ -34,6 +95,7 @@ const CustomChallengeSchema = new mongoose.Schema({
   description: { type: String, default: '' },
   externalUrl: { type: String, default: '' },
   solutionHash: { type: String },
+  solutionPlaintext: { type: String, maxlength: 500 },
   
   // Template configuration
   templateType: { 
@@ -82,6 +144,11 @@ const CustomChallengeSchema = new mongoose.Schema({
   visible: { type: Boolean, default: true },
   dueDateEnabled: { type: Boolean, default: false },
   dueDate: { type: Date, default: null },
+  
+  isMultiStep: { type: Boolean, default: false },
+  steps: [ChallengeStepSchema],
+  completionBonus: { type: Number, default: 0, min: 0 },
+  
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 }, { _id: true });
@@ -99,12 +166,16 @@ const CustomChallengeProgressSchema = new mongoose.Schema({
   
   // Template-generated content for this student
   generatedContent: {
-    displayData: { type: String },       // What the student sees (encrypted text, hash, code, etc.)
-    expectedAnswer: { type: String },    // The unique answer they must submit
-    generationSeed: { type: String },    // For reproducibility
+    displayData: { type: String },
+    expectedAnswer: { type: String },
+    generationSeed: { type: String },
     generatedAt: { type: Date },
-    metadata: { type: mongoose.Schema.Types.Mixed }  // Template-specific data
-  }
+    metadata: { type: mongoose.Schema.Types.Mixed }
+  },
+  
+  stepProgress: [StepProgressSchema],
+  currentStepId: { type: mongoose.Schema.Types.ObjectId },
+  completionBonusAwarded: { type: Boolean, default: false }
 }, { _id: false });
 
 const UserChallengeSchema = new mongoose.Schema({

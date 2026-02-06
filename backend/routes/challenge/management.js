@@ -89,6 +89,10 @@ router.post('/:challengeId/remove-student', ensureAuthenticated, ensureTeacher, 
 });
 
 router.get('/:classroomId', ensureAuthenticated, async (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  
   try {
     const { classroomId } = req.params;
     const userId = req.user._id;
@@ -169,8 +173,17 @@ router.get('/:classroomId', ensureAuthenticated, async (req, res) => {
     );
 
     if (isTeacher) {
+      const challengeObj = challenge.toObject ? challenge.toObject() : JSON.parse(JSON.stringify(challenge));
+      
+      if (challengeObj.customChallenges && Array.isArray(challengeObj.customChallenges)) {
+        challengeObj.customChallenges = challengeObj.customChallenges.map(cc => ({
+          ...cc,
+          solution: cc.solutionPlaintext || ''
+        }));
+      }
+      
       return res.json({ 
-        challenge,
+        challenge: challengeObj,
         userChallenge,
         isTeacher: true
       });
