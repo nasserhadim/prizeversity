@@ -138,6 +138,12 @@ const UserSchema = new mongoose.Schema({
     equippedBadge: { type: mongoose.Schema.Types.ObjectId, ref: 'Badge', default: null }
   }],
   classroomStats: { type: [ClassroomStatsSchema], default: [] },
+  // Add classroom activity durations tracking
+  classroomActivityDurations: [{
+    classroom: { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom' },
+    totalSeconds: { type: Number, default: 0 },
+    lastSessionStart: { type: Date, default: null }
+  }],
 }, { 
   timestamps: true  // This should be here to automatically add createdAt and updatedAt
 });

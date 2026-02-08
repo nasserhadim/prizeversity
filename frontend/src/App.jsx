@@ -37,6 +37,7 @@ import Terms from './pages/Terms';
 import AdminModeration from './pages/AdminModeration';
 import NotFound from './pages/NotFound';
 import Badges from './pages/Badges';
+import ClassroomLayout from './components/ClassroomLayout';
 
 const App = () => {
   const { user } = useContext(AuthContext);
@@ -69,27 +70,31 @@ const App = () => {
           <Route path="/admin/moderation" element={<AdminModeration />} />
           <Route path="/classrooms" element={<ClassroomPage />} />
           <Route path="/classrooms/archived" element={<ArchivedClassrooms />} />
-          <Route path="/classroom/:id" element={<Classroom />} />
-          <Route path="/classroom/:classroomId/bazaar" element={<Bazaar />} />
-          <Route path="/classroom/:id/news" element={<StudentNewsfeed />} />
-          <Route path="/classroom/:id/teacher-news" element={<TeacherNewsfeed />} />
-          <Route path="/classroom/:id/settings" element={<ClassroomSettings />} />
-          <Route path="/classroom/:id/wallet" element={<Wallet />} />
-          <Route path="/classroom/:id/groups" element={<Groups />} />
-          <Route path="/classroom/:id/people" element={<People />} />
-          <Route path="/classroom/:classId/leaderboard" element={<Leaderboard />} />
-          <Route path="/classroom/:classroomId/challenge" element={<Challenge />} />
-          <Route path="/classroom/:classroomId/badges" element={<Badges />} />
-          {/* Classroom-specific profile */}
-          <Route path="/classroom/:classroomId/profile/:id" element={<Profile />} />
-          {/* General profile */}
+
+          {/* All classroom routes wrapped in layout for session activity tracking */}
+          <Route path="/classroom" element={<ClassroomLayout />}>
+            <Route path=":id" element={<Classroom />} />
+            <Route path=":classroomId/bazaar" element={<Bazaar />} />
+            <Route path=":id/news" element={<StudentNewsfeed />} />
+            <Route path=":id/teacher-news" element={<TeacherNewsfeed />} />
+            <Route path=":id/settings" element={<ClassroomSettings />} />
+            <Route path=":id/wallet" element={<Wallet />} />
+            <Route path=":id/groups" element={<Groups />} />
+            <Route path=":id/people" element={<People />} />
+            <Route path=":classId/leaderboard" element={<Leaderboard />} />
+            <Route path=":classroomId/challenge" element={<Challenge />} />
+            <Route path=":classroomId/badges" element={<Badges />} />
+            <Route path=":classroomId/profile/:id" element={<Profile />} />
+            <Route path=":classroomId/checkout" element={<Checkout />} />
+            <Route path=":classroomId/student/:id/stats" element={<StudentStats />} />
+            <Route path=":classroomId/feedback" element={<ClassroomFeedbackPage />} />
+          </Route>
+
+          {/* General (non-classroom) routes */}
           <Route path="/profile/:id" element={<Profile />} />
           <Route path="/settings" element={<Settings />} />
-          <Route path="/classroom/:classroomId/checkout" element={<Checkout />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/orders" element={<OrderHistory />} />
-          <Route path="/classroom/:classroomId/student/:id/stats" element={<StudentStats />} />
-          <Route path="/classroom/:classroomId/feedback" element={<ClassroomFeedbackPage />} />
           <Route path="/feedback" element={<FeedbackPage />} />
           <Route path="/support" element={<Support />} />
           <Route path="/privacy" element={<Privacy />} />
