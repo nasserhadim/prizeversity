@@ -236,7 +236,7 @@ const BulkBalanceEditor = ({onSuccess}) => {
                value={groupFilter}
                onChange={(e) => setGroupFilter(e.target.value)}
              >
-               <option value="all">All students</option>
+               <option value="all">All</option>
                <option value="inGroup">In groups</option>
                <option value="solo">Solo (no groups)</option>
              </select>

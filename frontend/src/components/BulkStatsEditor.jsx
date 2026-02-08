@@ -275,7 +275,7 @@ const BulkStatsEditor = ({ onSuccess }) => {
               value={groupFilter}
               onChange={(e) => setGroupFilter(e.target.value)}
             >
-              <option value="all">All Students</option>
+              <option value="all">All</option>
               <option value="inGroup">In a Group</option>
               <option value="solo">Not in Group</option>
             </select>

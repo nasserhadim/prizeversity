@@ -996,7 +996,7 @@ const Badges = () => {
                     value={badgeFilter}
                     onChange={(e) => setBadgeFilter(e.target.value)}
                   >
-                    <option value="all">All Students</option>
+                    <option value="all">All</option>
                     <option value="hasBadges">Has Badges</option>
                     <option value="noBadges">No Badges</option>
                   </select>
@@ -1204,7 +1204,7 @@ const Badges = () => {
                     className="btn btn-xs btn-outline ml-auto"
                     onClick={() => navigate(`/classroom/${classroomId}/badges`, { replace: true })}
                   >
-                    Back to All Students
+                    Back to All
                   </button>
                 )}
               </div>

@@ -372,13 +372,18 @@ const StudentStats = () => {
                   }
 
                   const xpNeeded = Math.max(0, Number(nlp.xpForNextLevel ?? 0) - Number(xpData?.xp ?? 0));
+                  const xpInLevel = Math.max(0, Number(nlp.xpInCurrentLevel ?? 0));
+                  const xpRequiredForLevel = Math.max(1, Number(nlp.xpRequiredForLevel ?? (nlp.xpForNextLevel - nlp.xpForCurrentLevel) ?? 1));
                   return (
                     <div className="text-right">
                       <p className="text-2xl font-bold text-primary">{pct}%</p>
                       <p className={`text-xs ${subtleText}`}>to next level</p>
                       <progress className="progress progress-primary w-full mt-2" value={pct} max="100" />
                       <p className={`text-sm mt-2 ${subtleText}`}>
-                        {xpNeeded} XP needed for Level {xpData.level + 1}
+                        {xpInLevel} / {xpRequiredForLevel} XP accumulated for Level {xpData.level + 1}
+                      </p>
+                      <p className={`text-xs ${subtleText}`}>
+                        {xpNeeded} XP remaining out of {xpRequiredForLevel} needed
                       </p>
                     </div>
                   );
