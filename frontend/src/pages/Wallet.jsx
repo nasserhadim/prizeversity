@@ -65,6 +65,45 @@ const Wallet = () => {
   const [directionFilter, setDirectionFilter] = useState('all');
   const [assignerFilter, setAssignerFilter] = useState('');
 
+  // NEW: user dropdown search state
+  const [userDropdownSearch, setUserDropdownSearch] = useState('');
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const userDropdownRef = React.useRef(null);
+
+  // NEW: close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (userDropdownRef.current && !userDropdownRef.current.contains(e.target)) {
+        setShowUserDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // NEW: filtered student list for the searchable dropdown
+  const filteredUserList = useMemo(() => {
+    const q = (userDropdownSearch || '').trim().toLowerCase();
+    if (!q) return studentList;
+    return studentList.filter(u => {
+      const displayName = `${u.firstName || ''} ${u.lastName || ''}`.trim().toLowerCase();
+      const email = (u.email || '').toLowerCase();
+      const role = (u.role || '').toLowerCase();
+      return displayName.includes(q) || email.includes(q) || role.includes(q);
+    });
+  }, [studentList, userDropdownSearch]);
+
+  // NEW: helper to get display name for selected user
+  const getSelectedUserLabel = () => {
+    if (!assignerFilter) return 'All users';
+    const u = studentList.find(s => s._id === assignerFilter);
+    if (!u) return 'All users';
+    const name = (u.firstName || u.lastName)
+      ? `${u.firstName || ''} ${u.lastName || ''}`.trim()
+      : u.name || u.email;
+    return `${name} – ${ROLE_LABELS[u.role] || u.role}`;
+  };
+
   // Sorting for transactions (date by default)
   const [sortField, setSortField] = useState('date'); // 'date' | 'amount'
   const [sortDirection, setSortDirection] = useState('desc'); // 'asc' | 'desc'
@@ -710,34 +749,78 @@ useEffect(() => {
 
             {/* user selector */}
             {canSeeUserFilter && (
-              <select
-                className="select select-bordered max-w-xs"
-                value={assignerFilter}
-                onChange={(e) => {
-                  const id = e.target.value;
-                  setAssignerFilter(id);
-                  if (id) {
-                    const selectedUser = studentList.find(u => u._id === id);
-                    if (selectedUser) {
-                      setRoleFilter(selectedUser.role);
-                    }
-                  } else {
-                    setRoleFilter('all');
-                  }
-                }}
-              >
-                <option value="">All users</option>
-                {studentList.map((u) => {
-                  const displayName = (u.firstName || u.lastName)
-                    ? `${u.firstName || ''} ${u.lastName || ''}`.trim()
-                    : u.name || u.email;
-                  return (
-                    <option key={u._id} value={u._id}>
-                      {displayName} – {ROLE_LABELS[u.role] || u.role}
-                    </option>
-                  );
-                })}
-              </select>
+              <div className="relative" ref={userDropdownRef}>
+                <button
+                  type="button"
+                  className="select select-bordered max-w-xs w-full text-left flex items-center justify-between"
+                  onClick={() => setShowUserDropdown(prev => !prev)}
+                  title="Filter by user"
+                >
+                  <span className="truncate">{getSelectedUserLabel()}</span>
+                </button>
+
+                {showUserDropdown && (
+                  <div className="absolute z-50 mt-1 w-72 bg-base-100 border border-base-300 rounded-lg shadow-lg">
+                    <div className="p-2 border-b border-base-200">
+                      <input
+                        type="search"
+                        placeholder="Search users by name or email..."
+                        className="input input-bordered input-sm w-full"
+                        value={userDropdownSearch}
+                        onChange={(e) => setUserDropdownSearch(e.target.value)}
+                        autoFocus
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                    <ul className="max-h-60 overflow-y-auto p-1">
+                      <li>
+                        <button
+                          type="button"
+                          className={`w-full text-left px-3 py-2 rounded hover:bg-base-200 text-sm ${
+                            !assignerFilter ? 'bg-primary/10 font-semibold' : ''
+                          }`}
+                          onClick={() => {
+                            setAssignerFilter('');
+                            setRoleFilter('all');
+                            setShowUserDropdown(false);
+                            setUserDropdownSearch('');
+                          }}
+                        >
+                          All users
+                        </button>
+                      </li>
+                      {filteredUserList.map((u) => {
+                        const displayName = (u.firstName || u.lastName)
+                          ? `${u.firstName || ''} ${u.lastName || ''}`.trim()
+                          : u.name || u.email;
+                        return (
+                          <li key={u._id}>
+                            <button
+                              type="button"
+                              className={`w-full text-left px-3 py-2 rounded hover:bg-base-200 text-sm ${
+                                assignerFilter === u._id ? 'bg-primary/10 font-semibold' : ''
+                              }`}
+                              onClick={() => {
+                                setAssignerFilter(u._id);
+                                setRoleFilter(u.role);
+                                setShowUserDropdown(false);
+                                setUserDropdownSearch('');
+                              }}
+                            >
+                              {displayName} – <span className="text-base-content/60">{ROLE_LABELS[u.role] || u.role}</span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                      {filteredUserList.length === 0 && (
+                        <li className="px-3 py-2 text-sm text-base-content/50 italic">
+                          No matching users
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Role filter with siphon option */}
