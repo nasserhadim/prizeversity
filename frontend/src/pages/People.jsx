@@ -17,6 +17,17 @@ import { inferAssignerRole } from '../utils/transactions';
 import BulkStatsEditor from '../components/BulkStatsEditor';
 import EquippedBadge from '../components/EquippedBadge';
 import ConfirmModal from '../components/ConfirmModal';
+import { Info } from 'lucide-react';
+
+// Format seconds into human-readable duration
+function formatDuration(totalSeconds) {
+  const s = Math.round(Number(totalSeconds) || 0);
+  if (s < 60) return `${s}s`;
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
 
 // NEW helper for classroom-scoped admin detection (uses fetched classroom + students)
 function userIsClassroomAdmin({ user, classroom, students }) {
@@ -305,6 +316,7 @@ const People = () => {
 
   // Map of studentId -> total spent (number)
   const [totalSpentMap, setTotalSpentMap] = useState({});
+  const [activityMap, setActivityMap] = useState({}); // NEW: total session activity per student
   // per-student cached stats and loading flag
   const [studentStatsMap, setStudentStatsMap] = useState({}); // NEW: per-student stats cache
   const [studentStatsLoading, setStudentStatsLoading] = useState(false);
@@ -663,6 +675,7 @@ const People = () => {
     fetchTaStatsPolicy(); // NEW
     fetchSiphonTimeout();
     fetchStatChanges({ page: 1, append: false });
+    fetchActivityData(); // NEW: fetch session activity
 
     // Add classroom removal handler
     const handleClassroomRemoval = (data) => {
@@ -895,6 +908,20 @@ const People = () => {
     }
   };
 
+  // NEW: Fetch total session activity for all students
+  const fetchActivityData = async () => {
+    if (!classroomId) return;
+    try {
+      const res = await axios.get(
+        `/api/classroom/${classroomId}/session/activity`,
+        { withCredentials: true }
+      );
+      setActivityMap(res.data || {});
+    } catch (err) {
+      console.debug('[People] failed to fetch activity data', err?.message);
+    }
+  };
+
   // Add helper to detect ban info for a student
 const getBanInfo = (student, classroomObj) => {
   const banLog = (Array.isArray(classroomObj?.banLog) && classroomObj.banLog.length)
@@ -1036,6 +1063,14 @@ const getBanInfo = (student, classroomObj) => {
         const ad = new Date(a.lastAccessed || 0).getTime();
         const bd = new Date(b.lastAccessed || 0).getTime();
         return ad - bd;
+      } else if (sortOption === 'activityDesc') {
+        const aVal = Number(activityMap[a._id] || 0);
+        const bVal = Number(activityMap[b._id] || 0);
+        return bVal - aVal;
+      } else if (sortOption === 'activityAsc') {
+        const aVal = Number(activityMap[a._id] || 0);
+        const bVal = Number(activityMap[b._id] || 0);
+        return aVal - bVal;
       }
       return 0; // Default order
     });
@@ -1255,6 +1290,8 @@ const getBanInfo = (student, classroomObj) => {
           Groups: groups.length > 0 ? groups.join('; ') : 'Unassigned',
           // ADD: OnlineStatus value to match CSV header
           OnlineStatus: onlineUserIds.has(String(student._id)) ? 'Online' : 'Offline',
+          TotalActivitySeconds: activityMap[student._id] || 0,
+          TotalActivity: formatDuration(activityMap[student._id] || 0),
         };
       })
     );
@@ -1263,8 +1300,9 @@ const getBanInfo = (student, classroomObj) => {
     const headers = [
       'ClassroomId','ClassroomName','ClassroomCode','Name','Email',
       'UserId','ShortId','Role','Balance','TotalSpent',
-      'JoinedDate','LastAccessed','Level','XP','Luck','Multiplier','GroupMultiplier','ShieldActive','ShieldCount',
-      'AttackPower','DoubleEarnings','DiscountShop','PassiveItemsCount','Groups','OnlineStatus' // add here
+      'JoinedDate','LastAccessed','TotalActivity','TotalActivitySeconds',
+      'Level','XP','Luck','Multiplier','GroupMultiplier','ShieldActive','ShieldCount',
+      'AttackPower','DoubleEarnings','DiscountShop','PassiveItemsCount','Groups','OnlineStatus'
     ];
 
     const csvContent = [
@@ -1359,6 +1397,8 @@ const getBanInfo = (student, classroomObj) => {
           ),
           joinedDate: student.joinedAt || student.createdAt || null,
           lastAccessed: student.lastAccessed ? new Date(student.lastAccessed).toISOString() : null,
+          totalActivitySeconds: activityMap[student._id] || 0,
+          totalActivity: formatDuration(activityMap[student._id] || 0),
           level: xpData.level || 1,
           xp: xpData.xp || 0,
           stats: {
@@ -1975,6 +2015,8 @@ const visibleCount = filteredStudents.length;
                    {/* NEW: last accessed */}
                    <option value="lastAccessedDesc">Last Accessed (Newest)</option>
                    <option value="lastAccessedAsc">Last Accessed (Oldest)</option>
+                   <option value="activityDesc">Total Activity (Most)</option>
+                   <option value="activityAsc">Total Activity (Least)</option>
                 </select>
                 {/* loading indicator when a stat-based sort is selected and stats are still loading */}
                 {studentStatsLoading && ['multiplier','luck','shield','attack','discount'].some(f => sortOption.includes(f)) && (
@@ -2105,6 +2147,16 @@ const visibleCount = filteredStudents.length;
                           Last Accessed: {student.lastAccessed
                             ? new Date(student.lastAccessed).toLocaleString()
                             : '—'}
+                        </div>
+                        {/* Total Activity display (visible to everyone) */}
+                        <div className="text-sm text-gray-500 flex items-center gap-1">
+                          Total Activity: {formatDuration(activityMap[student._id] || 0)}
+                          <span
+                            className="tooltip tooltip-top cursor-help"
+                            data-tip="Cumulative time spent across all classroom pages (Bazaar, Groups, Leaderboard, Feedback, Badges, etc.). Tracked via a 60-second heartbeat while the tab is active, with a final beacon sent on page close. Capped at 5 minutes per interval to prevent inflated numbers."
+                          >
+                            <Info className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600 transition-colors" />
+                          </span>
                         </div>
                       </div>
 

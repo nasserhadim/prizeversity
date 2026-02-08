@@ -2059,4 +2059,102 @@ router.delete('/:id/stat-changes/bulk', ensureAuthenticated, async (req, res) =>
   }
 });
 
+// POST /api/classroom/:id/session/start - mark session start
+router.post('/:id/session/start', ensureAuthenticated, async (req, res) => {
+  try {
+    const classroomId = req.params.id;
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    if (!Array.isArray(user.classroomActivityDurations)) {
+      user.classroomActivityDurations = [];
+    }
+
+    let entry = user.classroomActivityDurations.find(
+      e => String(e.classroom) === String(classroomId)
+    );
+    if (!entry) {
+      entry = { classroom: classroomId, totalSeconds: 0, lastSessionStart: new Date() };
+      user.classroomActivityDurations.push(entry);
+    } else {
+      entry.lastSessionStart = new Date();
+    }
+
+    await user.save();
+    res.json({ message: 'Session started', totalSeconds: entry.totalSeconds });
+  } catch (err) {
+    console.error('[session/start]', err);
+    res.status(500).json({ error: 'Failed to start session' });
+  }
+});
+
+// POST /api/classroom/:id/session/heartbeat - accumulate elapsed time
+router.post('/:id/session/heartbeat', ensureAuthenticated, async (req, res) => {
+  try {
+    const classroomId = req.params.id;
+    const { seconds } = req.body; // elapsed seconds since last heartbeat
+    const elapsed = Math.min(Math.max(Number(seconds) || 0, 0), 300); // cap at 5 min per beat
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    if (!Array.isArray(user.classroomActivityDurations)) {
+      user.classroomActivityDurations = [];
+    }
+
+    let entry = user.classroomActivityDurations.find(
+      e => String(e.classroom) === String(classroomId)
+    );
+    if (!entry) {
+      entry = { classroom: classroomId, totalSeconds: 0, lastSessionStart: new Date() };
+      user.classroomActivityDurations.push(entry);
+    }
+
+    entry.totalSeconds = (entry.totalSeconds || 0) + elapsed;
+    entry.lastSessionStart = new Date();
+
+    await user.save();
+    res.json({ totalSeconds: entry.totalSeconds });
+  } catch (err) {
+    console.error('[session/heartbeat]', err);
+    res.status(500).json({ error: 'Failed to record heartbeat' });
+  }
+});
+
+// GET /api/classroom/:id/session/activity - get activity for all students (teacher)
+router.get('/:id/session/activity', ensureAuthenticated, async (req, res) => {
+  try {
+    const classroomId = req.params.id;
+    const classroom = await Classroom.findById(classroomId).select('students teacher');
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+
+    // Allow any classroom member (teacher, admin, or student)
+    const uid = String(req.user._id);
+    const isTeacher = String(classroom.teacher) === uid;
+    const isStudent = Array.isArray(classroom.students) && classroom.students.map(String).includes(uid);
+    const isAdmin = await isClassroomAdmin(req.user._id, classroomId);
+    if (!isTeacher && !isAdmin && !isStudent) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    const students = await User.find(
+      { _id: { $in: classroom.students } },
+      { _id: 1, classroomActivityDurations: 1 }
+    ).lean();
+
+    const activityMap = {};
+    for (const s of students) {
+      const entry = (s.classroomActivityDurations || []).find(
+        e => String(e.classroom) === String(classroomId)
+      );
+      activityMap[String(s._id)] = entry?.totalSeconds || 0;
+    }
+
+    res.json(activityMap);
+  } catch (err) {
+    console.error('[session/activity]', err);
+    res.status(500).json({ error: 'Failed to fetch activity' });
+  }
+});
+
 module.exports = router;
