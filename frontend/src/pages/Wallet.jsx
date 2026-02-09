@@ -352,7 +352,14 @@ const Wallet = () => {
       const ab = tx?.assignedBy;
       const assignerId = ab && typeof ab === 'object' ? (ab._id || ab.id) : ab;
 
-      const assignerMatch = !assignerFilter || assignerFilter === assignerId;
+      // Also check if the filter matches the student who owns the transaction
+      const txStudentId = tx?.studentId && typeof tx.studentId === 'object'
+        ? (tx.studentId._id || tx.studentId.id || tx.studentId)
+        : tx?.studentId;
+
+      const assignerMatch = !assignerFilter
+        || String(assignerFilter) === String(assignerId)
+        || String(assignerFilter) === String(txStudentId);
 
       const searchMatch = matchesDeep(tx);
 
