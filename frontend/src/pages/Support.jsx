@@ -1342,18 +1342,77 @@ const Support = () => {
         );
       }
       
+      // Helper to parse inline markdown (bold + links) within a text string
+      const parseInline = (text, keyPrefix = '') => {
+        // Split by markdown links [text](url) and bold **text**
+        const parts = [];
+        let remaining = text;
+        let partIndex = 0;
+
+        while (remaining.length > 0) {
+          // Find the earliest match of either a link or bold
+          const linkMatch = remaining.match(/\[([^\]]+)\]\(([^)]+)\)/);
+          const boldMatch = remaining.match(/\*\*([^*]+)\*\*/);
+
+          let earliestMatch = null;
+          let matchType = null;
+
+          if (linkMatch && boldMatch) {
+            if (remaining.indexOf(linkMatch[0]) <= remaining.indexOf(boldMatch[0])) {
+              earliestMatch = linkMatch;
+              matchType = 'link';
+            } else {
+              earliestMatch = boldMatch;
+              matchType = 'bold';
+            }
+          } else if (linkMatch) {
+            earliestMatch = linkMatch;
+            matchType = 'link';
+          } else if (boldMatch) {
+            earliestMatch = boldMatch;
+            matchType = 'bold';
+          }
+
+          if (!earliestMatch) {
+            parts.push(<span key={`${keyPrefix}-${partIndex}`}>{remaining}</span>);
+            break;
+          }
+
+          const matchIndex = remaining.indexOf(earliestMatch[0]);
+          if (matchIndex > 0) {
+            parts.push(<span key={`${keyPrefix}-${partIndex++}`}>{remaining.slice(0, matchIndex)}</span>);
+          }
+
+          if (matchType === 'link') {
+            const isInternal = earliestMatch[2].startsWith('/');
+            if (isInternal) {
+              parts.push(
+                <Link key={`${keyPrefix}-${partIndex++}`} to={earliestMatch[2]} className="link link-primary">
+                  {earliestMatch[1]}
+                </Link>
+              );
+            } else {
+              parts.push(
+                <a key={`${keyPrefix}-${partIndex++}`} href={earliestMatch[2]} target="_blank" rel="noopener noreferrer" className="link link-primary">
+                  {earliestMatch[1]}
+                </a>
+              );
+            }
+          } else {
+            parts.push(<strong key={`${keyPrefix}-${partIndex++}`}>{earliestMatch[1]}</strong>);
+          }
+
+          remaining = remaining.slice(matchIndex + earliestMatch[0].length);
+        }
+
+        return parts;
+      };
+
       if (line.startsWith('• ')) {
-        const parts = line.slice(2).split('**');
         return (
           <div key={index} className="ml-4 mb-1">
             •{' '}
-            {parts.map((part, i) =>
-              i % 2 === 1 ? (
-                <strong key={i}>{part}</strong>
-              ) : (
-                <span key={i}>{part}</span>
-              )
-            )}
+            {parseInline(line.slice(2), index)}
           </div>
         );
       }
@@ -1361,23 +1420,16 @@ const Support = () => {
       if (line.startsWith('  - ') || line.startsWith('   •')) {
         return (
           <div key={index} className="ml-8 mb-1 text-sm">
-            {line}
+            {parseInline(line, index)}
           </div>
         );
       }
       
-      // Handle general in-line bolding
-      if (line.includes('**')) {
-        const parts = line.split('**');
+      // Handle lines with links or bold
+      if (line.includes('**') || line.match(/\[([^\]]+)\]\(([^)]+)\)/)) {
         return (
           <div key={index} className="mb-1">
-            {parts.map((part, i) =>
-              i % 2 === 1 ? (
-                <strong key={i}>{part}</strong>
-              ) : (
-                <span key={i}>{part}</span>
-              )
-            )}
+            {parseInline(line, index)}
           </div>
         );
       }
