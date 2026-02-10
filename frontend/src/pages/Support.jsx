@@ -1104,7 +1104,7 @@ const Support = () => {
             "",
             "Some apps may also ask for the Prizeversity base URL (e.g. `https://www.prizeversity.com`).",
             "",
-            "That's it! The external app handles everything else behind the scenes."
+            "**Important:** The API uses MongoDB ObjectIds (24-character hex strings like `68a4ez78af95ce2a82ad6ae0`) for student IDs — **not** the short IDs shown in the UI (like `YM1234`). External apps should use the `/users/match` or `/users/list` endpoint to retrieve the correct student IDs before making wallet adjustments or other API calls."
           ],
           role: ["teacher"]
         },

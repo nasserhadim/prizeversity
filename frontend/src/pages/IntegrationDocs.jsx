@@ -374,7 +374,7 @@ export default function IntegrationDocs() {
               method="POST"
               path="/api/integrations/users/match"
               scope="users:match"
-              description="Match external student names to Prizeversity user IDs. Supports multiple name formats."
+              description="Match external student names to Prizeversity user IDs. Returns MongoDB ObjectIds that can be used with all other endpoints."
               requestBody={JSON.stringify({
                 classroomId: '<classroom_id>',
                 students: [
@@ -398,14 +398,14 @@ export default function IntegrationDocs() {
                 ],
                 total: 3
               }, null, 2)}
-              notes='Name matching supports: "First Last", "Last First", "Last, First", token matching, and email matching.'
+              notes='Name matching supports: "First Last", "Last First", "Last, First", token matching, and email matching. The returned studentId is a MongoDB ObjectId (not the short ID displayed in the UI).'
             />
 
             <EndpointCard
               method="GET"
               path="/api/integrations/users/list/:classroomId"
               scope="users:read"
-              description="List all students enrolled in a classroom."
+              description="List all students enrolled in a classroom. Returns MongoDB ObjectIds for each student."
               responseBody={JSON.stringify({
                 classroomId: '<classroom_id>',
                 className: 'Class 101',
@@ -434,9 +434,9 @@ export default function IntegrationDocs() {
               requestBody={JSON.stringify({
                 classroomId: '<classroom_id>',
                 updates: [
-                  { studentId: '<student_id_1>', amount: 10 },
-                  { studentId: '<student_id_2>', amount: -5 },
-                  { studentId: '<student_id_3>', amount: 25 }
+                  { studentId: '<student_mongo_id_1>', amount: 10 },
+                  { studentId: '<student_mongo_id_2>', amount: -5 },
+                  { studentId: '<student_mongo_id_3>', amount: 25 }
                 ],
                 description: 'Weekly reward from ExtRewardTool',
                 applyGroupMultipliers: true,
@@ -488,7 +488,7 @@ export default function IntegrationDocs() {
                         <td><code>updates[].studentId</code></td>
                         <td>String</td>
                         <td>✅</td>
-                        <td>Student's Prizeversity user ID</td>
+                        <td>Student's MongoDB ObjectId (24-char hex string, <strong>not</strong> the short ID like <code>YM1234</code>). Use the <code>/users/match</code> or <code>/users/list</code> endpoint to retrieve these IDs.</td>
                       </tr>
                       <tr>
                         <td><code>updates[].amount</code></td>
@@ -750,7 +750,11 @@ PRIZEVERSITY_BASE_URL=https://www.prizeversity.com`} />
                   Match Students
                 </h3>
                 <p className="text-sm mb-2">
-                  Map your app's student names to Prizeversity user IDs:
+                  Map your app's student names to Prizeversity user IDs. The API returns
+                  MongoDB ObjectIds (24-character hex strings like <code className="bg-base-300 px-1 rounded">68a4ez78af95ce2a82ad6ae0</code>),
+                  <strong> not</strong> the short IDs shown in the UI (like <code className="bg-base-300 px-1 rounded">YM1234</code>).
+                  Use <code className="bg-base-300 px-1 rounded">/users/match</code> or <code className="bg-base-300 px-1 rounded">/users/list</code> to
+                  get the correct IDs before calling other endpoints.
                 </p>
                 <CopyBlock
                   code={`const response = await fetch(
