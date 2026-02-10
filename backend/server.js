@@ -38,6 +38,8 @@ const { redirectBase, isProd } = require('./config/domain');
 const { cleanTrash } = require('./utils/cleanupTrash');
 // require('./utils/siphonCleanup'); // Add this line
 
+const { integrationAuth } = require('./middleware/integrationAuth'); // ADD
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 const httpServer = createServer(app);
@@ -60,8 +62,17 @@ setIO(io);
 
 // Middleware
 app.use(cors({
-  origin: redirectBase,
+  origin: function (origin, callback) {
+    // Allow requests with no origin (server-to-server, Postman)
+    if (!origin) return callback(null, true);
+    // Allow Prizeversity's own frontend
+    if (origin === redirectBase) return callback(null, true);
+    // Allow any origin if using API key auth (validated in middleware)
+    // The integrationAuth middleware will reject invalid keys
+    return callback(null, true);
+  },
   credentials: true,
+  allowedHeaders: ['Content-Type', 'X-API-Key']
 }));
 
 console.log("✅ CORS origin set to:", redirectBase);
@@ -207,6 +218,13 @@ const badgeTemplateRoutes = require('./routes/badgeTemplate');
 app.use('/api/badge', badgeRoutes);
 app.use('/api/xp', xpRoutes);
 app.use('/api/badge-templates', badgeTemplateRoutes);
+
+// Mount integrationAuth BEFORE routes so req.integrationApp is set
+app.use('/api/integrations', integrationAuth);
+
+// Integration API
+app.use('/api/integrations', require('./routes/integrations'));
+
 // Root Route
 app.get('/', (req, res) => {
   res.redirect(redirectBase);

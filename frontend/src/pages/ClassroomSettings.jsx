@@ -317,6 +317,12 @@ export default function ClassroomSettings() {
                             >
                                 {archived ? 'Unarchive Classroom' : 'Archive Classroom'}
                             </button>
+                            <Link
+                                to="/integrations"
+                                className="btn btn-outline gap-2"
+                            >
+                                🔌 Integrations
+                            </Link>
                         </>
                     )}
                 </div>

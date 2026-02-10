@@ -31,7 +31,8 @@ import {
   History,
   Star,
   Sun,
-  Moon
+  Moon,
+  Plug
 } from 'lucide-react';
 
 const BACKEND_URL = `${API_BASE}`;
@@ -563,12 +564,20 @@ const Navbar = () => {
                 <li><Link to="/orders" className="flex items-center gap-2"><History size={16} />Order History</Link></li>
               )}
               {user.role === 'teacher' && (
-                <li>
-                  <button onClick={handleSwitchToStudent} className="flex items-center gap-2">
-                    <Replace size={16} />
-                    Switch to Student Profile
-                  </button>
-                </li>
+                <>
+                  <li>
+                    <Link to="/integrations" className="flex items-center gap-2">
+                      <Plug size={16} />
+                      Integrations
+                    </Link>
+                  </li>
+                  <li>
+                    <button onClick={handleSwitchToStudent} className="flex items-center gap-2">
+                      <Replace size={16} />
+                      Switch to Student Profile
+                    </button>
+                  </li>
+                </>
               )}
               {originalUser?.role === 'teacher' && user.role === 'student' && (
                 <li>
@@ -864,6 +873,16 @@ const Navbar = () => {
                   <HelpCircle size={20} />
                   <span>Help & Support</span>
                 </Link>
+                {user.role === 'teacher' && (
+                  <Link
+                    to="/integrations"
+                    className="flex items-center gap-3 p-3 rounded-lg text-base-content hover:bg-base-200"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <Plug size={20} />
+                    <span>Integrations</span>
+                  </Link>
+                )}
                 {user.role === 'student' && (
                   <Link
                     to="/orders"

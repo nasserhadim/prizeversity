@@ -38,6 +38,8 @@ import AdminModeration from './pages/AdminModeration';
 import NotFound from './pages/NotFound';
 import Badges from './pages/Badges';
 import ClassroomLayout from './components/ClassroomLayout';
+import IntegrationSettings from './pages/IntegrationSettings';
+import IntegrationDocs from './pages/IntegrationDocs';
 
 const App = () => {
   const { user } = useContext(AuthContext);
@@ -99,6 +101,8 @@ const App = () => {
           <Route path="/support" element={<Support />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/terms" element={<Terms />} />
+          <Route path="/integrations" element={<IntegrationSettings />} />
+          <Route path="/integrations/docs" element={<IntegrationDocs />} />
           {/* Wildcard / catch-all */}
           <Route path="*" element={<NotFound />} />
         </Routes>
