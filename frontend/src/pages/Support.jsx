@@ -1027,7 +1027,6 @@ const Support = () => {
             "• **Read Classroom Info** — View classroom name, code, and student count",
             "• **Read Inventory** — View a student's inventory items via the API (returns item IDs needed for redemption)",
             "• **Redeem Items** — Mark inventory items as redeemed (for grade sync, etc.). Use Read Inventory first to get the item ID.",
-            "• **LMS Grade Sync** — Sync grades with external learning management systems",
             "• **Manage Webhooks** — Register event notifications (advanced)",
             "",
             "**Tip:** For a simple reward tool, you typically only need 'Adjust Wallet Balances' and 'Match Students'."
@@ -1078,6 +1077,8 @@ const Support = () => {
         {
           question: "What are webhooks?",
           answer: [
+            "⚠️ **Beta Feature:** Webhooks are currently in beta preview. Behavior may change and delivery is not guaranteed at this time.",
+            "",
             "Webhooks are an **advanced** feature that lets external apps receive automatic notifications when something happens in Prizeversity.",
             "",
             "For example, a webhook could notify an LMS integration when a student redeems an 'Extra Credit' item, so the grade gets updated automatically.",
@@ -1089,6 +1090,8 @@ const Support = () => {
             "• Challenge Completed — when a challenge finishes",
             "• Level Up — when a student levels up",
             "• Badge Earned — when a badge is unlocked",
+            "",
+            "⚠️ **Note:** Webhooks are currently in beta. Delivery reliability and payload format may change.",
             "",
             "Most teachers don't need to set up webhooks directly — the external app developer would handle this. But you can manage them from the integration card's expanded view."
           ],

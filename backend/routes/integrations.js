@@ -358,6 +358,7 @@ router.post('/wallet/adjust', ensureAuthenticated, requireScope('wallet:adjust')
 
     const appName = req.integrationApp?.name || 'Unknown Integration';
     const appLabel = `App Integration "${appName}"`;
+    const io = req.app.get('io'); // ← ADD THIS LINE
 
     const results = { updated: 0, skipped: [], details: [] };
 

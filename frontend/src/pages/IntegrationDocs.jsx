@@ -136,7 +136,7 @@ export default function IntegrationDocs() {
     { id: 'endpoints-wallet', label: 'Wallet' },
     { id: 'endpoints-classroom', label: 'Classroom' },
     { id: 'endpoints-inventory', label: 'Inventory' },
-    { id: 'webhooks', label: 'Webhooks' },
+    { id: 'webhooks', label: 'Webhooks (Beta)' },
     { id: 'quickstart', label: 'Quick Start Guide' },
   ];
 
@@ -268,7 +268,6 @@ export default function IntegrationDocs() {
                     ['classroom:read', 'Read classroom name, code, and metadata'],
                     ['inventory:read', 'View student inventory items'],
                     ['inventory:use', 'Mark inventory items as redeemed'],
-                    ['lms:grades', 'Sync grades with external LMS'],
                     ['webhooks:manage', 'Register and manage webhook subscriptions'],
                   ].map(([scope, desc]) => (
                     <tr key={scope}>
@@ -596,7 +595,7 @@ export default function IntegrationDocs() {
               method="POST"
               path="/api/integrations/inventory/redeem"
               scope="inventory:use"
-              description="Mark a student's passive inventory item (with no secondary effects) as consumed after processing it externally (e.g., after applying extra credit in an LMS). This prevents the item from being processed again on subsequent inventory reads."
+              description="Mark a student's passive inventory item (with no secondary effects) as consumed after processing it externally (e.g., after applying extra credit in an LMS system). This prevents the item from being processed again on subsequent inventory reads."
               requestBody={JSON.stringify({
                 classroomId: '<classroom_id>',
                 studentId: '<student_id>',
@@ -632,6 +631,16 @@ export default function IntegrationDocs() {
               title="Webhooks"
               subtitle="Receive real-time event notifications"
             />
+
+            <div className="alert alert-warning mb-4 text-sm">
+              <AlertTriangle size={16} />
+              <div>
+                <span className="font-semibold">Beta Feature:</span>{' '}
+                Webhooks are currently in beta preview. Delivery behavior and payload format may change.
+                If you encounter issues, please contact{' '}
+                <a href="mailto:info@prizeversity.com" className="link link-primary">info@prizeversity.com</a>.
+              </div>
+            </div>
 
             <p className="text-sm mb-4">
               Webhooks allow your application to receive HTTP POST requests when events occur

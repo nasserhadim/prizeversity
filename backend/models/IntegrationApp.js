@@ -8,7 +8,6 @@ const VALID_SCOPES = [
   'classroom:read',
   'inventory:read',
   'inventory:use',
-  'lms:grades',
   'webhooks:manage',
 ];
 

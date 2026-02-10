@@ -13,6 +13,10 @@ async function dispatchWebhook(event, classroomId, payload) {
       ]
     });
 
+    if (apps.length > 0) {
+      console.debug(`[webhook][beta] Dispatching "${event}" to ${apps.length} app(s)`);
+    }
+
     for (const app of apps) {
       const hooks = app.webhooks.filter(w => w.event === event && w.active);
 

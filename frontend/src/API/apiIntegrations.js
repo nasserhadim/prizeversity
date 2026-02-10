@@ -40,7 +40,6 @@ export const AVAILABLE_SCOPES = [
   { value: 'classroom:read', label: 'Read Classroom Info', description: 'View classroom name, code, and student count' },
   { value: 'inventory:read', label: 'Read Inventory', description: 'View student inventory items' },
   { value: 'inventory:use', label: 'Redeem Items', description: 'Mark inventory items as redeemed' },
-  { value: 'lms:grades', label: 'LMS Grade Sync', description: 'Sync grades with external learning management systems' },
   { value: 'webhooks:manage', label: 'Manage Webhooks', description: 'Register and manage event webhooks' },
 ];
 
@@ -52,3 +51,5 @@ export const WEBHOOK_EVENTS = [
   { value: 'level.up', label: 'Level Up', description: 'When a student levels up' },
   { value: 'badge.earned', label: 'Badge Earned', description: 'When a badge is unlocked' },
 ];
+
+export const WEBHOOKS_BETA_LABEL = 'Beta';

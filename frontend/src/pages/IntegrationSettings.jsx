@@ -13,6 +13,7 @@ import {
   deleteWebhook,
   AVAILABLE_SCOPES,
   WEBHOOK_EVENTS,
+  WEBHOOKS_BETA_LABEL,
 } from '../API/apiIntegrations';
 import Footer from '../components/Footer';
 import Navbar from '../components/Navbar';
@@ -352,7 +353,11 @@ export default function IntegrationSettings() {
               <div className="flex items-center gap-2">
                 <Bell size={20} />
                 <span className="font-bold">Save your webhook signing secret — it won't be shown again!</span>
+                <span className="badge badge-warning badge-sm">{WEBHOOKS_BETA_LABEL}</span>
               </div>
+              <p className="text-xs opacity-70">
+                Webhooks are currently in beta. Delivery and payload format may change. Please report any issues.
+              </p>
               <div className="flex items-center gap-2 bg-base-100 rounded-lg p-3 font-mono text-sm break-all">
                 <code className="flex-1">{revealedSecret.value}</code>
                 <button
@@ -876,6 +881,7 @@ function IntegrationAppCard({
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs font-semibold opacity-60">
                   Webhooks ({(app.webhooks || []).filter((w) => w.active).length} active)
+                  <span className="badge badge-warning badge-xs ml-1">{WEBHOOKS_BETA_LABEL}</span>
                 </p>
                 <button
                   className="btn btn-ghost btn-xs gap-1"
@@ -887,6 +893,9 @@ function IntegrationAppCard({
 
               {showWebhookForm && (
                 <div className="bg-base-200 rounded-lg p-3 mb-3 space-y-2">
+                  <p className="text-xs font-medium opacity-70 flex items-center gap-1">
+                    New Webhook <span className="badge badge-warning badge-xs">{WEBHOOKS_BETA_LABEL}</span>
+                  </p>
                   <select
                     className="select select-bordered select-sm w-full"
                     value={webhookEvent}
