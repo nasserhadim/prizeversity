@@ -8,6 +8,8 @@ const User = require('../models/User');
 const Classroom = require('../models/Classroom');
 const { awardXP } = require('../utils/awardXP');
 const { logStatChanges } = require('../utils/statChangeLog');
+const Notification = require('../models/Notification');
+const { populateNotification } = require('../utils/notifications');
 const { getScopedUserStats, isClassroomAdmin } = require('../utils/classroomStats');
 const { dispatchWebhook } = require('../utils/webhookDispatcher');
 const { getUserGroupMultiplier } = require('../utils/groupMultiplier');
@@ -26,8 +28,8 @@ function getPersonalMultiplierForClassroom(userDoc, classroomId) {
 // helper: XP bits computation (same as wallet.js)
 function computeXPBits({ numericAmount, adjustedAmount, xpSettings }) {
   if (!xpSettings) return numericAmount;
-  const basis = xpSettings.xpBasis || 'base';
-  return basis === 'adjusted' ? adjustedAmount : numericAmount;
+  const basis = xpSettings.bitsXPBasis || 'final';
+  return Math.abs(basis === 'base' ? numericAmount : adjustedAmount);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -354,7 +356,9 @@ router.post('/wallet/adjust', ensureAuthenticated, requireScope('wallet:adjust')
     const classroom = await Classroom.findById(classroomId);
     if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
 
-    const appName = req.integrationApp?.name || 'External Integration';
+    const appName = req.integrationApp?.name || 'Unknown Integration';
+    const appLabel = `App Integration "${appName}"`;
+
     const results = { updated: 0, skipped: [], details: [] };
 
     for (const { studentId, amount } of updates) {
@@ -406,7 +410,9 @@ router.post('/wallet/adjust', ensureAuthenticated, requireScope('wallet:adjust')
         // Transaction record
         student.transactions.push({
           amount: adjustedAmount,
-          description: description || `${appName} adjustment`,
+          description: description
+            ? `${description} (${appLabel})`
+            : `Adjustment via ${appLabel}`,
           type: numericAmount >= 0 ? 'credit' : 'debit',
           classroom: classroomId,
           assignedBy: req.user._id,
@@ -422,9 +428,29 @@ router.post('/wallet/adjust', ensureAuthenticated, requireScope('wallet:adjust')
 
         await student.save();
 
-        // XP award
-        if (adjustedAmount > 0 && classroom.xpSettings?.enabled) {
-          const xpRate = classroom.xpSettings.bitsEarned || 0;
+        // === NEW: Create wallet transaction notification (like normal wallet assign) ===
+        try {
+          const notification = await Notification.create({
+            user: studentId,
+            actionBy: req.user._id,
+            type: 'wallet_transaction',
+            message: `You were ${numericAmount >= 0 ? 'credited' : 'debited'} ${Math.abs(adjustedAmount)} ₿ via ${appLabel}.`,
+            classroom: classroomId,
+            amount: adjustedAmount,
+            read: false,
+            createdAt: new Date()
+          });
+          const populated = await populateNotification(notification._id);
+          if (io && populated) {
+            io.to(`user-${studentId}`).emit('notification', populated);
+          }
+        } catch (notifErr) {
+          console.warn('[integration] failed to create wallet notification:', notifErr);
+        }
+
+        // ── XP award + stat-change log ──
+        if (adjustedAmount > 0 && classroom?.xpSettings?.enabled) {
+          const xpRate = (classroom.xpSettings.bitsEarned || 0);
           if (xpRate > 0) {
             const xpBits = computeXPBits({
               numericAmount,
@@ -434,19 +460,27 @@ router.post('/wallet/adjust', ensureAuthenticated, requireScope('wallet:adjust')
             const xpToAward = xpBits * xpRate;
             if (xpToAward > 0) {
               try {
-                const xpRes = await awardXP(studentId, classroomId, xpToAward, `earning bits (${appName})`, classroom.xpSettings);
+                const ioInstance = req.app && req.app.get ? req.app.get('io') : null;
+                const xpRes = await awardXP(studentId, classroomId, xpToAward, `earning bits (${appLabel})`, classroom.xpSettings);
                 if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
                   try {
-                    await logStatChanges({
-                      io: req.app?.get?.('io') || null,
-                      classroomId,
-                      user: student,
-                      actionBy: req.user._id,
-                      changes: [{ stat: 'xp', from: xpRes.oldXP, to: xpRes.newXP }],
-                      source: appName
-                    });
+                    // logStatChanges needs the full user doc, reload to get fresh state
+                    const freshStudent = await User.findById(studentId).select('firstName lastName');
+                    if (freshStudent) {
+                      await logStatChanges({
+                        io: ioInstance,
+                        classroomId,
+                        user: freshStudent,
+                        actionBy: req.user ? req.user._id : undefined,
+                        prevStats: { xp: xpRes.oldXP },
+                        currStats: { xp: xpRes.newXP },
+                        context: `integration adjustment (${appLabel})`,
+                        details: { effectsText: `Balance adjustment: ${adjustedAmount} ₿ via ${appLabel}` },
+                        forceLog: true
+                      });
+                    }
                   } catch (logErr) {
-                    console.warn('[integration] logStatChanges failed:', logErr);
+                    console.warn('[integration] failed to log XP stat change:', logErr);
                   }
                 }
               } catch (xpErr) {
@@ -456,14 +490,17 @@ router.post('/wallet/adjust', ensureAuthenticated, requireScope('wallet:adjust')
           }
         }
 
-        // Socket event
+        // Emit balance_update to both user AND classroom rooms
         try {
-          const io = req.app?.get?.('io');
           if (io) {
-            const newBalance = (student.classroomBalances || [])
-              .find(b => String(b.classroom) === String(classroomId))?.balance || 0;
+            const newBalance = cb ? cb.balance : adjustedAmount;
             io.to(`user-${studentId}`).emit('balance_update', {
               userId: studentId,
+              classroomId,
+              newBalance
+            });
+            io.to(`classroom-${classroomId}`).emit('balance_update', {
+              studentId,
               classroomId,
               newBalance
             });
