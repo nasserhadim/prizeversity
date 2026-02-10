@@ -10,6 +10,7 @@ const { awardXP } = require('../utils/awardXP');
 const { logStatChanges } = require('../utils/statChangeLog');
 const { getScopedUserStats, isClassroomAdmin } = require('../utils/classroomStats');
 const { dispatchWebhook } = require('../utils/webhookDispatcher');
+const { getUserGroupMultiplier } = require('../utils/groupMultiplier');
 
 // helper: classroom-scoped personal multiplier
 function getPersonalMultiplierForClassroom(userDoc, classroomId) {
@@ -17,29 +18,9 @@ function getPersonalMultiplierForClassroom(userDoc, classroomId) {
   const stats = Array.isArray(userDoc.classroomStats)
     ? userDoc.classroomStats.find(s => String(s.classroom) === String(classroomId))
     : null;
-  return stats?.multiplier ?? 1;
-}
-
-// helper: group multiplier
-async function getGroupMultiplierForStudent(studentId, classroomId) {
-  try {
-    const GroupSet = require('../models/GroupSet');
-    const groupSets = await GroupSet.find({ classroom: classroomId }).populate('groups');
-    for (const gs of groupSets) {
-      for (const g of gs.groups) {
-        const isMember = (g.members || []).some(m => {
-          const mid = m._id ? (m._id._id || m._id) : m;
-          return String(mid) === String(studentId) && m.status === 'approved';
-        });
-        if (isMember && g.multiplier && g.multiplier !== 1) {
-          return g.multiplier;
-        }
-      }
-    }
-    return 1;
-  } catch {
-    return 1;
-  }
+  if (!stats) return 1;
+  const m = Number(stats.passiveAttributes?.multiplier ?? 1);
+  return Number.isFinite(m) && m > 0 ? m : 1;
 }
 
 // helper: XP bits computation (same as wallet.js)
@@ -392,7 +373,7 @@ router.post('/wallet/adjust', ensureAuthenticated, requireScope('wallet:adjust')
 
         // Multipliers
         const groupMultiplier = (applyGroupMultipliers && numericAmount > 0)
-          ? await getGroupMultiplierForStudent(studentId, classroomId)
+          ? await getUserGroupMultiplier(studentId, classroomId)
           : 1;
         const personalMultiplier = (applyPersonalMultipliers && numericAmount > 0)
           ? getPersonalMultiplierForClassroom(student, classroomId)
