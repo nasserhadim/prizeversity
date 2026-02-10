@@ -9,6 +9,7 @@ const Footer = () => {
         <Link to="/terms" className="link text-primary">Terms of Service</Link>
         <Link to="/support" className="link text-primary">Help & Support</Link>
         <Link to="/feedback" className="link text-primary">Site Feedback</Link>
+        <Link to="/integrations/docs" className="link text-primary">API Docs</Link>
       </div>
       <p className="text-base-content/60">
         © {new Date().getFullYear()} Prizeversity. All rights reserved.

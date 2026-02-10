@@ -875,6 +875,7 @@ const Home = () => {
               <Link to="/terms" className="text-gray-400 hover:text-white transition">Terms</Link>
               <Link to="/support" className="text-gray-400 hover:text-white transition">Help</Link>
               <Link to="/feedback" className="text-gray-400 hover:text-white transition">Site Feedback</Link>
+              <Link to="/integrations/docs" className="text-gray-400 hover:text-white transition">API Docs</Link>
             </div>
           </div>
           <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">

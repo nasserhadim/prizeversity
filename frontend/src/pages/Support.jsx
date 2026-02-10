@@ -22,7 +22,8 @@ import {
   TrendingUp,
   Archive,
   Target,
-  Shield
+  Shield,
+  Plug
 } from 'lucide-react';
 import Footer from '../components/Footer';
 
@@ -941,7 +942,7 @@ const Support = () => {
     },
     {
       category: "Classrooms: Archiving & Visibility",
-      icon: <Archive size={20} />, // ensure Archive is imported from lucide-react if not already
+      icon: <Archive size={20} />,
       questions: [
         {
           question: "What happens when a teacher archives a classroom?",
@@ -978,6 +979,204 @@ const Support = () => {
             "**Coming soon:** Customizable notification preferences!"
           ],
           role: ["all"]
+        }
+      ]
+    },
+    {
+      category: "Integrations",
+      icon: <Plug size={20} />,
+      questions: [
+        {
+          question: "What are Integrations?",
+          answer: [
+            "Integrations allow you to connect **external apps** (like grade sync tools or attendance trackers) to Prizeversity so they can interact with your classrooms automatically.",
+            "",
+            "For example, an external reward tool could automatically send bit adjustments to your students without you having to manually enter them in Prizeversity.",
+            "",
+            "Each integration is scoped to specific classrooms and permissions, so you stay in full control of what external apps can do."
+          ],
+          role: ["teacher"]
+        },
+        {
+          question: "How do I create an integration?",
+          answer: [
+            "1. Go to **Integrations** (from the navigation menu or Classroom Settings)",
+            "2. Click **New Integration**",
+            "3. Fill out the form:",
+            "   • **App Name** — a label for the integration (e.g. 'ExtRewardTool')",
+            "   • **Description** — optional note about what it does",
+            "   • **Classroom Scope** — select which classroom(s) this integration can access",
+            "   • **Permissions** — check only the permissions the external app needs",
+            "4. Click **Create Integration**",
+            "5. **Copy and save the API key** — it is shown only once!",
+            "",
+            "Then paste the API key into the external app's settings. That's it — the external app can now interact with Prizeversity.",
+            "",
+            "**For developers** building an integration, see the [API Reference](/integrations/docs) for full technical documentation."
+          ],
+          role: ["teacher"]
+        },
+        {
+          question: "What are permission scopes?",
+          answer: [
+            "Scopes control what an external app is allowed to do. Only grant what the app actually needs:",
+            "",
+            "• **Adjust Wallet Balances** — Add or deduct bits from student wallets",
+            "• **Match Students** — Match student names (from external data) to Prizeversity accounts",
+            "• **List Students** — View student names and emails in a classroom",
+            "• **Read Classroom Info** — View classroom name, code, and student count",
+            "• **Read Inventory** — View a student's inventory items via the API (returns item IDs needed for redemption)",
+            "• **Redeem Items** — Mark inventory items as redeemed (for grade sync, etc.). Use Read Inventory first to get the item ID.",
+            "• **Manage Webhooks** — Register event notifications (advanced)",
+            "",
+            "**Tip:** For a simple reward tool, you typically only need 'Adjust Wallet Balances' and 'Match Students'."
+          ],
+          role: ["teacher"]
+        },
+        {
+          question: "What is classroom scoping and why does it matter?",
+          answer: [
+            "Every integration is locked to the specific classroom(s) you select during creation.",
+            "",
+            "This means:",
+            "• The API key **only works** for those classrooms — even if someone else gets the key, they cannot access other classrooms",
+            "• If you have an Admin/TA using an external tool, they can only affect the classroom(s) you authorized",
+            "• You can create separate integrations for different classrooms with different permissions",
+            "",
+            "**Example:** You create an integration for 'Class 101' with 'Adjust Wallet Balances'. That key cannot be used to adjust balances in 'Class 202'."
+          ],
+          role: ["teacher"]
+        },
+        {
+          question: "How do I share the API key with an external app?",
+          answer: [
+            "After creating an integration, you'll see a yellow banner with the API key. This is the **only time** the full key is shown.",
+            "",
+            "1. Click the **copy button** next to the key",
+            "2. Paste it into the external app's settings or configuration page",
+            "3. Click 'I've saved it — dismiss' to close the banner",
+            "",
+            "If you lose the key, you can click **Regenerate Key** on the integration card — but the old key will immediately stop working, so you'll need to update the external app too."
+          ],
+          role: ["teacher"]
+        },
+        {
+          question: "Can I pause or deactivate an integration?",
+          answer: [
+            "Yes! From the Integrations page:",
+            "",
+            "• **Pause** — Temporarily disables the integration. The external app will get an authentication error until you resume it. The API key is preserved.",
+            "• **Resume** — Re-enables a paused integration.",
+            "• **Deactivate** — Permanently revokes the integration. The API key stops working immediately.",
+            "• **Regenerate Key** — Creates a new API key and invalidates the old one. Useful if you suspect the key was compromised.",
+            "",
+            "All actions take effect immediately."
+          ],
+          role: ["teacher"]
+        },
+        {
+          question: "What are webhooks?",
+          answer: [
+            "⚠️ **Beta Feature:** Webhooks are currently in beta preview. Behavior may change and delivery is not guaranteed at this time.",
+            "",
+            "Webhooks are an **advanced** feature that lets external apps receive automatic notifications when something happens in Prizeversity.",
+            "",
+            "For example, a webhook could notify an LMS integration when a student redeems an 'Extra Credit' item, so the grade gets updated automatically.",
+            "",
+            "**Available events:**",
+            "• Wallet Updated — when a student's balance changes",
+            "• Item Purchased — when a student buys from the bazaar",
+            "• Item Redeemed — when an inventory item is used",
+            "• Challenge Completed — when a challenge finishes",
+            "• Level Up — when a student levels up",
+            "• Badge Earned — when a badge is unlocked",
+            "",
+            "⚠️ **Note:** Webhooks are currently in beta. Delivery reliability and payload format may change.",
+            "",
+            "Most teachers don't need to set up webhooks directly — the external app developer would handle this. But you can manage them from the integration card's expanded view."
+          ],
+          role: ["teacher"]
+        },
+        {
+          question: "What does the external app need from me?",
+          answer: [
+            "Typically, the external app needs two things from you:",
+            "",
+            "1. **API Key** — the key you get when creating an integration (paste it into the app's settings)",
+            "2. **Classroom ID** — the ID of your classroom. You can find this in the URL when viewing your classroom (e.g. `/classroom/abc123` → the ID is `abc123`)",
+            "",
+            "Some apps may also ask for the Prizeversity base URL (e.g. `https://www.prizeversity.com`).",
+            "",
+            "**Important:** The API uses MongoDB ObjectIds (24-character hex strings like `68a4ez78af95ce2a82ad6ae0`) for student IDs — **not** the short IDs shown in the UI (like `YM1234`). External apps should use the `/users/match` or `/users/list` endpoint to retrieve the correct student IDs before making wallet adjustments or other API calls."
+          ],
+          role: ["teacher"]
+        },
+        {
+          question: "Is my data safe with integrations?",
+          answer: [
+            "Yes — integrations are designed with security in mind:",
+            "",
+            "• **Scoped access** — each integration can only access the classrooms and actions you explicitly authorize",
+            "• **Rate limiting** — integrations are limited to 60 requests/minute and 1,000/hour to prevent abuse",
+            "• **API keys are hashed** — the full key is only shown once at creation; it's stored securely",
+            "• **Instant revocation** — you can pause or deactivate any integration immediately",
+            "• **Audit trail** — request count and last-used timestamp are tracked on each integration",
+            "",
+            "You can always review your active integrations from the Integrations page."
+          ],
+          role: ["teacher"]
+        },
+        {
+          question: "What if the external app stops working?",
+          answer: [
+            "Common reasons an integration might stop working:",
+            "",
+            "• **Key was regenerated** — if you regenerated the key, update it in the external app",
+            "• **Integration was paused or deactivated** — check the integration status on the Integrations page",
+            "• **Rate limit exceeded** — the app is making too many requests; wait a minute and try again",
+            "• **Classroom scope changed** — if the classroom was deleted or the integration's scope no longer includes it",
+            "",
+            "If none of these apply, contact the external app's developer for help."
+          ],
+          role: ["teacher"]
+        },
+        {
+          question: "Can students create integrations?",
+          answer: [
+            "No. Only **teachers** can create and manage integrations. Students do not have access to the Integrations page or API key management.",
+            "",
+            "Students may interact with integrations indirectly — for example, receiving bits from an external reward tool — but they never see or manage API keys."
+          ],
+          role: ["all"]
+        },
+        {
+          question: "How does the inventory redeem flow work with integrations?",
+          answer: [
+            "The inventory redeem flow is designed for **external apps** (e.g., an LMS bridge) that need to process a student's inventory item outside of Prizeversity and then mark it as consumed.",
+            "",
+            "**Important limitation:** Only **passive items with no secondary effects** (e.g., extra credit vouchers, hall passes) can be redeemed through the API. Items with effects — such as attacks, shields, utility boosts, mystery boxes, or passive items that grant stat boosts (luck, multiplier, group multiplier) — must be redeemed through the Prizeversity app so that effects, orders, and stats are properly applied.",
+            "",
+            "**Example use case:** A student buys a '5 Points Extra Credit' item in the Bazaar. An LMS integration reads their inventory, applies the extra credit in the LMS system, then calls the redeem endpoint so the item isn't processed again.",
+            "",
+            "**Step 1: Read Inventory** (scope: `inventory:read`)",
+            "• `GET /api/integrations/inventory/:studentId?classroomId=<id>`",
+            "• Returns all non-consumed items the student owns in that classroom",
+            "• Each item includes an `_id` field — this is the item ID needed for redemption",
+            "",
+            "**Step 2: Redeem Item** (scope: `inventory:use`)",
+            "• `POST /api/integrations/inventory/redeem`",
+            "• Pass the `itemId` from Step 1, along with optional `redemptionData` (e.g., which assignment, how many points)",
+            "• The item is marked as consumed in Prizeversity so it won't appear in future inventory reads",
+            "• A webhook event (`item.redeemed`) is dispatched to any registered webhooks",
+            "",
+            "**What CAN be redeemed via API:** Passive items with no secondary effects (extra credit, hall passes, reward vouchers, etc.)",
+            "**What CANNOT be redeemed via API:** Attack items, Defend items, Utility items, Mystery Boxes, or Passive items with stat-boosting effects (e.g. luck, multiplier, group multiplier)",
+            "",
+            "**Important:** The redeem endpoint does NOT apply grades or trigger actions in the LMS — that's the external app's responsibility. The endpoint simply tells Prizeversity 'this item has been processed, mark it done.'",
+            "",
+            "Make sure your integration app has both `inventory:read` and `inventory:use` scopes enabled."
+          ],
+          role: ["teacher"]
         }
       ]
     },
@@ -1175,18 +1374,77 @@ const Support = () => {
         );
       }
       
+      // Helper to parse inline markdown (bold + links) within a text string
+      const parseInline = (text, keyPrefix = '') => {
+        // Split by markdown links [text](url) and bold **text**
+        const parts = [];
+        let remaining = text;
+        let partIndex = 0;
+
+        while (remaining.length > 0) {
+          // Find the earliest match of either a link or bold
+          const linkMatch = remaining.match(/\[([^\]]+)\]\(([^)]+)\)/);
+          const boldMatch = remaining.match(/\*\*([^*]+)\*\*/);
+
+          let earliestMatch = null;
+          let matchType = null;
+
+          if (linkMatch && boldMatch) {
+            if (remaining.indexOf(linkMatch[0]) <= remaining.indexOf(boldMatch[0])) {
+              earliestMatch = linkMatch;
+              matchType = 'link';
+            } else {
+              earliestMatch = boldMatch;
+              matchType = 'bold';
+            }
+          } else if (linkMatch) {
+            earliestMatch = linkMatch;
+            matchType = 'link';
+          } else if (boldMatch) {
+            earliestMatch = boldMatch;
+            matchType = 'bold';
+          }
+
+          if (!earliestMatch) {
+            parts.push(<span key={`${keyPrefix}-${partIndex}`}>{remaining}</span>);
+            break;
+          }
+
+          const matchIndex = remaining.indexOf(earliestMatch[0]);
+          if (matchIndex > 0) {
+            parts.push(<span key={`${keyPrefix}-${partIndex++}`}>{remaining.slice(0, matchIndex)}</span>);
+          }
+
+          if (matchType === 'link') {
+            const isInternal = earliestMatch[2].startsWith('/');
+            if (isInternal) {
+              parts.push(
+                <Link key={`${keyPrefix}-${partIndex++}`} to={earliestMatch[2]} className="link link-primary">
+                  {earliestMatch[1]}
+                </Link>
+              );
+            } else {
+              parts.push(
+                <a key={`${keyPrefix}-${partIndex++}`} href={earliestMatch[2]} target="_blank" rel="noopener noreferrer" className="link link-primary">
+                  {earliestMatch[1]}
+                </a>
+              );
+            }
+          } else {
+            parts.push(<strong key={`${keyPrefix}-${partIndex++}`}>{earliestMatch[1]}</strong>);
+          }
+
+          remaining = remaining.slice(matchIndex + earliestMatch[0].length);
+        }
+
+        return parts;
+      };
+
       if (line.startsWith('• ')) {
-        const parts = line.slice(2).split('**');
         return (
           <div key={index} className="ml-4 mb-1">
             •{' '}
-            {parts.map((part, i) =>
-              i % 2 === 1 ? (
-                <strong key={i}>{part}</strong>
-              ) : (
-                <span key={i}>{part}</span>
-              )
-            )}
+            {parseInline(line.slice(2), index)}
           </div>
         );
       }
@@ -1194,23 +1452,16 @@ const Support = () => {
       if (line.startsWith('  - ') || line.startsWith('   •')) {
         return (
           <div key={index} className="ml-8 mb-1 text-sm">
-            {line}
+            {parseInline(line, index)}
           </div>
         );
       }
       
-      // Handle general in-line bolding
-      if (line.includes('**')) {
-        const parts = line.split('**');
+      // Handle lines with links or bold
+      if (line.includes('**') || line.match(/\[([^\]]+)\]\(([^)]+)\)/)) {
         return (
           <div key={index} className="mb-1">
-            {parts.map((part, i) =>
-              i % 2 === 1 ? (
-                <strong key={i}>{part}</strong>
-              ) : (
-                <span key={i}>{part}</span>
-              )
-            )}
+            {parseInline(line, index)}
           </div>
         );
       }
