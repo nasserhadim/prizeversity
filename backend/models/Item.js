@@ -40,10 +40,8 @@ const ItemSchema = new mongoose.Schema({
       return 1;
     }
   },
-  consumed: { 
-    type: Boolean, 
-    default: false 
-  }, // ADD: Track if item is fully consumed
+  consumed: { type: Boolean, default: false },
+  redemptionData: { type: mongoose.Schema.Types.Mixed }, // NEW: store redemption metadata
   active: { type: Boolean, default: false },
   activatedAt: { type: Date }, // ← NEW: when effect was activated/equipped
   

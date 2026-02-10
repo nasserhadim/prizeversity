@@ -1025,8 +1025,8 @@ const Support = () => {
             "• **Match Students** — Match student names (from external data) to Prizeversity accounts",
             "• **List Students** — View student names and emails in a classroom",
             "• **Read Classroom Info** — View classroom name, code, and student count",
-            "• **Read Inventory** — View student inventory items",
-            "• **Redeem Items** — Mark inventory items as redeemed (for grade sync, etc.)",
+            "• **Read Inventory** — View a student's inventory items via the API (returns item IDs needed for redemption)",
+            "• **Redeem Items** — Mark inventory items as redeemed (for grade sync, etc.). Use Read Inventory first to get the item ID.",
             "• **LMS Grade Sync** — Sync grades with external learning management systems",
             "• **Manage Webhooks** — Register event notifications (advanced)",
             "",
@@ -1145,6 +1145,35 @@ const Support = () => {
             "Students may interact with integrations indirectly — for example, receiving bits from an external reward tool — but they never see or manage API keys."
           ],
           role: ["all"]
+        },
+        {
+          question: "How does the inventory redeem flow work with integrations?",
+          answer: [
+            "The inventory redeem flow is designed for **external apps** (e.g., an LMS bridge) that need to process a student's inventory item outside of Prizeversity and then mark it as consumed.",
+            "",
+            "**Important limitation:** Only **passive items with no secondary effects** (e.g., extra credit vouchers, hall passes) can be redeemed through the API. Items with effects — such as attacks, shields, utility boosts, mystery boxes, or passive items that grant stat boosts (luck, multiplier, group multiplier) — must be redeemed through the Prizeversity app so that effects, orders, and stats are properly applied.",
+            "",
+            "**Example use case:** A student buys a '5 Points Extra Credit' item in the Bazaar. An LMS integration reads their inventory, applies the extra credit in the LMS system, then calls the redeem endpoint so the item isn't processed again.",
+            "",
+            "**Step 1: Read Inventory** (scope: `inventory:read`)",
+            "• `GET /api/integrations/inventory/:studentId?classroomId=<id>`",
+            "• Returns all non-consumed items the student owns in that classroom",
+            "• Each item includes an `_id` field — this is the item ID needed for redemption",
+            "",
+            "**Step 2: Redeem Item** (scope: `inventory:use`)",
+            "• `POST /api/integrations/inventory/redeem`",
+            "• Pass the `itemId` from Step 1, along with optional `redemptionData` (e.g., which assignment, how many points)",
+            "• The item is marked as consumed in Prizeversity so it won't appear in future inventory reads",
+            "• A webhook event (`item.redeemed`) is dispatched to any registered webhooks",
+            "",
+            "**What CAN be redeemed via API:** Passive items with no secondary effects (extra credit, hall passes, reward vouchers, etc.)",
+            "**What CANNOT be redeemed via API:** Attack items, Defend items, Utility items, Mystery Boxes, or Passive items with stat-boosting effects (e.g. luck, multiplier, group multiplier)",
+            "",
+            "**Important:** The redeem endpoint does NOT apply grades or trigger actions in the LMS — that's the external app's responsibility. The endpoint simply tells Prizeversity 'this item has been processed, mark it done.'",
+            "",
+            "Make sure your integration app has both `inventory:read` and `inventory:use` scopes enabled."
+          ],
+          role: ["teacher"]
         }
       ]
     },

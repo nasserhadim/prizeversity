@@ -558,10 +558,45 @@ export default function IntegrationDocs() {
             />
 
             <EndpointCard
+              method="GET"
+              path="/api/integrations/inventory/:studentId"
+              scope="inventory:read"
+              description="List all non-consumed inventory items for a student in a specific classroom. Use the returned item _id values with the redeem endpoint."
+              requestBody={null}
+              responseBody={JSON.stringify({
+                studentId: '<student_id>',
+                classroomId: '<classroom_id>',
+                items: [
+                  {
+                    _id: '68a3f123zyf456def7890123',
+                    name: '5 Points Extra Credit',
+                    description: 'Redeem for 5 extra credit points',
+                    category: 'Passive',
+                    price: 50,
+                    active: false,
+                    consumed: false,
+                    usesRemaining: 1
+                  },
+                  {
+                    _id: '68a4f456dbc789def0123456',
+                    name: 'Luck Boost',
+                    description: '+2 Luck passive effect',
+                    category: 'Passive',
+                    price: 10,
+                    active: true,
+                    consumed: false,
+                    usesRemaining: 1
+                  }
+                ]
+              }, null, 2)}
+              notes="Requires classroomId as a query parameter: /api/integrations/inventory/:studentId?classroomId=<classroom_id>. Only returns items that belong to the specified classroom's bazaar and have not been consumed."
+            />
+
+            <EndpointCard
               method="POST"
               path="/api/integrations/inventory/redeem"
               scope="inventory:use"
-              description="Mark a student's inventory item as redeemed. Useful for triggering external actions like LMS grade updates."
+              description="Mark a student's passive inventory item (with no secondary effects) as consumed after processing it externally (e.g., after applying extra credit in an LMS). This prevents the item from being processed again on subsequent inventory reads."
               requestBody={JSON.stringify({
                 classroomId: '<classroom_id>',
                 studentId: '<student_id>',
@@ -585,7 +620,7 @@ export default function IntegrationDocs() {
                   }
                 }
               }, null, 2)}
-              notes="A webhook event (item.redeemed) is dispatched when an item is redeemed, allowing external apps like an LMS bridge to process it automatically."
+              notes="This endpoint is designed for LMS bridge developers. Only passive items with no secondary effects (e.g., extra credit vouchers) can be redeemed through the API. Items with effects (Attack, Defend, Utility, MysteryBox, or Passive items with stat boosts) must be redeemed through the Prizeversity app to ensure effects, orders, and stats are properly recorded. The typical flow is: 1) Read the student's inventory, 2) Filter for effect-free passive items, 3) Process the item externally (e.g., update a grade in the LMS system), 4) Call this endpoint to mark it as consumed."
             />
 
             {/* ═══════════════════════════════════════════════ */}
@@ -810,6 +845,59 @@ const { matched, unmatched } = await response.json();
 
 const result = await response.json();
 console.log(\`\${result.updated} students rewarded!\`);`}
+                />
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-sm mb-2 flex items-center gap-2">
+                  <span className="badge badge-primary badge-sm">5</span>
+                  Read &amp; Redeem Inventory
+                </h3>
+                <p className="text-sm mb-2">
+                  List a student's items, then redeem one by ID:
+                </p>
+                <CopyBlock
+                  code={`// Step 1: List student's inventory
+const invResponse = await fetch(
+  \`\${BASE_URL}/api/integrations/inventory/\${studentId}?classroomId=\${classroomId}\`,
+  {
+    headers: { 'X-API-Key': process.env.PRIZEVERSITY_API_KEY },
+  }
+);
+const { items } = await invResponse.json();
+
+// Step 2: Find redeemable items (passive, no effects)
+// Only passive items without secondary effects can be redeemed via API
+const redeemableItems = items.filter(i =>
+  i.category === 'Passive' && (!i.secondaryEffects || i.secondaryEffects.length === 0)
+);
+const extraCreditItem = redeemableItems.find(i => i.name.includes('Extra Credit'));
+
+// Step 3: Redeem it
+if (extraCreditItem) {
+  const redeemResponse = await fetch(
+    \`\${BASE_URL}/api/integrations/inventory/redeem\`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': process.env.PRIZEVERSITY_API_KEY,
+      },
+      body: JSON.stringify({
+        classroomId,
+        studentId,
+        itemId: extraCreditItem._id,
+        redemptionData: {
+          type: 'extra_credit',
+          assignment: 'Midterm Exam',
+          points: 5
+        }
+      }),
+    }
+  );
+  const result = await redeemResponse.json();
+  console.log(result.message);
+}`}
                 />
               </div>
 

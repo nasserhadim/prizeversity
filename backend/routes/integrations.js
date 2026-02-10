@@ -505,4 +505,137 @@ router.post('/wallet/adjust', ensureAuthenticated, requireScope('wallet:adjust')
   }
 });
 
+// Redeem an inventory item via integration API
+router.post('/inventory/redeem', ensureAuthenticated, requireScope('inventory:use'), async (req, res) => {
+  try {
+    const { classroomId, studentId, itemId, redemptionData } = req.body;
+    if (!classroomId || !studentId || !itemId) {
+      return res.status(400).json({ error: 'classroomId, studentId, and itemId are required' });
+    }
+
+    const mongoose = require('mongoose');
+    if (!mongoose.Types.ObjectId.isValid(classroomId) ||
+        !mongoose.Types.ObjectId.isValid(studentId) ||
+        !mongoose.Types.ObjectId.isValid(itemId)) {
+      return res.status(400).json({ error: 'classroomId, studentId, and itemId must be valid 24-character MongoDB ObjectIds' });
+    }
+
+    const app = req.integrationApp;
+    if (!app.classrooms.map(String).includes(String(classroomId))) {
+      return res.status(403).json({ error: 'App not authorized for this classroom' });
+    }
+
+    const Item = require('../models/Item');
+    const item = await Item.findById(itemId);
+    if (!item) return res.status(404).json({ error: 'Item not found' });
+    if (String(item.owner) !== String(studentId)) {
+      return res.status(403).json({ error: 'Item not owned by this student' });
+    }
+    if (item.consumed) {
+      return res.status(400).json({ error: 'Item already consumed' });
+    }
+
+    // Only allow redemption of passive items with no secondary effects.
+    // Items with effects (Attack, Defend, Utility, MysteryBox, or Passive items
+    // with secondary effects) must be used through their dedicated in-app flows
+    // to ensure effects are properly applied, orders recorded, and stats updated.
+    if (item.category !== 'Passive') {
+      return res.status(400).json({
+        error: `Only passive items without effects can be redeemed through the API. This item is a ${item.category} item — it must be used through the Prizeversity app.`
+      });
+    }
+
+    if (item.secondaryEffects && item.secondaryEffects.length > 0) {
+      return res.status(400).json({
+        error: 'This passive item has secondary effects (e.g., luck, multiplier boosts) and must be equipped through the Prizeversity app so effects are properly applied.'
+      });
+    }
+
+    // Mark as redeemed
+    item.consumed = true;
+    item.usesRemaining = 0;
+    if (redemptionData) item.redemptionData = redemptionData;
+    await item.save();
+
+    // Dispatch webhook
+    dispatchWebhook('item.redeemed', classroomId, {
+      studentId,
+      itemId: item._id,
+      itemName: item.name,
+      category: item.category,
+      redemptionData
+    });
+
+    res.json({
+      message: 'Item redeemed successfully',
+      item: {
+        _id: item._id,
+        name: item.name,
+        category: item.category,
+        redemptionData
+      }
+    });
+  } catch (err) {
+    console.error('[Integration redeem]', err);
+    res.status(500).json({ error: 'Failed to redeem item' });
+  }
+});
+
+// --- Read student inventory via integration API ---
+router.get('/inventory/:studentId', ensureAuthenticated, requireScope('inventory:read'), async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { classroomId } = req.query;
+
+    if (!classroomId) {
+      return res.status(400).json({ error: 'classroomId query param is required' });
+    }
+
+    const mongoose = require('mongoose');
+    if (!mongoose.Types.ObjectId.isValid(studentId) || !mongoose.Types.ObjectId.isValid(classroomId)) {
+      return res.status(400).json({ error: 'Invalid studentId or classroomId' });
+    }
+
+    const app = req.integrationApp;
+    if (!app.classrooms.map(String).includes(String(classroomId))) {
+      return res.status(403).json({ error: 'App not authorized for this classroom' });
+    }
+
+    const Item = require('../models/Item');
+    const items = await Item.find({
+      owner: studentId,
+      consumed: { $ne: true },
+      usesRemaining: { $gt: 0 }
+    }).populate({
+      path: 'bazaar',
+      populate: { path: 'classroom', select: '_id' }
+    });
+
+    // Filter to only items from this classroom
+    const filtered = items.filter(item =>
+      item.bazaar && item.bazaar.classroom && String(item.bazaar.classroom._id) === String(classroomId)
+    );
+
+    res.json({
+      studentId,
+      classroomId,
+      items: filtered.map(item => ({
+        _id: item._id,
+        name: item.name,
+        description: item.description,
+        category: item.category,
+        price: item.price,
+        active: item.active,
+        consumed: item.consumed,
+        usesRemaining: item.usesRemaining,
+        secondaryEffects: item.secondaryEffects || [],
+        redeemableViaAPI: item.category === 'Passive' && (!item.secondaryEffects || item.secondaryEffects.length === 0)
+      }))
+    });
+  } catch (err) {
+    console.error('[Integration inventory read]', err);
+    res.status(500).json({ error: 'Failed to read inventory' });
+  }
+});
+
 module.exports = router;
