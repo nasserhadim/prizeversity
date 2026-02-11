@@ -174,17 +174,21 @@ router.post('/:classroomId/custom', ensureAuthenticated, ensureTeacher, async (r
     const { 
       title, description, externalUrl, solution, maxAttempts, 
       hintsEnabled, hints, hintPenaltyPercent, bits, multiplier, luck, discount, shield, visible,
-      templateType, templateConfig, dueDateEnabled, dueDate, applyPersonalMultiplier, applyGroupMultiplier
+      templateType, templateConfig, dueDateEnabled, dueDate, applyPersonalMultiplier, applyGroupMultiplier,
+      isMultiStep, steps, completionBonus
     } = req.body;
 
     if (!title) {
       return res.status(400).json({ success: false, message: 'Title is required' });
     }
 
-    // Passcode type requires solution, template types don't
-    const isTemplateType = templateType && templateType !== 'passcode';
-    if (!isTemplateType && !solution) {
-      return res.status(400).json({ success: false, message: 'Solution is required for passcode challenges' });
+    const isMultiStepChallenge = Boolean(isMultiStep) && Array.isArray(steps) && steps.length > 0;
+
+    if (!isMultiStepChallenge) {
+      const isTemplateType = templateType && templateType !== 'passcode';
+      if (!isTemplateType && !solution) {
+        return res.status(400).json({ success: false, message: 'Solution is required for passcode challenges' });
+      }
     }
 
     if (title.length > 200) {
@@ -195,8 +199,8 @@ router.post('/:classroomId/custom', ensureAuthenticated, ensureTeacher, async (r
       return res.status(400).json({ success: false, message: 'Description must be 5000 characters or less' });
     }
 
-    // Validate template config if using a template
-    if (isTemplateType) {
+    const isTemplateType = templateType && templateType !== 'passcode';
+    if (!isMultiStepChallenge && isTemplateType) {
       const validation = templateEngine.validateConfig(templateType, templateConfig || {});
       if (!validation.valid) {
         return res.status(400).json({ success: false, message: validation.errors.join(', ') });
@@ -212,13 +216,84 @@ router.post('/:classroomId/custom', ensureAuthenticated, ensureTeacher, async (r
       return res.status(403).json({ success: false, message: 'Only the challenge creator can add custom challenges' });
     }
 
-    // Only hash solution for passcode-type challenges
     let solutionHash = null;
-    if (!isTemplateType && solution) {
+    let solutionPlaintext = null;
+    if (!isMultiStepChallenge && !isTemplateType && solution) {
       solutionHash = await bcrypt.hash(solution.trim(), 10);
+      solutionPlaintext = solution.trim();
     }
 
     if (!challenge.customChallenges) challenge.customChallenges = [];
+
+    let processedSteps = [];
+    if (isMultiStepChallenge) {
+      const tempIdToObjectId = new Map();
+      
+      for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
+        const newObjectId = new mongoose.Types.ObjectId();
+        const tempId = step._id || `step-${i}`;
+        tempIdToObjectId.set(tempId, newObjectId);
+      }
+
+      for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
+        const stepIsTemplate = step.templateType && step.templateType !== 'passcode';
+        let stepSolutionHash = null;
+        let stepSolutionPlaintext = null;
+        
+        if (!stepIsTemplate && step.solution) {
+          stepSolutionHash = await bcrypt.hash(step.solution.trim(), 10);
+          stepSolutionPlaintext = step.solution.trim();
+        }
+
+        if (stepIsTemplate && step.templateConfig) {
+          const validation = templateEngine.validateConfig(step.templateType, step.templateConfig);
+          if (!validation.valid) {
+            return res.status(400).json({ 
+              success: false, 
+              message: `Step "${step.title}": ${validation.errors.join(', ')}` 
+            });
+          }
+        }
+
+        const prereqObjectIds = [];
+        if (Array.isArray(step.prerequisites)) {
+          for (const prereqId of step.prerequisites) {
+            const mappedId = tempIdToObjectId.get(prereqId);
+            if (mappedId) {
+              prereqObjectIds.push(mappedId);
+            } else if (mongoose.Types.ObjectId.isValid(prereqId)) {
+              prereqObjectIds.push(new mongoose.Types.ObjectId(prereqId));
+            }
+          }
+        }
+
+        const tempId = step._id || `step-${i}`;
+        processedSteps.push({
+          _id: tempIdToObjectId.get(tempId),
+          title: step.title?.trim() || 'Step',
+          description: step.description?.trim() || '',
+          templateType: step.templateType || 'passcode',
+          templateConfig: stepIsTemplate ? (step.templateConfig || {}) : {},
+          solutionHash: stepSolutionHash,
+          solutionPlaintext: stepSolutionPlaintext,
+          bits: Number(step.bits) || 0,
+          multiplier: Number(step.multiplier) || 1.0,
+          luck: Number(step.luck) || 1.0,
+          discount: Number(step.discount) || 0,
+          shield: Boolean(step.shield),
+          maxAttempts: step.maxAttempts || null,
+          hintsEnabled: step.hintsEnabled || false,
+          hints: Array.isArray(step.hints) ? step.hints.filter(h => h && h.trim()).map(h => h.trim()) : [],
+          hintPenaltyPercent: step.hintPenaltyPercent !== undefined ? Number(step.hintPenaltyPercent) : null,
+          prerequisites: prereqObjectIds,
+          isRequired: step.isRequired !== false,
+          applyPersonalMultiplier: Boolean(step.applyPersonalMultiplier),
+          applyGroupMultiplier: Boolean(step.applyGroupMultiplier)
+        });
+      }
+    }
 
     const newCustomChallenge = {
       _id: new mongoose.Types.ObjectId(),
@@ -227,14 +302,15 @@ router.post('/:classroomId/custom', ensureAuthenticated, ensureTeacher, async (r
       description: description?.trim() || '',
       externalUrl: externalUrl?.trim() || '',
       solutionHash,
-      templateType: templateType || 'passcode',
-      templateConfig: isTemplateType ? (templateConfig || {}) : {},
+      solutionPlaintext,
+      templateType: isMultiStepChallenge ? 'passcode' : (templateType || 'passcode'),
+      templateConfig: (!isMultiStepChallenge && isTemplateType) ? (templateConfig || {}) : {},
       attachments: [],
-      maxAttempts: maxAttempts || null,
-      hintsEnabled: hintsEnabled || false,
-      hints: Array.isArray(hints) ? hints.filter(h => h && h.trim()).map(h => h.trim()) : [],
-      hintPenaltyPercent: hintPenaltyPercent !== undefined && hintPenaltyPercent !== null ? Number(hintPenaltyPercent) : null,
-      bits: Number(bits) || 50,
+      maxAttempts: isMultiStepChallenge ? null : (maxAttempts || null),
+      hintsEnabled: isMultiStepChallenge ? false : (hintsEnabled || false),
+      hints: isMultiStepChallenge ? [] : (Array.isArray(hints) ? hints.filter(h => h && h.trim()).map(h => h.trim()) : []),
+      hintPenaltyPercent: isMultiStepChallenge ? null : (hintPenaltyPercent !== undefined && hintPenaltyPercent !== null ? Number(hintPenaltyPercent) : null),
+      bits: isMultiStepChallenge ? 0 : (Number(bits) || 50),
       multiplier: Number(multiplier) || 1.0,
       luck: Number(luck) || 1.0,
       discount: Number(discount) || 0,
@@ -244,6 +320,9 @@ router.post('/:classroomId/custom', ensureAuthenticated, ensureTeacher, async (r
       visible: visible !== false,
       dueDateEnabled: Boolean(dueDateEnabled),
       dueDate: dueDateEnabled && dueDate ? new Date(dueDate) : null,
+      isMultiStep: isMultiStepChallenge,
+      steps: processedSteps,
+      completionBonus: isMultiStepChallenge ? (Number(completionBonus) || 0) : 0,
       createdAt: new Date(),
       updatedAt: new Date()
     };
@@ -276,10 +355,14 @@ router.post('/:classroomId/custom', ensureAuthenticated, ensureTeacher, async (r
         visible: newCustomChallenge.visible,
         hintsEnabled: newCustomChallenge.hintsEnabled,
         hintsCount: newCustomChallenge.hints.length,
-        maxAttempts: newCustomChallenge.maxAttempts
+        maxAttempts: newCustomChallenge.maxAttempts,
+        isMultiStep: newCustomChallenge.isMultiStep,
+        steps: newCustomChallenge.steps,
+        completionBonus: newCustomChallenge.completionBonus
       }
     });
   } catch (error) {
+    console.error('[custom.js] Create error:', error);
     res.status(500).json({ success: false, message: 'Failed to create custom challenge' });
   }
 });
@@ -292,8 +375,8 @@ router.put('/:classroomId/custom/:challengeId', ensureAuthenticated, ensureTeach
       title, description, externalUrl, solution, maxAttempts, 
       hintsEnabled, hints, hintPenaltyPercent, bits, multiplier, luck, discount, shield, visible,
       templateType, templateConfig, dueDateEnabled, dueDate,
-      // ADD: Include multiplier application settings
-      applyPersonalMultiplier, applyGroupMultiplier
+      applyPersonalMultiplier, applyGroupMultiplier,
+      isMultiStep, steps, completionBonus
     } = req.body;
 
     const challenge = await Challenge.findOne({ classroomId });
@@ -325,11 +408,99 @@ router.put('/:classroomId/custom/:challengeId', ensureAuthenticated, ensureTeach
     }
 
     if (externalUrl !== undefined) customChallenge.externalUrl = externalUrl.trim();
-    if (maxAttempts !== undefined) customChallenge.maxAttempts = maxAttempts;
-    if (hintsEnabled !== undefined) customChallenge.hintsEnabled = hintsEnabled;
-    if (hints !== undefined) customChallenge.hints = Array.isArray(hints) ? hints.filter(h => h && h.trim()).map(h => h.trim()) : [];
-    if (hintPenaltyPercent !== undefined) customChallenge.hintPenaltyPercent = hintPenaltyPercent !== null ? Number(hintPenaltyPercent) : null;
-    if (bits !== undefined) customChallenge.bits = Number(bits) || 0;
+    
+    if (isMultiStep !== undefined) {
+      customChallenge.isMultiStep = Boolean(isMultiStep);
+    }
+
+    if (completionBonus !== undefined) {
+      customChallenge.completionBonus = Number(completionBonus) || 0;
+    }
+
+    if (steps !== undefined && Array.isArray(steps)) {
+      let processedSteps = [];
+      const tempIdToObjectId = new Map();
+      
+      for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
+        const tempId = step._id || `step-${i}`;
+        let objectId;
+        if (step._id && mongoose.Types.ObjectId.isValid(step._id)) {
+          objectId = new mongoose.Types.ObjectId(step._id);
+        } else {
+          objectId = new mongoose.Types.ObjectId();
+        }
+        tempIdToObjectId.set(tempId, objectId);
+      }
+
+      for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
+        const stepIsTemplate = step.templateType && step.templateType !== 'passcode';
+        let stepSolutionHash = null;
+        let stepSolutionPlaintext = null;
+        
+        if (!stepIsTemplate && step.solution) {
+          stepSolutionHash = await bcrypt.hash(step.solution.trim(), 10);
+          stepSolutionPlaintext = step.solution.trim();
+        }
+
+        if (stepIsTemplate && step.templateConfig) {
+          const validation = templateEngine.validateConfig(step.templateType, step.templateConfig);
+          if (!validation.valid) {
+            return res.status(400).json({ 
+              success: false, 
+              message: `Step "${step.title}": ${validation.errors.join(', ')}` 
+            });
+          }
+        }
+
+        const prereqObjectIds = [];
+        if (Array.isArray(step.prerequisites)) {
+          for (const prereqId of step.prerequisites) {
+            const mappedId = tempIdToObjectId.get(prereqId);
+            if (mappedId) {
+              prereqObjectIds.push(mappedId);
+            } else if (mongoose.Types.ObjectId.isValid(prereqId)) {
+              prereqObjectIds.push(new mongoose.Types.ObjectId(prereqId));
+            }
+          }
+        }
+
+        const tempId = step._id || `step-${i}`;
+        processedSteps.push({
+          _id: tempIdToObjectId.get(tempId),
+          title: step.title?.trim() || 'Step',
+          description: step.description?.trim() || '',
+          templateType: step.templateType || 'passcode',
+          templateConfig: stepIsTemplate ? (step.templateConfig || {}) : {},
+          solutionHash: stepSolutionHash,
+          solutionPlaintext: stepSolutionPlaintext,
+          bits: Number(step.bits) || 0,
+          multiplier: Number(step.multiplier) || 1.0,
+          luck: Number(step.luck) || 1.0,
+          discount: Number(step.discount) || 0,
+          shield: Boolean(step.shield),
+          maxAttempts: step.maxAttempts || null,
+          hintsEnabled: step.hintsEnabled || false,
+          hints: Array.isArray(step.hints) ? step.hints.filter(h => h && h.trim()).map(h => h.trim()) : [],
+          hintPenaltyPercent: step.hintPenaltyPercent !== undefined ? Number(step.hintPenaltyPercent) : null,
+          prerequisites: prereqObjectIds,
+          isRequired: step.isRequired !== false,
+          applyPersonalMultiplier: Boolean(step.applyPersonalMultiplier),
+          applyGroupMultiplier: Boolean(step.applyGroupMultiplier)
+        });
+      }
+      customChallenge.steps = processedSteps;
+    }
+
+    if (!customChallenge.isMultiStep) {
+      if (maxAttempts !== undefined) customChallenge.maxAttempts = maxAttempts;
+      if (hintsEnabled !== undefined) customChallenge.hintsEnabled = hintsEnabled;
+      if (hints !== undefined) customChallenge.hints = Array.isArray(hints) ? hints.filter(h => h && h.trim()).map(h => h.trim()) : [];
+      if (hintPenaltyPercent !== undefined) customChallenge.hintPenaltyPercent = hintPenaltyPercent !== null ? Number(hintPenaltyPercent) : null;
+      if (bits !== undefined) customChallenge.bits = Number(bits) || 0;
+    }
+
     if (multiplier !== undefined) customChallenge.multiplier = Number(multiplier) || 1.0;
     if (luck !== undefined) customChallenge.luck = Number(luck) || 1.0;
     if (discount !== undefined) customChallenge.discount = Math.min(100, Math.max(0, Number(discount) || 0));
@@ -342,8 +513,7 @@ router.put('/:classroomId/custom/:challengeId', ensureAuthenticated, ensureTeach
       customChallenge.dueDate = dueDateEnabled && dueDate ? new Date(dueDate) : null;
     }
 
-    // Handle template type changes
-    if (templateType !== undefined) {
+    if (!customChallenge.isMultiStep && templateType !== undefined) {
       const isTemplateType = templateType && templateType !== 'passcode';
       
       if (isTemplateType && templateConfig) {
@@ -353,16 +523,16 @@ router.put('/:classroomId/custom/:challengeId', ensureAuthenticated, ensureTeach
         }
         customChallenge.templateType = templateType;
         customChallenge.templateConfig = templateConfig;
-        customChallenge.solutionHash = null; // Clear static solution for template challenges
+        customChallenge.solutionHash = null;
       } else if (!isTemplateType) {
         customChallenge.templateType = 'passcode';
         customChallenge.templateConfig = {};
       }
     }
 
-    // Only update solution for passcode-type challenges
-    if (solution !== undefined && solution.trim() && customChallenge.templateType === 'passcode') {
+    if (!customChallenge.isMultiStep && solution !== undefined && solution.trim() && customChallenge.templateType === 'passcode') {
       customChallenge.solutionHash = await bcrypt.hash(solution.trim(), 10);
+      customChallenge.solutionPlaintext = solution.trim();
     }
 
     customChallenge.updatedAt = new Date();
@@ -385,11 +555,15 @@ router.put('/:classroomId/custom/:challengeId', ensureAuthenticated, ensureTeach
         shield: customChallenge.shield,
         visible: customChallenge.visible,
         hintsEnabled: customChallenge.hintsEnabled,
-        hintsCount: customChallenge.hints.length,
-        maxAttempts: customChallenge.maxAttempts
+        hintsCount: (customChallenge.hints || []).length,
+        maxAttempts: customChallenge.maxAttempts,
+        isMultiStep: customChallenge.isMultiStep,
+        steps: customChallenge.steps,
+        completionBonus: customChallenge.completionBonus
       }
     });
   } catch (error) {
+    console.error('[custom.js] Update error:', error);
     res.status(500).json({ success: false, message: 'Failed to update custom challenge' });
   }
 });
@@ -896,6 +1070,535 @@ router.post('/:classroomId/custom/:challengeId/start', ensureAuthenticated, asyn
   }
 });
 
+// Start a specific step in a multi-step challenge
+router.post('/:classroomId/custom/:challengeId/step/:stepId/start', ensureAuthenticated, async (req, res) => {
+  try {
+    const { classroomId, challengeId, stepId } = req.params;
+    const userId = req.user._id;
+
+    const challenge = await Challenge.findOne({ classroomId });
+    if (!challenge) {
+      return res.status(404).json({ success: false, message: 'Challenge series not found' });
+    }
+
+    const customChallenge = challenge.customChallenges.id(challengeId);
+    if (!customChallenge) {
+      return res.status(404).json({ success: false, message: 'Custom challenge not found' });
+    }
+
+    if (!customChallenge.isMultiStep) {
+      return res.status(400).json({ success: false, message: 'This challenge does not have multiple steps' });
+    }
+
+    const step = customChallenge.steps.id(stepId);
+    if (!step) {
+      return res.status(404).json({ success: false, message: 'Step not found' });
+    }
+
+    let userChallenge = challenge.userChallenges.find(uc => uc.userId.toString() === userId.toString());
+    if (!userChallenge) {
+      return res.status(400).json({ success: false, message: 'You are not enrolled in this challenge series' });
+    }
+
+    if (!userChallenge.customChallengeProgress) {
+      userChallenge.customChallengeProgress = [];
+    }
+
+    let progress = userChallenge.customChallengeProgress.find(p => p.challengeId.toString() === challengeId);
+    if (!progress) {
+      progress = {
+        challengeId: new mongoose.Types.ObjectId(challengeId),
+        attempts: 0,
+        completed: false,
+        startedAt: new Date(),
+        hintsUsed: 0,
+        hintsUnlocked: [],
+        bitsAwarded: 0,
+        stepProgress: [],
+        currentStepId: null,
+        completionBonusAwarded: false
+      };
+      userChallenge.customChallengeProgress.push(progress);
+    }
+
+    if (!progress.stepProgress) {
+      progress.stepProgress = [];
+    }
+
+    const completedStepIds = progress.stepProgress
+      .filter(sp => sp.completed)
+      .map(sp => sp.stepId.toString());
+
+    const prereqsMet = (step.prerequisites || []).every(prereqId => 
+      completedStepIds.includes(prereqId.toString())
+    );
+
+    if (!prereqsMet) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Prerequisites not met. Complete the required steps first.' 
+      });
+    }
+
+    let stepProgress = progress.stepProgress.find(sp => sp.stepId.toString() === stepId);
+    let generatedContent = null;
+
+    if (!stepProgress) {
+      stepProgress = {
+        stepId: new mongoose.Types.ObjectId(stepId),
+        completed: false,
+        startedAt: new Date(),
+        attempts: 0,
+        hintsUsed: 0,
+        hintsUnlocked: [],
+        bitsAwarded: 0
+      };
+
+      const templateType = step.templateType || 'passcode';
+      if (templateType !== 'passcode') {
+        try {
+          generatedContent = await templateEngine.generateForStudent(
+            templateType,
+            step.templateConfig || {},
+            userId.toString(),
+            `${challengeId}-${stepId}`
+          );
+          stepProgress.generatedContent = generatedContent;
+        } catch (genError) {
+          return res.status(500).json({ 
+            success: false, 
+            message: 'Failed to generate step content' 
+          });
+        }
+      }
+
+      progress.stepProgress.push(stepProgress);
+      progress.currentStepId = new mongoose.Types.ObjectId(stepId);
+      // Ensure Mongoose tracks nested userChallenges changes
+      challenge.markModified('userChallenges');
+      await challenge.save();
+    } else {
+      const templateType = step.templateType || 'passcode';
+      if (templateType !== 'passcode' && !stepProgress.generatedContent?.expectedAnswer) {
+        try {
+          generatedContent = await templateEngine.generateForStudent(
+            templateType,
+            step.templateConfig || {},
+            userId.toString(),
+            `${challengeId}-${stepId}`
+          );
+          stepProgress.generatedContent = generatedContent;
+          challenge.markModified('userChallenges');
+          await challenge.save();
+        } catch (genError) {
+          return res.status(500).json({ 
+            success: false, 
+            message: 'Failed to generate step content' 
+          });
+        }
+      } else {
+        generatedContent = stepProgress.generatedContent;
+      }
+    }
+
+    const templateType = step.templateType || 'passcode';
+
+    // Ensure we persist any mutations to nested userChallenges/stepProgress before responding
+    challenge.markModified('userChallenges');
+    await challenge.save();
+
+    const responseData = {
+      success: true,
+      message: 'Step started',
+      startedAt: stepProgress.startedAt,
+      templateType,
+      step: {
+        _id: step._id,
+        title: step.title,
+        description: step.description,
+        bits: step.bits,
+        multiplier: step.multiplier || 1.0,
+        luck: step.luck || 1.0,
+        discount: step.discount || 0,
+        shield: step.shield || false,
+        hintsEnabled: step.hintsEnabled,
+        hintsCount: (step.hints || []).length,
+        maxAttempts: step.maxAttempts
+      }
+    };
+
+    if (templateType !== 'passcode' && generatedContent) {
+      responseData.displayData = generatedContent.displayData;
+      responseData.metadata = generatedContent.metadata;
+    }
+
+    res.json(responseData);
+  } catch (error) {
+    console.error('[custom.js] Start step error:', error);
+    res.status(500).json({ success: false, message: 'Failed to start step' });
+  }
+});
+
+// Verify a step solution in a multi-step challenge
+router.post('/:classroomId/custom/:challengeId/step/:stepId/verify', ensureAuthenticated, async (req, res) => {
+  try {
+    const { classroomId, challengeId, stepId } = req.params;
+    const { passcode } = req.body;
+    const userId = req.user._id;
+
+    if (!passcode || !passcode.trim()) {
+      return res.status(400).json({ success: false, message: 'Passcode is required' });
+    }
+
+    const challenge = await Challenge.findOne({ classroomId });
+    if (!challenge) {
+      return res.status(404).json({ success: false, message: 'Challenge series not found' });
+    }
+
+    if (!challenge.isActive) {
+      return res.status(400).json({ success: false, message: 'Challenge series is not active' });
+    }
+
+    const customChallenge = challenge.customChallenges.id(challengeId);
+    if (!customChallenge) {
+      return res.status(404).json({ success: false, message: 'Custom challenge not found' });
+    }
+
+    if (!customChallenge.isMultiStep) {
+      return res.status(400).json({ success: false, message: 'This challenge does not have multiple steps' });
+    }
+
+    const step = customChallenge.steps.id(stepId);
+    if (!step) {
+      return res.status(404).json({ success: false, message: 'Step not found' });
+    }
+
+    let userChallenge = challenge.userChallenges.find(uc => uc.userId.toString() === userId.toString());
+    if (!userChallenge) {
+      return res.status(400).json({ success: false, message: 'You are not enrolled in this challenge series' });
+    }
+
+    let progress = userChallenge.customChallengeProgress?.find(p => p.challengeId.toString() === challengeId);
+    if (!progress) {
+      return res.status(400).json({ success: false, message: 'Please start the challenge first' });
+    }
+
+    let stepProgress = progress.stepProgress?.find(sp => sp.stepId.toString() === stepId);
+    if (!stepProgress) {
+      return res.status(400).json({ success: false, message: 'Please start this step first' });
+    }
+
+    if (stepProgress.completed) {
+      return res.status(400).json({ success: false, message: 'You have already completed this step' });
+    }
+
+    if (step.maxAttempts && stepProgress.attempts >= step.maxAttempts) {
+      return res.status(400).json({ success: false, message: 'Maximum attempts reached', attemptsLeft: 0 });
+    }
+
+    stepProgress.attempts += 1;
+
+    let isMatch = false;
+    const templateType = step.templateType || 'passcode';
+
+    if (templateType === 'passcode') {
+      if (step.solutionHash) {
+        isMatch = await bcrypt.compare(passcode.trim(), step.solutionHash);
+      }
+    } else {
+      if (stepProgress.generatedContent?.expectedAnswer) {
+        isMatch = templateEngine.verifyAnswer(
+          passcode.trim(),
+          stepProgress.generatedContent.expectedAnswer,
+          templateType
+        );
+      } else {
+        await challenge.save();
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Please start this step first to generate your unique content' 
+        });
+      }
+    }
+
+    if (!isMatch) {
+      await challenge.save();
+      const attemptsLeft = step.maxAttempts ? step.maxAttempts - stepProgress.attempts : null;
+      return res.status(400).json({
+        success: false,
+        message: 'Incorrect passcode',
+        attemptsLeft
+      });
+    }
+
+    stepProgress.completed = true;
+    stepProgress.completedAt = new Date();
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const hintsUsed = stepProgress.hintsUsed || 0;
+    const hintPenaltyPercent = step.hintPenaltyPercent ?? challenge.settings?.hintPenaltyPercent ?? 25;
+    let baseBitsAfterPenalty = step.bits || 0;
+
+    if (step.hintsEnabled && baseBitsAfterPenalty > 0 && hintsUsed > 0) {
+      const totalPenalty = (hintPenaltyPercent * hintsUsed) / 100;
+      const cappedPenalty = Math.min(totalPenalty, 0.8);
+      baseBitsAfterPenalty = Math.round(baseBitsAfterPenalty * (1 - cappedPenalty));
+    }
+
+    let bitsAwarded = baseBitsAfterPenalty;
+    let personalMult = 1;
+    let groupMult = 1;
+    let appliedPersonalMultiplier = false;
+    let appliedGroupMultiplier = false;
+
+    const scoped = getScopedUserStats(user, classroomId, { create: true });
+
+    if (baseBitsAfterPenalty > 0) {
+      if (step.applyPersonalMultiplier) {
+        personalMult = scoped.passive?.multiplier || 1;
+        appliedPersonalMultiplier = true;
+      }
+
+      if (step.applyGroupMultiplier) {
+        groupMult = await getUserGroupMultiplier(user._id, classroomId);
+        appliedGroupMultiplier = true;
+      }
+
+      let finalMultiplier = 1;
+      if (step.applyPersonalMultiplier) {
+        finalMultiplier += (personalMult - 1);
+      }
+      if (step.applyGroupMultiplier) {
+        finalMultiplier += (groupMult - 1);
+      }
+
+      bitsAwarded = Math.round(baseBitsAfterPenalty * finalMultiplier);
+    }
+
+    if (bitsAwarded > 0) {
+      const classroomBalance = user.classroomBalances.find(cb => cb.classroom.toString() === classroomId);
+      if (classroomBalance) {
+        classroomBalance.balance = (classroomBalance.balance || 0) + bitsAwarded;
+      } else {
+        user.classroomBalances.push({ classroom: classroomId, balance: bitsAwarded });
+      }
+
+      const totalMultiplier = (appliedPersonalMultiplier || appliedGroupMultiplier) 
+        ? (1 + (appliedPersonalMultiplier ? personalMult - 1 : 0) + (appliedGroupMultiplier ? groupMult - 1 : 0))
+        : 1;
+
+      let transactionDescription = `Completed Step: ${step.title} in ${customChallenge.title}`;
+      if (totalMultiplier > 1) {
+        transactionDescription += ` (${totalMultiplier.toFixed(2)}x multiplier)`;
+      }
+
+      user.transactions = user.transactions || [];
+      user.transactions.push({
+        amount: bitsAwarded,
+        description: transactionDescription,
+        type: 'challenge_completion',
+        challengeName: `${customChallenge.title} - ${step.title}`,
+        classroom: classroomId,
+        assignedBy: challenge.createdBy,
+        calculation: {
+          baseAmount: step.bits || 0,
+          hintsUsed: hintsUsed > 0 ? hintsUsed : undefined,
+          penaltyPercent: hintsUsed > 0 ? hintPenaltyPercent : undefined,
+          bitsAfterPenalty: baseBitsAfterPenalty !== (step.bits || 0) ? baseBitsAfterPenalty : undefined,
+          personalMultiplier: appliedPersonalMultiplier ? personalMult : undefined,
+          groupMultiplier: appliedGroupMultiplier ? groupMult : undefined,
+          totalMultiplier: totalMultiplier > 1 ? totalMultiplier : undefined,
+          finalAmount: bitsAwarded
+        },
+        createdAt: new Date()
+      });
+
+      stepProgress.bitsAwarded = bitsAwarded;
+      progress.bitsAwarded = (progress.bitsAwarded || 0) + bitsAwarded;
+    }
+
+    const passiveTarget = scoped.cs ? scoped.cs.passiveAttributes : (user.passiveAttributes ||= {});
+
+    if (stepProgress.multiplierAwarded === undefined) stepProgress.multiplierAwarded = 0;
+    if (stepProgress.luckAwarded === undefined) stepProgress.luckAwarded = 0;
+    if (stepProgress.discountAwarded === undefined) stepProgress.discountAwarded = 0;
+    if (stepProgress.shieldAwarded === undefined) stepProgress.shieldAwarded = false;
+
+    if (step.multiplier > 1.0) {
+      const multiplierIncrease = step.multiplier - 1.0;
+      passiveTarget.multiplier = Math.round(((passiveTarget.multiplier || 1.0) + multiplierIncrease) * 100) / 100;
+      stepProgress.multiplierAwarded = multiplierIncrease;
+    }
+
+    if (step.luck > 1.0) {
+      const luckIncrease = step.luck - 1.0;
+      passiveTarget.luck = Math.round(((passiveTarget.luck || 1.0) + luckIncrease) * 10) / 10;
+      stepProgress.luckAwarded = luckIncrease;
+    }
+
+    if (step.discount > 0) {
+      passiveTarget.discount = Math.min(100, (passiveTarget.discount || 0) + step.discount);
+      stepProgress.discountAwarded = step.discount;
+    }
+
+    if (step.shield && !passiveTarget.shield) {
+      passiveTarget.shield = true;
+      stepProgress.shieldAwarded = true;
+    }
+
+    const requiredSteps = customChallenge.steps.filter(s => s.isRequired);
+    const completedRequiredSteps = requiredSteps.filter(s => 
+      progress.stepProgress.some(sp => sp.stepId.toString() === s._id.toString() && sp.completed)
+    );
+
+    const allRequiredComplete = completedRequiredSteps.length === requiredSteps.length;
+    let completionBonusAwarded = 0;
+
+    if (allRequiredComplete && !progress.completionBonusAwarded && customChallenge.completionBonus > 0) {
+      completionBonusAwarded = customChallenge.completionBonus;
+      
+      const classroomBalance = user.classroomBalances.find(cb => cb.classroom.toString() === classroomId);
+      if (classroomBalance) {
+        classroomBalance.balance = (classroomBalance.balance || 0) + completionBonusAwarded;
+      } else {
+        user.classroomBalances.push({ classroom: classroomId, balance: completionBonusAwarded });
+      }
+
+      user.transactions.push({
+        amount: completionBonusAwarded,
+        description: `Completion Bonus: ${customChallenge.title}`,
+        type: 'challenge_completion',
+        challengeName: customChallenge.title,
+        classroom: classroomId,
+        assignedBy: challenge.createdBy,
+        createdAt: new Date()
+      });
+
+      progress.completionBonusAwarded = true;
+      progress.completed = true;
+      progress.completedAt = new Date();
+      progress.bitsAwarded = (progress.bitsAwarded || 0) + completionBonusAwarded;
+    }
+
+    await user.save();
+    await challenge.save();
+
+    const totalSteps = customChallenge.steps.length;
+    const completedSteps = progress.stepProgress.filter(sp => sp.completed).length;
+
+    const rewardsEarned = {
+      bits: bitsAwarded + (allRequiredComplete ? completionBonusAwarded : 0),
+      baseBits: step.bits || 0,
+      bitsAfterPenalty: baseBitsAfterPenalty,
+      multiplier: stepProgress.multiplierAwarded || 0,
+      luck: stepProgress.luckAwarded || 0,
+      discount: stepProgress.discountAwarded || 0,
+      shield: stepProgress.shieldAwarded || false,
+      personalMultiplier: appliedPersonalMultiplier ? personalMult : undefined,
+      groupMultiplier: appliedGroupMultiplier ? groupMult : undefined,
+      totalMultiplier: (appliedPersonalMultiplier || appliedGroupMultiplier) 
+        ? (1 + (appliedPersonalMultiplier ? personalMult - 1 : 0) + (appliedGroupMultiplier ? groupMult - 1 : 0))
+        : 1,
+      appliedPersonalMultiplier,
+      appliedGroupMultiplier
+    };
+
+    res.json({
+      success: true,
+      message: allRequiredComplete ? 'Challenge completed!' : 'Step completed!',
+      bitsAwarded,
+      completionBonusAwarded,
+      allRequiredComplete,
+      rewards: rewardsEarned,
+      progress: {
+        completedSteps,
+        totalSteps,
+        requiredComplete: completedRequiredSteps.length,
+        requiredTotal: requiredSteps.length
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to verify step' });
+  }
+});
+
+// Unlock a hint for a step in multi-step challenge
+router.post('/:classroomId/custom/:challengeId/step/:stepId/hint', ensureAuthenticated, async (req, res) => {
+  try {
+    const { classroomId, challengeId, stepId } = req.params;
+    const userId = req.user._id;
+
+    const challenge = await Challenge.findOne({ classroomId });
+    if (!challenge) {
+      return res.status(404).json({ success: false, message: 'Challenge series not found' });
+    }
+
+    const customChallenge = challenge.customChallenges.id(challengeId);
+    if (!customChallenge) {
+      return res.status(404).json({ success: false, message: 'Custom challenge not found' });
+    }
+
+    if (!customChallenge.isMultiStep) {
+      return res.status(400).json({ success: false, message: 'This challenge does not have multiple steps' });
+    }
+
+    const step = customChallenge.steps.id(stepId);
+    if (!step) {
+      return res.status(404).json({ success: false, message: 'Step not found' });
+    }
+
+    if (!step.hintsEnabled) {
+      return res.status(400).json({ success: false, message: 'Hints are not enabled for this step' });
+    }
+
+    let userChallenge = challenge.userChallenges.find(uc => uc.userId.toString() === userId.toString());
+    if (!userChallenge) {
+      return res.status(400).json({ success: false, message: 'You are not enrolled in this challenge series' });
+    }
+
+    let progress = userChallenge.customChallengeProgress?.find(p => p.challengeId.toString() === challengeId);
+    if (!progress) {
+      return res.status(400).json({ success: false, message: 'Please start the challenge first' });
+    }
+
+    let stepProgress = progress.stepProgress?.find(sp => sp.stepId.toString() === stepId);
+    if (!stepProgress) {
+      return res.status(400).json({ success: false, message: 'Please start this step first' });
+    }
+
+    if (stepProgress.completed) {
+      return res.status(400).json({ success: false, message: 'Step already completed' });
+    }
+
+    const availableHints = step.hints || [];
+    const nextHintIndex = stepProgress.hintsUsed || 0;
+
+    if (nextHintIndex >= availableHints.length) {
+      return res.status(400).json({ success: false, message: 'No more hints available' });
+    }
+
+    const hint = availableHints[nextHintIndex];
+    stepProgress.hintsUsed = nextHintIndex + 1;
+    if (!stepProgress.hintsUnlocked) stepProgress.hintsUnlocked = [];
+    stepProgress.hintsUnlocked.push(hint);
+
+    await challenge.save();
+
+    res.json({
+      success: true,
+      hint,
+      hintsUsed: stepProgress.hintsUsed,
+      hintsRemaining: availableHints.length - stepProgress.hintsUsed
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to unlock hint' });
+  }
+});
+
 // Unlock a hint for custom challenge
 router.post('/:classroomId/custom/:challengeId/hint', ensureAuthenticated, async (req, res) => {
   try {
@@ -1007,6 +1710,7 @@ router.get('/:classroomId/custom', ensureAuthenticated, async (req, res) => {
           hintsEnabled: cc.hintsEnabled,
           hintsCount: (cc.hints || []).length,
           hints: isTeacher ? (cc.hints || []) : undefined,
+          solution: isTeacher ? (cc.solutionPlaintext || '') : undefined,
           hintPenaltyPercent: cc.hintPenaltyPercent ?? challenge.settings?.hintPenaltyPercent ?? 25,
           maxAttempts: cc.maxAttempts,
           dueDateEnabled: cc.dueDateEnabled,
@@ -1016,28 +1720,90 @@ router.get('/:classroomId/custom', ensureAuthenticated, async (req, res) => {
             originalName: a.originalName,
             size: a.size
           })),
+          isMultiStep: cc.isMultiStep || false,
+          completionBonus: cc.completionBonus || 0,
           progress: progress ? {
             attempts: progress.attempts,
             completed: progress.completed,
             completedAt: progress.completedAt,
             startedAt: progress.startedAt,
             hintsUsed: progress.hintsUsed,
-            hintsUnlocked: progress.hintsUnlocked
+            hintsUnlocked: progress.hintsUnlocked,
+            completionBonusAwarded: progress.completionBonusAwarded,
+            currentStepId: progress.currentStepId
           } : null
         };
 
-        // Include template display data for students who have started
-        if (!isTeacher && templateType !== 'passcode' && progress?.generatedContent) {
+        if (cc.isMultiStep && cc.steps && cc.steps.length > 0) {
+          const completedStepIds = progress?.stepProgress?.filter(sp => sp.completed).map(sp => sp.stepId.toString()) || [];
+
+          data.steps = cc.steps.map(step => {
+            const stepProgress = progress?.stepProgress?.find(sp => sp.stepId.toString() === step._id.toString());
+            
+            const prereqsMet = (step.prerequisites || []).every(prereqId => 
+              completedStepIds.includes(prereqId.toString())
+            );
+
+            const stepData = {
+              _id: step._id,
+              title: step.title,
+              description: step.description,
+              templateType: step.templateType || 'passcode',
+              bits: step.bits,
+              multiplier: step.multiplier || 1.0,
+              luck: step.luck || 1.0,
+              discount: step.discount || 0,
+              shield: step.shield || false,
+              hintsEnabled: step.hintsEnabled,
+              hintsCount: (step.hints || []).length,
+              maxAttempts: step.maxAttempts,
+              prerequisites: step.prerequisites,
+              isRequired: step.isRequired,
+              applyPersonalMultiplier: step.applyPersonalMultiplier || false,
+              applyGroupMultiplier: step.applyGroupMultiplier || false,
+              isUnlocked: prereqsMet,
+              progress: stepProgress ? {
+                attempts: stepProgress.attempts,
+                completed: stepProgress.completed,
+                completedAt: stepProgress.completedAt,
+                startedAt: stepProgress.startedAt,
+                hintsUsed: stepProgress.hintsUsed,
+                hintsUnlocked: stepProgress.hintsUnlocked
+              } : null
+            };
+
+            if (!isTeacher && step.templateType !== 'passcode' && stepProgress?.generatedContent) {
+              stepData.generatedDisplayData = stepProgress.generatedContent.displayData;
+              stepData.generatedMetadata = stepProgress.generatedContent.metadata;
+            }
+
+            if (isTeacher) {
+              stepData.hints = step.hints || [];
+              stepData.solution = step.solutionPlaintext || '';
+              stepData.templateConfig = step.templateConfig;
+              stepData.hintPenaltyPercent = step.hintPenaltyPercent;
+            }
+
+            return stepData;
+          });
+
+          data.totalBits = cc.steps.reduce((sum, s) => sum + (s.bits || 0), 0) + (cc.completionBonus || 0);
+          data.requiredStepsCount = cc.steps.filter(s => s.isRequired).length;
+          
+          if (progress?.stepProgress) {
+            data.completedStepsCount = progress.stepProgress.filter(sp => sp.completed).length;
+          }
+        }
+
+        if (!isTeacher && !cc.isMultiStep && templateType !== 'passcode' && progress?.generatedContent) {
           data.generatedDisplayData = progress.generatedContent.displayData;
           data.generatedMetadata = progress.generatedContent.metadata;
         }
 
-        // Include template config for teachers
         if (isTeacher) {
           data.hasSolution = templateType === 'passcode';
           data.templateConfig = cc.templateConfig;
           
-          // Get template metadata for display
           const templateMeta = templateEngine.getTemplateMetadata(templateType);
           if (templateMeta) {
             data.templateName = templateMeta.name;
