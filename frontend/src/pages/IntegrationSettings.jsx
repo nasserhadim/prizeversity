@@ -1002,7 +1002,7 @@ function IntegrationAppCard({
   },
   body: JSON.stringify({
     classroomId: '${app.classrooms?.[0]?._id || app.classrooms?.[0] || '<classroom_id>'}',
-    updates: [{ studentId: '<id>', amount: 10 }],
+    updates: [{ userId: '<id>', amount: 10 }],
     description: 'Reward from ${app.name}',
     applyGroupMultipliers: true,
     applyPersonalMultipliers: true
