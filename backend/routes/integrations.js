@@ -13,6 +13,11 @@ const { populateNotification } = require('../utils/notifications');
 const { getScopedUserStats, isClassroomAdmin } = require('../utils/classroomStats');
 const { dispatchWebhook } = require('../utils/webhookDispatcher');
 const { getUserGroupMultiplier } = require('../utils/groupMultiplier');
+const Item = require('../models/Item');
+const GroupSet = require('../models/GroupSet');
+const Group = require('../models/Group');
+const Badge = require('../models/Badge');
+const { calculateNextLevelProgress } = require('../utils/xp');
 
 // helper: classroom-scoped personal multiplier
 function getPersonalMultiplierForClassroom(userDoc, classroomId) {
@@ -229,12 +234,12 @@ router.delete('/apps/:id/webhooks/:hookId', ensureAuthenticated, async (req, res
 //  INTEGRATION API ENDPOINTS (API key auth)
 // ═══════════════════════════════════════════════════════════════
 
-// --- Match student names → IDs ---
+// --- Match user names → IDs ---
 router.post('/users/match', ensureAuthenticated, requireScope('users:match'), async (req, res) => {
   try {
-    const { classroomId, students } = req.body;
-    if (!classroomId || !Array.isArray(students)) {
-      return res.status(400).json({ error: 'classroomId and students[] required' });
+    const { classroomId, users } = req.body;
+    if (!classroomId || !Array.isArray(users)) {
+      return res.status(400).json({ error: 'classroomId and users[] required' });
     }
 
     const classroom = await Classroom.findById(classroomId)
@@ -245,7 +250,7 @@ router.post('/users/match', ensureAuthenticated, requireScope('users:match'), as
     const matched = [];
     const unmatched = [];
 
-    for (const s of students) {
+    for (const s of users) {
       const inputName = (s.name || '').trim().toLowerCase();
       if (!inputName) { unmatched.push({ ...s, reason: 'Empty name' }); continue; }
 
@@ -283,40 +288,257 @@ router.post('/users/match', ensureAuthenticated, requireScope('users:match'), as
       if (found) {
         matched.push({
           ...s,
-          studentId: found._id,
+          userId: found._id,
           matchedName: `${found.firstName || ''} ${found.lastName || ''}`.trim(),
           email: found.email
         });
       } else {
-        unmatched.push({ ...s, reason: 'No matching student found' });
+        unmatched.push({ ...s, reason: 'No matching user found' });
       }
     }
 
-    res.json({ matched, unmatched, total: students.length });
+    res.json({ matched, unmatched, total: users.length });
   } catch (err) {
     console.error('[integrations/users/match]', err);
-    res.status(500).json({ error: 'Student matching failed' });
+    res.status(500).json({ error: 'User matching failed' });
   }
 });
 
-// --- List classroom students ---
+// --- List classroom users ---
 router.get('/users/list/:classroomId', ensureAuthenticated, requireScope('users:read'), async (req, res) => {
   try {
-    const classroom = await Classroom.findById(req.params.classroomId)
-      .populate('students', 'firstName lastName email');
+    const classroomId = req.params.classroomId;
+    const extended = req.query.fields === 'extended';
+
+    const selectFields = extended
+      ? 'firstName lastName email shortId classroomBalances classroomJoinDates classroomXP classroomStats classroomActivityDurations groups'
+      : 'firstName lastName email';
+
+    const classroom = await Classroom.findById(classroomId)
+      .populate('students', selectFields)
+      .populate('admins', selectFields)
+      .populate('teacher', selectFields);
     if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+
+    // Merge students + admins + teacher into a single deduplicated list
+    const seenIds = new Set();
+    const allMembers = [];
+    for (const list of [classroom.students || [], classroom.admins || [], classroom.teacher ? [classroom.teacher] : []]) {
+      for (const u of list) {
+        if (!u || !u._id) continue;
+        const uid = String(u._id);
+        if (seenIds.has(uid)) continue;
+        seenIds.add(uid);
+        allMembers.push(u);
+      }
+    }
+
+    if (!extended) {
+      return res.json({
+        classroomId: classroom._id,
+        className: classroom.name,
+        users: allMembers.map(s => ({
+          userId: s._id,
+          name: `${s.firstName || ''} ${s.lastName || ''}`.trim(),
+          email: s.email
+        }))
+      });
+    }
+
+    // --- Extended mode: batch-load supporting data ---
+    const memberIds = allMembers.map(s => s._id);
+    const adminIdSet = new Set((classroom.admins || []).map(a => String(a._id || a)));
+    const teacherId = classroom.teacher ? String(classroom.teacher._id || classroom.teacher) : null;
+
+    // Load items for all members in this classroom's bazaar
+    const allItems = await Item.find({ owner: { $in: memberIds } })
+      .populate({ path: 'bazaar', select: 'classroom' })
+      .lean();
+    const itemsByUser = {};
+    for (const item of allItems) {
+      if (!item.bazaar || String(item.bazaar.classroom) !== String(classroomId)) continue;
+      const ownerId = String(item.owner);
+      if (!itemsByUser[ownerId]) itemsByUser[ownerId] = [];
+      itemsByUser[ownerId].push(item);
+    }
+
+    // Aggregate total spent per user (sum of negative classroom-scoped transactions,
+    // excluding teacher/admin adjustments to match People page behavior)
+    const teacherAndAdminIds = [
+      ...(classroom.admins || []).map(a => a._id || a),
+      ...(teacherId ? [classroom.teacher._id || classroom.teacher] : [])
+    ];
+    const spentAgg = await User.aggregate([
+      { $match: { _id: { $in: memberIds } } },
+      { $unwind: '$transactions' },
+      { $match: {
+        'transactions.classroom': classroom._id,
+        'transactions.amount': { $lt: 0 },
+        ...(teacherAndAdminIds.length > 0
+          ? { 'transactions.assignedBy': { $nin: teacherAndAdminIds } }
+          : {})
+      }},
+      { $group: { _id: '$_id', totalSpent: { $sum: '$transactions.amount' } } }
+    ]);
+    const totalSpentByUser = {};
+    for (const row of spentAgg) {
+      totalSpentByUser[String(row._id)] = Math.abs(row.totalSpent);
+    }
+
+    // Load groups for this classroom
+    const groupSets = await GroupSet.find({ classroom: classroomId })
+      .populate({ path: 'groups', populate: { path: 'members._id', select: '_id' } })
+      .lean();
+
+    // Load all badges for this classroom (for earned/equipped badge lookups)
+    const classroomBadges = await Badge.find({ classroom: classroomId })
+      .select('name description icon image levelRequired')
+      .lean();
+    const badgesById = {};
+    for (const b of classroomBadges) badgesById[String(b._id)] = b;
+
+    // XP settings for level progress calculation
+    const formula = classroom.xpSettings?.levelingFormula || 'exponential';
+    const baseXP = classroom.xpSettings?.baseXPForLevel2 || 100;
+
+    // Build per-user group info and group multiplier
+    function getUserGroups(userId) {
+      const uid = String(userId);
+      const result = [];
+      let groupMultiplier = 1;
+      for (const gs of groupSets) {
+        for (const g of (gs.groups || [])) {
+          const isMember = (g.members || []).some(
+            m => String(m._id?._id || m._id) === uid && m.status === 'approved'
+          );
+          if (isMember) {
+            result.push({ groupSetId: gs._id, groupSetName: gs.name, groupId: g._id, groupName: g.name });
+            const mult = g.groupMultiplier || 1;
+            if (mult > 1) groupMultiplier += (mult - 1);
+          }
+        }
+      }
+      return { groups: result, groupMultiplier };
+    }
+
+    // Banned records lookup
+    const bannedRecords = {};
+    for (const rec of (classroom.bannedRecords || [])) {
+      bannedRecords[String(rec.user)] = rec;
+    }
+    const bannedSet = new Set((classroom.bannedStudents || []).map(id => String(id)));
+
+    const attackEffects = ['halveBits', 'drainBits', 'swapper', 'nullify'];
+
+    const users = allMembers.map(s => {
+      const uid = String(s._id);
+      const items = itemsByUser[uid] || [];
+
+      // Balance
+      const cb = (s.classroomBalances || []).find(b => String(b.classroom) === String(classroomId));
+      const balance = cb ? cb.balance : 0;
+
+      // Total spent
+      const totalSpent = totalSpentByUser[uid] || 0;
+
+      // Join date & last accessed
+      const joinEntry = (s.classroomJoinDates || []).find(j => String(j.classroom) === String(classroomId));
+
+      // XP, Level & Badges
+      const xpEntry = (s.classroomXP || []).find(x => String(x.classroom) === String(classroomId));
+      const currentXP = xpEntry?.xp || 0;
+      const currentLevel = xpEntry?.level || 1;
+      const xpProgress = calculateNextLevelProgress(currentXP, currentLevel, formula, baseXP);
+
+      // Earned badges
+      const earnedBadges = (xpEntry?.earnedBadges || []).map(eb => {
+        const badge = badgesById[String(eb.badge)];
+        return badge ? { badgeId: eb.badge, name: badge.name, description: badge.description, icon: badge.icon, image: badge.image, levelRequired: badge.levelRequired, earnedAt: eb.earnedAt } : null;
+      }).filter(Boolean);
+
+      // Equipped badge
+      const equippedBadgeData = xpEntry?.equippedBadge ? badgesById[String(xpEntry.equippedBadge)] : null;
+
+      // Stats (classroom-scoped)
+      const cs = (s.classroomStats || []).find(c => String(c.classroom) === String(classroomId));
+      const passive = cs?.passiveAttributes || {};
+      const shieldCount = cs?.shieldCount ?? 0;
+      const shieldActive = cs?.shieldActive ?? (shieldCount > 0);
+
+      // Activity
+      const actEntry = (s.classroomActivityDurations || []).find(a => String(a.classroom) === String(classroomId));
+      const totalActivitySeconds = actEntry?.totalSeconds || 0;
+
+      // Item-based stats
+      const passiveItems = items.filter(i => i.category === 'Passive');
+      const attackCount = items.filter(i => {
+        const effect = i.primaryEffect || i.effect;
+        const hasUses = (i.usesRemaining ?? 1) > 0 && !i.consumed;
+        return hasUses && i.category === 'Attack' && attackEffects.includes(effect);
+      }).length;
+      const hasEffect = (name) => passiveItems.some(i => i.primaryEffect === name);
+
+      // Groups
+      const { groups, groupMultiplier } = getUserGroups(s._id);
+
+      // Role
+      let role = 'student';
+      if (teacherId === uid) role = 'teacher';
+      else if (adminIdSet.has(uid)) role = 'admin';
+
+      // Ban info
+      const isBanned = bannedSet.has(uid);
+      const banRecord = bannedRecords[uid];
+
+      return {
+        userId: s._id,
+        shortId: s.shortId,
+        name: `${s.firstName || ''} ${s.lastName || ''}`.trim(),
+        firstName: s.firstName || '',
+        lastName: s.lastName || '',
+        email: s.email,
+        role,
+        balance: Math.round(balance * 100) / 100,
+        totalSpent: Math.round(totalSpent * 100) / 100,
+        joinedDate: joinEntry?.joinedAt || null,
+        lastAccessed: joinEntry?.lastAccessed || null,
+        totalActivitySeconds,
+        level: currentLevel,
+        xp: currentXP,
+        xpProgress: {
+          xpForCurrentLevel: xpProgress.xpForCurrentLevel,
+          xpForNextLevel: xpProgress.xpForNextLevel,
+          xpInCurrentLevel: xpProgress.xpInCurrentLevel,
+          xpRequiredForLevel: xpProgress.xpRequiredForLevel,
+          xpNeeded: xpProgress.xpNeeded,
+          progress: xpProgress.progress
+        },
+        earnedBadges,
+        equippedBadge: equippedBadgeData ? { badgeId: equippedBadgeData._id, name: equippedBadgeData.name, icon: equippedBadgeData.icon, image: equippedBadgeData.image } : null,
+        stats: {
+          luck: passive.luck || 1,
+          multiplier: passive.multiplier || 1,
+          groupMultiplier,
+          shieldActive,
+          shieldCount,
+          attackPower: attackCount,
+          doubleEarnings: hasEffect('doubleEarnings'),
+          discountShop: (passive.discount != null) ? passive.discount : (hasEffect('discountShop') ? 20 : 0),
+          passiveItemsCount: passiveItems.length
+        },
+        groups,
+        ...(isBanned ? { isBanned: true, banReason: banRecord?.reason || null, bannedAt: banRecord?.bannedAt || null } : {})
+      };
+    });
 
     res.json({
       classroomId: classroom._id,
       className: classroom.name,
-      students: (classroom.students || []).map(s => ({
-        studentId: s._id,
-        name: `${s.firstName || ''} ${s.lastName || ''}`.trim(),
-        email: s.email
-      }))
+      users
     });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to list students' });
+    console.error('[integrations/users/list]', err);
+    res.status(500).json({ error: 'Failed to list users' });
   }
 });
 
@@ -331,7 +553,7 @@ router.get('/classroom/:classroomId', ensureAuthenticated, requireScope('classro
       _id: classroom._id,
       name: classroom.name,
       code: classroom.code,
-      studentCount: classroom.students?.length || 0
+      userCount: classroom.students?.length || 0
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to read classroom' });
@@ -362,26 +584,26 @@ router.post('/wallet/adjust', ensureAuthenticated, requireScope('wallet:adjust')
 
     const results = { updated: 0, skipped: [], details: [] };
 
-    for (const { studentId, amount } of updates) {
+    for (const { userId, amount } of updates) {
       try {
         const numericAmount = Number(amount);
-        if (!studentId || isNaN(numericAmount) || numericAmount === 0) {
-          results.skipped.push({ studentId, reason: 'Invalid studentId or amount' });
+        if (!userId || isNaN(numericAmount) || numericAmount === 0) {
+          results.skipped.push({ userId, reason: 'Invalid userId or amount' });
           continue;
         }
 
-        const student = await User.findById(studentId);
-        if (!student) {
-          results.skipped.push({ studentId, reason: 'Student not found' });
+        const targetUser = await User.findById(userId);
+        if (!targetUser) {
+          results.skipped.push({ userId, reason: 'User not found' });
           continue;
         }
 
         // Multipliers
         const groupMultiplier = (applyGroupMultipliers && numericAmount > 0)
-          ? await getUserGroupMultiplier(studentId, classroomId)
+          ? await getUserGroupMultiplier(userId, classroomId)
           : 1;
         const personalMultiplier = (applyPersonalMultipliers && numericAmount > 0)
-          ? getPersonalMultiplierForClassroom(student, classroomId)
+          ? getPersonalMultiplierForClassroom(targetUser, classroomId)
           : 1;
 
         // Additive multiplier (same logic as wallet.js)
@@ -394,22 +616,22 @@ router.post('/wallet/adjust', ensureAuthenticated, requireScope('wallet:adjust')
         const adjustedAmount = Math.round(numericAmount * finalMultiplier);
 
         // Update classroom-scoped balance
-        let cb = (student.classroomBalances || []).find(b => String(b.classroom) === String(classroomId));
+        let cb = (targetUser.classroomBalances || []).find(b => String(b.classroom) === String(classroomId));
         if (cb) {
           cb.balance = (cb.balance || 0) + adjustedAmount;
         } else {
-          if (!student.classroomBalances) student.classroomBalances = [];
-          student.classroomBalances.push({ classroom: classroomId, balance: adjustedAmount });
+          if (!targetUser.classroomBalances) targetUser.classroomBalances = [];
+          targetUser.classroomBalances.push({ classroom: classroomId, balance: adjustedAmount });
         }
 
         // Update classroomStats balance too
-        let cs = (student.classroomStats || []).find(s => String(s.classroom) === String(classroomId));
+        let cs = (targetUser.classroomStats || []).find(s => String(s.classroom) === String(classroomId));
         if (cs) {
           cs.balance = (cs.balance || 0) + adjustedAmount;
         }
 
         // Transaction record
-        student.transactions.push({
+        targetUser.transactions.push({
           amount: adjustedAmount,
           description: description
             ? `${description} (${appLabel})`
@@ -427,12 +649,12 @@ router.post('/wallet/adjust', ensureAuthenticated, requireScope('wallet:adjust')
           createdAt: new Date()
         });
 
-        await student.save();
+        await targetUser.save();
 
         // === NEW: Create wallet transaction notification (like normal wallet assign) ===
         try {
           const notification = await Notification.create({
-            user: studentId,
+            user: userId,
             actionBy: req.user._id,
             type: 'wallet_transaction',
             message: `You were ${numericAmount >= 0 ? 'credited' : 'debited'} ${Math.abs(adjustedAmount)} ₿ via ${appLabel}.`,
@@ -443,7 +665,7 @@ router.post('/wallet/adjust', ensureAuthenticated, requireScope('wallet:adjust')
           });
           const populated = await populateNotification(notification._id);
           if (io && populated) {
-            io.to(`user-${studentId}`).emit('notification', populated);
+            io.to(`user-${userId}`).emit('notification', populated);
           }
         } catch (notifErr) {
           console.warn('[integration] failed to create wallet notification:', notifErr);
@@ -462,16 +684,16 @@ router.post('/wallet/adjust', ensureAuthenticated, requireScope('wallet:adjust')
             if (xpToAward > 0) {
               try {
                 const ioInstance = req.app && req.app.get ? req.app.get('io') : null;
-                const xpRes = await awardXP(studentId, classroomId, xpToAward, `earning bits (${appLabel})`, classroom.xpSettings);
+                const xpRes = await awardXP(userId, classroomId, xpToAward, `earning bits (${appLabel})`, classroom.xpSettings);
                 if (xpRes && typeof xpRes.oldXP !== 'undefined' && typeof xpRes.newXP !== 'undefined' && xpRes.newXP !== xpRes.oldXP) {
                   try {
                     // logStatChanges needs the full user doc, reload to get fresh state
-                    const freshStudent = await User.findById(studentId).select('firstName lastName');
-                    if (freshStudent) {
+                    const freshUser = await User.findById(userId).select('firstName lastName');
+                    if (freshUser) {
                       await logStatChanges({
                         io: ioInstance,
                         classroomId,
-                        user: freshStudent,
+                        user: freshUser,
                         actionBy: req.user ? req.user._id : undefined,
                         prevStats: { xp: xpRes.oldXP },
                         currStats: { xp: xpRes.newXP },
@@ -495,13 +717,13 @@ router.post('/wallet/adjust', ensureAuthenticated, requireScope('wallet:adjust')
         try {
           if (io) {
             const newBalance = cb ? cb.balance : adjustedAmount;
-            io.to(`user-${studentId}`).emit('balance_update', {
-              userId: studentId,
+            io.to(`user-${userId}`).emit('balance_update', {
+              userId,
               classroomId,
               newBalance
             });
             io.to(`classroom-${classroomId}`).emit('balance_update', {
-              studentId,
+              userId,
               classroomId,
               newBalance
             });
@@ -512,8 +734,8 @@ router.post('/wallet/adjust', ensureAuthenticated, requireScope('wallet:adjust')
 
         results.updated++;
         results.details.push({
-          studentId,
-          name: `${student.firstName || ''} ${student.lastName || ''}`.trim(),
+          userId,
+          name: `${targetUser.firstName || ''} ${targetUser.lastName || ''}`.trim(),
           baseAmount: numericAmount,
           finalAmount: adjustedAmount,
           multiplier: finalMultiplier,
@@ -521,8 +743,8 @@ router.post('/wallet/adjust', ensureAuthenticated, requireScope('wallet:adjust')
           groupMultiplier
         });
 
-      } catch (studentErr) {
-        results.skipped.push({ studentId, reason: studentErr.message });
+      } catch (userErr) {
+        results.skipped.push({ userId, reason: userErr.message });
       }
     }
 
@@ -546,16 +768,16 @@ router.post('/wallet/adjust', ensureAuthenticated, requireScope('wallet:adjust')
 // Redeem an inventory item via integration API
 router.post('/inventory/redeem', ensureAuthenticated, requireScope('inventory:use'), async (req, res) => {
   try {
-    const { classroomId, studentId, itemId, redemptionData } = req.body;
-    if (!classroomId || !studentId || !itemId) {
-      return res.status(400).json({ error: 'classroomId, studentId, and itemId are required' });
+    const { classroomId, userId, itemId, redemptionData } = req.body;
+    if (!classroomId || !userId || !itemId) {
+      return res.status(400).json({ error: 'classroomId, userId, and itemId are required' });
     }
 
     const mongoose = require('mongoose');
     if (!mongoose.Types.ObjectId.isValid(classroomId) ||
-        !mongoose.Types.ObjectId.isValid(studentId) ||
+        !mongoose.Types.ObjectId.isValid(userId) ||
         !mongoose.Types.ObjectId.isValid(itemId)) {
-      return res.status(400).json({ error: 'classroomId, studentId, and itemId must be valid 24-character MongoDB ObjectIds' });
+      return res.status(400).json({ error: 'classroomId, userId, and itemId must be valid 24-character MongoDB ObjectIds' });
     }
 
     const app = req.integrationApp;
@@ -566,8 +788,8 @@ router.post('/inventory/redeem', ensureAuthenticated, requireScope('inventory:us
     const Item = require('../models/Item');
     const item = await Item.findById(itemId);
     if (!item) return res.status(404).json({ error: 'Item not found' });
-    if (String(item.owner) !== String(studentId)) {
-      return res.status(403).json({ error: 'Item not owned by this student' });
+    if (String(item.owner) !== String(userId)) {
+      return res.status(403).json({ error: 'Item not owned by this user' });
     }
     if (item.consumed) {
       return res.status(400).json({ error: 'Item already consumed' });
@@ -597,7 +819,7 @@ router.post('/inventory/redeem', ensureAuthenticated, requireScope('inventory:us
 
     // Dispatch webhook
     dispatchWebhook('item.redeemed', classroomId, {
-      studentId,
+      userId,
       itemId: item._id,
       itemName: item.name,
       category: item.category,
@@ -619,10 +841,10 @@ router.post('/inventory/redeem', ensureAuthenticated, requireScope('inventory:us
   }
 });
 
-// --- Read student inventory via integration API ---
-router.get('/inventory/:studentId', ensureAuthenticated, requireScope('inventory:read'), async (req, res) => {
+// --- Read user inventory via integration API ---
+router.get('/inventory/:userId', ensureAuthenticated, requireScope('inventory:read'), async (req, res) => {
   try {
-    const { studentId } = req.params;
+    const { userId } = req.params;
     const { classroomId } = req.query;
 
     if (!classroomId) {
@@ -630,8 +852,8 @@ router.get('/inventory/:studentId', ensureAuthenticated, requireScope('inventory
     }
 
     const mongoose = require('mongoose');
-    if (!mongoose.Types.ObjectId.isValid(studentId) || !mongoose.Types.ObjectId.isValid(classroomId)) {
-      return res.status(400).json({ error: 'Invalid studentId or classroomId' });
+    if (!mongoose.Types.ObjectId.isValid(userId) || !mongoose.Types.ObjectId.isValid(classroomId)) {
+      return res.status(400).json({ error: 'Invalid userId or classroomId' });
     }
 
     const app = req.integrationApp;
@@ -641,7 +863,7 @@ router.get('/inventory/:studentId', ensureAuthenticated, requireScope('inventory
 
     const Item = require('../models/Item');
     const items = await Item.find({
-      owner: studentId,
+      owner: userId,
       consumed: { $ne: true },
       usesRemaining: { $gt: 0 }
     }).populate({
@@ -655,7 +877,7 @@ router.get('/inventory/:studentId', ensureAuthenticated, requireScope('inventory
     );
 
     res.json({
-      studentId,
+      userId,
       classroomId,
       items: filtered.map(item => ({
         _id: item._id,

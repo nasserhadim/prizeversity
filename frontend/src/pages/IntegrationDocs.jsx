@@ -166,7 +166,7 @@ export default function IntegrationDocs() {
           <div>
             <span className="font-semibold">Not a developer?</span>{' '}
             Check out the{' '}
-            <Link to="/support#faqs" className="link link-primary font-medium">
+            <Link to="/support#faq-integrations" className="link link-primary font-medium">
               Help & Support FAQs
             </Link>{' '}
             for a non-technical guide on setting up integrations.
@@ -204,7 +204,7 @@ export default function IntegrationDocs() {
 
             <p className="text-sm mb-4">
               The Prizeversity Integration API allows external applications to interact with
-              classrooms, students, wallets, and inventory. All endpoints are available under:
+              classrooms, users, wallets, and inventory. All endpoints are available under:
             </p>
 
             <CopyBlock code={`${API_BASE_URL}/api/integrations`} />
@@ -262,11 +262,11 @@ export default function IntegrationDocs() {
                 </thead>
                 <tbody>
                   {[
-                    ['wallet:adjust', 'Add or deduct bits from student wallets'],
-                    ['users:match', 'Match student names to Prizeversity user IDs'],
-                    ['users:read', 'List students enrolled in a classroom'],
+                    ['wallet:adjust', 'Add or deduct bits from user wallets'],
+                    ['users:match', 'Match user names to Prizeversity user IDs'],
+                    ['users:read', 'List users enrolled in a classroom'],
                     ['classroom:read', 'Read classroom name, code, and metadata'],
-                    ['inventory:read', 'View student inventory items'],
+                    ['inventory:read', 'View user inventory items'],
                     ['inventory:use', 'Mark inventory items as redeemed'],
                     ['webhooks:manage', 'Register and manage webhook subscriptions'],
                   ].map(([scope, desc]) => (
@@ -366,20 +366,20 @@ export default function IntegrationDocs() {
               id="endpoints-users"
               icon={<Users size={20} />}
               title="Users"
-              subtitle="Match and list students in a classroom"
+              subtitle="Match and list users in a classroom"
             />
 
             <EndpointCard
               method="POST"
               path="/api/integrations/users/match"
               scope="users:match"
-              description="Match external student names to Prizeversity user IDs. Returns MongoDB ObjectIds that can be used with all other endpoints."
+              description="Match external user names to Prizeversity user IDs. Returns MongoDB ObjectIds that can be used with all other endpoints."
               requestBody={JSON.stringify({
                 classroomId: '<classroom_id>',
-                students: [
+                users: [
                   { name: 'Jane Doe', externalId: 'ext-123' },
                   { name: 'Doe, John', externalId: 'ext-456' },
-                  { name: 'student@email.com', externalId: 'ext-789' }
+                  { name: 'user@email.com', externalId: 'ext-789' }
                 ]
               }, null, 2)}
               responseBody={JSON.stringify({
@@ -387,33 +387,93 @@ export default function IntegrationDocs() {
                   {
                     name: 'Jane Doe',
                     externalId: 'ext-123',
-                    studentId: '507f1f77bcf86cd799439011',
+                    userId: '507f1f77bcf86cd799439011',
                     matchedName: 'Jane Doe',
                     email: 'jane@school.edu'
                   }
                 ],
                 unmatched: [
-                  { name: 'Unknown Student', externalId: 'ext-999', reason: 'No matching student found' }
+                  { name: 'Unknown User', externalId: 'ext-999', reason: 'No matching user found' }
                 ],
                 total: 3
               }, null, 2)}
-              notes='Name matching supports: "First Last", "Last First", "Last, First", token matching, and email matching. The returned studentId is a MongoDB ObjectId (not the short ID displayed in the UI).'
+              notes='Name matching supports: "First Last", "Last First", "Last, First", token matching, and email matching. The returned userId is a MongoDB ObjectId (not the short ID displayed in the UI).'
             />
 
             <EndpointCard
               method="GET"
               path="/api/integrations/users/list/:classroomId"
               scope="users:read"
-              description="List all students enrolled in a classroom. Returns MongoDB ObjectIds for each student."
+              description="List all users in a classroom (students, admins, and teacher). Add ?fields=extended for detailed user data including balance, XP, badges, stats, groups, and more."
               responseBody={JSON.stringify({
                 classroomId: '<classroom_id>',
                 className: 'Class 101',
-                students: [
-                  { studentId: '507f1f77bcf86cd799439011', name: 'Jane Doe', email: 'jane@school.edu' },
-                  { studentId: '507f1f77bcf86cd799439012', name: 'John Smith', email: 'john@school.edu' }
+                users: [
+                  { userId: '507f1f77bcf86cd799439011', name: 'Jane Doe', email: 'jane@school.edu' },
+                  { userId: '507f1f77bcf86cd799439012', name: 'John Smith', email: 'john@school.edu' }
                 ]
               }, null, 2)}
-            />
+              notes="Without query parameters, returns only userId, name, and email. Use the role field to distinguish students, admins, and the teacher."
+            >
+              <div className="space-y-3 text-sm">
+                <p className="font-semibold">Query Parameters:</p>
+                <div className="overflow-x-auto">
+                  <table className="table table-xs">
+                    <thead>
+                      <tr>
+                        <th>Parameter</th>
+                        <th>Value</th>
+                        <th>Description</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><code>fields</code></td>
+                        <td><code>extended</code></td>
+                        <td>Returns detailed user data (see fields below)</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <p className="font-semibold">Extended Response Fields <span className="font-normal opacity-60">(when <code>?fields=extended</code>)</span>:</p>
+                <div className="overflow-x-auto">
+                  <table className="table table-xs">
+                    <thead>
+                      <tr>
+                        <th>Field</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr><td><code>shortId</code></td><td>String</td><td>Short display ID (e.g. <code>YM1234</code>)</td></tr>
+                      <tr><td><code>firstName</code>, <code>lastName</code></td><td>String</td><td>Separated name fields</td></tr>
+                      <tr><td><code>role</code></td><td>String</td><td><code>"student"</code>, <code>"admin"</code>, or <code>"teacher"</code></td></tr>
+                      <tr><td><code>balance</code></td><td>Number</td><td>Current bit balance</td></tr>
+                      <tr><td><code>totalSpent</code></td><td>Number</td><td>Total bits spent (excludes teacher/admin adjustments)</td></tr>
+                      <tr><td><code>joinedDate</code></td><td>Date</td><td>When the user joined the classroom</td></tr>
+                      <tr><td><code>lastAccessed</code></td><td>Date</td><td>Last time the user accessed the classroom</td></tr>
+                      <tr><td><code>totalActivitySeconds</code></td><td>Number</td><td>Total tracked activity time in seconds</td></tr>
+                      <tr><td><code>level</code></td><td>Number</td><td>Current level</td></tr>
+                      <tr><td><code>xp</code></td><td>Number</td><td>Current XP</td></tr>
+                      <tr><td><code>xpProgress</code></td><td>Object</td><td>XP progress with <code>xpForCurrentLevel</code>, <code>xpForNextLevel</code>, <code>xpInCurrentLevel</code>, <code>xpRequiredForLevel</code>, <code>xpNeeded</code>, <code>progress</code> (0–1)</td></tr>
+                      <tr><td><code>earnedBadges</code></td><td>Array</td><td>Earned badges: <code>badgeId</code>, <code>name</code>, <code>description</code>, <code>icon</code>, <code>image</code>, <code>levelRequired</code>, <code>earnedAt</code></td></tr>
+                      <tr><td><code>equippedBadge</code></td><td>Object | null</td><td>Currently equipped badge: <code>badgeId</code>, <code>name</code>, <code>icon</code>, <code>image</code></td></tr>
+                      <tr><td><code>stats</code></td><td>Object</td><td><code>luck</code>, <code>multiplier</code>, <code>groupMultiplier</code>, <code>shieldActive</code>, <code>shieldCount</code>, <code>attackPower</code>, <code>doubleEarnings</code>, <code>discountShop</code>, <code>passiveItemsCount</code></td></tr>
+                      <tr><td><code>groups</code></td><td>Array</td><td>Group memberships: <code>groupSetId</code>, <code>groupSetName</code>, <code>groupId</code>, <code>groupName</code></td></tr>
+                      <tr><td><code>isBanned</code></td><td>Boolean</td><td>Only present if user is banned</td></tr>
+                      <tr><td><code>banReason</code>, <code>bannedAt</code></td><td>String, Date</td><td>Only present if user is banned</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="alert alert-warning text-xs mt-2">
+                  <AlertTriangle size={14} />
+                  <span><code>totalSpent</code> excludes direct teacher/admin balance adjustments to reflect only actual store purchases.</span>
+                </div>
+              </div>
+            </EndpointCard>
 
             {/* ═══════════════════════════════════════════════ */}
             {/* WALLET ENDPOINTS */}
@@ -422,20 +482,20 @@ export default function IntegrationDocs() {
               id="endpoints-wallet"
               icon={<Wallet size={20} />}
               title="Wallet"
-              subtitle="Adjust student bit balances"
+              subtitle="Adjust user bit balances"
             />
 
             <EndpointCard
               method="POST"
               path="/api/integrations/wallet/adjust"
               scope="wallet:adjust"
-              description="Bulk adjust bit balances for multiple students. Supports group and personal multipliers."
+              description="Bulk adjust bit balances for multiple users. Supports group and personal multipliers."
               requestBody={JSON.stringify({
                 classroomId: '<classroom_id>',
                 updates: [
-                  { studentId: '<student_mongo_id_1>', amount: 10 },
-                  { studentId: '<student_mongo_id_2>', amount: -5 },
-                  { studentId: '<student_mongo_id_3>', amount: 25 }
+                  { userId: '<user_mongo_id_1>', amount: 10 },
+                  { userId: '<user_mongo_id_2>', amount: -5 },
+                  { userId: '<user_mongo_id_3>', amount: 25 }
                 ],
                 description: 'Weekly reward from ExtRewardTool',
                 applyGroupMultipliers: true,
@@ -447,7 +507,7 @@ export default function IntegrationDocs() {
                 skipped: [],
                 details: [
                   {
-                    studentId: '<student_id_1>',
+                    userId: '<user_id_1>',
                     name: 'Jane Doe',
                     baseAmount: 10,
                     finalAmount: 12,
@@ -481,13 +541,13 @@ export default function IntegrationDocs() {
                         <td><code>updates</code></td>
                         <td>Array</td>
                         <td>✅</td>
-                        <td>Array of <code>{`{ studentId, amount }`}</code> objects</td>
+                        <td>Array of <code>{`{ userId, amount }`}</code> objects</td>
                       </tr>
                       <tr>
-                        <td><code>updates[].studentId</code></td>
+                        <td><code>updates[].userId</code></td>
                         <td>String</td>
                         <td>✅</td>
-                        <td>Student's MongoDB ObjectId (24-char hex string, <strong>not</strong> the short ID like <code>YM1234</code>). Use the <code>/users/match</code> or <code>/users/list</code> endpoint to retrieve these IDs.</td>
+                        <td>User's MongoDB ObjectId (24-char hex string, <strong>not</strong> the short ID like <code>YM1234</code>). Use the <code>/users/match</code> or <code>/users/list</code> endpoint to retrieve these IDs.</td>
                       </tr>
                       <tr>
                         <td><code>updates[].amount</code></td>
@@ -499,7 +559,7 @@ export default function IntegrationDocs() {
                         <td><code>description</code></td>
                         <td>String</td>
                         <td>No</td>
-                        <td>Transaction description shown in student wallet history</td>
+                        <td>Transaction description shown in user wallet history</td>
                       </tr>
                       <tr>
                         <td><code>applyGroupMultipliers</code></td>
@@ -542,7 +602,7 @@ export default function IntegrationDocs() {
                 _id: '<classroom_id>',
                 name: 'Class 101 - Intro to CS',
                 code: 'ABC123',
-                studentCount: 32
+                userCount: 32
               }, null, 2)}
             />
 
@@ -553,17 +613,17 @@ export default function IntegrationDocs() {
               id="endpoints-inventory"
               icon={<Package size={20} />}
               title="Inventory"
-              subtitle="Read and redeem student inventory items"
+              subtitle="Read and redeem user inventory items"
             />
 
             <EndpointCard
               method="GET"
-              path="/api/integrations/inventory/:studentId"
+              path="/api/integrations/inventory/:userId"
               scope="inventory:read"
-              description="List all non-consumed inventory items for a student in a specific classroom. Use the returned item _id values with the redeem endpoint."
+              description="List all non-consumed inventory items for a user in a specific classroom. Use the returned item _id values with the redeem endpoint."
               requestBody={null}
               responseBody={JSON.stringify({
-                studentId: '<student_id>',
+                userId: '<user_id>',
                 classroomId: '<classroom_id>',
                 items: [
                   {
@@ -588,17 +648,17 @@ export default function IntegrationDocs() {
                   }
                 ]
               }, null, 2)}
-              notes="Requires classroomId as a query parameter: /api/integrations/inventory/:studentId?classroomId=<classroom_id>. Only returns items that belong to the specified classroom's bazaar and have not been consumed."
+              notes="Requires classroomId as a query parameter: /api/integrations/inventory/:userId?classroomId=<classroom_id>. Only returns items that belong to the specified classroom's bazaar and have not been consumed."
             />
 
             <EndpointCard
               method="POST"
               path="/api/integrations/inventory/redeem"
               scope="inventory:use"
-              description="Mark a student's passive inventory item (with no secondary effects) as consumed after processing it externally (e.g., after applying extra credit in an LMS system). This prevents the item from being processed again on subsequent inventory reads."
+              description="Mark a user's passive inventory item (with no secondary effects) as consumed after processing it externally (e.g., after applying extra credit in an LMS system). This prevents the item from being processed again on subsequent inventory reads."
               requestBody={JSON.stringify({
                 classroomId: '<classroom_id>',
-                studentId: '<student_id>',
+                userId: '<user_id>',
                 itemId: '<item_id>',
                 redemptionData: {
                   type: 'extra_credit',
@@ -619,7 +679,7 @@ export default function IntegrationDocs() {
                   }
                 }
               }, null, 2)}
-              notes="This endpoint is designed for LMS bridge developers. Only passive items with no secondary effects (e.g., extra credit vouchers) can be redeemed through the API. Items with effects (Attack, Defend, Utility, MysteryBox, or Passive items with stat boosts) must be redeemed through the Prizeversity app to ensure effects, orders, and stats are properly recorded. The typical flow is: 1) Read the student's inventory, 2) Filter for effect-free passive items, 3) Process the item externally (e.g., update a grade in the LMS system), 4) Call this endpoint to mark it as consumed."
+              notes="This endpoint is designed for LMS bridge developers. Only passive items with no secondary effects (e.g., extra credit vouchers) can be redeemed through the API. Items with effects (Attack, Defend, Utility, MysteryBox, or Passive items with stat boosts) must be redeemed through the Prizeversity app to ensure effects, orders, and stats are properly recorded. The typical flow is: 1) Read the user's inventory, 2) Filter for effect-free passive items, 3) Process the item externally (e.g., update a grade in the LMS system), 4) Call this endpoint to mark it as consumed."
             />
 
             {/* ═══════════════════════════════════════════════ */}
@@ -637,8 +697,7 @@ export default function IntegrationDocs() {
               <div>
                 <span className="font-semibold">Beta Feature:</span>{' '}
                 Webhooks are currently in beta preview. Delivery behavior and payload format may change.
-                If you encounter issues, please contact{' '}
-                <a href="mailto:info@prizeversity.com" className="link link-primary">info@prizeversity.com</a>.
+                If you encounter issues, please <a href="#need-help" className="link link-primary">contact us</a>.
               </div>
             </div>
 
@@ -659,12 +718,12 @@ export default function IntegrationDocs() {
                 </thead>
                 <tbody>
                   {[
-                    ['wallet.updated', 'A student\'s bit balance changes'],
-                    ['item.purchased', 'A student buys an item from the bazaar'],
+                    ['wallet.updated', 'A user\'s bit balance changes'],
+                    ['item.purchased', 'A user buys an item from the bazaar'],
                     ['item.redeemed', 'An inventory item is redeemed/used'],
-                    ['challenge.completed', 'A student completes a challenge'],
-                    ['level.up', 'A student levels up'],
-                    ['badge.earned', 'A student unlocks a badge'],
+                    ['challenge.completed', 'A user completes a challenge'],
+                    ['level.up', 'A user levels up'],
+                    ['badge.earned', 'A user unlocks a badge'],
                   ].map(([event, desc]) => (
                     <tr key={event}>
                       <td><code className="text-xs">{event}</code></td>
@@ -683,7 +742,7 @@ export default function IntegrationDocs() {
                 timestamp: '2025-01-15T10:30:00.000Z',
                 appId: 'pv_abc123def456',
                 data: {
-                  studentId: '<student_id>',
+                  userId: '<user_id>',
                   itemId: '<item_id>',
                   itemName: '5 Points Extra Credit',
                   itemCategory: 'Passive',
@@ -791,10 +850,10 @@ PRIZEVERSITY_BASE_URL=https://www.prizeversity.com`} />
               <div>
                 <h3 className="font-semibold text-sm mb-2 flex items-center gap-2">
                   <span className="badge badge-primary badge-sm">3</span>
-                  Match Students
+                  Match Users
                 </h3>
                 <p className="text-sm mb-2">
-                  Map your app's student names to Prizeversity user IDs. The API returns
+                  Map your app's user names to Prizeversity user IDs. The API returns
                   MongoDB ObjectIds (24-character hex strings like <code className="bg-base-300 px-1 rounded">68a4ez78af95ce2a82ad6ae0</code>),
                   <strong> not</strong> the short IDs shown in the UI (like <code className="bg-base-300 px-1 rounded">YM1234</code>).
                   Use <code className="bg-base-300 px-1 rounded">/users/match</code> or <code className="bg-base-300 px-1 rounded">/users/list</code> to
@@ -811,7 +870,7 @@ PRIZEVERSITY_BASE_URL=https://www.prizeversity.com`} />
     },
     body: JSON.stringify({
       classroomId: process.env.PRIZEVERSITY_CLASSROOM_ID,
-      students: [
+      users: [
         { name: 'Jane Doe' },
         { name: 'John Smith' },
       ],
@@ -820,7 +879,7 @@ PRIZEVERSITY_BASE_URL=https://www.prizeversity.com`} />
 );
 
 const { matched, unmatched } = await response.json();
-// matched[0].studentId → use this for wallet adjustments`}
+// matched[0].userId → use this for wallet adjustments`}
                 />
               </div>
 
@@ -830,7 +889,7 @@ const { matched, unmatched } = await response.json();
                   Adjust Wallet Balances
                 </h3>
                 <p className="text-sm mb-2">
-                  Send bit adjustments using the matched student IDs:
+                  Send bit adjustments using the matched user IDs:
                 </p>
                 <CopyBlock
                   code={`const response = await fetch(
@@ -844,7 +903,7 @@ const { matched, unmatched } = await response.json();
     body: JSON.stringify({
       classroomId: process.env.PRIZEVERSITY_CLASSROOM_ID,
       updates: matched.map(s => ({
-        studentId: s.studentId,
+        userId: s.userId,
         amount: 10, // bits to award
       })),
       description: 'Weekly participation reward',
@@ -853,7 +912,7 @@ const { matched, unmatched } = await response.json();
 );
 
 const result = await response.json();
-console.log(\`\${result.updated} students rewarded!\`);`}
+console.log(\`\${result.updated} users rewarded!\`);`}
                 />
               </div>
 
@@ -863,12 +922,12 @@ console.log(\`\${result.updated} students rewarded!\`);`}
                   Read &amp; Redeem Inventory
                 </h3>
                 <p className="text-sm mb-2">
-                  List a student's items, then redeem one by ID:
+                  List a user's items, then redeem one by ID:
                 </p>
                 <CopyBlock
-                  code={`// Step 1: List student's inventory
+                  code={`// Step 1: List user's inventory
 const invResponse = await fetch(
-  \`\${BASE_URL}/api/integrations/inventory/\${studentId}?classroomId=\${classroomId}\`,
+  \`\${BASE_URL}/api/integrations/inventory/\${userId}?classroomId=\${classroomId}\`,
   {
     headers: { 'X-API-Key': process.env.PRIZEVERSITY_API_KEY },
   }
@@ -894,7 +953,7 @@ if (extraCreditItem) {
       },
       body: JSON.stringify({
         classroomId,
-        studentId,
+        userId,
         itemId: extraCreditItem._id,
         redemptionData: {
           type: 'extra_credit',
@@ -916,7 +975,7 @@ if (extraCreditItem) {
                   Done!
                 </h3>
                 <p className="text-sm">
-                  Students will see the bit adjustment in their wallet with real-time socket
+                  Users will see the bit adjustment in their wallet with real-time socket
                   updates. Group and personal multipliers are applied automatically to
                   positive amounts.
                 </p>
@@ -924,7 +983,7 @@ if (extraCreditItem) {
             </div>
 
             {/* Support footer */}
-            <div className="card bg-base-200 mt-12 p-6 text-center">
+            <div id="need-help" className="card bg-base-200 mt-12 p-6 text-center scroll-mt-24">
               <p className="font-semibold mb-1">Need help?</p>
               <p className="text-sm opacity-70 mb-4">
                 For integration support, contact us or check the teacher FAQ.
@@ -933,7 +992,7 @@ if (extraCreditItem) {
                 <a href="mailto:info@prizeversity.com" className="btn btn-primary btn-sm">
                   info@prizeversity.com
                 </a>
-                <Link to="/support#faqs" className="btn btn-outline btn-sm">
+                <Link to="/support#faq-integrations" className="btn btn-outline btn-sm">
                   Teacher FAQ
                 </Link>
                 <Link to="/integrations" className="btn btn-outline btn-sm gap-1">
