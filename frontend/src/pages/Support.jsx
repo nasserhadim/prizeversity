@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext'; // Import useAuth
 import { 
   ChevronDown, 
@@ -29,6 +29,7 @@ import Footer from '../components/Footer';
 
 const Support = () => {
   const { user } = useAuth(); // Get user from AuthContext
+  const location = useLocation();
   const [openFaq, setOpenFaq] = useState(null);
   const [selectedRole, setSelectedRole] = useState('all'); // 'all', 'teacher', 'student', 'admin'
   // NEW: smart FAQ search
@@ -41,8 +42,24 @@ const Support = () => {
     setOpenFaq(openFaq === index ? null : index);
   };
 
+  // Scroll to hash anchor on navigation (e.g. /support#faq-integrations)
+  useEffect(() => {
+    if (location.hash) {
+      const id = location.hash.slice(1);
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          const el = document.getElementById(id);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }, 100);
+      });
+    }
+  }, [location.hash]);
+
   const faqs = [
     {
+
       category: "Getting Started",
       icon: <School size={20} />,
       questions: [
@@ -989,7 +1006,7 @@ const Support = () => {
         {
           question: "What are Integrations?",
           answer: [
-            "Integrations allow you to connect **external apps** (like grade sync tools or attendance trackers) to Prizeversity so they can interact with your classrooms automatically.",
+            "Integrations allow you to connect **external apps** (like LMS plugins or custom reward tools) to Prizeversity so they can interact with your classrooms automatically.",
             "",
             "For example, an external reward tool could automatically send bit adjustments to your students without you having to manually enter them in Prizeversity.",
             "",
@@ -1021,15 +1038,15 @@ const Support = () => {
           answer: [
             "Scopes control what an external app is allowed to do. Only grant what the app actually needs:",
             "",
-            "• **Adjust Wallet Balances** — Add or deduct bits from student wallets",
-            "• **Match Students** — Match student names (from external data) to Prizeversity accounts",
-            "• **List Students** — View student names and emails in a classroom",
-            "• **Read Classroom Info** — View classroom name, code, and student count",
-            "• **Read Inventory** — View a student's inventory items via the API (returns item IDs needed for redemption)",
+            "• **Adjust Wallet Balances** — Add or deduct bits from user wallets",
+            "• **Match Users** — Match user names (from external data) to Prizeversity accounts",
+            "• **List Users** — View user names and emails in a classroom",
+            "• **Read Classroom Info** — View classroom name, code, and user count",
+            "• **Read Inventory** — View a user's inventory items via the API (returns item IDs needed for redemption)",
             "• **Redeem Items** — Mark inventory items as redeemed (for grade sync, etc.). Use Read Inventory first to get the item ID.",
             "• **Manage Webhooks** — Register event notifications (advanced)",
             "",
-            "**Tip:** For a simple reward tool, you typically only need 'Adjust Wallet Balances' and 'Match Students'."
+            "**Tip:** For a simple reward tool, you typically only need 'Adjust Wallet Balances' and 'Match Users'."
           ],
           role: ["teacher"]
         },
@@ -1043,7 +1060,7 @@ const Support = () => {
             "• If you have an Admin/TA using an external tool, they can only affect the classroom(s) you authorized",
             "• You can create separate integrations for different classrooms with different permissions",
             "",
-            "**Example:** You create an integration for 'Class 101' with 'Adjust Wallet Balances'. That key cannot be used to adjust balances in 'Class 202'."
+            "**Example:** You create an integration for 'Class 101' with 'Adjust Wallet Balances'. That key cannot be used to adjust balances in 'Class 202' unless you also scoped it to that classroom."
           ],
           role: ["teacher"]
         },
@@ -1084,11 +1101,11 @@ const Support = () => {
             "For example, a webhook could notify an LMS integration when a student redeems an 'Extra Credit' item, so the grade gets updated automatically.",
             "",
             "**Available events:**",
-            "• Wallet Updated — when a student's balance changes",
-            "• Item Purchased — when a student buys from the bazaar",
+            "• Wallet Updated — when user's balance changes",
+            "• Item Purchased — when a user buys from the bazaar",
             "• Item Redeemed — when an inventory item is used",
             "• Challenge Completed — when a challenge finishes",
-            "• Level Up — when a student levels up",
+            "• Level Up — when a user levels up",
             "• Badge Earned — when a badge is unlocked",
             "",
             "⚠️ **Note:** Webhooks are currently in beta. Delivery reliability and payload format may change.",
@@ -1103,11 +1120,11 @@ const Support = () => {
             "Typically, the external app needs two things from you:",
             "",
             "1. **API Key** — the key you get when creating an integration (paste it into the app's settings)",
-            "2. **Classroom ID** — the ID of your classroom. You can find this in the URL when viewing your classroom (e.g. `/classroom/abc123` → the ID is `abc123`)",
+            "2. **Classroom ID** — the long MongoDB ObjectId of your classroom. You can find this in the URL when viewing your classroom (e.g. `/classroom/abc1234567890123...` → the ID is `abc1234567890123...`)",
             "",
             "Some apps may also ask for the Prizeversity base URL (e.g. `https://www.prizeversity.com`).",
             "",
-            "**Important:** The API uses MongoDB ObjectIds (24-character hex strings like `68a4ez78af95ce2a82ad6ae0`) for student IDs — **not** the short IDs shown in the UI (like `YM1234`). External apps should use the `/users/match` or `/users/list` endpoint to retrieve the correct student IDs before making wallet adjustments or other API calls."
+            "**Important:** The API uses MongoDB ObjectIds (24-character hex strings like `68a4ez78af95ce2a82ad6ae0`) for user IDs — **not** the short IDs shown in the UI (like `YM1234`). External apps should use the `/users/match` or `/users/list` endpoint to retrieve the correct user IDs before making wallet adjustments or other API calls."
           ],
           role: ["teacher"]
         },
@@ -1152,15 +1169,15 @@ const Support = () => {
         {
           question: "How does the inventory redeem flow work with integrations?",
           answer: [
-            "The inventory redeem flow is designed for **external apps** (e.g., an LMS bridge) that need to process a student's inventory item outside of Prizeversity and then mark it as consumed.",
+            "The inventory redeem flow is designed for **external apps** (e.g., an LMS bridge or plugin) that need to process a user's inventory item outside of Prizeversity and then mark it as consumed.",
             "",
             "**Important limitation:** Only **passive items with no secondary effects** (e.g., extra credit vouchers, hall passes) can be redeemed through the API. Items with effects — such as attacks, shields, utility boosts, mystery boxes, or passive items that grant stat boosts (luck, multiplier, group multiplier) — must be redeemed through the Prizeversity app so that effects, orders, and stats are properly applied.",
             "",
-            "**Example use case:** A student buys a '5 Points Extra Credit' item in the Bazaar. An LMS integration reads their inventory, applies the extra credit in the LMS system, then calls the redeem endpoint so the item isn't processed again.",
+            "**Example use case:** A user buys a '5 Points Extra Credit' item in the Bazaar. An LMS integration reads their inventory, applies the extra credit in the LMS system, then calls the redeem endpoint so the item isn't processed again.",
             "",
             "**Step 1: Read Inventory** (scope: `inventory:read`)",
-            "• `GET /api/integrations/inventory/:studentId?classroomId=<id>`",
-            "• Returns all non-consumed items the student owns in that classroom",
+            "• `GET /api/integrations/inventory/:userId?classroomId=<id>`",
+            "• Returns all non-consumed items the user owns in that classroom",
             "• Each item includes an `_id` field — this is the item ID needed for redemption",
             "",
             "**Step 2: Redeem Item** (scope: `inventory:use`)",
@@ -1172,7 +1189,7 @@ const Support = () => {
             "**What CAN be redeemed via API:** Passive items with no secondary effects (extra credit, hall passes, reward vouchers, etc.)",
             "**What CANNOT be redeemed via API:** Attack items, Defend items, Utility items, Mystery Boxes, or Passive items with stat-boosting effects (e.g. luck, multiplier, group multiplier)",
             "",
-            "**Important:** The redeem endpoint does NOT apply grades or trigger actions in the LMS — that's the external app's responsibility. The endpoint simply tells Prizeversity 'this item has been processed, mark it done.'",
+            "**Important:** The redeem endpoint does NOT apply grades or trigger actions in the LMS — that's the external app's responsibility. The endpoint simply tells Prizeversity 'this item has been processed, mark it done (redeemed).'",
             "",
             "Make sure your integration app has both `inventory:read` and `inventory:use` scopes enabled."
           ],
@@ -1673,7 +1690,11 @@ const Support = () => {
           </div>
 
           {filteredFaqs.map((category, categoryIndex) => (
-            <div key={categoryIndex} className="card bg-base-100 shadow-lg">
+            <div
+              key={categoryIndex}
+              id={`faq-${category.category.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`}
+              className="card bg-base-100 shadow-lg scroll-mt-24"
+            >
               <div className="card-body">
                 <div className="flex items-center gap-3 mb-6">
                   {category.icon}

@@ -301,7 +301,7 @@ export default function IntegrationSettings() {
             </h1>
             <p className="text-sm opacity-60 mt-1">
               Connect external apps to Prizeversity with scoped API keys.
-              <Link to="/support#faqs" className="link link-primary">
+              <Link to="/support#faq-integrations" className="link link-primary">
                 Learn more
               </Link>
               {' · '}
@@ -794,8 +794,9 @@ function IntegrationAppCard({
         {app.classrooms && app.classrooms.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-1">
             {app.classrooms.map((c) => (
-              <span key={c._id || c} className="badge badge-outline badge-sm">
+              <span key={c._id || c} className="badge badge-outline badge-sm" title={c._id ? `ID: ${c._id}` : ''}>
                 {c.name || c.code || String(c._id || c).slice(-6)}
+                {c.code ? ` (${c.code})` : ''}
               </span>
             ))}
           </div>
