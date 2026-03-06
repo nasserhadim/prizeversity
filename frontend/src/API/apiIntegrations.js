@@ -36,8 +36,8 @@ export const deleteWebhook = (appId, hookId) =>
 export const AVAILABLE_SCOPES = [
   { value: 'wallet:adjust', label: 'Adjust Wallet Balances', description: 'Add or deduct bits from student wallets' },
   { value: 'users:match', label: 'Match Students', description: 'Match student names to Prizeversity accounts' },
-  { value: 'users:read', label: 'List Students', description: 'View student names and emails in a classroom' },
-  { value: 'classroom:read', label: 'Read Classroom Info', description: 'View classroom name, code, and student count' },
+  { value: 'users:read', label: 'List Students', description: 'View student names, emails, and extended data (balances, XP, badges, stats, groups)' },
+  { value: 'classroom:read', label: 'Read Classroom Info', description: 'View classroom details and extended data (groups, bazaar, badges, XP settings, announcements)' },
   { value: 'inventory:read', label: 'Read Inventory', description: 'View student inventory items' },
   { value: 'inventory:use', label: 'Redeem Items', description: 'Mark inventory items as redeemed' },
   { value: 'webhooks:manage', label: 'Manage Webhooks', description: 'Register and manage event webhooks' },

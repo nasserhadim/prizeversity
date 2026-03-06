@@ -17,7 +17,10 @@ const Item = require('../models/Item');
 const GroupSet = require('../models/GroupSet');
 const Group = require('../models/Group');
 const Badge = require('../models/Badge');
-const { calculateNextLevelProgress } = require('../utils/xp');
+const Bazaar = require('../models/Bazaar');
+const NewsItem = require('../models/NewsItem');
+const Feedback = require('../models/Feedback');
+const { calculateNextLevelProgress, calculateXPForLevel } = require('../utils/xp');
 
 // helper: classroom-scoped personal multiplier
 function getPersonalMultiplierForClassroom(userDoc, classroomId) {
@@ -392,10 +395,13 @@ router.get('/users/list/:classroomId', ensureAuthenticated, requireScope('users:
 
     // Load all badges for this classroom (for earned/equipped badge lookups)
     const classroomBadges = await Badge.find({ classroom: classroomId })
-      .select('name description icon image levelRequired')
+      .select('name description icon image levelRequired rewards')
       .lean();
     const badgesById = {};
     for (const b of classroomBadges) badgesById[String(b._id)] = b;
+
+    // Sort badges by levelRequired for next-badge lookups
+    const sortedBadges = [...classroomBadges].sort((a, b) => a.levelRequired - b.levelRequired);
 
     // XP settings for level progress calculation
     const formula = classroom.xpSettings?.levelingFormula || 'exponential';
@@ -453,11 +459,47 @@ router.get('/users/list/:classroomId', ensureAuthenticated, requireScope('users:
       // Earned badges
       const earnedBadges = (xpEntry?.earnedBadges || []).map(eb => {
         const badge = badgesById[String(eb.badge)];
-        return badge ? { badgeId: eb.badge, name: badge.name, description: badge.description, icon: badge.icon, image: badge.image, levelRequired: badge.levelRequired, earnedAt: eb.earnedAt } : null;
+        if (!badge) return null;
+        const rewards = badge.rewards || {};
+        const enabledRewards = {};
+        if (rewards.bits > 0) enabledRewards.bits = rewards.bits;
+        if (rewards.multiplier > 0) enabledRewards.multiplier = rewards.multiplier;
+        if (rewards.luck > 0) enabledRewards.luck = rewards.luck;
+        if (rewards.discount > 0) enabledRewards.discount = rewards.discount;
+        if (rewards.shield > 0) enabledRewards.shield = rewards.shield;
+        return { badgeId: eb.badge, name: badge.name, description: badge.description, icon: badge.icon, image: badge.image, levelRequired: badge.levelRequired, earnedAt: eb.earnedAt, rewards: enabledRewards };
       }).filter(Boolean);
 
       // Equipped badge
       const equippedBadgeData = xpEntry?.equippedBadge ? badgesById[String(xpEntry.equippedBadge)] : null;
+
+      // Next badge progress
+      const earnedBadgeIds = new Set(earnedBadges.map(eb => String(eb.badgeId)));
+      const nextBadge = sortedBadges.find(b => !earnedBadgeIds.has(String(b._id)));
+      let nextBadgeProgress = null;
+      if (nextBadge) {
+        const levelsUntil = Math.max(0, nextBadge.levelRequired - currentLevel);
+        const xpForBadgeLevel = calculateXPForLevel(nextBadge.levelRequired, formula, baseXP);
+        const xpUntil = Math.max(0, xpForBadgeLevel - currentXP);
+        const rewards = nextBadge.rewards || {};
+        const enabledRewards = {};
+        if (rewards.bits > 0) enabledRewards.bits = rewards.bits;
+        if (rewards.multiplier > 0) enabledRewards.multiplier = rewards.multiplier;
+        if (rewards.luck > 0) enabledRewards.luck = rewards.luck;
+        if (rewards.discount > 0) enabledRewards.discount = rewards.discount;
+        if (rewards.shield > 0) enabledRewards.shield = rewards.shield;
+        nextBadgeProgress = {
+          badgeId: nextBadge._id,
+          name: nextBadge.name,
+          icon: nextBadge.icon,
+          image: nextBadge.image,
+          levelRequired: nextBadge.levelRequired,
+          levelsUntilBadge: levelsUntil,
+          xpUntilBadge: Math.round(xpUntil * 100) / 100,
+          progress: Math.round((xpForBadgeLevel > 0 ? Math.min(1, currentXP / xpForBadgeLevel) : 1) * 10000) / 10000,
+          rewards: enabledRewards
+        };
+      }
 
       // Stats (classroom-scoped)
       const cs = (s.classroomStats || []).find(c => String(c.classroom) === String(classroomId));
@@ -515,6 +557,7 @@ router.get('/users/list/:classroomId', ensureAuthenticated, requireScope('users:
         },
         earnedBadges,
         equippedBadge: equippedBadgeData ? { badgeId: equippedBadgeData._id, name: equippedBadgeData.name, icon: equippedBadgeData.icon, image: equippedBadgeData.image } : null,
+        nextBadge: nextBadgeProgress,
         stats: {
           luck: passive.luck || 1,
           multiplier: passive.multiplier || 1,
@@ -545,17 +588,242 @@ router.get('/users/list/:classroomId', ensureAuthenticated, requireScope('users:
 // --- Classroom info ---
 router.get('/classroom/:classroomId', ensureAuthenticated, requireScope('classroom:read'), async (req, res) => {
   try {
-    const classroom = await Classroom.findById(req.params.classroomId)
-      .select('name code students');
+    const classroomId = req.params.classroomId;
+    const extended = req.query.fields === 'extended';
+
+    if (!extended) {
+      const classroom = await Classroom.findById(classroomId)
+        .select('name code students');
+      if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+
+      return res.json({
+        _id: classroom._id,
+        name: classroom.name,
+        code: classroom.code,
+        userCount: classroom.students?.length || 0
+      });
+    }
+
+    // --- Extended mode ---
+    const classroom = await Classroom.findById(classroomId)
+      .populate('teacher', 'firstName lastName email')
+      .populate('admins', 'firstName lastName email');
     if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+
+    // GroupSets + Groups (with member info)
+    const groupSets = await GroupSet.find({ classroom: classroomId })
+      .populate({
+        path: 'groups',
+        populate: { path: 'members._id', select: 'firstName lastName email' }
+      })
+      .lean();
+
+    const groupSetsData = groupSets.map(gs => ({
+      _id: gs._id,
+      name: gs.name,
+      selfSignup: gs.selfSignup,
+      joinApproval: gs.joinApproval,
+      maxMembers: gs.maxMembers,
+      groupMultiplierIncrement: gs.groupMultiplierIncrement,
+      image: gs.image,
+      groups: (gs.groups || []).map(g => ({
+        _id: g._id,
+        name: g.name,
+        maxMembers: g.maxMembers,
+        image: g.image,
+        groupMultiplier: g.groupMultiplier,
+        isAutoMultiplier: g.isAutoMultiplier,
+        members: (g.members || []).map(m => {
+          const user = m._id;
+          return {
+            userId: user?._id || m._id,
+            name: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : null,
+            email: user?.email || null,
+            status: m.status,
+            joinDate: m.joinDate
+          };
+        })
+      }))
+    }));
+
+    // Bazaars + Items (with mystery box config)
+    const bazaars = await Bazaar.find({ classroom: classroomId })
+      .populate({
+        path: 'items',
+        match: { owner: { $exists: false } },
+        populate: {
+          path: 'mysteryBoxConfig.itemPool.item',
+          select: 'name description price image category'
+        }
+      })
+      .lean();
+
+    const bazaarsData = bazaars.map(bz => ({
+      _id: bz._id,
+      name: bz.name,
+      description: bz.description,
+      image: bz.image,
+      items: (bz.items || []).map(item => {
+        const base = {
+          _id: item._id,
+          name: item.name,
+          description: item.description,
+          price: item.price,
+          image: item.image,
+          category: item.category,
+          primaryEffect: item.primaryEffect,
+          primaryEffectValue: item.primaryEffectValue,
+          secondaryEffects: item.secondaryEffects || [],
+          swapOptions: item.swapOptions || []
+        };
+        if (item.category === 'MysteryBox' && item.mysteryBoxConfig) {
+          base.mysteryBoxConfig = {
+            luckMultiplier: item.mysteryBoxConfig.luckMultiplier,
+            pityEnabled: item.mysteryBoxConfig.pityEnabled,
+            guaranteedItemAfter: item.mysteryBoxConfig.guaranteedItemAfter,
+            pityMinimumRarity: item.mysteryBoxConfig.pityMinimumRarity,
+            itemPool: (item.mysteryBoxConfig.itemPool || []).map(p => ({
+              item: p.item ? {
+                _id: p.item._id,
+                name: p.item.name,
+                description: p.item.description,
+                price: p.item.price,
+                image: p.item.image,
+                category: p.item.category
+              } : p.item,
+              rarity: p.rarity,
+              baseDropChance: p.baseDropChance
+            }))
+          };
+        }
+        return base;
+      })
+    }));
+
+    // Badges
+    const badges = await Badge.find({ classroom: classroomId })
+      .select('name description icon image levelRequired rewards unlockedBazaarItems')
+      .lean();
+
+    const badgesData = badges.map(b => ({
+      _id: b._id,
+      name: b.name,
+      description: b.description,
+      icon: b.icon,
+      image: b.image,
+      levelRequired: b.levelRequired,
+      rewards: b.rewards || {}
+    }));
+
+    // Admin / TA policies
+    const policies = {
+      taBitPolicy: classroom.taBitPolicy,
+      taGroupPolicy: classroom.taGroupPolicy,
+      taFeedbackPolicy: classroom.taFeedbackPolicy,
+      taStatsPolicy: classroom.taStatsPolicy,
+      siphonTimeoutHours: classroom.siphonTimeoutHours,
+      studentSendEnabled: classroom.studentSendEnabled,
+      studentsCanViewStats: classroom.studentsCanViewStats,
+      feedbackRewardEnabled: classroom.feedbackRewardEnabled,
+      feedbackRewardBits: classroom.feedbackRewardBits,
+      feedbackRewardApplyGroupMultipliers: classroom.feedbackRewardApplyGroupMultipliers,
+      feedbackRewardApplyPersonalMultipliers: classroom.feedbackRewardApplyPersonalMultipliers,
+      feedbackRewardAllowAnonymous: classroom.feedbackRewardAllowAnonymous
+    };
+
+    // XP settings
+    const xpSettings = classroom.xpSettings ? {
+      enabled: classroom.xpSettings.enabled,
+      bitsEarned: classroom.xpSettings.bitsEarned,
+      bitsSpent: classroom.xpSettings.bitsSpent,
+      statIncrease: classroom.xpSettings.statIncrease,
+      dailyCheckIn: classroom.xpSettings.dailyCheckIn,
+      challengeCompletion: classroom.xpSettings.challengeCompletion,
+      mysteryBox: classroom.xpSettings.mysteryBox,
+      groupJoin: classroom.xpSettings.groupJoin,
+      badgeUnlock: classroom.xpSettings.badgeUnlock,
+      feedbackSubmission: classroom.xpSettings.feedbackSubmission,
+      levelingFormula: classroom.xpSettings.levelingFormula,
+      baseXPForLevel2: classroom.xpSettings.baseXPForLevel2,
+      bitsXPBasis: classroom.xpSettings.bitsXPBasis,
+      levelUpRewards: classroom.xpSettings.levelUpRewards || {}
+    } : null;
+
+    // Announcements
+    const newsItems = await NewsItem.find({ classroomId: classroomId })
+      .sort({ createdAt: -1 })
+      .populate('authorId', 'firstName lastName email')
+      .lean();
+
+    const announcements = newsItems.map(n => ({
+      _id: n._id,
+      content: n.content,
+      attachments: (n.attachments || []).map(a => ({
+        filename: a.filename,
+        originalName: a.originalName,
+        url: a.url
+      })),
+      author: n.authorId ? {
+        userId: n.authorId._id,
+        name: `${n.authorId.firstName || ''} ${n.authorId.lastName || ''}`.trim(),
+        email: n.authorId.email
+      } : null,
+      createdAt: n.createdAt
+    }));
+
+    // Feedbacks
+    const feedbackDocs = await Feedback.find({ classroom: classroomId, hidden: { $ne: true } })
+      .sort({ createdAt: -1 })
+      .populate('userId', 'firstName lastName email')
+      .lean();
+
+    const feedbacks = feedbackDocs.map(f => ({
+      _id: f._id,
+      rating: f.rating,
+      comment: f.comment || null,
+      anonymous: f.anonymous,
+      author: (!f.anonymous && f.userId) ? {
+        userId: f.userId._id,
+        name: `${f.userId.firstName || ''} ${f.userId.lastName || ''}`.trim(),
+        email: f.userId.email
+      } : null,
+      createdAt: f.createdAt
+    }));
+
+    // Teacher + admins
+    const teacher = classroom.teacher ? {
+      userId: classroom.teacher._id,
+      name: `${classroom.teacher.firstName || ''} ${classroom.teacher.lastName || ''}`.trim(),
+      email: classroom.teacher.email
+    } : null;
+
+    const admins = (classroom.admins || []).map(a => ({
+      userId: a._id,
+      name: `${a.firstName || ''} ${a.lastName || ''}`.trim(),
+      email: a.email
+    }));
 
     res.json({
       _id: classroom._id,
       name: classroom.name,
       code: classroom.code,
-      userCount: classroom.students?.length || 0
+      color: classroom.color,
+      backgroundImage: classroom.backgroundImage,
+      archived: classroom.archived,
+      userCount: classroom.students?.length || 0,
+      createdAt: classroom.createdAt,
+      teacher,
+      admins,
+      policies,
+      xpSettings,
+      groupSets: groupSetsData,
+      bazaars: bazaarsData,
+      badges: badgesData,
+      announcements,
+      feedbacks
     });
   } catch (err) {
+    console.error('[integrations/classroom]', err);
     res.status(500).json({ error: 'Failed to read classroom' });
   }
 });
