@@ -264,8 +264,8 @@ export default function IntegrationDocs() {
                   {[
                     ['wallet:adjust', 'Add or deduct bits from user wallets'],
                     ['users:match', 'Match user names to Prizeversity user IDs'],
-                    ['users:read', 'List users enrolled in a classroom'],
-                    ['classroom:read', 'Read classroom name, code, and metadata'],
+                    ['users:read', 'List users in a classroom (extended: balances, XP, badges, stats, groups)'],
+                    ['classroom:read', 'Read classroom details (extended: groups, bazaar, badges, XP settings, announcements)'],
                     ['inventory:read', 'View user inventory items'],
                     ['inventory:use', 'Mark inventory items as redeemed'],
                     ['webhooks:manage', 'Register and manage webhook subscriptions'],
@@ -778,7 +778,7 @@ export default function IntegrationDocs() {
                     </thead>
                     <tbody>
                       <tr><td><code>rating</code></td><td>Number</td><td>Rating from 1–5</td></tr>
-                      <tr><td><code>comment</code></td><td>String | null</td><td>Optional feedback comment</td></tr>
+                      <tr><td><code>comment</code></td><td>String | null</td><td>Feedback comment</td></tr>
                       <tr><td><code>anonymous</code></td><td>Boolean</td><td>Whether feedback was submitted anonymously</td></tr>
                       <tr><td><code>author</code></td><td>Object | null</td><td><code>userId</code>, <code>name</code>, <code>email</code> — <code>null</code> when anonymous</td></tr>
                       <tr><td><code>createdAt</code></td><td>Date</td><td>When the feedback was submitted</td></tr>
