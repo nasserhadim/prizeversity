@@ -458,8 +458,9 @@ export default function IntegrationDocs() {
                       <tr><td><code>level</code></td><td>Number</td><td>Current level</td></tr>
                       <tr><td><code>xp</code></td><td>Number</td><td>Current XP</td></tr>
                       <tr><td><code>xpProgress</code></td><td>Object</td><td>XP progress with <code>xpForCurrentLevel</code>, <code>xpForNextLevel</code>, <code>xpInCurrentLevel</code>, <code>xpRequiredForLevel</code>, <code>xpNeeded</code>, <code>progress</code> (0–1)</td></tr>
-                      <tr><td><code>earnedBadges</code></td><td>Array</td><td>Earned badges: <code>badgeId</code>, <code>name</code>, <code>description</code>, <code>icon</code>, <code>image</code>, <code>levelRequired</code>, <code>earnedAt</code></td></tr>
+                      <tr><td><code>earnedBadges</code></td><td>Array</td><td>Earned badges: <code>badgeId</code>, <code>name</code>, <code>description</code>, <code>icon</code>, <code>image</code>, <code>levelRequired</code>, <code>earnedAt</code>, <code>rewards</code> (only non-zero: <code>bits</code>, <code>multiplier</code>, <code>luck</code>, <code>discount</code>, <code>shield</code>)</td></tr>
                       <tr><td><code>equippedBadge</code></td><td>Object | null</td><td>Currently equipped badge: <code>badgeId</code>, <code>name</code>, <code>icon</code>, <code>image</code></td></tr>
+                      <tr><td><code>nextBadge</code></td><td>Object | null</td><td>Next unearned badge progress: <code>badgeId</code>, <code>name</code>, <code>icon</code>, <code>image</code>, <code>levelRequired</code>, <code>levelsUntilBadge</code>, <code>xpUntilBadge</code>, <code>progress</code> (0–1), <code>rewards</code> (only non-zero: <code>bits</code>, <code>multiplier</code>, <code>luck</code>, <code>discount</code>, <code>shield</code>)</td></tr>
                       <tr><td><code>stats</code></td><td>Object</td><td><code>luck</code>, <code>multiplier</code>, <code>groupMultiplier</code>, <code>shieldActive</code>, <code>shieldCount</code>, <code>attackPower</code>, <code>doubleEarnings</code>, <code>discountShop</code>, <code>passiveItemsCount</code></td></tr>
                       <tr><td><code>groups</code></td><td>Array</td><td>Group memberships: <code>groupSetId</code>, <code>groupSetName</code>, <code>groupId</code>, <code>groupName</code></td></tr>
                       <tr><td><code>isBanned</code></td><td>Boolean</td><td>Only present if user is banned</td></tr>
@@ -590,21 +591,265 @@ export default function IntegrationDocs() {
               id="endpoints-classroom"
               icon={<Package size={20} />}
               title="Classroom"
-              subtitle="Read classroom metadata"
+              subtitle="Read classroom metadata, settings, and structure"
             />
 
             <EndpointCard
               method="GET"
               path="/api/integrations/classroom/:classroomId"
               scope="classroom:read"
-              description="Get basic classroom information."
+              description="Get classroom information. Add ?fields=extended for full classroom data including group sets, bazaars & items (with mystery box config), badges, admin/TA policies, and XP settings."
               responseBody={JSON.stringify({
                 _id: '<classroom_id>',
                 name: 'Class 101 - Intro to CS',
                 code: 'ABC123',
                 userCount: 32
               }, null, 2)}
-            />
+              notes="Without query parameters, returns only basic info. Use ?fields=extended to include the full classroom structure."
+            >
+              <div className="space-y-3 text-sm">
+                <p className="font-semibold">Query Parameters:</p>
+                <div className="overflow-x-auto">
+                  <table className="table table-xs">
+                    <thead>
+                      <tr>
+                        <th>Parameter</th>
+                        <th>Value</th>
+                        <th>Description</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><code>fields</code></td>
+                        <td><code>extended</code></td>
+                        <td>Returns full classroom data (see sections below)</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <p className="font-semibold">Extended Response Fields <span className="font-normal opacity-60">(when <code>?fields=extended</code>)</span>:</p>
+
+                {/* Basic Info */}
+                <p className="font-semibold text-xs opacity-70 mt-4">Basic Info</p>
+                <div className="overflow-x-auto">
+                  <table className="table table-xs">
+                    <thead>
+                      <tr>
+                        <th>Field</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr><td><code>color</code></td><td>String</td><td>Classroom theme color</td></tr>
+                      <tr><td><code>backgroundImage</code></td><td>String</td><td>Optional background image path</td></tr>
+                      <tr><td><code>archived</code></td><td>Boolean</td><td>Whether the classroom is archived</td></tr>
+                      <tr><td><code>createdAt</code></td><td>Date</td><td>Classroom creation date</td></tr>
+                      <tr><td><code>teacher</code></td><td>Object</td><td><code>userId</code>, <code>name</code>, <code>email</code></td></tr>
+                      <tr><td><code>admins</code></td><td>Array</td><td>Admin/TA list with <code>userId</code>, <code>name</code>, <code>email</code></td></tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Group Sets */}
+                <p className="font-semibold text-xs opacity-70 mt-4">Group Sets &amp; Groups <span className="font-normal">(<code>groupSets</code>)</span></p>
+                <div className="overflow-x-auto">
+                  <table className="table table-xs">
+                    <thead>
+                      <tr>
+                        <th>Field</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr><td><code>name</code></td><td>String</td><td>Group set name</td></tr>
+                      <tr><td><code>selfSignup</code></td><td>Boolean</td><td>Whether students can self-join</td></tr>
+                      <tr><td><code>joinApproval</code></td><td>Boolean</td><td>Whether joining requires approval</td></tr>
+                      <tr><td><code>maxMembers</code></td><td>Number | null</td><td>Max members per group</td></tr>
+                      <tr><td><code>groupMultiplierIncrement</code></td><td>Number</td><td>Multiplier increment per member</td></tr>
+                      <tr><td><code>groups[].name</code></td><td>String</td><td>Group name</td></tr>
+                      <tr><td><code>groups[].groupMultiplier</code></td><td>Number</td><td>Current group multiplier</td></tr>
+                      <tr><td><code>groups[].isAutoMultiplier</code></td><td>Boolean</td><td>Whether multiplier is auto-calculated</td></tr>
+                      <tr><td><code>groups[].members[]</code></td><td>Array</td><td><code>userId</code>, <code>name</code>, <code>email</code>, <code>status</code>, <code>joinDate</code></td></tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Bazaars */}
+                <p className="font-semibold text-xs opacity-70 mt-4">Bazaars &amp; Items <span className="font-normal">(<code>bazaars</code>)</span></p>
+                <div className="overflow-x-auto">
+                  <table className="table table-xs">
+                    <thead>
+                      <tr>
+                        <th>Field</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr><td><code>name</code>, <code>description</code>, <code>image</code></td><td>String</td><td>Bazaar info</td></tr>
+                      <tr><td><code>items[].name</code></td><td>String</td><td>Item name</td></tr>
+                      <tr><td><code>items[].price</code></td><td>Number</td><td>Item price</td></tr>
+                      <tr><td><code>items[].category</code></td><td>String</td><td><code>Attack</code>, <code>Defend</code>, <code>Utility</code>, <code>Passive</code>, or <code>MysteryBox</code></td></tr>
+                      <tr><td><code>items[].primaryEffect</code></td><td>String</td><td>Primary effect type</td></tr>
+                      <tr><td><code>items[].primaryEffectValue</code></td><td>Number</td><td>Effect value</td></tr>
+                      <tr><td><code>items[].secondaryEffects</code></td><td>Array</td><td>Additional effects</td></tr>
+                      <tr><td><code>items[].swapOptions</code></td><td>Array</td><td>Swap/nullify options</td></tr>
+                      <tr><td><code>items[].mysteryBoxConfig</code></td><td>Object</td><td>Only for <code>MysteryBox</code> items (see below)</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mystery Box */}
+                <p className="font-semibold text-xs opacity-70 mt-4">Mystery Box Config <span className="font-normal">(<code>items[].mysteryBoxConfig</code> — MysteryBox items only)</span></p>
+                <div className="overflow-x-auto">
+                  <table className="table table-xs">
+                    <thead>
+                      <tr>
+                        <th>Field</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr><td><code>luckMultiplier</code></td><td>Number</td><td>Luck stat multiplier applied to drop chances</td></tr>
+                      <tr><td><code>pityEnabled</code></td><td>Boolean</td><td>Whether pity system is active</td></tr>
+                      <tr><td><code>guaranteedItemAfter</code></td><td>Number</td><td>Guaranteed rare+ drop after N opens (pity)</td></tr>
+                      <tr><td><code>pityMinimumRarity</code></td><td>String</td><td>Minimum rarity for pity drops (<code>uncommon</code> / <code>rare</code> / <code>epic</code> / <code>legendary</code>)</td></tr>
+                      <tr><td><code>itemPool[]</code></td><td>Array</td><td>Pool items with <code>item</code> (populated: <code>_id</code>, <code>name</code>, <code>description</code>, <code>price</code>, <code>image</code>, <code>category</code>), <code>rarity</code>, <code>baseDropChance</code></td></tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Badges */}
+                <p className="font-semibold text-xs opacity-70 mt-4">Badges <span className="font-normal">(<code>badges</code>)</span></p>
+                <div className="overflow-x-auto">
+                  <table className="table table-xs">
+                    <thead>
+                      <tr>
+                        <th>Field</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr><td><code>name</code></td><td>String</td><td>Badge name</td></tr>
+                      <tr><td><code>description</code></td><td>String</td><td>Badge description</td></tr>
+                      <tr><td><code>icon</code></td><td>String</td><td>Badge emoji icon</td></tr>
+                      <tr><td><code>image</code></td><td>String</td><td>Badge image path</td></tr>
+                      <tr><td><code>levelRequired</code></td><td>Number</td><td>Level needed to unlock</td></tr>
+                      <tr><td><code>rewards</code></td><td>Object</td><td><code>bits</code>, <code>multiplier</code>, <code>luck</code>, <code>discount</code>, <code>shield</code>, <code>applyPersonalMultiplier</code>, <code>applyGroupMultiplier</code></td></tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Announcements */}
+                <p className="font-semibold text-xs opacity-70 mt-4">Announcements <span className="font-normal">(<code>announcements</code>)</span></p>
+                <div className="overflow-x-auto">
+                  <table className="table table-xs">
+                    <thead>
+                      <tr>
+                        <th>Field</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr><td><code>content</code></td><td>String</td><td>Announcement text / HTML content</td></tr>
+                      <tr><td><code>attachments[]</code></td><td>Array</td><td><code>filename</code>, <code>originalName</code>, <code>url</code></td></tr>
+                      <tr><td><code>author</code></td><td>Object</td><td><code>userId</code>, <code>name</code>, <code>email</code></td></tr>
+                      <tr><td><code>createdAt</code></td><td>Date</td><td>When the announcement was posted</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Feedbacks */}
+                <p className="font-semibold text-xs opacity-70 mt-4">Feedbacks <span className="font-normal">(<code>feedbacks</code>)</span></p>
+                <div className="overflow-x-auto">
+                  <table className="table table-xs">
+                    <thead>
+                      <tr>
+                        <th>Field</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr><td><code>rating</code></td><td>Number</td><td>Rating from 1–5</td></tr>
+                      <tr><td><code>comment</code></td><td>String | null</td><td>Optional feedback comment</td></tr>
+                      <tr><td><code>anonymous</code></td><td>Boolean</td><td>Whether feedback was submitted anonymously</td></tr>
+                      <tr><td><code>author</code></td><td>Object | null</td><td><code>userId</code>, <code>name</code>, <code>email</code> — <code>null</code> when anonymous</td></tr>
+                      <tr><td><code>createdAt</code></td><td>Date</td><td>When the feedback was submitted</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="alert alert-info text-xs mt-2">
+                  <Info size={14} />
+                  <span>Hidden feedbacks are excluded. Anonymous feedbacks have <code>author: null</code>. Feedback reward settings are included under <code>policies</code> below.</span>
+                </div>
+
+                {/* Policies */}
+                <p className="font-semibold text-xs opacity-70 mt-4">Admin / TA Policies <span className="font-normal">(<code>policies</code>)</span></p>
+                <div className="overflow-x-auto">
+                  <table className="table table-xs">
+                    <thead>
+                      <tr>
+                        <th>Field</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr><td><code>taBitPolicy</code></td><td>String</td><td><code>full</code>, <code>approval</code>, or <code>none</code></td></tr>
+                      <tr><td><code>taGroupPolicy</code></td><td>String</td><td><code>full</code> or <code>none</code></td></tr>
+                      <tr><td><code>taFeedbackPolicy</code></td><td>String</td><td><code>full</code> or <code>none</code></td></tr>
+                      <tr><td><code>taStatsPolicy</code></td><td>String</td><td><code>full</code> or <code>none</code></td></tr>
+                      <tr><td><code>siphonTimeoutHours</code></td><td>Number</td><td>Siphon request timeout (1–168 hrs)</td></tr>
+                      <tr><td><code>studentSendEnabled</code></td><td>Boolean</td><td>Whether students can send bits to each other</td></tr>
+                      <tr><td><code>studentsCanViewStats</code></td><td>Boolean</td><td>Whether students can view their own stats</td></tr>
+                      <tr><td><code>feedbackRewardEnabled</code></td><td>Boolean</td><td>Whether feedback submission gives bit rewards</td></tr>
+                      <tr><td><code>feedbackRewardBits</code></td><td>Number</td><td>Bits awarded per feedback submission</td></tr>
+                      <tr><td><code>feedbackRewardApplyGroupMultipliers</code></td><td>Boolean</td><td>Apply group multiplier to feedback reward</td></tr>
+                      <tr><td><code>feedbackRewardApplyPersonalMultipliers</code></td><td>Boolean</td><td>Apply personal multiplier to feedback reward</td></tr>
+                      <tr><td><code>feedbackRewardAllowAnonymous</code></td><td>Boolean</td><td>Award bits even for anonymous feedback</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* XP Settings */}
+                <p className="font-semibold text-xs opacity-70 mt-4">XP Settings <span className="font-normal">(<code>xpSettings</code>)</span></p>
+                <div className="overflow-x-auto">
+                  <table className="table table-xs">
+                    <thead>
+                      <tr>
+                        <th>Field</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr><td><code>enabled</code></td><td>Boolean</td><td>Whether XP system is active</td></tr>
+                      <tr><td><code>bitsEarned</code></td><td>Number</td><td>XP per bit earned</td></tr>
+                      <tr><td><code>bitsSpent</code></td><td>Number</td><td>XP per bit spent</td></tr>
+                      <tr><td><code>statIncrease</code></td><td>Number</td><td>XP per stat increase</td></tr>
+                      <tr><td><code>dailyCheckIn</code></td><td>Number</td><td>XP per daily check-in</td></tr>
+                      <tr><td><code>challengeCompletion</code></td><td>Number</td><td>XP per challenge completed</td></tr>
+                      <tr><td><code>mysteryBox</code></td><td>Number</td><td>XP per mystery box use</td></tr>
+                      <tr><td><code>groupJoin</code></td><td>Number</td><td>XP for joining a group</td></tr>
+                      <tr><td><code>badgeUnlock</code></td><td>Number</td><td>XP per badge unlocked</td></tr>
+                      <tr><td><code>feedbackSubmission</code></td><td>Number</td><td>XP per feedback submitted</td></tr>
+                      <tr><td><code>levelingFormula</code></td><td>String</td><td><code>linear</code>, <code>exponential</code>, or <code>logarithmic</code></td></tr>
+                      <tr><td><code>baseXPForLevel2</code></td><td>Number</td><td>Base XP required for level 2</td></tr>
+                      <tr><td><code>bitsXPBasis</code></td><td>String</td><td><code>final</code> (includes multipliers) or <code>base</code></td></tr>
+                      <tr><td><code>levelUpRewards</code></td><td>Object</td><td><code>enabled</code>, <code>bitsPerLevel</code>, <code>scaleBitsByLevel</code>, <code>applyPersonalMultiplier</code>, <code>applyGroupMultiplier</code>, <code>multiplierPerLevel</code>, <code>luckPerLevel</code>, <code>discountPerLevel</code>, <code>shieldAtLevels</code>, <code>countBitsTowardXP</code>, <code>countStatsTowardXP</code></td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </EndpointCard>
 
             {/* ═══════════════════════════════════════════════ */}
             {/* INVENTORY ENDPOINTS */}
