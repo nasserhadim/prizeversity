@@ -8,7 +8,7 @@ const Footer = () => {
         <Link to="/privacy" className="link text-primary">Privacy Policy</Link>
         <Link to="/terms" className="link text-primary">Terms of Service</Link>
         <Link to="/support" className="link text-primary">Help & Support</Link>
-        <Link to="/feedback" className="link text-primary">Site Feedback</Link>
+        <Link to="/reviews" className="link text-primary">Reviews</Link>
         <Link to="/integrations/docs" className="link text-primary">API Docs</Link>
       </div>
       <p className="text-base-content/60">
