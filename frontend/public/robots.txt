@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /classroom/
+Disallow: /settings
+Disallow: /checkout
+Disallow: /orders
+Disallow: /profile/
+Disallow: /feedback
+Disallow: /integrations
+
+Sitemap: https://prizeversity.com/sitemap.xml

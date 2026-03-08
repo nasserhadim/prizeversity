@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import SEO from '../components/SEO';
 import axios from 'axios';
 import socket from '../utils/socket';
 import toast from 'react-hot-toast';
@@ -289,6 +290,7 @@ const Home = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <SEO path="/" />
       {/* Navbar is rendered globally in App.jsx; remove the local nav to avoid duplication */}
 
       {/* Hero Section */}

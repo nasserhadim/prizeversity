@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import Footer from '../components/Footer';
+import SEO from '../components/SEO';
 import { 
   FileText, 
   Users, 
@@ -301,6 +302,11 @@ const Terms = () => {
 
   return (
     <div className="min-h-screen bg-base-200 py-8">
+      <SEO
+        title="Terms of Service"
+        description="Review the terms and conditions governing your use of Prizeversity's educational gamification platform."
+        path="/terms"
+      />
       <div className="max-w-4xl mx-auto px-4">
         {/* Header */}
         <div className="text-center mb-12">

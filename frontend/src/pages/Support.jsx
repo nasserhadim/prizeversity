@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext'; // Import useAuth
+import SEO from '../components/SEO';
 import { 
   ChevronDown, 
   ChevronUp, 
@@ -1259,7 +1260,7 @@ const Support = () => {
   const quickLinks = [
     { name: "Profile Settings", path: "/settings", icon: <User size={16} /> },
     { name: "Classrooms", path: "/classrooms", icon: <School size={16} /> },
-    { name: "General Feedback", path: "/feedback", icon: <MessageCircle size={16} /> }
+    { name: "Reviews", path: "/reviews", icon: <MessageCircle size={16} /> }
   ];
 
   const filteredFaqs = faqs.map(category => ({
@@ -1493,6 +1494,11 @@ const Support = () => {
 
   return (
     <div className="min-h-screen bg-base-200 py-8">
+      <SEO
+        title="Help & Support"
+        description="Find answers to common questions, learn about Prizeversity features, or get in touch with us."
+        path="/support"
+      />
       <div className="max-w-4xl mx-auto px-4">
         {/* Header */}
         <div className="text-center mb-8"> {/* reduced bottom margin since search follows */}
@@ -1576,12 +1582,12 @@ const Support = () => {
           <div className="card bg-base-100 shadow-lg">
             <div className="card-body text-center">
               <MessageCircle size={40} className="mx-auto text-secondary mb-4" />
-              <h3 className="card-title justify-center mb-2">Site Feedback</h3>
+              <h3 className="card-title justify-center mb-2">Reviews</h3>
               <p className="text-base-content/70 mb-4">
-                Help us improve PrizeVersity with your suggestions.
+                See what others think or leave a review.
               </p>
-              <Link to="/feedback" className="btn btn-secondary">
-                Give Feedback
+              <Link to="/reviews" className="btn btn-secondary">
+                View Reviews
               </Link>
             </div>
           </div>

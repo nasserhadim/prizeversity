@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import Footer from '../components/Footer';
+import SEO from '../components/SEO';
 import { 
   Shield, 
   Eye, 
@@ -241,6 +242,11 @@ const Privacy = () => {
 
   return (
     <div className="min-h-screen bg-base-200 py-8">
+      <SEO
+        title="Privacy Policy"
+        description="Learn how Prizeversity collects, uses, and protects your information. Your privacy is important to us."
+        path="/privacy"
+      />
       <div className="max-w-4xl mx-auto px-4">
         {/* Header */}
         <div className="text-center mb-12">
