@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useContext } from 'rea
 import axios from 'axios';
 import { API_BASE } from '../config/api';
 import Footer from '../components/Footer';
+import SEO from '../components/SEO';
 import ReviewCard from '../components/ReviewCard';
 import ReviewStats from '../components/ReviewStats';
 import { ExternalLink, Star, Loader2, AlertCircle } from 'lucide-react';
@@ -162,6 +163,11 @@ const ReviewsPage = () => {
 
   return (
     <div className="min-h-screen bg-base-200 flex flex-col">
+      <SEO
+        title="Reviews"
+        description="Read reviews from Prizeversity users. See what educators and students think about our gamified classroom platform."
+        path="/reviews"
+      />
       <main className="flex-grow p-4 pt-24">
         <div className="card w-full max-w-3xl mx-auto shadow-xl bg-base-100">
           <div className="card-body">

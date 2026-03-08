@@ -1,0 +1,16 @@
+{
+  "name": "Prizeversity",
+  "short_name": "Prizeversity",
+  "description": "Prizeversity turns classroom progression into a Skill Tree — students level up and invest in stats that change gameplay.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "/prizeversity.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}

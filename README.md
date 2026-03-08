@@ -294,6 +294,8 @@ npm install lucide-react
 
 npm install react-hot-toast
 
+npm install react-helmet-async
+
 npm install xlsx
 
 npm install emoji-picker-react

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { API_BASE } from '../config/api';
 import Footer from '../components/Footer';
+
 import { toast } from 'react-hot-toast';
 import FeedbackList from '../components/FeedbackList';
 import '../styles/Feedback.css';
@@ -215,6 +216,7 @@ const FeedbackPage = () => {
 
   return (
     <div className="min-h-screen bg-base-200 flex flex-col">
+
       <main className="flex-grow p-4 pt-24">
         <div className="card w-full max-w-3xl mx-auto shadow-xl bg-base-100">
           <div className="card-body">
