@@ -35,6 +35,7 @@ import Support from './pages/Support';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
 import AdminModeration from './pages/AdminModeration';
+import ReviewsPage from './pages/ReviewsPage';
 import NotFound from './pages/NotFound';
 import Badges from './pages/Badges';
 import ClassroomLayout from './components/ClassroomLayout';
@@ -44,7 +45,7 @@ import IntegrationDocs from './pages/IntegrationDocs';
 const App = () => {
   const { user } = useContext(AuthContext);
   const location = useLocation();
-  const showStaticNavbar = ['/', '/support', '/privacy', '/terms', '/feedback'].includes(location.pathname);
+  const showStaticNavbar = ['/', '/support', '/privacy', '/terms', '/feedback', '/reviews'].includes(location.pathname);
 
   // When the user is set, join their notification room
   useEffect(() => {
@@ -98,6 +99,7 @@ const App = () => {
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/orders" element={<OrderHistory />} />
           <Route path="/feedback" element={<FeedbackPage />} />
+          <Route path="/reviews" element={<ReviewsPage />} />
           <Route path="/support" element={<Support />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/terms" element={<Terms />} />

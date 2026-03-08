@@ -595,7 +595,34 @@ DOMAIN=https://www.prizeversity.com
 # Cooldown resets per classroom (site feedback is separate).
 FEEDBACK_COOLDOWN_DAYS=30
 
-# Cyber Challenge Password
+# Site Review provider configuration.
+# Provider key, e.g. 'trustpilot' (leave blank to disable reviews)
+REVIEW_PROVIDER=trustpilot
+# 'widget' (free, default) or 'api' (paid, needs API key)
+# For instance, Trustpilot widgets (trustbox) can be found from the dashboard > 'share & promote' menu: https://businessapp.b2b.trustpilot.com/trustbox
+# The free (starter plan) Trustpilot trustbox widget is called 'Review Collector'
+# Note: We're not pasting the raw HTML generated from the widget - our code already renders the widget dynamically using these env values.
+REVIEW_MODE=widget      
+# API key for the provider (if required, otherwise leave blank)
+REVIEW_API_KEY=
+# Business/unit ID on the provider platform (if required, otherwise leave blank)
+# For instance, on Trustpilot this is the 'businessUnitId' found on the public profile page (https://www.trustpilot.com/review/prizeversity.com) by right-click > 'View Page Source', and searching for 'businessUnitId' or 'businessUnit'; it's also found through the generated trustbox widget code snippet, e.g. 'data-business-unit-id'
+REVIEW_BUSINESS_ID=
+# Business profile URL slug (e.g. 'prizeversity.com')
+REVIEW_BUSINESS_URL=prizeversity.com
+# widget template ID (provider-specific, optional)
+# e.g. on Trustpilot this is the 'data-template-id' found in the generated trustbox widget code snippet
+REVIEW_WIDGET_TEMPLATE=
+# widget token (provider-specific, optional)
+# e.g. on Trustpilot this is the 'data-token' found in the generated trustbox widget code snippet; this is required for some widget types to work, and may be required to show reviews from multiple languages/locales.
+REVIEW_WIDGET_TOKEN=
+# URL where users submit new reviews (opened in new tab)
+REVIEW_SUBMIT_URL=https://www.trustpilot.com/evaluate/prizeversity.com
+# How long to cache reviews (default 15 mins) - applies only to the API; this is important to avoid hitting rate limits on the provider's API, and to improve performance by not fetching reviews on every page load.
+# For widget-based reviews, the caching is handled by the provider, so this setting is irrelevant.
+REVIEW_CACHE_MINUTES=15
+
+# Legacy Cyber Challenge Password
 CHALLENGE_PASSWORD=
 
 # GITHUB tokens and repo access (For Challenge #2 & Challenge #4)
