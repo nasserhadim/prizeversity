@@ -136,6 +136,8 @@ export default function IntegrationDocs() {
     { id: 'endpoints-wallet', label: 'Wallet' },
     { id: 'endpoints-classroom', label: 'Classroom' },
     { id: 'endpoints-inventory', label: 'Inventory' },
+    { id: 'endpoints-stats', label: 'Stats' },
+    { id: 'endpoints-reward', label: 'Reward' },
     { id: 'webhooks', label: 'Webhooks (Beta)' },
     { id: 'quickstart', label: 'Quick Start Guide' },
   ];
@@ -268,6 +270,8 @@ export default function IntegrationDocs() {
                     ['classroom:read', 'Read classroom details (extended: groups, bazaar, badges, XP settings, announcements)'],
                     ['inventory:read', 'View user inventory items'],
                     ['inventory:use', 'Mark inventory items as redeemed'],
+                    ['stats:adjust', 'Adjust stats (multiplier, luck, discount, shield)'],
+                    ['reward:grant', 'Grant bits, stats, and XP for external activity completions'],
                     ['webhooks:manage', 'Register and manage webhook subscriptions'],
                   ].map(([scope, desc]) => (
                     <tr key={scope}>
@@ -928,6 +932,147 @@ export default function IntegrationDocs() {
             />
 
             {/* ═══════════════════════════════════════════════ */}
+            {/* STATS ENDPOINTS */}
+            {/* ═══════════════════════════════════════════════ */}
+            <SectionHeading
+              id="endpoints-stats"
+              icon={<Shield size={20} />}
+              title="Stats"
+              subtitle="Adjust stats (multiplier, luck, discount, shield)"
+            />
+
+            <EndpointCard
+              method="POST"
+              path="/api/integrations/stats/adjust"
+              scope="stats:adjust"
+              description="Bulk-adjust stats using deltas (relative changes). Awards stat-increase XP if enabled in the classroom's XP settings. Creates stat-change notifications for each affected user."
+              requestBody={JSON.stringify({
+                classroomId: '<classroom_id>',
+                updates: [
+                  {
+                    userId: '<user_id>',
+                    multiplier: 0.5,
+                    luck: 0.2,
+                    discount: 5,
+                    shield: 1
+                  }
+                ],
+                description: 'Boss defeated bonus'
+              }, null, 2)}
+              responseBody={JSON.stringify({
+                message: '1 updated, 0 skipped',
+                updated: 1,
+                skipped: [],
+                details: [
+                  {
+                    userId: '<user_id>',
+                    name: 'Jane Smith',
+                    before: { multiplier: 1.0, luck: 1.0, discount: 0, shield: 0 },
+                    after: { multiplier: 1.5, luck: 1.2, discount: 5, shield: 1 }
+                  }
+                ]
+              }, null, 2)}
+              notes="All stat values are deltas (added to current value). For example, multiplier: 0.5 adds 0.5 to the current multiplier. Negative deltas are supported (e.g., multiplier: -0.2). Stats are clamped to a minimum of 0. If stat-increase XP is enabled in the classroom (xpSettings.statIncrease), each positive stat change counts as +1 toward the XP calculation."
+            />
+
+            {/* ═══════════════════════════════════════════════ */}
+            {/* REWARD ENDPOINTS */}
+            {/* ═══════════════════════════════════════════════ */}
+            <SectionHeading
+              id="endpoints-reward"
+              icon={<Zap size={20} />}
+              title="Reward"
+              subtitle="Grant bits, stats, and XP for external activity completions (games, challenges, quizzes, etc.)"
+            />
+
+            <EndpointCard
+              method="POST"
+              path="/api/integrations/reward"
+              scope="reward:grant"
+              description="Award rewards for completing an external activity. Combines bits, stat adjustments, and XP in a single call with full notification and transaction logging. The activityName appears in all notifications and transaction records."
+              requestBody={JSON.stringify({
+                classroomId: '<classroom_id>',
+                userId: '<user_id>',
+                activityName: 'Dragon Quest Level 3',
+                description: 'Defeated the dragon boss',
+                bits: 50,
+                stats: {
+                  multiplier: 0.2,
+                  luck: 0.1,
+                  shield: 1
+                },
+                completionXP: {
+                  mode: 'custom',
+                  xpAmount: 30
+                },
+                applyGroupMultipliers: true,
+                applyPersonalMultipliers: true
+              }, null, 2)}
+              responseBody={JSON.stringify({
+                message: 'Reward granted for "Dragon Quest Level 3"',
+                userId: '<user_id>',
+                activityName: 'Dragon Quest Level 3',
+                bits: {
+                  base: 50,
+                  final: 75,
+                  multiplier: 1.5,
+                  personalMultiplier: 1.5,
+                  groupMultiplier: 1
+                },
+                stats: {
+                  before: { multiplier: 1.0, luck: 1.0, discount: 0, shield: 0 },
+                  after: { multiplier: 1.2, luck: 1.1, discount: 0, shield: 1 }
+                },
+                xp: {
+                  bitsXP: 75,
+                  statXP: 30,
+                  completionXP: 30,
+                  total: 135
+                },
+                warnings: []
+              }, null, 2)}
+              notes={`All fields except classroomId, userId, and activityName are optional. You can award just bits, just stats, just XP, or any combination.`}
+            >
+              <div className="space-y-3">
+                <p className="text-xs font-semibold opacity-60">completionXP.mode options</p>
+                <div className="overflow-x-auto">
+                  <table className="table table-xs">
+                    <thead>
+                      <tr>
+                        <th>Mode</th>
+                        <th>Behavior</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><code>"none"</code></td>
+                        <td>Default. No completion XP awarded. Bits and stats still trigger their own XP rates if XP is enabled.</td>
+                      </tr>
+                      <tr>
+                        <td><code>"classroom"</code></td>
+                        <td>Uses the classroom's <code>challengeCompletion</code> XP rate (set in Leveling & XP settings).</td>
+                      </tr>
+                      <tr>
+                        <td><code>"custom"</code></td>
+                        <td>Awards the exact <code>xpAmount</code> you specify.</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-xs font-semibold opacity-60 mt-3">XP breakdown</p>
+                <ul className="list-disc list-inside text-xs opacity-70 space-y-1">
+                  <li><strong>Bits XP:</strong> Awarded automatically when bits {'>'} 0 and the classroom's <code>bitsEarned</code> XP rate is set. Uses <code>bitsXPBasis</code> setting (base vs final amount).</li>
+                  <li><strong>Stat XP:</strong> Awarded automatically when stats increase and the classroom's <code>statIncrease</code> XP rate is set. Each positive stat change counts as +1.</li>
+                  <li><strong>Completion XP:</strong> Only awarded when <code>completionXP.mode</code> is <code>"classroom"</code> or <code>"custom"</code>.</li>
+                </ul>
+                <div className="alert alert-warning text-xs py-2 mt-2">
+                  <AlertTriangle size={14} />
+                  <span>If XP is disabled in the classroom, a warning is returned and no XP is awarded, but bits and stats are still applied.</span>
+                </div>
+              </div>
+            </EndpointCard>
+
+            {/* ═══════════════════════════════════════════════ */}
             {/* WEBHOOKS */}
             {/* ═══════════════════════════════════════════════ */}
             <SectionHeading
@@ -969,6 +1114,8 @@ export default function IntegrationDocs() {
                     ['challenge.completed', 'A user completes a challenge'],
                     ['level.up', 'A user levels up'],
                     ['badge.earned', 'A user unlocks a badge'],
+                    ['stats.updated', 'User stats are adjusted via integration'],
+                    ['reward.granted', 'A reward is granted for an external activity'],
                   ].map(([event, desc]) => (
                     <tr key={event}>
                       <td><code className="text-xs">{event}</code></td>
@@ -1216,13 +1363,51 @@ if (extraCreditItem) {
 
               <div>
                 <h3 className="font-semibold text-sm mb-2 flex items-center gap-2">
+                  <span className="badge badge-primary badge-sm">6</span>
+                  Grant Rewards for External Activities
+                </h3>
+                <p className="text-sm mb-2">
+                  Award bits, stats, and XP in a single call when a user completes
+                  a game, challenge, quiz, or any external activity:
+                </p>
+                <CopyBlock
+                  code={`const response = await fetch(
+  'https://www.prizeversity.com/api/integrations/reward',
+  {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': process.env.PRIZEVERSITY_API_KEY,
+    },
+    body: JSON.stringify({
+      classroomId: process.env.PRIZEVERSITY_CLASSROOM_ID,
+      userId: matched[0].userId,
+      activityName: 'Dragon Quest Level 3',
+      description: 'Defeated the dragon boss',
+      bits: 50,
+      stats: { multiplier: 0.2, luck: 0.1 },
+      completionXP: { mode: 'custom', xpAmount: 30 },
+    }),
+  }
+);
+
+const result = await response.json();
+console.log(result.message);
+// "Reward granted for \\"Dragon Quest Level 3\\""
+// result.bits, result.stats, result.xp — full breakdown`}
+                />
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-sm mb-2 flex items-center gap-2">
                   <CheckCircle size={16} className="text-success" />
                   Done!
                 </h3>
                 <p className="text-sm">
-                  Users will see the bit adjustment in their wallet with real-time socket
-                  updates. Group and personal multipliers are applied automatically to
-                  positive amounts.
+                  Users will see all changes reflected — wallet balance updates,
+                  stat changes, XP gains, and level-ups all generate notifications and
+                  live socket updates automatically. Group and personal multipliers are
+                  applied to positive bit amounts.
                 </p>
               </div>
             </div>

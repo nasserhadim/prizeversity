@@ -8,6 +8,8 @@ const VALID_SCOPES = [
   'classroom:read',
   'inventory:read',
   'inventory:use',
+  'stats:adjust',
+  'reward:grant',
   'webhooks:manage',
 ];
 
@@ -21,6 +23,8 @@ const WebhookSchema = new mongoose.Schema({
       'challenge.completed',
       'level.up',
       'badge.earned',
+      'stats.updated',
+      'reward.granted',
     ],
     required: true
   },

@@ -10,7 +10,7 @@ const { awardXP } = require('../utils/awardXP');
 const { logStatChanges } = require('../utils/statChangeLog');
 const Notification = require('../models/Notification');
 const { populateNotification } = require('../utils/notifications');
-const { getScopedUserStats, isClassroomAdmin } = require('../utils/classroomStats');
+const { getScopedUserStats, isClassroomAdmin, getOrCreateClassroomStatsEntry } = require('../utils/classroomStats');
 const { dispatchWebhook } = require('../utils/webhookDispatcher');
 const { getUserGroupMultiplier } = require('../utils/groupMultiplier');
 const Item = require('../models/Item');
@@ -1163,6 +1163,604 @@ router.get('/inventory/:userId', ensureAuthenticated, requireScope('inventory:re
   } catch (err) {
     console.error('[Integration inventory read]', err);
     res.status(500).json({ error: 'Failed to read inventory' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  STATS ADJUSTMENT via integration API
+// ═══════════════════════════════════════════════════════════════
+
+router.post('/stats/adjust', ensureAuthenticated, requireScope('stats:adjust'), async (req, res) => {
+  try {
+    const {
+      classroomId,
+      updates,
+      description = ''
+    } = req.body;
+
+    if (!classroomId || !Array.isArray(updates) || updates.length === 0) {
+      return res.status(400).json({ error: 'classroomId and updates[] required' });
+    }
+
+    const mongoose = require('mongoose');
+    if (!mongoose.Types.ObjectId.isValid(classroomId)) {
+      return res.status(400).json({ error: 'classroomId must be a valid 24-character MongoDB ObjectId' });
+    }
+
+    const classroom = await Classroom.findById(classroomId);
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+
+    const app = req.integrationApp;
+    if (app.classrooms.length > 0 && !app.classrooms.map(String).includes(String(classroomId))) {
+      return res.status(403).json({ error: 'App not authorized for this classroom' });
+    }
+
+    const appName = app.name || 'Unknown Integration';
+    const appLabel = `App Integration "${appName}"`;
+    const io = req.app.get('io');
+
+    const results = { updated: 0, skipped: [], details: [] };
+
+    for (const update of updates) {
+      const { userId, multiplier, luck, discount, shield } = update;
+      try {
+        if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+          results.skipped.push({ userId, reason: 'Invalid userId' });
+          continue;
+        }
+
+        // Validate at least one stat delta is provided
+        const hasDelta = [multiplier, luck, discount, shield].some(v => v !== undefined && v !== null && v !== 0);
+        if (!hasDelta) {
+          results.skipped.push({ userId, reason: 'No stat changes provided' });
+          continue;
+        }
+
+        const targetUser = await User.findById(userId);
+        if (!targetUser) {
+          results.skipped.push({ userId, reason: 'User not found' });
+          continue;
+        }
+
+        const cs = getOrCreateClassroomStatsEntry(targetUser, classroomId);
+
+        // Capture previous stats
+        const prevStats = {
+          multiplier: cs.passiveAttributes.multiplier,
+          luck: cs.passiveAttributes.luck,
+          discount: cs.passiveAttributes.discount,
+          shield: cs.shieldCount
+        };
+
+        // Apply deltas
+        if (multiplier !== undefined && multiplier !== null) {
+          cs.passiveAttributes.multiplier = Math.max(0, cs.passiveAttributes.multiplier + Number(multiplier));
+        }
+        if (luck !== undefined && luck !== null) {
+          cs.passiveAttributes.luck = Math.max(0, cs.passiveAttributes.luck + Number(luck));
+        }
+        if (discount !== undefined && discount !== null) {
+          cs.passiveAttributes.discount = Math.max(0, cs.passiveAttributes.discount + Number(discount));
+        }
+        if (shield !== undefined && shield !== null) {
+          cs.shieldCount = Math.max(0, cs.shieldCount + Number(shield));
+          cs.shieldActive = cs.shieldCount > 0;
+        }
+
+        const currStats = {
+          multiplier: cs.passiveAttributes.multiplier,
+          luck: cs.passiveAttributes.luck,
+          discount: cs.passiveAttributes.discount,
+          shield: cs.shieldCount
+        };
+
+        await targetUser.save();
+
+        // Build effects summary
+        const effectsParts = [];
+        if (multiplier !== undefined && multiplier !== null && multiplier !== 0) effectsParts.push(`${multiplier > 0 ? '+' : ''}${Number(multiplier).toFixed(1)} Multiplier`);
+        if (luck !== undefined && luck !== null && luck !== 0) effectsParts.push(`${luck > 0 ? '+' : ''}${Number(luck).toFixed(1)} Luck`);
+        if (discount !== undefined && discount !== null && discount !== 0) effectsParts.push(`${discount > 0 ? '+' : ''}${Math.round(discount)} Discount`);
+        if (shield !== undefined && shield !== null && shield !== 0) effectsParts.push(`${shield > 0 ? '+' : ''}${shield} Shield`);
+        const effectsText = effectsParts.length
+          ? `${description || 'Stat adjustment'} via ${appLabel}: ${effectsParts.join(', ')}`
+          : undefined;
+
+        // Log stat changes via notification
+        const contextLabel = description
+          ? `${description} (${appLabel})`
+          : `stat adjustment via ${appLabel}`;
+        try {
+          await logStatChanges({
+            io,
+            classroomId,
+            user: targetUser,
+            actionBy: req.user._id,
+            prevStats,
+            currStats,
+            context: contextLabel,
+            details: { effectsText },
+            forceLog: true
+          });
+        } catch (logErr) {
+          console.warn('[integration stats/adjust] failed to log stat changes:', logErr);
+        }
+
+        // Emit real-time stat update
+        try {
+          if (io) {
+            io.to(`user-${userId}`).emit('user_stats_update', {
+              userId,
+              classroomId,
+              passiveAttributes: cs.passiveAttributes,
+              shieldCount: cs.shieldCount,
+              shieldActive: cs.shieldActive
+            });
+          }
+        } catch (socketErr) {
+          console.warn('[integration stats/adjust] socket emit failed:', socketErr);
+        }
+
+        // Award stat-increase XP if enabled
+        if (classroom.xpSettings?.enabled) {
+          const statCount =
+            (multiplier && multiplier > 0 ? 1 : 0) +
+            (luck && luck > 0 ? 1 : 0) +
+            (discount && discount > 0 ? 1 : 0) +
+            (shield && shield > 0 ? 1 : 0);
+
+          const rateStat = classroom.xpSettings.statIncrease || 0;
+          if (statCount > 0 && rateStat > 0) {
+            const xpToAward = statCount * rateStat;
+            try {
+              const xpRes = await awardXP(userId, classroomId, xpToAward, `stat increase (${appLabel})`, classroom.xpSettings);
+              if (xpRes && xpRes.newXP !== xpRes.oldXP) {
+                try {
+                  const freshUser = await User.findById(userId).select('firstName lastName');
+                  if (freshUser) {
+                    await logStatChanges({
+                      io,
+                      classroomId,
+                      user: freshUser,
+                      actionBy: req.user._id,
+                      prevStats: { xp: xpRes.oldXP },
+                      currStats: { xp: xpRes.newXP },
+                      context: `stat increase XP (${appLabel})`,
+                      details: { effectsText: `${contextLabel}: +${xpToAward} XP from stat boost` },
+                      forceLog: true
+                    });
+                  }
+                } catch (logErr) {
+                  console.warn('[integration stats/adjust] failed to log XP change:', logErr);
+                }
+              }
+            } catch (xpErr) {
+              console.warn('[integration stats/adjust] awardXP failed:', xpErr);
+            }
+          }
+        }
+
+        results.updated++;
+        results.details.push({
+          userId,
+          name: `${targetUser.firstName || ''} ${targetUser.lastName || ''}`.trim(),
+          before: prevStats,
+          after: currStats
+        });
+
+      } catch (userErr) {
+        results.skipped.push({ userId, reason: userErr.message });
+      }
+    }
+
+    // Dispatch webhook
+    dispatchWebhook('stats.updated', classroomId, {
+      source: appName,
+      updated: results.updated,
+      description
+    });
+
+    res.json({
+      message: `${results.updated} updated, ${results.skipped.length} skipped`,
+      ...results
+    });
+  } catch (err) {
+    console.error('[integrations/stats/adjust]', err);
+    res.status(500).json({ error: 'Stats adjustment failed' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  REWARD GRANT via integration API
+//  Unified endpoint for external challenges/games to award
+//  bits, stats, and/or XP in one call.
+// ═══════════════════════════════════════════════════════════════
+
+router.post('/reward', ensureAuthenticated, requireScope('reward:grant'), async (req, res) => {
+  try {
+    const {
+      classroomId,
+      userId,
+      activityName,
+      description = '',
+      bits = 0,
+      stats = {},
+      completionXP = {},
+      applyGroupMultipliers = true,
+      applyPersonalMultipliers = true
+    } = req.body;
+
+    if (!classroomId || !userId || !activityName) {
+      return res.status(400).json({ error: 'classroomId, userId, and activityName are required' });
+    }
+
+    const mongoose = require('mongoose');
+    if (!mongoose.Types.ObjectId.isValid(classroomId) || !mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ error: 'classroomId and userId must be valid 24-character MongoDB ObjectIds' });
+    }
+
+    if (typeof activityName !== 'string' || activityName.trim().length === 0 || activityName.length > 200) {
+      return res.status(400).json({ error: 'activityName must be a non-empty string (max 200 chars)' });
+    }
+
+    const classroom = await Classroom.findById(classroomId);
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+
+    const app = req.integrationApp;
+    if (app.classrooms.length > 0 && !app.classrooms.map(String).includes(String(classroomId))) {
+      return res.status(403).json({ error: 'App not authorized for this classroom' });
+    }
+
+    const targetUser = await User.findById(userId);
+    if (!targetUser) return res.status(404).json({ error: 'User not found' });
+
+    const appName = app.name || 'Unknown Integration';
+    const appLabel = `App Integration "${appName}"`;
+    const activityLabel = activityName.trim();
+    const io = req.app.get('io');
+
+    const result = {
+      userId,
+      activityName: activityLabel,
+      bits: null,
+      stats: null,
+      xp: null,
+      warnings: []
+    };
+
+    // ── 1) BITS ──
+    const numericBits = Number(bits);
+    if (numericBits !== 0 && !isNaN(numericBits)) {
+      // Get multipliers
+      const groupMultiplier = (applyGroupMultipliers && numericBits > 0)
+        ? await getUserGroupMultiplier(userId, classroomId)
+        : 1;
+      const personalMultiplier = (applyPersonalMultipliers && numericBits > 0)
+        ? getPersonalMultiplierForClassroom(targetUser, classroomId)
+        : 1;
+
+      let finalMultiplier = 1;
+      if (numericBits > 0) {
+        if (applyGroupMultipliers) finalMultiplier += (groupMultiplier - 1);
+        if (applyPersonalMultipliers) finalMultiplier += (personalMultiplier - 1);
+      }
+
+      const adjustedBits = Math.round(numericBits * finalMultiplier);
+
+      // Update balance
+      let cb = (targetUser.classroomBalances || []).find(b => String(b.classroom) === String(classroomId));
+      if (cb) {
+        cb.balance = (cb.balance || 0) + adjustedBits;
+      } else {
+        if (!targetUser.classroomBalances) targetUser.classroomBalances = [];
+        targetUser.classroomBalances.push({ classroom: classroomId, balance: adjustedBits });
+        cb = targetUser.classroomBalances[targetUser.classroomBalances.length - 1];
+      }
+
+      // Update classroomStats balance
+      let cs = (targetUser.classroomStats || []).find(s => String(s.classroom) === String(classroomId));
+      if (cs) {
+        cs.balance = (cs.balance || 0) + adjustedBits;
+      }
+
+      // Transaction record
+      const txDesc = description
+        ? `${description} — "${activityLabel}" via ${appLabel}`
+        : `Completed "${activityLabel}" via ${appLabel}`;
+      targetUser.transactions.push({
+        amount: adjustedBits,
+        description: txDesc,
+        type: numericBits >= 0 ? 'credit' : 'debit',
+        classroom: classroomId,
+        assignedBy: req.user._id,
+        calculation: finalMultiplier !== 1 ? {
+          baseAmount: numericBits,
+          personalMultiplier,
+          groupMultiplier,
+          totalMultiplier: finalMultiplier,
+          finalAmount: adjustedBits
+        } : undefined,
+        createdAt: new Date()
+      });
+
+      // Wallet notification
+      try {
+        const notification = await Notification.create({
+          user: userId,
+          actionBy: req.user._id,
+          type: 'wallet_transaction',
+          message: `You ${numericBits >= 0 ? 'earned' : 'lost'} ${Math.abs(adjustedBits)} ₿ for completing "${activityLabel}" via ${appLabel}.${description ? ` (${description})` : ''}`,
+          classroom: classroomId,
+          amount: adjustedBits,
+          read: false,
+          createdAt: new Date()
+        });
+        const populated = await populateNotification(notification._id);
+        if (io && populated) {
+          io.to(`user-${userId}`).emit('notification', populated);
+        }
+      } catch (notifErr) {
+        console.warn('[integration reward] failed to create wallet notification:', notifErr);
+      }
+
+      // Emit balance_update
+      try {
+        if (io) {
+          const newBalance = cb ? cb.balance : adjustedBits;
+          io.to(`user-${userId}`).emit('balance_update', { userId, classroomId, newBalance });
+          io.to(`classroom-${classroomId}`).emit('balance_update', { userId, classroomId, newBalance });
+        }
+      } catch (socketErr) {
+        console.warn('[integration reward] socket emit failed:', socketErr);
+      }
+
+      result.bits = {
+        base: numericBits,
+        final: adjustedBits,
+        multiplier: finalMultiplier,
+        personalMultiplier,
+        groupMultiplier
+      };
+    }
+
+    // ── 2) STATS ──
+    const { multiplier, luck, discount, shield } = stats;
+    const hasStatDelta = [multiplier, luck, discount, shield].some(v => v !== undefined && v !== null && v !== 0);
+
+    if (hasStatDelta) {
+      const cs = getOrCreateClassroomStatsEntry(targetUser, classroomId);
+
+      const prevStats = {
+        multiplier: cs.passiveAttributes.multiplier,
+        luck: cs.passiveAttributes.luck,
+        discount: cs.passiveAttributes.discount,
+        shield: cs.shieldCount
+      };
+
+      if (multiplier !== undefined && multiplier !== null) {
+        cs.passiveAttributes.multiplier = Math.max(0, cs.passiveAttributes.multiplier + Number(multiplier));
+      }
+      if (luck !== undefined && luck !== null) {
+        cs.passiveAttributes.luck = Math.max(0, cs.passiveAttributes.luck + Number(luck));
+      }
+      if (discount !== undefined && discount !== null) {
+        cs.passiveAttributes.discount = Math.max(0, cs.passiveAttributes.discount + Number(discount));
+      }
+      if (shield !== undefined && shield !== null) {
+        cs.shieldCount = Math.max(0, cs.shieldCount + Number(shield));
+        cs.shieldActive = cs.shieldCount > 0;
+      }
+
+      const currStats = {
+        multiplier: cs.passiveAttributes.multiplier,
+        luck: cs.passiveAttributes.luck,
+        discount: cs.passiveAttributes.discount,
+        shield: cs.shieldCount
+      };
+
+      // Build stat effects summary for logging
+      const statEffectsParts = [];
+      if (multiplier !== undefined && multiplier !== null && multiplier !== 0) statEffectsParts.push(`${multiplier > 0 ? '+' : ''}${Number(multiplier).toFixed(1)} Multiplier`);
+      if (luck !== undefined && luck !== null && luck !== 0) statEffectsParts.push(`${luck > 0 ? '+' : ''}${Number(luck).toFixed(1)} Luck`);
+      if (discount !== undefined && discount !== null && discount !== 0) statEffectsParts.push(`${discount > 0 ? '+' : ''}${Math.round(discount)} Discount`);
+      if (shield !== undefined && shield !== null && shield !== 0) statEffectsParts.push(`${shield > 0 ? '+' : ''}${shield} Shield`);
+
+      // Log stat changes
+      try {
+        await logStatChanges({
+          io,
+          classroomId,
+          user: targetUser,
+          actionBy: req.user._id,
+          prevStats,
+          currStats,
+          context: `completing "${activityLabel}" (${appLabel})`,
+          details: { effectsText: statEffectsParts.length ? `${activityLabel}: ${statEffectsParts.join(', ')}` : undefined },
+          forceLog: true
+        });
+      } catch (logErr) {
+        console.warn('[integration reward] failed to log stat changes:', logErr);
+      }
+
+      // Emit real-time stat update
+      try {
+        if (io) {
+          io.to(`user-${userId}`).emit('user_stats_update', {
+            userId,
+            classroomId,
+            passiveAttributes: cs.passiveAttributes,
+            shieldCount: cs.shieldCount,
+            shieldActive: cs.shieldActive
+          });
+        }
+      } catch (socketErr) {
+        console.warn('[integration reward] socket emit failed:', socketErr);
+      }
+
+      result.stats = { before: prevStats, after: currStats };
+    }
+
+    // Save user (bits + stats changes)
+    await targetUser.save();
+
+    // ── 3) XP ──
+    const xpMode = completionXP.mode || 'none';
+    const xpEnabled = classroom.xpSettings?.enabled;
+
+    if (xpMode !== 'none') {
+      if (!xpEnabled) {
+        result.warnings.push('XP is disabled in this classroom. No XP was awarded.');
+      } else {
+        // 3a) Bits-earned XP
+        if (result.bits && result.bits.final > 0) {
+          const rateBits = classroom.xpSettings.bitsEarned || 0;
+          if (rateBits > 0) {
+            const xpBits = computeXPBits({
+              numericAmount: result.bits.base,
+              adjustedAmount: result.bits.final,
+              xpSettings: classroom.xpSettings
+            });
+            const xpToAward = xpBits * rateBits;
+            if (xpToAward > 0) {
+              try {
+                const xpRes = await awardXP(userId, classroomId, xpToAward, `earning bits (${activityLabel} via ${appLabel})`, classroom.xpSettings);
+                if (xpRes && xpRes.newXP !== xpRes.oldXP) {
+                  try {
+                    const freshUser = await User.findById(userId).select('firstName lastName');
+                    if (freshUser) {
+                      await logStatChanges({
+                        io,
+                        classroomId,
+                        user: freshUser,
+                        actionBy: req.user._id,
+                        prevStats: { xp: xpRes.oldXP },
+                        currStats: { xp: xpRes.newXP },
+                        context: `earning bits (${activityLabel} via ${appLabel})`,
+                        details: { effectsText: `${activityLabel} via ${appLabel}: +${xpToAward} XP from earning ${result.bits.final} ₿` },
+                        forceLog: true
+                      });
+                    }
+                  } catch (logErr) {
+                    console.warn('[integration reward] failed to log bits XP:', logErr);
+                  }
+                }
+                if (!result.xp) result.xp = { bitsXP: 0, statXP: 0, completionXP: 0, total: 0 };
+                result.xp.bitsXP = xpToAward;
+                result.xp.total += xpToAward;
+              } catch (xpErr) {
+                console.warn('[integration reward] awardXP (bits) failed:', xpErr);
+              }
+            }
+          }
+        }
+
+        // 3b) Stat-increase XP
+        if (hasStatDelta) {
+          const statCount =
+            (multiplier && multiplier > 0 ? 1 : 0) +
+            (luck && luck > 0 ? 1 : 0) +
+            (discount && discount > 0 ? 1 : 0) +
+            (shield && shield > 0 ? 1 : 0);
+
+          const rateStat = classroom.xpSettings.statIncrease || 0;
+          if (statCount > 0 && rateStat > 0) {
+            const xpToAward = statCount * rateStat;
+            try {
+              const xpRes = await awardXP(userId, classroomId, xpToAward, `stat increase (${activityLabel} via ${appLabel})`, classroom.xpSettings);
+              if (xpRes && xpRes.newXP !== xpRes.oldXP) {
+                try {
+                  const freshUser = await User.findById(userId).select('firstName lastName');
+                  if (freshUser) {
+                    const parts = [];
+                    if (multiplier > 0) parts.push(`+${Number(multiplier).toFixed(1)} Multiplier`);
+                    if (luck > 0) parts.push(`+${Number(luck).toFixed(1)} Luck`);
+                    if (discount > 0) parts.push(`+${Math.round(discount)}% Discount`);
+                    if (shield > 0) parts.push(`Shield +${shield}`);
+                    await logStatChanges({
+                      io,
+                      classroomId,
+                      user: freshUser,
+                      actionBy: req.user._id,
+                      prevStats: { xp: xpRes.oldXP },
+                      currStats: { xp: xpRes.newXP },
+                      context: `stat increase (${activityLabel} via ${appLabel})`,
+                      details: { effectsText: `${activityLabel} via ${appLabel}: +${xpToAward} XP from stat boost` },
+                      forceLog: true
+                    });
+                  }
+                } catch (logErr) {
+                  console.warn('[integration reward] failed to log stat XP:', logErr);
+                }
+              }
+              if (!result.xp) result.xp = { bitsXP: 0, statXP: 0, completionXP: 0, total: 0 };
+              result.xp.statXP = xpToAward;
+              result.xp.total += xpToAward;
+            } catch (xpErr) {
+              console.warn('[integration reward] awardXP (stat) failed:', xpErr);
+            }
+          }
+        }
+
+        // 3c) Completion XP
+        let completionXPAmount = 0;
+        if (xpMode === 'classroom') {
+          completionXPAmount = classroom.xpSettings.challengeCompletion || 0;
+        } else if (xpMode === 'custom') {
+          completionXPAmount = Number(completionXP.xpAmount) || 0;
+          if (completionXPAmount < 0) completionXPAmount = 0;
+        }
+
+        if (completionXPAmount > 0) {
+          try {
+            const xpRes = await awardXP(userId, classroomId, completionXPAmount, `completing "${activityLabel}" (${appLabel})`, classroom.xpSettings);
+            if (xpRes && xpRes.newXP !== xpRes.oldXP) {
+              try {
+                const freshUser = await User.findById(userId).select('firstName lastName');
+                if (freshUser) {
+                  await logStatChanges({
+                    io,
+                    classroomId,
+                    user: freshUser,
+                    actionBy: req.user._id,
+                    prevStats: { xp: xpRes.oldXP },
+                    currStats: { xp: xpRes.newXP },
+                    context: `completion (${activityLabel} via ${appLabel})`,
+                    details: { effectsText: `${activityLabel} via ${appLabel}: +${completionXPAmount} XP from completion bonus` },
+                    forceLog: true
+                  });
+                }
+              } catch (logErr) {
+                console.warn('[integration reward] failed to log completion XP:', logErr);
+              }
+            }
+            if (!result.xp) result.xp = { bitsXP: 0, statXP: 0, completionXP: 0, total: 0 };
+            result.xp.completionXP = completionXPAmount;
+            result.xp.total += completionXPAmount;
+          } catch (xpErr) {
+            console.warn('[integration reward] awardXP (completion) failed:', xpErr);
+          }
+        }
+      }
+    }
+
+    // Dispatch webhook
+    dispatchWebhook('reward.granted', classroomId, {
+      source: appName,
+      userId,
+      activityName: activityLabel,
+      description: description || undefined,
+      bits: result.bits,
+      stats: result.stats,
+      xp: result.xp
+    });
+
+    res.json({
+      message: `Reward granted for "${activityLabel}"`,
+      ...result
+    });
+  } catch (err) {
+    console.error('[integrations/reward]', err);
+    res.status(500).json({ error: 'Reward grant failed' });
   }
 });
 
