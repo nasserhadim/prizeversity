@@ -1045,9 +1045,11 @@ const Support = () => {
             "• **Read Classroom Info** — View classroom name, code, and user count. With extended fields: groups, bazaar items, badges, XP settings, announcements, feedback, and policies",
             "• **Read Inventory** — View a user's inventory items via the API (returns item IDs needed for redemption)",
             "• **Redeem Items** — Mark inventory items as redeemed (for grade sync, etc.). Use Read Inventory first to get the item ID.",
+            "• **Adjust Stats** — Modify user passive stats (multiplier, luck, discount, shield) via the API",
+            "• **Grant Rewards** — Award bits, stat boosts, and XP to users in a single call (ideal for external games and activities)",
             "• **Manage Webhooks** — Register event notifications (advanced)",
             "",
-            "**Tip:** For a simple reward tool, you typically only need 'Adjust Wallet Balances' and 'Match Users'."
+            "**Tip:** For a simple reward tool, you typically only need 'Adjust Wallet Balances' and 'Match Users'. For external games or activities that need to award bits, stats, and XP together, use 'Grant Rewards'."
           ],
           role: ["teacher"]
         },
@@ -1108,6 +1110,8 @@ const Support = () => {
             "• Challenge Completed — when a challenge finishes",
             "• Level Up — when a user levels up",
             "• Badge Earned — when a badge is unlocked",
+            "• Stats Updated — when user stats are adjusted via the API",
+            "• Reward Granted — when an external activity grants bits, stats, or XP",
             "",
             "⚠️ **Note:** Webhooks are currently in beta. Delivery reliability and payload format may change.",
             "",
