@@ -690,10 +690,51 @@ router.get('/classroom/:classroomId/history', ensureAuthenticated, async (req, r
     const perPage = Math.min(100, Math.max(1, parseInt(req.query.perPage) || 20));
     const skip = (page - 1) * perPage;
 
+    const { search, status, sortBy, sortDir, dateFrom, dateTo } = req.query;
+
+    // Build dynamic filter
+    const filter = { classroom: classroomId };
+
+    if (status) filter.status = status;
+
+    if (dateFrom || dateTo) {
+      filter.createdAt = {};
+      if (dateFrom) filter.createdAt.$gte = new Date(dateFrom);
+      if (dateTo) {
+        const toDate = new Date(dateTo);
+        toDate.setHours(23, 59, 59, 999);
+        filter.createdAt.$lte = toDate;
+      }
+    }
+
+    if (search) {
+      // Escape regex special characters to prevent ReDoS
+      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const searchRegex = new RegExp(escaped, 'i');
+      const [matchingUsers, matchingGroups] = await Promise.all([
+        User.find({ $or: [{ firstName: searchRegex }, { lastName: searchRegex }, { email: searchRegex }] })
+          .select('_id').lean(),
+        Group.find({ name: searchRegex }).select('_id').lean(),
+      ]);
+      const userIds = matchingUsers.map(u => u._id);
+      const groupIds = matchingGroups.map(g => g._id);
+      const orClauses = [
+        { requestedBy: { $in: userIds } },
+        { targetUser: { $in: userIds } },
+      ];
+      if (groupIds.length > 0) orClauses.push({ group: { $in: groupIds } });
+      filter.$or = orClauses;
+    }
+
+    // Whitelist sort fields to prevent injection
+    const ALLOWED_SORT_FIELDS = { createdAt: 1, amount: 1, status: 1, executedAmount: 1 };
+    const sortField = Object.prototype.hasOwnProperty.call(ALLOWED_SORT_FIELDS, sortBy) ? sortBy : 'createdAt';
+    const sortOrder = sortDir === 'asc' ? 1 : -1;
+
     const [total, siphons] = await Promise.all([
-      SiphonRequest.countDocuments({ classroom: classroomId }),
-      SiphonRequest.find({ classroom: classroomId })
-        .sort({ createdAt: -1 })
+      SiphonRequest.countDocuments(filter),
+      SiphonRequest.find(filter)
+        .sort({ [sortField]: sortOrder })
         .skip(skip)
         .limit(perPage)
         .populate('requestedBy', 'firstName lastName email')

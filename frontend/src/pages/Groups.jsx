@@ -105,6 +105,13 @@ const Groups = () => {
   const [siphonHistoryPage, setSiphonHistoryPage] = useState(1);
   const [siphonHistoryLoading, setSiphonHistoryLoading] = useState(false);
   const SIPHON_HISTORY_PER_PAGE = 20;
+  // Siphon history filter/sort state
+  const [siphonSearch, setSiphonSearch] = useState('');
+  const [siphonStatusFilter, setSiphonStatusFilter] = useState('');
+  const [siphonSortBy, setSiphonSortBy] = useState('createdAt');
+  const [siphonSortDir, setSiphonSortDir] = useState('desc');
+  const [siphonDateFrom, setSiphonDateFrom] = useState('');
+  const [siphonDateTo, setSiphonDateTo] = useState('');
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000); // update every second for countdown
@@ -752,12 +759,22 @@ const Groups = () => {
   };
 
   // Fetch siphon history for the classroom (teacher-only)
-  const fetchSiphonHistory = async (page = 1) => {
+  const fetchSiphonHistory = async (page = 1, filterOverrides = {}) => {
     if (!id) return;
     setSiphonHistoryLoading(true);
     try {
       const res = await axios.get(`/api/siphon/classroom/${id}/history`, {
-        params: { page, perPage: SIPHON_HISTORY_PER_PAGE }
+        params: {
+          page,
+          perPage: SIPHON_HISTORY_PER_PAGE,
+          search: siphonSearch,
+          status: siphonStatusFilter,
+          sortBy: siphonSortBy,
+          sortDir: siphonSortDir,
+          dateFrom: siphonDateFrom,
+          dateTo: siphonDateTo,
+          ...filterOverrides,
+        }
       });
       setSiphonHistory(res.data.siphons);
       setSiphonHistoryTotal(res.data.total);
@@ -767,6 +784,37 @@ const Groups = () => {
     } finally {
       setSiphonHistoryLoading(false);
     }
+  };
+
+  // Toggle sort column for siphon history
+  const handleSiphonSort = (col) => {
+    const newDir = siphonSortBy === col ? (siphonSortDir === 'asc' ? 'desc' : 'asc') : 'desc';
+    setSiphonSortBy(col);
+    setSiphonSortDir(newDir);
+    fetchSiphonHistory(1, { sortBy: col, sortDir: newDir });
+  };
+
+  // Apply all current filter state
+  const handleSiphonApplyFilters = () => {
+    fetchSiphonHistory(1, {
+      search: siphonSearch,
+      status: siphonStatusFilter,
+      dateFrom: siphonDateFrom,
+      dateTo: siphonDateTo,
+      sortBy: siphonSortBy,
+      sortDir: siphonSortDir,
+    });
+  };
+
+  // Reset all filters and reload
+  const handleSiphonClearFilters = () => {
+    setSiphonSearch('');
+    setSiphonStatusFilter('');
+    setSiphonDateFrom('');
+    setSiphonDateTo('');
+    setSiphonSortBy('createdAt');
+    setSiphonSortDir('desc');
+    fetchSiphonHistory(1, { search: '', status: '', dateFrom: '', dateTo: '', sortBy: 'createdAt', sortDir: 'desc' });
   };
 
   // Load siphon history whenever the tab becomes active
@@ -1029,23 +1077,124 @@ const Groups = () => {
         {(user.role === 'teacher' || canManageGroups) && activeTab === 'history' && (
           <div className="card bg-base-100 shadow-md p-4 mb-6">
             <h2 className="text-xl font-semibold mb-4">Siphon History</h2>
+
+            {/* Filter / Search bar */}
+            <div className="flex flex-wrap gap-3 mb-4 items-end">
+              {/* Smart search */}
+              <div className="flex-1 min-w-[200px]">
+                <label className="label py-0 pb-1"><span className="label-text text-xs">Search</span></label>
+                <div className="join w-full">
+                  <input
+                    type="text"
+                    placeholder="Name, email, or group…"
+                    className="input input-bordered input-sm join-item flex-1"
+                    value={siphonSearch}
+                    onChange={e => setSiphonSearch(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleSiphonApplyFilters()}
+                  />
+                  <button className="btn btn-sm btn-primary join-item" onClick={handleSiphonApplyFilters}>
+                    Search
+                  </button>
+                </div>
+              </div>
+
+              {/* Status filter */}
+              <div className="min-w-[150px]">
+                <label className="label py-0 pb-1"><span className="label-text text-xs">Status</span></label>
+                <select
+                  className="select select-bordered select-sm w-full"
+                  value={siphonStatusFilter}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setSiphonStatusFilter(val);
+                    fetchSiphonHistory(1, { status: val, search: siphonSearch, dateFrom: siphonDateFrom, dateTo: siphonDateTo, sortBy: siphonSortBy, sortDir: siphonSortDir });
+                  }}
+                >
+                  <option value="">All Statuses</option>
+                  <option value="pending">Pending</option>
+                  <option value="group_approved">Group Approved</option>
+                  <option value="teacher_approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                  <option value="expired">Expired</option>
+                </select>
+              </div>
+
+              {/* Date from */}
+              <div className="min-w-[140px]">
+                <label className="label py-0 pb-1"><span className="label-text text-xs">From</span></label>
+                <input
+                  type="date"
+                  className="input input-bordered input-sm w-full"
+                  value={siphonDateFrom}
+                  onChange={e => setSiphonDateFrom(e.target.value)}
+                />
+              </div>
+
+              {/* Date to */}
+              <div className="min-w-[140px]">
+                <label className="label py-0 pb-1"><span className="label-text text-xs">To</span></label>
+                <input
+                  type="date"
+                  className="input input-bordered input-sm w-full"
+                  value={siphonDateTo}
+                  onChange={e => setSiphonDateTo(e.target.value)}
+                />
+              </div>
+
+              {/* Apply / Clear */}
+              <div className="flex gap-2 items-end pb-0.5">
+                <button className="btn btn-sm btn-outline" onClick={handleSiphonApplyFilters}>Apply</button>
+                {(siphonSearch || siphonStatusFilter || siphonDateFrom || siphonDateTo || siphonSortBy !== 'createdAt' || siphonSortDir !== 'desc') && (
+                  <button className="btn btn-sm btn-ghost" onClick={handleSiphonClearFilters}>Clear</button>
+                )}
+              </div>
+            </div>
+
             {siphonHistoryLoading ? (
               <div className="flex justify-center py-8"><span className="loading loading-spinner loading-md" /></div>
             ) : siphonHistory.length === 0 ? (
-              <p className="text-base-content/60 text-sm">No siphon requests found for this classroom.</p>
+              <p className="text-base-content/60 text-sm">
+                {(siphonSearch || siphonStatusFilter || siphonDateFrom || siphonDateTo)
+                  ? 'No siphon requests match your filters.'
+                  : 'No siphon requests found for this classroom.'}
+              </p>
             ) : (
               <>
                 <div className="overflow-x-auto">
                   <table className="table table-zebra w-full text-sm">
                     <thead>
                       <tr>
-                        <th>Date</th>
+                        <th
+                          className="cursor-pointer select-none whitespace-nowrap hover:bg-base-200"
+                          onClick={() => handleSiphonSort('createdAt')}
+                        >
+                          Date{' '}
+                          {siphonSortBy === 'createdAt'
+                            ? (siphonSortDir === 'asc' ? '↑' : '↓')
+                            : <span className="opacity-30">↕</span>}
+                        </th>
                         <th>Group</th>
                         <th>Requested By</th>
                         <th>Target</th>
-                        <th>Amount</th>
+                        <th
+                          className="cursor-pointer select-none whitespace-nowrap hover:bg-base-200"
+                          onClick={() => handleSiphonSort('amount')}
+                        >
+                          Amount{' '}
+                          {siphonSortBy === 'amount'
+                            ? (siphonSortDir === 'asc' ? '↑' : '↓')
+                            : <span className="opacity-30">↕</span>}
+                        </th>
                         <th>Votes</th>
-                        <th>Status</th>
+                        <th
+                          className="cursor-pointer select-none whitespace-nowrap hover:bg-base-200"
+                          onClick={() => handleSiphonSort('status')}
+                        >
+                          Status{' '}
+                          {siphonSortBy === 'status'
+                            ? (siphonSortDir === 'asc' ? '↑' : '↓')
+                            : <span className="opacity-30">↕</span>}
+                        </th>
                         <th>Proof</th>
                         <th>Details</th>
                       </tr>
@@ -1140,11 +1289,11 @@ const Groups = () => {
                 </div>
 
                 {/* Pagination */}
-                {siphonHistoryTotal > SIPHON_HISTORY_PER_PAGE && (
-                  <div className="flex justify-between items-center mt-4 text-sm">
-                    <span className="text-base-content/60">
-                      {siphonHistoryTotal} total — page {siphonHistoryPage} of {Math.ceil(siphonHistoryTotal / SIPHON_HISTORY_PER_PAGE)}
-                    </span>
+                <div className="flex justify-between items-center mt-4 text-sm">
+                  <span className="text-base-content/60">
+                    {siphonHistoryTotal} result{siphonHistoryTotal !== 1 ? 's' : ''} — page {siphonHistoryPage} of {Math.max(1, Math.ceil(siphonHistoryTotal / SIPHON_HISTORY_PER_PAGE))}
+                  </span>
+                  {siphonHistoryTotal > SIPHON_HISTORY_PER_PAGE && (
                     <div className="flex gap-2">
                       <button
                         className="btn btn-xs btn-outline"
@@ -1161,8 +1310,8 @@ const Groups = () => {
                         Next →
                       </button>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </>
             )}
           </div>

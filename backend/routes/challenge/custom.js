@@ -214,8 +214,10 @@ router.post('/:classroomId/custom', ensureAuthenticated, ensureTeacher, async (r
 
     // Only hash solution for passcode-type challenges
     let solutionHash = null;
+    let solutionPlaintext = null;
     if (!isTemplateType && solution) {
       solutionHash = await bcrypt.hash(solution.trim(), 10);
+      solutionPlaintext = solution.trim();
     }
 
     if (!challenge.customChallenges) challenge.customChallenges = [];
@@ -227,6 +229,7 @@ router.post('/:classroomId/custom', ensureAuthenticated, ensureTeacher, async (r
       description: description?.trim() || '',
       externalUrl: externalUrl?.trim() || '',
       solutionHash,
+      solutionPlaintext,
       templateType: templateType || 'passcode',
       templateConfig: isTemplateType ? (templateConfig || {}) : {},
       attachments: [],
@@ -354,6 +357,7 @@ router.put('/:classroomId/custom/:challengeId', ensureAuthenticated, ensureTeach
         customChallenge.templateType = templateType;
         customChallenge.templateConfig = templateConfig;
         customChallenge.solutionHash = null; // Clear static solution for template challenges
+        customChallenge.solutionPlaintext = null;
       } else if (!isTemplateType) {
         customChallenge.templateType = 'passcode';
         customChallenge.templateConfig = {};
@@ -363,6 +367,7 @@ router.put('/:classroomId/custom/:challengeId', ensureAuthenticated, ensureTeach
     // Only update solution for passcode-type challenges
     if (solution !== undefined && solution.trim() && customChallenge.templateType === 'passcode') {
       customChallenge.solutionHash = await bcrypt.hash(solution.trim(), 10);
+      customChallenge.solutionPlaintext = solution.trim();
     }
 
     customChallenge.updatedAt = new Date();

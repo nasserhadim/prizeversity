@@ -41,6 +41,7 @@ import Badges from './pages/Badges';
 import ClassroomLayout from './components/ClassroomLayout';
 import IntegrationSettings from './pages/IntegrationSettings';
 import IntegrationDocs from './pages/IntegrationDocs';
+import ProtectedRoute from './components/ProtectedRoute';
 
 const App = () => {
   const { user } = useContext(AuthContext);
@@ -71,11 +72,11 @@ const App = () => {
           {/* Main app */}
           <Route path="/" element={<Home />} />
           <Route path="/admin/moderation" element={<AdminModeration />} />
-          <Route path="/classrooms" element={<ClassroomPage />} />
-          <Route path="/classrooms/archived" element={<ArchivedClassrooms />} />
+          <Route path="/classrooms" element={<ProtectedRoute><ClassroomPage /></ProtectedRoute>} />
+          <Route path="/classrooms/archived" element={<ProtectedRoute><ArchivedClassrooms /></ProtectedRoute>} />
 
           {/* All classroom routes wrapped in layout for session activity tracking */}
-          <Route path="/classroom" element={<ClassroomLayout />}>
+          <Route path="/classroom" element={<ProtectedRoute><ClassroomLayout /></ProtectedRoute>}>
             <Route path=":id" element={<Classroom />} />
             <Route path=":classroomId/bazaar" element={<Bazaar />} />
             <Route path=":id/news" element={<StudentNewsfeed />} />
@@ -94,10 +95,10 @@ const App = () => {
           </Route>
 
           {/* General (non-classroom) routes */}
-          <Route path="/profile/:id" element={<Profile />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/checkout" element={<Checkout />} />
-          <Route path="/orders" element={<OrderHistory />} />
+          <Route path="/profile/:id" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+          <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
+          <Route path="/orders" element={<ProtectedRoute><OrderHistory /></ProtectedRoute>} />
           <Route path="/feedback" element={<FeedbackPage />} />
           <Route path="/reviews" element={<ReviewsPage />} />
           <Route path="/support" element={<Support />} />

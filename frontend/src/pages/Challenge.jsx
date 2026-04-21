@@ -22,7 +22,6 @@ import NeedleInAHaystackChallenge from '../components/challenge/cards/NeedleInAH
 import QuoteHangmanChallenge from '../components/challenge/cards/QuoteHangmanChallenge';
 import CustomChallengeCard from '../components/challenge/cards/CustomChallengeCard';
 import Footer from '../components/Footer';
-import ChallengeUpdateModal from '../components/challenge/modals/ChallengeUpdateModal';
 
 // Hooks
 import { useChallengeData } from '../hooks/useChallengeData';
@@ -109,8 +108,6 @@ const Challenge = () => {
   const [showHintModal, setShowHintModal] = useState(false);
   const [editingHints, setEditingHints] = useState(null);
   const [confirmText, setConfirmText] = useState('');
-  const [showUpdateModal, setShowUpdateModal] = useState(false);
-  
   // Theme classes
   const themeClasses = getThemeClasses(isDark);
   const isTeacherInStudentView = originalUser?.role === 'teacher' && user.role === 'student';
@@ -192,6 +189,11 @@ const Challenge = () => {
           initiating={initiating}
           classroomId={classroomId}
           fetchChallengeData={fetchChallengeData}
+          templates={templates}
+          handleLoadTemplate={handleLoadTemplate}
+          handleDeleteTemplate={handleDeleteTemplate}
+          setShowSaveTemplateModal={setShowSaveTemplateModal}
+          fetchTemplates={fetchTemplates}
         />
         
         <ChallengeConfigModal
@@ -407,22 +409,6 @@ const Challenge = () => {
             </div>
           </div>
         )}
-
-        <ChallengeUpdateModal
-          showUpdateModal={showUpdateModal}
-          setShowUpdateModal={setShowUpdateModal}
-          challengeData={challengeData}
-          fetchChallengeData={fetchChallengeData}
-          classroomId={classroomId}
-          setShowHintModal={setShowHintModal}
-          setEditingHints={setEditingHints}
-          // Template props
-          templates={templates}
-          handleLoadTemplate={handleLoadTemplate}
-          handleDeleteTemplate={handleDeleteTemplate}
-          setShowSaveTemplateModal={setShowSaveTemplateModal}
-          fetchTemplates={fetchTemplates}  // ADD THIS
-        />
       </>
     );
   }

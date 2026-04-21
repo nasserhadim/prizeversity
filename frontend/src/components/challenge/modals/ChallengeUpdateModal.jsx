@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Edit3, Save, Info } from 'lucide-react';
 import { CHALLENGE_NAMES } from '../../../constants/challengeConstants';
 import { DEFAULT_CHALLENGE_CONFIG } from '../../../constants/challengeConstants';
-import { updateChallenge } from '../../../API/apiChallenge';
+import { updateChallenge, createCustomChallenge } from '../../../API/apiChallenge';
+import { deleteChallengeTemplate } from '../../../API/apiChallengeTemplate';
 import IndivTotalToggle from '../IndivTotalToggle';
 import CustomChallengeBuilder from '../CustomChallengeBuilder';
 import toast from 'react-hot-toast';
@@ -54,7 +55,7 @@ const ChallengeUpdateModal = ({
   fetchTemplates // NEW: Add fetchTemplates prop
 }) => {
   
-  const seriesType = challengeData?.seriesType || 'legacy';
+  const [seriesType, setSeriesType] = useState(challengeData?.seriesType || 'legacy');
   const showLegacy = seriesType === 'legacy' || seriesType === 'mixed';
   const showCustom = seriesType === 'custom' || seriesType === 'mixed';
   const [updating, setUpdating] = useState(false);
@@ -180,6 +181,7 @@ const ChallengeUpdateModal = ({
         dueDateEnabled: challengeData.settings?.dueDateEnabled || false,
         dueDate: challengeData.settings?.dueDate ? utcToLocalDateTime(challengeData.settings.dueDate) : ''
       });
+      setSeriesType(challengeData.seriesType || 'legacy');
     }
   }, [challengeData, showUpdateModal]);
 
@@ -188,6 +190,7 @@ const ChallengeUpdateModal = ({
       setUpdating(true);
       const updatePayload = {
         ...updateData,
+        seriesType,
         // NEW: Include multiplier application settings
         applyPersonalMultiplier: updateData.applyPersonalMultiplier,
         applyGroupMultiplier: updateData.applyGroupMultiplier,
@@ -208,6 +211,53 @@ const ChallengeUpdateModal = ({
   };
 
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [templateDeleteConfirm, setTemplateDeleteConfirm] = useState(null); // { id, name }
+  const [deletingLocalTemplate, setDeletingLocalTemplate] = useState(false);
+  const [templateLoadConfirm, setTemplateLoadConfirm] = useState(null); // template object pending load
+  const [templateSearch, setTemplateSearch] = useState('');
+  const [templateSort, setTemplateSort] = useState('createdDesc');
+  const [confirmDeleteAllTemplates, setConfirmDeleteAllTemplates] = useState(false);
+  const [bulkDeletingTemplates, setBulkDeletingTemplates] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(true);
+
+  const filteredSortedTemplates = useMemo(() => {
+    const q = (templateSearch || '').trim().toLowerCase();
+    const deepMatch = (t) => {
+      if (!q) return true;
+      const st = t.settings?.seriesType || 'legacy';
+      const ccCount = t.settings?.customChallenges?.length || 0;
+      return [
+        t.name || '',
+        t.title || '',
+        t.sourceClassroom?.name || '',
+        t.sourceClassroom?.code || '',
+        st,
+        ccCount > 0 ? `${ccCount} custom` : '',
+        t.createdAt ? new Date(t.createdAt).toLocaleString() : ''
+      ].join(' ').toLowerCase().includes(q);
+    };
+    const list = (templates || []).filter(deepMatch);
+    list.sort((a, b) => {
+      const ac = new Date(a.createdAt || 0).getTime();
+      const bc = new Date(b.createdAt || 0).getTime();
+      const ast = a.settings?.seriesType || 'legacy';
+      const bst = b.settings?.seriesType || 'legacy';
+      switch (templateSort) {
+        case 'createdDesc': return bc - ac;
+        case 'createdAsc':  return ac - bc;
+        case 'nameAsc':     return (a.name || '').localeCompare(b.name || '');
+        case 'nameDesc':    return (b.name || '').localeCompare(a.name || '');
+        case 'typeAsc':     return ast.localeCompare(bst) || (a.name || '').localeCompare(b.name || '');
+        case 'typeDesc':    return bst.localeCompare(ast) || (a.name || '').localeCompare(b.name || '');
+        default: return 0;
+      }
+    });
+    return list;
+  }, [templates, templateSearch, templateSort]);
+
+  const bulkDeleteLabel =
+    filteredSortedTemplates.length === (templates?.length || 0) ? 'All' : 'Filtered';
+
   const handleResetToDefaults = () => setShowResetConfirm(true);
   const confirmReset = () => {
     setUpdateData(prev => ({
@@ -259,6 +309,124 @@ const ChallengeUpdateModal = ({
             confirmText="Reset"
             onConfirm={confirmReset}
           />
+
+          {/* Template delete confirmation */}
+          <ConfirmModal
+            isOpen={!!templateDeleteConfirm}
+            onClose={() => !deletingLocalTemplate && setTemplateDeleteConfirm(null)}
+            title="Delete Template"
+            message={`Delete template "${templateDeleteConfirm?.name}"? This cannot be undone.`}
+            confirmText={deletingLocalTemplate ? 'Deleting...' : 'Delete'}
+            onConfirm={async () => {
+              if (!templateDeleteConfirm) return;
+              try {
+                setDeletingLocalTemplate(true);
+                await deleteChallengeTemplate(templateDeleteConfirm.id);
+                toast.success('Template deleted');
+                setTemplateDeleteConfirm(null);
+                if (typeof fetchTemplates === 'function') fetchTemplates();
+              } catch (err) {
+                toast.error(err.message || 'Failed to delete template');
+              } finally {
+                setDeletingLocalTemplate(false);
+              }
+            }}
+          />
+
+          {/* Template load confirmation */}
+          <ConfirmModal
+            isOpen={!!templateLoadConfirm}
+            onClose={() => setTemplateLoadConfirm(null)}
+            title="Load Template"
+            message={`Load template "${templateLoadConfirm?.name}"? This will overwrite your current reward and mode settings, may change the series type, and will add any custom challenges saved in the template. Existing custom challenges will not be removed.`}
+            confirmText="Load"
+            onConfirm={async () => {
+              const tpl = templateLoadConfirm;
+              setTemplateLoadConfirm(null);
+              if (!handleLoadTemplate || !tpl) return;
+
+              const result = handleLoadTemplate(tpl, setUpdateData);
+              if (result?.seriesType) {
+                setSeriesType(result.seriesType);
+              }
+
+              // Create template custom challenges on the server immediately
+              const templateChallenges = result?.customChallenges || [];
+              if (templateChallenges.length > 0 && classroomId) {
+                const existingTitles = new Set(
+                  (challengeData?.customChallenges || []).map(c => c.title?.trim().toLowerCase())
+                );
+                let created = 0;
+                let skipped = 0;
+                let needsPasscode = 0;
+                const missingAttachments = [];
+                for (const cc of templateChallenges) {
+                  const titleKey = cc.title?.trim().toLowerCase();
+                  if (existingTitles.has(titleKey)) {
+                    skipped++;
+                    continue;
+                  }
+                  try {
+                    const { attachmentNames, ...payload } = cc;
+                    const isPasscode = !payload.templateType || payload.templateType === 'passcode';
+                    if (isPasscode && !payload.solution) {
+                      payload.solution = '__TEMPLATE_PLACEHOLDER__';
+                      needsPasscode++;
+                    }
+                    await createCustomChallenge(classroomId, payload);
+                    existingTitles.add(titleKey);
+                    created++;
+                    if (Array.isArray(attachmentNames) && attachmentNames.length > 0) {
+                      missingAttachments.push({ title: cc.title, files: attachmentNames });
+                    }
+                  } catch (err) {
+                    console.error('Failed to create template challenge:', err);
+                  }
+                }
+                if (created > 0) {
+                  toast.success(`Added ${created} custom challenge(s) from template`);
+                  if (needsPasscode > 0) {
+                    toast(`${needsPasscode} passcode challenge(s) need a new passcode — click Edit to set one.`, { icon: 'ℹ️', duration: 6000 });
+                  }
+                  if (missingAttachments.length > 0) {
+                    const summary = missingAttachments.map(m => `"${m.title}": ${m.files.join(', ')}`).join(' | ');
+                    toast(`Attachments can't be transferred via templates — please re-upload: ${summary}`, { icon: '📎', duration: 8000 });
+                  }
+                }
+                if (skipped > 0) {
+                  toast(`${skipped} challenge(s) already exist and were skipped.`, { icon: 'ℹ️' });
+                }
+                if (created > 0 && typeof fetchChallengeData === 'function') await fetchChallengeData();
+              }
+            }}
+          />
+
+          {/* Bulk delete templates confirmation */}
+          <ConfirmModal
+            isOpen={confirmDeleteAllTemplates}
+            onClose={() => !bulkDeletingTemplates && setConfirmDeleteAllTemplates(false)}
+            title={`Delete ${bulkDeleteLabel} Templates?`}
+            message={`Delete ${filteredSortedTemplates.length} template(s)? This cannot be undone.`}
+            confirmText={bulkDeletingTemplates ? 'Deleting...' : `Delete ${bulkDeleteLabel}`}
+            onConfirm={async () => {
+              try {
+                setBulkDeletingTemplates(true);
+                const results = await Promise.allSettled(
+                  filteredSortedTemplates.map(t => deleteChallengeTemplate(t._id))
+                );
+                const deleted = results.filter(r => r.status === 'fulfilled').length;
+                const failed = results.length - deleted;
+                if (deleted) toast.success(`Deleted ${deleted} template(s)`);
+                if (failed) toast.error(`Failed to delete ${failed} template(s)`);
+                setConfirmDeleteAllTemplates(false);
+                if (typeof fetchTemplates === 'function') fetchTemplates();
+              } catch (err) {
+                toast.error(err.message || 'Bulk delete failed');
+              } finally {
+                setBulkDeletingTemplates(false);
+              }
+            }}
+          />
           
           <div className="space-y-6">
             <div>
@@ -275,36 +443,107 @@ const ChallengeUpdateModal = ({
             </div>
 
             {/* Templates Section */}
-            <div className="collapse collapse-arrow bg-base-200 rounded-lg">
-              <input type="checkbox" />
-              <div className="collapse-title font-semibold flex items-center gap-2">
-                Templates {templates?.length > 0 && `(${templates.length})`}
-              </div>
-              <div className="collapse-content">
-                <div className="flex justify-end mb-3">
+            <div className="collapse collapse-arrow bg-base-200 rounded-lg p-0">
+              <input
+                type="checkbox"
+                checked={templatesOpen}
+                onChange={(e) => setTemplatesOpen(e.target.checked)}
+                className="pointer-events-none"
+              />
+              <div
+                className="collapse-title p-4 cursor-pointer select-none"
+                onClick={() => setTemplatesOpen((v) => !v)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setTemplatesOpen((v) => !v);
+                  }
+                }}
+              >
+                <div className="flex items-center justify-between pr-8">
+                  <span className="font-semibold">
+                    Templates {templates?.length ? `(${templates.length})` : ''}
+                  </span>
                   {setShowSaveTemplateModal && (
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-primary"
-                      onClick={() => {
-                        // Store the current update data and custom challenges for template save
-                        window.__templateSaveData = {
-                          config: updateData,
-                          customChallenges: challengeData?.customChallenges || []
-                        };
-                        setShowSaveTemplateModal(true);
+                    <div
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
                       }}
                     >
-                      Save Current Config
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.__templateSaveData = {
+                            config: { ...updateData, seriesType },
+                            customChallenges: challengeData?.customChallenges || []
+                          };
+                          setShowSaveTemplateModal(true);
+                        }}
+                      >
+                        Save Current Config
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="collapse-content px-4 pb-4 pt-0">
+                <div className="flex flex-wrap gap-2 mb-3">
+                  <input
+                    type="search"
+                    className="input input-bordered flex-1 min-w-[220px]"
+                    placeholder="Search templates..."
+                    value={templateSearch}
+                    onChange={(e) => setTemplateSearch(e.target.value)}
+                  />
+                  <select
+                    className="select select-bordered w-44"
+                    value={templateSort}
+                    onChange={(e) => setTemplateSort(e.target.value)}
+                    title="Sort templates"
+                  >
+                    <option value="createdDesc">Newest</option>
+                    <option value="createdAsc">Oldest</option>
+                    <option value="nameAsc">Name ↑</option>
+                    <option value="nameDesc">Name ↓</option>
+                    <option value="typeAsc">Type ↑</option>
+                    <option value="typeDesc">Type ↓</option>
+                  </select>
+                  {(templates?.length || 0) > 0 && filteredSortedTemplates.length > 0 && (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline btn-error"
+                      onClick={() => setConfirmDeleteAllTemplates(true)}
+                      disabled={bulkDeletingTemplates}
+                      title="Delete all (or currently filtered) templates"
+                    >
+                      Delete {bulkDeleteLabel}
                     </button>
                   )}
                 </div>
-                {templates && templates.length > 0 ? (
+
+                {filteredSortedTemplates.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {templates.map((template) => (
+                    {filteredSortedTemplates.map((template) => {
+                      const tplType = template.settings?.seriesType || 'legacy';
+                      const ccCount = template.settings?.customChallenges?.length || 0;
+                      const typeBadgeClass = tplType === 'legacy' ? 'badge-ghost' : tplType === 'custom' ? 'badge-success' : 'badge-info';
+                      const typeLabel = tplType === 'legacy' ? 'Legacy' : tplType === 'custom' ? `Custom${ccCount ? ` (${ccCount})` : ''}` : `Mixed${ccCount ? ` (${ccCount} custom)` : ''}`;
+                      return (
                       <div key={template._id} className="flex items-center justify-between bg-base-100 p-3 rounded">
                         <div className="min-w-0">
                           <div className="font-medium break-words">{template.name}</div>
+                          <div className="flex items-center gap-1 mt-0.5 mb-0.5">
+                            <span className={`badge badge-xs ${typeBadgeClass}`}>{typeLabel}</span>
+                          </div>
+                          <div className="text-xs text-base-content/60 break-words">
+                            From: {template.sourceClassroom?.name || 'Unknown classroom'}
+                            {template.sourceClassroom?.code ? ` (${template.sourceClassroom.code})` : ''}
+                          </div>
                           <div className="text-xs text-base-content/60">
                             {template.createdAt ? new Date(template.createdAt).toLocaleString() : '—'}
                           </div>
@@ -312,24 +551,29 @@ const ChallengeUpdateModal = ({
                         <div className="flex gap-1 flex-shrink-0">
                           <button
                             className="btn btn-xs btn-ghost"
-                            onClick={() => handleLoadTemplate && handleLoadTemplate(template, setUpdateData)}
+                            onClick={() => setTemplateLoadConfirm(template)}
                             title="Load template"
                           >
                             Load
                           </button>
                           <button
                             className="btn btn-xs btn-ghost text-error"
-                            onClick={() => handleDeleteTemplate && handleDeleteTemplate(template._id, template.name)}
+                            onClick={() => setTemplateDeleteConfirm({ id: template._id, name: template.name })}
                             title="Delete template"
                           >
                             ✕
                           </button>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
-                  <p className="text-sm text-base-content/60">No templates saved yet.</p>
+                  <div className="text-sm text-base-content/70">
+                    {(templates?.length || 0) === 0
+                      ? 'No templates saved yet.'
+                      : 'No templates match your search.'}
+                  </div>
                 )}
               </div>
             </div>

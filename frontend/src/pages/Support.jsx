@@ -581,6 +581,19 @@ const Support = () => {
             "**Note:** Hint usage can reduce Bits rewards if the teacher enabled hint penalties."
           ],
           role: ["all"]
+        },
+        {
+          question: "I loaded a challenge template, but custom challenges with attachments are missing their files.",
+          answer: [
+            "Attachment files cannot be stored in or transferred via templates — only the original filenames are saved for reference.",
+            "",
+            "When you load a challenge template that included custom challenges with attachments:",
+            "• A notification will appear listing the filenames that need to be re-uploaded.",
+            "• Open the challenge series → Edit the affected custom challenge → scroll to the **Attachments** section and re-upload each file.",
+            "",
+            "**Tip:** If you missed the notification, a reminder is shown directly in the Attachments section of the challenge editor."
+          ],
+          role: ["teacher"]
         }
       ]
     },

@@ -502,6 +502,10 @@ const CustomChallengeBuilder = ({
   };
 
   const persistOrder = async (nextChallenges) => {
+    if (draftMode) {
+      if (onDraftUpdate) onDraftUpdate(nextChallenges);
+      return;
+    }
     const order = nextChallenges.map(c => c._id);
     await reorderCustomChallenges(classroomId, order);
     if (onUpdate) onUpdate();
@@ -547,7 +551,7 @@ const CustomChallengeBuilder = ({
 
     try {
       await persistOrder(next);
-      toast.success('Reordered custom challenges');
+      if (!draftMode) toast.success('Reordered custom challenges');
     } catch (err) {
       
       setChallenges(prev);
@@ -1143,6 +1147,9 @@ const CustomChallengeBuilder = ({
                     </div>
                     <div className="text-xs text-gray-500">
                       {ATTACHMENT_MAX_SIZE_TEXT} {ATTACHMENT_TYPES_TEXT}
+                    </div>
+                    <div className="text-xs text-warning/80 italic">
+                      Loaded from a template? Attachments can't be transferred — re-upload the original files here.
                     </div>
 
                     {(challenge.attachments?.length || 0) > 0 ? (
