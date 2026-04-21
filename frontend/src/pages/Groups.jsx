@@ -99,6 +99,13 @@ const Groups = () => {
   const [now, setNow] = useState(Date.now());
   const [memberEquippedBadges, setMemberEquippedBadges] = useState({}); // { odierI: badge }
 
+  // Siphon history (teacher-only tab)
+  const [siphonHistory, setSiphonHistory] = useState([]);
+  const [siphonHistoryTotal, setSiphonHistoryTotal] = useState(0);
+  const [siphonHistoryPage, setSiphonHistoryPage] = useState(1);
+  const [siphonHistoryLoading, setSiphonHistoryLoading] = useState(false);
+  const SIPHON_HISTORY_PER_PAGE = 20;
+
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000); // update every second for countdown
     return () => clearInterval(t);
@@ -744,6 +751,31 @@ const Groups = () => {
     }
   };
 
+  // Fetch siphon history for the classroom (teacher-only)
+  const fetchSiphonHistory = async (page = 1) => {
+    if (!id) return;
+    setSiphonHistoryLoading(true);
+    try {
+      const res = await axios.get(`/api/siphon/classroom/${id}/history`, {
+        params: { page, perPage: SIPHON_HISTORY_PER_PAGE }
+      });
+      setSiphonHistory(res.data.siphons);
+      setSiphonHistoryTotal(res.data.total);
+      setSiphonHistoryPage(page);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to load siphon history');
+    } finally {
+      setSiphonHistoryLoading(false);
+    }
+  };
+
+  // Load siphon history whenever the tab becomes active
+  useEffect(() => {
+    if (activeTab === 'history' && (user?.role === 'teacher' || canManageGroups)) {
+      fetchSiphonHistory(1);
+    }
+  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Open the adjustment modal for a specific groupSet and group
   const openAdjustModal = (groupSetId, groupId) => {
     const group = groupSets.find(gs => gs._id === groupSetId)?.groups.find(g => g._id === groupId);
@@ -983,6 +1015,156 @@ const Groups = () => {
             >
               Create
             </a>
+            <a
+              role="tab"
+              className={`tab ${activeTab === 'history' ? 'tab-active' : ''}`}
+              onClick={() => setActiveTab('history')}
+            >
+              Siphon History
+            </a>
+          </div>
+        )}
+
+        {/* Siphon History Tab */}
+        {(user.role === 'teacher' || canManageGroups) && activeTab === 'history' && (
+          <div className="card bg-base-100 shadow-md p-4 mb-6">
+            <h2 className="text-xl font-semibold mb-4">Siphon History</h2>
+            {siphonHistoryLoading ? (
+              <div className="flex justify-center py-8"><span className="loading loading-spinner loading-md" /></div>
+            ) : siphonHistory.length === 0 ? (
+              <p className="text-base-content/60 text-sm">No siphon requests found for this classroom.</p>
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="table table-zebra w-full text-sm">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Group</th>
+                        <th>Requested By</th>
+                        <th>Target</th>
+                        <th>Amount</th>
+                        <th>Votes</th>
+                        <th>Status</th>
+                        <th>Proof</th>
+                        <th>Details</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {siphonHistory.map(s => {
+                        const yesVotes = s.votes?.filter(v => v.vote === 'yes') || [];
+                        const noVotes  = s.votes?.filter(v => v.vote === 'no')  || [];
+                        const requesterName = s.requestedBy
+                          ? `${s.requestedBy.firstName || ''} ${s.requestedBy.lastName || ''}`.trim() || s.requestedBy.email
+                          : '—';
+                        const targetName = s.targetUser
+                          ? `${s.targetUser.firstName || ''} ${s.targetUser.lastName || ''}`.trim() || s.targetUser.email
+                          : '—';
+                        const groupName = s.group?.name || '—';
+                        const statusBadge = {
+                          pending:          <span className="badge badge-warning badge-sm">Pending</span>,
+                          group_approved:   <span className="badge badge-info badge-sm">Group Approved</span>,
+                          teacher_approved: <span className="badge badge-success badge-sm">Approved</span>,
+                          rejected:         <span className="badge badge-error badge-sm">Rejected</span>,
+                          expired:          <span className="badge badge-ghost badge-sm">Expired</span>,
+                        }[s.status] || <span className="badge badge-ghost badge-sm">{s.status}</span>;
+                        const amountStr = s.executedAmount != null
+                          ? s.requestedPercent != null
+                            ? `${s.requestedPercent}% (${s.executedAmount} bits executed)`
+                            : `${s.executedAmount} bits (executed)`
+                          : s.requestedPercent != null
+                            ? `${s.requestedPercent}% (≈${s.amount} bits at submission)`
+                            : `${s.amount} bits`;
+
+                        return (
+                          <tr key={s._id}>
+                            <td className="whitespace-nowrap">
+                              {new Date(s.createdAt).toLocaleString()}
+                            </td>
+                            <td>{groupName}</td>
+                            <td title={s.requestedBy?.email}>{requesterName}</td>
+                            <td title={s.targetUser?.email}>{targetName}</td>
+                            <td className="whitespace-nowrap">{amountStr}</td>
+                            <td>
+                              <div className="flex gap-2">
+                                <span className="badge badge-success badge-sm">{yesVotes.length} YES</span>
+                                <span className="badge badge-error badge-sm">{noVotes.length} NO</span>
+                              </div>
+                              {s.votes?.length > 0 && (
+                                <details className="mt-1">
+                                  <summary className="text-xs cursor-pointer text-base-content/60">voter breakdown</summary>
+                                  <ul className="text-xs mt-1 space-y-0.5">
+                                    {s.votes.map((v, i) => {
+                                      const vName = v.user
+                                        ? `${v.user.firstName || ''} ${v.user.lastName || ''}`.trim() || v.user.email
+                                        : '?';
+                                      return (
+                                        <li key={i} className={v.vote === 'yes' ? 'text-success' : 'text-error'}>
+                                          {vName}: {v.vote.toUpperCase()}
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                </details>
+                              )}
+                            </td>
+                            <td>{statusBadge}</td>
+                            <td>
+                              {s.proof?.storedName ? (
+                                <a
+                                  href={`/api/siphon/${s._id}/proof`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="btn btn-xs btn-outline"
+                                >
+                                  {s.proof.originalName || 'View'}
+                                </a>
+                              ) : (
+                                <span className="text-base-content/40 text-xs">None</span>
+                              )}
+                            </td>
+                            <td>
+                              <details>
+                                <summary className="btn btn-xs btn-ghost cursor-pointer">Reason</summary>
+                                <div
+                                  className="prose prose-sm max-w-xs mt-1 p-2 bg-base-200 rounded text-xs"
+                                  dangerouslySetInnerHTML={{ __html: s.reasonHtml }}
+                                />
+                              </details>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination */}
+                {siphonHistoryTotal > SIPHON_HISTORY_PER_PAGE && (
+                  <div className="flex justify-between items-center mt-4 text-sm">
+                    <span className="text-base-content/60">
+                      {siphonHistoryTotal} total — page {siphonHistoryPage} of {Math.ceil(siphonHistoryTotal / SIPHON_HISTORY_PER_PAGE)}
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        className="btn btn-xs btn-outline"
+                        disabled={siphonHistoryPage <= 1}
+                        onClick={() => fetchSiphonHistory(siphonHistoryPage - 1)}
+                      >
+                        ← Prev
+                      </button>
+                      <button
+                        className="btn btn-xs btn-outline"
+                        disabled={siphonHistoryPage >= Math.ceil(siphonHistoryTotal / SIPHON_HISTORY_PER_PAGE)}
+                        onClick={() => fetchSiphonHistory(siphonHistoryPage + 1)}
+                      >
+                        Next →
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
 
