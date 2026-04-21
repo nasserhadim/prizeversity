@@ -33,7 +33,13 @@ const TeacherView = ({
   classroomStudents = [],
   classroom,
   classroomId,
-  fetchChallengeData
+  fetchChallengeData,
+  // Template props forwarded to ChallengeUpdateModal
+  templates = [],
+  handleLoadTemplate,
+  handleDeleteTemplate,
+  setShowSaveTemplateModal,
+  fetchTemplates
 }) => {
   
   const [search, setSearch] = useState('');
@@ -945,7 +951,8 @@ const TeacherView = ({
           : 'Not completed';
 
         // NOTE: this is already present in UI (teacher can view), but keep it in export only if you want it.
-        const solution = p?.generatedContent?.expectedAnswer || '';
+        const solution = p?.generatedContent?.expectedAnswer
+          || (cc.templateType === 'passcode' ? cc.solutionPlaintext || '' : '');
 
         rows.push({
           classroomId: String(challengeData.classroomId || classroomId || ''),
@@ -1072,7 +1079,8 @@ const TeacherView = ({
           uc.userId?.email || '',
           uc.uniqueId || '',
           currentChallenge?.title || '',
-          currentEntry?.p?.generatedContent?.expectedAnswer || ''
+          currentEntry?.p?.generatedContent?.expectedAnswer || '',
+          currentEntry?.cc?.templateType === 'passcode' ? currentEntry?.cc?.solutionPlaintext || '' : ''
         ].join(' ').toLowerCase();
 
         return hay.includes(q);
@@ -2224,7 +2232,8 @@ const TeacherView = ({
                         .map(p => new Date(p.completedAt))
                         .sort((a, b) => b - a)[0];
 
-                      const currentSolution = currentProgress?.generatedContent?.expectedAnswer || null;
+                      const currentSolution = currentProgress?.generatedContent?.expectedAnswer
+                        || (currentEntry?.cc?.templateType === 'passcode' ? currentEntry?.cc?.solutionPlaintext || null : null);
 
                       return (
                         <tr key={uc._id} className="align-top">
@@ -2553,6 +2562,11 @@ const TeacherView = ({
         classroomId={classroomId}
         setShowHintModal={setShowHintModal}
         setEditingHints={setEditingHints}
+        templates={templates}
+        handleLoadTemplate={handleLoadTemplate}
+        handleDeleteTemplate={handleDeleteTemplate}
+        setShowSaveTemplateModal={setShowSaveTemplateModal}
+        fetchTemplates={fetchTemplates}
       />
 
       {showHintModal && editingHints && challengeData && (

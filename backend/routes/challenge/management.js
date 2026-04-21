@@ -202,6 +202,13 @@ router.get('/:classroomId', ensureAuthenticated, async (req, res) => {
       // Remove full userChallenges list for students
       const chObj = (typeof challenge.toObject === 'function') ? challenge.toObject() : JSON.parse(JSON.stringify(challenge));
       delete chObj.userChallenges;
+      // Strip solution fields from custom challenges so students can't see passcodes/hashes
+      if (Array.isArray(chObj.customChallenges)) {
+        chObj.customChallenges = chObj.customChallenges.map(cc => {
+          const { solutionHash, solutionPlaintext, ...rest } = cc;
+          return rest;
+        });
+      }
       responseChallenge = chObj;
     }
 
@@ -453,7 +460,8 @@ router.put('/:classroomId/update', ensureAuthenticated, ensureTeacher, async (re
       challengeShields, totalShield, shieldMode, 
       challengeHints, challengeHintsEnabled, hintPenaltyPercent, maxHintsPerChallenge, 
       dueDateEnabled, dueDate, challengeVisibility,
-      applyPersonalMultiplier, applyGroupMultiplier  // NEW
+      applyPersonalMultiplier, applyGroupMultiplier,  // NEW
+      seriesType // allow changing series type via update
     } = req.body;
     const teacherId = req.user._id;
 
@@ -574,6 +582,13 @@ router.put('/:classroomId/update', ensureAuthenticated, ensureTeacher, async (re
       challenge.settings.challengeVisibility = Array.isArray(challengeVisibility)
         ? challengeVisibility.map(v => !!v)
         : [true, true, true, true, true, true, true];
+    }
+
+    if (seriesType !== undefined) {
+      const validTypes = ['legacy', 'custom', 'mixed'];
+      if (validTypes.includes(seriesType)) {
+        challenge.seriesType = seriesType;
+      }
     }
 
     await challenge.save();

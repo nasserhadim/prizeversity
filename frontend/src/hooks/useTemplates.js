@@ -39,6 +39,7 @@ export const useTemplates = () => {
       setSavingTemplate(true);
 
       const settings = {
+        seriesType: challengeConfig.seriesType || (customChallenges.length > 0 ? 'custom' : 'legacy'),
         rewardMode: challengeConfig.rewardMode,
         multiplierMode: challengeConfig.multiplierMode,
         luckMode: challengeConfig.luckMode,
@@ -91,7 +92,11 @@ export const useTemplates = () => {
           visible: cc.visible !== false,
           dueDateEnabled: cc.dueDateEnabled || false,
           // Note: Don't include solution/solutionHash for security
-          // Note: Don't include attachments as they're file-based
+          // Save attachment names only (files can't be stored in templates — user must re-upload)
+          // Support both server objects (cc.attachments) and previously-templated objects (cc.attachmentNames)
+          attachmentNames: cc.attachmentNames?.length
+            ? cc.attachmentNames
+            : (cc.attachments || []).map(a => a.originalName).filter(Boolean)
         }))
       };
 
@@ -165,14 +170,15 @@ export const useTemplates = () => {
       challengeVisibility: template.settings.challengeVisibility || [true, true, true, true, true, true, true],
       dueDateEnabled: template.settings.dueDateEnabled || false,
       dueDate: template.settings.dueDate || '',
-      // NEW: Include custom challenges from template
-      customChallengesFromTemplate: template.settings.customChallenges || []
     }));
     
     toast.success(`Loaded template: ${template.name}${template.settings.customChallenges?.length ? ` (includes ${template.settings.customChallenges.length} custom challenge(s))` : ''}`);
     
-    // Return custom challenges for caller to handle
-    return template.settings.customChallenges || [];
+    // Return custom challenges and seriesType for caller to handle
+    return {
+      customChallenges: template.settings.customChallenges || [],
+      seriesType: template.settings.seriesType || null
+    };
   };
 
   // NEW: bulk delete helper (Delete All / Delete Filtered)

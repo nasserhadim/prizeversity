@@ -180,8 +180,18 @@ const ChallengeConfigModal = ({
       if (pendingCustomChallenges.length > 0 && (seriesType === 'custom' || seriesType === 'mixed')) {
         try {
           let createdCount = 0;
+          let skippedPasscode = 0;
+          const missingAttachments = [];
           for (const challengeData of pendingCustomChallenges) {
-            const { pendingAttachments, ...challengePayload } = challengeData;
+            const { pendingAttachments, attachmentNames, ...challengePayload } = challengeData;
+
+            // Passcode challenges require a solution. Templates can't store the original passcode
+            // for security, so inject a placeholder — the teacher must reset it via Update Series.
+            const isPasscode = !challengePayload.templateType || challengePayload.templateType === 'passcode';
+            if (isPasscode && !challengePayload.solution) {
+              challengePayload.solution = '__TEMPLATE_PLACEHOLDER__';
+              skippedPasscode++;
+            }
 
             const result = await createCustomChallenge(classroomId, challengePayload);
             const newChallengeId = result.challenge?._id;
@@ -196,10 +206,22 @@ const ChallengeConfigModal = ({
               }
             }
 
+            // Warn about template attachments that couldn't be transferred
+            if (Array.isArray(attachmentNames) && attachmentNames.length > 0) {
+              missingAttachments.push({ title: challengePayload.title, files: attachmentNames });
+            }
+
             createdCount++;
           }
           if (createdCount > 0) {
             toast.success(`Created ${createdCount} custom challenge(s)`);
+          }
+          if (skippedPasscode > 0) {
+            toast(`${skippedPasscode} passcode challenge(s) were created with a placeholder — open Update Series → Edit to set a new passcode for each.`, { icon: 'ℹ️', duration: 6000 });
+          }
+          if (missingAttachments.length > 0) {
+            const summary = missingAttachments.map(m => `"${m.title}": ${m.files.join(', ')}`).join(' | ');
+            toast(`Attachments can't be transferred via templates — please re-upload: ${summary}`, { icon: '📎', duration: 8000 });
           }
         } catch (error) {
           console.error('Error creating custom challenges:', error);
@@ -258,11 +280,18 @@ const ChallengeConfigModal = ({
 
     const deepMatch = (t) => {
       if (!q) return true;
+      const st = t.settings?.seriesType || 'legacy';
+      const ccCount = t.settings?.customChallenges?.length || 0;
       const parts = [
         t.name || '',
         t.title || '',
         t.sourceClassroom?.name || '',
         t.sourceClassroom?.code || '',
+        st,
+        st === 'mixed' ? 'mixed' : '',
+        st === 'custom' ? 'custom' : '',
+        st === 'legacy' ? 'legacy' : '',
+        ccCount > 0 ? `${ccCount} custom` : '',
         t.createdAt ? new Date(t.createdAt).toLocaleString() : ''
       ].join(' ').toLowerCase();
       return parts.includes(q);
@@ -274,11 +303,15 @@ const ChallengeConfigModal = ({
       const bc = new Date(b.createdAt || 0).getTime();
       const an = (a.name || '');
       const bn = (b.name || '');
+      const ast = a.settings?.seriesType || 'legacy';
+      const bst = b.settings?.seriesType || 'legacy';
       switch (templateSort) {
         case 'createdDesc': return bc - ac;
         case 'createdAsc':  return ac - bc;
         case 'nameAsc':     return an.localeCompare(bn);
         case 'nameDesc':    return bn.localeCompare(an);
+        case 'typeAsc':     return ast.localeCompare(bst) || an.localeCompare(bn);
+        case 'typeDesc':    return bst.localeCompare(ast) || an.localeCompare(bn);
         default: return 0;
       }
     });
@@ -402,7 +435,13 @@ const ChallengeConfigModal = ({
                 >
                   <button
                     className="btn btn-sm btn-primary"
-                    onClick={() => setShowSaveTemplateModal(true)}
+                    onClick={() => {
+                      window.__templateSaveData = {
+                        config: { ...challengeConfig, seriesType },
+                        customChallenges: pendingCustomChallenges
+                      };
+                      setShowSaveTemplateModal(true);
+                    }}
                     type="button"
                   >
                     Save Current Config
@@ -430,6 +469,8 @@ const ChallengeConfigModal = ({
                   <option value="createdAsc">Oldest</option>
                   <option value="nameAsc">Name ↑</option>
                   <option value="nameDesc">Name ↓</option>
+                  <option value="typeAsc">Type ↑</option>
+                  <option value="typeDesc">Type ↓</option>
                 </select>
 
                 {(templates?.length || 0) > 0 && filteredSortedTemplates.length > 0 && (
@@ -447,11 +488,18 @@ const ChallengeConfigModal = ({
 
               {filteredSortedTemplates.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {filteredSortedTemplates.map((template) => (
+                  {filteredSortedTemplates.map((template) => {
+                    const tplType = template.settings?.seriesType || 'legacy';
+                    const ccCount = template.settings?.customChallenges?.length || 0;
+                    const typeBadgeClass = tplType === 'legacy' ? 'badge-ghost' : tplType === 'custom' ? 'badge-success' : 'badge-info';
+                    const typeLabel = tplType === 'legacy' ? 'Legacy' : tplType === 'custom' ? `Custom${ccCount ? ` (${ccCount})` : ''}` : `Mixed${ccCount ? ` (${ccCount} custom)` : ''}`;
+                    return (
                     <div key={template._id} className="flex items-center justify-between bg-base-100 p-3 rounded">
                       <div className="min-w-0">
                         <div className="font-medium break-words">{template.name}</div>
-
+                        <div className="flex items-center gap-1 mt-0.5 mb-0.5">
+                          <span className={`badge badge-xs ${typeBadgeClass}`}>{typeLabel}</span>
+                        </div>
                         <div className="text-xs text-base-content/60 break-words">
                           From: {(template.sourceClassroom?.name || 'Unknown classroom')}
                           {template.sourceClassroom?.code ? ` (${template.sourceClassroom.code})` : ''}
@@ -465,7 +513,19 @@ const ChallengeConfigModal = ({
                       <div className="flex gap-1 flex-shrink-0">
                         <button
                           className="btn btn-xs btn-ghost"
-                          onClick={() => handleLoadTemplate(template, setChallengeConfig)}
+                          onClick={() => {
+                            const result = handleLoadTemplate(template, setChallengeConfig);
+                            const loadedCustomChallenges = result?.customChallenges ?? result ?? [];
+                            const loadedSeriesType = result?.seriesType || null;
+                            if (Array.isArray(loadedCustomChallenges) && loadedCustomChallenges.length > 0) {
+                              setPendingCustomChallenges(loadedCustomChallenges);
+                            }
+                            if (loadedSeriesType) {
+                              setSeriesType(loadedSeriesType);
+                            } else if (loadedCustomChallenges.length > 0) {
+                              setSeriesType(prev => prev === 'legacy' ? 'custom' : prev);
+                            }
+                          }}
                           title="Load template"
                         >
                           Load
@@ -479,7 +539,8 @@ const ChallengeConfigModal = ({
                         </button>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-sm text-base-content/70">
@@ -1012,6 +1073,32 @@ const ChallengeConfigModal = ({
 
               </div>
             ) : (
+              <>
+                <div className="bg-base-200 p-4 rounded-lg mb-4">
+                  <h4 className="font-semibold mb-2">Bit Reward Multipliers</h4>
+                  <p className="text-sm text-gray-500 mb-3">When enabled, bit rewards will be scaled by the student's current multipliers</p>
+                  <div className="flex flex-wrap gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="checkbox checkbox-sm checkbox-primary"
+                        checked={challengeConfig.applyPersonalMultiplier || false}
+                        onChange={(e) => setChallengeConfig(prev => ({ ...prev, applyPersonalMultiplier: e.target.checked }))}
+                      />
+                      <span className="text-sm">Apply Personal Multiplier</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="checkbox checkbox-sm checkbox-primary"
+                        checked={challengeConfig.applyGroupMultiplier || false}
+                        onChange={(e) => setChallengeConfig(prev => ({ ...prev, applyGroupMultiplier: e.target.checked }))}
+                      />
+                      <span className="text-sm">Apply Group Multiplier</span>
+                    </label>
+                  </div>
+                </div>
+
               <div className="overflow-x-auto">
                 <table className="table table-compact w-full min-w-[1000px]">
                   <thead>
@@ -1353,6 +1440,7 @@ const ChallengeConfigModal = ({
                   </tbody>
                 </table>
               </div>
+              </>
             )}
 
           <div className="bg-base-200 p-4 rounded-lg">
