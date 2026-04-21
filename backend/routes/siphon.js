@@ -454,7 +454,7 @@ router.post('/:id/teacher-approve', ensureAuthenticated, async (req, res) => {
       return cb ? cb.balance : (user.balance || 0);
     };
 
-    const targetUser = await User.findById(siphon.targetUser._id).select('balance classroomBalances');
+    const targetUser = await User.findById(siphon.targetUser._id).select('balance classroomBalances firstName lastName email');
     const currentBalance = getClassroomBalance(targetUser, classroomId);
 
     // Use the stored percentage to compute the actual amount now
@@ -480,7 +480,7 @@ router.post('/:id/teacher-approve', ensureAuthenticated, async (req, res) => {
       // Get group and classroom info for notifications
       const group = await Group.findById(siphon.group._id).populate('members._id', '_id status email firstName lastName');
       const classroom = await Classroom.findById(classroomId).select('name teacher');
-      const targetName = `${siphon.targetUser.firstName || ''} ${siphon.targetUser.lastName || ''}`.trim() || siphon.targetUser.email;
+      const targetName = `${targetUser.firstName || ''} ${targetUser.lastName || ''}`.trim() || targetUser.email;
 
       // 1. Notify target
       const targetNotif = await Notification.create({
@@ -573,7 +573,7 @@ router.post('/:id/teacher-approve', ensureAuthenticated, async (req, res) => {
     });
 
     // Create enhanced notifications with more details
-    const targetName = `${siphon.targetUser.firstName || ''} ${siphon.targetUser.lastName || ''}`.trim() || siphon.targetUser.email;
+    const targetName = `${targetUser.firstName || ''} ${targetUser.lastName || ''}`.trim() || targetUser.email;
     const amountPerRecipient = Math.floor(finalSiphonAmount / recipients.length);
     const groupName = siphon.group.name;
     const groupSetName = groupSetInfo?.name || 'Unknown GroupSet';
@@ -668,6 +668,45 @@ router.post('/:id/teacher-approve', ensureAuthenticated, async (req, res) => {
   } catch (err) {
     console.error('Siphon approval error:', err);
     res.status(500).json({ error: 'Approval failed: ' + err.message });
+  }
+});
+
+// GET all siphon history for a classroom (teacher/admin only)
+router.get('/classroom/:classroomId/history', ensureAuthenticated, async (req, res) => {
+  try {
+    const { classroomId } = req.params;
+
+    // Permission: must be teacher or classroom-scoped admin
+    const classroom = await Classroom.findById(classroomId).select('teacher');
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+
+    const isTeacherOfClass = String(classroom.teacher) === String(req.user._id);
+    const isClassAdmin = await isClassroomAdmin(req.user, classroomId);
+    if (!isTeacherOfClass && !isClassAdmin) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const perPage = Math.min(100, Math.max(1, parseInt(req.query.perPage) || 20));
+    const skip = (page - 1) * perPage;
+
+    const [total, siphons] = await Promise.all([
+      SiphonRequest.countDocuments({ classroom: classroomId }),
+      SiphonRequest.find({ classroom: classroomId })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(perPage)
+        .populate('requestedBy', 'firstName lastName email')
+        .populate('targetUser', 'firstName lastName email')
+        .populate('group', 'name')
+        .populate('votes.user', 'firstName lastName email')
+        .lean()
+    ]);
+
+    res.json({ siphons, total, page, perPage });
+  } catch (err) {
+    console.error('Siphon history error:', err);
+    res.status(500).json({ error: 'Failed to load siphon history' });
   }
 });
 

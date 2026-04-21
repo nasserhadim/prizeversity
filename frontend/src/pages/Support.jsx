@@ -355,7 +355,7 @@ const Support = () => {
           answer: [
             "• Items that grant active effects (Attack, Defend, Utility, Discount, etc.) must be redeemed from the Inventory section of the Bazaar.",
             "• Open the Bazaar page, click **Inventory**, find the purchased item and equip/use it to activate its effect.",
-            "• Note that passive items without specified effects, such as extra credit items, should be presented to the teacher or relevant party for redemption."
+            "• Note that passive items without specified effects, such as extra credit items, should be presented to the teacher or relevant party for redemption. Redeeming through the Inventory is only necessary for items with active effects that impact stats or interactions within the system."
           ],
           role: ["student"]
         }
@@ -479,6 +479,25 @@ const Support = () => {
             "**Workaround:** A group member can submit another siphon against the frozen user and then vote NO (majority). This forces the system to unfreeze the account."
           ],
           role: ["all"]
+        },
+        {
+          question: "Are siphon records maintained and accessible for transparency/revision?",
+          answer: [
+            "Yes! Teachers — and Admin/TAs with the **Group Management** permission enabled by the teacher — can view the full siphon history for a classroom.",
+            "",
+            "**To view siphon history:**",
+            "• Go to the **Groups** page within the classroom",
+            "• Look for the **Siphon History** section (visible to teachers and permitted Admin/TAs)",
+            "",
+            "**What siphon history shows:**",
+            "• The targeted (siphoned) member and the group involved",
+            "• Which members voted, and how they voted (Yes/No)",
+            "• The outcome (e.g. approved, rejected, expired, or cancelled)",
+            "• Timestamps for when the request was created and resolved",
+            "",
+            "This gives teachers and Admin/TAs full visibility into group accountability actions and helps monitor for any misuse of the siphon system."
+          ],
+          role: ["teacher", "admin"]
         }
       ]
     },
