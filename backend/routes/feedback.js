@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const Feedback = require('../models/Feedback');
 const Classroom = require('../models/Classroom');
 const ModerationLog = require('../models/ModerationLog');
@@ -535,6 +536,9 @@ router.get('/classroom/:id', async (req, res) => {
     const filter = { classroom: req.params.id };
     if (!includeHidden) filter.hidden = { $ne: true };
 
+    // Aggregate requires an explicit ObjectId cast — mongoose does NOT auto-cast in aggregate $match
+    const aggregateFilter = { ...filter, classroom: new mongoose.Types.ObjectId(req.params.id) };
+
     const [total, feedbacks, countsRaw] = await Promise.all([
       Feedback.countDocuments(filter),
       Feedback.find(filter)
@@ -543,7 +547,7 @@ router.get('/classroom/:id', async (req, res) => {
         .limit(perPage)
         .populate('userId', 'firstName lastName email'),
       Feedback.aggregate([
-        { $match: filter },
+        { $match: aggregateFilter },
         { $group: { _id: '$rating', count: { $sum: 1 } } }
       ])
     ]);
