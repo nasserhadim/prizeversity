@@ -13,6 +13,7 @@ export default function ModerationLog({ classroomId = null }) {
   const perPage = 20;
   const [total, setTotal] = useState(0);
   const [classroomMeta, setClassroomMeta] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const fetchLogs = async (p = 1) => {
     try {
@@ -132,6 +133,21 @@ export default function ModerationLog({ classroomId = null }) {
     return s.length <= 16 ? s : `${s.slice(0,6)}…${s.slice(-6)}`;
   };
 
+  const filteredLogs = React.useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return logs;
+    return logs.filter(l => {
+      const action = (l.action || '').toLowerCase();
+      const reason = (l.reason || '').toLowerCase();
+      const comment = (l.feedback?.comment || '').toLowerCase();
+      const reporter = (l.reporterEmail || '').toLowerCase();
+      const moderator = l.moderator
+        ? `${l.moderator.firstName || ''} ${l.moderator.lastName || ''}`.trim().toLowerCase()
+        : '';
+      return action.includes(q) || reason.includes(q) || comment.includes(q) || reporter.includes(q) || moderator.includes(q);
+    });
+  }, [logs, searchQuery]);
+
   if (!user || !(user.role === 'teacher' || user.role === 'admin' || classroomId === null)) {
     // teachers can view classroom logs for their classroom; admins can view site logs
   }
@@ -162,11 +178,18 @@ export default function ModerationLog({ classroomId = null }) {
           })()}
         </div>
       </div>
-      {logs.length === 0 ? (
-        <div className="text-sm text-gray-500">No moderation entries.</div>
+      <input
+        type="text"
+        className="input input-sm input-bordered w-full mb-3"
+        placeholder="Search by action, reason, comment, reporter, or moderator..."
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+      />
+      {filteredLogs.length === 0 ? (
+        <div className="text-sm text-gray-500">{logs.length === 0 ? 'No moderation entries.' : 'No entries match your search.'}</div>
       ) : (
         <div className="space-y-3">
-          {logs.map(l => (
+          {filteredLogs.map(l => (
             <div key={l._id} className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1">
               <div className="min-w-0">
                 <div className="text-xs text-base-content/60">{new Date(l.createdAt).toLocaleString()}</div>

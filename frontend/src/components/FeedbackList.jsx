@@ -19,15 +19,26 @@ export default function FeedbackList({
   // Rating-distribution removed from list level; page renders it (so the bars span full page width).
 
   const [sortBy, setSortBy] = useState('newest'); // newest | highest | lowest | oldest
+  const [searchQuery, setSearchQuery] = useState('');
 
   const sorted = useMemo(() => {
-    const copy = [...list];
+    const q = searchQuery.trim().toLowerCase();
+    const filtered = q
+      ? list.filter(f => {
+          const comment = (f.comment || '').toLowerCase();
+          const author = f.userId
+            ? `${f.userId.firstName || ''} ${f.userId.lastName || ''}`.trim().toLowerCase()
+            : '';
+          return comment.includes(q) || author.includes(q);
+        })
+      : list;
+    const copy = [...filtered];
     if (sortBy === 'highest') return copy.sort((a, b) => b.rating - a.rating || (new Date(b.createdAt) - new Date(a.createdAt)));
     if (sortBy === 'lowest') return copy.sort((a, b) => a.rating - b.rating || (new Date(b.createdAt) - new Date(a.createdAt)));
     if (sortBy === 'oldest') return copy.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
     // default newest
     return copy.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  }, [list, sortBy]);
+  }, [list, sortBy, searchQuery]);
 
   if (!list || list.length === 0) {
     return <div className="text-center text-base-content/60 py-4">No feedback yet.</div>;
@@ -66,20 +77,33 @@ export default function FeedbackList({
   return (
     <div>
       {/* distribution moved to page components */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-sm text-base-content/60">
-          {typeof total === 'number' ? `Showing ${list.length} of ${total}` : `Showing ${list.length}`}
+      <div className="flex flex-col gap-2 mb-3">
+        <input
+          type="text"
+          className="input input-sm input-bordered w-full"
+          placeholder="Search feedback by comment or author..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-base-content/60">
+            {typeof total === 'number'
+              ? searchQuery.trim()
+                ? `${sorted.length} match${sorted.length !== 1 ? 'es' : ''} (${total} total)`
+                : `Showing ${list.length} of ${total}`
+              : `Showing ${sorted.length}`}
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-base-content/60">Sort</label>
+            <select className="select select-sm select-bordered" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
+              <option value="highest">Highest rating</option>
+              <option value="lowest">Lowest rating</option>
+            </select>
+          </div>
         </div>
-         <div className="flex items-center gap-2">
-           <label className="text-sm text-base-content/60">Sort</label>
-           <select className="select select-sm select-bordered" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-             <option value="newest">Newest</option>
-             <option value="oldest">Oldest</option>
-             <option value="highest">Highest rating</option>
-             <option value="lowest">Lowest rating</option>
-           </select>
-         </div>
-       </div>
+      </div>
  
      <ul className="space-y-4">
        {sorted.map((f, idx) => (
