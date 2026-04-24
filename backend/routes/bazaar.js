@@ -9,7 +9,7 @@ const { ensureAuthenticated } = require('../config/auth');
 const router = express.Router();
 const Order = require('../models/Order');
 const blockIfFrozen = require('../middleware/blockIfFrozen');
-const { getScopedUserStats } = require('../utils/classroomStats'); // ADD
+const { getScopedUserStats, isClassroomAdmin } = require('../utils/classroomStats'); // ADD
 const upload = require('../middleware/upload'); // reuse existing upload middleware
 
 // Middleware: Only teachers allowed for certain actions
@@ -973,9 +973,13 @@ router.get('/user/:userId/balance', async (req, res) => {
 router.get('/orders/user/:userId', ensureAuthenticated, async (req, res) => {
   try {
     const { userId } = req.params;
+    const { classroomId } = req.query;
 
-    // Only the user themself, teachers, or admins may proceed
-    if (req.user._id.toString() !== userId && !['teacher', 'admin'].includes(req.user.role)) {
+    // Determine if the requester is a classroom-scoped admin/TA
+    const isClassAdmin = classroomId ? await isClassroomAdmin(req.user, classroomId) : false;
+
+    // Only the user themself, teachers, global admins, or classroom-scoped admin/TA may proceed
+    if (req.user._id.toString() !== userId && !['teacher', 'admin'].includes(req.user.role) && !isClassAdmin) {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
@@ -1043,6 +1047,32 @@ router.get('/orders/user/:userId', ensureAuthenticated, async (req, res) => {
            return classroomId && adminClassroomIds.some(acId => acId.equals(classroomId));
          })
        );
+
+    // CLASSROOM ADMIN/TA: allow viewing only orders from the specific classroom
+    } else if (isClassAdmin && req.user._id.toString() !== userId) {
+      const mongoose = require('mongoose');
+      const classroomObjId = new mongoose.Types.ObjectId(classroomId);
+
+      const allOrders = await Order.find({ user: userId })
+        .populate('items')
+        .populate({
+          path: 'items',
+          populate: {
+            path: 'bazaar',
+            populate: {
+              path: 'classroom',
+              select: '_id name code'
+            }
+          }
+        })
+        .sort({ createdAt: -1 });
+
+      orders = allOrders.filter(order =>
+        order.items.some(item => {
+          const cId = item.bazaar?.classroom?._id;
+          return cId && cId.equals(classroomObjId);
+        })
+      );
 
      } else {
       // Self (student) or admin/teacher viewing own orders: return all orders for that user

@@ -64,6 +64,8 @@ export default function Profile() {
   const [sortField, setSortField] = useState('date');
   const [sortDirection, setSortDirection] = useState('desc');
   const [stats, setStats] = useState({});
+  // Whether the currently logged-in user is a classroom-scoped admin/TA for this classroom
+  const [isViewerClassroomAdmin, setIsViewerClassroomAdmin] = useState(false);
 
   // Edit profile state (restore edit/avatar functionality)
   const [editing, setEditing] = useState(false);
@@ -180,6 +182,26 @@ export default function Profile() {
     return () => { mounted = false; };
   }, [profile, classroomId, profileId]);
 
+  // Detect whether the currently logged-in user is a classroom-scoped admin/TA
+  useEffect(() => {
+    if (!classroomId || !user) { setIsViewerClassroomAdmin(false); return; }
+    // Teachers are implicitly allowed; no need for extra check
+    if (user.role === 'teacher') { setIsViewerClassroomAdmin(false); return; }
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await axios.get(`/api/classroom/${classroomId}/students`, { withCredentials: true });
+        if (!mounted) return;
+        const students = Array.isArray(res.data) ? res.data : [];
+        const me = students.find(s => String(s._id) === String(user._id));
+        setIsViewerClassroomAdmin(!!(me?.isClassroomAdmin));
+      } catch {
+        if (mounted) setIsViewerClassroomAdmin(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [classroomId, user]);
+
   // Added new useEffect to fetch the stats into a table.
   useEffect(() => {
       // Allow teachers and classroom-scoped Admin/TAs to view a student's purchase history
@@ -187,16 +209,19 @@ export default function Profile() {
         let allowed = false;
         if (user?.role === 'teacher') allowed = true;
         else if (user?.role === 'admin') {
-          // Allow admin to request orders; server will only return orders from classrooms
-          // where the admin is authorized (per-classroom admins). This lets the UI show
-          // the same "All Classrooms" behavior but scoped server-side.
+          // Allow global admin to request orders; server will filter by authorized classrooms
+          allowed = true;
+        } else if (isViewerClassroomAdmin && classroomId) {
+          // Classroom-scoped admin/TA: allowed for this specific classroom
           allowed = true;
         }
         if (allowed && profile?.role === 'student') {
+          // Pass classroomId for classroom-scoped admin/TA so the server can scope results
+          const url = (isViewerClassroomAdmin && classroomId && user?.role !== 'teacher' && user?.role !== 'admin')
+            ? `/api/bazaar/orders/user/${profileId}?classroomId=${classroomId}`
+            : `/api/bazaar/orders/user/${profileId}`;
           axios
-            .get(`/api/bazaar/orders/user/${profileId}`, {
-              withCredentials: true
-            })
+            .get(url, { withCredentials: true })
             .then(res => {
               // Keep only orders with items (exclude zero‑item mystery-box opens)
               const validOrders = (res.data || []).filter(order => order.items && order.items.length > 0);
@@ -209,7 +234,7 @@ export default function Profile() {
             });
         }
       })();
-   }, [profile, user?.role, profileId, classroomId]);
+   }, [profile, user?.role, profileId, classroomId, isViewerClassroomAdmin]);
 
   // Fetch additional stats about the profile (e.g., balances, activity)
   useEffect(() => {
@@ -793,7 +818,7 @@ export default function Profile() {
                    />
                   </div>
  
-                  {( (user?.role === 'teacher') || (user?.role === 'admin') ) && profile?.role === 'student' && (
+                  {( (user?.role === 'teacher') || (user?.role === 'admin') || isViewerClassroomAdmin ) && profile?.role === 'student' && (
                         <div className="mt-6">
                             <h2 className="text-xl mb-2">
                                 Purchase History {visibleOrders ? `(${visibleOrders.length})` : ''}
