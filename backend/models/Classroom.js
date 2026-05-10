@@ -74,6 +74,13 @@ const ClassroomSchema = new mongoose.Schema({
 
   // Join restriction: when enabled, students entering the code get queued for teacher approval
   joinRestriction: { type: Boolean, default: false },
+  // How long (hours) a rejected student must wait before re-requesting (0 = no cooldown)
+  joinRequestCooldownHours: { type: Number, default: 0, min: 0, max: 720 },
+  // Per-student cooldown records: set when a request is rejected, cleared when cooldown expires
+  joinCooldowns: [{
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    until: { type: Date, required: true }
+  }],
   pendingMembers: [{
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     requestedAt: { type: Date, default: Date.now }

@@ -1021,11 +1021,21 @@ const Support = () => {
         {
           question: "Can I re-request to join after being rejected?",
           answer: [
-            "• Yes — entering the classroom code again will submit a new pending request.",
-            "• The teacher will see it appear in the queue and can approve or reject it again.",
-            "• There is no cooldown or automatic block after a rejection."
+            "• Yes — entering the classroom code again will submit a new pending request, as long as you are not in a cooldown period.",
+            "• If the teacher has set a cooldown, you will see an error message telling you exactly how many hours remain before you can request again.",
+            "• Once the cooldown expires, simply enter the code to submit a new request."
           ],
           role: ["student"]
+        },
+        {
+          question: "What is the Join Request Cooldown?",
+          answer: [
+            "• Teachers can set a cooldown period (in hours) so that rejected students cannot immediately spam new join requests.",
+            "• The setting is found in People → Settings → General → **Join Request Cooldown** (visible only when join restriction is enabled).",
+            "• Set it to **0** (default) to allow students to re-request immediately after rejection.",
+            "• The maximum cooldown is 720 hours (30 days). Approving a student clears their cooldown automatically."
+          ],
+          role: ["teacher"]
         }
       ]
     },

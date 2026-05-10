@@ -180,6 +180,26 @@ router.post('/join', ensureAuthenticated, async (req, res) => {
         return res.status(400).json({ error: 'You already have a pending join request for this classroom', status: 'pending' });
       }
 
+      // Check cooldown (only if cooldownHours > 0)
+      const cooldownHours = classroom.joinRequestCooldownHours || 0;
+      if (cooldownHours > 0) {
+        const now = new Date();
+        const cooldownEntry = (classroom.joinCooldowns || []).find(
+          c => String(c.user) === String(req.user._id) && c.until > now
+        );
+        if (cooldownEntry) {
+          return res.status(429).json({
+            error: `Your join request was recently rejected. Please wait until your cooldown expires before requesting again.`,
+            status: 'cooldown',
+            until: cooldownEntry.until
+          });
+        }
+        // Prune expired cooldown entries for this user
+        classroom.joinCooldowns = (classroom.joinCooldowns || []).filter(
+          c => !(String(c.user) === String(req.user._id) && c.until <= now)
+        );
+      }
+
       classroom.pendingMembers.push({ user: req.user._id, requestedAt: new Date() });
       await classroom.save();
 
@@ -495,6 +515,14 @@ router.post('/:id/pending-members/bulk-approve', ensureAuthenticated, async (req
 
     const now = new Date();
 
+    // Note: approval clears any existing cooldown for these users
+    if (toApprove.length > 0) {
+      await Classroom.findByIdAndUpdate(
+        classroom._id,
+        { $pull: { joinCooldowns: { user: { $in: toApprove } } } }
+      );
+    }
+
     // Per-student: initialize balance/joinDate, send notifications
     for (const userId of toApprove) {
       try {
@@ -583,6 +611,18 @@ router.post('/:id/pending-members/:userId/reject', ensureAuthenticated, async (r
     }
 
     classroom.pendingMembers.splice(pendingIndex, 1);
+
+    // Apply cooldown if configured
+    const cooldownHours = classroom.joinRequestCooldownHours || 0;
+    if (cooldownHours > 0) {
+      const until = new Date(Date.now() + cooldownHours * 60 * 60 * 1000);
+      // Remove any existing (expired) entry for this user then add a fresh one
+      classroom.joinCooldowns = (classroom.joinCooldowns || []).filter(
+        c => String(c.user) !== userId
+      );
+      classroom.joinCooldowns.push({ user: userId, until });
+    }
+
     await classroom.save();
 
     const reasonText = reason ? ` Reason: ${reason}` : '';
@@ -654,6 +694,22 @@ router.post('/:id/pending-members/bulk-reject', ensureAuthenticated, async (req,
       { $pull: { pendingMembers: { user: { $in: toReject } } } },
       { new: true }
     );
+
+    // Apply cooldown if configured
+    const cooldownHours = classroom.joinRequestCooldownHours || 0;
+    if (cooldownHours > 0) {
+      const until = new Date(Date.now() + cooldownHours * 60 * 60 * 1000);
+      // Remove stale entries then add fresh ones for each rejected user
+      await Classroom.findByIdAndUpdate(
+        classroom._id,
+        { $pull: { joinCooldowns: { user: { $in: toReject } } } }
+      );
+      const cooldownDocs = toReject.map(uid => ({ user: uid, until }));
+      await Classroom.findByIdAndUpdate(
+        classroom._id,
+        { $push: { joinCooldowns: { $each: cooldownDocs } } }
+      );
+    }
 
     const reasonText = reason ? ` Reason: ${reason}` : '';
 
@@ -1515,6 +1571,39 @@ router.get('/:id/siphon-timeout', ensureAuthenticated, async (req, res) => {
   } catch (err) {
     console.error('[Get Siphon Timeout] error:', err);
     res.status(500).json({ error: 'Failed to get siphon timeout' });
+  }
+});
+
+// Update join request cooldown setting (teacher only)
+router.post('/:id/join-request-cooldown', ensureAuthenticated, async (req, res) => {
+  try {
+    const classroom = await Classroom.findById(req.params.id);
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+    if (classroom.teacher.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Only the teacher can update this setting' });
+    }
+    const hours = parseInt(req.body.joinRequestCooldownHours, 10);
+    if (isNaN(hours) || hours < 0 || hours > 720) {
+      return res.status(400).json({ error: 'Cooldown must be between 0 and 720 hours' });
+    }
+    classroom.joinRequestCooldownHours = hours;
+    await classroom.save();
+    res.json({ joinRequestCooldownHours: hours });
+  } catch (err) {
+    console.error('[Update join-request-cooldown] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get join request cooldown setting
+router.get('/:id/join-request-cooldown', ensureAuthenticated, async (req, res) => {
+  try {
+    const classroom = await Classroom.findById(req.params.id).select('joinRequestCooldownHours');
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+    res.json({ joinRequestCooldownHours: classroom.joinRequestCooldownHours ?? 0 });
+  } catch (err) {
+    console.error('[Get join-request-cooldown] error:', err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 

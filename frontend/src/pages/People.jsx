@@ -474,6 +474,7 @@ const People = () => {
   const [sortOption, setSortOption] = useState('default');
   const [roleFilter, setRoleFilter] = useState('all'); // Add role filter state
   const [siphonTimeoutHours, setSiphonTimeoutHours] = useState(72);
+  const [joinRequestCooldownHours, setJoinRequestCooldownHours] = useState(0);
   const [showUnassigned, setShowUnassigned] = useState(false);
   const [unassignedSearch, setUnassignedSearch] = useState('');
   const [groupSearch, setGroupSearch] = useState(''); // New state for group search
@@ -684,6 +685,19 @@ const People = () => {
     }
   };
 
+  const fetchJoinRequestCooldown = async () => {
+    try {
+      const res = await axios.get(
+        `/api/classroom/${classroomId}/join-request-cooldown`,
+        { withCredentials: true }
+      );
+      setJoinRequestCooldownHours(res.data.joinRequestCooldownHours ?? 0);
+    } catch (err) {
+      console.error('Failed to fetch join request cooldown', err);
+      setJoinRequestCooldownHours(0);
+    }
+  };
+
   // Fetch Admin/TA bit sending policy for classroom
   const fetchTaBitPolicy = async () => {
     try {
@@ -825,6 +839,7 @@ const People = () => {
     fetchTaFeedbackPolicy(); // NEW
     fetchTaStatsPolicy(); // NEW
     fetchSiphonTimeout();
+    fetchJoinRequestCooldown();
     fetchStatChanges({ page: 1, append: false });
     fetchActivityData(); // NEW: fetch session activity
 
@@ -2046,6 +2061,46 @@ const visibleCount = filteredStudents.length;
                     </span>
                   </div>
                 </label>
+
+                {/* Join request cooldown — only relevant when join restriction is on */}
+                {joinRestriction && (
+                  <label className="form-control w-full">
+                    <span className="label-text mb-2 font-medium">Join Request Cooldown</span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="0"
+                        max="720"
+                        className="input input-bordered w-24"
+                        value={joinRequestCooldownHours}
+                        onChange={async (e) => {
+                          const hours = parseInt(e.target.value, 10);
+                          if (isNaN(hours) || hours < 0 || hours > 720) {
+                            toast.error('Cooldown must be between 0 and 720 hours');
+                            return;
+                          }
+                          try {
+                            await axios.post(
+                              `/api/classroom/${classroomId}/join-request-cooldown`,
+                              { joinRequestCooldownHours: hours },
+                              { withCredentials: true }
+                            );
+                            toast.success('Join request cooldown updated');
+                            setJoinRequestCooldownHours(hours);
+                          } catch (err) {
+                            toast.error(err.response?.data?.error || 'Failed to update cooldown');
+                          }
+                        }}
+                      />
+                      <span className="label-text">hours</span>
+                    </div>
+                    <div className="label">
+                      <span className="label-text-alt">
+                        After a student's request is rejected, they must wait this long before requesting again. Set to 0 to allow immediate re-requests.
+                      </span>
+                    </div>
+                  </label>
+                )}
 
                 <label className="form-control w-full">
                   <span className="label-text mb-2 font-medium">Student-to-student bit transfers</span>
