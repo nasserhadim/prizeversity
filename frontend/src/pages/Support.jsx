@@ -24,7 +24,8 @@ import {
   Archive,
   Target,
   Shield,
-  Plug
+  Plug,
+  Clock
 } from 'lucide-react';
 import Footer from '../components/Footer';
 
@@ -955,6 +956,76 @@ const Support = () => {
             "• Useful for longitudinal analysis or administrator reviews."
           ],
           role: ["teacher","admin"]
+        }
+      ]
+    },
+    {
+      category: "Join Approval Queue",
+      icon: <Clock size={20} />,
+      questions: [
+        {
+          question: "What is the Join Approval Queue?",
+          answer: [
+            "• When a teacher enables **Require approval to join classroom** (in Settings → General), students who enter the classroom code are not added immediately.",
+            "• Instead, their request is placed in a pending queue and the teacher must approve or reject it before the student gains access.",
+            "• This gives teachers full control over who enters the classroom."
+          ],
+          role: ["teacher", "student"]
+        },
+        {
+          question: "How do I enable or disable join approval as a teacher?",
+          answer: [
+            "• Go to the classroom's **People** page → **Settings** tab → **General** section.",
+            "• Toggle **Require approval to join classroom** on or off.",
+            "• When toggled off while students are in the queue, all pending requests are automatically approved so no one is left in limbo."
+          ],
+          role: ["teacher"]
+        },
+        {
+          question: "How do I approve or reject pending join requests?",
+          answer: [
+            "• Open the classroom **People** page → **Everyone** tab.",
+            "• If the approval queue is active, a **Pending Join Requests** panel appears at the top showing all waiting students.",
+            "• Click **Approve** or **Reject** next to an individual student, or use the checkboxes to select multiple and use the **Approve Selected** / **Reject Selected** bulk action buttons.",
+            "• When rejecting, you can optionally enter a reason — the student will see it in their notification."
+          ],
+          role: ["teacher"]
+        },
+        {
+          question: "Can I search or sort the pending requests list?",
+          answer: [
+            "• Yes — the pending panel has a **search bar** to filter by name or email.",
+            "• You can also sort by **Newest first**, **Oldest first**, or **Name (A→Z)**.",
+            "• If there are many requests, the list is paginated (8 per page) with previous/next controls."
+          ],
+          role: ["teacher"]
+        },
+        {
+          question: "What happens when a student submits a join request?",
+          answer: [
+            "• The student sees a toast confirmation: *'Join request sent! Waiting for teacher approval.'*",
+            "• A notification is also saved to the student's notification bell so they can track the request later.",
+            "• The teacher receives an instant notification and the pending panel updates in real-time."
+          ],
+          role: ["teacher", "student"]
+        },
+        {
+          question: "How will I know if my join request was approved or rejected?",
+          answer: [
+            "• You will receive a notification in your notification bell.",
+            "• **Approved**: the classroom will appear in your classroom list and you can access it immediately.",
+            "• **Rejected**: the notification will include the teacher's reason (if one was provided). You may re-request by entering the code again, subject to the teacher's discretion."
+          ],
+          role: ["student"]
+        },
+        {
+          question: "Can I re-request to join after being rejected?",
+          answer: [
+            "• Yes — entering the classroom code again will submit a new pending request.",
+            "• The teacher will see it appear in the queue and can approve or reject it again.",
+            "• There is no cooldown or automatic block after a rejection."
+          ],
+          role: ["student"]
         }
       ]
     },
