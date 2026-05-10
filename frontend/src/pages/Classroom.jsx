@@ -19,7 +19,7 @@ const socket = io(); // no "/api" needed here
 
 const Classroom = () => {
   const { id } = useParams();
-  const { user } = useAuth();
+  const { user, originalUser } = useAuth();
   const navigate = useNavigate();
   const BACKEND_URL = `${API_BASE}`;
 
@@ -378,7 +378,7 @@ const Classroom = () => {
           )}
 
           {/* Student "Leave Classroom" button */}
-          {user.role !== 'teacher' && (
+          {user.role !== 'teacher' && originalUser?.role !== 'teacher' && (
             <div className="my-4">
               <button
                 className="btn btn-warning btn-sm"

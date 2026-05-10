@@ -10,7 +10,7 @@ import Footer from '../components/Footer';
 
 export default function ClassroomSettings() {
     const { id } = useParams();
-    const { user } = useAuth();
+    const { user, originalUser } = useAuth();
     const navigate = useNavigate();
 
     const [classroom, setClassroom] = useState(null);
@@ -301,7 +301,7 @@ export default function ClassroomSettings() {
                 )}
 
                 <div className="flex flex-wrap gap-2 justify-center w-full">
-                    {user.role !== 'teacher' && (
+                    {user.role !== 'teacher' && originalUser?.role !== 'teacher' && (
                         <button className="btn btn-warning" onClick={handleLeave}>
                             Leave Classroom
                         </button>
