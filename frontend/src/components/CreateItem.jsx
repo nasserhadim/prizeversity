@@ -485,15 +485,36 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                className="file-input file-input-bordered w-full max-w-xs"
              />
              <p className="text-xs text-gray-500">Allowed: jpg, png, webp, gif. Max: 5 MB.</p>
+             {imageFile && (
+               <div className="mt-2">
+                 <img
+                   src={URL.createObjectURL(imageFile)}
+                   alt="Preview"
+                   className="w-24 h-24 object-cover rounded border"
+                 />
+               </div>
+             )}
            </>
          ) : (
-           <input
-             type="url"
-             placeholder="https://example.com/item.jpg"
-             className="input input-bordered w-full"
-             value={imageUrlLocal}
-             onChange={(e) => setImageUrlLocal(e.target.value)}
-           />
+           <>
+             <input
+               type="url"
+               placeholder="https://example.com/item.jpg"
+               className="input input-bordered w-full"
+               value={imageUrlLocal}
+               onChange={(e) => setImageUrlLocal(e.target.value)}
+             />
+             {imageUrlLocal && (
+               <div className="mt-2">
+                 <img
+                   src={imageUrlLocal}
+                   alt="Preview"
+                   className="w-24 h-24 object-cover rounded border"
+                   onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                 />
+               </div>
+             )}
+           </>
          )}
        </div>
  

@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import apiBazaar from '../API/apiBazaar';
 import { Hammer, Plus, Trash2, Info, AlertCircle } from 'lucide-react';
 import { describeEffectFromForm, normalizeSwapOptions } from '../utils/itemHelpers';
+import { resolveImageSrc } from '../utils/image';
 
 const CATEGORY_OPTIONS = {
   Attack: [
@@ -458,21 +459,38 @@ const EditItemModal = ({ open, onClose, item, classroomId, bazaarId, onUpdated }
                 <p className="text-xs text-gray-500 mt-1">
                   Allowed: jpg, png, webp, gif. Max: 5 MB.
                 </p>
-                {imageFile && (
-                  <div className="text-xs mt-1">
-                    Selected: {imageFile.name}{' '}
-                    <button
-                      type="button"
-                      className="link text-error"
-                      onClick={() => {
-                        setImageFile(null);
-                        if (fileInputRef.current) fileInputRef.current.value = '';
-                      }}
-                    >
-                      remove
-                    </button>
+                {imageFile ? (
+                  <div className="mt-2 space-y-1">
+                    <img
+                      src={URL.createObjectURL(imageFile)}
+                      alt="Preview"
+                      className="w-24 h-24 object-cover rounded border"
+                    />
+                    <div className="text-xs">
+                      Selected: {imageFile.name}{' '}
+                      <button
+                        type="button"
+                        className="link text-error"
+                        onClick={() => {
+                          setImageFile(null);
+                          if (fileInputRef.current) fileInputRef.current.value = '';
+                        }}
+                      >
+                        remove
+                      </button>
+                    </div>
                   </div>
-                )}
+                ) : form.image ? (
+                  <div className="mt-2">
+                    <p className="text-xs text-base-content/60 mb-1">Current image:</p>
+                    <img
+                      src={resolveImageSrc(form.image)}
+                      alt="Current"
+                      className="w-24 h-24 object-cover rounded border"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                  </div>
+                ) : null}
               </>
             ) : (
               <>
@@ -486,6 +504,16 @@ const EditItemModal = ({ open, onClose, item, classroomId, bazaarId, onUpdated }
                 <p className="text-xs text-gray-500 mt-1">
                   Use a direct image URL (jpg, png, webp, gif). Recommended size ≤ 5 MB.
                 </p>
+                {imageUrlLocal && (
+                  <div className="mt-2">
+                    <img
+                      src={imageUrlLocal}
+                      alt="Preview"
+                      className="w-24 h-24 object-cover rounded border"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                  </div>
+                )}
               </>
             )}
           </div>
