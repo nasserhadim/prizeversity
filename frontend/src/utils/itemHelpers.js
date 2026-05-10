@@ -1,3 +1,10 @@
+const joinWithOr = (arr) => {
+  if (!arr || arr.length === 0) return '';
+  if (arr.length === 1) return arr[0];
+  if (arr.length === 2) return `${arr[0]} or ${arr[1]}`;
+  return `${arr.slice(0, -1).join(', ')}, or ${arr[arr.length - 1]}`;
+};
+
 export const getEffectDescription = (item) => {
   if (!item) return '';
   const swapOpts = normalizeSwapOptions(item.swapOptions) || ['bits', 'multiplier', 'luck'];
@@ -18,10 +25,10 @@ export const getEffectDescription = (item) => {
   // Attack
   if (item.category === 'Attack') {
     if (item.primaryEffect === 'swapper') {
-      return `Swaps attributes with target (${swapOpts.join(', ')})`;
+      return `Swaps attributes with target (${joinWithOr(swapOpts)})`;
     }
     if (item.primaryEffect === 'nullify') {
-      return `Resets target's ${swapOpts.join(', ')} to default`;
+      return `Resets target's ${joinWithOr(swapOpts)} to default`;
     }
     if (item.primaryEffect === 'halveBits') {
       const pct = item.primaryEffectValue || 50;
@@ -162,9 +169,9 @@ export const describeEffectFromForm = (form) => {
     const swapOpts = form.swapOptions && form.swapOptions.length > 0 ? form.swapOptions : ['bits', 'multiplier', 'luck'];
     
     if (form.primaryEffect === 'swapper') {
-      primary = `Swaps attributes with target (${swapOpts.join(', ')})`;
+      primary = `Swaps attributes with target (${joinWithOr(swapOpts)})`;
     } else if (form.primaryEffect === 'nullify') {
-      primary = `Resets target's ${swapOpts.join(', ')} to default`;
+      primary = `Resets target's ${joinWithOr(swapOpts)} to default`;
     } else if (form.primaryEffect === 'halveBits') {
       const pct = form.primaryEffectValue || 50;
       primary = `Removes ${pct}% of target bits`;
