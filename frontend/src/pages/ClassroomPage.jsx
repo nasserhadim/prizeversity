@@ -216,6 +216,14 @@ export default function ClassroomPage() {
     try {
       // POST to join classroom endpoint
       const res = await axios.post('/api/classroom/join', { code: code });
+
+      // Pending queue: teacher has join restriction enabled
+      if (res.data.status === 'pending') {
+        toast.success('Join request sent! Waiting for teacher approval.', { duration: 4000 });
+        setJoinClassroomCode('');
+        return;
+      }
+
       toast.success('Joined classroom!', { duration: 800 });
       
       // Reset join code input
@@ -226,6 +234,11 @@ export default function ClassroomPage() {
       
     } catch (err) {
       console.error(err);
+      // Show pending-specific message on 400 with pending status
+      if (err.response?.data?.status === 'pending') {
+        toast('You already have a pending join request for this classroom.', { icon: '⏳' });
+        return;
+      }
       toast.error(err.response?.data?.error || 'Error joining classroom');
     }
   };

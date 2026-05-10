@@ -230,6 +230,10 @@ const People = () => {
   const [taStatsPolicy, setTaStatsPolicy] = useState('none'); // NEW
   const [studentsCanViewStats, setStudentsCanViewStats] = useState(true);
 
+  // Join restriction state
+  const [joinRestriction, setJoinRestriction] = useState(false);
+  const [pendingMembers, setPendingMembers] = useState([]);
+
   // NEW: Settings sub-tabs + pending count badge
   const [settingsSubTab, setSettingsSubTab] = useState('general'); // 'general' | 'ta-requests'
   const [taRequestCount, setTaRequestCount] = useState(0);
@@ -313,6 +317,151 @@ const People = () => {
     if (isClassroomAdmin && taStatsPolicy === 'full') return true;
     return false;
   }, [user?._id, isTeacher, isClassroomAdmin, taStatsPolicy]);
+
+  // ── Pending join requests UI state ───────────────────────────────────────────
+  const [pendingSearch, setPendingSearch] = useState('');
+  const [pendingSort, setPendingSort] = useState('newest'); // 'newest' | 'oldest' | 'name'
+  const [pendingPage, setPendingPage] = useState(1);
+  const PENDING_PAGE_SIZE = 8;
+  const [selectedPending, setSelectedPending] = useState(new Set());
+  const [rejectModal, setRejectModal] = useState({ open: false, targets: [] }); // targets: [{userId, name}]
+  const [rejectReason, setRejectReason] = useState('');
+  const [pendingBulkProcessing, setPendingBulkProcessing] = useState(false);
+
+  const filteredPending = React.useMemo(() => {
+    const q = (pendingSearch || '').trim().toLowerCase();
+    let items = (pendingMembers || []).slice();
+    if (q) {
+      items = items.filter(pm => {
+        const u = pm.user || {};
+        return [u.firstName, u.lastName, u.email].filter(Boolean).join(' ').toLowerCase().includes(q);
+      });
+    }
+    items.sort((a, b) => {
+      if (pendingSort === 'name') {
+        const an = [a.user?.firstName, a.user?.lastName].filter(Boolean).join(' ').toLowerCase();
+        const bn = [b.user?.firstName, b.user?.lastName].filter(Boolean).join(' ').toLowerCase();
+        return an.localeCompare(bn);
+      }
+      const at = new Date(a.requestedAt || 0).getTime();
+      const bt = new Date(b.requestedAt || 0).getTime();
+      return pendingSort === 'oldest' ? at - bt : bt - at;
+    });
+    return items;
+  }, [pendingMembers, pendingSearch, pendingSort]);
+
+  const pendingTotalPages = Math.max(1, Math.ceil(filteredPending.length / PENDING_PAGE_SIZE));
+  const paginatedPending = filteredPending.slice(
+    (pendingPage - 1) * PENDING_PAGE_SIZE,
+    pendingPage * PENDING_PAGE_SIZE
+  );
+  const allVisiblePendingSelected =
+    paginatedPending.length > 0 &&
+    paginatedPending.every(pm => selectedPending.has(String(pm.user?._id || pm.user)));
+
+  const togglePendingSelect = (uid) => {
+    setSelectedPending(prev => {
+      const next = new Set(prev);
+      if (next.has(uid)) next.delete(uid); else next.add(uid);
+      return next;
+    });
+  };
+  const toggleAllPendingVisible = () => {
+    setSelectedPending(prev => {
+      const next = new Set(prev);
+      if (allVisiblePendingSelected) {
+        paginatedPending.forEach(pm => next.delete(String(pm.user?._id || pm.user)));
+      } else {
+        paginatedPending.forEach(pm => next.add(String(pm.user?._id || pm.user)));
+      }
+      return next;
+    });
+  };
+
+  const openRejectModal = (targets) => {
+    setRejectReason('');
+    setRejectModal({ open: true, targets });
+  };
+
+  const doApproveOne = async (userId, name) => {
+    await axios.post(`/api/classroom/${classroomId}/pending-members/${userId}/approve`, {}, { withCredentials: true });
+    setPendingMembers(prev => prev.filter(p => String(p.user?._id || p.user) !== userId));
+    setSelectedPending(prev => { const n = new Set(prev); n.delete(userId); return n; });
+    await fetchStudents();
+    toast.success(`${name} approved!`);
+  };
+
+  const doRejectOne = async (userId, reason) => {
+    await axios.post(`/api/classroom/${classroomId}/pending-members/${userId}/reject`, { reason }, { withCredentials: true });
+    setPendingMembers(prev => prev.filter(p => String(p.user?._id || p.user) !== userId));
+    setSelectedPending(prev => { const n = new Set(prev); n.delete(userId); return n; });
+  };
+
+  const submitRejectModal = async () => {
+    const reason = rejectReason;
+    const targets = rejectModal.targets;
+    setPendingBulkProcessing(true);
+    try {
+      if (targets.length === 1) {
+        // Single reject — use existing per-user route
+        await doRejectOne(targets[0].userId, reason);
+        toast.success('Request rejected');
+      } else {
+        // Bulk reject — single atomic backend call to avoid Mongoose VersionError
+        const userIds = targets.map(t => t.userId);
+        await axios.post(
+          `/api/classroom/${classroomId}/pending-members/bulk-reject`,
+          { userIds, reason },
+          { withCredentials: true }
+        );
+        // Sync local state: remove all rejected from pendingMembers + selectedPending
+        setPendingMembers(prev => prev.filter(pm => !userIds.includes(String(pm.user?._id || pm.user))));
+        setSelectedPending(prev => {
+          const next = new Set(prev);
+          userIds.forEach(id => next.delete(id));
+          return next;
+        });
+        toast.success(`Rejected ${targets.length} requests`);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to reject request(s)');
+    } finally {
+      setRejectModal({ open: false, targets: [] });
+      setPendingBulkProcessing(false);
+    }
+  };
+
+  const bulkApprovePending = async () => {
+    const toApprove = filteredPending.filter(pm => selectedPending.has(String(pm.user?._id || pm.user)));
+    if (!toApprove.length) return;
+    setPendingBulkProcessing(true);
+    try {
+      if (toApprove.length === 1) {
+        // Single approve — use existing per-user route
+        const u = toApprove[0].user || {};
+        const name = [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email || 'Unknown';
+        await doApproveOne(String(u._id), name);
+      } else {
+        // Bulk approve — single atomic backend call to avoid Mongoose VersionError
+        const userIds = toApprove.map(pm => String(pm.user?._id || pm.user));
+        await axios.post(
+          `/api/classroom/${classroomId}/pending-members/bulk-approve`,
+          { userIds },
+          { withCredentials: true }
+        );
+        // Sync local state
+        setPendingMembers(prev => prev.filter(pm => !userIds.includes(String(pm.user?._id || pm.user))));
+        setSelectedPending(new Set());
+        await fetchStudents();
+        toast.success(`Approved ${toApprove.length} requests`);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to approve request(s)');
+    } finally {
+      setPendingBulkProcessing(false);
+    }
+  };
+  // ─────────────────────────────────────────────────────────────────────────────
 
   // Map of studentId -> total spent (number)
   const [totalSpentMap, setTotalSpentMap] = useState({});
@@ -514,6 +663,8 @@ const People = () => {
       });
       setClassroom(res.data);
       setStudentsCanViewStats(res.data.studentsCanViewStats !== false); // Default to true if not set
+      setJoinRestriction(!!res.data.joinRestriction);
+      setPendingMembers(res.data.pendingMembers || []);
     } catch (err) {
       console.error('Failed to fetch classroom', err);
     }
@@ -711,6 +862,12 @@ const People = () => {
           // Update the entire classroom object and the specific setting state from the socket payload.
           setClassroom(prev => ({ ...prev, ...updatedClassroom }));
           setStudentsCanViewStats(updatedClassroom.studentsCanViewStats !== false);
+          if (typeof updatedClassroom.joinRestriction === 'boolean') {
+            setJoinRestriction(updatedClassroom.joinRestriction);
+          }
+          if (Array.isArray(updatedClassroom.pendingMembers)) {
+            setPendingMembers(updatedClassroom.pendingMembers);
+          }
         }
       });
 
@@ -875,6 +1032,17 @@ const People = () => {
     });
     // ── end bulk-refresh handlers ──
 
+    // ── Join request live updates (teacher only) ──
+    const onJoinRequest = (payload) => {
+      if (String(payload?.classroomId) !== String(classroomId)) return;
+      setPendingMembers(prev => {
+        // avoid duplicates
+        if (prev.some(p => String(p.user?._id || p.user) === String(payload?.user?._id))) return prev;
+        return [...prev, { user: payload.user, requestedAt: payload.requestedAt || new Date() }];
+      });
+    };
+    socket.on('join_request', onJoinRequest);
+
     return () => {
       socket.off('connect', joinRooms);
       socket.off('balance_update', balanceHandler);
@@ -884,6 +1052,7 @@ const People = () => {
       socket.off('balance_adjust');
       socket.off('notification');
       socket.off('classroom_removal', handleClassroomRemoval); // Add cleanup
+      socket.off('join_request', onJoinRequest);
     };
   }, [classroomId, user?._id, navigate]); // Add navigate to dependencies
 
@@ -1851,6 +2020,34 @@ const visibleCount = filteredStudents.length;
                 </label>
 
                 <label className="form-control w-full">
+                  <span className="label-text mb-2 font-medium">Require approval to join classroom</span>
+                  <input
+                    type="checkbox"
+                    className="toggle toggle-success"
+                    checked={joinRestriction}
+                    onChange={async (e) => {
+                      const isEnabled = e.target.checked;
+                      try {
+                        await axios.patch(
+                          `/api/classroom/${classroomId}/join-restriction`,
+                          { joinRestriction: isEnabled },
+                          { withCredentials: true }
+                        );
+                        toast.success(`Join restriction ${isEnabled ? 'enabled' : 'disabled'}`);
+                        setJoinRestriction(isEnabled);
+                      } catch (err) {
+                        toast.error('Failed to update setting');
+                      }
+                    }}
+                  />
+                  <div className="label">
+                    <span className="label-text-alt">
+                      When enabled, students who enter the classroom code will be placed in a pending queue. You must approve them before they can access the classroom. This is useful if you want to control exactly who joins your classroom. If there are currently pending join requests, you can manage them in the "Everyone" tab while this setting is enabled. If you disable this setting, all pending requests will be automatically approved and allowed into the classroom.
+                    </span>
+                  </div>
+                </label>
+
+                <label className="form-control w-full">
                   <span className="label-text mb-2 font-medium">Student-to-student bit transfers</span>
                   <input
                     type="checkbox"
@@ -1937,6 +2134,155 @@ const visibleCount = filteredStudents.length;
         {/* ───────────────────────────────────────────── */}
         {tab === 'everyone' && (
           <div>
+            {/* ── Pending Join Requests (teacher only, only while restriction is on) ── */}
+            {isTeacher && joinRestriction && pendingMembers.length > 0 && (
+              <div className="mb-6 card bg-base-100 border border-warning shadow">
+                <div className="card-body p-4 gap-3">
+                  {/* Header row */}
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="card-title text-base flex items-center gap-2">
+                      <span className="badge badge-warning">{pendingMembers.length}</span>
+                      Pending Join Requests
+                    </h3>
+                    {selectedPending.size > 0 && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-sm ${extraSubtleText}`}>{selectedPending.size} selected</span>
+                        <button
+                          className="btn btn-success btn-sm"
+                          disabled={pendingBulkProcessing}
+                          onClick={bulkApprovePending}
+                        >
+                          {pendingBulkProcessing ? <span className="loading loading-spinner loading-xs" /> : null}
+                          Approve Selected
+                        </button>
+                        <button
+                          className="btn btn-error btn-sm"
+                          disabled={pendingBulkProcessing}
+                          onClick={() => {
+                            const targets = filteredPending
+                              .filter(pm => selectedPending.has(String(pm.user?._id || pm.user)))
+                              .map(pm => {
+                                const u = pm.user || {};
+                                return { userId: String(u._id), name: [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email || 'Unknown' };
+                              });
+                            openRejectModal(targets);
+                          }}
+                        >
+                          Reject Selected
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Search + Sort */}
+                  <div className="flex flex-wrap gap-2">
+                    <input
+                      type="search"
+                      placeholder="Search by name or email…"
+                      className="input input-bordered input-sm flex-1 min-w-[180px]"
+                      value={pendingSearch}
+                      onChange={e => { setPendingSearch(e.target.value); setPendingPage(1); }}
+                    />
+                    <select
+                      className="select select-bordered select-sm"
+                      value={pendingSort}
+                      onChange={e => { setPendingSort(e.target.value); setPendingPage(1); }}
+                    >
+                      <option value="newest">Newest first</option>
+                      <option value="oldest">Oldest first</option>
+                      <option value="name">Name (A→Z)</option>
+                    </select>
+                  </div>
+
+                  {/* Select-all (page scope) */}
+                  {filteredPending.length > 0 && (
+                    <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        className="checkbox checkbox-sm"
+                        checked={allVisiblePendingSelected}
+                        onChange={toggleAllPendingVisible}
+                      />
+                      Select all on this page ({paginatedPending.length})
+                    </label>
+                  )}
+
+                  {/* List */}
+                  {filteredPending.length === 0 ? (
+                    <p className={`text-sm ${extraSubtleText}`}>No matching requests.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {paginatedPending.map((pm) => {
+                        const u = pm.user || {};
+                        const uid = String(u._id);
+                        const name = [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email || 'Unknown';
+                        const isSelected = selectedPending.has(uid);
+                        return (
+                          <div
+                            key={uid}
+                            className={`flex items-center gap-3 p-2 rounded border transition-colors ${isSelected ? 'border-warning bg-warning/5' : 'border-base-200'}`}
+                          >
+                            <input
+                              type="checkbox"
+                              className="checkbox checkbox-sm flex-shrink-0"
+                              checked={isSelected}
+                              onChange={() => togglePendingSelect(uid)}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium truncate">{name}</p>
+                              <p className={`text-xs ${extraSubtleText} truncate`}>{u.email}</p>
+                              <p className={`text-xs ${extraSubtleText}`}>
+                                Requested: {pm.requestedAt ? new Date(pm.requestedAt).toLocaleString() : '—'}
+                              </p>
+                            </div>
+                            <div className="flex gap-2 flex-shrink-0">
+                              <button
+                                className="btn btn-success btn-xs"
+                                disabled={pendingBulkProcessing}
+                                onClick={async () => {
+                                  try { await doApproveOne(uid, name); }
+                                  catch (err) { toast.error(err.response?.data?.error || 'Failed to approve'); }
+                                }}
+                              >
+                                Approve
+                              </button>
+                              <button
+                                className="btn btn-error btn-xs"
+                                disabled={pendingBulkProcessing}
+                                onClick={() => openRejectModal([{ userId: uid, name }])}
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Pagination */}
+                  {pendingTotalPages > 1 && (
+                    <div className="flex items-center justify-center gap-3 pt-1">
+                      <button
+                        className="btn btn-xs btn-outline"
+                        disabled={pendingPage === 1}
+                        onClick={() => setPendingPage(p => p - 1)}
+                      >‹</button>
+                      <span className={`text-sm ${extraSubtleText}`}>
+                        Page {pendingPage} of {pendingTotalPages}
+                        <span className="ml-1">({filteredPending.length} total)</span>
+                      </span>
+                      <button
+                        className="btn btn-xs btn-outline"
+                        disabled={pendingPage === pendingTotalPages}
+                        onClick={() => setPendingPage(p => p + 1)}
+                      >›</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            {/* ── End Pending Requests ── */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
               {/* Unified filter bar: search -> role/sort -> exports */}
               <div className="mb-4 flex flex-wrap gap-2 items-center">
@@ -2841,6 +3187,52 @@ const visibleCount = filteredStudents.length;
           }
         }}
       />
+
+      {/* ── Reject Join Request Modal ── */}
+      {rejectModal.open && (
+        <dialog open className="modal modal-bottom sm:modal-middle" style={{ zIndex: 9999 }}>
+          <div className="modal-box max-w-md">
+            <h3 className="font-bold text-lg">
+              Reject{' '}
+              {rejectModal.targets.length === 1
+                ? <strong>{rejectModal.targets[0].name}</strong>
+                : <><strong>{rejectModal.targets.length}</strong> requests</>}?
+            </h3>
+            <div className="py-4 space-y-2">
+              <label className="label pb-0">
+                <span className="label-text font-medium">Reason <span className="font-normal opacity-60">(optional — student will see this)</span></span>
+              </label>
+              <textarea
+                className="textarea textarea-bordered w-full text-base-content bg-base-100 placeholder:opacity-50"
+                rows={3}
+                placeholder="Enter a reason for rejection…"
+                value={rejectReason}
+                onChange={e => setRejectReason(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="modal-action">
+              <button
+                className="btn btn-error"
+                disabled={pendingBulkProcessing}
+                onClick={submitRejectModal}
+              >
+                {pendingBulkProcessing && <span className="loading loading-spinner loading-xs mr-1" />}
+                Reject
+              </button>
+              <button
+                className="btn btn-ghost"
+                disabled={pendingBulkProcessing}
+                onClick={() => setRejectModal({ open: false, targets: [] })}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+          <div className="modal-backdrop bg-black/40" onClick={() => !pendingBulkProcessing && setRejectModal({ open: false, targets: [] })} />
+        </dialog>
+      )}
+      {/* ── End Reject Modal ── */}
 
        <Footer />
      </div>

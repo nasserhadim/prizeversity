@@ -72,6 +72,13 @@ const ClassroomSchema = new mongoose.Schema({
   // NEW: whether teacher allows awarding even when student chose "anonymous"
   feedbackRewardAllowAnonymous: { type: Boolean, default: false },
 
+  // Join restriction: when enabled, students entering the code get queued for teacher approval
+  joinRestriction: { type: Boolean, default: false },
+  pendingMembers: [{
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    requestedAt: { type: Date, default: Date.now }
+  }],
+
   createdAt: { type: Date, default: Date.now },
   xpSettings: {
     enabled: { 
