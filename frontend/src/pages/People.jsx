@@ -2607,10 +2607,19 @@ const visibleCount = filteredStudents.length;
                             <button
                               type="button"
                               className="btn btn-xs sm:btn-sm btn-error"
+                              disabled={isBanned}
                               onClick={() => handleRemoveStudent(student._id, student.firstName || student.lastName ? `${student.firstName || ''} ${student.lastName || ''}`.trim() : student.email)}
                             >
                               Remove
                             </button>
+                            {isBanned && (
+                              <span
+                                className="tooltip tooltip-top cursor-help flex items-center"
+                                data-tip="Remove is disabled while a student is banned. Unban them first if you also want to remove them."
+                              >
+                                <Info className="w-4 h-4 text-base-content/40" />
+                              </span>
+                            )}
 
 
 
