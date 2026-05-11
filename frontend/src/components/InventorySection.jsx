@@ -239,7 +239,10 @@ const InventorySection = ({ userId, classroomId }) => {
       // Show reward modal
       setWonItem(response.data.wonItem);
       setShowRewardModal(true);
-      
+
+      // Show activation effect from local item data
+      showEffect(item);
+
       toast.success(`You won: ${response.data.wonItem.name}!`);
 
       // Refresh inventory
