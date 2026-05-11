@@ -56,5 +56,24 @@ const challengeAttachmentUpload = multer({
   }
 });
 
+// Combined upload for bazaar item image + optional activation effect (images/GIFs only)
+const itemWithEffectUpload = multer({
+  storage: defaultStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.fieldname === 'image') {
+      cb(null, /^(image\/|application\/pdf)/.test(file.mimetype));
+    } else if (file.fieldname === 'effectFile') {
+      cb(null, /^image\/(jpeg|png|gif|webp)$/.test(file.mimetype));
+    } else {
+      cb(null, false);
+    }
+  }
+}).fields([
+  { name: 'image', maxCount: 1 },
+  { name: 'effectFile', maxCount: 1 }
+]);
+
 module.exports = defaultUpload;
 module.exports.challengeAttachment = challengeAttachmentUpload;
+module.exports.itemWithEffect = itemWithEffectUpload;

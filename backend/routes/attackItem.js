@@ -1027,6 +1027,18 @@ router.post('/use/:itemId', ensureAuthenticated, async (req, res) => {
       forceLog: Boolean(nullifyNoop || attackNoop)
     });
 
+    // Emit activation effect to the target (if item has one enabled)
+    if (item.activationEffect?.enabled && item.activationEffect?.url) {
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`user-${target._id}`).emit('activation_effect', {
+          effectUrl: item.activationEffect.url,
+          itemName: item.name,
+          category: item.category
+        });
+      }
+    }
+
     return res.json({
       message: item.primaryEffect === 'swapper'
         ? `Successfully swapped ${req.body.swapAttribute}! Item was consumed.`

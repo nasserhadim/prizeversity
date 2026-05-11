@@ -46,6 +46,12 @@ const BazaarTemplateSchema = new mongoose.Schema({
         rarity: { type: String, default: 'common' },
         baseDropChance: { type: Number, default: 0 }
       }]
+    },
+
+    // Activation effect (GIF/image shown on item use)
+    activationEffect: {
+      url: { type: String, default: '' },
+      enabled: { type: Boolean, default: false }
     }
   }]
 }, {

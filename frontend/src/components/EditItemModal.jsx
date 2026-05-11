@@ -27,10 +27,15 @@ const PITY_RARITY_OPTIONS = ['uncommon','rare','epic','legendary'];
 
 const EditItemModal = ({ open, onClose, item, classroomId, bazaarId, onUpdated }) => {
   const fileInputRef = useRef(null);
+  const effectFileInputRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [imageSource, setImageSource] = useState('file');
   const [imageFile, setImageFile] = useState(null);
   const [imageUrlLocal, setImageUrlLocal] = useState('');
+  const [effectSource, setEffectSource] = useState('file');
+  const [effectFile, setEffectFile] = useState(null);
+  const [effectUrlLocal, setEffectUrlLocal] = useState('');
+  const [effectEnabled, setEffectEnabled] = useState(false);
   const [effectPreview, setEffectPreview] = useState('');
   const [form, setForm] = useState({
     name: '',
@@ -61,7 +66,9 @@ const EditItemModal = ({ open, onClose, item, classroomId, bazaarId, onUpdated }
 
   useEffect(() => {
     if (item) {
-      const desc = item.description?.split('\n\nEffect:')[0] || '';
+      // Strip any previously-embedded Effect: text (legacy cleanup) — handles both
+      // "Effect: ..." at start of string and "\n\nEffect: ..." appended after user text
+      const desc = (item.description?.replace(/(^|[\r\n]+)\s*Effect\s*:[\s\S]*$/i, '') || '').trim();
       const normalizedSwapOptions = normalizeSwapOptions(item.swapOptions || []);
 
       setForm({
@@ -82,6 +89,20 @@ const EditItemModal = ({ open, onClose, item, classroomId, bazaarId, onUpdated }
           ? item.image
           : ''
       );
+
+      // Populate activation effect
+      const existingEffectUrl = item.activationEffect?.url || '';
+      setEffectEnabled(item.activationEffect?.enabled ?? false);
+      setEffectFile(null);
+      // Keep /uploads/ paths in 'file' mode so they display as 'Current effect'
+      // and don't trigger browser URL validation on save
+      if (existingEffectUrl && !existingEffectUrl.startsWith('/uploads/')) {
+        setEffectUrlLocal(existingEffectUrl);
+        setEffectSource('url');
+      } else {
+        setEffectUrlLocal('');
+        setEffectSource('file');
+      }
 
       // Populate mystery box config when editing a MysteryBox
       setMysteryConfig(prev => ({
@@ -301,12 +322,9 @@ const EditItemModal = ({ open, onClose, item, classroomId, bazaarId, onUpdated }
 
     setLoading(true);
     try {
-      const cleanedEffect = effectPreview?.trim();
-      const combinedDescription = `${form.description?.trim() || ''}${cleanedEffect ? `\n\nEffect: ${cleanedEffect}` : ''}`.trim();
-
       const payload = {
         name: form.name.trim(),
-        description: combinedDescription,
+        description: form.description?.trim() || '',
         price: Number(form.price),
         image: (imageSource === 'url' ? normalizeUrl(imageUrlLocal) : form.image).trim(),
         category: form.category,
@@ -344,16 +362,22 @@ const EditItemModal = ({ open, onClose, item, classroomId, bazaarId, onUpdated }
       if (payload.swapOptions) payload.swapOptions = JSON.stringify(payload.swapOptions);
       if (payload.mysteryBoxConfig) payload.mysteryBoxConfig = JSON.stringify(payload.mysteryBoxConfig);
 
-      if (imageSource === 'file' && imageFile) {
+      const needsFormData = (imageSource === 'file' && imageFile) || (effectSource === 'file' && effectFile);
+      if (needsFormData) {
         const fd = new FormData();
         Object.entries(payload).forEach(([k, v]) => fd.append(k, v));
         if (payload.mysteryBoxConfig) fd.set('mysteryBoxConfig', payload.mysteryBoxConfig);
-        fd.append('image', imageFile);
+        if (imageSource === 'file' && imageFile) fd.append('image', imageFile);
+        if (effectSource === 'file' && effectFile) fd.append('effectFile', effectFile);
+        fd.append('activationEffectUrl', effectSource === 'url' ? effectUrlLocal.trim() : '');
+        fd.append('activationEffectEnabled', String(effectEnabled));
         res = await apiBazaar.put(
           `/classroom/${classroomId}/bazaar/${bazaarId}/items/${item._id}`,
           fd
         );
       } else {
+        payload.activationEffectUrl = effectSource === 'url' ? effectUrlLocal.trim() : '';
+        payload.activationEffectEnabled = effectEnabled;
         res = await apiBazaar.put(
           `/classroom/${classroomId}/bazaar/${bazaarId}/items/${item._id}`,
           payload
@@ -495,7 +519,7 @@ const EditItemModal = ({ open, onClose, item, classroomId, bazaarId, onUpdated }
             ) : (
               <>
                 <input
-                  type="url"
+                  type="text"
                   className="input input-bordered w-full"
                   placeholder="https://example.com/item.jpg"
                   value={imageUrlLocal}
@@ -513,6 +537,103 @@ const EditItemModal = ({ open, onClose, item, classroomId, bazaarId, onUpdated }
                       onError={(e) => { e.currentTarget.style.display = 'none'; }}
                     />
                   </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Activation Effect (optional) */}
+          <div className="form-control">
+            <label className="label">
+              <span className="label-text font-medium flex items-center gap-2">
+                Activation Effect
+                <span className="badge badge-sm badge-outline">Optional</span>
+              </span>
+            </label>
+            <p className="text-xs text-base-content/60 mb-2">
+              GIF or image shown in a popup when this item is activated from inventory. Max 5 MB.
+            </p>
+            <label className="label cursor-pointer justify-start gap-3 mb-2">
+              <input
+                type="checkbox"
+                className="toggle toggle-success toggle-sm"
+                checked={effectEnabled}
+                onChange={e => setEffectEnabled(e.target.checked)}
+              />
+              <span className="label-text">Enable activation effect</span>
+            </label>
+
+            {effectEnabled && (
+              <>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="inline-flex rounded-full bg-gray-200 p-1">
+                    <button
+                      type="button"
+                      onClick={() => setEffectSource('file')}
+                      className={`px-3 py-1 rounded-full text-sm ${effectSource === 'file' ? 'bg-white shadow' : 'text-gray-600'}`}
+                    >
+                      Upload
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEffectSource('url')}
+                      className={`ml-1 px-3 py-1 rounded-full text-sm ${effectSource === 'url' ? 'bg-white shadow' : 'text-gray-600'}`}
+                    >
+                      URL
+                    </button>
+                  </div>
+                </div>
+
+                {effectSource === 'file' ? (
+                  <>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      ref={effectFileInputRef}
+                      onChange={e => setEffectFile(e.target.files[0] || null)}
+                      className="file-input file-input-bordered w-full max-w-xs"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Allowed: jpg, png, webp, gif. Max 5 MB.</p>
+                    {effectFile ? (
+                      <div className="mt-2">
+                        <img
+                          src={URL.createObjectURL(effectFile)}
+                          alt="Effect preview"
+                          className="w-24 h-24 object-cover rounded border"
+                        />
+                      </div>
+                    ) : item?.activationEffect?.url ? (
+                      <div className="mt-2">
+                        <p className="text-xs text-base-content/60 mb-1">Current effect:</p>
+                        <img
+                          src={resolveImageSrc(item.activationEffect.url)}
+                          alt="Current effect"
+                          className="w-24 h-24 object-cover rounded border"
+                          onError={e => { e.currentTarget.style.display = 'none'; }}
+                        />
+                      </div>
+                    ) : null}
+                  </>
+                ) : (
+                  <>
+                    <input
+                      type="text"
+                      placeholder="https://example.com/effect.gif"
+                      className="input input-bordered w-full"
+                      value={effectUrlLocal}
+                      onChange={e => setEffectUrlLocal(e.target.value)}
+                    />
+                    {effectUrlLocal && (
+                      <div className="mt-2">
+                        <img
+                          src={effectUrlLocal.startsWith('/uploads/') ? resolveImageSrc(effectUrlLocal) : effectUrlLocal}
+                          alt="Effect preview"
+                          className="w-24 h-24 object-cover rounded border"
+                          onError={e => { e.currentTarget.style.display = 'none'; }}
+                        />
+                      </div>
+                    )}
+                  </>
                 )}
               </>
             )}
@@ -736,7 +857,7 @@ const EditItemModal = ({ open, onClose, item, classroomId, bazaarId, onUpdated }
                 placeholder="Effect preview will appear here (auto-generated from selected effects). You can edit this before submitting."
               />
               <div className="flex items-center justify-between mt-1">
-                <p className="text-xs text-base-content/60">This text will be appended to the item description as "Effect: ...".</p>
+                <p className="text-xs text-base-content/60">Shown on the item card as the effect description. Edit freely or regenerate.</p>
                 <button
                   type="button"
                   className="btn btn-ghost btn-xs"
