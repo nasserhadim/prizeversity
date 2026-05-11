@@ -1,7 +1,38 @@
+const joinWithOr = (arr) => {
+  if (!arr || arr.length === 0) return '';
+  if (arr.length === 1) return arr[0];
+  if (arr.length === 2) return `${arr[0]} or ${arr[1]}`;
+  return `${arr.slice(0, -1).join(', ')}, or ${arr[arr.length - 1]}`;
+};
+
 export const getEffectDescription = (item) => {
   if (!item) return '';
   const swapOpts = normalizeSwapOptions(item.swapOptions) || ['bits', 'multiplier', 'luck'];
-  
+
+  const formatSecondary = (effects) => {
+    if (!effects || !effects.length) return '';
+    const parts = effects.map(e => {
+      switch (e.effectType) {
+        case 'attackLuck': return `Attack Luck -${e.value}`;
+        case 'attackMultiplier': return `Attack Multiplier -${e.value}x`;
+        case 'attackGroupMultiplier': return `Attack Group Multiplier -${e.value}x`;
+        case 'grantsLuck': return `+${e.value} Luck`;
+        case 'grantsMultiplier': return `+${e.value}x Multiplier`;
+        case 'grantsGroupMultiplier': return `+${e.value}x Group Multiplier`;
+        default: return '';
+      }
+    }).filter(Boolean);
+    return parts.length ? parts.join(', ') : '';
+  };
+
+  const withSecondary = (primary) => {
+    const sec = formatSecondary(item.secondaryEffects);
+    if (primary && sec) return `${primary}. Secondary: ${sec}`;
+    if (primary) return primary;
+    if (sec) return `Secondary: ${sec}`;
+    return '';
+  };
+
   // Passive: list secondary effects
   if (item.category === 'Passive') {
     const effects = (item.secondaryEffects || []).map(e => {
@@ -18,30 +49,32 @@ export const getEffectDescription = (item) => {
   // Attack
   if (item.category === 'Attack') {
     if (item.primaryEffect === 'swapper') {
-      return `Swaps attributes with target (${swapOpts.join(', ')})`;
+      return withSecondary(`Swaps attributes with target (${joinWithOr(swapOpts)})`);
     }
     if (item.primaryEffect === 'nullify') {
-      return `Resets target's ${swapOpts.join(', ')} to default`;
+      return withSecondary(`Resets target's ${joinWithOr(swapOpts)} to default`);
     }
     if (item.primaryEffect === 'halveBits') {
       const pct = item.primaryEffectValue || 50;
-      return `Removes ${pct}% of target bits`;
+      return withSecondary(`Removes ${pct}% of target bits`);
     }
     if (item.primaryEffect === 'drainBits') {
       const pct = item.primaryEffectValue || 10;
-      return `Drains ${pct}% of target bits`;
+      return withSecondary(`Drains ${pct}% of target bits`);
     }
+    return withSecondary('');
   }
 
   // Defend
   if (item.category === 'Defend') {
-    if (item.primaryEffect === 'shield') return 'Blocks one attack (shield)';
+    if (item.primaryEffect === 'shield') return withSecondary('Blocks one attack (shield)');
   }
 
   // Utility
   if (item.category === 'Utility') {
-    if (item.primaryEffect === 'doubleEarnings') return 'Double Earnings (2x multiplier)';
-    if (item.primaryEffect === 'discountShop') return '20% shop discount';
+    if (item.primaryEffect === 'doubleEarnings') return withSecondary('Double Earnings (2x multiplier)');
+    if (item.primaryEffect === 'discountShop') return withSecondary('20% shop discount');
+    return withSecondary('');
   }
 
   return '';
@@ -162,9 +195,9 @@ export const describeEffectFromForm = (form) => {
     const swapOpts = form.swapOptions && form.swapOptions.length > 0 ? form.swapOptions : ['bits', 'multiplier', 'luck'];
     
     if (form.primaryEffect === 'swapper') {
-      primary = `Swaps attributes with target (${swapOpts.join(', ')})`;
+      primary = `Swaps attributes with target (${joinWithOr(swapOpts)})`;
     } else if (form.primaryEffect === 'nullify') {
-      primary = `Resets target's ${swapOpts.join(', ')} to default`;
+      primary = `Resets target's ${joinWithOr(swapOpts)} to default`;
     } else if (form.primaryEffect === 'halveBits') {
       const pct = form.primaryEffectValue || 50;
       primary = `Removes ${pct}% of target bits`;

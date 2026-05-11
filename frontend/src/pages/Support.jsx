@@ -24,7 +24,8 @@ import {
   Archive,
   Target,
   Shield,
-  Plug
+  Plug,
+  Clock
 } from 'lucide-react';
 import Footer from '../components/Footer';
 
@@ -297,7 +298,8 @@ const Support = () => {
             "  - Stat boosts (luck, multiplier, shields)",
             "  - Group multipliers",
             "  - Special abilities",
-            "• Upload item images (note that if the image doesn't show up immediately after saving, try refreshing the page.)"
+            "• Upload item images (note that if the image doesn't show up immediately after saving, try refreshing the page.)",
+            "• Optionally add an **Activation Effect**: a GIF or image that pops up for the user when the item is activated. Upload a file (max 5 MB) or enter an external URL, then toggle 'Enable activation effect' on."
           ],
           role: ["teacher"]
         },
@@ -355,7 +357,8 @@ const Support = () => {
           answer: [
             "• Items that grant active effects (Attack, Defend, Utility, Discount, etc.) must be redeemed from the Inventory section of the Bazaar.",
             "• Open the Bazaar page, click **Inventory**, find the purchased item and equip/use it to activate its effect.",
-            "• Note that passive items without specified effects, such as extra credit items, should be presented to the teacher or relevant party for redemption. Redeeming through the Inventory is only necessary for items with active effects that impact stats or interactions within the system."
+            "• Note that passive items without specified effects, such as extra credit items, should be presented to the teacher or relevant party for redemption. Redeeming through the Inventory is only necessary for items with active effects that impact stats or interactions within the system.",
+            "• If an item has an **Activation Effect** (GIF or image) on it, it will pop up in a modal when you activate it (in the case of attacks, it will show the effect on the target as well). You can disable these popups for yourself anytime using the **Effects** toggle in your Inventory header — the setting is saved per classroom."
           ],
           role: ["student"]
         }
@@ -959,6 +962,86 @@ const Support = () => {
       ]
     },
     {
+      category: "Classroom Join Approval Queue",
+      icon: <Clock size={20} />,
+      questions: [
+        {
+          question: "What is the Join Approval Queue?",
+          answer: [
+            "• When a teacher enables **Require approval to join classroom** (in Settings → General), students who enter the classroom code are not added immediately.",
+            "• Instead, their request is placed in a pending queue and the teacher must approve or reject it before the student gains access.",
+            "• This gives teachers full control over who enters the classroom."
+          ],
+          role: ["teacher", "student"]
+        },
+        {
+          question: "How do I enable or disable join approval as a teacher?",
+          answer: [
+            "• Go to the classroom's **People** page → **Settings** tab → **General** section.",
+            "• Toggle **Require approval to join classroom** on or off.",
+            "• When toggled off while students are in the queue, all pending requests are automatically approved so no one is left in limbo."
+          ],
+          role: ["teacher"]
+        },
+        {
+          question: "How do I approve or reject pending join requests?",
+          answer: [
+            "• Open the classroom **People** page → **Everyone** tab.",
+            "• If the approval queue is active, a **Pending Join Requests** panel appears at the top showing all waiting students.",
+            "• Click **Approve** or **Reject** next to an individual student, or use the checkboxes to select multiple and use the **Approve Selected** / **Reject Selected** bulk action buttons.",
+            "• When rejecting, you can optionally enter a reason — the student will see it in their notification."
+          ],
+          role: ["teacher"]
+        },
+        {
+          question: "Can I search or sort the pending requests list?",
+          answer: [
+            "• Yes — the pending panel has a **search bar** to filter by name or email.",
+            "• You can also sort by **Newest first**, **Oldest first**, or **Name (A→Z)**.",
+            "• If there are many requests, the list is paginated (8 per page) with previous/next controls."
+          ],
+          role: ["teacher"]
+        },
+        {
+          question: "What happens when a student submits a join request?",
+          answer: [
+            "• The student sees a toast confirmation: *'Join request sent! Waiting for teacher approval.'*",
+            "• A notification is also saved to the student's notification bell so they can track the request later.",
+            "• The teacher receives an instant notification and the pending panel updates in real-time."
+          ],
+          role: ["teacher", "student"]
+        },
+        {
+          question: "How will I know if my join request was approved or rejected?",
+          answer: [
+            "• You will receive a notification in your notification bell.",
+            "• **Approved**: the classroom will appear in your classroom list and you can access it immediately.",
+            "• **Rejected**: the notification will include the teacher's reason (if one was provided). You may re-request by entering the code again, subject to the teacher's discretion."
+          ],
+          role: ["student"]
+        },
+        {
+          question: "Can I re-request to join after being rejected?",
+          answer: [
+            "• Yes — entering the classroom code again will submit a new pending request, as long as you are not in a cooldown period.",
+            "• If the teacher has set a cooldown, you will see an error message telling you exactly how many hours remain before you can request again.",
+            "• Once the cooldown expires, simply enter the code to submit a new request."
+          ],
+          role: ["student"]
+        },
+        {
+          question: "What is the Join Request Cooldown?",
+          answer: [
+            "• Teachers can set a cooldown period (in hours) so that rejected students cannot immediately spam new join requests.",
+            "• The setting is found in People → Settings → General → **Join Request Cooldown** (visible only when join restriction is enabled).",
+            "• Set it to **0** (default) to allow students to re-request immediately after rejection.",
+            "• The maximum cooldown is 720 hours (30 days). Approving a student clears their cooldown automatically."
+          ],
+          role: ["teacher"]
+        }
+      ]
+    },
+    {
       category: "Bans & Classroom Access",
       icon: <Lock size={20} />,
       questions: [
@@ -973,18 +1056,19 @@ const Support = () => {
         {
           question: "When should I Ban vs Remove a student?",
           answer: [
-            "• **Remove**: takes a student out of the classroom but does not prevent them from rejoining via the classroom code.",
+            "• **Remove**: takes a student out of the classroom but does not prevent them from rejoining via the classroom code (unless join restrictions are enabled; see **Classroom Join Approval Queue** for details on this setting).",
             "• **Ban**: keeps the student listed as barred from the classroom so they cannot rejoin even if they have the classroom code.",
-            "• **Important**: If you both ban AND remove a student, the student entry may be permanently removed from the classroom roster and the teacher will lose the ability to unban—so only Remove if you are sure you never want them to reappear in the classroom list.",
-            "• **Recommendation**: Prefer Ban (without removing) when you want to temporarily or permanently block access while preserving the ability to unban later. Only Remove when you are certain you want the student gone from the roster entirely."
+            "• **Important**: The Remove button is automatically disabled for banned students. You must unban a student first before you can remove them. This prevents accidentally losing the ability to unban someone.",
+            "• **Recommendation**: Use Ban when you want to block access while keeping the option to unban later. Use Remove (after unbanning if needed) only when you are certain you want the student gone from the roster entirely."
           ],
           role: ["teacher"]
         },
         {
           question: "Can a teacher unban a student?",
           answer: [
-            "• Yes — teachers can unban students and restore their ability to access the classroom and receive balance adjustments, provided the student record still exists in the classroom data (i.e. student was NOT removed).",
-            "• If the student was removed and the teacher expects to unban later, then unfortunately it wont be possible to unban the student as their record was permanently deleted from the classroom roster upon removal.",
+            "• Yes — teachers can unban a student at any time using the Unban button next to their name on the People page.",
+            "• Once unbanned, the student can rejoin the classroom and participate in activities as normal.",
+            "• Because the Remove button is disabled for banned students, there is not a risk of permanently losing the ability to unban someone."
           ],
           role: ["teacher"]
         }

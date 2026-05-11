@@ -170,6 +170,76 @@ router.post('/join', ensureAuthenticated, async (req, res) => {
       return res.status(400).json({ error: 'You have already joined this classroom' });
     }
 
+    // --- JOIN RESTRICTION: queue student for teacher approval ---
+    if (classroom.joinRestriction) {
+      // Check if already pending
+      const alreadyPending = (classroom.pendingMembers || []).some(
+        pm => String(pm.user) === String(req.user._id)
+      );
+      if (alreadyPending) {
+        return res.status(400).json({ error: 'You already have a pending join request for this classroom', status: 'pending' });
+      }
+
+      // Check cooldown (only if cooldownHours > 0)
+      const cooldownHours = classroom.joinRequestCooldownHours || 0;
+      if (cooldownHours > 0) {
+        const now = new Date();
+        const cooldownEntry = (classroom.joinCooldowns || []).find(
+          c => String(c.user) === String(req.user._id) && c.until > now
+        );
+        if (cooldownEntry) {
+          return res.status(429).json({
+            error: `Your join request was recently rejected. Please wait until your cooldown expires before requesting again.`,
+            status: 'cooldown',
+            until: cooldownEntry.until
+          });
+        }
+        // Prune expired cooldown entries for this user
+        classroom.joinCooldowns = (classroom.joinCooldowns || []).filter(
+          c => !(String(c.user) === String(req.user._id) && c.until <= now)
+        );
+      }
+
+      classroom.pendingMembers.push({ user: req.user._id, requestedAt: new Date() });
+      await classroom.save();
+
+      // Notify the teacher
+      const notification = await Notification.create({
+        user: classroom.teacher,
+        type: 'join_request',
+        message: `${req.user.firstName} ${req.user.lastName} has requested to join "${classroom.name}"`,
+        classroom: classroom._id,
+        actionBy: req.user._id
+      });
+      const populated = await populateNotification(notification._id);
+      req.app.get('io').to(`user-${classroom.teacher}`).emit('notification', populated);
+
+      // Notify the student so they can track the request in their notification bell
+      const studentNotif = await Notification.create({
+        user: req.user._id,
+        type: 'join_request',
+        message: `You requested to join "${classroom.name}". Waiting for teacher approval.`,
+        classroom: classroom._id,
+        actionBy: req.user._id
+      });
+      const studentPopulated = await populateNotification(studentNotif._id);
+      req.app.get('io').to(`user-${req.user._id}`).emit('notification', studentPopulated);
+      // Also broadcast to classroom room so teacher's People page can update in real-time
+      req.app.get('io').to(`classroom-${classroom._id}`).emit('join_request', {
+        classroomId: classroom._id,
+        user: {
+          _id: req.user._id,
+          firstName: req.user.firstName,
+          lastName: req.user.lastName,
+          email: req.user.email
+        },
+        requestedAt: new Date()
+      });
+
+      return res.status(200).json({ status: 'pending', message: 'Your join request has been sent to the teacher for approval' });
+    }
+
+    // --- NORMAL JOIN (no restriction) ---
     // Initialize per-classroom balance if not present
     const user = await User.findById(req.user._id);
     const existingBalance = user.classroomBalances.find(cb => cb.classroom.toString() === classroom._id.toString());
@@ -211,6 +281,487 @@ router.post('/join', ensureAuthenticated, async (req, res) => {
   }
 });
 
+
+// ── JOIN RESTRICTION SETTING ─────────────────────────────────────────────────
+
+// Toggle join restriction for a classroom (teacher only)
+router.patch('/:id/join-restriction', ensureAuthenticated, async (req, res) => {
+  const { joinRestriction } = req.body;
+  if (typeof joinRestriction !== 'boolean') {
+    return res.status(400).json({ error: 'joinRestriction must be a boolean' });
+  }
+  try {
+    const classroom = await Classroom.findById(req.params.id);
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+    if (String(classroom.teacher) !== String(req.user._id)) {
+      return res.status(403).json({ error: 'Only the teacher can change this setting' });
+    }
+
+    const previousRestriction = classroom.joinRestriction;
+    classroom.joinRestriction = joinRestriction;
+
+    // When turning restriction OFF, auto-approve all pending members so the
+    // queue is never left in a dangling / un-renderable state.
+    let autoApprovedCount = 0;
+    if (previousRestriction && !joinRestriction && classroom.pendingMembers.length > 0) {
+      const pendingIds = classroom.pendingMembers.map(pm => String(pm.user));
+
+      for (const userId of pendingIds) {
+        try {
+          // Add to students if not already there
+          if (!classroom.students.map(String).includes(userId)) {
+            classroom.students.push(userId);
+          }
+
+          // Initialize balance + join date for the student
+          const studentUser = await User.findById(userId);
+          if (studentUser) {
+            const existingBalance = studentUser.classroomBalances.find(
+              cb => cb.classroom.toString() === classroom._id.toString()
+            );
+            if (!existingBalance) {
+              studentUser.classroomBalances.push({ classroom: classroom._id, balance: 0 });
+            }
+            if (!studentUser.classroomJoinDates) studentUser.classroomJoinDates = [];
+            const existingJoinDate = studentUser.classroomJoinDates.find(
+              cjd => cjd.classroom.toString() === classroom._id.toString()
+            );
+            if (!existingJoinDate) {
+              studentUser.classroomJoinDates.push({ classroom: classroom._id, joinedAt: new Date() });
+            }
+            await studentUser.save();
+
+            // Notify the student
+            const studentNotif = await Notification.create({
+              user: userId,
+              type: 'join_approved',
+              message: `Your request to join "${classroom.name}" has been approved!`,
+              classroom: classroom._id,
+              actionBy: req.user._id
+            });
+            const studentPopulated = await populateNotification(studentNotif._id);
+            req.app.get('io').to(`user-${userId}`).emit('notification', studentPopulated);
+
+            // Teacher audit notification
+            const studentName = `${studentUser.firstName || ''} ${studentUser.lastName || ''}`.trim() || studentUser.email;
+            const teacherNotif = await Notification.create({
+              user: classroom.teacher,
+              type: 'join_approved',
+              message: `You approved ${studentName} to join "${classroom.name}" (restriction setting disabled)`,
+              classroom: classroom._id,
+              actionBy: req.user._id
+            });
+            const teacherPopulated = await populateNotification(teacherNotif._id);
+            req.app.get('io').to(`user-${classroom.teacher}`).emit('notification', teacherPopulated);
+
+            autoApprovedCount++;
+          }
+        } catch (innerErr) {
+          console.error(`[join-restriction] Failed to auto-approve userId ${userId}:`, innerErr);
+        }
+      }
+
+      // Clear the queue
+      classroom.pendingMembers = [];
+    }
+
+    await classroom.save();
+
+    // Broadcast updated classroom state to the classroom room
+    const updatedClassroom = await Classroom.findById(classroom._id)
+      .populate('pendingMembers.user', 'firstName lastName email avatar profileImage');
+    req.app.get('io').to(`classroom-${classroom._id}`).emit('classroom_update', updatedClassroom);
+
+    res.json({ joinRestriction, autoApprovedCount });
+  } catch (err) {
+    console.error('[Patch join-restriction] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── PENDING MEMBER MANAGEMENT ─────────────────────────────────────────────────
+
+// GET pending members (teacher only)
+router.get('/:id/pending-members', ensureAuthenticated, async (req, res) => {
+  try {
+    const classroom = await Classroom.findById(req.params.id)
+      .populate('pendingMembers.user', 'firstName lastName email avatar profileImage');
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+    if (String(classroom.teacher) !== String(req.user._id)) {
+      return res.status(403).json({ error: 'Only the teacher can view pending members' });
+    }
+    res.json(classroom.pendingMembers || []);
+  } catch (err) {
+    console.error('[Get pending-members] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Approve a pending member (teacher only)
+router.post('/:id/pending-members/:userId/approve', ensureAuthenticated, async (req, res) => {
+  try {
+    const classroom = await Classroom.findById(req.params.id);
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+    if (String(classroom.teacher) !== String(req.user._id)) {
+      return res.status(403).json({ error: 'Only the teacher can approve members' });
+    }
+
+    const userId = req.params.userId;
+    const pendingIndex = (classroom.pendingMembers || []).findIndex(
+      pm => String(pm.user) === userId
+    );
+    if (pendingIndex === -1) {
+      return res.status(404).json({ error: 'No pending request found for this user' });
+    }
+
+    // Remove from pending queue
+    classroom.pendingMembers.splice(pendingIndex, 1);
+
+    // Add to students if not already there
+    if (!classroom.students.map(String).includes(userId)) {
+      classroom.students.push(userId);
+    }
+    await classroom.save();
+
+    // Initialize per-classroom balance and join date for the approved student
+    const studentUser = await User.findById(userId);
+    if (studentUser) {
+      const existingBalance = studentUser.classroomBalances.find(
+        cb => cb.classroom.toString() === classroom._id.toString()
+      );
+      if (!existingBalance) {
+        studentUser.classroomBalances.push({ classroom: classroom._id, balance: 0 });
+      }
+      const existingJoinDate = studentUser.classroomJoinDates?.find(
+        cjd => cjd.classroom.toString() === classroom._id.toString()
+      );
+      if (!existingJoinDate) {
+        if (!studentUser.classroomJoinDates) studentUser.classroomJoinDates = [];
+        studentUser.classroomJoinDates.push({ classroom: classroom._id, joinedAt: new Date() });
+      }
+      await studentUser.save();
+
+      // Notify the student
+      const notification = await Notification.create({
+        user: userId,
+        type: 'join_approved',
+        message: `Your request to join "${classroom.name}" has been approved!`,
+        classroom: classroom._id,
+        actionBy: req.user._id
+      });
+      const populated = await populateNotification(notification._id);
+      req.app.get('io').to(`user-${userId}`).emit('notification', populated);
+
+      // Notify the teacher (audit log / transparency)
+      const studentName = `${studentUser.firstName || ''} ${studentUser.lastName || ''}`.trim() || studentUser.email;
+      const teacherNotif = await Notification.create({
+        user: classroom.teacher,
+        type: 'join_approved',
+        message: `You approved ${studentName} to join "${classroom.name}"`,
+        classroom: classroom._id,
+        actionBy: req.user._id
+      });
+      const teacherPopulated = await populateNotification(teacherNotif._id);
+      req.app.get('io').to(`user-${classroom.teacher}`).emit('notification', teacherPopulated);
+    }
+
+    // Broadcast classroom update
+    const populatedClassroom = await Classroom.findById(classroom._id)
+      .populate('pendingMembers.user', 'firstName lastName email avatar profileImage')
+      .populate('students', 'email');
+    req.app.get('io').to(`classroom-${classroom._id}`).emit('classroom_update', populatedClassroom);
+    req.app.get('io').to(`classroom-${classroom._id}`).emit('student_joined', {
+      studentId: userId,
+      classroomId: classroom._id
+    });
+
+    res.json({ message: 'Member approved successfully' });
+  } catch (err) {
+    console.error('[Approve pending-member] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Bulk-approve pending members in one atomic write (teacher only)
+router.post('/:id/pending-members/bulk-approve', ensureAuthenticated, async (req, res) => {
+  const { userIds } = req.body; // userIds: string[]
+  if (!Array.isArray(userIds) || userIds.length === 0) {
+    return res.status(400).json({ error: 'userIds must be a non-empty array' });
+  }
+  try {
+    const classroom = await Classroom.findById(req.params.id);
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+    if (String(classroom.teacher) !== String(req.user._id)) {
+      return res.status(403).json({ error: 'Only the teacher can approve members' });
+    }
+
+    // Only approve users who are actually in the pending list
+    const pendingSet = new Set(classroom.pendingMembers.map(pm => String(pm.user)));
+    const toApprove = userIds.filter(id => pendingSet.has(String(id)));
+
+    if (toApprove.length === 0) {
+      return res.status(404).json({ error: 'None of the specified users have pending requests' });
+    }
+
+    // Atomic: remove from pendingMembers and add to students in one write
+    await Classroom.findByIdAndUpdate(
+      classroom._id,
+      {
+        $pull: { pendingMembers: { user: { $in: toApprove } } },
+        $addToSet: { students: { $each: toApprove } }
+      },
+      { new: true }
+    );
+
+    const now = new Date();
+
+    // Note: approval clears any existing cooldown for these users
+    if (toApprove.length > 0) {
+      await Classroom.findByIdAndUpdate(
+        classroom._id,
+        { $pull: { joinCooldowns: { user: { $in: toApprove } } } }
+      );
+    }
+
+    // Per-student: initialize balance/joinDate, send notifications
+    for (const userId of toApprove) {
+      try {
+        const studentUser = await User.findById(userId);
+        if (!studentUser) continue;
+
+        // Initialize balance
+        const existingBalance = studentUser.classroomBalances.find(
+          cb => cb.classroom.toString() === classroom._id.toString()
+        );
+        if (!existingBalance) {
+          studentUser.classroomBalances.push({ classroom: classroom._id, balance: 0 });
+        }
+        // Initialize join date
+        if (!studentUser.classroomJoinDates) studentUser.classroomJoinDates = [];
+        const existingJoinDate = studentUser.classroomJoinDates.find(
+          cjd => cjd.classroom.toString() === classroom._id.toString()
+        );
+        if (!existingJoinDate) {
+          studentUser.classroomJoinDates.push({ classroom: classroom._id, joinedAt: now });
+        }
+        await studentUser.save();
+
+        // Notify student
+        const studentNotif = await Notification.create({
+          user: userId,
+          type: 'join_approved',
+          message: `Your request to join "${classroom.name}" has been approved!`,
+          classroom: classroom._id,
+          actionBy: req.user._id
+        });
+        const studentPopulated = await populateNotification(studentNotif._id);
+        req.app.get('io').to(`user-${userId}`).emit('notification', studentPopulated);
+
+        // Teacher audit notification
+        const studentName = `${studentUser.firstName || ''} ${studentUser.lastName || ''}`.trim() || studentUser.email;
+        const teacherNotif = await Notification.create({
+          user: classroom.teacher,
+          type: 'join_approved',
+          message: `You approved ${studentName} to join "${classroom.name}"`,
+          classroom: classroom._id,
+          actionBy: req.user._id
+        });
+        const teacherPopulated = await populateNotification(teacherNotif._id);
+        req.app.get('io').to(`user-${classroom.teacher}`).emit('notification', teacherPopulated);
+
+        // Notify classroom room that a new student joined
+        req.app.get('io').to(`classroom-${classroom._id}`).emit('student_joined', {
+          studentId: userId,
+          classroomId: classroom._id
+        });
+      } catch (innerErr) {
+        console.error(`[bulk-approve] per-student error for userId ${userId}:`, innerErr);
+      }
+    }
+
+    // Broadcast updated classroom state
+    const populatedClassroom = await Classroom.findById(classroom._id)
+      .populate('pendingMembers.user', 'firstName lastName email avatar profileImage')
+      .populate('students', 'email');
+    req.app.get('io').to(`classroom-${classroom._id}`).emit('classroom_update', populatedClassroom);
+
+    res.json({ approved: toApprove.length, message: `Approved ${toApprove.length} member(s)` });
+  } catch (err) {
+    console.error('[bulk-approve] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Reject a pending member (teacher only)
+router.post('/:id/pending-members/:userId/reject', ensureAuthenticated, async (req, res) => {
+  const { reason } = req.body;
+  try {
+    const classroom = await Classroom.findById(req.params.id);
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+    if (String(classroom.teacher) !== String(req.user._id)) {
+      return res.status(403).json({ error: 'Only the teacher can reject members' });
+    }
+
+    const userId = req.params.userId;
+    const pendingIndex = (classroom.pendingMembers || []).findIndex(
+      pm => String(pm.user) === userId
+    );
+    if (pendingIndex === -1) {
+      return res.status(404).json({ error: 'No pending request found for this user' });
+    }
+
+    classroom.pendingMembers.splice(pendingIndex, 1);
+
+    // Apply cooldown if configured
+    const cooldownHours = classroom.joinRequestCooldownHours || 0;
+    if (cooldownHours > 0) {
+      const until = new Date(Date.now() + cooldownHours * 60 * 60 * 1000);
+      // Remove any existing (expired) entry for this user then add a fresh one
+      classroom.joinCooldowns = (classroom.joinCooldowns || []).filter(
+        c => String(c.user) !== userId
+      );
+      classroom.joinCooldowns.push({ user: userId, until });
+    }
+
+    await classroom.save();
+
+    const reasonText = reason ? ` Reason: ${reason}` : '';
+
+    // Look up rejected user's name for notifications
+    const rejectedUser = await User.findById(userId).select('firstName lastName email');
+    const rejectedName = rejectedUser
+      ? `${rejectedUser.firstName || ''} ${rejectedUser.lastName || ''}`.trim() || rejectedUser.email
+      : userId;
+
+    // Notify the student
+    const notification = await Notification.create({
+      user: userId,
+      type: 'join_rejected',
+      message: `Your request to join "${classroom.name}" was declined.${reasonText}`,
+      classroom: classroom._id,
+      actionBy: req.user._id
+    });
+    const populated = await populateNotification(notification._id);
+    req.app.get('io').to(`user-${userId}`).emit('notification', populated);
+
+    // Notify the teacher (audit log / transparency)
+    const teacherNotif = await Notification.create({
+      user: classroom.teacher,
+      type: 'join_rejected',
+      message: `You rejected ${rejectedName}'s request to join "${classroom.name}"${reasonText}`,
+      classroom: classroom._id,
+      actionBy: req.user._id
+    });
+    const teacherPopulated = await populateNotification(teacherNotif._id);
+    req.app.get('io').to(`user-${classroom.teacher}`).emit('notification', teacherPopulated);
+
+    // Broadcast updated pending list to teacher's classroom room
+    const populatedClassroom = await Classroom.findById(classroom._id)
+      .populate('pendingMembers.user', 'firstName lastName email avatar profileImage');
+    req.app.get('io').to(`classroom-${classroom._id}`).emit('classroom_update', populatedClassroom);
+
+    res.json({ message: 'Member rejected successfully' });
+  } catch (err) {
+    console.error('[Reject pending-member] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Bulk-reject pending members in one atomic write (teacher only)
+router.post('/:id/pending-members/bulk-reject', ensureAuthenticated, async (req, res) => {
+  const { userIds, reason } = req.body; // userIds: string[]
+  if (!Array.isArray(userIds) || userIds.length === 0) {
+    return res.status(400).json({ error: 'userIds must be a non-empty array' });
+  }
+  try {
+    const classroom = await Classroom.findById(req.params.id);
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+    if (String(classroom.teacher) !== String(req.user._id)) {
+      return res.status(403).json({ error: 'Only the teacher can reject members' });
+    }
+
+    // Collect which of the requested ids are actually pending
+    const pendingSet = new Set(classroom.pendingMembers.map(pm => String(pm.user)));
+    const toReject = userIds.filter(id => pendingSet.has(String(id)));
+
+    if (toReject.length === 0) {
+      return res.status(404).json({ error: 'None of the specified users have pending requests' });
+    }
+
+    // Remove all in one atomic update (avoids version conflicts from sequential saves)
+    await Classroom.findByIdAndUpdate(
+      classroom._id,
+      { $pull: { pendingMembers: { user: { $in: toReject } } } },
+      { new: true }
+    );
+
+    // Apply cooldown if configured
+    const cooldownHours = classroom.joinRequestCooldownHours || 0;
+    if (cooldownHours > 0) {
+      const until = new Date(Date.now() + cooldownHours * 60 * 60 * 1000);
+      // Remove stale entries then add fresh ones for each rejected user
+      await Classroom.findByIdAndUpdate(
+        classroom._id,
+        { $pull: { joinCooldowns: { user: { $in: toReject } } } }
+      );
+      const cooldownDocs = toReject.map(uid => ({ user: uid, until }));
+      await Classroom.findByIdAndUpdate(
+        classroom._id,
+        { $push: { joinCooldowns: { $each: cooldownDocs } } }
+      );
+    }
+
+    const reasonText = reason ? ` Reason: ${reason}` : '';
+
+    // Fire notifications for each rejected user (non-blocking per-user errors are logged, not fatal)
+    const rejectedNames = [];
+    for (const userId of toReject) {
+      try {
+        const rejectedUser = await User.findById(userId).select('firstName lastName email');
+        const rejectedName = rejectedUser
+          ? `${rejectedUser.firstName || ''} ${rejectedUser.lastName || ''}`.trim() || rejectedUser.email
+          : userId;
+        rejectedNames.push(rejectedName);
+
+        // Notify student
+        const studentNotif = await Notification.create({
+          user: userId,
+          type: 'join_rejected',
+          message: `Your request to join "${classroom.name}" was declined.${reasonText}`,
+          classroom: classroom._id,
+          actionBy: req.user._id
+        });
+        const studentPopulated = await populateNotification(studentNotif._id);
+        req.app.get('io').to(`user-${userId}`).emit('notification', studentPopulated);
+
+        // Teacher audit notification
+        const teacherNotif = await Notification.create({
+          user: classroom.teacher,
+          type: 'join_rejected',
+          message: `You rejected ${rejectedName}'s request to join "${classroom.name}"${reasonText}`,
+          classroom: classroom._id,
+          actionBy: req.user._id
+        });
+        const teacherPopulated = await populateNotification(teacherNotif._id);
+        req.app.get('io').to(`user-${classroom.teacher}`).emit('notification', teacherPopulated);
+      } catch (innerErr) {
+        console.error(`[bulk-reject] notification error for userId ${userId}:`, innerErr);
+      }
+    }
+
+    // Broadcast updated classroom state
+    const populatedClassroom = await Classroom.findById(classroom._id)
+      .populate('pendingMembers.user', 'firstName lastName email avatar profileImage');
+    req.app.get('io').to(`classroom-${classroom._id}`).emit('classroom_update', populatedClassroom);
+
+    res.json({ rejected: toReject.length, message: `Rejected ${toReject.length} member(s)` });
+  } catch (err) {
+    console.error('[bulk-reject] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 // Fetch active Classrooms for Teacher
 router.get('/', ensureAuthenticated, async (req, res) => {
@@ -510,7 +1061,8 @@ router.get('/:id', ensureAuthenticated, async (req, res) => {
     const classroom = await Classroom.findById(req.params.id)
       .populate('teacher', 'email role firstName lastName shortId createdAt')
       .populate('students', 'email role firstName lastName shortId createdAt')
-      .populate('bannedStudents', 'email role firstName lastName shortId createdAt');
+      .populate('bannedStudents', 'email role firstName lastName shortId createdAt')
+      .populate('pendingMembers.user', 'email role firstName lastName shortId createdAt avatar profileImage');
     if (!classroom) {
       return res.status(404).json({ error: 'Classroom not found' });
     }
@@ -1019,6 +1571,39 @@ router.get('/:id/siphon-timeout', ensureAuthenticated, async (req, res) => {
   } catch (err) {
     console.error('[Get Siphon Timeout] error:', err);
     res.status(500).json({ error: 'Failed to get siphon timeout' });
+  }
+});
+
+// Update join request cooldown setting (teacher only)
+router.post('/:id/join-request-cooldown', ensureAuthenticated, async (req, res) => {
+  try {
+    const classroom = await Classroom.findById(req.params.id);
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+    if (classroom.teacher.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Only the teacher can update this setting' });
+    }
+    const hours = parseInt(req.body.joinRequestCooldownHours, 10);
+    if (isNaN(hours) || hours < 0 || hours > 720) {
+      return res.status(400).json({ error: 'Cooldown must be between 0 and 720 hours' });
+    }
+    classroom.joinRequestCooldownHours = hours;
+    await classroom.save();
+    res.json({ joinRequestCooldownHours: hours });
+  } catch (err) {
+    console.error('[Update join-request-cooldown] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get join request cooldown setting
+router.get('/:id/join-request-cooldown', ensureAuthenticated, async (req, res) => {
+  try {
+    const classroom = await Classroom.findById(req.params.id).select('joinRequestCooldownHours');
+    if (!classroom) return res.status(404).json({ error: 'Classroom not found' });
+    res.json({ joinRequestCooldownHours: classroom.joinRequestCooldownHours ?? 0 });
+  } catch (err) {
+    console.error('[Get join-request-cooldown] error:', err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 

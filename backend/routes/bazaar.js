@@ -72,13 +72,19 @@ router.get('/classroom/:classroomId/bazaar', ensureAuthenticated, async (req, re
   }
 });
 
-// Add Item to Bazaar (teacher only) — accept file upload "image"
-router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticated, ensureTeacher, upload.single('image'), async (req, res) => {
+// Add Item to Bazaar (teacher only) — accept file upload "image" and optional "effectFile"
+router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticated, ensureTeacher, upload.itemWithEffect, async (req, res) => {
   const { bazaarId } = req.params;
   const { name, description, price, category, primaryEffect, primaryEffectValue } = req.body;
-  const image = req.file
-    ? `/uploads/${req.file.filename}`
+  const imageFileUploaded = req.files?.image?.[0];
+  const image = imageFileUploaded
+    ? `/uploads/${imageFileUploaded.filename}`
     : (req.body.image || undefined);
+  const effectFileUploaded = req.files?.effectFile?.[0];
+  const activationEffectUrl = effectFileUploaded
+    ? `/uploads/${effectFileUploaded.filename}`
+    : (req.body.activationEffectUrl?.trim() || '');
+  const activationEffectEnabled = req.body.activationEffectEnabled === 'true';
   
   // Parse JSON fields
   let parsedSecondaryEffects = [];
@@ -224,6 +230,12 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items', ensureAuthenticate
       itemData.swapOptions = Array.isArray(parsedSwapOptions) ? parsedSwapOptions : [];
     }
 
+    // Add activation effect
+    itemData.activationEffect = {
+      url: activationEffectUrl,
+      enabled: activationEffectEnabled
+    };
+
     const item = new Item(itemData);
     
     // ADD: Log before save
@@ -259,7 +271,7 @@ router.put(
   '/classroom/:classroomId/bazaar/:bazaarId/items/:itemId',
   ensureAuthenticated,
   ensureTeacher,
-  upload.single('image'),
+  upload.itemWithEffect,
   async (req, res) => {
     const { itemId } = req.params;
     try {
@@ -270,9 +282,10 @@ router.put(
       ['name','description','price','primaryEffect','primaryEffectValue','category','image']
         .forEach(f => {
           if (typeof req.body[f] !== 'undefined') {
-            // Skip empty strings to avoid NaN casting
+            // Skip empty strings only for numeric fields to avoid NaN casting
             const val = req.body[f];
-            if (val === '' || val === null) return;
+            const isNumeric = f === 'price' || f === 'primaryEffectValue';
+            if ((val === '' || val === null) && isNumeric) return;
 
             // Only allow primaryEffectValue when category is not Passive/MysteryBox
             if (f === 'primaryEffectValue') {
@@ -286,8 +299,9 @@ router.put(
           }
         });
 
-      if (req.file) {
-        up.image = `/uploads/${req.file.filename}`;
+      const imageFileUploaded = req.files?.image?.[0];
+      if (imageFileUploaded) {
+        up.image = `/uploads/${imageFileUploaded.filename}`;
       }
 
       // Parse arrays/objects if provided
@@ -299,6 +313,19 @@ router.put(
       }
       if (req.body.mysteryBoxConfig) {
         try { up.mysteryBoxConfig = JSON.parse(req.body.mysteryBoxConfig); } catch {}
+      }
+
+      // Handle activation effect update
+      const effectFileUploaded = req.files?.effectFile?.[0];
+      if (effectFileUploaded || typeof req.body.activationEffectUrl !== 'undefined' || typeof req.body.activationEffectEnabled !== 'undefined') {
+        up.activationEffect = {
+          url: effectFileUploaded
+            ? `/uploads/${effectFileUploaded.filename}`
+            : (req.body.activationEffectUrl?.trim() ?? item.activationEffect?.url ?? ''),
+          enabled: typeof req.body.activationEffectEnabled !== 'undefined'
+            ? (req.body.activationEffectEnabled === true || req.body.activationEffectEnabled === 'true')
+            : (item.activationEffect?.enabled ?? false)
+        };
       }
 
       Object.assign(item, up);
@@ -496,6 +523,9 @@ router.post('/classroom/:classroomId/bazaar/:bazaarId/items/:itemId/buy', ensure
         secondaryEffects: item.secondaryEffects,
         // Ensure owned copy always stores canonical swapOptions (string[] of 'bits'|'multiplier'|'luck')
         swapOptions: normalizeSwapOptionsServer(item.swapOptions),
+        activationEffect: item.activationEffect
+          ? { url: item.activationEffect.url || '', enabled: item.activationEffect.enabled ?? false }
+          : { url: '', enabled: false },
         owner: req.user._id
       };
       console.log('[Buy Item] ownedItemData.swapOptions ->', ownedItemData.swapOptions);
@@ -785,6 +815,9 @@ router.post('/checkout', ensureAuthenticated, blockIfFrozen, async (req, res) =>
           (item.metadata && item.metadata.swapOptions) ||
           []
         ),
+        activationEffect: item.activationEffect
+          ? { url: item.activationEffect.url || '', enabled: item.activationEffect.enabled ?? false }
+          : { url: '', enabled: false },
         owner: userId
       };
       

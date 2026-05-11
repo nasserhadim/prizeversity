@@ -44,7 +44,13 @@ const ItemSchema = new mongoose.Schema({
   redemptionData: { type: mongoose.Schema.Types.Mixed }, // NEW: store redemption metadata
   active: { type: Boolean, default: false },
   activatedAt: { type: Date }, // ← NEW: when effect was activated/equipped
-  
+
+  // Activation effect: GIF/image shown when item is used
+  activationEffect: {
+    url: { type: String, default: '' },
+    enabled: { type: Boolean, default: false }
+  },
+
   owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   createdAt: { type: Date, default: Date.now },
   

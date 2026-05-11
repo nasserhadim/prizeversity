@@ -72,6 +72,12 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
   const [showLuckPreview, setShowLuckPreview] = useState(false);
   const [showLuckExplanation, setShowLuckExplanation] = useState(false);
   const [previewLuck, setPreviewLuck] = useState(3.0); // NEW: teacher-adjustable preview luck
+  // Activation effect state
+  const [effectSource, setEffectSource] = useState('file');
+  const [effectFile, setEffectFile] = useState(null);
+  const [effectUrlLocal, setEffectUrlLocal] = useState('');
+  const [effectEnabled, setEffectEnabled] = useState(false);
+  const effectFileInputRef = useRef(null);
   const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
   const fileInputRef = useRef(null); // ADD: to clear native file input after submit
  
@@ -182,7 +188,13 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
     setImageSource('url');
     setImageFile(null);
     setImageUrlLocal('');
+    // reset effect controls
+    setEffectSource('file');
+    setEffectFile(null);
+    setEffectUrlLocal('');
+    setEffectEnabled(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
+    if (effectFileInputRef.current) effectFileInputRef.current.value = '';
   };
 
   // Handle input changes and reset dependent fields when category changes
@@ -326,12 +338,9 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
         console.log('[CreateItem] Sending payload:', JSON.stringify(payload, null, 2));
       } else {
         // Existing logic for other categories
-        const cleanedEffect = describeEffectFromForm(form)?.trim();
-        const combinedDescription = `${form.description?.trim() || ''}${cleanedEffect ? `\n\nEffect: ${cleanedEffect}` : ''}`.trim();
-
         payload = {
           name: form.name.trim(),
-          description: combinedDescription,
+          description: form.description?.trim() || '',
           price: Number(form.price),
           image: (imageSource === 'url' ? normalizeUrl(imageUrlLocal) : form.image).trim(),
           category: form.category,
@@ -350,9 +359,12 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
       }
 
       // Handle file upload vs JSON
-      if (imageSource === 'file' && imageFile) {
-        if (imageFile.size > MAX_IMAGE_BYTES) {
+      if ((imageSource === 'file' && imageFile) || (effectSource === 'file' && effectFile)) {
+        if (imageFile && imageFile.size > MAX_IMAGE_BYTES) {
           throw new Error('Image too large');
+        }
+        if (effectFile && effectFile.size > MAX_IMAGE_BYTES) {
+          throw new Error('Effect file too large (max 5 MB)');
         }
         const fd = new FormData();
         Object.keys(payload).forEach(key => {
@@ -364,7 +376,10 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
             fd.append(key, payload[key]);
           }
         });
-        fd.append('image', imageFile);
+        if (imageSource === 'file' && imageFile) fd.append('image', imageFile);
+        if (effectSource === 'file' && effectFile) fd.append('effectFile', effectFile);
+        fd.append('activationEffectUrl', effectSource === 'url' ? effectUrlLocal.trim() : '');
+        fd.append('activationEffectEnabled', String(effectEnabled));
 
         const res = await apiBazaar.post(
           `classroom/${classroomId}/bazaar/${bazaarId}/items`,
@@ -377,6 +392,8 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
       } else {
         // ADD: Log before sending
         console.log('[CreateItem] About to POST:', payload);
+        payload.activationEffectUrl = effectSource === 'url' ? effectUrlLocal.trim() : '';
+        payload.activationEffectEnabled = effectEnabled;
         
         const res = await apiBazaar.post(
           `classroom/${classroomId}/bazaar/${bazaarId}/items`,
@@ -485,15 +502,123 @@ const CreateItem = ({ bazaarId, classroomId, onAdd }) => {
                className="file-input file-input-bordered w-full max-w-xs"
              />
              <p className="text-xs text-gray-500">Allowed: jpg, png, webp, gif. Max: 5 MB.</p>
+             {imageFile && (
+               <div className="mt-2">
+                 <img
+                   src={URL.createObjectURL(imageFile)}
+                   alt="Preview"
+                   className="w-24 h-24 object-cover rounded border"
+                 />
+               </div>
+             )}
            </>
          ) : (
+           <>
+             <input
+               type="text"
+               placeholder="https://example.com/item.jpg"
+               className="input input-bordered w-full"
+               value={imageUrlLocal}
+               onChange={(e) => setImageUrlLocal(e.target.value)}
+             />
+             {imageUrlLocal && (
+               <div className="mt-2">
+                 <img
+                   src={imageUrlLocal}
+                   alt="Preview"
+                   className="w-24 h-24 object-cover rounded border"
+                   onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                 />
+               </div>
+             )}
+           </>
+         )}
+       </div>
+
+       {/* Activation Effect (optional) */}
+       <div className="form-control">
+         <label className="label">
+           <span className="label-text font-medium flex items-center gap-2">
+             Activation Effect
+             <span className="badge badge-sm badge-outline">Optional</span>
+           </span>
+         </label>
+         <p className="text-xs text-base-content/60 mb-2">
+           GIF or image shown in a popup when this item is activated from inventory. Max 5 MB.
+         </p>
+         <label className="label cursor-pointer justify-start gap-3 mb-2">
            <input
-             type="url"
-             placeholder="https://example.com/item.jpg"
-             className="input input-bordered w-full"
-             value={imageUrlLocal}
-             onChange={(e) => setImageUrlLocal(e.target.value)}
+             type="checkbox"
+             className="toggle toggle-success toggle-sm"
+             checked={effectEnabled}
+             onChange={e => setEffectEnabled(e.target.checked)}
            />
+           <span className="label-text">Enable activation effect</span>
+         </label>
+
+         {effectEnabled && (
+           <>
+             <div className="flex items-center gap-2 mb-2">
+               <div className="inline-flex rounded-full bg-gray-200 p-1">
+                 <button
+                   type="button"
+                   onClick={() => setEffectSource('file')}
+                   className={`px-3 py-1 rounded-full text-sm ${effectSource === 'file' ? 'bg-white shadow' : 'text-gray-600'}`}
+                 >
+                   Upload
+                 </button>
+                 <button
+                   type="button"
+                   onClick={() => setEffectSource('url')}
+                   className={`ml-1 px-3 py-1 rounded-full text-sm ${effectSource === 'url' ? 'bg-white shadow' : 'text-gray-600'}`}
+                 >
+                   URL
+                 </button>
+               </div>
+             </div>
+
+             {effectSource === 'file' ? (
+               <>
+                 <input
+                   type="file"
+                   accept="image/png,image/jpeg,image/webp,image/gif"
+                   ref={effectFileInputRef}
+                   onChange={e => setEffectFile(e.target.files[0] || null)}
+                   className="file-input file-input-bordered w-full max-w-xs"
+                 />
+                 <p className="text-xs text-gray-500 mt-1">Allowed: jpg, png, webp, gif. Max 5 MB.</p>
+                 {effectFile && (
+                   <div className="mt-2">
+                     <img
+                       src={URL.createObjectURL(effectFile)}
+                       alt="Effect preview"
+                       className="w-24 h-24 object-cover rounded border"
+                     />
+                   </div>
+                 )}
+               </>
+             ) : (
+               <>
+                 <input
+                   type="text"
+                   placeholder="https://example.com/effect.gif"
+                   className="input input-bordered w-full"
+                   value={effectUrlLocal}
+                   onChange={e => setEffectUrlLocal(e.target.value)}
+                 />
+                 {effectUrlLocal && (
+                   <div className="mt-2">
+                     <img
+                       src={effectUrlLocal}
+                       alt="Effect preview"
+                       className="w-24 h-24 object-cover rounded border"
+                       onError={e => { e.currentTarget.style.display = 'none'; }}
+                     />
+                   </div>
+                 )}
+               </>
+             )}
+           </>
          )}
        </div>
  

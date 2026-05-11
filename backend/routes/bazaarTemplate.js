@@ -86,7 +86,10 @@ router.post('/', ensureAuthenticated, ensureTeacher, async (req, res) => {
         primaryEffect: item.primaryEffect,
         primaryEffectValue: item.primaryEffectValue,
         secondaryEffects: item.secondaryEffects || [],
-        swapOptions: item.swapOptions || []
+        swapOptions: item.swapOptions || [],
+        activationEffect: item.activationEffect?.url
+          ? { url: item.activationEffect.url, enabled: item.activationEffect.enabled ?? false }
+          : undefined
       };
 
       // Handle MysteryBox configuration
@@ -401,6 +404,7 @@ router.post('/:templateId/apply', ensureAuthenticated, ensureTeacher, async (req
           primaryEffectValue: itemData.primaryEffectValue,
           secondaryEffects: itemData.secondaryEffects || [],
           swapOptions: itemData.swapOptions || [],
+          activationEffect: itemData.activationEffect,
           bazaar: existingBazaar._id
         });
 
@@ -439,6 +443,7 @@ router.post('/:templateId/apply', ensureAuthenticated, ensureTeacher, async (req
           image: itemData.image,
           category: 'MysteryBox',
           bazaar: existingBazaar._id,
+          activationEffect: itemData.activationEffect,
           mysteryBoxConfig: {
             luckMultiplier: Number(itemData.mysteryBoxConfig?.luckMultiplier || 1.5),
             pityEnabled: !!itemData.mysteryBoxConfig?.pityEnabled,
@@ -512,6 +517,7 @@ router.post('/:templateId/apply', ensureAuthenticated, ensureTeacher, async (req
         primaryEffectValue: itemData.primaryEffectValue,
         secondaryEffects: itemData.secondaryEffects || [],
         swapOptions: itemData.swapOptions || [],
+        activationEffect: itemData.activationEffect,
         bazaar: bazaar._id
       });
 
@@ -548,6 +554,7 @@ router.post('/:templateId/apply', ensureAuthenticated, ensureTeacher, async (req
         image: itemData.image,
         category: 'MysteryBox',
         bazaar: bazaar._id,
+        activationEffect: itemData.activationEffect,
         mysteryBoxConfig: {
           luckMultiplier: Number(itemData.mysteryBoxConfig?.luckMultiplier || 1.5),
           pityEnabled: !!itemData.mysteryBoxConfig?.pityEnabled,

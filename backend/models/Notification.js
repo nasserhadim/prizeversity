@@ -44,7 +44,10 @@ const NotificationSchema = new mongoose.Schema({
       // challenge assignment / removal notifications
       'challenge_assigned',
       'challenge_removed',
-      'challenge_reset'  // <-- add this so reset notifications validate
+      'challenge_reset',  // <-- add this so reset notifications validate
+      'join_request',     // student requests to join a restricted classroom
+      'join_approved',    // teacher approves a join request
+      'join_rejected'     // teacher rejects a join request
     ],
     required: true 
   },

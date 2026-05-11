@@ -216,6 +216,14 @@ export default function ClassroomPage() {
     try {
       // POST to join classroom endpoint
       const res = await axios.post('/api/classroom/join', { code: code });
+
+      // Pending queue: teacher has join restriction enabled
+      if (res.data.status === 'pending') {
+        toast.success('Join request sent! Waiting for teacher approval.', { duration: 4000 });
+        setJoinClassroomCode('');
+        return;
+      }
+
       toast.success('Joined classroom!', { duration: 800 });
       
       // Reset join code input
@@ -226,6 +234,33 @@ export default function ClassroomPage() {
       
     } catch (err) {
       console.error(err);
+      // Show pending-specific message on 400 with pending status
+      if (err.response?.data?.status === 'pending') {
+        toast('You already have a pending join request for this classroom.', { icon: '⏳' });
+        return;
+      }
+      // Cooldown: rejected too recently — format remaining time precisely
+      if (err.response?.data?.status === 'cooldown') {
+        const until = err.response.data.until ? new Date(err.response.data.until) : null;
+        let remaining = '';
+        if (until) {
+          const ms = Math.max(0, until - Date.now());
+          const totalSec = Math.floor(ms / 1000);
+          const h = Math.floor(totalSec / 3600);
+          const m = Math.floor((totalSec % 3600) / 60);
+          const s = totalSec % 60;
+          const parts = [];
+          if (h > 0) parts.push(`${h}h`);
+          if (m > 0 || h > 0) parts.push(`${m}m`);
+          parts.push(`${s}s`);
+          remaining = parts.join(' ');
+        }
+        toast.error(
+          `Your join request was recently rejected. Please wait${remaining ? ` ${remaining}` : ' a moment'} before requesting again.`,
+          { duration: 6000 }
+        );
+        return;
+      }
       toast.error(err.response?.data?.error || 'Error joining classroom');
     }
   };

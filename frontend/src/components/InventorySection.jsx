@@ -1,12 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import apiBazaar from '../API/apiBazaar';
 import apiClassroom from '../API/apiClassroom';
 import apiItem from '../API/apiItem.js';
 import axios from 'axios'; // ADD: for mystery box API call
-import { ImageOff } from 'lucide-react';
+import { ImageOff, Info } from 'lucide-react';
 import SwapModal from '../components/SwapModal';
 import NullifyModal from '../components/NullifyModal';
+import ActivationEffectModal from './ActivationEffectModal';
 import socket from '../utils/socket'; // Changed from '../API/socket' to '../utils/socket'
 import { getEffectDescription, splitDescriptionEffect, normalizeSwapOptions } from '../utils/itemHelpers'; // ADD import
 import { resolveImageSrc } from '../utils/image';
@@ -25,6 +26,28 @@ const InventorySection = ({ userId, classroomId }) => {
   // ADD: Mystery box reward modal state
   const [showRewardModal, setShowRewardModal] = useState(false);
   const [wonItem, setWonItem] = useState(null);
+
+  // Per-classroom effects toggle (persisted in localStorage)
+  const [effectsEnabled, setEffectsEnabled] = useState(() => {
+    try { return localStorage.getItem(`effects-enabled-${classroomId}`) !== 'false'; } catch { return true; }
+  });
+  const [activationEffect, setActivationEffect] = useState(null); // { effectUrl, itemName, category }
+
+  const toggleEffects = useCallback((val) => {
+    setEffectsEnabled(val);
+    try { localStorage.setItem(`effects-enabled-${classroomId}`, String(val)); } catch {}
+  }, [classroomId]);
+
+  // Show activation effect modal
+  const showEffect = useCallback((item) => {
+    if (!effectsEnabled) return;
+    if (!item?.activationEffect?.enabled || !item?.activationEffect?.url) return;
+    setActivationEffect({
+      effectUrl: item.activationEffect.url,
+      itemName: item.name,
+      category: item.category
+    });
+  }, [effectsEnabled]);
 
   // NEW: Search and sort states
   const [search, setSearch] = useState('');
@@ -75,12 +98,24 @@ const InventorySection = ({ userId, classroomId }) => {
         load();
       }
     });
+
+    // Show activation effect when an attack item hits this user
+    socket.on('activation_effect', (data) => {
+      if (effectsEnabled && data?.effectUrl) {
+        setActivationEffect({
+          effectUrl: data.effectUrl,
+          itemName: data.itemName || 'Item',
+          category: data.category || 'Attack'
+        });
+      }
+    });
     
     return () => {
       socket.off('inventory_update');
       socket.off('item_used');
+      socket.off('activation_effect');
     };
-  }, [userId]);
+  }, [userId, effectsEnabled]);
 
   // When a swap attribute is selected in the modal
   const handleSwapSelection = async (swapAttribute) => {
@@ -94,6 +129,9 @@ const InventorySection = ({ userId, classroomId }) => {
       
       toast.success(response.data.message || 'Swap successful!');
       
+      // Show activation effect from local item data
+      showEffect(currentItem);
+
       // Refresh inventory
       const invRes = await apiBazaar.get(`/inventory/${userId}?classroomId=${classroomId}`); // Add classroomId query param
       setItems(invRes.data.items);
@@ -176,6 +214,9 @@ const InventorySection = ({ userId, classroomId }) => {
         classroomId 
       });
       toast.success(response.data.message || 'Item used successfully!');
+
+      // Show activation effect from local item data (attacker's own effect)
+      showEffect(item);
       
       // Refresh inventory
       const invRes = await apiBazaar.get(`/inventory/${userId}?classroomId=${classroomId}`);
@@ -198,7 +239,10 @@ const InventorySection = ({ userId, classroomId }) => {
       // Show reward modal
       setWonItem(response.data.wonItem);
       setShowRewardModal(true);
-      
+
+      // Show activation effect from local item data
+      showEffect(item);
+
       toast.success(`You won: ${response.data.wonItem.name}!`);
 
       // Refresh inventory
@@ -228,6 +272,9 @@ const InventorySection = ({ userId, classroomId }) => {
       
       toast.success(res.data.message || 'Nullify successful!');
       
+      // Show activation effect from local item data
+      showEffect(currentItem);
+
       // Refresh inventory
       const invRes = await apiBazaar.get(`/inventory/${userId}?classroomId=${classroomId}`); // Add classroomId query param
       setItems(invRes.data.items);
@@ -359,9 +406,28 @@ const InventorySection = ({ userId, classroomId }) => {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold text-success flex items-center gap-2">
-        🎒 My Inventory ({sortedFiltered.length}/{items.length})
-      </h2>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
+        <h2 className="text-2xl font-bold text-success flex items-center gap-2">
+          🎒 My Inventory ({sortedFiltered.length}/{items.length})
+        </h2>
+        {/* Per-classroom effects toggle */}
+        <div className="flex items-center gap-2 ml-auto">
+          <div
+            className="tooltip tooltip-left"
+            data-tip="Controls whether activation effect GIFs/images pop up when you use an item. You can mute it for yourself at any time."
+          >
+            <Info size={15} className="text-base-content/50 cursor-help" />
+          </div>
+          <span className="text-sm text-base-content/70">Effects</span>
+          <input
+            type="checkbox"
+            className="toggle toggle-success toggle-sm"
+            checked={effectsEnabled}
+            onChange={e => toggleEffects(e.target.checked)}
+            aria-label="Toggle activation effects"
+          />
+        </div>
+      </div>
       {/* Optional small badge */}
       <div className="mb-2 text-xs text-base-content/60">
         Showing {sortedFiltered.length} of {items.length} items
@@ -629,6 +695,15 @@ const InventorySection = ({ userId, classroomId }) => {
           userLuck={detailsBoxLuck ?? undefined}
         />
       )}
+
+      {/* Activation Effect Modal */}
+      <ActivationEffectModal
+        isOpen={!!activationEffect}
+        effectUrl={activationEffect?.effectUrl || ''}
+        itemName={activationEffect?.itemName || ''}
+        category={activationEffect?.category || ''}
+        onClose={() => setActivationEffect(null)}
+      />
     </div>
   );
 };

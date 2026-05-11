@@ -341,8 +341,9 @@ const NotificationBell = () => {
                 <option value="unread">Unread</option>
                 <option value="announcement">Announcements</option>
                 <option value="group_add">Group Adds</option>
-                <option value="group_approval">Approvals</option>
-                <option value="group_rejection">Rejections</option>
+                <option value="group_approval,join_approved">Approvals</option>
+                <option value="group_rejection,join_rejected">Rejections</option>
+                <option value="join_request">Join Requests</option>
                 <option value="classroom_removal">Removals</option>
                 <option value="group_suspension">Suspensions</option>
                 <option value="group_deletion,classroom_deletion,groupset_deletion">Deletions</option>

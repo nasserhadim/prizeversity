@@ -130,7 +130,7 @@ router.post('/open/:itemId', ensureAuthenticated, blockIfFrozen, async (req, res
 
       const eligibleItems = config.itemPool.filter(p => pityMinRarityOrder[p.rarity] >= minRarityValue);
       if (eligibleItems.length === 0) {
-        return res.status(500).json({ error: 'Pity system misconfigured - no eligible items' });
+        return res.status(500).json({ error: 'Pity system misconfigured - no eligible items. Perhaps there are no items with the required minimum rarity.' });
       }
 
       const selected = eligibleItems[Math.floor(Math.random() * eligibleItems.length)];
