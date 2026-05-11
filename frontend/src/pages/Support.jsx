@@ -298,7 +298,8 @@ const Support = () => {
             "  - Stat boosts (luck, multiplier, shields)",
             "  - Group multipliers",
             "  - Special abilities",
-            "• Upload item images (note that if the image doesn't show up immediately after saving, try refreshing the page.)"
+            "• Upload item images (note that if the image doesn't show up immediately after saving, try refreshing the page.)",
+            "• Optionally add an **Activation Effect**: a GIF or image that pops up for the user when the item is activated. Upload a file (max 5 MB) or enter an external URL, then toggle 'Enable activation effect' on."
           ],
           role: ["teacher"]
         },
@@ -356,7 +357,8 @@ const Support = () => {
           answer: [
             "• Items that grant active effects (Attack, Defend, Utility, Discount, etc.) must be redeemed from the Inventory section of the Bazaar.",
             "• Open the Bazaar page, click **Inventory**, find the purchased item and equip/use it to activate its effect.",
-            "• Note that passive items without specified effects, such as extra credit items, should be presented to the teacher or relevant party for redemption. Redeeming through the Inventory is only necessary for items with active effects that impact stats or interactions within the system."
+            "• Note that passive items without specified effects, such as extra credit items, should be presented to the teacher or relevant party for redemption. Redeeming through the Inventory is only necessary for items with active effects that impact stats or interactions within the system.",
+            "• If an item has an **Activation Effect** (GIF or image) on it, it will pop up in a modal when you activate it (in the case of attacks, it will show the effect on the target as well). You can disable these popups for yourself anytime using the **Effects** toggle in your Inventory header — the setting is saved per classroom."
           ],
           role: ["student"]
         }
@@ -960,7 +962,7 @@ const Support = () => {
       ]
     },
     {
-      category: "Join Approval Queue",
+      category: "Classroom Join Approval Queue",
       icon: <Clock size={20} />,
       questions: [
         {
@@ -1054,7 +1056,7 @@ const Support = () => {
         {
           question: "When should I Ban vs Remove a student?",
           answer: [
-            "• **Remove**: takes a student out of the classroom but does not prevent them from rejoining via the classroom code.",
+            "• **Remove**: takes a student out of the classroom but does not prevent them from rejoining via the classroom code (unless join restrictions are enabled; see **Classroom Join Approval Queue** for details on this setting).",
             "• **Ban**: keeps the student listed as barred from the classroom so they cannot rejoin even if they have the classroom code.",
             "• **Important**: The Remove button is automatically disabled for banned students. You must unban a student first before you can remove them. This prevents accidentally losing the ability to unban someone.",
             "• **Recommendation**: Use Ban when you want to block access while keeping the option to unban later. Use Remove (after unbanning if needed) only when you are certain you want the student gone from the roster entirely."
