@@ -13,7 +13,7 @@ import apiClassroom from '../API/apiClassroom';
 import InventorySection from '../components/InventorySection';
 import toast from 'react-hot-toast';
 import Footer from '../components/Footer';
-import { resolveBannerSrc } from '../utils/image';
+import { resolveBannerSrc, resolveImageSrc } from '../utils/image';
 import { getBazaarTemplates, saveBazaarTemplate, deleteBazaarTemplate, applyBazaarTemplate } from '../API/apiBazaarTemplate';
 import { Package, Save, Trash2 } from 'lucide-react';
 import EditItemModal from '../components/EditItemModal';
@@ -1096,6 +1096,25 @@ const Bazaar = () => {
                            className="file-input file-input-bordered w-full"
                            onChange={e => setEditBazaarForm(f => ({ ...f, imageFile: e.target.files[0] }))} />
                     <p className="text-xs text-gray-500 mt-1">Allowed: jpg, png, webp, gif. Max: 5 MB.</p>
+                    {editBazaarForm.imageFile ? (
+                      <div className="mt-2">
+                        <img
+                          src={URL.createObjectURL(editBazaarForm.imageFile)}
+                          alt="Preview"
+                          className="w-24 h-24 object-cover rounded border"
+                        />
+                      </div>
+                    ) : bazaar?.image ? (
+                      <div className="mt-2">
+                        <p className="text-xs text-base-content/60 mb-1">Current image:</p>
+                        <img
+                          src={resolveImageSrc(bazaar.image)}
+                          alt="Current"
+                          className="w-24 h-24 object-cover rounded border"
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        />
+                      </div>
+                    ) : null}
                   </>
                 ) : (
                   <>
@@ -1104,6 +1123,16 @@ const Bazaar = () => {
                            value={editBazaarForm.imageUrl}
                            onChange={e => setEditBazaarForm(f => ({ ...f, imageUrl: e.target.value }))} />
                     <p className="text-xs text-gray-500 mt-1">Use a direct image URL (jpg, png, webp, gif).</p>
+                    {editBazaarForm.imageUrl && (
+                      <div className="mt-2">
+                        <img
+                          src={editBazaarForm.imageUrl}
+                          alt="Preview"
+                          className="w-24 h-24 object-cover rounded border"
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        />
+                      </div>
+                    )}
                   </>
                 )}
               </div>

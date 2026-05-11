@@ -137,9 +137,30 @@ const CreateBazaar = ({ classroomId, onCreate }) => {
               className="file-input file-input-bordered w-full max-w-xs"
             />
             <p className="text-xs text-gray-500">Allowed: jpg, png, webp, gif. Max: 5 MB.</p>
+            {imageFile && (
+              <div className="mt-2">
+                <img
+                  src={URL.createObjectURL(imageFile)}
+                  alt="Preview"
+                  className="w-24 h-24 object-cover rounded border"
+                />
+              </div>
+            )}
           </>
         ) : (
-          <input type="url" placeholder="https://example.com/image.jpg" value={imageUrlLocal} onChange={e => setImageUrlLocal(e.target.value)} className="input input-bordered" />
+          <>
+            <input type="url" placeholder="https://example.com/image.jpg" value={imageUrlLocal} onChange={e => setImageUrlLocal(e.target.value)} className="input input-bordered" />
+            {imageUrlLocal && (
+              <div className="mt-2">
+                <img
+                  src={imageUrlLocal}
+                  alt="Preview"
+                  className="w-24 h-24 object-cover rounded border"
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
+              </div>
+            )}
+          </>
         )}
       </div>
 
