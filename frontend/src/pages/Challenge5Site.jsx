@@ -46,7 +46,10 @@ const Challenge5Site = () => {
 
     try {
       setLoading(true);
-      const response = await fetch('https://0jqaxbqaa2.execute-api.us-east-1.amazonaws.com/prod/verify', {
+      const apiUrl = import.meta.env.VITE_WAYNEAWS_API_URL 
+        || 'https://bx7226tmz2.execute-api.us-east-1.amazonaws.com/prod';
+
+      await fetch(`${apiUrl}/verify`, {
         method: 'POST',
         credentials: 'include',
         headers: {

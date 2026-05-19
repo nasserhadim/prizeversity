@@ -16,7 +16,10 @@ router.post('/verify', async (req, res) => {
     }
 
     // Make request to WayneAWS API
-    const response = await axios.post('https://0jqaxbqaa2.execute-api.us-east-1.amazonaws.com/prod/verify', {
+    const WAYNEAWS_API_URL = process.env.WAYNEAWS_API_URL 
+      || 'https://bx7226tmz2.execute-api.us-east-1.amazonaws.com/prod';
+
+    await axios.post(`${WAYNEAWS_API_URL}/verify`, {
       username: username.trim(),
       secret: secret.trim()
     }, {
