@@ -637,7 +637,11 @@ GITHUB_REPO=
 # Salt is used for randomness, prevents predictable cipher outputs.
 CAESAR_BASE=<base-shift, e.g. 3>
 CAESAR_RANGE=<max-range, e.g. 9>
-CAESAR_SALT=<input-any-salt-here, e.g. 739bbc2d7d07e8deed48a46eeb012836eae76663d9da8f53713d3309a49e29c1> 
+CAESAR_SALT=<input-any-salt-here, e.g. 739bbc2d7d07e8deed48a46eeb012836eae76663d9da8f53713d3309a49e29c1>
+
+# Legacy Challenge #5 API Endpoint
+WAYNEAWS_API_URL = 
+VITE_WAYNEAWS_API_URL = 
 ```
 
 ## 3. Install dependencies
