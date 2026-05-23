@@ -49,9 +49,8 @@ const Challenge5Site = () => {
       const apiUrl = import.meta.env.VITE_WAYNEAWS_API_URL 
         || 'https://bx7226tmz2.execute-api.us-east-1.amazonaws.com/prod';
 
-      await fetch(`${apiUrl}/verify`, {
+      const response = await fetch(`${apiUrl}/verify`, {
         method: 'POST',
-        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
