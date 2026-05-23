@@ -19,7 +19,7 @@ router.post('/verify', async (req, res) => {
     const WAYNEAWS_API_URL = process.env.WAYNEAWS_API_URL 
       || 'https://bx7226tmz2.execute-api.us-east-1.amazonaws.com/prod';
 
-    await axios.post(`${WAYNEAWS_API_URL}/verify`, {
+    const response = await axios.post(`${WAYNEAWS_API_URL}/verify`, {
       username: username.trim(),
       secret: secret.trim()
     }, {
